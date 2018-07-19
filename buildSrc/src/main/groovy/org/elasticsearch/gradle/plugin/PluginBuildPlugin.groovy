@@ -94,15 +94,6 @@ public class PluginBuildPlugin extends BuildPlugin {
         createBundleTask(project)
 
         project.configurations.default.extendsFrom(project.configurations.runtime)
-        /*
-         * If we're using the shadow plugin we don't want "compile"
-         * dependencies in our "default" configuration or else downstream
-         * projects will jarhell on the classes that are shaded into the
-         * jar.
-         */
-        project.plugins.withType(ShadowPlugin).whenPluginAdded {
-            project.configurations.default.setExtendsFrom([project.configurations.shadow])
-        }
 
         project.tasks.create('run', RunTask) // allow running ES with this plugin in the foreground of a build
     }

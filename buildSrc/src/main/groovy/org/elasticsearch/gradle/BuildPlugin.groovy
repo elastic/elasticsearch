@@ -340,17 +340,6 @@ class BuildPlugin implements Plugin<Project> {
         // we want to test compileOnly deps!
         project.configurations.testCompile.extendsFrom(project.configurations.compileOnly)
 
-        /*
-         * If we're using the shadow plugin we don't want "compile"
-         * dependencies in our "default" configuration or else downstream
-         * projects will jarhell on the classes that are shaded into the
-         * jar.
-         */
-        project.plugins.withType(ShadowPlugin).whenPluginAdded {
-            println("AAA ${project.path} has shadow")
-            project.configurations.default.setExtendsFrom([project.configurations.shadow])
-        }
-
         // we are not shipping these jars, we act like dumb consumers of these things
         if (project.path.startsWith(':test:fixtures') || project.path == ':build-tools') {
             return
@@ -878,14 +867,23 @@ class BuildPlugin implements Plugin<Project> {
         project.check.dependsOn(precommit)
         project.test.mustRunAfter(precommit)
         // only require dependency licenses for non-elasticsearch deps
-        project.dependencyLicenses.dependencies = project.configurations.default.fileCollection {
+        project.dependencyLicenses.dependencies = project.configurations.runtime.fileCollection {
             it.group.startsWith('org.elasticsearch') == false
         } - project.configurations.compileOnly
+        project.plugins.withType(ShadowPlugin).whenPluginAdded {
+            project.dependencyLicenses.dependencies += project.configurations.shadow.fileCollection {
+                it.group.startsWith('org.elasticsearch') == false
+            }
+        }
     }
 
     private static configureDependenciesInfo(Project project) {
         Task deps = project.tasks.create("dependenciesInfo", DependenciesInfoTask.class)
         deps.runtimeConfiguration = project.configurations.runtime
+        project.plugins.withType(ShadowPlugin).whenPluginAdded {
+            deps.runtimeConfiguration = project.configurations.create('infoDeps')
+            deps.runtimeConfiguration.extendsFrom(project.configurations.runtime, project.configurations.shadow)
+        }
         deps.compileOnlyConfiguration = project.configurations.compileOnly
         project.afterEvaluate {
             deps.mappings = project.dependencyLicenses.mappings

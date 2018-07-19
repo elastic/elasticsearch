@@ -20,7 +20,7 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.test.NativeRealmIntegTestCase;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 
 import java.util.Locale;
@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class KibanaUserRoleIntegTests extends SecurityIntegTestCase {
+public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
 
     protected static final SecureString USERS_PASSWD = new SecureString("change_me".toCharArray());
 

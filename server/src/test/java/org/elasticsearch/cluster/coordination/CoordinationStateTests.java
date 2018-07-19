@@ -431,12 +431,15 @@ public class CoordinationStateTests extends ESTestCase {
             assertTrue(cs1.handleJoin(v1));
             assertTrue(cs1.electionWon());
         }
-        ClusterState state2 = clusterState(startJoinRequest1.getTerm(), 2L, node1, initialConfig, initialConfig, 13L);
+        ClusterState state2 = clusterState(startJoinRequest1.getTerm(), randomLongBetween(1, 10), node1, initialConfig, initialConfig, 13L);
         PublishResponse publishResponse = cs1.handlePublishRequest(new PublishRequest(state2));
         assertThat(publishResponse.getTerm(), equalTo(state2.term()));
         assertThat(publishResponse.getVersion(), equalTo(state2.version()));
         assertThat(cs1.getLastAcceptedState(), equalTo(state2));
         assertThat(value(cs1.getLastAcceptedState()), equalTo(13L));
+        ClusterState state3 = clusterState(startJoinRequest1.getTerm(), randomLongBetween(state2.getVersion() + 1, 20), node1,
+            initialConfig, initialConfig, 13L);
+        cs1.handlePublishRequest(new PublishRequest(state3));
     }
 
     public void testHandlePublishRequestWithBadTerm() {
@@ -458,7 +461,8 @@ public class CoordinationStateTests extends ESTestCase {
             containsString("does not match current term"));
     }
 
-    public void testHandlePublishRequestWithOlderVersion() {
+    // scenario when handling a publish request from a master that we already received a newer state from
+    public void testHandlePublishRequestWithSameTermButOlderOrSameVersion() {
         VotingConfiguration initialConfig = new VotingConfiguration(Collections.singleton(node1.getId()));
         ClusterState state1 = clusterState(0L, 1L, node1, initialConfig, initialConfig, 42L);
         cs1.setInitialState(state1);
@@ -475,6 +479,20 @@ public class CoordinationStateTests extends ESTestCase {
         assertThat(expectThrows(CoordinationStateRejectedException.class,
             () -> cs1.handlePublishRequest(new PublishRequest(state3))).getMessage(),
             containsString("lower or equal to current version"));
+    }
+
+    // scenario when handling a publish request from a fresh master
+    public void testHandlePublishRequestWithTermHigherThanLastAcceptedTerm() {
+        VotingConfiguration initialConfig = new VotingConfiguration(Collections.singleton(node1.getId()));
+        StartJoinRequest startJoinRequest1 = new StartJoinRequest(node1, randomLongBetween(1, 5));
+        ClusterState state1 = clusterState(startJoinRequest1.getTerm(), randomLongBetween(2, 10), node1, initialConfig, initialConfig, 42L);
+        cs2.handleStartJoin(startJoinRequest1);
+        cs2.handlePublishRequest(new PublishRequest(state1));
+        StartJoinRequest startJoinRequest2 = new StartJoinRequest(node1, randomLongBetween(startJoinRequest1.getTerm() + 1, 10));
+        cs2.handleStartJoin(startJoinRequest2);
+        ClusterState state2 = clusterState(startJoinRequest2.getTerm(), randomLongBetween(0, 20), node1, initialConfig,
+            initialConfig, 42L);
+        cs2.handlePublishRequest(new PublishRequest(state2));
     }
 
     public void testHandlePublishResponseWithCommit() {

@@ -917,6 +917,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         try {
             return store.stats();
         } catch (IOException e) {
+            failShard("Failing shard because of exception during storeState " + e.getMessage(), e);
+            //TODO should close method be called inside failShard?
+            try {
+                close("Closing shard because of exception during storeStats " + e.getMessage(), false);
+            } catch (IOException e1) {
+                logger.warn("Error closing shard");
+            }
             throw new ElasticsearchException("io exception while building 'store stats'", e);
         }
     }

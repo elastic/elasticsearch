@@ -104,7 +104,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
                     shardRouting,
                     shard.shardPath(),
                     shard.indexSettings().getIndexMetaData(),
-                    null,
+                    null, null,
                     new InternalEngineFactory(),
                     () -> {},
                     EMPTY_EVENT_LISTENER);

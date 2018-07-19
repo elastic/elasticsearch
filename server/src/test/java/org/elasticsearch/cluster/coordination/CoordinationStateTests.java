@@ -218,8 +218,9 @@ public class CoordinationStateTests extends ESTestCase {
         StartJoinRequest startJoinRequest2 = new StartJoinRequest(node2, randomLongBetween(startJoinRequest1.getTerm() + 1, 10));
         Join v1 = cs1.handleStartJoin(startJoinRequest2);
 
-        Join join = new Join(node1, node1, v1.getTerm(), randomLongBetween(0, state2.term()),
-            randomLongBetween(0, state2.version()));
+        boolean sameTermButBetterVersion = randomBoolean();
+        Join join = new Join(node1, node1, v1.getTerm(), sameTermButBetterVersion ? state2.term() : randomLongBetween(0, state2.term()),
+            sameTermButBetterVersion ? randomLongBetween(0, state2.version()) : randomLongBetween(0, 20));
         assertTrue(cs1.handleJoin(join));
         assertTrue(cs1.electionWon());
         assertTrue(cs1.containsJoinVoteFor(node1));

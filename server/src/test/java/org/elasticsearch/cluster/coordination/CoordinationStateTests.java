@@ -131,7 +131,12 @@ public class CoordinationStateTests extends ESTestCase {
 
         StartJoinRequest startJoinRequest2 = new StartJoinRequest(randomFrom(node1, node2),
             randomLongBetween(0, startJoinRequest1.getTerm()));
-        expectThrows(CoordinationStateRejectedException.class, () -> cs1.handleStartJoin(startJoinRequest2));
+        assertThat(expectThrows(CoordinationStateRejectedException.class, () -> cs1.handleStartJoin(startJoinRequest2)).getMessage(),
+            containsString("not greater than current term"));
+        StartJoinRequest startJoinRequest3 = new StartJoinRequest(randomFrom(node1, node2),
+            startJoinRequest1.getTerm());
+        assertThat(expectThrows(CoordinationStateRejectedException.class, () -> cs1.handleStartJoin(startJoinRequest3)).getMessage(),
+            containsString("not greater than current term"));
     }
 
     public void testJoinBeforeBootstrap() {

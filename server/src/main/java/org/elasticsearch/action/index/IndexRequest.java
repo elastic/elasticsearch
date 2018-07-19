@@ -519,7 +519,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     /* resolve the routing if needed */
     public void resolveRouting(MetaData metaData) {
-        routing(metaData.resolveIndexRouting(parent, routing, index));
+        routing(metaData.resolveWriteIndexRouting(parent, routing, index));
     }
 
     @Override

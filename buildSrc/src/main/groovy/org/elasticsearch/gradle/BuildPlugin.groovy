@@ -340,6 +340,17 @@ class BuildPlugin implements Plugin<Project> {
         // we want to test compileOnly deps!
         project.configurations.testCompile.extendsFrom(project.configurations.compileOnly)
 
+        /*
+         * If we're using the shadow plugin we don't want "compile"
+         * dependencies in our "default" configuration or else downstream
+         * projects will jarhell on the classes that are shaded into the
+         * jar.
+         */
+        project.plugins.withType(ShadowPlugin).whenPluginAdded {
+            println("AAA ${project.path} has shadow")
+            project.configurations.default.setExtendsFrom([project.configurations.shadow])
+        }
+
         // we are not shipping these jars, we act like dumb consumers of these things
         if (project.path.startsWith(':test:fixtures') || project.path == ':build-tools') {
             return

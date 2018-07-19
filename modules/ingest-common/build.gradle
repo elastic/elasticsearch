@@ -30,3 +30,7 @@ dependencies {
 
 compileJava.options.compilerArgs << "-Xlint:-unchecked,-rawtypes"
 compileTestJava.options.compilerArgs << "-Xlint:-unchecked,-rawtypes"
+
+integTestCluster {
+    module project(':modules:lang-painless')
+}

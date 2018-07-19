@@ -546,6 +546,24 @@ public class CoordinationStateTests extends ESTestCase {
         assertThat(applyCommit.get().getVersion(), equalTo(state2.version()));
     }
 
+    public void testHandlePublishResponseWhenSteppedDownAsLeader() {
+        VotingConfiguration initialConfig = new VotingConfiguration(Collections.singleton(node1.getId()));
+        ClusterState state1 = clusterState(0L, 1L, node1, initialConfig, initialConfig, 42L);
+        cs1.setInitialState(state1);
+        StartJoinRequest startJoinRequest1 = new StartJoinRequest(node1, randomLongBetween(1, 5));
+        Join v1 = cs1.handleStartJoin(startJoinRequest1);
+        assertTrue(cs1.handleJoin(v1));
+        assertTrue(cs1.electionWon());
+        ClusterState state2 = clusterState(startJoinRequest1.getTerm(), 2L, node1, initialConfig, initialConfig, 42L);
+        PublishRequest publishRequest = cs1.handleClientValue(state2);
+        PublishResponse publishResponse = cs1.handlePublishRequest(publishRequest);
+        StartJoinRequest startJoinRequest2 = new StartJoinRequest(node1, randomLongBetween(startJoinRequest1.getTerm() + 1, 10));
+        cs1.handleStartJoin(startJoinRequest2);
+        assertThat(expectThrows(CoordinationStateRejectedException.class,
+            () -> cs1.handlePublishResponse(randomFrom(node1, node2, node3), publishResponse)).getMessage(),
+            containsString("election not won"));
+    }
+
     public void testHandlePublishResponseWithoutPublishConfigQuorum() {
         VotingConfiguration configNode1 = new VotingConfiguration(Collections.singleton(node1.getId()));
         VotingConfiguration configNode2 = new VotingConfiguration(Collections.singleton(node2.getId()));

@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
-
 plugins {
     id 'elasticsearch.build'
 }
@@ -7,6 +5,8 @@ plugins {
 ext.licenseFile = file("$buildDir/dummy/license")
 ext.noticeFile = file("$buildDir/dummy/notice")
 
-task (exportCheckstyle, type: ExportElasticsearchBuildResourcesTask) {
+exportBuildResources {
     resource 'CHECKSTYLE_CONF', file("$buildDir/checkstyle-1.xml")
+    resource 'CHECKSTYLE_CONF', "$buildDir/checkstyle-2.xml"
+    resource 'checkstyle_conf', file("$buildDir/checkstyle-3.xml")
 }

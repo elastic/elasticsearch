@@ -13,4 +13,8 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
         return new File(root, name);
     }
 
+    protected File getBuildDir(String name) {
+        return new File(getProjectDir(name), "build");
+    }
+
 }

@@ -18,7 +18,9 @@
  */
 package org.elasticsearch.gradle;
 
+import groovy.lang.GString;
 import org.gradle.api.DefaultTask;
+import org.gradle.api.GradleException;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.tasks.Classpath;
@@ -29,6 +31,9 @@ import org.gradle.api.tasks.StopExecutionException;
 import org.gradle.api.tasks.TaskAction;
 
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -78,12 +83,31 @@ public class ExportElasticsearchBuildResourcesTask extends DefaultTask {
         resources.add(new ExportPair(resource, outputFile));
     }
 
+    public void resource(ElasticsearchBuildResource resource, String outputFile) {
+        resources.add(new ExportPair(resource, getProject().file(outputFile)));
+    }
+
+    public void resource(ElasticsearchBuildResource resource, GString outputFile) {
+        resources.add(new ExportPair(resource, getProject().file(outputFile)));
+    }
+
     @TaskAction
     public void doExport() {
         if (resources.isEmpty()) {
             throw new StopExecutionException();
         }
-        logger.info("exporting resources");
+        resources.stream().parallel()
+            .forEach(pair -> {
+                try {
+                    try(InputStream is = getClass().getResourceAsStream(pair.getResource().getFullName())) {
+                        Files.copy(is, pair.getOutputFile().toPath());
+                    }
+                } catch (IOException e) {
+                    throw new GradleException(
+                        "Can't write resource " + pair.getResource().name() + " to " + pair.getOutputFile()
+                    );
+                }
+            });
     }
 
     // Gradle wants this to be Serializable, we achieve this by extending list,

@@ -24,37 +24,38 @@ import org.gradle.testkit.runner.BuildResult;
 import org.gradle.testkit.runner.GradleRunner;
 import org.gradle.testkit.runner.TaskOutcome;
 
+import java.io.File;
+
 public class ExportElasticsearchBuildResourcesTaskIT extends GradleIntegrationTestCase {
 
-    public void testUpToDate() {
-        BuildResult result = GradleRunner.create()
-            .withProjectDir(getProjectDir("elasticsearch-build-resources"))
-            .withArguments("exportBuildResources", "-s")
-            .withPluginClasspath()
-            .build();
-        assertEquals(TaskOutcome.UP_TO_DATE, result.task(":exportBuildResources").getOutcome());
-    }
+    public static final String PROJECT_NAME = "elasticsearch-build-resources";
 
     public void testUpToDateWithSourcesConfigured() {
         GradleRunner.create()
-            .withProjectDir(getProjectDir("elasticsearch-build-resources"))
+            .withProjectDir(getProjectDir(PROJECT_NAME))
             .withArguments("clean", "-s")
             .withPluginClasspath()
             .build();
 
         BuildResult result = GradleRunner.create()
             .withProjectDir(getProjectDir("elasticsearch-build-resources"))
-            .withArguments("exportCheckstyle", "-s", "-i")
+            .withArguments("exportBuildResources", "-s", "-i")
             .withPluginClasspath()
             .build();
-        assertEquals(TaskOutcome.SUCCESS, result.task(":exportCheckstyle").getOutcome());
+        assertEquals(TaskOutcome.SUCCESS, result.task(":exportBuildResources").getOutcome());
+        assertTrue(new File(getBuildDir(PROJECT_NAME), "checkstyle-1.xml").exists());
+        assertTrue(new File(getBuildDir(PROJECT_NAME), "checkstyle-2.xml").exists());
+        assertTrue(new File(getBuildDir(PROJECT_NAME), "checkstyle-3.xml").exists());
 
         result = GradleRunner.create()
             .withProjectDir(getProjectDir("elasticsearch-build-resources"))
-            .withArguments("exportCheckstyle", "-s", "-i")
+            .withArguments("exportBuildResources", "-s", "-i")
             .withPluginClasspath()
             .build();
-        assertEquals(TaskOutcome.UP_TO_DATE, result.task(":exportCheckstyle").getOutcome());
+        assertEquals(TaskOutcome.UP_TO_DATE, result.task(":exportBuildResources").getOutcome());
+        assertTrue(new File(getBuildDir(PROJECT_NAME), "checkstyle-1.xml").exists());
+        assertTrue(new File(getBuildDir(PROJECT_NAME), "checkstyle-2.xml").exists());
+        assertTrue(new File(getBuildDir(PROJECT_NAME), "checkstyle-3.xml").exists());
 
 
     }

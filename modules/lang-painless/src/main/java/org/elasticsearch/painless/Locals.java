@@ -19,10 +19,10 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.lookup.PainlessLookup;
-import org.elasticsearch.painless.lookup.PainlessMethod;
-import org.elasticsearch.painless.lookup.PainlessMethodKey;
 import org.elasticsearch.painless.ScriptClassInfo.MethodArgument;
+import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.lookup.PainlessMethod;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -143,7 +143,7 @@ public final class Locals {
     }
 
     /** Looks up a method. Returns null if the method does not exist. */
-    public PainlessMethod getMethod(PainlessMethodKey key) {
+    public PainlessMethod getMethod(String key) {
         PainlessMethod method = lookupMethod(key);
         if (method != null) {
             return method;
@@ -199,7 +199,7 @@ public final class Locals {
     // variable name -> variable
     private Map<String,Variable> variables;
     // method name+arity -> methods
-    private Map<PainlessMethodKey,PainlessMethod> methods;
+    private Map<String,PainlessMethod> methods;
 
     /**
      * Create a new Locals
@@ -237,7 +237,7 @@ public final class Locals {
     }
 
     /** Looks up a method at this scope only. Returns null if the method does not exist. */
-    private PainlessMethod lookupMethod(PainlessMethodKey key) {
+    private PainlessMethod lookupMethod(String key) {
         if (methods == null) {
             return null;
         }
@@ -260,7 +260,7 @@ public final class Locals {
         if (methods == null) {
             methods = new HashMap<>();
         }
-        methods.put(new PainlessMethodKey(method.name, method.arguments.size()), method);
+        methods.put(PainlessLookupUtility.buildPainlessMethodKey(method.name, method.arguments.size()), method);
         // TODO: check result
     }
 
@@ -292,7 +292,7 @@ public final class Locals {
         @Override
         public String toString() {
             StringBuilder b = new StringBuilder();
-            b.append("Variable[type=").append(PainlessLookup.ClassToName(clazz));
+            b.append("Variable[type=").append(PainlessLookupUtility.anyTypeToPainlessTypeName(clazz));
             b.append(",name=").append(name);
             b.append(",slot=").append(slot);
             if (readonly) {

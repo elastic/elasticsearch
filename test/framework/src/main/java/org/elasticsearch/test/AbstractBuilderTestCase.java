@@ -83,7 +83,9 @@ import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -94,21 +96,35 @@ import static java.util.stream.Collectors.toList;
 public abstract class AbstractBuilderTestCase extends ESTestCase {
 
     public static final String STRING_FIELD_NAME = "mapped_string";
+    public static final String STRING_ALIAS_FIELD_NAME = "mapped_string_alias";
     protected static final String STRING_FIELD_NAME_2 = "mapped_string_2";
     protected static final String INT_FIELD_NAME = "mapped_int";
+    protected static final String INT_ALIAS_FIELD_NAME = "mapped_int_field_alias";
     protected static final String INT_RANGE_FIELD_NAME = "mapped_int_range";
     protected static final String DOUBLE_FIELD_NAME = "mapped_double";
     protected static final String BOOLEAN_FIELD_NAME = "mapped_boolean";
     protected static final String DATE_FIELD_NAME = "mapped_date";
+    protected static final String DATE_ALIAS_FIELD_NAME = "mapped_date_alias";
     protected static final String DATE_RANGE_FIELD_NAME = "mapped_date_range";
     protected static final String OBJECT_FIELD_NAME = "mapped_object";
     protected static final String GEO_POINT_FIELD_NAME = "mapped_geo_point";
+    protected static final String GEO_POINT_ALIAS_FIELD_NAME = "mapped_geo_point_alias";
     protected static final String GEO_SHAPE_FIELD_NAME = "mapped_geo_shape";
-    protected static final String[] MAPPED_FIELD_NAMES = new String[]{STRING_FIELD_NAME, INT_FIELD_NAME, INT_RANGE_FIELD_NAME,
-            DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_FIELD_NAME, DATE_RANGE_FIELD_NAME, OBJECT_FIELD_NAME, GEO_POINT_FIELD_NAME,
-            GEO_SHAPE_FIELD_NAME};
-    protected static final String[] MAPPED_LEAF_FIELD_NAMES = new String[]{STRING_FIELD_NAME, INT_FIELD_NAME, INT_RANGE_FIELD_NAME,
-            DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_FIELD_NAME, DATE_RANGE_FIELD_NAME,  GEO_POINT_FIELD_NAME, };
+    protected static final String[] MAPPED_FIELD_NAMES = new String[]{STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME,
+        INT_FIELD_NAME, INT_RANGE_FIELD_NAME, DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_FIELD_NAME,
+        DATE_RANGE_FIELD_NAME, OBJECT_FIELD_NAME, GEO_POINT_FIELD_NAME, GEO_POINT_ALIAS_FIELD_NAME,
+        GEO_SHAPE_FIELD_NAME};
+    protected static final String[] MAPPED_LEAF_FIELD_NAMES = new String[]{STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME,
+        INT_FIELD_NAME, INT_RANGE_FIELD_NAME, DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME,
+        DATE_FIELD_NAME, DATE_RANGE_FIELD_NAME,  GEO_POINT_FIELD_NAME, GEO_POINT_ALIAS_FIELD_NAME};
+
+    private static final Map<String, String> ALIAS_TO_CONCRETE_FIELD_NAME = new HashMap<>();
+    static {
+        ALIAS_TO_CONCRETE_FIELD_NAME.put(STRING_ALIAS_FIELD_NAME, STRING_FIELD_NAME);
+        ALIAS_TO_CONCRETE_FIELD_NAME.put(INT_ALIAS_FIELD_NAME, INT_FIELD_NAME);
+        ALIAS_TO_CONCRETE_FIELD_NAME.put(DATE_ALIAS_FIELD_NAME, DATE_FIELD_NAME);
+        ALIAS_TO_CONCRETE_FIELD_NAME.put(GEO_POINT_ALIAS_FIELD_NAME, GEO_POINT_FIELD_NAME);
+    }
 
     protected static Version indexVersionCreated;
 
@@ -198,6 +214,13 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         return Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, indexVersionCreated)
             .build();
+    }
+
+    protected static String expectedFieldName(String builderFieldName) {
+        if (currentTypes.length == 0) {
+            return builderFieldName;
+        }
+        return ALIAS_TO_CONCRETE_FIELD_NAME.getOrDefault(builderFieldName, builderFieldName);
     }
 
     @AfterClass
@@ -356,19 +379,24 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 }
             });
 
+
             for (String type : currentTypes) {
                 mapperService.merge(type, new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(type,
-                        STRING_FIELD_NAME, "type=text",
-                        STRING_FIELD_NAME_2, "type=keyword",
-                        INT_FIELD_NAME, "type=integer",
-                        INT_RANGE_FIELD_NAME, "type=integer_range",
-                        DOUBLE_FIELD_NAME, "type=double",
-                        BOOLEAN_FIELD_NAME, "type=boolean",
-                        DATE_FIELD_NAME, "type=date",
-                        DATE_RANGE_FIELD_NAME, "type=date_range",
-                        OBJECT_FIELD_NAME, "type=object",
-                        GEO_POINT_FIELD_NAME, "type=geo_point",
-                        GEO_SHAPE_FIELD_NAME, "type=geo_shape"
+                    STRING_FIELD_NAME, "type=text",
+                    STRING_FIELD_NAME_2, "type=keyword",
+                    STRING_ALIAS_FIELD_NAME, "type=alias,path=" + STRING_FIELD_NAME,
+                    INT_FIELD_NAME, "type=integer",
+                    INT_ALIAS_FIELD_NAME, "type=alias,path=" + INT_FIELD_NAME,
+                    INT_RANGE_FIELD_NAME, "type=integer_range",
+                    DOUBLE_FIELD_NAME, "type=double",
+                    BOOLEAN_FIELD_NAME, "type=boolean",
+                    DATE_FIELD_NAME, "type=date",
+                    DATE_ALIAS_FIELD_NAME, "type=alias,path=" + DATE_FIELD_NAME,
+                    DATE_RANGE_FIELD_NAME, "type=date_range",
+                    OBJECT_FIELD_NAME, "type=object",
+                    GEO_POINT_FIELD_NAME, "type=geo_point",
+                    GEO_POINT_ALIAS_FIELD_NAME, "type=alias,path=" + GEO_POINT_FIELD_NAME,
+                    GEO_SHAPE_FIELD_NAME, "type=geo_shape"
                 ))), MapperService.MergeReason.MAPPING_UPDATE);
                 // also add mappings for two inner field in the object field
                 mapperService.merge(type, new CompressedXContent("{\"properties\":{\"" + OBJECT_FIELD_NAME + "\":{\"type\":\"object\","

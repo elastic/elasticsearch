@@ -349,7 +349,10 @@ public class SSLDriver implements AutoCloseable {
                         if (hasFlushPending() == false) {
                             handshakeStatus = wrap(EMPTY_BUFFER_ARRAY).getHandshakeStatus();
                         }
-                        continueHandshaking = false;
+                        // If we need NEED_TASK we should run the tasks immediately
+                        if (handshakeStatus != SSLEngineResult.HandshakeStatus.NEED_TASK) {
+                            continueHandshaking = false;
+                        }
                         break;
                     case NEED_TASK:
                         runTasks();
@@ -432,8 +435,16 @@ public class SSLDriver implements AutoCloseable {
         }
 
         private void maybeFinishHandshake() {
-            // We only acknowledge that we are done handshaking if there are no bytes that need to be written
-            if (hasFlushPending() == false) {
+            if (engine.isOutboundDone() || engine.isInboundDone()) {
+                // If the engine is partially closed, immediate transition to close mode.
+                if (currentMode.isHandshake()) {
+                    currentMode = new CloseMode(true);
+                } else {
+                    String message = "Expected to be in handshaking mode. Instead in non-handshaking mode: " + currentMode;
+                    throw new AssertionError(message);
+                }
+            } else if (hasFlushPending() == false) {
+                // We only acknowledge that we are done handshaking if there are no bytes that need to be written
                 if (currentMode.isHandshake()) {
                     currentMode = new ApplicationMode();
                 } else {
@@ -510,7 +521,7 @@ public class SSLDriver implements AutoCloseable {
             if (isHandshaking && engine.isInboundDone() == false) {
                 // If we attempt to close during a handshake either we are sending an alert and inbound
                 // should already be closed or we are sending a close_notify. If we send a close_notify
-                // the peer will send an handshake error alert. If we attempt to receive the handshake alert,
+                // the peer might send an handshake error alert. If we attempt to receive the handshake alert,
                 // the engine will throw an IllegalStateException as it is not in a proper state to receive
                 // handshake message. Closing inbound immediately after close_notify is the cleanest option.
                 needToReceiveClose = false;

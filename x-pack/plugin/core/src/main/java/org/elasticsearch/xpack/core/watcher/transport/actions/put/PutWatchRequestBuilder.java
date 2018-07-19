@@ -9,6 +9,8 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
+import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
 
 public class PutWatchRequestBuilder extends ActionRequestBuilder<PutWatchRequest, PutWatchResponse> {
@@ -43,7 +45,7 @@ public class PutWatchRequestBuilder extends ActionRequestBuilder<PutWatchRequest
      * @param source the source of the watch to be created
      */
     public PutWatchRequestBuilder setSource(WatchSourceBuilder source) {
-        request.setSource(source);
+        request.setSource(source.buildAsBytes(XContentType.JSON), XContentType.JSON);
         return this;
     }
 

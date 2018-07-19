@@ -66,13 +66,13 @@ public class PingAndInfoIT extends ESRestHighLevelClientTestCase {
 
         assertEquals(mainResponse.getBuild().shortHash(), info.getBuildInfo().getHash());
 
-        assertEquals("basic", info.getLicenseInfo().getType());
-        assertEquals("basic", info.getLicenseInfo().getMode());
+        assertEquals("trial", info.getLicenseInfo().getType());
+        assertEquals("trial", info.getLicenseInfo().getMode());
         assertEquals(LicenseStatus.ACTIVE, info.getLicenseInfo().getStatus());
 
         FeatureSet graph = info.getFeatureSetsInfo().getFeatureSets().get("graph");
         assertNotNull(graph.description());
-        assertFalse(graph.available());
+        assertTrue(graph.available());
         assertTrue(graph.enabled());
         assertNull(graph.nativeCodeInfo());
         FeatureSet monitoring = info.getFeatureSetsInfo().getFeatureSets().get("monitoring");
@@ -82,7 +82,7 @@ public class PingAndInfoIT extends ESRestHighLevelClientTestCase {
         assertNull(monitoring.nativeCodeInfo());
         FeatureSet ml = info.getFeatureSetsInfo().getFeatureSets().get("ml");
         assertNotNull(ml.description());
-        assertFalse(ml.available());
+        assertTrue(ml.available());
         assertTrue(ml.enabled());
         assertEquals(mainResponse.getVersion().toString(),
                 ml.nativeCodeInfo().get("version").toString().replace("-SNAPSHOT", ""));

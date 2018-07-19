@@ -267,6 +267,34 @@ public class CoordinationStateTests extends ESTestCase {
         assertFalse(cs1.handleJoin(join));
     }
 
+    public void testJoinDoesNotWinElectionWhenOnlyCommittedConfigQuorum() {
+        VotingConfiguration configNode1 = new VotingConfiguration(Collections.singleton(node1.getId()));
+        VotingConfiguration configNode2 = new VotingConfiguration(Collections.singleton(node2.getId()));
+        ClusterState state1 = clusterState(0L, 1L, node1, configNode1, configNode2, 42L);
+        cs1.setInitialState(state1);
+
+        StartJoinRequest startJoinRequest = new StartJoinRequest(node1, randomLongBetween(1, 5));
+        Join join = cs1.handleStartJoin(startJoinRequest);
+        assertTrue(cs1.handleJoin(join));
+        assertFalse(cs1.electionWon());
+        assertEquals(cs1.getLastPublishedVersion(), 0L);
+        assertFalse(cs1.handleJoin(join));
+    }
+
+    public void testJoinDoesNotWinElectionWhenOnlyLastAcceptedConfigQuorum() {
+        VotingConfiguration configNode1 = new VotingConfiguration(Collections.singleton(node1.getId()));
+        VotingConfiguration configNode2 = new VotingConfiguration(Collections.singleton(node2.getId()));
+        ClusterState state1 = clusterState(0L, 1L, node1, configNode2, configNode1, 42L);
+        cs1.setInitialState(state1);
+
+        StartJoinRequest startJoinRequest = new StartJoinRequest(node1, randomLongBetween(1, 5));
+        Join join = cs1.handleStartJoin(startJoinRequest);
+        assertTrue(cs1.handleJoin(join));
+        assertFalse(cs1.electionWon());
+        assertEquals(cs1.getLastPublishedVersion(), 0L);
+        assertFalse(cs1.handleJoin(join));
+    }
+
     public void testHandleClientValue() {
         VotingConfiguration initialConfig = new VotingConfiguration(Collections.singleton(node1.getId()));
         ClusterState state1 = clusterState(0L, 1L, node1, initialConfig, initialConfig, 42L);

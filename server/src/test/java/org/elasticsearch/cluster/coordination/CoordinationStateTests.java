@@ -67,7 +67,7 @@ public class CoordinationStateTests extends ESTestCase {
 
         cs1 = createCoordinationState(new InMemoryPersistedState(0L, initialStateNode1), node1);
         cs2 = createCoordinationState(new InMemoryPersistedState(0L, initialStateNode2), node2);
-        cs3 = createCoordinationState(new InMemoryPersistedState(0L, initialStateNode3), node2);
+        cs3 = createCoordinationState(new InMemoryPersistedState(0L, initialStateNode3), node3);
     }
 
     private DiscoveryNode createNode(String id) {
@@ -251,6 +251,10 @@ public class CoordinationStateTests extends ESTestCase {
         ClusterState state2 = clusterState(startJoinRequest1.getTerm(), 2L, node1, initialConfig, newConfig, 42L);
         PublishRequest publishRequest = cs1.handleClientValue(state2);
         assertThat(publishRequest.getAcceptedState(), equalTo(state2));
+        assertThat(cs1.getLastPublishedVersion(), equalTo(state2.version()));
+        // check that another join does not mess with lastPublishedVersion
+        Join v3 = cs3.handleStartJoin(startJoinRequest1);
+        assertTrue(cs1.handleJoin(v3));
         assertThat(cs1.getLastPublishedVersion(), equalTo(state2.version()));
     }
 

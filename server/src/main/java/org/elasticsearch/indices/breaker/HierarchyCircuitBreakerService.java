@@ -216,7 +216,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         }
         // Manually add the parent breaker settings since they aren't part of the breaker map
         allStats.add(new CircuitBreakerStats(CircuitBreaker.PARENT, parentSettings.getLimit(),
-            parentUsed(0L), 1.0, parentTripCount.get()));
+            parentUsed(0L).totalUsage, 1.0, parentTripCount.get()));
         return new AllCircuitBreakerStats(allStats.toArray(new CircuitBreakerStats[allStats.size()]));
     }
 
@@ -226,15 +226,26 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         return new CircuitBreakerStats(breaker.getName(), breaker.getLimit(), breaker.getUsed(), breaker.getOverhead(), breaker.getTrippedCount());
     }
 
-    private long parentUsed(long newBytesReserved) {
+    private static class ParentMemoryUsage {
+        final long baseUsage;
+        final long totalUsage;
+
+        ParentMemoryUsage(final long baseUsage, final long totalUsage) {
+            this.baseUsage = baseUsage;
+            this.totalUsage = totalUsage;
+        }
+    }
+
+    private ParentMemoryUsage parentUsed(long newBytesReserved) {
         if (this.trackRealMemoryUsage) {
-            return currentMemoryUsage() + newBytesReserved;
+            final long current = currentMemoryUsage();
+            return new ParentMemoryUsage(current, current + newBytesReserved);
         } else {
             long parentEstimated = 0;
             for (CircuitBreaker breaker : this.breakers.values()) {
                 parentEstimated += breaker.getUsed() * breaker.getOverhead();
             }
-            return parentEstimated;
+            return new ParentMemoryUsage(parentEstimated, parentEstimated);
         }
     }
 
@@ -247,16 +258,16 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
      * Checks whether the parent breaker has been tripped
      */
     public void checkParentLimit(long newBytesReserved, String label) throws CircuitBreakingException {
-        long totalUsed = parentUsed(newBytesReserved);
+        final ParentMemoryUsage parentUsed = parentUsed(newBytesReserved);
         long parentLimit = this.parentSettings.getLimit();
-        if (totalUsed > parentLimit) {
+        if (parentUsed.totalUsage > parentLimit) {
             this.parentTripCount.incrementAndGet();
             final StringBuilder message = new StringBuilder("[parent] Data too large, data for [" + label + "]" +
-                    " would be [" + totalUsed + "/" + new ByteSizeValue(totalUsed) + "]" +
+                    " would be [" + parentUsed.totalUsage + "/" + new ByteSizeValue(parentUsed.totalUsage) + "]" +
                     ", which is larger than the limit of [" +
                     parentLimit + "/" + new ByteSizeValue(parentLimit) + "]");
             if (this.trackRealMemoryUsage) {
-                final long realUsage = currentMemoryUsage();
+                final long realUsage = parentUsed.baseUsage;
                 message.append(", real usage: [");
                 message.append(realUsage);
                 message.append("/");
@@ -277,7 +288,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                         .collect(Collectors.toList())));
                 message.append("]");
             }
-            throw new CircuitBreakingException(message.toString(), totalUsed, parentLimit);
+            throw new CircuitBreakingException(message.toString(), parentUsed.totalUsage, parentLimit);
         }
     }
 

@@ -150,8 +150,8 @@ public final class PainlessLookupUtility {
 
         String canonicalTypeName = type.getCanonicalName();
 
-        if (canonicalTypeName.startsWith(def.class.getName())) {
-            canonicalTypeName = canonicalTypeName.replace(def.class.getName(), DEF_TYPE_NAME);
+        if (canonicalTypeName.startsWith(def.class.getCanonicalName())) {
+            canonicalTypeName = canonicalTypeName.replace(def.class.getCanonicalName(), DEF_CLASS_NAME);
         }
 
         return canonicalTypeName;
@@ -351,7 +351,7 @@ public final class PainlessLookupUtility {
     /**
      * The def type name as specified in the source for a script.
      */
-    public static final String DEF_TYPE_NAME = "def";
+    public static final String DEF_CLASS_NAME = "def";
 
     /**
      * The method name for all constructors.

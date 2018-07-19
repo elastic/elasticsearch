@@ -442,6 +442,7 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
             document.add(new StringField("_type", "__chapters.paragraphs", Field.Store.NO));
             document.add(new TextField("chapters.paragraphs.text", "some text...", Field.Store.NO));
             document.add(new SortedNumericDocValuesField("chapters.paragraphs.word_count", 743));
+            document.add(new IntPoint("chapters.paragraphs.word_count", 743));
             book.add(document);
             document = new Document();
             document.add(new TextField("chapters.title", "chapter 3", Field.Store.NO));
@@ -454,6 +455,7 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
             document.add(new StringField("_type", "__chapters.paragraphs", Field.Store.NO));
             document.add(new TextField("chapters.paragraphs.text", "some text...", Field.Store.NO));
             document.add(new SortedNumericDocValuesField("chapters.paragraphs.word_count", 234));
+            document.add(new IntPoint("chapters.paragraphs.word_count", 234));
             book.add(document);
             document = new Document();
             document.add(new TextField("chapters.title", "chapter 2", Field.Store.NO));
@@ -466,12 +468,14 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
             document.add(new StringField("_type", "__chapters.paragraphs", Field.Store.NO));
             document.add(new TextField("chapters.paragraphs.text", "some text...", Field.Store.NO));
             document.add(new SortedNumericDocValuesField("chapters.paragraphs.word_count", 478));
+            document.add(new IntPoint("chapters.paragraphs.word_count", 478));
             book.add(document);
             document = new Document();
             document.add(new TextField("chapters.paragraphs.header", "Paragraph 1", Field.Store.NO));
             document.add(new StringField("_type", "__chapters.paragraphs", Field.Store.NO));
             document.add(new TextField("chapters.paragraphs.text", "some text...", Field.Store.NO));
             document.add(new SortedNumericDocValuesField("chapters.paragraphs.word_count", 849));
+            document.add(new IntPoint("chapters.paragraphs.word_count", 849));
             book.add(document);
             document = new Document();
             document.add(new TextField("chapters.title", "chapter 1", Field.Store.NO));
@@ -494,6 +498,7 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
             document.add(new StringField("_type", "__chapters.paragraphs", Field.Store.NO));
             document.add(new TextField("chapters.paragraphs.text", "some text...", Field.Store.NO));
             document.add(new SortedNumericDocValuesField("chapters.paragraphs.word_count", 76));
+            document.add(new IntPoint("chapters.paragraphs.word_count", 76));
             book.add(document);
             document = new Document();
             document.add(new TextField("chapters.title", "chapter 1", Field.Store.NO));
@@ -516,6 +521,7 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
             document.add(new StringField("_type", "__chapters.paragraphs", Field.Store.NO));
             document.add(new TextField("chapters.paragraphs.text", "some text...", Field.Store.NO));
             document.add(new SortedNumericDocValuesField("chapters.paragraphs.word_count", 976));
+            document.add(new IntPoint("chapters.paragraphs.word_count", 976));
             book.add(document);
             document = new Document();
             document.add(new TextField("chapters.title", "The beginning of the end", Field.Store.NO));
@@ -538,18 +544,21 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
             document.add(new StringField("_type", "__chapters.paragraphs", Field.Store.NO));
             document.add(new TextField("chapters.paragraphs.text", "some text...", Field.Store.NO));
             document.add(new SortedNumericDocValuesField("chapters.paragraphs.word_count", 180));
+            document.add(new IntPoint("chapters.paragraphs.word_count", 180));
             book.add(document);
             document = new Document();
             document.add(new TextField("chapters.paragraphs.header", "hamburger", Field.Store.NO));
             document.add(new StringField("_type", "__chapters.paragraphs", Field.Store.NO));
             document.add(new TextField("chapters.paragraphs.text", "some text...", Field.Store.NO));
             document.add(new SortedNumericDocValuesField("chapters.paragraphs.word_count", 150));
+            document.add(new IntPoint("chapters.paragraphs.word_count", 150));
             book.add(document);
             document = new Document();
             document.add(new TextField("chapters.paragraphs.header", "tosti", Field.Store.NO));
             document.add(new StringField("_type", "__chapters.paragraphs", Field.Store.NO));
             document.add(new TextField("chapters.paragraphs.text", "some text...", Field.Store.NO));
             document.add(new SortedNumericDocValuesField("chapters.paragraphs.word_count", 120));
+            document.add(new IntPoint("chapters.paragraphs.word_count", 120));
             book.add(document);
             document = new Document();
             document.add(new TextField("chapters.title", "easy meals", Field.Store.NO));
@@ -562,6 +571,7 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
             document.add(new StringField("_type", "__chapters.paragraphs", Field.Store.NO));
             document.add(new TextField("chapters.paragraphs.text", "some text...", Field.Store.NO));
             document.add(new SortedNumericDocValuesField("chapters.paragraphs.word_count", 87));
+            document.add(new IntPoint("chapters.paragraphs.word_count", 87));
             book.add(document);
             document = new Document();
             document.add(new TextField("chapters.title", "introduction", Field.Store.NO));
@@ -711,6 +721,34 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
             assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(87L));
             assertThat(searcher.doc(topFields.scoreDocs[1].doc).get("_id"), equalTo("2"));
             assertThat(((FieldDoc) topFields.scoreDocs[1]).fields[0], equalTo(76L));
+        }
+
+        // Multiple Nested filters + query
+        {
+            queryBuilder = new RangeQueryBuilder("chapters.read_time_seconds").to(50L);
+            sortBuilder = new FieldSortBuilder("chapters.paragraphs.word_count");
+            sortBuilder.setNestedSort(
+                new NestedSortBuilder("chapters")
+                    .setFilter(queryBuilder)
+                    .setNestedSort(
+                        new NestedSortBuilder("chapters.paragraphs")
+                            .setFilter(new RangeQueryBuilder("chapters.paragraphs.word_count").from(80L))
+                    )
+            );
+            topFields = search(new NestedQueryBuilder("chapters", queryBuilder, ScoreMode.None), sortBuilder, queryShardContext, searcher);
+            assertThat(topFields.totalHits, equalTo(2L));
+            assertThat(searcher.doc(topFields.scoreDocs[0].doc).get("_id"), equalTo("4"));
+            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(87L));
+            assertThat(searcher.doc(topFields.scoreDocs[1].doc).get("_id"), equalTo("2"));
+            assertThat(((FieldDoc) topFields.scoreDocs[1]).fields[0], equalTo(Long.MAX_VALUE));
+
+            sortBuilder.order(SortOrder.DESC);
+            topFields = search(new NestedQueryBuilder("chapters", queryBuilder, ScoreMode.None), sortBuilder, queryShardContext, searcher);
+            assertThat(topFields.totalHits, equalTo(2L));
+            assertThat(searcher.doc(topFields.scoreDocs[0].doc).get("_id"), equalTo("4"));
+            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(87L));
+            assertThat(searcher.doc(topFields.scoreDocs[1].doc).get("_id"), equalTo("2"));
+            assertThat(((FieldDoc) topFields.scoreDocs[1]).fields[0], equalTo(Long.MIN_VALUE));
         }
 
         // Nested filter + Specific genre

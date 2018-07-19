@@ -20,6 +20,7 @@
 package org.elasticsearch.packaging.util;
 
 import java.nio.file.Path;
+import java.nio.file.Paths;
 
 /**
  * Represents an installation of Elasticsearch
@@ -34,9 +35,10 @@ public class Installation {
     public final Path logs;
     public final Path plugins;
     public final Path modules;
-    public final Path scripts;
+    public final Path pidDir;
+    public final Path envFile;
 
-    public Installation(Path home, Path config, Path data, Path logs, Path plugins, Path modules, Path scripts) {
+    public Installation(Path home, Path config, Path data, Path logs, Path plugins, Path modules, Path pidDir, Path envFile) {
         this.home = home;
         this.bin = home.resolve("bin");
         this.lib = home.resolve("lib");
@@ -46,18 +48,38 @@ public class Installation {
         this.logs = logs;
         this.plugins = plugins;
         this.modules = modules;
-        this.scripts = scripts;
+        this.pidDir = pidDir;
+        this.envFile = envFile;
     }
 
-    public Installation(Path home) {
-        this(
+    public static Installation ofArchive(Path home) {
+        return new Installation(
             home,
             home.resolve("config"),
             home.resolve("data"),
             home.resolve("logs"),
             home.resolve("plugins"),
             home.resolve("modules"),
-            home.resolve("scripts")
+            null,
+            null
+        );
+    }
+
+    public static Installation ofPackage(Distribution.Packaging packaging) {
+
+        final Path envFile = (packaging == Distribution.Packaging.RPM)
+            ? Paths.get("/etc/sysconfig/elasticsearch")
+            : Paths.get("/etc/default/elasticsearch");
+
+        return new Installation(
+            Paths.get("/usr/share/elasticsearch"),
+            Paths.get("/etc/elasticsearch"),
+            Paths.get("/var/lib/elasticsearch"),
+            Paths.get("/var/log/elasticsearch"),
+            Paths.get("/usr/share/elasticsearch/plugins"),
+            Paths.get("/usr/share/elasticsearch/modules"),
+            Paths.get("/var/run/elasticsearch"),
+            envFile
         );
     }
 

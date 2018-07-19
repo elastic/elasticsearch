@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.core.ssl.CertificateGenerateTool.CertificateInfor
 import org.elasticsearch.xpack.core.ssl.CertificateGenerateTool.Name;
 import org.hamcrest.Matchers;
 import org.junit.After;
+import org.junit.BeforeClass;
 
 import javax.security.auth.x500.X500Principal;
 
@@ -94,6 +95,11 @@ public class CertificateGenerateToolTests extends ESTestCase {
         IOUtils.rm(tempDir);
         Files.createDirectories(tempDir);
         return tempDir;
+    }
+
+    @BeforeClass
+    public static void checkFipsJvm() {
+        assumeFalse("Can't run in a FIPS JVM, depends on Non FIPS BouncyCastle", inFipsJvm());
     }
 
     @After

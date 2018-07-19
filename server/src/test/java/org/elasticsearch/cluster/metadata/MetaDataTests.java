@@ -172,6 +172,87 @@ public class MetaDataTests extends ESTestCase {
         } catch (IllegalArgumentException ex) {
             assertThat(ex.getMessage(), is("index/alias [alias2] provided with routing value [1,2] that resolved to several routing values, rejecting operation"));
         }
+
+        IndexMetaData.Builder builder2 = IndexMetaData.builder("index2")
+            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putAlias(AliasMetaData.builder("alias0").build());
+        MetaData metaDataTwoIndices = MetaData.builder(metaData).put(builder2).build();
+
+        // alias with multiple indices
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+            () -> metaDataTwoIndices.resolveIndexRouting("1", "alias0"));
+        assertThat(exception.getMessage(), startsWith("Alias [alias0] has more than one index associated with it"));
+    }
+
+    public void testResolveWriteIndexRouting() {
+        AliasMetaData.Builder aliasZeroBuilder = AliasMetaData.builder("alias0");
+        if (randomBoolean()) {
+            aliasZeroBuilder.writeIndex(true);
+        }
+        IndexMetaData.Builder builder = IndexMetaData.builder("index")
+            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putAlias(aliasZeroBuilder.build())
+            .putAlias(AliasMetaData.builder("alias1").routing("1").build())
+            .putAlias(AliasMetaData.builder("alias2").routing("1,2").build())
+            .putAlias(AliasMetaData.builder("alias3").writeIndex(false).build())
+            .putAlias(AliasMetaData.builder("alias4").routing("1,2").writeIndex(true).build());
+        MetaData metaData = MetaData.builder().put(builder).build();
+
+        // no alias, no index
+        assertEquals(metaData.resolveWriteIndexRouting(null, null), null);
+        assertEquals(metaData.resolveWriteIndexRouting("0", null), "0");
+
+        // index, no alias
+        assertEquals(metaData.resolveWriteIndexRouting(null, "index"), null);
+        assertEquals(metaData.resolveWriteIndexRouting("0", "index"), "0");
+
+        // alias with no index routing
+        assertEquals(metaData.resolveWriteIndexRouting(null, "alias0"), null);
+        assertEquals(metaData.resolveWriteIndexRouting("0", "alias0"), "0");
+
+        // alias with index routing.
+        assertEquals(metaData.resolveWriteIndexRouting(null, "alias1"), "1");
+        Exception exception = expectThrows(IllegalArgumentException.class, () -> metaData.resolveWriteIndexRouting("0", "alias1"));
+        assertThat(exception.getMessage(),
+            is("Alias [alias1] has index routing associated with it [1], and was provided with routing value [0], rejecting operation"));
+
+        // alias with invalid index routing.
+        exception = expectThrows(IllegalArgumentException.class, () -> metaData.resolveWriteIndexRouting(null, "alias2"));
+            assertThat(exception.getMessage(),
+                is("index/alias [alias2] provided with routing value [1,2] that resolved to several routing values, rejecting operation"));
+        exception = expectThrows(IllegalArgumentException.class, () -> metaData.resolveWriteIndexRouting("1", "alias2"));
+        assertThat(exception.getMessage(),
+            is("index/alias [alias2] provided with routing value [1,2] that resolved to several routing values, rejecting operation"));
+        exception = expectThrows(IllegalArgumentException.class, () -> metaData.resolveWriteIndexRouting(randomFrom("1", null), "alias4"));
+        assertThat(exception.getMessage(),
+            is("index/alias [alias4] provided with routing value [1,2] that resolved to several routing values, rejecting operation"));
+
+        // alias with no write index
+        exception = expectThrows(IllegalArgumentException.class, () -> metaData.resolveWriteIndexRouting("1", "alias3"));
+        assertThat(exception.getMessage(),
+            is("alias [alias3] does not have a write index"));
+
+
+        // aliases with multiple indices
+        AliasMetaData.Builder aliasZeroBuilderTwo = AliasMetaData.builder("alias0");
+        if (randomBoolean()) {
+            aliasZeroBuilder.writeIndex(false);
+        }
+        IndexMetaData.Builder builder2 = IndexMetaData.builder("index2")
+            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putAlias(aliasZeroBuilderTwo.build())
+            .putAlias(AliasMetaData.builder("alias1").routing("0").writeIndex(true).build())
+            .putAlias(AliasMetaData.builder("alias2").writeIndex(true).build());
+        MetaData metaDataTwoIndices = MetaData.builder(metaData).put(builder2).build();
+
+        // verify that new write index is used
+        assertThat("0", equalTo(metaDataTwoIndices.resolveWriteIndexRouting("0", "alias1")));
     }
 
     public void testUnknownFieldClusterMetaData() throws IOException {

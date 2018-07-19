@@ -40,7 +40,15 @@ import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.nested;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.reverseNested;
 
 public class ReverseNestedAggregatorTests extends AggregatorTestCase {
 
@@ -50,6 +58,15 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
     private static final String REVERSE_AGG_NAME = "reverseNestedAgg";
     private static final String MAX_AGG_NAME = "maxAgg";
 
+    /**
+     * For each provided field type, we also register an alias with name {@code <field>-alias}.
+     */
+    @Override
+    protected Map<String, MappedFieldType> getFieldAliases(MappedFieldType... fieldTypes) {
+        return Arrays.stream(fieldTypes).collect(Collectors.toMap(
+            ft -> ft.name() + "-alias",
+            Function.identity()));
+    }
 
     public void testNoDocs() throws IOException {
         try (Directory directory = newDirectory()) {
@@ -146,6 +163,65 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                         ((InternalAggregation)reverseNested).getProperty(MAX_AGG_NAME);
                 assertEquals(MAX_AGG_NAME, max.getName());
                 assertEquals(expectedMaxValue, max.getValue(), Double.MIN_VALUE);
+            }
+        }
+    }
+
+    public void testFieldAlias() throws IOException {
+        int numParentDocs = randomIntBetween(1, 20);
+
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(
+            NumberFieldMapper.NumberType.LONG);
+        fieldType.setName(VALUE_FIELD_NAME);
+
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+                for (int i = 0; i < numParentDocs; i++) {
+                    List<Document> documents = new ArrayList<>();
+                    int numNestedDocs = randomIntBetween(0, 20);
+                    for (int nested = 0; nested < numNestedDocs; nested++) {
+                        Document document = new Document();
+                        document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)),
+                                IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
+                        document.add(new Field(TypeFieldMapper.NAME, "__" + NESTED_OBJECT,
+                                TypeFieldMapper.Defaults.FIELD_TYPE));
+                        documents.add(document);
+                    }
+                    Document document = new Document();
+                    document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)),
+                            IdFieldMapper.Defaults.FIELD_TYPE));
+                    document.add(new Field(TypeFieldMapper.NAME, "test",
+                            TypeFieldMapper.Defaults.FIELD_TYPE));
+
+                    long value = randomNonNegativeLong() % 10000;
+                    document.add(new SortedNumericDocValuesField(VALUE_FIELD_NAME, value));
+                    document.add(SeqNoFieldMapper.SequenceIDFields.emptySeqID().primaryTerm);
+                    documents.add(document);
+                    iw.addDocuments(documents);
+                }
+                iw.commit();
+            }
+
+            try (IndexReader indexReader = wrap(DirectoryReader.open(directory))) {
+
+                MaxAggregationBuilder maxAgg = max(MAX_AGG_NAME).field(VALUE_FIELD_NAME);
+                MaxAggregationBuilder aliasMaxAgg = max(MAX_AGG_NAME).field(VALUE_FIELD_NAME + "-alias");
+
+                NestedAggregationBuilder agg = nested(NESTED_AGG, NESTED_OBJECT).subAggregation(
+                    reverseNested(REVERSE_AGG_NAME).subAggregation(maxAgg));
+                NestedAggregationBuilder aliasAgg = nested(NESTED_AGG, NESTED_OBJECT).subAggregation(
+                    reverseNested(REVERSE_AGG_NAME).subAggregation(aliasMaxAgg));
+
+                Nested nested = search(newSearcher(indexReader, false, true),
+                        new MatchAllDocsQuery(), agg, fieldType);
+                Nested aliasNested = search(newSearcher(indexReader, false, true),
+                    new MatchAllDocsQuery(), aliasAgg, fieldType);
+
+                ReverseNested reverseNested = nested.getAggregations().get(REVERSE_AGG_NAME);
+                ReverseNested aliasReverseNested = aliasNested.getAggregations().get(REVERSE_AGG_NAME);
+
+                assertTrue(reverseNested.getDocCount() > 0);
+                assertEquals(reverseNested, aliasReverseNested);
             }
         }
     }

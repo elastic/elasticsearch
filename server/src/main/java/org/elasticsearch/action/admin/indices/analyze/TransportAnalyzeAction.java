@@ -52,6 +52,7 @@ import org.elasticsearch.index.analysis.CustomAnalyzerProvider;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.MultiTermAwareComponent;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.analysis.ReferringFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -574,6 +575,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                                                                 Environment environment, Tuple<String, TokenizerFactory> tokenizerFactory,
                                                                 List<CharFilterFactory> charFilterFactoryList, boolean normalizer) throws IOException {
         List<TokenFilterFactory> tokenFilterFactoryList = new ArrayList<>();
+        List<ReferringFilterFactory> referringFilters = new ArrayList<>();
         if (request.tokenFilters() != null && request.tokenFilters().size() > 0) {
             List<AnalyzeRequest.NameOrDefinition> tokenFilters = request.tokenFilters();
             for (AnalyzeRequest.NameOrDefinition tokenFilter : tokenFilters) {
@@ -594,7 +596,9 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                     tokenFilterFactory = tokenFilterFactoryFactory.get(getNaIndexSettings(settings), environment, "_anonymous_tokenfilter", settings);
                     tokenFilterFactory = CustomAnalyzerProvider.checkAndApplySynonymFilter(tokenFilterFactory, tokenizerFactory.v1(), tokenizerFactory.v2(), tokenFilterFactoryList,
                         charFilterFactoryList, environment);
-
+                    if (tokenFilterFactory instanceof ReferringFilterFactory) {
+                        referringFilters.add((ReferringFilterFactory)tokenFilterFactory);
+                    }
 
                 } else {
                     AnalysisModule.AnalysisProvider<TokenFilterFactory> tokenFilterFactoryFactory;
@@ -628,6 +632,26 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                 }
                 tokenFilterFactoryList.add(tokenFilterFactory);
             }
+        }
+        if (referringFilters.isEmpty() == false) {
+            // The request included at least one custom referring tokenfilter that has not already been built by the
+            // analysis registry, so we need to set its references.  Note that this will only apply pre-built
+            // tokenfilters
+            if (indexSettings == null) {
+                Settings settings = Settings.builder()
+                    .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+                    .build();
+                IndexMetaData metaData = IndexMetaData.builder(IndexMetaData.INDEX_UUID_NA_VALUE).settings(settings).build();
+                indexSettings = new IndexSettings(metaData, Settings.EMPTY);
+            }
+            Map<String, TokenFilterFactory> prebuiltFilters = analysisRegistry.buildTokenFilterFactories(indexSettings);
+            for (ReferringFilterFactory rff : referringFilters) {
+                rff.setReferences(prebuiltFilters);
+            }
+
         }
         return tokenFilterFactoryList;
     }

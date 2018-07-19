@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasA
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
+import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
@@ -57,6 +58,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.client.Requests.createIndexRequest;
+import static org.elasticsearch.client.Requests.deleteRequest;
 import static org.elasticsearch.client.Requests.indexRequest;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_METADATA_BLOCK;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_READ_ONLY_BLOCK;
@@ -86,6 +88,17 @@ public class IndexAliasesIT extends ESIntegTestCase {
         ensureGreen();
 
         logger.info("--> aliasing index [test] with [alias1]");
+        assertAcked(admin().indices().prepareAliases().addAlias("test", "alias1", false));
+
+        logger.info("--> indexing against [alias1], should fail now");
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+            () -> client().index(indexRequest("alias1").type("type1").id("1").source(source("2", "test"),
+                XContentType.JSON)).actionGet());
+        assertThat(exception.getMessage(), equalTo("no write index is defined for alias [alias1]." +
+            " The write index may be explicitly disabled using is_write_index=false or the alias points to multiple" +
+            " indices without one being designated as a write index"));
+
+        logger.info("--> aliasing index [test] with [alias1]");
         assertAcked(admin().indices().prepareAliases().addAlias("test", "alias1"));
 
         logger.info("--> indexing against [alias1], should work now");
@@ -97,6 +110,44 @@ public class IndexAliasesIT extends ESIntegTestCase {
         createIndex("test_x");
 
         ensureGreen();
+
+        logger.info("--> add index [test_x] with [alias1]");
+        assertAcked(admin().indices().prepareAliases().addAlias("test_x", "alias1"));
+
+        logger.info("--> indexing against [alias1], should fail now");
+        exception = expectThrows(IllegalArgumentException.class,
+            () -> client().index(indexRequest("alias1").type("type1").id("1").source(source("2", "test"),
+                XContentType.JSON)).actionGet());
+        assertThat(exception.getMessage(), equalTo("no write index is defined for alias [alias1]." +
+            " The write index may be explicitly disabled using is_write_index=false or the alias points to multiple" +
+            " indices without one being designated as a write index"));
+
+        logger.info("--> deleting against [alias1], should fail now");
+        exception = expectThrows(IllegalArgumentException.class,
+            () -> client().delete(deleteRequest("alias1").type("type1").id("1")).actionGet());
+        assertThat(exception.getMessage(), equalTo("no write index is defined for alias [alias1]." +
+            " The write index may be explicitly disabled using is_write_index=false or the alias points to multiple" +
+            " indices without one being designated as a write index"));
+
+        logger.info("--> remove aliasing index [test_x] with [alias1]");
+        assertAcked(admin().indices().prepareAliases().removeAlias("test_x", "alias1"));
+
+        logger.info("--> indexing against [alias1], should work now");
+        indexResponse = client().index(indexRequest("alias1").type("type1").id("1")
+            .source(source("1", "test"), XContentType.JSON)).actionGet();
+        assertThat(indexResponse.getIndex(), equalTo("test"));
+
+        logger.info("--> add index [test_x] with [alias1] as write-index");
+        assertAcked(admin().indices().prepareAliases().addAlias("test_x", "alias1", true));
+
+        logger.info("--> indexing against [alias1], should work now");
+        indexResponse = client().index(indexRequest("alias1").type("type1").id("1")
+            .source(source("1", "test"), XContentType.JSON)).actionGet();
+        assertThat(indexResponse.getIndex(), equalTo("test_x"));
+
+        logger.info("--> deleting against [alias1], should fail now");
+        DeleteResponse deleteResponse = client().delete(deleteRequest("alias1").type("type1").id("1")).actionGet();
+        assertThat(deleteResponse.getIndex(), equalTo("test_x"));
 
         logger.info("--> remove [alias1], Aliasing index [test_x] with [alias1]");
         assertAcked(admin().indices().prepareAliases().removeAlias("test", "alias1").addAlias("test_x", "alias1"));

@@ -20,6 +20,7 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Field;
@@ -182,7 +183,7 @@ public class ScriptClassInfo {
 
     private static Class<?> definitionTypeForClass(PainlessLookup painlessLookup, Class<?> type,
                                                    Function<Class<?>, String> unknownErrorMessageSource) {
-        type = PainlessLookup.ObjectClassTodefClass(type);
+        type = PainlessLookupUtility.javaObjectTypeToPainlessDefType(type);
         Class<?> componentType = type;
 
         while (componentType.isArray()) {

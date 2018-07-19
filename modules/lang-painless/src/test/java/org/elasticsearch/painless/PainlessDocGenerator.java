@@ -20,13 +20,17 @@
 package org.elasticsearch.painless;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.elasticsearch.painless.lookup.PainlessLookup;
-import org.elasticsearch.painless.lookup.PainlessField;
-import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.painless.lookup.PainlessClass;
+import org.elasticsearch.painless.lookup.PainlessField;
+import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.spi.Whitelist;
+
 import java.io.IOException;
 import java.io.PrintStream;
 import java.lang.reflect.Modifier;
@@ -42,14 +46,13 @@ import java.util.function.Consumer;
 
 import static java.util.Comparator.comparing;
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.painless.spi.Whitelist.BASE_WHITELISTS;
 
 /**
  * Generates an API reference from the method and type whitelists in {@link PainlessLookup}.
  */
 public class PainlessDocGenerator {
 
-    private static final PainlessLookup PAINLESS_LOOKUP = new PainlessLookup(BASE_WHITELISTS);
+    private static final PainlessLookup PAINLESS_LOOKUP = new PainlessLookupBuilder(Whitelist.BASE_WHITELISTS).build();
     private static final Logger logger = ESLoggerFactory.getLogger(PainlessDocGenerator.class);
     private static final Comparator<PainlessField> FIELD_NAME = comparing(f -> f.name);
     private static final Comparator<PainlessMethod> METHOD_NAME = comparing(m -> m.name);
@@ -65,8 +68,8 @@ public class PainlessDocGenerator {
         Path indexPath = apiRootPath.resolve("index.asciidoc");
         logger.info("Starting to write [index.asciidoc]");
         try (PrintStream indexStream = new PrintStream(
-                Files.newOutputStream(indexPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
-                false, StandardCharsets.UTF_8.name())) {
+            Files.newOutputStream(indexPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
+            false, StandardCharsets.UTF_8.name())) {
             emitGeneratedWarning(indexStream);
             List<PainlessClass> structs = PAINLESS_LOOKUP.getStructs().stream().sorted(comparing(t -> t.name)).collect(toList());
             for (PainlessClass struct : structs) {
@@ -89,7 +92,7 @@ public class PainlessDocGenerator {
                         false, StandardCharsets.UTF_8.name())) {
                     emitGeneratedWarning(typeStream);
                     typeStream.print("[[");
-                    emitAnchor(typeStream, struct);
+                    emitAnchor(typeStream, struct.clazz);
                     typeStream.print("]]++");
                     typeStream.print(struct.name);
                     typeStream.println("++::");
@@ -102,10 +105,11 @@ public class PainlessDocGenerator {
                     struct.constructors.values().stream().sorted(NUMBER_OF_ARGS).forEach(documentMethod);
                     Map<String, PainlessClass> inherited = new TreeMap<>();
                     struct.methods.values().stream().sorted(METHOD_NAME.thenComparing(NUMBER_OF_ARGS)).forEach(method -> {
-                        if (method.owner == struct) {
+                        if (method.target == struct.clazz) {
                             documentMethod(typeStream, method);
                         } else {
-                            inherited.put(method.owner.name, method.owner);
+                            PainlessClass painlessClass = PAINLESS_LOOKUP.getPainlessStructFromJavaClass(method.target);
+                            inherited.put(painlessClass.name, painlessClass);
                         }
                     });
 
@@ -204,16 +208,16 @@ public class PainlessDocGenerator {
     /**
      * Anchor text for a {@link PainlessClass}.
      */
-    private static void emitAnchor(PrintStream stream, PainlessClass struct) {
+    private static void emitAnchor(PrintStream stream, Class<?> clazz) {
         stream.print("painless-api-reference-");
-        stream.print(struct.name.replace('.', '-'));
+        stream.print(PainlessLookupUtility.anyTypeToPainlessTypeName(clazz).replace('.', '-'));
     }
 
     /**
      * Anchor text for a {@link PainlessMethod}.
      */
     private static void emitAnchor(PrintStream stream, PainlessMethod method) {
-        emitAnchor(stream, method.owner);
+        emitAnchor(stream, method.target);
         stream.print('-');
         stream.print(methodName(method));
         stream.print('-');
@@ -224,18 +228,18 @@ public class PainlessDocGenerator {
      * Anchor text for a {@link PainlessField}.
      */
     private static void emitAnchor(PrintStream stream, PainlessField field) {
-        emitAnchor(stream, field.owner);
+        emitAnchor(stream, field.target);
         stream.print('-');
         stream.print(field.name);
     }
 
     private static String methodName(PainlessMethod method) {
-        return method.name.equals("<init>") ? method.owner.name : method.name;
+        return method.name.equals("<init>") ? PainlessLookupUtility.anyTypeToPainlessTypeName(method.target) : method.name;
     }
 
     /**
      * Emit a {@link Class}. If the type is primitive or an array of primitives this just emits the name of the type. Otherwise this emits
-       an internal link with the text.
+     an internal link with the text.
      */
     private static void emitType(PrintStream stream, Class<?> clazz) {
         emitStruct(stream, PAINLESS_LOOKUP.getPainlessStructFromJavaClass(clazz));
@@ -251,7 +255,7 @@ public class PainlessDocGenerator {
     private static void emitStruct(PrintStream stream, PainlessClass struct) {
         if (false == struct.clazz.isPrimitive() && false == struct.name.equals("def")) {
             stream.print("<<");
-            emitAnchor(stream, struct);
+            emitAnchor(stream, struct.clazz);
             stream.print(',');
             stream.print(struct.name);
             stream.print(">>");
@@ -269,14 +273,14 @@ public class PainlessDocGenerator {
         stream.print("link:{");
         stream.print(root);
         stream.print("-javadoc}/");
-        stream.print(classUrlPath(method.augmentation != null ? method.augmentation : method.owner.clazz));
+        stream.print(classUrlPath(method.augmentation != null ? method.augmentation : method.target));
         stream.print(".html#");
         stream.print(methodName(method));
         stream.print("%2D");
         boolean first = true;
         if (method.augmentation != null) {
             first = false;
-            stream.print(method.owner.clazz.getName());
+            stream.print(method.target.getName());
         }
         for (Class<?> clazz: method.arguments) {
             if (first) {
@@ -301,7 +305,7 @@ public class PainlessDocGenerator {
         stream.print("link:{");
         stream.print(root);
         stream.print("-javadoc}/");
-        stream.print(classUrlPath(field.owner.clazz));
+        stream.print(classUrlPath(field.target));
         stream.print(".html#");
         stream.print(field.javaName);
     }
@@ -313,21 +317,21 @@ public class PainlessDocGenerator {
         if (method.augmentation != null) {
             return "painless";
         }
-        return javadocRoot(method.owner);
+        return javadocRoot(method.target);
     }
 
     /**
      * Pick the javadoc root for a {@link PainlessField}.
      */
     private static String javadocRoot(PainlessField field) {
-        return javadocRoot(field.owner);
+        return javadocRoot(field.target);
     }
 
     /**
-     * Pick the javadoc root for a {@link PainlessClass}.
+     * Pick the javadoc root for a {@link Class}.
      */
-    private static String javadocRoot(PainlessClass struct) {
-        String classPackage = struct.clazz.getPackage().getName();
+    private static String javadocRoot(Class<?> clazz) {
+        String classPackage = clazz.getPackage().getName();
         if (classPackage.startsWith("java")) {
             return "java8";
         }

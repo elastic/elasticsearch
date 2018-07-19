@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
@@ -395,15 +394,17 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             // check basic sanity of the new mapping
             List<ObjectMapper> objectMappers = new ArrayList<>();
             List<FieldMapper> fieldMappers = new ArrayList<>();
+            List<FieldAliasMapper> fieldAliasMappers = new ArrayList<>();
             Collections.addAll(fieldMappers, newMapper.mapping().metadataMappers);
-            MapperUtils.collect(newMapper.mapping().root(), objectMappers, fieldMappers);
-            checkFieldUniqueness(newMapper.type(), objectMappers, fieldMappers, fullPathObjectMappers, fieldTypes);
-            checkObjectsCompatibility(objectMappers, fullPathObjectMappers);
+            MapperUtils.collect(newMapper.mapping().root(), objectMappers, fieldMappers, fieldAliasMappers);
+
+            MapperMergeValidator.validateMapperStructure(newMapper.type(), objectMappers, fieldMappers,
+                fieldAliasMappers, fullPathObjectMappers, fieldTypes);
             checkPartitionedIndexConstraints(newMapper);
 
             // update lookup data-structures
             // this will in particular make sure that the merged fields are compatible with other types
-            fieldTypes = fieldTypes.copyAndAddAll(newMapper.type(), fieldMappers);
+            fieldTypes = fieldTypes.copyAndAddAll(newMapper.type(), fieldMappers, fieldAliasMappers);
 
             for (ObjectMapper objectMapper : objectMappers) {
                 if (fullPathObjectMappers == this.fullPathObjectMappers) {
@@ -417,7 +418,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 }
             }
 
-            validateCopyTo(fieldMappers, fullPathObjectMappers, fieldTypes);
+            MapperMergeValidator.validateFieldReferences(fieldMappers, fieldAliasMappers,
+                fullPathObjectMappers, fieldTypes);
 
             if (reason == MergeReason.MAPPING_UPDATE) {
                 // this check will only be performed on the master node when there is
@@ -482,7 +484,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         if (mapper != null) {
             List<FieldMapper> fieldMappers = new ArrayList<>();
             Collections.addAll(fieldMappers, mapper.mapping().metadataMappers);
-            MapperUtils.collect(mapper.root(), new ArrayList<>(), fieldMappers);
+            MapperUtils.collect(mapper.root(), new ArrayList<>(), fieldMappers, new ArrayList<>());
             for (FieldMapper fieldMapper : fieldMappers) {
                 assert fieldMapper.fieldType() == fieldTypes.get(fieldMapper.name()) : fieldMapper.name();
             }
@@ -501,56 +503,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 + newMapper.mappingSource() + "]");
         }
         return true;
-    }
-
-    private static void checkFieldUniqueness(String type, Collection<ObjectMapper> objectMappers, Collection<FieldMapper> fieldMappers,
-                                             Map<String, ObjectMapper> fullPathObjectMappers, FieldTypeLookup fieldTypes) {
-
-        // first check within mapping
-        final Set<String> objectFullNames = new HashSet<>();
-        for (ObjectMapper objectMapper : objectMappers) {
-            final String fullPath = objectMapper.fullPath();
-            if (objectFullNames.add(fullPath) == false) {
-                throw new IllegalArgumentException("Object mapper [" + fullPath + "] is defined twice in mapping for type [" + type + "]");
-            }
-        }
-
-        final Set<String> fieldNames = new HashSet<>();
-        for (FieldMapper fieldMapper : fieldMappers) {
-            final String name = fieldMapper.name();
-            if (objectFullNames.contains(name)) {
-                throw new IllegalArgumentException("Field [" + name + "] is defined both as an object and a field in [" + type + "]");
-            } else if (fieldNames.add(name) == false) {
-                throw new IllegalArgumentException("Field [" + name + "] is defined twice in [" + type + "]");
-            }
-        }
-
-        // then check other types
-        for (String fieldName : fieldNames) {
-            if (fullPathObjectMappers.containsKey(fieldName)) {
-                throw new IllegalArgumentException("[" + fieldName + "] is defined as a field in mapping [" + type
-                        + "] but this name is already used for an object in other types");
-            }
-        }
-
-        for (String objectPath : objectFullNames) {
-            if (fieldTypes.get(objectPath) != null) {
-                throw new IllegalArgumentException("[" + objectPath + "] is defined as an object in mapping [" + type
-                        + "] but this name is already used for a field in other types");
-            }
-        }
-    }
-
-    private static void checkObjectsCompatibility(Collection<ObjectMapper> objectMappers,
-                                                  Map<String, ObjectMapper> fullPathObjectMappers) {
-        for (ObjectMapper newObjectMapper : objectMappers) {
-            ObjectMapper existingObjectMapper = fullPathObjectMappers.get(newObjectMapper.fullPath());
-            if (existingObjectMapper != null) {
-                // simulate a merge and ignore the result, we are just interested
-                // in exceptions here
-                existingObjectMapper.merge(newObjectMapper);
-            }
-        }
     }
 
     private void checkNestedFieldsLimit(Map<String, ObjectMapper> fullPathObjectMappers) {
@@ -607,66 +559,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         if (sortConfig.hasIndexSort() && hasNested) {
             throw new IllegalArgumentException("cannot have nested fields when index sort is activated");
         }
-    }
-
-    private static void validateCopyTo(List<FieldMapper> fieldMappers, Map<String, ObjectMapper> fullPathObjectMappers,
-            FieldTypeLookup fieldTypes) {
-        for (FieldMapper mapper : fieldMappers) {
-            if (mapper.copyTo() != null && mapper.copyTo().copyToFields().isEmpty() == false) {
-                String sourceParent = parentObject(mapper.name());
-                if (sourceParent != null && fieldTypes.get(sourceParent) != null) {
-                    throw new IllegalArgumentException("[copy_to] may not be used to copy from a multi-field: [" + mapper.name() + "]");
-                }
-
-                final String sourceScope = getNestedScope(mapper.name(), fullPathObjectMappers);
-                for (String copyTo : mapper.copyTo().copyToFields()) {
-                    String copyToParent = parentObject(copyTo);
-                    if (copyToParent != null && fieldTypes.get(copyToParent) != null) {
-                        throw new IllegalArgumentException("[copy_to] may not be used to copy to a multi-field: [" + copyTo + "]");
-                    }
-
-                    if (fullPathObjectMappers.containsKey(copyTo)) {
-                        throw new IllegalArgumentException("Cannot copy to field [" + copyTo + "] since it is mapped as an object");
-                    }
-
-                    final String targetScope = getNestedScope(copyTo, fullPathObjectMappers);
-                    checkNestedScopeCompatibility(sourceScope, targetScope);
-                }
-            }
-        }
-    }
-
-    private static String getNestedScope(String path, Map<String, ObjectMapper> fullPathObjectMappers) {
-        for (String parentPath = parentObject(path); parentPath != null; parentPath = parentObject(parentPath)) {
-            ObjectMapper objectMapper = fullPathObjectMappers.get(parentPath);
-            if (objectMapper != null && objectMapper.nested().isNested()) {
-                return parentPath;
-            }
-        }
-        return null;
-    }
-
-    private static void checkNestedScopeCompatibility(String source, String target) {
-        boolean targetIsParentOfSource;
-        if (source == null || target == null) {
-            targetIsParentOfSource = target == null;
-        } else {
-            targetIsParentOfSource = source.equals(target) || source.startsWith(target + ".");
-        }
-        if (targetIsParentOfSource == false) {
-            throw new IllegalArgumentException(
-                    "Illegal combination of [copy_to] and [nested] mappings: [copy_to] may only copy data to the current nested " +
-                            "document or any of its parents, however one [copy_to] directive is trying to copy data from nested object [" +
-                            source + "] to [" + target + "]");
-        }
-    }
-
-    private static String parentObject(String field) {
-        int lastDot = field.lastIndexOf('.');
-        if (lastDot == -1) {
-            return null;
-        }
-        return field.substring(0, lastDot);
     }
 
     public DocumentMapper parse(String mappingType, CompressedXContent mappingSource, boolean applyDefault) throws MapperParsingException {
@@ -727,6 +619,13 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             return Collections.singletonList(pattern);
         }
         return fieldTypes.simpleMatchToFullName(pattern);
+    }
+
+    /**
+     * Returns all mapped field types.
+     */
+    public Iterable<MappedFieldType> fieldTypes() {
+        return fieldTypes;
     }
 
     public ObjectMapper getObjectMapper(String name) {

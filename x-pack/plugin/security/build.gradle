@@ -22,8 +22,8 @@ dependencies {
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 
     compile 'com.unboundid:unboundid-ldapsdk:3.2.0'
-    compile 'org.bouncycastle:bcprov-jdk15on:1.59'
-    compile 'org.bouncycastle:bcpkix-jdk15on:1.59'
+    compileOnly 'org.bouncycastle:bcprov-jdk15on:1.59'
+    compileOnly 'org.bouncycastle:bcpkix-jdk15on:1.59'
 
     // the following are all SAML dependencies - might as well download the whole internet
     compile "org.opensaml:opensaml-core:3.3.0"
@@ -79,7 +79,6 @@ sourceSets.test.resources {
     srcDir '../core/src/test/resources'
 }
 dependencyLicenses {
-    mapping from: /bc.*/, to: 'bouncycastle'
     mapping from: /java-support|opensaml-.*/, to: 'shibboleth'
     mapping from: /http.*/, to: 'httpclient'
 }

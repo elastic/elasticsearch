@@ -297,7 +297,8 @@ public class XPackLicenseState {
             // Before 6.3, Trial licenses would default having security enabled.
             // If this license was generated before that version, then treat it as if security is explicitly enabled
             if (mostRecentTrialVersion == null || mostRecentTrialVersion.before(Version.V_6_3_0)) {
-                Loggers.getLogger(getClass()).info("Automatically enabling security for older trial license ({})", mostRecentTrialVersion);
+                Loggers.getLogger(getClass()).info("Automatically enabling security for older trial license ({})",
+                    mostRecentTrialVersion == null ? "[pre 6.1.0]" : mostRecentTrialVersion.toString());
                 isSecurityEnabledByTrialVersion = true;
             }
         }

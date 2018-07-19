@@ -25,6 +25,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -49,22 +50,9 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
 
         task.coordinateReads();
         assertThat(shardChangesRequests.size(), equalTo(8));
-        assertThat(shardChangesRequests.get(0)[0], equalTo(0L));
-        assertThat(shardChangesRequests.get(0)[1], equalTo(8L));
-        assertThat(shardChangesRequests.get(1)[0], equalTo(8L));
-        assertThat(shardChangesRequests.get(1)[1], equalTo(8L));
-        assertThat(shardChangesRequests.get(2)[0], equalTo(16L));
-        assertThat(shardChangesRequests.get(2)[1], equalTo(8L));
-        assertThat(shardChangesRequests.get(3)[0], equalTo(24L));
-        assertThat(shardChangesRequests.get(3)[1], equalTo(8L));
-        assertThat(shardChangesRequests.get(4)[0], equalTo(32L));
-        assertThat(shardChangesRequests.get(4)[1], equalTo(8L));
-        assertThat(shardChangesRequests.get(5)[0], equalTo(40L));
-        assertThat(shardChangesRequests.get(5)[1], equalTo(8L));
-        assertThat(shardChangesRequests.get(6)[0], equalTo(48L));
-        assertThat(shardChangesRequests.get(6)[1], equalTo(8L));
-        assertThat(shardChangesRequests.get(7)[0], equalTo(56L));
-        assertThat(shardChangesRequests.get(7)[1], equalTo(8L));
+        assertThat(shardChangesRequests, contains(new long[][]{
+            {0L, 8L}, {8L, 8L}, {16L, 8L}, {24L, 8L}, {32L, 8L}, {40L, 8L}, {48L, 8L}, {56L, 8L}}
+        ));
 
         ShardFollowNodeTask.Status status = task.getStatus();
         assertThat(status.getNumberOfConcurrentReads(), equalTo(8));

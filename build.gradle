@@ -466,6 +466,24 @@ allprojects {
     }
   }
 
+  /*
+   * Ironically, eclipse doesn't know about the shadow plugin so we replace
+   * all shadow dependencies with runtime dependencies which will cause
+   * eclipse to reference shadowed projects. This is the correct thing for
+   * it to do because it doesn't run the jar shadowing at all.
+   */
+  if (isEclipse) {
+	configurations.all { Configuration configuration ->
+	  dependencies.all { Dependency dep ->
+		if (dep instanceof ProjectDependency) {
+		  if (dep.getTargetConfiguration() == 'shadow') {
+			configuration.dependencies.add(project.dependencies.project(path: dep.dependencyProject.path, configuration: 'runtime'))
+		  }
+		}
+	  }
+	}
+  }
+
   plugins.withType(JavaBasePlugin) {
     File eclipseBuild = project.file('build-eclipse')
     eclipse.classpath.defaultOutputDir = eclipseBuild

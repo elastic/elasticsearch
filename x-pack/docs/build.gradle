@@ -30,7 +30,7 @@ buildRestTests.expectedUnconvertedCandidates = [
 ]
 
 dependencies {
-    testCompile project(path: xpackModule('core'), configuration: 'runtime')
+    testCompile project(path: xpackModule('core'), configuration: 'shadow')
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
     testCompile project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
 }
@@ -264,7 +264,7 @@ setups['farequote_index'] = '''
                   airline:
                      type: keyword
                   doc_count:
-                     type: integer       
+                     type: integer
 '''
 setups['farequote_data'] = setups['farequote_index'] + '''
   - do:
@@ -277,7 +277,7 @@ setups['farequote_data'] = setups['farequote_index'] + '''
             {"airline":"JZA","responsetime":990.4628,"time":"2016-02-07T00:00:00+0000", "doc_count": 5}
             {"index": {"_id":"2"}}
             {"airline":"JBU","responsetime":877.5927,"time":"2016-02-07T00:00:00+0000", "doc_count": 23}
-            {"index": {"_id":"3"}}            
+            {"index": {"_id":"3"}}
             {"airline":"KLM","responsetime":1355.4812,"time":"2016-02-07T00:00:00+0000", "doc_count": 42}
 '''
 setups['farequote_job'] = setups['farequote_data'] + '''
@@ -309,7 +309,7 @@ setups['farequote_datafeed'] = setups['farequote_job'] + '''
           "job_id":"farequote",
           "indexes":"farequote"
           }
-'''          
+'''
 setups['server_metrics_index'] = '''
   - do:
         indices.create:

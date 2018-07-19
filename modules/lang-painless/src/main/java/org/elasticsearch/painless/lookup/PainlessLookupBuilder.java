@@ -122,22 +122,22 @@ public class PainlessLookupBuilder {
 
     private final List<Whitelist> whitelists;
 
-    private final Map<String, Class<?>> canonicalTypeNamesToClasses;
+    private final Map<String, Class<?>> canonicalClassNamesToClasses;
     private final Map<Class<?>, PainlessClassBuilder> classesToPainlessClasses;
 
     public PainlessLookupBuilder(List<Whitelist> whitelists) {
         this.whitelists = whitelists;
 
-        canonicalTypeNamesToClasses = new HashMap<>();
+        canonicalClassNamesToClasses = new HashMap<>();
         classesToPainlessClasses = new HashMap<>();
 
-        canonicalTypeNamesToClasses.put(DEF_TYPE_NAME, def.class);
+        canonicalClassNamesToClasses.put(DEF_TYPE_NAME, def.class);
         classesToPainlessClasses.put(def.class,
                 new PainlessClassBuilder(DEF_TYPE_NAME, Object.class, Type.getType(Object.class)));
     }
 
     private Class<?> canonicalTypeNameToType(String canonicalTypeName) {
-        return PainlessLookupUtility.canonicalTypeNameToType(canonicalTypeName, canonicalTypeNamesToClasses);
+        return PainlessLookupUtility.canonicalTypeNameToType(canonicalTypeName, canonicalClassNamesToClasses);
     }
 
     private void validateType(Class<?> type) {
@@ -192,7 +192,7 @@ public class PainlessLookupBuilder {
         if (existingPainlessClassBuilder == null) {
             PainlessClassBuilder painlessClassBuilder = new PainlessClassBuilder(canonicalClassName, clazz, Type.getType(clazz));
 
-            canonicalTypeNamesToClasses.put(canonicalClassName, clazz);
+            canonicalClassNamesToClasses.put(canonicalClassName, clazz);
             classesToPainlessClasses.put(clazz, painlessClassBuilder);
         } else if (existingPainlessClassBuilder.clazz.equals(clazz) == false) {
             throw new IllegalArgumentException("class [" + canonicalClassName + "] " +
@@ -207,7 +207,7 @@ public class PainlessLookupBuilder {
                 throw new IllegalArgumentException("must use only_fqn parameter on class [" + canonicalClassName + "] with no package");
             }
         } else {
-            Class<?> importedPainlessType = canonicalTypeNamesToClasses.get(importedCanonicalClassName);
+            Class<?> importedPainlessType = canonicalClassNamesToClasses.get(importedCanonicalClassName);
 
             if (importedPainlessType == null) {
                 if (importClassName) {
@@ -216,7 +216,7 @@ public class PainlessLookupBuilder {
                                 "inconsistent only_fqn parameters found for painless type [" + canonicalClassName + "]");
                     }
 
-                    canonicalTypeNamesToClasses.put(importedCanonicalClassName, clazz);
+                    canonicalClassNamesToClasses.put(importedCanonicalClassName, clazz);
                 }
             } else if (importedPainlessType.equals(clazz) == false) {
                 throw new IllegalArgumentException("painless type [" + importedCanonicalClassName + "] illegally represents multiple " +
@@ -228,7 +228,7 @@ public class PainlessLookupBuilder {
     }
 
     private void addConstructor(String ownerStructName, WhitelistConstructor whitelistConstructor) {
-        PainlessClassBuilder ownerStruct = classesToPainlessClasses.get(canonicalTypeNamesToClasses.get(ownerStructName));
+        PainlessClassBuilder ownerStruct = classesToPainlessClasses.get(canonicalClassNamesToClasses.get(ownerStructName));
 
         if (ownerStruct == null) {
             throw new IllegalArgumentException("owner struct [" + ownerStructName + "] not defined for constructor with " +
@@ -289,7 +289,7 @@ public class PainlessLookupBuilder {
     }
 
     private void addMethod(ClassLoader whitelistClassLoader, String ownerStructName, WhitelistMethod whitelistMethod) {
-        PainlessClassBuilder ownerStruct = classesToPainlessClasses.get(canonicalTypeNamesToClasses.get(ownerStructName));
+        PainlessClassBuilder ownerStruct = classesToPainlessClasses.get(canonicalClassNamesToClasses.get(ownerStructName));
 
         if (ownerStruct == null) {
             throw new IllegalArgumentException("owner struct [" + ownerStructName + "] not defined for method with " +
@@ -427,7 +427,7 @@ public class PainlessLookupBuilder {
     }
 
     private void addField(String ownerStructName, WhitelistField whitelistField) {
-        PainlessClassBuilder ownerStruct = classesToPainlessClasses.get(canonicalTypeNamesToClasses.get(ownerStructName));
+        PainlessClassBuilder ownerStruct = classesToPainlessClasses.get(canonicalClassNamesToClasses.get(ownerStructName));
 
         if (ownerStruct == null) {
             throw new IllegalArgumentException("owner struct [" + ownerStructName + "] not defined for method with " +
@@ -508,7 +508,7 @@ public class PainlessLookupBuilder {
     }
 
     private void copyStruct(String struct, List<String> children) {
-        final PainlessClassBuilder owner = classesToPainlessClasses.get(canonicalTypeNamesToClasses.get(struct));
+        final PainlessClassBuilder owner = classesToPainlessClasses.get(canonicalClassNamesToClasses.get(struct));
 
         if (owner == null) {
             throw new IllegalArgumentException("Owner struct [" + struct + "] not defined for copy.");
@@ -516,7 +516,7 @@ public class PainlessLookupBuilder {
 
         for (int count = 0; count < children.size(); ++count) {
             final PainlessClassBuilder child =
-                    classesToPainlessClasses.get(canonicalTypeNamesToClasses.get(children.get(count)));
+                    classesToPainlessClasses.get(canonicalClassNamesToClasses.get(children.get(count)));
 
             if (child == null) {
                 throw new IllegalArgumentException("Child struct [" + children.get(count) + "]" +
@@ -690,7 +690,7 @@ public class PainlessLookupBuilder {
                 for (WhitelistClass whitelistStruct : whitelist.whitelistStructs) {
                     String painlessTypeName = whitelistStruct.javaClassName.replace('$', '.');
                     PainlessClassBuilder painlessStruct =
-                        classesToPainlessClasses.get(canonicalTypeNamesToClasses.get(painlessTypeName));
+                        classesToPainlessClasses.get(canonicalClassNamesToClasses.get(painlessTypeName));
 
                     if (painlessStruct != null && painlessStruct.clazz.getName().equals(whitelistStruct.javaClassName) == false) {
                         throw new IllegalArgumentException("struct [" + painlessStruct.name + "] cannot represent multiple classes " +
@@ -701,7 +701,7 @@ public class PainlessLookupBuilder {
                     addPainlessClass(
                             whitelist.javaClassLoader, whitelistStruct.javaClassName, whitelistStruct.onlyFQNJavaClassName == false);
 
-                    painlessStruct = classesToPainlessClasses.get(canonicalTypeNamesToClasses.get(painlessTypeName));
+                    painlessStruct = classesToPainlessClasses.get(canonicalClassNamesToClasses.get(painlessTypeName));
                     classesToPainlessClasses.put(painlessStruct.clazz, painlessStruct);
                 }
             }
@@ -805,6 +805,6 @@ public class PainlessLookupBuilder {
             javaClassesToPainlessClasses.put(entry.getKey(), entry.getValue().build());
         }
 
-        return new PainlessLookup(canonicalTypeNamesToClasses, javaClassesToPainlessClasses);
+        return new PainlessLookup(canonicalClassNamesToClasses, javaClassesToPainlessClasses);
     }
 }

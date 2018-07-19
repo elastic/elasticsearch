@@ -26,11 +26,18 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * This class contains methods shared by {@link PainlessLookupBuilder}, {@link PainlessLookup}, and other
- * classes within Painless for conversion between type names and types along with some other various utility
- * methods.
+ * PainlessLookupUtility contains methods shared by {@link PainlessLookupBuilder}, {@link PainlessLookup}, and other classes within
+ * Painless for conversion between type names and types along with some other various utility methods.
  *
  * The following terminology is used for variable names throughout the lookup package:
+ *
+ * A class is a set of methods and fields under a specific class name. A type is either a class or an array under a specific type name.
+ * Note the distinction between class versus type is class means that no array classes will be be represented whereas type allows array
+ * classes to be represented.  The set of available classes will always be a subset of the available types.
+ *
+ * Under ambiguous circumstances most variable names are prefixed with asm, java, or painless. If the variable value is the same for asm,
+ * java, and painless, no prefix is used.
+ *
  * <ul>
  *     <li> - javaClassName     (String)         - the fully qualified java class name where '$' tokens represent inner classes excluding
  *                                                 def and array types </li>
@@ -39,8 +46,11 @@ import java.util.Objects;
  *
  *     <li> - javaType           (Class)         - a java class excluding def and including array types </li>
  *
+ *     <li> - importedClassName (String)         - the imported painless class name where the java canonical class name is used without
+ *                                                 the package qualifier
+ *
  *     <li> - canonicalClassName (String)        - the fully qualified painless class name equivalent to the fully
- *                                                 qualified java canonical class name or imported painless type name for a type
+ *                                                 qualified java canonical class name or imported painless class name for a class
  *                                                 including def and excluding array types where '.' tokens represent inner classes <li>
  *
  *     <li> - canonicalTypeName (String)         - the fully qualified painless type name equivalent to the fully
@@ -59,12 +69,14 @@ import java.util.Objects;
  *
  *     <li> - painlessField     (PainlessField)  - a painless field object </li>
  * </ul>
- *
- * Under ambiguous circumstances most variable names are prefixed with asm, java, or painless.
- * If the variable value is the same for asm, java, and painless, no prefix is used.
  */
 public final class PainlessLookupUtility {
 
+    /**
+     * Converts a canonical type name to a type based on the terminology specified as part of the documentation for
+     * {@link PainlessLookupUtility}. Since canonical class names are a subset of canonical type names, this method will
+     * safely convert a canonical class name to a class as well.
+     */
     public static Class<?> canonicalTypeNameToType(String canonicalTypeName, Map<String, Class<?>> canonicalClassNamesToClasses) {
         Objects.requireNonNull(canonicalTypeName);
         Objects.requireNonNull(canonicalClassNamesToClasses);
@@ -128,6 +140,11 @@ public final class PainlessLookupUtility {
         throw new IllegalArgumentException("type [" + canonicalTypeName + "] not found");
     }
 
+    /**
+     * Converts a type to a canonical type name based on the terminology specified as part of the documentation for
+     * {@link PainlessLookupUtility}. Since classes are a subset of types, this method will safely convert a class
+     * to a canonical class name as well.
+     */
     public static String typeToCanonicalTypeName(Class<?> type) {
         Objects.requireNonNull(type);
 
@@ -140,6 +157,11 @@ public final class PainlessLookupUtility {
         return canonicalTypeName;
     }
 
+    /**
+     * Converts a list of types to a list of canonical type names as a string based on the terminology specified as part of the
+     * documentation for {@link PainlessLookupUtility}. Since classes are a subset of types, this method will safely convert a list
+     * of classes or a mixed list of classes and types to a list of canonical type names as a string as well.
+     */
     public static String typesToCanonicalTypeNames(List<Class<?>> types) {
         StringBuilder typesStringBuilder = new StringBuilder("[");
 
@@ -160,7 +182,11 @@ public final class PainlessLookupUtility {
 
         return typesStringBuilder.toString();
     }
-
+    /**
+     * Converts a java type to a type based on the terminology specified as part of {@link PainlessLookupUtility} where if a type is an
+     * object class or object array, the returned type will be the equivalent def class or def array. Otherwise, this behaves as an
+     * identity function.
+     */
     public static Class<?> javaTypeToType(Class<?> javaType) {
         Objects.requireNonNull(javaType);
 
@@ -190,6 +216,11 @@ public final class PainlessLookupUtility {
         return javaType;
     }
 
+    /**
+     * Converts a type to a java type based on the terminology specified as part of {@link PainlessLookupUtility} where if a type is a
+     * def class or def array, the returned type will be the equivalent object class or object array. Otherwise, this behaves as an
+     * identity function.
+     */
     public static Class<?> typeToJavaType(Class<?> type) {
         Objects.requireNonNull(type);
 
@@ -219,6 +250,10 @@ public final class PainlessLookupUtility {
         return type;
     }
 
+    /**
+     * Ensures a type exists based on the terminology specified as part of {@link PainlessLookupUtility}.  Throws an
+     * {@link IllegalArgumentException} if the type does not exist.
+     */
     public static void validateType(Class<?> type, Collection<Class<?>> classes) {
         String canonicalTypeName = typeToCanonicalTypeName(type);
 
@@ -231,6 +266,10 @@ public final class PainlessLookupUtility {
         }
     }
 
+    /**
+     * Converts a type  to its boxed type equivalent if one exists based on the terminology specified as part of
+     * {@link PainlessLookupUtility}. Otherwise, this behaves as an identity function.
+     */
     public static Class<?> typeToBoxedType(Class<?> type) {
         if (type == boolean.class) {
             return Boolean.class;
@@ -253,6 +292,10 @@ public final class PainlessLookupUtility {
         return type;
     }
 
+    /**
+     * Converts a type to its unboxed type equivalent if one exists based on the terminology specified as part of
+     * {@link PainlessLookupUtility}. Otherwise, this behaves as an identity function.
+     */
     public static Class<?> typeToUnboxedType(Class<?> type) {
         if (type == Boolean.class) {
             return boolean.class;
@@ -275,6 +318,10 @@ public final class PainlessLookupUtility {
         return type;
     }
 
+    /**
+     * Checks if a type based on the terminology specified as part of {@link PainlessLookupUtility} is available as a constant type
+     * where {@code true} is returned if the type is a constant type and {@code false} otherwise.
+     */
     public static boolean isConstantType(Class<?> type) {
         return type == boolean.class ||
                type == byte.class    ||
@@ -287,15 +334,28 @@ public final class PainlessLookupUtility {
                type == String.class;
     }
 
+    /**
+     * Constructs a painless method key used to lookup painless methods from a painless class.
+     */
     public static String buildPainlessMethodKey(String methodName, int methodArity) {
         return methodName + "/" + methodArity;
     }
 
+    /**
+     * Constructs a painless field key used to lookup painless fields from a painless class.
+     */
     public static String buildPainlessFieldKey(String fieldName) {
         return fieldName;
     }
 
+    /**
+     * The def type name as specified in the source for a script.
+     */
     public static final String DEF_TYPE_NAME = "def";
+
+    /**
+     * The method name for all constructors.
+     */
     public static final String CONSTRUCTOR_NAME = "<init>";
 
     private PainlessLookupUtility() {

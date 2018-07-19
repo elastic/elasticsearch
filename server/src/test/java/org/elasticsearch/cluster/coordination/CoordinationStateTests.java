@@ -541,6 +541,42 @@ public class CoordinationStateTests extends ESTestCase {
         assertThat(applyCommit.get().getVersion(), equalTo(state2.version()));
     }
 
+    public void testHandlePublishResponseWithoutPublishConfigQuorum() {
+        VotingConfiguration configNode1 = new VotingConfiguration(Collections.singleton(node1.getId()));
+        VotingConfiguration configNode2 = new VotingConfiguration(Collections.singleton(node2.getId()));
+        ClusterState state1 = clusterState(0L, 1L, node1, configNode1, configNode1, 42L);
+        cs1.setInitialState(state1);
+        StartJoinRequest startJoinRequest1 = new StartJoinRequest(node1, randomLongBetween(1, 5));
+        Join v1 = cs1.handleStartJoin(startJoinRequest1);
+        assertTrue(cs1.handleJoin(v1));
+        assertTrue(cs1.electionWon());
+        Join v2 = cs2.handleStartJoin(startJoinRequest1);
+        assertTrue(cs1.handleJoin(v2));
+        ClusterState state2 = clusterState(startJoinRequest1.getTerm(), 2L, node1, configNode1, configNode2, 42L);
+        PublishRequest publishRequest = cs1.handleClientValue(state2);
+        PublishResponse publishResponse = cs1.handlePublishRequest(publishRequest);
+        Optional<ApplyCommitRequest> applyCommit = cs1.handlePublishResponse(node1, publishResponse);
+        assertFalse(applyCommit.isPresent());
+    }
+
+    public void testHandlePublishResponseWithoutCommitedConfigQuorum() {
+        VotingConfiguration configNode1 = new VotingConfiguration(Collections.singleton(node1.getId()));
+        VotingConfiguration configNode2 = new VotingConfiguration(Collections.singleton(node2.getId()));
+        ClusterState state1 = clusterState(0L, 1L, node1, configNode1, configNode1, 42L);
+        cs1.setInitialState(state1);
+        StartJoinRequest startJoinRequest1 = new StartJoinRequest(node1, randomLongBetween(1, 5));
+        Join v1 = cs1.handleStartJoin(startJoinRequest1);
+        assertTrue(cs1.handleJoin(v1));
+        assertTrue(cs1.electionWon());
+        Join v2 = cs2.handleStartJoin(startJoinRequest1);
+        assertTrue(cs1.handleJoin(v2));
+        ClusterState state2 = clusterState(startJoinRequest1.getTerm(), 2L, node1, configNode1, configNode2, 42L);
+        PublishRequest publishRequest = cs1.handleClientValue(state2);
+        PublishResponse publishResponse = cs2.handlePublishRequest(publishRequest);
+        Optional<ApplyCommitRequest> applyCommit = cs1.handlePublishResponse(node2, publishResponse);
+        assertFalse(applyCommit.isPresent());
+    }
+
     public void testHandlePublishResponseWithoutCommit() {
         VotingConfiguration initialConfig = new VotingConfiguration(Collections.singleton(node1.getId()));
         ClusterState state1 = clusterState(0L, 1L, node1, initialConfig, initialConfig, 42L);

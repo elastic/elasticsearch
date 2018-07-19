@@ -60,6 +60,8 @@ through stdin, use the `--stdin` flag:
 cat /file/containing/setting/value | bin/elasticsearch-keystore add --stdin the.setting.name.to.set
 ----------------------------------------------------------------
 
+Do note that if you're already storing the setting on the file sytem the keystore could be bypassed and the setting read directly from the file. If the data is truly sensitive it's best to never have it hit the disk in this manner at all.
+
 [float]
 [[remove-settings]]
 === Removing settings

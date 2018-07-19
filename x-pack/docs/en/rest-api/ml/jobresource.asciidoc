@@ -439,22 +439,22 @@ A rule has the following properties:
 `actions`::
   (array) The set of actions to be triggered when the rule applies.
   The available actions include: +
-  `skip_result`::: the result will not be created. Note this also means this result
-  will not impact the scoring of results. The model be normally updated with the
-  corresponding series value. This is the default action and it serves to skip
-  results that undesired.
-  `skip_model_update`::: the value for that series will not be used to update the model.
-  If there is an anomalous record for that series it will be normally created. This
-  is suitable when certain values are expected to be consistently anomalous and they
-  affect the model in a way that negatively impacts the rest of the results.
-
+  `skip_result`::: The result will not be created. Note this also means this 
+  result will not impact the scoring of results. This is the default value. 
+  Unless you also specify `skip_model_update`, the model will be updated as 
+  usual with the corresponding series value. 
+  `skip_model_update`::: The value for that series will not be used to update 
+  the model. Unless you also specify `skip_result`, the results will be created 
+  as usual. This action is suitable when certain values are expected to be 
+  consistently anomalous and they affect the model in a way that negatively 
+  impacts the rest of the results. 
 `scope`::
   (object) An optional scope of series where the rule applies. By default the scope
   includes all series. Scoping is allowed for any of the partition/by/over fields.
   To add a scope for a field add the field name as a key in the scope object and
   set its value to an object with properties:
     `filter_id`::
-      (string) The id of the filter to be used
+      (string) The id of the <<ml-filter-resource,filter>> to be used.
     `filter_type`::
       (string) Either `include` (the rule applies for values in the filter)
       or `exclude` (the rule applies for values not in the filter). Defaults

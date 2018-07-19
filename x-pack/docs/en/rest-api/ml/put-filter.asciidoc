@@ -56,7 +56,7 @@ PUT _xpack/ml/filters/safe_domains
 --------------------------------------------------
 // CONSOLE
 
-When the filter is created, you receive the following results:
+When the filter is created, you receive the following response:
 [source,js]
 ----
 {

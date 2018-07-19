@@ -184,6 +184,10 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
     }
 
     protected static Nested resolveNested(QueryShardContext context, NestedSortBuilder nestedSort) throws IOException {
+        final Query childQuery = resolveNestedQuery(context, nestedSort, null);
+        if (childQuery == null) {
+            return null;
+        }
         final ObjectMapper objectMapper = context.nestedScope().getObjectMapper();
         final Query parentQuery;
         if (objectMapper == null) {
@@ -191,7 +195,6 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
         } else {
             parentQuery = objectMapper.nestedTypeFilter();
         }
-        final Query childQuery = resolveNestedQuery(context, nestedSort, null);
         return new Nested(context.bitsetFilter(parentQuery), childQuery);
     }
 

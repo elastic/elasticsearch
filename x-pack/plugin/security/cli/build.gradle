@@ -11,7 +11,7 @@ dependencies {
     testCompile "junit:junit:${versions.junit}"
     testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
     testCompile 'org.elasticsearch:securemock:1.2'
-    testCompile("org.elasticsearch.test:framework:${version}")
+    testCompile "org.elasticsearch.test:framework:${version}"
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 

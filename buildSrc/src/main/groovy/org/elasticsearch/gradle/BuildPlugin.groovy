@@ -878,7 +878,7 @@ class BuildPlugin implements Plugin<Project> {
         project.check.dependsOn(precommit)
         project.test.mustRunAfter(precommit)
         // only require dependency licenses for non-elasticsearch deps
-        project.dependencyLicenses.dependencies = project.configurations.runtime.fileCollection {
+        project.dependencyLicenses.dependencies = project.configurations.default.fileCollection {
             it.group.startsWith('org.elasticsearch') == false
         } - project.configurations.compileOnly
     }

@@ -43,19 +43,17 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class CoordinationStateTests extends ESTestCase {
 
-    DiscoveryNode node1;
-    DiscoveryNode node2;
-    DiscoveryNode node3;
+    private DiscoveryNode node1;
+    private DiscoveryNode node2;
+    private DiscoveryNode node3;
 
-    ClusterState initialStateNode1;
-    ClusterState initialStateNode2;
-    ClusterState initialStateNode3;
+    private ClusterState initialStateNode1;
 
-    PersistedState ps1;
+    private PersistedState ps1;
 
-    CoordinationState cs1;
-    CoordinationState cs2;
-    CoordinationState cs3;
+    private CoordinationState cs1;
+    private CoordinationState cs2;
+    private CoordinationState cs3;
 
     @Before
     public void setupNodes() {
@@ -64,8 +62,10 @@ public class CoordinationStateTests extends ESTestCase {
         node3 = createNode("node3");
 
         initialStateNode1 = clusterState(0L, 0L, node1, VotingConfiguration.EMPTY_CONFIG, VotingConfiguration.EMPTY_CONFIG, 42L);
-        initialStateNode2 = clusterState(0L, 0L, node2, VotingConfiguration.EMPTY_CONFIG, VotingConfiguration.EMPTY_CONFIG, 42L);
-        initialStateNode3 = clusterState(0L, 0L, node3, VotingConfiguration.EMPTY_CONFIG, VotingConfiguration.EMPTY_CONFIG, 42L);
+        ClusterState initialStateNode2 =
+            clusterState(0L, 0L, node2, VotingConfiguration.EMPTY_CONFIG, VotingConfiguration.EMPTY_CONFIG, 42L);
+        ClusterState initialStateNode3 =
+            clusterState(0L, 0L, node3, VotingConfiguration.EMPTY_CONFIG, VotingConfiguration.EMPTY_CONFIG, 42L);
 
         ps1 = new InMemoryPersistedState(0L, initialStateNode1);
 

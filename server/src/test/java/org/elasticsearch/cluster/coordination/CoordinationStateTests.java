@@ -329,7 +329,7 @@ public class CoordinationStateTests extends ESTestCase {
             containsString("lower or equal to last published version"));
     }
 
-    public void testHandleClientValueWithReconfigurationWhileAlreadyReconfiguring() {
+    public void testHandleClientValueWithDifferentReconfigurationWhileAlreadyReconfiguring() {
         VotingConfiguration initialConfig = new VotingConfiguration(Collections.singleton(node1.getId()));
         ClusterState state1 = clusterState(0L, 1L, node1, initialConfig, initialConfig, 42L);
         cs1.setInitialState(state1);
@@ -348,6 +348,25 @@ public class CoordinationStateTests extends ESTestCase {
         ClusterState state3 = clusterState(startJoinRequest1.getTerm(), 3L, node1, initialConfig, newConfig2, 42L);
         assertThat(expectThrows(CoordinationStateRejectedException.class, () -> cs1.handleClientValue(state3)).getMessage(),
             containsString("only allow reconfiguration while not already reconfiguring"));
+    }
+
+    public void testHandleClientValueWithSameReconfigurationWhileAlreadyReconfiguring() {
+        VotingConfiguration initialConfig = new VotingConfiguration(Collections.singleton(node1.getId()));
+        ClusterState state1 = clusterState(0L, 1L, node1, initialConfig, initialConfig, 42L);
+        cs1.setInitialState(state1);
+        StartJoinRequest startJoinRequest1 = new StartJoinRequest(node1, randomLongBetween(1, 5));
+        Join v1 = cs1.handleStartJoin(startJoinRequest1);
+        Join v2 = cs2.handleStartJoin(startJoinRequest1);
+        assertTrue(cs1.handleJoin(v1));
+        assertTrue(cs1.electionWon());
+        assertTrue(cs1.handleJoin(v2));
+
+        VotingConfiguration newConfig1 = new VotingConfiguration(Collections.singleton(node2.getId()));
+        ClusterState state2 = clusterState(startJoinRequest1.getTerm(), 2L, node1, initialConfig, newConfig1, 42L);
+        PublishRequest publishRequest = cs1.handleClientValue(state2);
+        cs1.handlePublishRequest(publishRequest);
+        ClusterState state3 = clusterState(startJoinRequest1.getTerm(), 3L, node1, initialConfig, newConfig1, 42L);
+        cs1.handleClientValue(state3);
     }
 
     public void testHandleClientValueWithIllegalCommittedConfigurationChange() {

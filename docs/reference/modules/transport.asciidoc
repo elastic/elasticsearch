@@ -59,7 +59,8 @@ It also uses the common
 [float]
 ==== TCP Transport Profiles
 
-Elasticsearch allows you to bind to multiple ports on different interfaces by the use of transport profiles. See this example configuration
+Elasticsearch allows you to bind to multiple ports on different interfaces by
+the use of transport profiles. See this example configuration
 
 [source,yaml]
 --------------
@@ -71,10 +72,12 @@ transport.profiles.dmz.port: 9700-9800
 transport.profiles.dmz.bind_host: 172.16.1.2
 --------------
 
-The `default` profile is a special. It is used as fallback for any other profiles, if those do not have a specific configuration setting set.
-Note that the default profile is how other nodes in the cluster will connect to this node usually. In the future this feature will allow to enable node-to-node communication via multiple interfaces.
+The `default` profile is special. It is used as a fallback for any other
+profiles, if those do not have a specific configuration setting set, and is how
+this node connects to other nodes in the cluster.
 
-The following parameters can be configured like that
+The following parameters can be configured on each transport profile, as in the
+example above:
 
 * `port`: The port to bind to
 * `bind_host`: The host to bind

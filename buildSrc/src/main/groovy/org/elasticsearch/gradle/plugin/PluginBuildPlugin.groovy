@@ -33,6 +33,9 @@ import org.gradle.api.tasks.bundling.Zip
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
+import java.util.regex.Matcher
+import java.util.regex.Pattern
+
 /**
  * Encapsulates build configuration for an Elasticsearch plugin.
  */
@@ -162,6 +165,24 @@ public class PluginBuildPlugin extends BuildPlugin {
         project.artifacts.add('zip', bundle)
     }
 
+    /** Find the reponame. */
+    static String urlFromOrigin(String origin) {
+        if (origin == null) {
+            return null // best effort, the url doesnt really matter, it is just required by maven central
+        }
+        if (origin.startsWith('https')) {
+            return origin
+        }
+        Matcher matcher = GIT_PATTERN.matcher(origin)
+        if (matcher.matches()) {
+            return "https://${matcher.group(1)}/${matcher.group(2)}"
+        } else {
+            return origin // best effort, the url doesnt really matter, it is just required by maven central
+        }
+    }
+
+    static final Pattern GIT_PATTERN = Pattern.compile(/git@([^:]+):([^\.]+)\.git/)
+
     /** Adds a task to move jar and associated files to a "-client" name. */
     protected static void addClientJarTask(Project project) {
         Task clientJar = project.tasks.create('clientJar')
@@ -177,7 +198,7 @@ public class PluginBuildPlugin extends BuildPlugin {
                     .parse(project.tasks.generatePomFileForNebulaPublication.outputs.files.singleFile)
             pom.artifactId[0].value = project.name + "-client"
             jarFile.resolveSibling(clientPomFileName).toFile().text = XmlUtil.serialize(pom)
-                    // Groovy has an odd way of formatting the XML, fix it up3
+            // Groovy has an odd way of formatting the XML, fix it up3
                     .replaceAll(/\n\s*\n/, "\n")
                     .replace("\"UTF-8\"?><project", "\"UTF-8\"?>\n<project");
 

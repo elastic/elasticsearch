@@ -24,15 +24,15 @@ import java.util.Map;
 /**
  * A script used in bucket aggregations that returns a {@code double} value.
  */
-public abstract class BucketAggregateToDoubleScript {
+public abstract class BucketAggregationScript {
 
     public static final String[] PARAMETERS = { "params" };
 
-    public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("aggs_double", Factory.class);
+    public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("bucket_aggregation", Factory.class);
 
     public abstract double execute(Map<String, Object> params);
 
     public interface Factory {
-        BucketAggregateToDoubleScript newInstance();
+        BucketAggregationScript newInstance();
     }
 }

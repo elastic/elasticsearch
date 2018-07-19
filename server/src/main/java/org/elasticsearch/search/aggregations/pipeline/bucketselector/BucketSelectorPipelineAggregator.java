@@ -22,8 +22,8 @@ package org.elasticsearch.search.aggregations.pipeline.bucketselector;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.script.BucketAggregateToBooleanScript;
-import org.elasticsearch.script.BucketAggregateToDoubleScript;
+import org.elasticsearch.script.BucketAggregationSelectorScript;
+import org.elasticsearch.script.BucketAggregationScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
@@ -85,18 +85,18 @@ public class BucketSelectorPipelineAggregator extends PipelineAggregator {
 
         List<InternalMultiBucketAggregation.InternalBucket> newBuckets = new ArrayList<>();
         if ("expression".equals(script.getLang())) {
-            BucketAggregateToDoubleScript.Factory factory =
-                reduceContext.scriptService().compile(script, BucketAggregateToDoubleScript.CONTEXT);
-            BucketAggregateToDoubleScript executableScript = factory.newInstance();
+            BucketAggregationScript.Factory factory =
+                reduceContext.scriptService().compile(script, BucketAggregationScript.CONTEXT);
+            BucketAggregationScript executableScript = factory.newInstance();
             for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
                 if (executableScript.execute(scriptArgs(originalAgg, bucket)) == 1.0) {
                     newBuckets.add(bucket);
                 }
             }
         } else {
-            BucketAggregateToBooleanScript.Factory factory =
-                reduceContext.scriptService().compile(script, BucketAggregateToBooleanScript.CONTEXT);
-            BucketAggregateToBooleanScript executableScript = factory.newInstance();
+            BucketAggregationSelectorScript.Factory factory =
+                reduceContext.scriptService().compile(script, BucketAggregationSelectorScript.CONTEXT);
+            BucketAggregationSelectorScript executableScript = factory.newInstance();
             for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
                 if (executableScript.execute(scriptArgs(originalAgg, bucket))) {
                     newBuckets.add(bucket);

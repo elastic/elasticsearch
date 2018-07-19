@@ -27,7 +27,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Request object to put a one or more application privileges.
  */
-public final class PutPrivilegesRequest extends ActionRequest implements WriteRequest<PutPrivilegesRequest> {
+public final class PutPrivilegesRequest extends ActionRequest implements ApplicationPrivilegesRequest, WriteRequest<PutPrivilegesRequest> {
 
     private List<ApplicationPrivilegeDescriptor> privileges;
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
@@ -90,6 +90,13 @@ public final class PutPrivilegesRequest extends ActionRequest implements WriteRe
 
     public void setPrivileges(Collection<ApplicationPrivilegeDescriptor> privileges) {
         this.privileges = Collections.unmodifiableList(new ArrayList<>(privileges));
+    }
+
+    @Override
+    public Collection<String> getApplicationNames() {
+        return Collections.unmodifiableSet(privileges.stream()
+            .map(ApplicationPrivilegeDescriptor::getApplication)
+            .collect(Collectors.toSet()));
     }
 
     @Override

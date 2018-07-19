@@ -5,12 +5,23 @@
  */
 package org.elasticsearch.xpack.core.security.action.role;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -19,9 +30,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -48,9 +61,35 @@ public class PutRoleRequestTests extends ESTestCase {
         original.writeTo(out);
 
         final PutRoleRequest copy = new PutRoleRequest();
-        copy.readFrom(out.bytes().streamInput());
+        final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin(Settings.EMPTY).getNamedWriteables());
+        StreamInput in = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), registry);
+        copy.readFrom(in);
 
         assertThat(copy.roleDescriptor(), equalTo(original.roleDescriptor()));
+    }
+
+    public void testSerializationV63AndBefore() throws IOException {
+        final PutRoleRequest original = buildRandomRequest();
+
+        final BytesStreamOutput out = new BytesStreamOutput();
+        final Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_6_0, Version.V_6_3_2);
+        out.setVersion(version);
+        original.writeTo(out);
+
+        final PutRoleRequest copy = new PutRoleRequest();
+        final StreamInput in = out.bytes().streamInput();
+        in.setVersion(version);
+        copy.readFrom(in);
+
+        assertThat(copy.name(), equalTo(original.name()));
+        assertThat(copy.cluster(), equalTo(original.cluster()));
+        assertThat(copy.indices(), equalTo(original.indices()));
+        assertThat(copy.runAs(), equalTo(original.runAs()));
+        assertThat(copy.metadata(), equalTo(original.metadata()));
+        assertThat(copy.getRefreshPolicy(), equalTo(original.getRefreshPolicy()));
+
+        assertThat(copy.applicationPrivileges(), iterableWithSize(0));
+        assertThat(copy.conditionalClusterPrivileges(), arrayWithSize(0));
     }
 
     private void assertSuccessfulValidation(PutRoleRequest request) {
@@ -105,6 +144,11 @@ public class PutRoleRequestTests extends ESTestCase {
                 .build();
         }
         request.addApplicationPrivileges(applicationPrivileges);
+
+        if (randomBoolean()) {
+            final String[] appNames = randomArray(1, 4, String[]::new, stringWithInitialLowercase);
+            request.conditionalCluster(new ConditionalClusterPrivileges.ManageApplicationPrivileges(Sets.newHashSet(appNames)));
+        }
 
         request.runAs(generateRandomStringArray(4, 3, false, true));
 

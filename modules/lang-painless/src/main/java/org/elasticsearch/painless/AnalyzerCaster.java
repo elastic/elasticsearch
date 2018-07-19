@@ -466,8 +466,8 @@ public final class AnalyzerCaster {
             return PainlessCast.standard(actual, expected, explicit);
         } else {
             throw location.createError(new ClassCastException("Cannot cast from " +
-                    "[" + PainlessLookupUtility.painlessTypeToPainlessTypeName(actual) + "] to " +
-                    "[" + PainlessLookupUtility.painlessTypeToPainlessTypeName(expected) + "]."));
+                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(actual) + "] to " +
+                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(expected) + "]."));
         }
     }
 

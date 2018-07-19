@@ -31,138 +31,149 @@ import java.util.Objects;
  * methods.
  *
  * The following terminology is used for variable names throughout the lookup package:
+ * <ul>
+ *     <li> - javaClassName     (String)         - the fully qualified java class name where '$' tokens represent inner classes excluding
+ *                                                 def and array types </li>
  *
- * - javaTypeName        (String)        - the fully qualified java type name for a painless type
- *                                         where '$' tokens are used to represent inner classes
- * - painlessTypeName    (String)        - the fully qualified painless type name or imported painless
- *                                         type name for a painless type where '.' tokens replace '$' tokens
- * - painlessType        (Class)         - a painless type represented by a java class including def
- *                                         and including array type java classes
- * - painlessClass       (PainlessClass) - a painless class object
+ *     <li> - javaClass          (Class)         - a java class excluding def and array types </li>
+ *
+ *     <li> - javaType           (Class)         - a java class excluding def and including array types </li>
+ *
+ *     <li> - canonicalClassName (String)        - the fully qualified painless class name equivalent to the fully
+ *                                                 qualified java canonical class name or imported painless type name for a type
+ *                                                 including def and excluding array types where '.' tokens represent inner classes <li>
+ *
+ *     <li> - canonicalTypeName (String)         - the fully qualified painless type name equivalent to the fully
+ *                                                 qualified java canonical type name or imported painless type name for a type
+ *                                                 including def where '.' tokens represent inner classes and each set of '[]' tokens
+ *                                                 at the end of the type name represent a single dimension for an array type <li>
+ *
+ *     <li> - class/clazz       (Class)          - a painless class represented by a java class including def and excluding array
+ *                                                 types </li>
+ *
+ *     <li> - type              (Class)          - a painless type represented by a java class including def and array types </li>
+ *
+ *     <li> - painlessClass     (PainlessClass)  - a painless class object </li>
+ *
+ *     <li> - painlessMethod    (PainlessMethod) - a painless method object </li>
+ *
+ *     <li> - painlessField     (PainlessField)  - a painless field object </li>
+ * </ul>
  *
  * Under ambiguous circumstances most variable names are prefixed with asm, java, or painless.
  * If the variable value is the same for asm, java, and painless, no prefix is used.
  */
 public final class PainlessLookupUtility {
 
-    public static String javaTypeNameToPainlessTypeName(String javaTypeName) {
-        Objects.requireNonNull(javaTypeName);
-        assert(javaTypeName.startsWith("[") == false);
+    public static Class<?> canonicalTypeNameToType(String canonicalTypeName, Map<String, Class<?>> canonicalClassNamesToClasses) {
+        Objects.requireNonNull(canonicalTypeName);
+        Objects.requireNonNull(canonicalClassNamesToClasses);
 
-        if (javaTypeName.startsWith(def.class.getName())) {
-            return javaTypeName.replace(def.class.getName(), DEF_PAINLESS_TYPE_NAME).replace('$', '.');
-        } else {
-            return javaTypeName.replace('$', '.');
-        }
-    }
+        Class<?> type = canonicalClassNamesToClasses.get(canonicalTypeName);
 
-    public static Class<?> painlessTypeNameToPainlessType(String painlessTypeName, Map<String, Class<?>> painlessTypeNamesToPainlessTypes) {
-        Objects.requireNonNull(painlessTypeName);
-        Objects.requireNonNull(painlessTypeNamesToPainlessTypes);
-
-        Class<?> painlessType = painlessTypeNamesToPainlessTypes.get(painlessTypeName);
-
-        if (painlessType != null) {
-            return painlessType;
+        if (type != null) {
+            return type;
         }
 
         int arrayDimensions = 0;
-        int arrayIndex = painlessTypeName.indexOf('[');
+        int arrayIndex = canonicalTypeName.indexOf('[');
 
         if (arrayIndex != -1) {
-            int painlessTypeNameLength = painlessTypeName.length();
+            int typeNameLength = canonicalTypeName.length();
 
-            while (arrayIndex < painlessTypeNameLength) {
-                if (painlessTypeName.charAt(arrayIndex) == '[' &&
-                    ++arrayIndex < painlessTypeNameLength  &&
-                    painlessTypeName.charAt(arrayIndex++) == ']') {
+            while (arrayIndex < typeNameLength) {
+                if (canonicalTypeName.charAt(arrayIndex) == '[' &&
+                    ++arrayIndex < typeNameLength  &&
+                    canonicalTypeName.charAt(arrayIndex++) == ']') {
                     ++arrayDimensions;
                 } else {
-                    throw new IllegalArgumentException("painless type [" + painlessTypeName + "] not found");
+                    throw new IllegalArgumentException("type [" + canonicalTypeName + "] not found");
                 }
             }
 
-            painlessTypeName = painlessTypeName.substring(0, painlessTypeName.indexOf('['));
-            painlessType = painlessTypeNamesToPainlessTypes.get(painlessTypeName);
+            canonicalTypeName = canonicalTypeName.substring(0, canonicalTypeName.indexOf('['));
+            type = canonicalClassNamesToClasses.get(canonicalTypeName);
 
-            char javaDescriptorBraces[] = new char[arrayDimensions];
-            Arrays.fill(javaDescriptorBraces, '[');
-            String javaDescriptor = new String(javaDescriptorBraces);
+            char arrayBraces[] = new char[arrayDimensions];
+            Arrays.fill(arrayBraces, '[');
+            String javaTypeName = new String(arrayBraces);
 
-            if (painlessType == boolean.class) {
-                javaDescriptor += "Z";
-            } else if (painlessType == byte.class) {
-                javaDescriptor += "B";
-            } else if (painlessType == short.class) {
-                javaDescriptor += "S";
-            } else if (painlessType == char.class) {
-                javaDescriptor += "C";
-            } else if (painlessType == int.class) {
-                javaDescriptor += "I";
-            } else if (painlessType == long.class) {
-                javaDescriptor += "J";
-            } else if (painlessType == float.class) {
-                javaDescriptor += "F";
-            } else if (painlessType == double.class) {
-                javaDescriptor += "D";
+            if (type == boolean.class) {
+                javaTypeName += "Z";
+            } else if (type == byte.class) {
+                javaTypeName += "B";
+            } else if (type == short.class) {
+                javaTypeName += "S";
+            } else if (type == char.class) {
+                javaTypeName += "C";
+            } else if (type == int.class) {
+                javaTypeName += "I";
+            } else if (type == long.class) {
+                javaTypeName += "J";
+            } else if (type == float.class) {
+                javaTypeName += "F";
+            } else if (type == double.class) {
+                javaTypeName += "D";
             } else {
-                javaDescriptor += "L" + painlessType.getName() + ";";
+                javaTypeName += "L" + type.getName() + ";";
             }
 
             try {
-                return Class.forName(javaDescriptor);
+                return Class.forName(javaTypeName);
             } catch (ClassNotFoundException cnfe) {
-                throw new IllegalArgumentException("painless type [" + painlessTypeName + "] not found", cnfe);
+                throw new IllegalArgumentException("type [" + canonicalTypeName + "] not found", cnfe);
             }
         }
 
-        throw new IllegalArgumentException("painless type [" + painlessTypeName + "] not found");
+        throw new IllegalArgumentException("type [" + canonicalTypeName + "] not found");
     }
 
-    public static String painlessTypeToPainlessTypeName(Class<?> painlessType) {
-        Objects.requireNonNull(painlessType);
+    public static String typeToCanonicalTypeName(Class<?> type) {
+        Objects.requireNonNull(type);
 
-        if (painlessType.getCanonicalName().startsWith(def.class.getName())) {
-            return painlessType.getCanonicalName().replace(def.class.getName(), DEF_PAINLESS_TYPE_NAME).replace('$', '.');
-        } else {
-            return painlessType.getCanonicalName().replace('$', '.');
+        String canonicalTypeName = type.getCanonicalName();
+
+        if (canonicalTypeName.startsWith(def.class.getName())) {
+            canonicalTypeName = canonicalTypeName.replace(def.class.getName(), DEF_TYPE_NAME);
         }
+
+        return canonicalTypeName;
     }
 
-    public static String painlessTypesToPainlessTypeNames(List<Class<?>> painlessTypes) {
-        StringBuilder painlessTypesStringBuilder = new StringBuilder("[");
+    public static String typesToCanonicalTypeNames(List<Class<?>> types) {
+        StringBuilder typesStringBuilder = new StringBuilder("[");
 
-        int anyTypesSize = painlessTypes.size();
+        int anyTypesSize = types.size();
         int anyTypesIndex = 0;
 
-        for (Class<?> painlessType : painlessTypes) {
-            String anyTypeCanonicalName = javaTypeNameToPainlessTypeName(painlessType.getCanonicalName());
+        for (Class<?> painlessType : types) {
+            String canonicalTypeName = typeToCanonicalTypeName(painlessType);
 
-            painlessTypesStringBuilder.append(anyTypeCanonicalName);
+            typesStringBuilder.append(canonicalTypeName);
 
             if (++anyTypesIndex < anyTypesSize) {
-                painlessTypesStringBuilder.append(",");
+                typesStringBuilder.append(",");
             }
         }
 
-        painlessTypesStringBuilder.append("]");
+        typesStringBuilder.append("]");
 
-        return painlessTypesStringBuilder.toString();
+        return typesStringBuilder.toString();
     }
 
-    public static Class<?> ObjectTypeTodefType(Class<?> painlessType) {
-        Objects.requireNonNull(painlessType);
+    public static Class<?> javaTypeToType(Class<?> javaType) {
+        Objects.requireNonNull(javaType);
 
-        if (painlessType.isArray()) {
-            Class<?> painlessTypeComponent = painlessType.getComponentType();
+        if (javaType.isArray()) {
+            Class<?> javaTypeComponent = javaType.getComponentType();
             int arrayDimensions = 1;
 
-            while (painlessTypeComponent.isArray()) {
-                painlessTypeComponent = painlessTypeComponent.getComponentType();
+            while (javaTypeComponent.isArray()) {
+                javaTypeComponent = javaTypeComponent.getComponentType();
                 ++arrayDimensions;
             }
 
-            if (painlessTypeComponent == Object.class) {
+            if (javaTypeComponent == Object.class) {
                 char[] arrayBraces = new char[arrayDimensions];
                 Arrays.fill(arrayBraces, '[');
 
@@ -172,26 +183,26 @@ public final class PainlessLookupUtility {
                     throw new IllegalStateException("internal error", cnfe);
                 }
             }
-        } else if (painlessType == Object.class) {
+        } else if (javaType == Object.class) {
             return def.class;
         }
 
-        return painlessType;
+        return javaType;
     }
 
-    public static Class<?> defTypeToObjectType(Class<?> painlessType) {
-        Objects.requireNonNull(painlessType);
+    public static Class<?> typeToJavaType(Class<?> type) {
+        Objects.requireNonNull(type);
 
-        if (painlessType.isArray()) {
-            Class<?> painlessTypeComponent = painlessType.getComponentType();
+        if (type.isArray()) {
+            Class<?> typeComponent = type.getComponentType();
             int arrayDimensions = 1;
 
-            while (painlessTypeComponent.isArray()) {
-                painlessTypeComponent = painlessTypeComponent.getComponentType();
+            while (typeComponent.isArray()) {
+                typeComponent = typeComponent.getComponentType();
                 ++arrayDimensions;
             }
 
-            if (painlessTypeComponent == def.class) {
+            if (typeComponent == def.class) {
                 char[] arrayBraces = new char[arrayDimensions];
                 Arrays.fill(arrayBraces, '[');
 
@@ -201,79 +212,79 @@ public final class PainlessLookupUtility {
                     throw new IllegalStateException("internal error", cnfe);
                 }
             }
-        } else if (painlessType == def.class) {
+        } else if (type == def.class) {
             return Object.class;
         }
 
-        return painlessType;
+        return type;
     }
 
-    public static void validatePainlessType(Class<?> painlessType, Collection<Class<?>> painlessTypes) {
-        String painlessTypeName = javaTypeNameToPainlessTypeName(painlessType.getCanonicalName());
+    public static void validateType(Class<?> type, Collection<Class<?>> classes) {
+        String canonicalTypeName = typeToCanonicalTypeName(type);
 
-        while (painlessType.getComponentType() != null) {
-            painlessType = painlessType.getComponentType();
+        while (type.getComponentType() != null) {
+            type = type.getComponentType();
         }
 
-        if (painlessTypes.contains(painlessType) == false) {
-            throw new IllegalArgumentException("painless type [" + painlessTypeName + "] not found");
+        if (classes.contains(type) == false) {
+            throw new IllegalArgumentException("type [" + canonicalTypeName + "] not found");
         }
     }
 
-    public static Class<?> toBoxedPainlessType(Class<?> painlessType) {
-        if (painlessType == boolean.class) {
+    public static Class<?> typeToBoxedType(Class<?> type) {
+        if (type == boolean.class) {
             return Boolean.class;
-        } else if (painlessType == byte.class) {
+        } else if (type == byte.class) {
             return Byte.class;
-        } else if (painlessType == short.class) {
+        } else if (type == short.class) {
             return Short.class;
-        } else if (painlessType == char.class) {
+        } else if (type == char.class) {
             return Character.class;
-        } else if (painlessType == int.class) {
+        } else if (type == int.class) {
             return Integer.class;
-        } else if (painlessType == long.class) {
+        } else if (type == long.class) {
             return Long.class;
-        } else if (painlessType == float.class) {
+        } else if (type == float.class) {
             return Float.class;
-        } else if (painlessType == double.class) {
+        } else if (type == double.class) {
             return Double.class;
         }
 
-        return painlessType;
+        return type;
     }
 
-    public static Class<?> toUnboxedPainlessType(Class<?> painlessType) {
-        if (painlessType == Boolean.class) {
+    public static Class<?> typeToUnboxedType(Class<?> type) {
+        if (type == Boolean.class) {
             return boolean.class;
-        } else if (painlessType == Byte.class) {
+        } else if (type == Byte.class) {
             return byte.class;
-        } else if (painlessType == Short.class) {
+        } else if (type == Short.class) {
             return short.class;
-        } else if (painlessType == Character.class) {
+        } else if (type == Character.class) {
             return char.class;
-        } else if (painlessType == Integer.class) {
+        } else if (type == Integer.class) {
             return int.class;
-        } else if (painlessType == Long.class) {
+        } else if (type == Long.class) {
             return long.class;
-        } else if (painlessType == Float.class) {
+        } else if (type == Float.class) {
             return float.class;
-        } else if (painlessType == Double.class) {
+        } else if (type == Double.class) {
             return double.class;
         }
 
-        return painlessType;
+        return type;
     }
 
-    public static boolean isConstantPainlessType(Class<?> painlessType) {
-        return painlessType == boolean.class ||
-               painlessType == byte.class    ||
-               painlessType == short.class   ||
-               painlessType == char.class    ||
-               painlessType == int.class     ||
-               painlessType == long.class    ||
-               painlessType == float.class   ||
-               painlessType == double.class  ||
-               painlessType == String.class;
+    public static boolean isConstantType(Class<?> type) {
+        return type == boolean.class ||
+               type == byte.class    ||
+               type == short.class   ||
+               type == char.class    ||
+               type == int.class     ||
+               type == long.class    ||
+               type == float.class   ||
+               type == double.class  ||
+               type == String.class;
     }
 
     public static String buildPainlessMethodKey(String methodName, int methodArity) {
@@ -284,8 +295,8 @@ public final class PainlessLookupUtility {
         return fieldName;
     }
 
-    public static final String DEF_PAINLESS_TYPE_NAME = "def";
-    public static final String CONSTRUCTOR_ANY_NAME = "<init>";
+    public static final String DEF_TYPE_NAME = "def";
+    public static final String CONSTRUCTOR_NAME = "<init>";
 
     private PainlessLookupUtility() {
 

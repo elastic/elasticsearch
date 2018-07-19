@@ -64,8 +64,8 @@ public final class EInstanceof extends AExpression {
         }
 
         // map to wrapped type for primitive types
-        resolvedType = clazz.isPrimitive() ? PainlessLookupUtility.toBoxedPainlessType(clazz) :
-                PainlessLookupUtility.defTypeToObjectType(clazz);
+        resolvedType = clazz.isPrimitive() ? PainlessLookupUtility.typeToBoxedType(clazz) :
+                PainlessLookupUtility.typeToJavaType(clazz);
 
         // analyze and cast the expression
         expression.analyze(locals);
@@ -76,7 +76,7 @@ public final class EInstanceof extends AExpression {
         primitiveExpression = expression.actual.isPrimitive();
         // map to wrapped type for primitive types
         expressionType = expression.actual.isPrimitive() ?
-            PainlessLookupUtility.toBoxedPainlessType(expression.actual) : PainlessLookupUtility.defTypeToObjectType(clazz);
+            PainlessLookupUtility.typeToBoxedType(expression.actual) : PainlessLookupUtility.typeToJavaType(clazz);
 
         actual = boolean.class;
     }

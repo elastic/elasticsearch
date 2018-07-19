@@ -183,7 +183,7 @@ public class ScriptClassInfo {
 
     private static Class<?> definitionTypeForClass(PainlessLookup painlessLookup, Class<?> type,
                                                    Function<Class<?>, String> unknownErrorMessageSource) {
-        type = PainlessLookupUtility.ObjectTypeTodefType(type);
+        type = PainlessLookupUtility.javaTypeToType(type);
         Class<?> componentType = type;
 
         while (componentType.isArray()) {

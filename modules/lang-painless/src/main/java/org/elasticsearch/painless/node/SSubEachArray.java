@@ -109,6 +109,6 @@ final class SSubEachArray extends AStatement {
 
     @Override
     public String toString() {
-        return singleLineToString(PainlessLookupUtility.painlessTypeToPainlessTypeName(variable.clazz), variable.name, expression, block);
+        return singleLineToString(PainlessLookupUtility.typeToCanonicalTypeName(variable.clazz), variable.name, expression, block);
     }
 }

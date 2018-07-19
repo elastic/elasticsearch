@@ -63,7 +63,7 @@ public final class PField extends AStoreable {
         prefix = prefix.cast(locals);
 
         if (prefix.actual.isArray()) {
-            sub = new PSubArrayLength(location, PainlessLookupUtility.painlessTypeToPainlessTypeName(prefix.actual), value);
+            sub = new PSubArrayLength(location, PainlessLookupUtility.typeToCanonicalTypeName(prefix.actual), value);
         } else if (prefix.actual == def.class) {
             sub = new PSubDefField(location, value);
         } else {
@@ -86,7 +86,7 @@ public final class PField extends AStoreable {
 
                 if (getter != null || setter != null) {
                     sub = new PSubShortcut(
-                            location, value, PainlessLookupUtility.painlessTypeToPainlessTypeName(prefix.actual), getter, setter);
+                            location, value, PainlessLookupUtility.typeToCanonicalTypeName(prefix.actual), getter, setter);
                 } else {
                     EConstant index = new EConstant(location, value);
                     index.analyze(locals);
@@ -104,7 +104,7 @@ public final class PField extends AStoreable {
 
         if (sub == null) {
             throw createError(new IllegalArgumentException(
-                "Unknown field [" + value + "] for type [" + PainlessLookupUtility.painlessTypeToPainlessTypeName(prefix.actual) + "]."));
+                "Unknown field [" + value + "] for type [" + PainlessLookupUtility.typeToCanonicalTypeName(prefix.actual) + "]."));
         }
 
         if (nullSafe) {

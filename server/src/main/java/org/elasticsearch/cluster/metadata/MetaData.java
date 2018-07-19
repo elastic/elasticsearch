@@ -472,6 +472,42 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     }
 
     /**
+     * Returns indexing routing for the given <code>aliasOrIndex</code>. Resolves routing from the alias metadata used
+     * in the write index.
+     */
+    public String resolveWriteIndexRouting(@Nullable String routing, String aliasOrIndex) {
+        if (aliasOrIndex == null) {
+            return routing;
+        }
+
+        AliasOrIndex result = getAliasAndIndexLookup().get(aliasOrIndex);
+        if (result == null || result.isAlias() == false) {
+            return routing;
+        }
+        AliasOrIndex.Alias alias = (AliasOrIndex.Alias) result;
+        IndexMetaData writeIndex = alias.getWriteIndex();
+        if (writeIndex == null) {
+            throw new IllegalArgumentException("alias [" + aliasOrIndex + "] does not have a write index");
+        }
+        AliasMetaData aliasMd = writeIndex.getAliases().get(alias.getAliasName());
+        if (aliasMd.indexRouting() != null) {
+            if (aliasMd.indexRouting().indexOf(',') != -1) {
+                throw new IllegalArgumentException("index/alias [" + aliasOrIndex + "] provided with routing value ["
+                    + aliasMd.getIndexRouting() + "] that resolved to several routing values, rejecting operation");
+            }
+            if (routing != null) {
+                if (!routing.equals(aliasMd.indexRouting())) {
+                    throw new IllegalArgumentException("Alias [" + aliasOrIndex + "] has index routing associated with it ["
+                        + aliasMd.indexRouting() + "], and was provided with routing value [" + routing + "], rejecting operation");
+                }
+            }
+            // Alias routing overrides the parent routing (if any).
+            return aliasMd.indexRouting();
+        }
+        return routing;
+    }
+
+    /**
      * Returns indexing routing for the given index.
      */
     // TODO: This can be moved to IndexNameExpressionResolver too, but this means that we will support wildcards and other expressions

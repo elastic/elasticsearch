@@ -45,7 +45,6 @@ class MetaPluginBuildPlugin implements Plugin<Project> {
         }
         BuildPlugin.configurePomGeneration(project)
         project.afterEvaluate {
-            PluginBuildPlugin.addZipPomGeneration(project)
             if (isModule) {
                 if (project.integTestCluster.distribution == 'integ-test-zip') {
                     project.integTestCluster.module(project)

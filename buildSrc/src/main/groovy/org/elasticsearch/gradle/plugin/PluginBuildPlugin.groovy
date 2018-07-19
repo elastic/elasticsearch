@@ -61,10 +61,11 @@ public class PluginBuildPlugin extends BuildPlugin {
                 // and generate a different pom for the zip
                 addClientJarPomGeneration(project)
                 addClientJarTask(project)
+            } else {
+                // while the jar isn't normally published, we still at least build a pom of deps
+                // in case it is published, for instance when other plugins extend this plugin
+                configureJarPom(project)
             }
-            // while the jar isn't normally published, we still at least build a pom of deps
-            // in case it is published, for instance when other plugins extend this plugin
-            configureJarPom(project)
 
             project.integTestCluster.dependsOn(project.bundlePlugin)
             project.tasks.run.dependsOn(project.bundlePlugin)

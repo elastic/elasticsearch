@@ -188,7 +188,7 @@ public class CoordinationStateTests extends ESTestCase {
             containsString("higher than current last accepted term"));
     }
 
-    public void testJoinWithHigherVersion() {
+    public void testJoinWithSameAcceptedTermButHigherVersion() {
         VotingConfiguration initialConfig = new VotingConfiguration(Collections.singleton(node1.getId()));
         ClusterState state1 = clusterState(0L, 1L, node1, initialConfig, initialConfig, 42L);
         cs1.setInitialState(state1);
@@ -206,7 +206,7 @@ public class CoordinationStateTests extends ESTestCase {
             containsString("higher than current last accepted version"));
     }
 
-    public void testJoinWinsElection() {
+    public void testJoinWithLowerLastAcceptedTermWinsElection() {
         VotingConfiguration initialConfig = new VotingConfiguration(Collections.singleton(node1.getId()));
         ClusterState state1 = clusterState(0L, 1L, node1, initialConfig, initialConfig, 42L);
         cs1.setInitialState(state1);
@@ -218,9 +218,28 @@ public class CoordinationStateTests extends ESTestCase {
         StartJoinRequest startJoinRequest2 = new StartJoinRequest(node2, randomLongBetween(startJoinRequest1.getTerm() + 1, 10));
         Join v1 = cs1.handleStartJoin(startJoinRequest2);
 
-        boolean sameTermButBetterVersion = randomBoolean();
-        Join join = new Join(node1, node1, v1.getTerm(), sameTermButBetterVersion ? state2.term() : randomLongBetween(0, state2.term()),
-            sameTermButBetterVersion ? randomLongBetween(0, state2.version()) : randomLongBetween(0, 20));
+        Join join = new Join(node1, node1, v1.getTerm(), randomLongBetween(0, state2.term() - 1), randomLongBetween(0, 20));
+        assertTrue(cs1.handleJoin(join));
+        assertTrue(cs1.electionWon());
+        assertTrue(cs1.containsJoinVoteFor(node1));
+        assertFalse(cs1.containsJoinVoteFor(node2));
+        assertEquals(cs1.getLastPublishedVersion(), cs1.getLastAcceptedVersion());
+        assertFalse(cs1.handleJoin(join));
+    }
+
+    public void testJoinWithSameLastAcceptedTermButLowerOrSameVersionWinsElection() {
+        VotingConfiguration initialConfig = new VotingConfiguration(Collections.singleton(node1.getId()));
+        ClusterState state1 = clusterState(0L, 1L, node1, initialConfig, initialConfig, 42L);
+        cs1.setInitialState(state1);
+
+        StartJoinRequest startJoinRequest1 = new StartJoinRequest(node2, randomLongBetween(1, 5));
+        cs1.handleStartJoin(startJoinRequest1);
+        ClusterState state2 = clusterState(startJoinRequest1.getTerm(), randomLongBetween(2, 20), node1, initialConfig, initialConfig, 42L);
+        cs1.handlePublishRequest(new PublishRequest(state2));
+        StartJoinRequest startJoinRequest2 = new StartJoinRequest(node2, randomLongBetween(startJoinRequest1.getTerm() + 1, 10));
+        Join v1 = cs1.handleStartJoin(startJoinRequest2);
+
+        Join join = new Join(node1, node1, v1.getTerm(), state2.term(), randomLongBetween(0, state2.version()));
         assertTrue(cs1.handleJoin(join));
         assertTrue(cs1.electionWon());
         assertTrue(cs1.containsJoinVoteFor(node1));

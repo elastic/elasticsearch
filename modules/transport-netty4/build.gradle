@@ -24,9 +24,6 @@
    * maybe figure out a way to run all tests from core with netty4/network?
  */
 
-//apply plugin: 'nebula.maven-base-publish'
-//apply plugin: 'nebula.maven-scm'
-
 esplugin {
     description 'Netty 4 based transport implementation'
     classname 'org.elasticsearch.transport.Netty4Plugin'

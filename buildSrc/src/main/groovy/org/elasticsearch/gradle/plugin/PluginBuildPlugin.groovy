@@ -18,11 +18,13 @@
  */
 package org.elasticsearch.gradle.plugin
 
+import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
 import nebula.plugin.info.scm.ScmInfoPlugin
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.NoticeTask
 import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.test.RunTask
+import org.gradle.api.InvalidUserDataException
 import org.gradle.api.JavaVersion
 import org.gradle.api.Project
 import org.gradle.api.Task
@@ -46,6 +48,18 @@ public class PluginBuildPlugin extends BuildPlugin {
     @Override
     public void apply(Project project) {
         super.apply(project)
+        project.plugins.withType(ShadowPlugin).whenPluginAdded {
+            /*
+             * We've not tested these plugins together and we're fairly sure
+             * they aren't going to work properly as is *and* we're not really
+             * sure *why* you'd want to shade stuff in plugins. So we throw an
+             * exception here to make you come and read this comment. If you
+             * have a need for shadow while building plugins then know that you
+             * are probably going to have to fight with gradle for a while....
+             */
+            throw new InvalidUserDataException('elasticsearch.esplugin is not '
+                    + 'compatible with com.github.johnrengelman.shadow');
+        }
         configureDependencies(project)
         // this afterEvaluate must happen before the afterEvaluate added by integTest creation,
         // so that the file name resolution for installing the plugin will be setup

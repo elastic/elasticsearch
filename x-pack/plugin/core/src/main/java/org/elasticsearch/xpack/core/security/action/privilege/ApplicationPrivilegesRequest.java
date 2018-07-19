@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.security.action.privilege;
 import java.util.Collection;
 
 /**
- * Interface implemented by all Requests that managed application privileges
+ * Interface implemented by all Requests that manage application privileges
  */
 public interface ApplicationPrivilegesRequest {
 

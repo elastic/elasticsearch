@@ -53,7 +53,7 @@ public class ConditionalClusterPrivilegesTests extends ESTestCase {
 
             final byte[] bytes = out.toByteArray();
             try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, THROW_UNSUPPORTED_OPERATION, bytes)) {
-                assertThat( parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
+                assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
                 final List<ConditionalClusterPrivilege> clone = ConditionalClusterPrivileges.parse(parser);
                 assertThat(clone, equalTo(original));
                 assertThat(original, equalTo(clone));

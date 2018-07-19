@@ -534,13 +534,13 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
             } else if (name.equals("rename_pattern")) {
                 if (entry.getValue() instanceof String) {
                     renamePattern((String) entry.getValue());
-                } else if (entry.getValue() != null) {
+                } else {
                     throw new IllegalArgumentException("malformed rename_pattern");
                 }
             } else if (name.equals("rename_replacement")) {
                 if (entry.getValue() instanceof String) {
                     renameReplacement((String) entry.getValue());
-                } else if (entry.getValue() != null) {
+                } else {
                     throw new IllegalArgumentException("malformed rename_replacement");
                 }
             } else if (name.equals("index_settings")) {
@@ -577,8 +577,12 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         if (indicesOptions != null) {
             indicesOptions.toXContent(builder, params);
         }
-        builder.field("rename_pattern", renamePattern);
-        builder.field("rename_replacement", renameReplacement);
+        if (renamePattern != null) {
+            builder.field("rename_pattern", renamePattern);
+        }
+        if (renameReplacement != null) {
+            builder.field("rename_replacement", renameReplacement);
+        }
         builder.field("include_global_state", includeGlobalState);
         builder.field("partial", partial);
         builder.field("include_aliases", includeAliases);
@@ -646,21 +650,6 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
 
     @Override
     public String toString() {
-        return "RestoreSnapshotRequest{" +
-            "snapshot='" + snapshot + '\'' +
-            ", repository='" + repository + '\'' +
-            ", indices=" + (indices == null ? null : Arrays.asList(indices)) +
-            ", indicesOptions=" + indicesOptions +
-            ", renamePattern='" + renamePattern + '\'' +
-            ", renameReplacement='" + renameReplacement + '\'' +
-            ", waitForCompletion=" + waitForCompletion +
-            ", includeGlobalState=" + includeGlobalState +
-            ", partial=" + partial +
-            ", includeAliases=" + includeAliases +
-            ", settings=" + settings +
-            ", indexSettings=" + indexSettings +
-            ", ignoreIndexSettings=" + (ignoreIndexSettings == null ? null : Arrays.asList(ignoreIndexSettings)) +
-            ", masterNodeTimeout=" + masterNodeTimeout +
-            '}';
+        return Strings.toString(this);
     }
 }

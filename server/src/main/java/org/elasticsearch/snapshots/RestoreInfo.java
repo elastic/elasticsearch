@@ -19,6 +19,7 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -285,11 +286,6 @@ public class RestoreInfo implements ToXContentObject, Streamable {
 
     @Override
     public String toString() {
-        return "RestoreInfo{" +
-            "name='" + name + '\'' +
-            ", indices=" + indices +
-            ", totalShards=" + totalShards +
-            ", successfulShards=" + successfulShards +
-            '}';
+        return Strings.toString(this);
     }
 }

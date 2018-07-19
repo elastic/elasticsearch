@@ -2205,14 +2205,14 @@ public class RequestConvertersTests extends ESTestCase {
 
         RestoreSnapshotRequest restoreSnapshotRequest = new RestoreSnapshotRequest(repository, snapshot);
         setRandomMasterTimeout(restoreSnapshotRequest, expectedParams);
-        Boolean waitForCompletion = randomBoolean();
-        restoreSnapshotRequest.waitForCompletion(waitForCompletion);
-        if (waitForCompletion) {
-            expectedParams.put("wait_for_completion", waitForCompletion.toString());
+        if (randomBoolean()) {
+            restoreSnapshotRequest.waitForCompletion(true);
+            expectedParams.put("wait_for_completion", "true");
         }
         if (randomBoolean()) {
-            restoreSnapshotRequest.masterNodeTimeout("120s");
-            expectedParams.put("master_timeout", "120s");
+            String timeout = randomTimeValue();
+            restoreSnapshotRequest.masterNodeTimeout(timeout);
+            expectedParams.put("master_timeout", timeout);
         }
 
         Request request = RequestConverters.restoreSnapshot(restoreSnapshotRequest);

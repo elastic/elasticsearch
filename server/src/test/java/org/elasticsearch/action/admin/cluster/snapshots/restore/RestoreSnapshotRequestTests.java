@@ -21,13 +21,14 @@ package org.elasticsearch.action.admin.cluster.snapshots.restore;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,14 +40,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class RestoreSnapshotRequestTests extends ESTestCase {
-    // tests creating XContent and parsing with source(Map) equivalency
-    public void testToXContent() throws IOException {
-        String repo = randomAlphaOfLength(5);
-        String snapshot = randomAlphaOfLength(10);
-
-        RestoreSnapshotRequest original = new RestoreSnapshotRequest(repo, snapshot);
-
+public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase<RestoreSnapshotRequest> {
+    private RestoreSnapshotRequest randomState(RestoreSnapshotRequest instance) {
         if (randomBoolean()) {
             List<String> indices = new ArrayList<>();
             int count = randomInt(3) + 1;
@@ -55,16 +50,16 @@ public class RestoreSnapshotRequestTests extends ESTestCase {
                 indices.add(randomAlphaOfLength(randomInt(3) + 2));
             }
 
-            original.indices(indices);
+            instance.indices(indices);
         }
         if (randomBoolean()) {
-            original.renamePattern(randomUnicodeOfLengthBetween(1, 100));
+            instance.renamePattern(randomUnicodeOfLengthBetween(1, 100));
         }
         if (randomBoolean()) {
-            original.renameReplacement(randomUnicodeOfLengthBetween(1, 100));
+            instance.renameReplacement(randomUnicodeOfLengthBetween(1, 100));
         }
-        original.partial(randomBoolean());
-        original.includeAliases(randomBoolean());
+        instance.partial(randomBoolean());
+        instance.includeAliases(randomBoolean());
 
         if (randomBoolean()) {
             Map<String, Object> settings = new HashMap<>();
@@ -74,7 +69,7 @@ public class RestoreSnapshotRequestTests extends ESTestCase {
                 settings.put(randomAlphaOfLengthBetween(2, 5), randomAlphaOfLengthBetween(2, 5));
             }
 
-            original.settings(settings);
+            instance.settings(settings);
         }
         if (randomBoolean()) {
             Map<String, Object> indexSettings = new HashMap<>();
@@ -83,10 +78,10 @@ public class RestoreSnapshotRequestTests extends ESTestCase {
             for (int i = 0; i < count; ++i) {
                 indexSettings.put(randomAlphaOfLengthBetween(2, 5), randomAlphaOfLengthBetween(2, 5));;
             }
-            original.indexSettings(indexSettings);
+            instance.indexSettings(indexSettings);
         }
 
-        original.includeGlobalState(randomBoolean());
+        instance.includeGlobalState(randomBoolean());
 
         if (randomBoolean()) {
             Collection<IndicesOptions.WildcardStates> wildcardStates = randomSubsetOf(
@@ -94,17 +89,39 @@ public class RestoreSnapshotRequestTests extends ESTestCase {
             Collection<IndicesOptions.Option> options = randomSubsetOf(
                 Arrays.asList(IndicesOptions.Option.ALLOW_NO_INDICES, IndicesOptions.Option.IGNORE_UNAVAILABLE));
 
-            original.indicesOptions(new IndicesOptions(
+            instance.indicesOptions(new IndicesOptions(
                 options.isEmpty() ? IndicesOptions.Option.NONE : EnumSet.copyOf(options),
                 wildcardStates.isEmpty() ? IndicesOptions.WildcardStates.NONE : EnumSet.copyOf(wildcardStates)));
         }
 
-        original.waitForCompletion(randomBoolean());
+        instance.waitForCompletion(randomBoolean());
 
         if (randomBoolean()) {
-            original.masterNodeTimeout("60s");
+            instance.masterNodeTimeout(randomTimeValue());
         }
+        return instance;
+    }
 
+    @Override
+    protected RestoreSnapshotRequest createTestInstance() {
+        return randomState(new RestoreSnapshotRequest(randomAlphaOfLength(5), randomAlphaOfLength(10)));
+    }
+
+    @Override
+    protected Writeable.Reader<RestoreSnapshotRequest> instanceReader() {
+        return RestoreSnapshotRequest::new;
+    }
+
+    @Override
+    protected RestoreSnapshotRequest mutateInstance(RestoreSnapshotRequest instance) throws IOException {
+        RestoreSnapshotRequest copy = copyInstance(instance);
+        // ensure that at least one property is different
+        copy.repository("copied-" + instance.repository());
+        return randomState(copy);
+    }
+
+    public void testSource() throws IOException {
+        RestoreSnapshotRequest original = createTestInstance();
         XContentBuilder builder = original.toXContent(XContentFactory.jsonBuilder(), new ToXContent.MapParams(Collections.emptyMap()));
         XContentParser parser = XContentType.JSON.xContent().createParser(
             NamedXContentRegistry.EMPTY, null, BytesReference.bytes(builder).streamInput());
@@ -113,7 +130,7 @@ public class RestoreSnapshotRequestTests extends ESTestCase {
         // we will only restore properties from the map that are contained in the request body. All other
         // properties are restored from the original (in the actual REST action this is restored from the
         // REST path and request parameters).
-        RestoreSnapshotRequest processed = new RestoreSnapshotRequest(repo, snapshot);
+        RestoreSnapshotRequest processed = new RestoreSnapshotRequest(original.repository(), original.snapshot());
         processed.masterNodeTimeout(original.masterNodeTimeout());
         processed.waitForCompletion(original.waitForCompletion());
 

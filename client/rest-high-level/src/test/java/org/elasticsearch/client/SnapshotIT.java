@@ -220,12 +220,16 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         assertTrue(putRepositoryResponse.isAcknowledged());
 
         createIndex(testIndex, Settings.EMPTY);
+        assertTrue("index [" + testIndex + "] should have been created", indexExists(testIndex));
 
         CreateSnapshotRequest createSnapshotRequest = new CreateSnapshotRequest(testRepository, testSnapshot);
         createSnapshotRequest.indices(testIndex);
         createSnapshotRequest.waitForCompletion(true);
         CreateSnapshotResponse createSnapshotResponse = createTestSnapshot(createSnapshotRequest);
         assertEquals(RestStatus.OK, createSnapshotResponse.status());
+
+        deleteIndex(testIndex);
+        assertFalse("index [" + testIndex + "] should have been deleted", indexExists(testIndex));
 
         RestoreSnapshotRequest request = new RestoreSnapshotRequest(testRepository, testSnapshot);
         request.waitForCompletion(true);

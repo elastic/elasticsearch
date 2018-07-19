@@ -19,6 +19,8 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
+
 import java.util.Map;
 
 /**
@@ -33,9 +35,13 @@ public final class BytesProcessor extends AbstractStringProcessor {
         super(processorTag, field, ignoreMissing, targetField);
     }
 
+    public static long apply(String value) {
+        return ByteSizeValue.parseBytesSizeValue(value, null, "Ingest Field").getBytes();
+    }
+
     @Override
     protected Long process(String value) {
-        return Processors.bytes(value);
+        return apply(value);
     }
 
     @Override

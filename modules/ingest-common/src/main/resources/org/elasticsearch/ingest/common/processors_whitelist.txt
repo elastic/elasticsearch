@@ -25,6 +25,5 @@ class org.elasticsearch.ingest.common.Processors {
   String uppercase(String)
   Object json(Object)
   void json(Map, String)
-  String trim(String)
   String urlDecode(String)
 }

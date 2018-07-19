@@ -35,7 +35,7 @@ public final class TrimProcessor extends AbstractStringProcessor {
 
     @Override
     protected String process(String value) {
-        return Processors.trim(value);
+        return value.trim();
     }
 
     @Override

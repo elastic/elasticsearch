@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.common;
 
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -33,9 +34,13 @@ public final class UppercaseProcessor extends AbstractStringProcessor {
         super(processorTag, field, ignoreMissing, targetField);
     }
 
+    public static String apply(String value) {
+        return value.toUpperCase(Locale.ROOT);
+    }
+
     @Override
     protected String process(String value) {
-        return Processors.uppercase(value);
+        return apply(value);
     }
 
     @Override

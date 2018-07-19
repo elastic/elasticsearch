@@ -268,7 +268,8 @@ public class XPackLicenseState {
     private volatile Status status = new Status(OperationMode.TRIAL, true);
     private final List<Runnable> listeners = new CopyOnWriteArrayList<>();
     private final boolean isSecurityEnabled;
-    private volatile boolean isSecurityExplicitlyEnabled;
+    private final boolean isSecurityExplicitlyEnabled;
+    private volatile boolean isSecurityEnabledByTrialVersion;
 
     public XPackLicenseState(Settings settings) {
         this.isSecurityEnabled = XPackSettings.SECURITY_ENABLED.get(settings);
@@ -277,6 +278,7 @@ public class XPackLicenseState {
         // setting is not explicitly set
         this.isSecurityExplicitlyEnabled = isSecurityEnabled &&
             (settings.hasValue(XPackSettings.SECURITY_ENABLED.getKey()) || XPackSettings.TRANSPORT_SSL_ENABLED.get(settings));
+        this.isSecurityEnabledByTrialVersion = false;
     }
 
     /**
@@ -284,18 +286,20 @@ public class XPackLicenseState {
      *
      * @param mode   The mode (type) of the current license.
      * @param active True if the current license exists and is within its allowed usage period; false if it is expired or missing.
-     * @param trialVersion If the mode is {@link OperationMode#TRIAL}, then the version for which that trial license was generated, or
-     *                     null if no version was recorded.
+     * @param mostRecentTrialVersion If this cluster has, at some point commenced a trial, the most recent version on which they did that.
+     *                               May be {@code null} if they have never generated a trial license on this cluster, or the most recent
+     *                               trial was prior to this metadata being tracked (6.1)
      */
-    void update(OperationMode mode, boolean active, @Nullable Version trialVersion) {
+    void update(OperationMode mode, boolean active, @Nullable Version mostRecentTrialVersion) {
         status = new Status(mode, active);
         listeners.forEach(Runnable::run);
-        if (isSecurityEnabled == true && isSecurityExplicitlyEnabled == false && mode == OperationMode.TRIAL) {
+        if (isSecurityEnabled == true && isSecurityExplicitlyEnabled == false && mode == OperationMode.TRIAL
+            && isSecurityEnabledByTrialVersion == false) {
             // Before 6.3, Trial licenses would default having security enabled.
             // If this license was generated before that version, then treat it as if security is explicitly enabled
-            if (trialVersion == null || trialVersion.before(Version.V_6_3_0)) {
-                Loggers.getLogger(getClass()).info("Automatically enabling security for older trial license ({})", trialVersion);
-                isSecurityExplicitlyEnabled = true;
+            if (mostRecentTrialVersion == null || mostRecentTrialVersion.before(Version.V_6_3_0)) {
+                Loggers.getLogger(getClass()).info("Automatically enabling security for older trial license ({})", mostRecentTrialVersion);
+                isSecurityEnabledByTrialVersion = true;
             }
         }
     }
@@ -605,6 +609,6 @@ public class XPackLicenseState {
 
     public boolean isSecurityEnabled() {
         final OperationMode mode = status.mode;
-        return mode == OperationMode.TRIAL ? isSecurityExplicitlyEnabled : isSecurityEnabled;
+        return mode == OperationMode.TRIAL ? (isSecurityExplicitlyEnabled || isSecurityEnabledByTrialVersion) : isSecurityEnabled;
     }
 }

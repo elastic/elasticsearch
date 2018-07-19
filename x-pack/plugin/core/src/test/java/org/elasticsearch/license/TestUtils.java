@@ -361,10 +361,10 @@ public class TestUtils {
         }
 
         @Override
-        void update(License.OperationMode mode, boolean active, Version trialVersion) {
+        void update(License.OperationMode mode, boolean active, Version mostRecentTrialVersion) {
             modeUpdates.add(mode);
             activeUpdates.add(active);
-            trialVersionUpdates.add(trialVersion);
+            trialVersionUpdates.add(mostRecentTrialVersion);
         }
     }
 
@@ -382,8 +382,8 @@ public class TestUtils {
         }
 
         @Override
-        public void update(License.OperationMode mode, boolean active, Version trialVersion) {
-            super.update(mode, active, trialVersion);
+        public void update(License.OperationMode mode, boolean active, Version mostRecentTrialVersion) {
+            super.update(mode, active, mostRecentTrialVersion);
         }
     }
 

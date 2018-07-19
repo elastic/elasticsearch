@@ -121,7 +121,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         this.licenseState = licenseState;
         this.operationModeFileWatcher = new OperationModeFileWatcher(resourceWatcherService,
             XPackPlugin.resolveConfigFile(env, "license_mode"), logger,
-            () -> updateLicenseState(getLicenseMetaData()));
+            () -> updateLicenseState(getLicensesMetaData()));
         this.scheduler.register(this);
         populateExpirationCallbacks();
     }
@@ -266,7 +266,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
 
     @Override
     public void triggered(SchedulerEngine.Event event) {
-        final LicensesMetaData licensesMetaData = getLicenseMetaData();
+        final LicensesMetaData licensesMetaData = getLicensesMetaData();
         if (licensesMetaData != null) {
             final License license = licensesMetaData.getLicense();
             if (event.getJobName().equals(LICENSE_JOB)) {
@@ -312,7 +312,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         return license == LicensesMetaData.LICENSE_TOMBSTONE ? null : license;
     }
 
-    private LicensesMetaData getLicenseMetaData() {
+    private LicensesMetaData getLicensesMetaData() {
         return this.clusterService.state().metaData().custom(LicensesMetaData.TYPE);
     }
 
@@ -436,7 +436,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     protected void updateLicenseState(final License license, Version mostRecentTrialVersion) {
         if (license == LicensesMetaData.LICENSE_TOMBSTONE) {
             // implies license has been explicitly deleted
-            licenseState.update(License.OperationMode.MISSING, false, null);
+            licenseState.update(License.OperationMode.MISSING, false, mostRecentTrialVersion);
             return;
         }
         if (license != null) {
@@ -449,8 +449,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                 // date that is near Long.MAX_VALUE
                 active = time >= license.issueDate() && time - GRACE_PERIOD_DURATION.getMillis() < license.expiryDate();
             }
-            final Version trialVersion = license.operationMode() == License.OperationMode.TRIAL ? mostRecentTrialVersion : null;
-            licenseState.update(license.operationMode(), active, trialVersion);
+            licenseState.update(license.operationMode(), active, mostRecentTrialVersion);
 
             if (active) {
                 if (time < license.expiryDate()) {

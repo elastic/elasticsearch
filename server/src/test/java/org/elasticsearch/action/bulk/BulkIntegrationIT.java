@@ -63,6 +63,9 @@ public class BulkIntegrationIT extends ESIntegTestCase {
             .addAlias(new Alias("alias1").indexRouting("1").writeIndex(true)).setSettings(twoShardsSettings).get();
 
         IndexRequest indexRequestWithAlias = new IndexRequest("alias1", "type", "id");
+        if (randomBoolean()) {
+            indexRequestWithAlias.routing("1");
+        }
         indexRequestWithAlias.source(Collections.singletonMap("foo", "baz"));
         BulkResponse bulkResponse = client().prepareBulk().add(indexRequestWithAlias).get();
         assertThat(bulkResponse.getItems()[0].getResponse().getIndex(), equalTo("index3"));

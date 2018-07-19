@@ -17,7 +17,7 @@
  * under the License.
  */
 
-
+import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.BuildPlugin
@@ -303,18 +303,55 @@ subprojects {
     if (project.plugins.hasPlugin(BuildPlugin)) {
       String artifactsHost = VersionProperties.elasticsearch.isSnapshot() ? "https://snapshots.elastic.co" : "https://artifacts.elastic.co"
       Closure sortClosure = { a, b -> b.group <=> a.group }
-      Closure depJavadocClosure = { dep ->
-        if (dep.group != null && dep.group.startsWith('org.elasticsearch')) {
-          Project upstreamProject = dependencyToProject(dep)
-          if (upstreamProject != null) {
-            project.javadoc.dependsOn "${upstreamProject.path}:javadoc"
-            String artifactPath = dep.group.replaceAll('\\.', '/') + '/' + dep.name.replaceAll('\\.', '/') + '/' + dep.version
-            project.javadoc.options.linksOffline artifactsHost + "/javadoc/" + artifactPath, "${upstreamProject.buildDir}/docs/javadoc/"
+      Closure depJavadocClosure = { shadowed, dep ->
+        if (dep.group == null || false == dep.group.startsWith('org.elasticsearch')) {
+          return
+        }
+        Project upstreamProject = dependencyToProject(dep)
+        if (upstreamProject == null) {
+          return
+        }
+        if (shadowed) {
+          /*
+           * Include the source of shadowed upstream projects so we don't
+           * have to publish their javadoc.
+           */
+          project.evaluationDependsOn(upstreamProject.path)
+          project.javadoc.source += upstreamProject.javadoc.source
+          /*
+           * Do not add those projects to the javadoc classpath because
+           * we are going to resolve them with their source instead.
+           */
+          project.javadoc.classpath = project.javadoc.classpath.filter { f ->
+            false == upstreamProject.configurations.archives.artifacts.files.files.contains(f)
           }
+          /*
+           * Instead we need the upstream project's javadoc classpath so
+           * we don't barf on the classes that it references.
+           */
+          project.javadoc.classpath += upstreamProject.javadoc.classpath
+        } else {
+          // Link to non-shadowed dependant projects
+          project.javadoc.dependsOn "${upstreamProject.path}:javadoc"
+          String artifactPath = dep.group.replaceAll('\\.', '/') + '/' + dep.name.replaceAll('\\.', '/') + '/' + dep.version
+          project.javadoc.options.linksOffline artifactsHost + "/javadoc/" + artifactPath, "${upstreamProject.buildDir}/docs/javadoc/"
         }
       }
-      project.configurations.compile.dependencies.findAll().toSorted(sortClosure).each(depJavadocClosure)
-      project.configurations.compileOnly.dependencies.findAll().toSorted(sortClosure).each(depJavadocClosure)
+      boolean hasShadow = project.plugins.hasPlugin(ShadowPlugin)
+      project.configurations.compile.dependencies
+          .findAll()
+          .toSorted(sortClosure)
+          .each({ c -> depJavadocClosure(hasShadow, c) })
+      project.configurations.compileOnly.dependencies
+          .findAll()
+          .toSorted(sortClosure)
+          .each({ c -> depJavadocClosure(hasShadow, c) })
+      if (hasShadow) {
+        project.configurations.shadow.dependencies
+            .findAll()
+            .toSorted(sortClosure)
+            .each({ c -> depJavadocClosure(false, c) })
+      }
     }
   }
 }
@@ -537,6 +574,7 @@ subprojects { project ->
       commandLine "${->new File(rootProject.compilerJavaHome, 'bin/jar')}",
           'xf', "${-> jarTask.outputs.files.singleFile}", 'META-INF/LICENSE.txt', 'META-INF/NOTICE.txt'
       workingDir destination
+      onlyIf {jarTask.enabled}
       doFirst {
         project.delete(destination)
         Files.createDirectories(destination)
@@ -545,6 +583,7 @@ subprojects { project ->
 
     final Task checkNotice = project.task("verify${jarTask.name.capitalize()}Notice") {
       dependsOn extract
+      onlyIf {jarTask.enabled}
       doLast {
         final List<String> noticeLines = Files.readAllLines(project.noticeFile.toPath())
         final Path noticePath = extract.destination.resolve('META-INF/NOTICE.txt')
@@ -555,6 +594,7 @@ subprojects { project ->
 
     final Task checkLicense = project.task("verify${jarTask.name.capitalize()}License") {
       dependsOn extract
+      onlyIf {jarTask.enabled}
       doLast {
         final List<String> licenseLines = Files.readAllLines(project.licenseFile.toPath())
         final Path licensePath = extract.destination.resolve('META-INF/LICENSE.txt')
@@ -596,7 +636,7 @@ if (System.properties.get("build.compare") != null) {
       }
     }
     sourceBuild {
-      gradleVersion = "4.8.1" // does not default to gradle weapper of project dir, but current version
+      gradleVersion = gradle.getGradleVersion()
       projectDir = referenceProject
       tasks = ["clean", "assemble"]
       arguments = ["-Dbuild.compare_friendly=true"]

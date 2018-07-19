@@ -767,7 +767,9 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     private static Stream<Tuple<String, Method>> getSubClientMethods(String namespace, Class<?> clientClass) {
         return Arrays.stream(clientClass.getMethods()).filter(method -> method.getDeclaringClass().equals(clientClass))
-                .map(method -> Tuple.tuple(namespace + "." + toSnakeCase(method.getName()), method));
+                .map(method -> Tuple.tuple(namespace + "." + toSnakeCase(method.getName()), method))
+                .flatMap(tuple -> tuple.v2().getReturnType().getName().endsWith("Client")
+                    ? getSubClientMethods(tuple.v1(), tuple.v2().getReturnType()) : Stream.of(tuple));
     }
 
     private static String toSnakeCase(String camelCase) {

@@ -1,37 +1,54 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
-package org.elasticsearch.xpack.core.watcher.transport.actions.put;
-
+package org.elasticsearch.protocol.xpack.watcher;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
-import org.elasticsearch.xpack.core.watcher.support.WatcherUtils;
 
 import java.io.IOException;
+import java.util.regex.Pattern;
 
 /**
  * This request class contains the data needed to create a watch along with the name of the watch.
  * The name of the watch will become the ID of the indexed document.
  */
-public class PutWatchRequest extends ActionRequest {
+public final class PutWatchRequest extends ActionRequest {
+
+    private static final Pattern NO_WS_PATTERN = Pattern.compile("\\S+");
 
     private String id;
     private BytesReference source;
-    private boolean active = true;
     private XContentType xContentType = XContentType.JSON;
+    private boolean active = true;
     private long version = Versions.MATCH_ANY;
 
-    public PutWatchRequest() {
+    public PutWatchRequest() {}
+
+    public PutWatchRequest(StreamInput in) throws IOException {
+        readFrom(in);
     }
 
     public PutWatchRequest(String id, BytesReference source, XContentType xContentType) {
@@ -40,8 +57,9 @@ public class PutWatchRequest extends ActionRequest {
         this.xContentType = xContentType;
     }
 
-    public PutWatchRequest(StreamInput in) throws IOException {
-        super(in);
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
         id = in.readString();
         source = in.readBytesReference();
         active = in.readBoolean();
@@ -78,13 +96,6 @@ public class PutWatchRequest extends ActionRequest {
      */
     public BytesReference getSource() {
         return source;
-    }
-
-    /**
-     * Set the source of the watch
-     */
-    public void setSource(WatchSourceBuilder source) {
-        setSource(source.buildAsBytes(XContentType.JSON), XContentType.JSON);
     }
 
     /**
@@ -129,7 +140,7 @@ public class PutWatchRequest extends ActionRequest {
         ActionRequestValidationException validationException = null;
         if (id == null) {
             validationException = ValidateActions.addValidationError("watch id is missing", validationException);
-        } else if (WatcherUtils.isValidId(id) == false) {
+        } else if (isValidId(id) == false) {
             validationException = ValidateActions.addValidationError("watch id contains whitespace", validationException);
         }
         if (source == null) {
@@ -141,8 +152,7 @@ public class PutWatchRequest extends ActionRequest {
         return validationException;
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    public static boolean isValidId(String id) {
+        return Strings.isEmpty(id) == false && NO_WS_PATTERN.matcher(id).matches();
     }
 }

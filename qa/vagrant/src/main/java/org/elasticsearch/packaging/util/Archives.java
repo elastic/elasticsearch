@@ -35,7 +35,7 @@ import static org.elasticsearch.packaging.util.FileMatcher.p660;
 import static org.elasticsearch.packaging.util.FileMatcher.p755;
 import static org.elasticsearch.packaging.util.FileUtils.getCurrentVersion;
 import static org.elasticsearch.packaging.util.FileUtils.getDefaultArchiveInstallPath;
-import static org.elasticsearch.packaging.util.FileUtils.getPackagingArchivesDir;
+import static org.elasticsearch.packaging.util.FileUtils.getDistributionFile;
 import static org.elasticsearch.packaging.util.FileUtils.lsGlob;
 
 import static org.elasticsearch.packaging.util.FileUtils.mv;
@@ -66,7 +66,7 @@ public class Archives {
     public static Installation installArchive(Distribution distribution, Path fullInstallPath, String version) {
         final Shell sh = new Shell();
 
-        final Path distributionFile = getPackagingArchivesDir().resolve(distribution.filename(version));
+        final Path distributionFile = getDistributionFile(distribution);
         final Path baseInstallPath = fullInstallPath.getParent();
         final Path extractedPath = baseInstallPath.resolve("elasticsearch-" + version);
 
@@ -106,7 +106,7 @@ public class Archives {
         Platforms.onLinux(() -> setupArchiveUsersLinux(fullInstallPath));
         Platforms.onWindows(() -> setupArchiveUsersWindows(fullInstallPath));
 
-        return new Installation(fullInstallPath);
+        return Installation.ofArchive(fullInstallPath);
     }
 
     private static void setupArchiveUsersLinux(Path installPath) {
@@ -176,7 +176,6 @@ public class Archives {
         ).forEach(dir -> assertThat(dir, file(Directory, owner, owner, p755)));
 
         assertThat(Files.exists(es.data), is(false));
-        assertThat(Files.exists(es.scripts), is(false));
 
         assertThat(es.bin, file(Directory, owner, owner, p755));
         assertThat(es.lib, file(Directory, owner, owner, p755));
@@ -209,7 +208,7 @@ public class Archives {
             "elasticsearch.yml",
             "jvm.options",
             "log4j2.properties"
-        ).forEach(config -> assertThat(es.config(config), file(File, owner, owner, p660)));
+        ).forEach(configFile -> assertThat(es.config(configFile), file(File, owner, owner, p660)));
 
         Stream.of(
             "NOTICE.txt",
@@ -252,7 +251,7 @@ public class Archives {
             "roles.yml",
             "role_mapping.yml",
             "log4j2.properties"
-        ).forEach(config -> assertThat(es.config(config), file(File, owner, owner, p660)));
+        ).forEach(configFile -> assertThat(es.config(configFile), file(File, owner, owner, p660)));
     }
 
     public static void runElasticsearch(Installation installation) throws IOException {

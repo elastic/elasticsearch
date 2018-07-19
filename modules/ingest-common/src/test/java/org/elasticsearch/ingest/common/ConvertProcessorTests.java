@@ -49,6 +49,15 @@ public class ConvertProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue(fieldName, Integer.class), equalTo(randomInt));
     }
 
+    public void testConvertIntHex() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        int randomInt = randomInt();
+        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, "0x" + Integer.toHexString(randomInt));
+        Processor processor = new ConvertProcessor(randomAlphaOfLength(10), fieldName, fieldName, Type.INTEGER, false);
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue(fieldName, Integer.class), equalTo(randomInt));
+    }
+
     public void testConvertIntList() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         int numItems = randomIntBetween(1, 10);
@@ -87,6 +96,15 @@ public class ConvertProcessorTests extends ESTestCase {
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, randomLong);
         expectedResult.put(fieldName, randomLong);
 
+        Processor processor = new ConvertProcessor(randomAlphaOfLength(10), fieldName, fieldName, Type.LONG, false);
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue(fieldName, Long.class), equalTo(randomLong));
+    }
+
+    public void testConvertLongHex() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        long randomLong = randomLong();
+        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, "0x" + Long.toHexString(randomLong));
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), fieldName, fieldName, Type.LONG, false);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(fieldName, Long.class), equalTo(randomLong));

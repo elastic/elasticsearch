@@ -42,7 +42,11 @@ public final class ConvertProcessor extends AbstractProcessor {
             @Override
             public Object convert(Object value) {
                 try {
-                    return Integer.parseInt(value.toString());
+                    String str = value.toString();
+                    if (str.startsWith("0x")) {
+                        return Integer.decode(str);
+                    }
+                    return Integer.parseInt(str);
                 } catch(NumberFormatException e) {
                     throw new IllegalArgumentException("unable to convert [" + value + "] to integer", e);
                 }
@@ -52,7 +56,11 @@ public final class ConvertProcessor extends AbstractProcessor {
             @Override
             public Object convert(Object value) {
                 try {
-                    return Long.parseLong(value.toString());
+                    String str = value.toString();
+                    if (str.startsWith("0x")) {
+                        return Long.decode(str);
+                    }
+                    return Long.parseLong(str);
                 } catch(NumberFormatException e) {
                     throw new IllegalArgumentException("unable to convert [" + value + "] to long", e);
                 }

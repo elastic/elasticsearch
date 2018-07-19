@@ -15,14 +15,15 @@ Deletes a filter.
 
 ==== Description
 
-This API deletes a filter. A filter is only allowed to be
-deleted if it is not used by any job.
+This API deletes a filter. 
+If a {ml} job references the filter, you cannot delete the filter. You must 
+update or delete the job before you can delete the filter.
 
 
 ==== Path Parameters
 
 `filter_id` (required)::
-  (string) Identifier for the calendar.
+  (string) Identifier for the filter.
 
 
 ==== Authorization

@@ -1,6 +1,6 @@
 [role="xpack"]
 [[ml-configuring-detector-custom-rules]]
-=== Configuring Detector Custom Rules
+=== Customizing detectors with rules and filters
 
 Anomaly detectors operate unsupervised and produce results that are
 statistically anomalous. However, the {ml} models have no awareness
@@ -171,7 +171,7 @@ When there are multiple conditions they are combined with a logical `and`.
 This is useful when we want the rule to apply to a range. We simply create
 a rule with two conditions, one for each end of the desired range.
 
-Here is an example where a cound detector will skip results when the count
+Here is an example where a count detector will skip results when the count
 is greater than 30 and less than 50:
 
 [source,js]
@@ -208,7 +208,7 @@ PUT _xpack/ml/anomaly_detectors/rule_with_range
 
 ==== Rules in the life-cycle of a job
 
-Rules only apply for results created after the rules were created.
+Rules only affect results created after the rules were applied.
 Let us imagine that we have configured a job and it has been running
 for some time. After observing its results we decide that we can employ
 rules in order to get rid of some uninteresting results. We can use
@@ -223,8 +223,8 @@ that feeds into a job. For example, a rule that skips results when the
 partition field value is in a filter sounds equivalent to having a query
 that filters out such documents. But it is not. There is a fundamental
 difference. When the data is filtered before reaching a job it is as if they
-do never existed for the job. With rules, the data still reaches the job and
-depending the rule actions they are affecting the job.
+never existed for the job. With rules, the data still reaches the job and
+affects its behavior (depending on the rule actions).
 
 For example, a rule with the `skip_result` action means all data will still
 be modeled. On the other hand, a rule with the `skip_model_update` action means

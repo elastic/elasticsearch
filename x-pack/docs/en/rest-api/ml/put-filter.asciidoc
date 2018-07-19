@@ -13,8 +13,9 @@ Instantiates a filter.
 
 ===== Description
 
-A filter contains a list of strings and can
-be referenced by ML anomaly detectors' `custom_rules`.
+A filter contains a list of strings. 
+It can be used by one or more jobs. Specifically, filters are referenced in 
+the `custom_rules` property of <<ml-detectorconfig,detector configuration objects>>. 
 
 ==== Path Parameters
 
@@ -26,6 +27,7 @@ be referenced by ML anomaly detectors' `custom_rules`.
 
 `description`::
   (string) A description of the filter.
+  
 `items`::
   (array of strings) The items of the filter.
   A wildcard `*` can be used at the beginning

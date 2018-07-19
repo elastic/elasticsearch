@@ -222,7 +222,7 @@ subprojects {
     "org.elasticsearch.gradle:build-tools:${version}": ':build-tools',
     "org.elasticsearch:rest-api-spec:${version}": ':rest-api-spec',
     "org.elasticsearch:elasticsearch:${version}": ':server',
-    "org.elasticsearch:elasticsearch-cli:${version}": ':libs:cli',
+    "org.elasticsearch:elasticsearch-cli:${version}": ':libs:elasticsearch-cli',
     "org.elasticsearch:elasticsearch-core:${version}": ':libs:core',
     "org.elasticsearch:elasticsearch-nio:${version}": ':libs:nio',
     "org.elasticsearch:elasticsearch-x-content:${version}": ':libs:x-content',
@@ -620,6 +620,21 @@ gradle.projectsEvaluated {
         project.tasks.remove(dependenciesInfo)
         project.precommit.dependsOn.remove('dependenciesInfo')
       }
+    }
+  }
+  // Having the same group and name for distinct projects causes Gradle to consider them equal when resolving
+  // dependencies leading to hard to debug failures. Run a check across all project to prevent this from happening.
+  // see: https://github.com/gradle/gradle/issues/847
+  Map coordsToProject = [:]
+  project.allprojects.forEach { p ->
+    String coords = "${p.group}:${p.name}"
+    if (false == coordsToProject.putIfAbsent(coords, p)) {
+      throw new GradleException(
+              "Detected that two projects: ${p.path} and ${coordsToProject[coords].path} " +
+                      "have the same name and group: ${coords}. " +
+                      "This doesn't currently work correctly in Gradle, see: " +
+                      "https://github.com/gradle/gradle/issues/847"
+      )
     }
   }
 }

@@ -117,7 +117,9 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(shardChangesRequests.get(0)[1], equalTo(64L));
 
         shardChangesRequests.clear();
-        task.leaderGlobalCheckpoint = 128L;
+        synchronized (task) {
+            task.updateLeaderGlobalCheckpoint(128L);
+        }
         task.markAsCompleted();
         task.coordinateReads();
         assertThat(shardChangesRequests.size(), equalTo(0));
@@ -657,7 +659,9 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         task.start(followerGlobalCheckpoint);
         // Shortcut to just set leaderGlobalCheckpoint, calling for example handleReadResponse() has side effects that
         // complicates testing in isolation.
-        task.leaderGlobalCheckpoint = leaderGlobalCheckpoint;
+        synchronized (task) {
+            task.updateLeaderGlobalCheckpoint(leaderGlobalCheckpoint);
+        }
     }
 
 

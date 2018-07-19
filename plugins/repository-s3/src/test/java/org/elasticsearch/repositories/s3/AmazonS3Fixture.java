@@ -88,7 +88,10 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         final Bucket ec2Bucket = new Bucket("s3Fixture.ec2",
             randomAsciiAlphanumOfLength(random, 10), randomAsciiAlphanumOfLength(random, 10));
 
-        this.handlers = defaultHandlers(buckets, ec2Bucket);
+        final Bucket ecsBucket = new Bucket("s3Fixture.ecs",
+            randomAsciiAlphanumOfLength(random, 10), randomAsciiAlphanumOfLength(random, 10));
+
+        this.handlers = defaultHandlers(buckets, ec2Bucket, ecsBucket);
     }
 
     private static String nonAuthPath(Request request) {
@@ -174,7 +177,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
     }
 
     /** Builds the default request handlers **/
-    private PathTrie<RequestHandler> defaultHandlers(final Map<String, Bucket> buckets, final Bucket ec2Bucket) {
+    private PathTrie<RequestHandler> defaultHandlers(final Map<String, Bucket> buckets, final Bucket ec2Bucket, final Bucket ecsBucket) {
         final PathTrie<RequestHandler> handlers = new PathTrie<>(RestUtils.REST_DECODER);
 
         // HEAD Object
@@ -400,10 +403,17 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         handlers.insert(nonAuthPath(HttpGet.METHOD_NAME, "/latest/meta-data/iam/security-credentials/{profileName}"), (request) -> {
             final String profileName = request.getParam("profileName");
             if (EC2_PROFILE.equals(profileName) == false) {
-                return new Response(RestStatus.NOT_FOUND.getStatus(), new HashMap<>(), "unknown credentials".getBytes(UTF_8));
+                return new Response(RestStatus.NOT_FOUND.getStatus(), new HashMap<>(), "unknown profile".getBytes(UTF_8));
             }
             return credentialResponseFunction.apply(profileName, ec2Bucket.key, ec2Bucket.token);
         });
+
+        // GET
+        //
+        // https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-iam-roles.html
+        handlers.insert(nonAuthPath(HttpGet.METHOD_NAME, "/ecs_credentials_endpoint"),
+            (request) -> credentialResponseFunction.apply("CPV_ECS", ecsBucket.key, ecsBucket.token));
+
 
         return handlers;
     }

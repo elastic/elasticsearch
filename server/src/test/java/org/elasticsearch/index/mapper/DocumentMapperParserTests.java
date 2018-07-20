@@ -76,4 +76,28 @@ public class DocumentMapperParserTests extends ESSingleNodeTestCase {
             mapperParser.parse("type", new CompressedXContent(mapping)));
         assertTrue(e.getMessage(), e.getMessage().contains("mapper [foo] of different type"));
     }
+
+    public void testMultiFieldsWithFieldAlias() throws Exception {
+        IndexService indexService = createIndex("test");
+        DocumentMapperParser mapperParser = indexService.mapperService().documentMapperParser();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties")
+                .startObject("field")
+                    .field("type", "text")
+                    .startObject("fields")
+                        .startObject("alias")
+                            .field("type", "alias")
+                            .field("path", "other-field")
+                        .endObject()
+                    .endObject()
+                .endObject()
+                .startObject("other-field")
+                    .field("type", "keyword")
+                .endObject()
+            .endObject()
+        .endObject().endObject());
+        MapperParsingException e = expectThrows(MapperParsingException.class, () ->
+            mapperParser.parse("type", new CompressedXContent(mapping)));
+        assertEquals("Type [alias] cannot be used in multi field", e.getMessage());
+    }
 }

@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
@@ -382,10 +383,11 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     protected void doAssertLuceneQuery(QueryStringQueryBuilder queryBuilder,
                                        Query query, SearchContext context) throws IOException {
         assertThat(query, either(instanceOf(TermQuery.class))
-            .or(instanceOf(BooleanQuery.class)).or(instanceOf(DisjunctionMaxQuery.class))
-            .or(instanceOf(PhraseQuery.class)).or(instanceOf(BoostQuery.class))
-            .or(instanceOf(MultiPhrasePrefixQuery.class)).or(instanceOf(PrefixQuery.class)).or(instanceOf(SpanQuery.class))
-            .or(instanceOf(MatchNoDocsQuery.class)));
+                .or(instanceOf(BooleanQuery.class)).or(instanceOf(DisjunctionMaxQuery.class))
+                .or(instanceOf(BlendedTermQuery.class)).or(instanceOf(PhraseQuery.class))
+                .or(instanceOf(BoostQuery.class)).or(instanceOf(MultiPhrasePrefixQuery.class))
+                .or(instanceOf(PrefixQuery.class)).or(instanceOf(SpanQuery.class))
+                .or(instanceOf(MatchNoDocsQuery.class)));
     }
 
     // Tests fix for https://github.com/elastic/elasticsearch/issues/29403

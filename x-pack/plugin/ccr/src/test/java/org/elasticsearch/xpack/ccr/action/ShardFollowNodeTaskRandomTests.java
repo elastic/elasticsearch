@@ -16,8 +16,9 @@ import org.elasticsearch.test.ESTestCase;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Iterator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -73,10 +74,10 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
             task.run();
         };
         LocalCheckpointTracker tracker = new LocalCheckpointTracker(testRun.startSeqNo - 1, testRun.startSeqNo - 1);
-        Iterator<TestResponse> iterator = testRun.responses.iterator();
         return new ShardFollowNodeTask(1L, "type", ShardFollowTask.NAME, "description", null, Collections.emptyMap(), params, scheduler) {
 
-            private long indexMetadataVersion = 0L;
+            private volatile long indexMetadataVersion = 0L;
+            private final Map<Long, Integer> fromToSlot = new HashMap<>();
 
             @Override
             protected void innerUpdateMapping(LongConsumer handler, Consumer<Exception> errorHandler) {
@@ -101,28 +102,31 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
 
                 // Emulate network thread and avoid SO:
                 Runnable task = () -> {
-                    ShardChangesAction.Response response;
-                    synchronized (this) {
-                        if (iterator.hasNext()) {
-                            TestResponse testResponse = iterator.next();
-                            if (testResponse.exception != null) {
-                                errorHandler.accept(testResponse.exception);
-                                return;
+                    List<TestResponse> items = testRun.responses.get(from);
+                    if (items != null) {
+                        final TestResponse testResponse;
+                        synchronized (fromToSlot) {
+                            int slot;
+                            if (fromToSlot.get(from) == null) {
+                                slot = 0;
+                                fromToSlot.put(from, slot);
+                            } else {
+                                slot = fromToSlot.get(from);
                             }
-
-                            response = testResponse.response;
-                            if (response.getOperations().length != 0) {
-                                long firstSeqNo = response.getOperations()[0].seqNo();
-                                if (from != firstSeqNo) {
-                                    throw new AssertionError("unexpected from [" + from + "] expected [" + firstSeqNo + "] instead");
-                                }
-                            }
-                            indexMetadataVersion = Math.max(indexMetadataVersion, response.getIndexMetadataVersion());
-                        } else {
-                            response = new ShardChangesAction.Response(0L, tracker.getCheckpoint(), new Translog.Operation[0]);
+                            testResponse = items.get(slot);
+                            fromToSlot.put(from, ++slot);
+                            // if too many invocations occur with the same from then AOBE occurs, this ok and then something is wrong.
                         }
+                        indexMetadataVersion = testResponse.indexMetadataVersion;
+                        if (testResponse.exception != null) {
+                            errorHandler.accept(testResponse.exception);
+                        } else {
+                            handler.accept(testResponse.response);
+                        }
+                    } else {
+                        assert from >= testRun.finalExpectedGlobalCheckpoint;
+                        handler.accept(new ShardChangesAction.Response(0L, tracker.getCheckpoint(), new Translog.Operation[0]));
                     }
-                    handler.accept(response);
                 };
                 Thread thread = new Thread(task);
                 thread.start();
@@ -149,25 +153,34 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
         long prevGlobalCheckpoint = startSeqNo;
         long indexMetaDataVersion = startIndexMetadataVersion;
         int numResponses = randomIntBetween(16, 256);
-        List<TestResponse> responses = new ArrayList<>(numResponses);
+        Map<Long, List<TestResponse>> responses = new HashMap<>(numResponses);
         for (int i = 0; i < numResponses; i++) {
             long nextGlobalCheckPoint = prevGlobalCheckpoint + maxOperationCount;
-            if (randomIntBetween(0, 10) == 5) {
+            if (sometimes()) {
                 indexMetaDataVersion++;
             }
 
-            if (randomBoolean()) {
+            if (sometimes()) {
                 List<Translog.Operation> ops = new ArrayList<>();
                 for (long seqNo = prevGlobalCheckpoint; seqNo <= nextGlobalCheckPoint; seqNo++) {
                     String id = UUIDs.randomBase64UUID();
                     byte[] source = "{}".getBytes(StandardCharsets.UTF_8);
                     ops.add(new Translog.Index("doc", id, seqNo, 0, source));
                 }
-                responses.add(new TestResponse(null, new ShardChangesAction.Response(indexMetaDataVersion, nextGlobalCheckPoint,
-                    ops.toArray(EMPTY))));
+
+                List<TestResponse> item = new ArrayList<>();
+                // Sometimes add a random retryable error
+                if (sometimes()) {
+                    Exception error = new UnavailableShardsException(new ShardId("test", "test", 0), "");
+                    item.add(new TestResponse(error, indexMetaDataVersion, null));
+                }
+                item.add(new TestResponse(null, indexMetaDataVersion,
+                    new ShardChangesAction.Response(indexMetaDataVersion, nextGlobalCheckPoint, ops.toArray(EMPTY))));
+                responses.put(prevGlobalCheckpoint, item);
             } else {
                 // Simulates a leader shard copy not having all the operations the shard follow task thinks it has by
                 // splitting up a response into multiple responses:
+                // AND si
                 long toSeqNo;
                 for (long fromSeqNo = prevGlobalCheckpoint; fromSeqNo <= nextGlobalCheckPoint; fromSeqNo = toSeqNo + 1) {
                     toSeqNo = randomLongBetween(fromSeqNo, nextGlobalCheckPoint);
@@ -177,26 +190,33 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                         byte[] source = "{}".getBytes(StandardCharsets.UTF_8);
                         ops.add(new Translog.Index("doc", id, seqNo, 0, source));
                     }
-                    ShardChangesAction.Response response = new ShardChangesAction.Response(indexMetaDataVersion, toSeqNo,
-                        ops.toArray(EMPTY));
-                    responses.add(new TestResponse(null, response));
+                    List<TestResponse> item = new ArrayList<>();
+                    // Sometimes add a random retryable error
+                    if (sometimes()) {
+                        Exception error = new UnavailableShardsException(new ShardId("test", "test", 0), "");
+                        item.add(new TestResponse(error, indexMetaDataVersion, null));
+                    }
+                    // Sometimes add an empty shard changes response to also simulate a leader shard lagging behind
+                    if (sometimes()) {
+                        ShardChangesAction.Response response =
+                            new ShardChangesAction.Response(indexMetaDataVersion, prevGlobalCheckpoint, EMPTY);
+                        item.add(new TestResponse(null, indexMetaDataVersion, response));
+                    }
+                    ShardChangesAction.Response response = new ShardChangesAction.Response(indexMetaDataVersion,
+                        toSeqNo, ops.toArray(EMPTY));
+                    item.add(new TestResponse(null, indexMetaDataVersion, response));
+                    responses.put(fromSeqNo, item);
                 }
-            }
-
-            // Rarely add an empty shard changes response to also simulate a leader shard lagging behind
-            if (rarely()) {
-                ShardChangesAction.Response response = new ShardChangesAction.Response(indexMetaDataVersion, nextGlobalCheckPoint, EMPTY);
-                responses.add(new TestResponse(null, response));
-            }
-            // Rarely add a random retryable error
-            if (rarely()) {
-                Exception error = new UnavailableShardsException(new ShardId("test", "test", 0), "");
-                responses.add(new TestResponse(error, null));
             }
             prevGlobalCheckpoint = nextGlobalCheckPoint + 1;
         }
         return new TestRun(maxOperationCount, startSeqNo, startIndexMetadataVersion, indexMetaDataVersion,
             prevGlobalCheckpoint - 1, responses);
+    }
+
+    // Instead of rarely(), which returns true very rarely especially not running in nightly mode or a multiplier have not been set
+    private static boolean sometimes() {
+        return randomIntBetween(0, 10) == 5;
     }
 
     private static class TestRun {
@@ -207,10 +227,10 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
 
         final long finalIndexMetaDataVerion;
         final long finalExpectedGlobalCheckpoint;
-        final List<TestResponse> responses;
+        final Map<Long, List<TestResponse>> responses;
 
         private TestRun(int maxOperationCount, long startSeqNo, long startIndexMetadataVersion, long finalIndexMetaDataVerion,
-                        long finalExpectedGlobalCheckpoint, List<TestResponse> responses) {
+                        long finalExpectedGlobalCheckpoint, Map<Long, List<TestResponse>> responses) {
             this.maxOperationCount = maxOperationCount;
             this.startSeqNo = startSeqNo;
             this.startIndexMetadataVersion = startIndexMetadataVersion;
@@ -223,10 +243,12 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
     private static class TestResponse {
 
         final Exception exception;
+        final long indexMetadataVersion;
         final ShardChangesAction.Response response;
 
-        private TestResponse(Exception exception, ShardChangesAction.Response response) {
+        private TestResponse(Exception exception, long indexMetadataVersion, ShardChangesAction.Response response) {
             this.exception = exception;
+            this.indexMetadataVersion = indexMetadataVersion;
             this.response = response;
         }
     }

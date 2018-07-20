@@ -96,11 +96,11 @@ public class KerberosTicketValidator {
         } catch (PrivilegedActionException pve) {
             if (pve.getCause() instanceof LoginException) {
                 actionListener.onFailure((LoginException) pve.getCause());
-            }
-            if (pve.getCause() instanceof GSSException) {
+            } else if (pve.getCause() instanceof GSSException) {
                 actionListener.onFailure((GSSException) pve.getCause());
+            } else {
+                actionListener.onFailure(pve.getException());
             }
-            actionListener.onFailure(pve.getException());
         } finally {
             privilegedLogoutNoThrow(loginContext);
             privilegedDisposeNoThrow(gssContext);

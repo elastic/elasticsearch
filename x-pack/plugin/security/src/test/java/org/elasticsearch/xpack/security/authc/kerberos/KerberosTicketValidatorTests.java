@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.security.authc.kerberos;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.SecureString;
@@ -13,7 +14,6 @@ import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
-import org.elasticsearch.xpack.security.authc.kerberos.KerberosTicketValidator;
 import org.ietf.jgss.GSSException;
 
 import java.io.IOException;
@@ -25,6 +25,7 @@ import java.util.concurrent.ExecutionException;
 import javax.security.auth.login.LoginException;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -57,10 +58,23 @@ public class KerberosTicketValidatorTests extends KerberosTestCase {
 
         final Environment env = TestEnvironment.newEnvironment(globalSettings);
         final Path keytabPath = env.configFile().resolve(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(settings));
-        final PlainActionFuture<Tuple<String, String>> future = new PlainActionFuture<>();
-        kerberosTicketValidator.validateTicket(Base64.getDecoder().decode(base64KerbToken), keytabPath, true, future);
-        final GSSException gssException = expectThrows(GSSException.class, () -> unwrapExpectedExceptionFromFutureAndThrow(future));
-        assertThat(gssException.getMajor(), equalTo(GSSException.DEFECTIVE_TOKEN));
+        kerberosTicketValidator.validateTicket(Base64.getDecoder().decode(base64KerbToken), keytabPath, true,
+                new ActionListener<Tuple<String, String>>() {
+                    boolean exceptionHandled = false;
+
+                    @Override
+                    public void onResponse(Tuple<String, String> response) {
+                        fail("expected exception to be thrown of type GSSException");
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        assertThat(exceptionHandled, is(false));
+                        assertThat(e, instanceOf(GSSException.class));
+                        assertThat(((GSSException) e).getMajor(), equalTo(GSSException.DEFECTIVE_TOKEN));
+                        exceptionHandled = true;
+                    }
+                });
     }
 
     public void testWhenKeyTabWithInvalidContentFailsValidation()

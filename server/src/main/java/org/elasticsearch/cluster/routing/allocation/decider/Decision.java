@@ -126,6 +126,11 @@ public abstract class Decision implements ToXContent, Writeable {
             return false;
         }
 
+        
+        public boolean canPremptivelyReturn() {
+            return this == THROTTLE || this == NO;
+        }
+
     }
 
     /**

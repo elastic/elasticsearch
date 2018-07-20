@@ -229,4 +229,73 @@ public class AllocationDeciders extends AllocationDecider {
         }
         return ret;
     }
+
+    @Override
+    public Decision canAllocateAnyShardToNode(RoutingNode node, RoutingAllocation allocation) {
+        Decision.Multi ret = new Decision.Multi();
+        for (AllocationDecider decider : allocations) {
+            Decision decision = decider.canAllocateAnyShardToNode(node, allocation);
+            if (decision.type().canPremptivelyReturn()) {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("Shard can not be allocated on node [{}] due to [{}]", node.nodeId(), decider.getClass().getSimpleName());
+                }
+                if (!allocation.debugDecision()) {
+                    return decision;
+                } else {
+                    ret.add(decision);
+                }
+            } else if (decision != Decision.ALWAYS
+                        && (allocation.getDebugMode() != EXCLUDE_YES_DECISIONS || decision.type() != Decision.Type.YES)) {
+                ret.add(decision);
+            }
+        }
+        return ret;
+    }
+    
+    @Override
+    public Decision canMoveAway(ShardRouting shardRouting, RoutingAllocation allocation) {
+        Decision.Multi ret = new Decision.Multi();
+        for (AllocationDecider decider : allocations) {
+            Decision decision = decider.canMoveAway(shardRouting, allocation);
+            // short track if a NO is returned.
+            if (decision.type().canPremptivelyReturn()) {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("Shard [{}] can not be moved away due to [{}]", shardRouting, decider.getClass().getSimpleName());
+                }
+                if (!allocation.debugDecision()) {
+                    return decision;
+                } else {
+                    ret.add(decision);
+                }
+            } else if (decision != Decision.ALWAYS
+                        && (allocation.getDebugMode() != EXCLUDE_YES_DECISIONS || decision.type() != Decision.Type.YES)) {
+                ret.add(decision);
+            }
+        }
+        return ret;
+    }
+    
+    @Override
+    public Decision canMoveAnyShard(RoutingAllocation allocation) {
+        Decision.Multi ret = new Decision.Multi();
+        for (AllocationDecider decider : allocations) {
+            Decision decision = decider.canMoveAnyShard(allocation);
+            // short track if a NO is returned.
+            if (decision.type().canPremptivelyReturn()) {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("No shard can be moved away due to [{}]", decider.getClass().getSimpleName());
+                }
+                if (!allocation.debugDecision()) {
+                    return decision;
+                } else {
+                    ret.add(decision);
+                }
+            } else if (decision != Decision.ALWAYS
+                        && (allocation.getDebugMode() != EXCLUDE_YES_DECISIONS || decision.type() != Decision.Type.YES)) {
+                ret.add(decision);
+            }
+        }
+        return ret;
+    }
+
 }

@@ -199,6 +199,13 @@ public class FilterAllocationDecider extends AllocationDecider {
         }
         return null;
     }
+    
+    @Override
+    public Decision canAllocateAnyShardToNode(RoutingNode node, RoutingAllocation allocation) {
+        Decision decision = shouldClusterFilter(node, allocation);
+        return decision != null && decision == Decision.NO ? decision : Decision.ALWAYS;
+    }
+
 
     private void setClusterRequireFilters(Map<String, String> filters) {
         clusterRequireFilters = DiscoveryNodeFilters.buildFromKeyValue(AND, filters);

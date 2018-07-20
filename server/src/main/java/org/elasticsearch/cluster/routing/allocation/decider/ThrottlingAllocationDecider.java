@@ -205,4 +205,39 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
         assert initializingShard.initializing();
         return initializingShard;
     }
+ 
+    @Override
+    public Decision canAllocateAnyShardToNode(RoutingNode node, RoutingAllocation allocation) {
+        int incomingRecoveries = allocation.routingNodes().getIncomingRecoveries(node.nodeId());
+        if (incomingRecoveries >= concurrentIncomingRecoveries) {
+            return allocation.decision(THROTTLE, NAME,
+            "too many incoming shards are currently recovering [%d], limit: [%d] cluster setting [%s=%d]", incomingRecoveries,
+            concurrentIncomingRecoveries, CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
+            concurrentIncomingRecoveries);
+        } else {
+            return allocation.decision(YES, NAME, "below shard recovery limit of incoming: [%d < %d]", incomingRecoveries,
+            concurrentIncomingRecoveries);
+        }
+    }
+    
+    @Override
+    public Decision canMoveAway(ShardRouting shardRouting, RoutingAllocation allocation) {
+        int outgoingRecoveries = 0;
+        if (!shardRouting.primary()) {
+            ShardRouting primaryShard = allocation.routingNodes().activePrimary(shardRouting.shardId());
+            outgoingRecoveries = allocation.routingNodes().getOutgoingRecoveries(primaryShard.currentNodeId());
+        } else {
+            outgoingRecoveries = allocation.routingNodes().getOutgoingRecoveries(shardRouting.currentNodeId());
+        }
+        if (outgoingRecoveries >= concurrentOutgoingRecoveries) {
+            return allocation.decision(THROTTLE, NAME,
+            "too many outgoing shards are currently recovering [%d], limit: [%d] cluster setting [%s=%d]", outgoingRecoveries,
+            concurrentOutgoingRecoveries, CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(),
+            concurrentOutgoingRecoveries);
+        } else {
+            return allocation.decision(YES, NAME, "below shard recovery limit of outgoing: [%d < %d]", outgoingRecoveries,
+            concurrentOutgoingRecoveries);
+        }
+    }
+
 }

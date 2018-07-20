@@ -17,14 +17,18 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -72,6 +76,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
             assert delay.millis() < 100 : "The delay should be kept to a minimum, so that this test does not take to long to run";
             threadPool.schedule(delay, ThreadPool.Names.GENERIC, task);
         };
+        List<Translog.Operation> receivedOperations = Collections.synchronizedList(new ArrayList<>());
         LocalCheckpointTracker tracker = new LocalCheckpointTracker(testRun.startSeqNo - 1, testRun.startSeqNo - 1);
         return new ShardFollowNodeTask(1L, "type", ShardFollowTask.NAME, "description", null, Collections.emptyMap(), params, scheduler) {
 
@@ -89,6 +94,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                 for(Translog.Operation op : operations) {
                     tracker.markSeqNoAsCompleted(op.seqNo());
                 }
+                receivedOperations.addAll(operations);
 
                 // Emulate network thread and avoid SO:
                 threadPool.generic().execute(() -> handler.accept(tracker.getCheckpoint()));
@@ -137,12 +143,31 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
             @Override
             public void markAsCompleted() {
                 stopped.set(true);
-                threadPool.shutdown();
+                tearDown();
             }
 
             @Override
             public void markAsFailed(Exception e) {
                 stopped.set(true);
+                tearDown();
+            }
+
+            private void tearDown() {
+                threadPool.shutdown();
+                List<Translog.Operation> expectedOperations = testRun.responses.values().stream()
+                    .flatMap(List::stream)
+                    .map(testResponse -> testResponse.response)
+                    .filter(Objects::nonNull)
+                    .flatMap(response -> Arrays.stream(response.getOperations()))
+                    .sorted(Comparator.comparingLong(Translog.Operation::seqNo))
+                    .collect(Collectors.toList());
+                assertThat(receivedOperations.size(), equalTo(expectedOperations.size()));
+                receivedOperations.sort(Comparator.comparingLong(Translog.Operation::seqNo));
+                for (int i = 0; i < receivedOperations.size(); i++) {
+                    Translog.Operation actual = receivedOperations.get(i);
+                    Translog.Operation expected = expectedOperations.get(i);
+                    assertThat(actual, equalTo(expected));
+                }
             }
         };
     }

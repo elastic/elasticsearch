@@ -205,7 +205,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                     ShardChangesAction.Response response = new ShardChangesAction.Response(indexMetaDataVersion,
                         toSeqNo, ops.toArray(EMPTY));
                     item.add(new TestResponse(null, indexMetaDataVersion, response));
-                    responses.put(fromSeqNo, item);
+                    responses.put(fromSeqNo, Collections.unmodifiableList(item));
                 }
             }
             prevGlobalCheckpoint = nextGlobalCheckPoint + 1;
@@ -236,7 +236,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
             this.startIndexMetadataVersion = startIndexMetadataVersion;
             this.finalIndexMetaDataVerion = finalIndexMetaDataVerion;
             this.finalExpectedGlobalCheckpoint = finalExpectedGlobalCheckpoint;
-            this.responses = responses;
+            this.responses = Collections.unmodifiableMap(responses);
         }
     }
 

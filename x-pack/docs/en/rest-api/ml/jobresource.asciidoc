@@ -418,21 +418,7 @@ For more information, see
 ==== Detector Custom Rule
 
 Custom rules enable you to customize the way detectors operate.
-By configuring rules you can provide domain specific knowledge to the model
-so that the quality of the results better matches a specific use case.
-
-Detectors produce statistically valid anomalies but they have no awareness
-of the domain that is being modeled. For example, a `median(cpu)` detector
-might pick anomalies where the cpu utilization is very small but statistically
-anomalous given the history of a machine. A rule can be employed to instruct
-the detector to skip results where the cpu value is small enough.
-
-Another example would be a `high_count by ip` detector that may result in
-anomalies for IP addresses that are known to be safe. Similarly, a rule can
-instruct the detector to skip results when the IP is in a safe list. Such safe
-lists can be created using `filters` and they can be shared among rules for different jobs.
-
-WARNING: Careless use of rules may result in degrading the quality of the results.
+//TO-DO: Add link to rules overview
 
 A rule has the following properties:
 
@@ -474,7 +460,8 @@ A rule has the following properties:
     (double) The value that is compared against the `applied_to` field using the `operator`.
 
 A rule is required to either have a non-empty scope or at least one condition.
-For more examples see {xpack-ref}/ml-configuring-detector-custom-rules.html[Configuring Detector Custom Rules].
+For more examples see 
+{stack-ov}/ml-configuring-detector-custom-rules.html[Configuring Detector Custom Rules].
 
 [float]
 [[ml-apilimits]]

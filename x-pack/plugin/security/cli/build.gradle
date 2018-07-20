@@ -7,7 +7,7 @@ dependencies {
     compileOnly xpackProject('plugin:core')
     compile 'org.bouncycastle:bcprov-jdk15on:1.59'
     compile 'org.bouncycastle:bcpkix-jdk15on:1.59'
-    testCompile 'com.google.jimfs:jimfs:1.1'
+    testImplementation 'com.google.jimfs:jimfs:1.1'
     testCompile "junit:junit:${versions.junit}"
     testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
     testCompile 'org.elasticsearch:securemock:1.2'

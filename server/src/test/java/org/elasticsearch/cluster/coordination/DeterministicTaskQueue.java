@@ -128,18 +128,18 @@ public class DeterministicTaskQueue extends AbstractComponent {
         currentTimeMillis = nextDeferredTaskExecutionTimeMillis;
 
         nextDeferredTaskExecutionTimeMillis = Long.MAX_VALUE;
-        List<DeferredTask> remainingTasks = new ArrayList<>();
+        List<DeferredTask> remainingDeferredTasks = new ArrayList<>();
         for (final DeferredTask deferredTask : deferredTasks) {
             assert currentTimeMillis <= deferredTask.getExecutionTimeMillis();
             if (deferredTask.getExecutionTimeMillis() == currentTimeMillis) {
                 logger.trace("advanceTime: no longer deferred: {}", deferredTask);
                 runnableTasks.add(deferredTask.getTask());
             } else {
-                remainingTasks.add(deferredTask);
+                remainingDeferredTasks.add(deferredTask);
                 nextDeferredTaskExecutionTimeMillis = Math.min(nextDeferredTaskExecutionTimeMillis, deferredTask.getExecutionTimeMillis());
             }
         }
-        deferredTasks = remainingTasks;
+        deferredTasks = remainingDeferredTasks;
 
         assert deferredTasks.isEmpty() == (nextDeferredTaskExecutionTimeMillis == Long.MAX_VALUE);
     }

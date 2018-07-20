@@ -26,12 +26,15 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.ExecutorService;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.core.Is.is;
 
 public class DeterministicTaskQueueTests extends ESTestCase {
@@ -57,6 +60,12 @@ public class DeterministicTaskQueueTests extends ESTestCase {
     }
 
     public void testRunRandomTask() {
+        final List<String> strings1 = getResultsOfRunningRandomly(new Random(4520795446362137264L));
+        final List<String> strings2 = getResultsOfRunningRandomly(new Random(266504691902226821L));
+        assertThat(strings1, not(equalTo(strings2)));
+    }
+
+    private List<String> getResultsOfRunningRandomly(Random random) {
         final DeterministicTaskQueue taskQueue = newTaskQueue();
         final List<String> strings = new ArrayList<>(4);
 
@@ -68,10 +77,11 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         assertThat(strings, empty());
 
         while (taskQueue.hasRunnableTasks()) {
-            taskQueue.runRandomTask(random());
+            taskQueue.runRandomTask(random);
         }
 
         assertThat(strings, containsInAnyOrder("foo", "bar", "baz", "quux"));
+        return strings;
     }
 
     public void testStartsAtTimeZero() {

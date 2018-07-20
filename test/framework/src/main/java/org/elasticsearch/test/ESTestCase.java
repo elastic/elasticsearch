@@ -219,6 +219,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
         // shutdown hook so that when the test JVM exits, logging is shutdown too
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            leakAppender.stop();
             LoggerContext context = (LoggerContext) LogManager.getContext(false);
             Configurator.shutdown(context);
         }));

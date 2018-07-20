@@ -107,9 +107,9 @@ teardown:
           }
   - match: { error.root_cause.0.type: "parse_exception" }
   - match: { error.root_cause.0.reason: "[field] required property is missing" }
-  - match: { error.root_cause.0.header.processor_tag: "fails" }
-  - match: { error.root_cause.0.header.processor_type: "set" }
-  - match: { error.root_cause.0.header.property_name: "field" }
+  - match: { error.root_cause.0.processor_tag: "fails" }
+  - match: { error.root_cause.0.processor_type: "set" }
+  - match: { error.root_cause.0.property_name: "field" }
 
 ---
 "Test simulate without index type and id":
@@ -198,9 +198,9 @@ teardown:
               }
             ]
           }
-  - is_false: error.root_cause.0.header.processor_type
-  - is_false: error.root_cause.0.header.processor_tag
-  - match: { error.root_cause.0.header.property_name: "pipeline" }
+  - is_false: error.root_cause.0.processor_type
+  - is_false: error.root_cause.0.processor_tag
+  - match: { error.root_cause.0.property_name: "pipeline" }
   - match: { error.reason: "[pipeline] required property is missing" }
 
 ---
@@ -233,9 +233,9 @@ teardown:
           }
   - match: { error.root_cause.0.type: "parse_exception" }
   - match: { error.root_cause.0.reason: "[value] required property is missing" }
-  - match: { error.root_cause.0.header.processor_type: "set" }
-  - match: { error.root_cause.0.header.property_name: "value" }
-  - is_false: error.root_cause.0.header.processor_tag
+  - match: { error.root_cause.0.processor_type: "set" }
+  - match: { error.root_cause.0.property_name: "value" }
+  - is_false: error.root_cause.0.processor_tag
 
 ---
 "Test simulate with verbose flag":

@@ -284,14 +284,14 @@ public final class ConfigurationUtils {
             msg = "[" + propertyName + "] " + reason;
         }
         ElasticsearchParseException exception = new ElasticsearchParseException(msg);
-        addHeadersToException(exception, processorType, processorTag, propertyName);
+        addMetadataToException(exception, processorType, processorTag, propertyName);
         return exception;
     }
 
     public static ElasticsearchException newConfigurationException(String processorType, String processorTag,
                                                                         String propertyName, Exception cause) {
         ElasticsearchException exception = ExceptionsHelper.convertToElastic(cause);
-        addHeadersToException(exception, processorType, processorTag, propertyName);
+        addMetadataToException(exception, processorType, processorTag, propertyName);
         return exception;
     }
 
@@ -341,16 +341,16 @@ public final class ConfigurationUtils {
         }
     }
 
-    private static void addHeadersToException(ElasticsearchException exception, String processorType,
-                                              String processorTag, String propertyName) {
+    private static void addMetadataToException(ElasticsearchException exception, String processorType,
+                                               String processorTag, String propertyName) {
         if (processorType != null) {
-            exception.addHeader("processor_type", processorType);
+            exception.addMetadata("es.processor_type", processorType);
         }
         if (processorTag != null) {
-            exception.addHeader("processor_tag", processorTag);
+            exception.addMetadata("es.processor_tag", processorTag);
         }
         if (propertyName != null) {
-            exception.addHeader("property_name", propertyName);
+            exception.addMetadata("es.property_name", propertyName);
         }
     }
 

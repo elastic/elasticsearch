@@ -58,9 +58,9 @@ public class ConvertProcessorFactoryTests extends ESTestCase {
             fail("factory create should have failed");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), Matchers.equalTo("[type] type [" + type + "] not supported, cannot convert field."));
-            assertThat(e.getHeader("processor_type").get(0), equalTo(ConvertProcessor.TYPE));
-            assertThat(e.getHeader("property_name").get(0), equalTo("type"));
-            assertThat(e.getHeader("processor_tag"), nullValue());
+            assertThat(e.getMetadata("es.processor_type").get(0), equalTo(ConvertProcessor.TYPE));
+            assertThat(e.getMetadata("es.property_name").get(0), equalTo("type"));
+            assertThat(e.getMetadata("es.processor_tag"), nullValue());
         }
     }
 

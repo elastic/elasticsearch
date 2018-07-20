@@ -15,6 +15,9 @@ The {xpackml} features include the following metric functions:
 * <<ml-metric-metric,`metric`>>
 * xref:ml-metric-varp[`varp`, `high_varp`, `low_varp`]
 
+NOTE: You cannot add rules with conditions to detectors that use metric 
+functions. 
+
 [float]
 [[ml-metric-min]]
 ==== Min

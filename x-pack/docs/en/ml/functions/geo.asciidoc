@@ -8,6 +8,8 @@ input data.
 The {xpackml} features include the following geographic function: `lat_long`.
 
 NOTE: You cannot create forecasts for jobs that contain geographic functions. 
+You also cannot add rules with conditions to detectors that use geographic 
+functions. 
 
 [float]
 [[ml-lat-long]]

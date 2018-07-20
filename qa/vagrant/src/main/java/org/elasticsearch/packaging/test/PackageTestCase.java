@@ -24,15 +24,13 @@ import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Shell;
 
-import org.elasticsearch.packaging.util.Shell.Result;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.nio.file.Files;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
+import static junit.framework.TestCase.assertTrue;
 import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
 import static org.elasticsearch.packaging.util.FileUtils.assertPathsDontExist;
 import static org.elasticsearch.packaging.util.Packages.SYSTEMD_SERVICE;
@@ -42,7 +40,6 @@ import static org.elasticsearch.packaging.util.Packages.install;
 import static org.elasticsearch.packaging.util.Packages.remove;
 import static org.elasticsearch.packaging.util.Packages.startElasticsearch;
 import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
-import static org.elasticsearch.packaging.util.Platforms.getOsRelease;
 import static org.elasticsearch.packaging.util.Platforms.isSystemd;
 import static org.elasticsearch.packaging.util.ServerUtils.runElasticsearchTests;
 
@@ -53,7 +50,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.isEmptyString;
 
 import static org.hamcrest.core.Is.is;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assume.assumeThat;
 import static org.junit.Assume.assumeTrue;
 
@@ -114,33 +110,8 @@ public abstract class PackageTestCase extends PackagingTestCase {
         assertThat(sh.run("ps aux").stdout, not(containsString("org.elasticsearch.bootstrap.Elasticsearch")));
 
         if (isSystemd()) {
-
-            final int statusExitCode;
-
-            // Before version 231 systemctl returned exit code 3 for both services that were stopped, and nonexistent
-            // services [1]. In version 231 and later it returns exit code 4 for non-existent services.
-            //
-            // The exception is Centos 7 and oel 7 where it returns exit code 4 for non-existent services from a systemd reporting a version
-            // earlier than 231. Centos 6 does not have an /etc/os-release, but that's fine because it also doesn't use systemd.
-            //
-            // [1] https://github.com/systemd/systemd/pull/3385
-            if (getOsRelease().contains("ID=\"centos\"") || getOsRelease().contains("ID=\"ol\"")) {
-                statusExitCode = 4;
-            } else {
-
-                final Result versionResult = sh.run("systemctl --version");
-                final Matcher matcher = Pattern.compile("^systemd (\\d+)\n").matcher(versionResult.stdout);
-                matcher.find();
-                final int version = Integer.parseInt(matcher.group(1));
-
-                statusExitCode = version < 231
-                    ? 3
-                    : 4;
-            }
-
-            assertThat(sh.runIgnoreExitCode("systemctl status elasticsearch.service").exitCode, is(statusExitCode));
+            assertThat(sh.runIgnoreExitCode("systemctl status elasticsearch.service").exitCode, is(3));
             assertThat(sh.runIgnoreExitCode("systemctl is-enabled elasticsearch.service").exitCode, is(1));
-
         }
 
         assertPathsDontExist(
@@ -152,7 +123,7 @@ public abstract class PackageTestCase extends PackagingTestCase {
             installation.pidDir
         );
 
-        assertFalse(Files.exists(SYSTEMD_SERVICE));
+        assertTrue(Files.exists(SYSTEMD_SERVICE));
     }
 
     public void test60Reinstall() {

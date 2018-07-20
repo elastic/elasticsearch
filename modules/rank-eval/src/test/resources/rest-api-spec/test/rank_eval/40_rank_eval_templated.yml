@@ -85,7 +85,7 @@ setup:
         }
 
   - match: {quality_level: 0.9}
-  - match: {details.amsterdam_query.unknown_docs.0._id:  "6"}
+  - match: {details.amsterdam_query.unrated_docs.0._id:  "6"}
 
 ---
 "Test illegal request parts":

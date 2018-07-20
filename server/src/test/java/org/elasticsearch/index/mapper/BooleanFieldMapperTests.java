@@ -100,7 +100,7 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject());
 
         DocumentMapper defaultMapper = parser.parse("type", new CompressedXContent(mapping));
-        FieldMapper mapper = defaultMapper.mappers().getMapper("field");
+        Mapper mapper = defaultMapper.mappers().getMapper("field");
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         mapper.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();

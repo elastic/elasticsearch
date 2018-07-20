@@ -32,8 +32,12 @@ import com.carrotsearch.randomizedtesting.rules.TestRuleAdapter;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.Appender;
+import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.config.Configurator;
+import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.apache.logging.log4j.status.StatusConsoleListener;
 import org.apache.logging.log4j.status.StatusData;
 import org.apache.logging.log4j.status.StatusLogger;
@@ -183,6 +187,8 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     private static final AtomicInteger portGenerator = new AtomicInteger();
 
+    private static final Collection<String> nettyLoggedLeaks = new ArrayList<>();
+
     @AfterClass
     public static void resetPortCounter() {
         portGenerator.set(0);
@@ -192,8 +198,28 @@ public abstract class ESTestCase extends LuceneTestCase {
         System.setProperty("log4j.shutdownHookEnabled", "false");
         System.setProperty("log4j2.disable.jmx", "true");
 
+        // Enable Netty leak detection and monitor logger for logged leak errors
+        System.setProperty("io.netty.leakDetection.level", "advanced");
+        String leakLoggerName = "io.netty.util.ResourceLeakDetector";
+        Logger leakLogger = LogManager.getLogger(leakLoggerName);
+        Appender leakAppender = new AbstractAppender(leakLoggerName, null,
+            PatternLayout.newBuilder().withPattern("%m").build()) {
+            @Override
+            public void append(LogEvent event) {
+                String message = event.getMessage().getFormattedMessage();
+                if (Level.ERROR.equals(event.getLevel()) && message.contains("LEAK:")) {
+                    synchronized (nettyLoggedLeaks) {
+                        nettyLoggedLeaks.add(message);
+                    }
+                }
+            }
+        };
+        leakAppender.start();
+        Loggers.addAppender(leakLogger, leakAppender);
+
         // shutdown hook so that when the test JVM exits, logging is shutdown too
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            leakAppender.stop();
             LoggerContext context = (LoggerContext) LogManager.getContext(false);
             Configurator.shutdown(context);
         }));
@@ -438,6 +464,13 @@ public abstract class ESTestCase extends LuceneTestCase {
             } finally {
                 // we clear the list so that status data from other tests do not interfere with tests within the same JVM
                 statusData.clear();
+            }
+        }
+        synchronized (nettyLoggedLeaks) {
+            try {
+                assertThat(nettyLoggedLeaks, empty());
+            } finally {
+                nettyLoggedLeaks.clear();
             }
         }
     }

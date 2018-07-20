@@ -39,6 +39,7 @@ import java.io.IOException;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBoundingBoxQueryBuilder> {
     /** Randomly generate either NaN or one of the two infinity values. */
@@ -46,7 +47,8 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
 
     @Override
     protected GeoBoundingBoxQueryBuilder doCreateTestQueryBuilder() {
-        GeoBoundingBoxQueryBuilder builder = new GeoBoundingBoxQueryBuilder(GEO_POINT_FIELD_NAME);
+        String fieldName = randomFrom(GEO_POINT_FIELD_NAME, GEO_POINT_ALIAS_FIELD_NAME);
+        GeoBoundingBoxQueryBuilder builder = new GeoBoundingBoxQueryBuilder(fieldName);
         Rectangle box = RandomShapeGenerator.xRandomRectangle(random(), RandomShapeGenerator.xRandomPoint(random()));
 
         if (randomBoolean()) {
@@ -117,7 +119,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
     public void testExceptionOnMissingTypes() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length == 0);
         QueryShardException e = expectThrows(QueryShardException.class, super::testToQuery);
-        assertEquals("failed to find geo_point field [mapped_geo_point]", e.getMessage());
+        assertThat(e.getMessage(), startsWith("failed to find geo_point field [mapped_geo_point"));
     }
 
     public void testBrokenCoordinateCannotBeSet() {
@@ -216,13 +218,14 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
             assertTrue("Found no indexed geo query.", query instanceof MatchNoDocsQuery);
         } else if (query instanceof IndexOrDocValuesQuery) { // TODO: remove the if statement once we always use LatLonPoint
             Query indexQuery = ((IndexOrDocValuesQuery) query).getIndexQuery();
-            assertEquals(LatLonPoint.newBoxQuery(queryBuilder.fieldName(),
+            String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
+            assertEquals(LatLonPoint.newBoxQuery(expectedFieldName,
                     queryBuilder.bottomRight().lat(),
                     queryBuilder.topLeft().lat(),
                     queryBuilder.topLeft().lon(),
                     queryBuilder.bottomRight().lon()), indexQuery);
             Query dvQuery = ((IndexOrDocValuesQuery) query).getRandomAccessQuery();
-            assertEquals(LatLonDocValuesField.newSlowBoxQuery(queryBuilder.fieldName(),
+            assertEquals(LatLonDocValuesField.newSlowBoxQuery(expectedFieldName,
                     queryBuilder.bottomRight().lat(),
                     queryBuilder.topLeft().lat(),
                     queryBuilder.topLeft().lon(),

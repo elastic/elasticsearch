@@ -85,7 +85,7 @@ public class ADLdapUserSearchSessionFactoryTests extends AbstractActiveDirectory
         Settings.Builder builder = Settings.builder()
                 .put(globalSettings);
         settings.keySet().forEach(k -> {
-            builder.copy("xpack.security.authc.realms.ldap." + k, k, settings);
+            builder.copy("xpack.security.authc.realms.ad-as-ldap-test." + k, k, settings);
 
         });
         Settings fullSettings = builder.build();

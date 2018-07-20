@@ -389,8 +389,8 @@ public class CertificateToolTests extends ESTestCase {
 
     public void testGetCAInfo() throws Exception {
         Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
-        Path testNodeCertPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
-        Path testNodeKeyPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem");
+        Path testNodeCertPath = getDataPath("/org/elasticsearch/xpack/security/cli/testnode.crt");
+        Path testNodeKeyPath = getDataPath("/org/elasticsearch/xpack/security/cli/testnode.pem");
         final boolean passwordPrompt = randomBoolean();
         MockTerminal terminal = new MockTerminal();
         if (passwordPrompt) {

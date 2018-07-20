@@ -206,7 +206,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             coordinateWrites();
         }
 
-        if (newMinRequiredSeqNo <= maxRequiredSeqNo && isStopped() == false) {
+        if (newMinRequiredSeqNo < maxRequiredSeqNo && isStopped() == false) {
             int newSize = (int) (maxRequiredSeqNo - newMinRequiredSeqNo) + 1;
             LOGGER.trace("{} received [{}] ops, still missing [{}/{}], continuing to read...",
                 params.getFollowShardId(), response.getOperations().length, newMinRequiredSeqNo, maxRequiredSeqNo);
@@ -312,7 +312,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     @Override
     public Status getStatus() {
-        return new Status(leaderGlobalCheckpoint, lastRequestedSeqno, followerGlobalCheckpoint, numConcurrentReads, numConcurrentWrites, currentIndexMetadataVersion);
+        return new Status(leaderGlobalCheckpoint, lastRequestedSeqno, followerGlobalCheckpoint, numConcurrentReads,
+            numConcurrentWrites, currentIndexMetadataVersion);
     }
 
     public static class Status implements Task.Status {

@@ -41,7 +41,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
     }
 
     private void startAndAssertAndStopTask(ShardFollowNodeTask task, TestRun testRun) throws Exception {
-        task.start(testRun.startSeqNo - 1);
+        task.start(testRun.startSeqNo - 1, testRun.startSeqNo - 1);
         assertBusy(() -> {
             ShardFollowNodeTask.Status status = task.getStatus();
             assertThat(status.getLeaderGlobalCheckpoint(), equalTo(testRun.finalExpectedGlobalCheckpoint));
@@ -231,6 +231,6 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
         }
     }
 
-    private final static Translog.Operation[] EMPTY = new Translog.Operation[0];
+    private static final Translog.Operation[] EMPTY = new Translog.Operation[0];
 
 }

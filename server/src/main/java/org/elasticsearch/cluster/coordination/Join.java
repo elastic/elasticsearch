@@ -28,7 +28,7 @@ import java.io.IOException;
 /**
  * Triggered by a {@link StartJoinRequest}, instances of this class represent join votes,
  * and have a source and target node. The source node is the node that provides the vote,
- * and the target node is the node for which this vote is casted. A node will only cast
+ * and the target node is the node for which this vote is cast. A node will only cast
  * a single vote per term, and this for a unique target node. The vote also carries
  * information about the current state of the node that provided the vote, so that
  * the receiver of the vote can determine if it has a more up-to-date state than the

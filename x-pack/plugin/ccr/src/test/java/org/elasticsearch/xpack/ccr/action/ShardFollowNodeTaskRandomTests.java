@@ -112,7 +112,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                         synchronized (fromToSlot) {
                             int slot;
                             if (fromToSlot.get(from) == null) {
-                                slot = 0;
+                                slot = fromToSlot.getOrDefault(from, 0);
                                 fromToSlot.put(from, slot);
                             } else {
                                 slot = fromToSlot.get(from);
@@ -184,18 +184,17 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
             }
 
             if (sometimes()) {
-                List<Translog.Operation> ops = new ArrayList<>();
-                for (long seqNo = prevGlobalCheckpoint; seqNo <= nextGlobalCheckPoint; seqNo++) {
-                    String id = UUIDs.randomBase64UUID();
-                    byte[] source = "{}".getBytes(StandardCharsets.UTF_8);
-                    ops.add(new Translog.Index("doc", id, seqNo, 0, source));
-                }
-
                 List<TestResponse> item = new ArrayList<>();
                 // Sometimes add a random retryable error
                 if (sometimes()) {
                     Exception error = new UnavailableShardsException(new ShardId("test", "test", 0), "");
                     item.add(new TestResponse(error, indexMetaDataVersion, null));
+                }
+                List<Translog.Operation> ops = new ArrayList<>();
+                for (long seqNo = prevGlobalCheckpoint; seqNo <= nextGlobalCheckPoint; seqNo++) {
+                    String id = UUIDs.randomBase64UUID();
+                    byte[] source = "{}".getBytes(StandardCharsets.UTF_8);
+                    ops.add(new Translog.Index("doc", id, seqNo, 0, source));
                 }
                 item.add(new TestResponse(null, indexMetaDataVersion,
                     new ShardChangesAction.Response(indexMetaDataVersion, nextGlobalCheckPoint, ops.toArray(EMPTY))));
@@ -206,12 +205,6 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                 long toSeqNo;
                 for (long fromSeqNo = prevGlobalCheckpoint; fromSeqNo <= nextGlobalCheckPoint; fromSeqNo = toSeqNo + 1) {
                     toSeqNo = randomLongBetween(fromSeqNo, nextGlobalCheckPoint);
-                    List<Translog.Operation> ops = new ArrayList<>();
-                    for (long seqNo = fromSeqNo; seqNo <= toSeqNo; seqNo++) {
-                        String id = UUIDs.randomBase64UUID();
-                        byte[] source = "{}".getBytes(StandardCharsets.UTF_8);
-                        ops.add(new Translog.Index("doc", id, seqNo, 0, source));
-                    }
                     List<TestResponse> item = new ArrayList<>();
                     // Sometimes add a random retryable error
                     if (sometimes()) {
@@ -223,6 +216,12 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                         ShardChangesAction.Response response =
                             new ShardChangesAction.Response(indexMetaDataVersion, prevGlobalCheckpoint, EMPTY);
                         item.add(new TestResponse(null, indexMetaDataVersion, response));
+                    }
+                    List<Translog.Operation> ops = new ArrayList<>();
+                    for (long seqNo = fromSeqNo; seqNo <= toSeqNo; seqNo++) {
+                        String id = UUIDs.randomBase64UUID();
+                        byte[] source = "{}".getBytes(StandardCharsets.UTF_8);
+                        ops.add(new Translog.Index("doc", id, seqNo, 0, source));
                     }
                     // Report toSeqNo to simulate maxBatchSizeInBytes limit being met or last op to simulate a shard lagging behind:
                     long localLeaderGCP = randomBoolean() ? ops.get(ops.size() - 1).seqNo() : toSeqNo;

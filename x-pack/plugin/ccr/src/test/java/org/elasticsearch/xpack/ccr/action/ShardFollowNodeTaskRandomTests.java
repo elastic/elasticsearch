@@ -201,8 +201,10 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                             new ShardChangesAction.Response(indexMetaDataVersion, prevGlobalCheckpoint, EMPTY);
                         item.add(new TestResponse(null, indexMetaDataVersion, response));
                     }
+                    // Report toSeqNo to simulate maxBatchSizeInBytes limit being met or last op to simulate a shard lagging behind:
+                    long localLeaderGCP = randomBoolean() ? ops.get(ops.size() - 1).seqNo() : toSeqNo;
                     ShardChangesAction.Response response = new ShardChangesAction.Response(indexMetaDataVersion,
-                        toSeqNo, ops.toArray(EMPTY));
+                        localLeaderGCP, ops.toArray(EMPTY));
                     item.add(new TestResponse(null, indexMetaDataVersion, response));
                     responses.put(fromSeqNo, Collections.unmodifiableList(item));
                 }

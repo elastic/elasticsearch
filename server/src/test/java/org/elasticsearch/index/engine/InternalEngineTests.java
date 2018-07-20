@@ -63,6 +63,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.MockDirectoryWrapper;
+import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
@@ -81,6 +82,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -117,6 +119,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.SnapshotMatchers;
+import org.elasticsearch.index.translog.TestTranslog;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -125,9 +128,13 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.charset.Charset;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -163,6 +170,7 @@ import static org.elasticsearch.index.engine.Engine.Operation.Origin.PEER_RECOVE
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
 import static org.elasticsearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.Matchers.contains;
@@ -653,6 +661,43 @@ public class InternalEngineTests extends EngineTestCase {
         Engine.Searcher searcher = wrapper.wrap(engine.acquireSearcher("test"));
         assertThat(counter.get(), equalTo(2));
         searcher.close();
+        IOUtils.close(store, engine);
+    }
+
+    private void corruptTranslogs(Path directory) throws Exception {
+        Path[] files = FileSystemUtils.files(directory, "translog-*");
+        for (Path file : files) {
+            logger.info("--> corrupting {}...", file);
+            FileChannel f = FileChannel.open(file, StandardOpenOption.READ, StandardOpenOption.WRITE);
+            int corruptions = scaledRandomIntBetween(10, 50);
+            for (int i = 0; i < corruptions; i++) {
+                // note: with the current logic, this will sometimes be a no-op
+                long pos = randomIntBetween(0, (int) f.size());
+                ByteBuffer junk = ByteBuffer.wrap(new byte[]{randomByte()});
+                f.write(junk, pos);
+            }
+            f.close();
+        }
+    }
+
+    public void testTranslogRecoveryFailure() throws Exception {
+        Store store = createStore();
+        Path translogPath = createTempDir("translog");
+        InternalEngine engine = createEngine(store, translogPath);
+        ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), SOURCE, null);
+        engine.index(indexForDoc(doc));
+        engine.close();
+        trimUnsafeCommits(engine.config());
+
+        engine = new InternalEngine(engine.config());
+        assertTrue(engine.isRecovering());
+
+        //Currently there are 2 implementations of corruptTranslogs - in TranslogTest.corruptTranslog (copied here)
+        //and TestTranslog.corruptTranslogFiles(logger, random(), Collections.singleton(translogPath));
+        //Consider having just one or at least avoid copy-pasting from TranslogTest.corruptTranslog
+        corruptTranslogs(translogPath);
+        EngineException ex = expectThrows(EngineException.class, engine::recoverFromTranslog);
+        assertThat(ex.getMessage(), containsString(translogPath.toString()));
         IOUtils.close(store, engine);
     }
 

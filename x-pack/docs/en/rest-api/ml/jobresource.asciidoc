@@ -449,20 +449,22 @@ A rule has the following properties:
 `conditions`::
   (array) An optional array of numeric conditions when the rule applies.
   Multiple conditions are combined together with a logical `AND`.
-  A condition has the following properties: +
-  `applies_to`:::
-    (string) Specifies the result property to which the condition applies.
-    The available options are `actual`, `typical`, `diff_from_typical`, `time`.
-  `operator`:::
-    (string) Specifies the condition operator. The available options are
-    `gt` (greater than), `gte` (greater than or equals), `lt` (less than) and `lte` (less than or equals).
-  `value`:::
-    (double) The value that is compared against the `applied_to` field using the `operator`.
 +
 --
-NOTE: If your detector uses `lat_long`, `metric`, `rare`, or `freq_rare` functions, 
-you cannot specify `conditions` for your rule.
+NOTE: If your detector uses `lat_long`, `metric`, `rare`, or `freq_rare` 
+functions, you cannot specify `conditions` for your rule.
 
+  
+A condition has the following properties: 
+
+`applies_to`:::
+    (string) Specifies the result property to which the condition applies.
+    The available options are `actual`, `typical`, `diff_from_typical`, `time`.
+`operator`:::
+    (string) Specifies the condition operator. The available options are
+    `gt` (greater than), `gte` (greater than or equals), `lt` (less than) and `lte` (less than or equals).
+`value`:::
+    (double) The value that is compared against the `applied_to` field using the `operator`.
 --
 
 A rule is required to either have a non-empty scope or at least one condition.

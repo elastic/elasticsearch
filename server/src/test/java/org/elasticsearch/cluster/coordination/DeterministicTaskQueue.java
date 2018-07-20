@@ -331,7 +331,7 @@ public class DeterministicTaskQueue extends AbstractComponent {
         };
     }
 
-    private class DeferredTask {
+    private static class DeferredTask {
         private final long executionTimeMillis;
         private final Runnable task;
 
@@ -339,7 +339,6 @@ public class DeterministicTaskQueue extends AbstractComponent {
             this.executionTimeMillis = executionTimeMillis;
             this.task = task;
             assert executionTimeMillis < Long.MAX_VALUE : "Long.MAX_VALUE is special, cannot be an execution time";
-            assert currentTimeMillis < executionTimeMillis : executionTimeMillis + " <= " + currentTimeMillis;
         }
 
         long getExecutionTimeMillis() {

@@ -73,7 +73,7 @@
   - lt: {quality_level: 13.848264 }
   - gt: {details.dcg_query.quality_level: 13.848263}
   - lt: {details.dcg_query.quality_level: 13.848264}
-  - match: {details.dcg_query.unknown_docs: [ ]}
+  - match: {details.dcg_query.unrated_docs: [ ]}
 
 # reverse the order in which the results are returned (less relevant docs first)
 
@@ -100,7 +100,7 @@
   - lt: {quality_level: 10.299675}
   - gt: {details.dcg_query_reverse.quality_level: 10.299674}
   - lt: {details.dcg_query_reverse.quality_level: 10.299675}
-  - match: {details.dcg_query_reverse.unknown_docs: [ ]}
+  - match: {details.dcg_query_reverse.unrated_docs: [ ]}
 
 # if we mix both, we should get the average
   
@@ -138,7 +138,7 @@
   - lt: {quality_level: 12.073970}
   - gt: {details.dcg_query.quality_level: 13.848263}
   - lt: {details.dcg_query.quality_level: 13.848264}
-  - match: {details.dcg_query.unknown_docs: [ ]}
+  - match: {details.dcg_query.unrated_docs: [ ]}
   - gt: {details.dcg_query_reverse.quality_level: 10.299674}
   - lt: {details.dcg_query_reverse.quality_level: 10.299675}
-  - match: {details.dcg_query_reverse.unknown_docs: [ ]}
+  - match: {details.dcg_query_reverse.unrated_docs: [ ]}

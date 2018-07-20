@@ -175,7 +175,6 @@ import org.elasticsearch.xpack.security.authz.accesscontrol.OptOutQueryCache;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
-import org.elasticsearch.xpack.security.ingest.HashProcessor;
 import org.elasticsearch.xpack.security.ingest.SetSecurityUserProcessor;
 import org.elasticsearch.xpack.security.rest.SecurityRestFilter;
 import org.elasticsearch.xpack.security.rest.action.RestAuthenticateAction;
@@ -580,10 +579,6 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         // hide settings
         settingsList.add(Setting.listSetting(SecurityField.setting("hide_settings"), Collections.emptyList(), Function.identity(),
                 Property.NodeScope, Property.Filtered));
-
-        // ingest processor settings
-        settingsList.add(HashProcessor.HMAC_KEY_SETTING);
-
         return settingsList;
     }
 
@@ -727,10 +722,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-        Map<String, Processor.Factory> processors = new HashMap<>();
-        processors.put(SetSecurityUserProcessor.TYPE, new SetSecurityUserProcessor.Factory(parameters.threadContext));
-        processors.put(HashProcessor.TYPE, new HashProcessor.Factory(parameters.env.settings()));
-        return processors;
+        return Collections.singletonMap(SetSecurityUserProcessor.TYPE, new SetSecurityUserProcessor.Factory(parameters.threadContext));
     }
 
 

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ccr.action.bulk;
 import org.apache.lucene.index.Term;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
@@ -45,11 +44,11 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
                     randomValueOtherThan(Translog.Operation.Type.CREATE, () -> randomFrom(Translog.Operation.Type.values()));
             switch (type) {
                 case INDEX:
-                    operations.add(new Translog.Index("_doc", id, seqNo, primaryTerm, 0, VersionType.INTERNAL, SOURCE, null, -1));
+                    operations.add(new Translog.Index("_doc", id, seqNo, primaryTerm, 0, SOURCE, null, -1));
                     break;
                 case DELETE:
                     operations.add(
-                        new Translog.Delete("_doc", id, new Term("_id", Uid.encodeId(id)), seqNo, primaryTerm, 0, VersionType.INTERNAL));
+                        new Translog.Delete("_doc", id, new Term("_id", Uid.encodeId(id)), seqNo, primaryTerm, 0));
                     break;
                 case NO_OP:
                     operations.add(new Translog.NoOp(seqNo, primaryTerm, "test"));

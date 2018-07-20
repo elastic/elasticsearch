@@ -67,8 +67,13 @@ class BuildPlugin implements Plugin<Project> {
                 + 'elasticearch.standalone-rest-test, and elasticsearch.build '
                 + 'are mutually exclusive')
         }
-        if (GradleVersion.current() < GradleVersion.version('4.9')) {
-            throw new GradleException('Gradle 4.9+ is required to use elasticsearch.build plugin')
+        Properties wrapper = new Properties()
+        InputStream is = getClass().getResourceAsStream("/gradle-wrapper.properties")
+        try { wrapper.load(is) } finally { is.close() }
+        if (GradleVersion.current() < GradleVersion.version(wrapper.get('gradleVersion'))) {
+            throw new GradleException(
+                    "Gradle ${wrapper.get('gradleVersion')}+ is required to use elasticsearch.build plugin"
+            )
         }
         project.pluginManager.apply('java')
         project.pluginManager.apply('carrotsearch.randomized-testing')
@@ -149,14 +154,6 @@ class BuildPlugin implements Plugin<Project> {
                 println "  JAVA_HOME             : ${gradleJavaHome}"
             }
             println "  Random Testing Seed   : ${project.testSeed}"
-
-            // enforce Gradle version
-            final GradleVersion currentGradleVersion = GradleVersion.current();
-
-            final GradleVersion minGradle = GradleVersion.version('4.3')
-            if (currentGradleVersion < minGradle) {
-                throw new GradleException("${minGradle} or above is required to build Elasticsearch")
-            }
 
             // enforce Java version
             if (compilerJavaVersionEnum < minimumCompilerVersion) {

@@ -25,8 +25,13 @@ plugins {
 
 group = 'org.elasticsearch.gradle'
 
-if (GradleVersion.current() < GradleVersion.version('4.9')) {
-  throw new GradleException('Gradle 4.9+ is required to build elasticsearch')
+Properties wrapper = new Properties()
+File wrapperProperties = project == rootProject ?
+        project.file('../gradle/wrapper/gradle-wrapper.properties') :
+        rootProject.file('gradle/wrapper/gradle-wrapper.properties')
+wrapperProperties.withInputStream { wrapper.load(it) }
+if (GradleVersion.current() < GradleVersion.version(wrapper.get('gradleVersion'))) {
+    throw new GradleException("Gradle ${wrapper.get('gradleVersion')}+ is required to build elasticsearch")
 }
 
 if (JavaVersion.current() < JavaVersion.VERSION_1_8) {
@@ -78,6 +83,7 @@ task writeVersionProperties {
 processResources {
   dependsOn writeVersionProperties
   from tempPropertiesFile
+  from wrapperProperties
 }
 
 /*****************************************************************************

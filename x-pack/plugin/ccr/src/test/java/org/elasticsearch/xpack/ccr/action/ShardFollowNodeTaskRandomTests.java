@@ -179,8 +179,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                 responses.put(prevGlobalCheckpoint, item);
             } else {
                 // Simulates a leader shard copy not having all the operations the shard follow task thinks it has by
-                // splitting up a response into multiple responses:
-                // AND si
+                // splitting up a response into multiple responses AND simulates maxBatchSizeInBytes limit being reached:
                 long toSeqNo;
                 for (long fromSeqNo = prevGlobalCheckpoint; fromSeqNo <= nextGlobalCheckPoint; fromSeqNo = toSeqNo + 1) {
                     toSeqNo = randomLongBetween(fromSeqNo, nextGlobalCheckPoint);

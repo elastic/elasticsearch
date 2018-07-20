@@ -196,8 +196,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         }
         Collections.sort(intValues);
 
-        MappedFieldType intFieldType = mapperService.documentMapper("type").mappers()
-            .getMapper("int_field").fieldType();
+        MappedFieldType intFieldType = mapperService.fullName("int_field");
 
         List<Supplier<Query>> queryFunctions = new ArrayList<>();
         queryFunctions.add(MatchNoDocsQuery::new);
@@ -329,8 +328,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         stringValues.add("value2");
         stringValues.add("value3");
 
-        MappedFieldType intFieldType = mapperService.documentMapper("type").mappers()
-            .getMapper("int_field").fieldType();
+        MappedFieldType intFieldType = mapperService.fullName("int_field");
         List<int[]> ranges = new ArrayList<>();
         ranges.add(new int[]{-5, 5});
         ranges.add(new int[]{0, 10});

@@ -235,6 +235,41 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
             containsString("cannot have nested fields when index sort is activated"));
     }
 
+     public void testFieldAliasWithMismatchedNestedScope() throws Throwable {
+        IndexService indexService = createIndex("test");
+        MapperService mapperService = indexService.mapperService();
+
+        CompressedXContent mapping = new CompressedXContent(BytesReference.bytes(
+            XContentFactory.jsonBuilder().startObject()
+                .startObject("properties")
+                    .startObject("nested")
+                        .field("type", "nested")
+                        .startObject("properties")
+                            .startObject("field")
+                                .field("type", "text")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject()));
+
+        mapperService.merge("type", mapping, MergeReason.MAPPING_UPDATE);
+
+        CompressedXContent mappingUpdate = new CompressedXContent(BytesReference.bytes(
+            XContentFactory.jsonBuilder().startObject()
+                .startObject("properties")
+                    .startObject("alias")
+                        .field("type", "alias")
+                        .field("path", "nested.field")
+                    .endObject()
+                .endObject()
+            .endObject()));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> mapperService.merge("type", mappingUpdate, MergeReason.MAPPING_UPDATE));
+        assertThat(e.getMessage(), containsString("Invalid [path] value [nested.field] for field alias [alias]"));
+    }
+
     public void testForbidMultipleTypes() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
         MapperService mapperService = createIndex("test").mapperService();

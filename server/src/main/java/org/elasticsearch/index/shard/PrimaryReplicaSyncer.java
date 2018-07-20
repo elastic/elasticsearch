@@ -35,6 +35,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.tasks.Task;
@@ -80,49 +81,26 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
     }
 
     public void resync(final IndexShard indexShard, final ActionListener<ResyncTask> listener) {
-        ActionListener<ResyncTask> resyncListener = null;
+        Translog.Snapshot snapshot = null;
         try {
             final long startingSeqNo = indexShard.getGlobalCheckpoint() + 1;
-            // TODO: A follow-up to make resync using soft-deletes
-            Translog.Snapshot snapshot = indexShard.newTranslogSnapshotFromMinSeqNo(startingSeqNo);
             final long maxSeqNo = indexShard.seqNoStats().getMaxSeqNo();
-            resyncListener = new ActionListener<ResyncTask>() {
-                @Override
-                public void onResponse(final ResyncTask resyncTask) {
-                    try {
-                        snapshot.close();
-                        listener.onResponse(resyncTask);
-                    } catch (final Exception e) {
-                        onFailure(e);
-                    }
-                }
-
-                @Override
-                public void onFailure(final Exception e) {
-                    try {
-                        snapshot.close();
-                    } catch (final Exception inner) {
-                        e.addSuppressed(inner);
-                    } finally {
-                        listener.onFailure(e);
-                    }
-                }
-            };
-            ShardId shardId = indexShard.shardId();
-
+            final ShardId shardId = indexShard.shardId();
             // Wrap translog snapshot to make it synchronized as it is accessed by different threads through SnapshotSender.
             // Even though those calls are not concurrent, snapshot.next() uses non-synchronized state and is not multi-thread-compatible
             // Also fail the resync early if the shard is shutting down
-            Translog.Snapshot wrappedSnapshot = new Translog.Snapshot() {
-
+            // TODO: A follow-up to make resync using soft-deletes
+            snapshot = indexShard.newTranslogSnapshotFromMinSeqNo(startingSeqNo);
+            final Translog.Snapshot originalSnapshot = snapshot;
+            final Translog.Snapshot wrappedSnapshot = new Translog.Snapshot() {
                 @Override
                 public synchronized void close() throws IOException {
-                    snapshot.close();
+                    originalSnapshot.close();
                 }
 
                 @Override
                 public synchronized int totalOperations() {
-                    return snapshot.totalOperations();
+                    return originalSnapshot.totalOperations();
                 }
 
                 @Override
@@ -133,15 +111,40 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
                     } else {
                         assert state == IndexShardState.STARTED : "resync should only happen on a started shard, but state was: " + state;
                     }
-                    return snapshot.next();
+                    return originalSnapshot.next();
                 }
             };
+            final ActionListener<ResyncTask> resyncListener = new ActionListener<ResyncTask>() {
+                @Override
+                public void onResponse(final ResyncTask resyncTask) {
+                    try {
+                        wrappedSnapshot.close();
+                        listener.onResponse(resyncTask);
+                    } catch (final Exception e) {
+                        onFailure(e);
+                    }
+                }
+
+                @Override
+                public void onFailure(final Exception e) {
+                    try {
+                        wrappedSnapshot.close();
+                    } catch (final Exception inner) {
+                        e.addSuppressed(inner);
+                    } finally {
+                        listener.onFailure(e);
+                    }
+                }
+            };
+
             resync(shardId, indexShard.routingEntry().allocationId().getId(), indexShard.getPrimaryTerm(), wrappedSnapshot,
                 startingSeqNo, maxSeqNo, resyncListener);
         } catch (Exception e) {
-            if (resyncListener != null) {
-                resyncListener.onFailure(e);
-            } else {
+            try {
+                IOUtils.close(snapshot);
+            } catch (IOException inner) {
+                e.addSuppressed(inner);
+            } finally {
                 listener.onFailure(e);
             }
         }

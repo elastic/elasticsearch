@@ -597,7 +597,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             }
 
             searchResponse = execute(new SearchScrollRequest(searchResponse.getScrollId()).scroll(TimeValue.timeValueMinutes(2)),
-                    highLevelClient()::searchScroll, highLevelClient()::searchScrollAsync);
+                    highLevelClient()::scroll, highLevelClient()::scrollAsync);
 
             assertThat(searchResponse.getHits().getTotalHits(), equalTo(100L));
             assertThat(searchResponse.getHits().getHits().length, equalTo(35));
@@ -606,7 +606,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             }
 
             searchResponse = execute(new SearchScrollRequest(searchResponse.getScrollId()).scroll(TimeValue.timeValueMinutes(2)),
-                    highLevelClient()::searchScroll, highLevelClient()::searchScrollAsync);
+                    highLevelClient()::scroll, highLevelClient()::scrollAsync);
 
             assertThat(searchResponse.getHits().getTotalHits(), equalTo(100L));
             assertThat(searchResponse.getHits().getHits().length, equalTo(30));
@@ -623,7 +623,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
 
             SearchScrollRequest scrollRequest = new SearchScrollRequest(searchResponse.getScrollId()).scroll(TimeValue.timeValueMinutes(2));
             ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () -> execute(scrollRequest,
-                    highLevelClient()::searchScroll, highLevelClient()::searchScrollAsync));
+                    highLevelClient()::scroll, highLevelClient()::scrollAsync));
             assertEquals(RestStatus.NOT_FOUND, exception.status());
             assertThat(exception.getRootCause(), instanceOf(ElasticsearchException.class));
             ElasticsearchException rootCause = (ElasticsearchException) exception.getRootCause();
@@ -644,7 +644,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         multiSearchRequest.add(searchRequest3);
 
         MultiSearchResponse multiSearchResponse =
-                execute(multiSearchRequest, highLevelClient()::multiSearch, highLevelClient()::multiSearchAsync);
+                execute(multiSearchRequest, highLevelClient()::msearch, highLevelClient()::msearchAsync);
         assertThat(multiSearchResponse.getTook().millis(), Matchers.greaterThanOrEqualTo(0L));
         assertThat(multiSearchResponse.getResponses().length, Matchers.equalTo(3));
 
@@ -686,7 +686,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         multiSearchRequest.add(searchRequest3);
 
         MultiSearchResponse multiSearchResponse =
-                execute(multiSearchRequest, highLevelClient()::multiSearch, highLevelClient()::multiSearchAsync);
+                execute(multiSearchRequest, highLevelClient()::msearch, highLevelClient()::msearchAsync);
         assertThat(multiSearchResponse.getTook().millis(), Matchers.greaterThanOrEqualTo(0L));
         assertThat(multiSearchResponse.getResponses().length, Matchers.equalTo(3));
 
@@ -734,7 +734,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         multiSearchRequest.add(searchRequest3);
 
         MultiSearchResponse multiSearchResponse =
-                execute(multiSearchRequest, highLevelClient()::multiSearch, highLevelClient()::multiSearchAsync);
+                execute(multiSearchRequest, highLevelClient()::msearch, highLevelClient()::msearchAsync);
         assertThat(multiSearchResponse.getTook().millis(), Matchers.greaterThanOrEqualTo(0L));
         assertThat(multiSearchResponse.getResponses().length, Matchers.equalTo(3));
 
@@ -759,7 +759,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         searchRequest1.source().highlighter(new HighlightBuilder().field("field"));
         searchRequest2.source().highlighter(new HighlightBuilder().field("field"));
         searchRequest3.source().highlighter(new HighlightBuilder().field("field"));
-        multiSearchResponse = execute(multiSearchRequest, highLevelClient()::multiSearch, highLevelClient()::multiSearchAsync);
+        multiSearchResponse = execute(multiSearchRequest, highLevelClient()::msearch, highLevelClient()::msearchAsync);
         assertThat(multiSearchResponse.getTook().millis(), Matchers.greaterThanOrEqualTo(0L));
         assertThat(multiSearchResponse.getResponses().length, Matchers.equalTo(3));
 
@@ -797,7 +797,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         multiSearchRequest.add(searchRequest2);
 
         MultiSearchResponse multiSearchResponse =
-                execute(multiSearchRequest, highLevelClient()::multiSearch, highLevelClient()::multiSearchAsync);
+                execute(multiSearchRequest, highLevelClient()::msearch, highLevelClient()::msearchAsync);
         assertThat(multiSearchResponse.getTook().millis(), Matchers.greaterThanOrEqualTo(0L));
         assertThat(multiSearchResponse.getResponses().length, Matchers.equalTo(2));
 
@@ -941,8 +941,8 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         multiSearchTemplateRequest.add(badRequest);
 
         MultiSearchTemplateResponse multiSearchTemplateResponse =
-                execute(multiSearchTemplateRequest, highLevelClient()::multiSearchTemplate,
-                        highLevelClient()::multiSearchTemplateAsync);
+                execute(multiSearchTemplateRequest, highLevelClient()::msearchTemplate,
+                        highLevelClient()::msearchTemplateAsync);
 
         Item[] responses = multiSearchTemplateResponse.getResponses();
 
@@ -999,8 +999,8 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
 
         // The whole HTTP request should fail if no nested search requests are valid
         ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
-                () -> execute(multiSearchTemplateRequest, highLevelClient()::multiSearchTemplate,
-                        highLevelClient()::multiSearchTemplateAsync));
+                () -> execute(multiSearchTemplateRequest, highLevelClient()::msearchTemplate,
+                        highLevelClient()::msearchTemplateAsync));
 
         assertEquals(RestStatus.BAD_REQUEST, exception.status());
         assertThat(exception.getMessage(), containsString("no requests added"));

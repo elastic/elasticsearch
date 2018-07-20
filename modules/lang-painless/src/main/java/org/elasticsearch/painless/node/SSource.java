@@ -30,8 +30,8 @@ import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.SimpleChecksAdapter;
 import org.elasticsearch.painless.WriterConstants;
 import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
-import org.elasticsearch.painless.lookup.PainlessMethodKey;
 import org.elasticsearch.painless.node.SFunction.FunctionReserved;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
@@ -165,12 +165,12 @@ public final class SSource extends AStatement {
     }
 
     public void analyze(PainlessLookup painlessLookup) {
-        Map<PainlessMethodKey, PainlessMethod> methods = new HashMap<>();
+        Map<String, PainlessMethod> methods = new HashMap<>();
 
         for (SFunction function : functions) {
             function.generateSignature(painlessLookup);
 
-            PainlessMethodKey key = new PainlessMethodKey(function.name, function.parameters.size());
+            String key = PainlessLookupUtility.buildPainlessMethodKey(function.name, function.parameters.size());
 
             if (methods.put(key, function.method) != null) {
                 throw createError(new IllegalArgumentException("Duplicate functions with name [" + function.name + "]."));

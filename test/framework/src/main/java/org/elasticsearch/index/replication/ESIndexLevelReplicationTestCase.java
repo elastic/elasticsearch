@@ -290,7 +290,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 RecoverySource.PeerRecoverySource.INSTANCE);
 
             final IndexShard newReplica =
-                    newShard(shardRouting, shardPath, indexMetaData, null, getEngineFactory(shardRouting), () -> {}, EMPTY_EVENT_LISTENER);
+                newShard(shardRouting, shardPath, indexMetaData, null, getEngineFactory(shardRouting), () -> {}, EMPTY_EVENT_LISTENER);
             replicas.add(newReplica);
             updateAllocationIDsOnPrimary();
             return newReplica;
@@ -366,8 +366,11 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             IndexShard replica,
             BiFunction<IndexShard, DiscoveryNode, RecoveryTarget> targetSupplier,
             boolean markAsRecovering) throws IOException {
-            ESIndexLevelReplicationTestCase.this.recoverReplica(replica, primary, targetSupplier, markAsRecovering, activeIds(),
-                routingTable(Function.identity()));
+            final IndexShardRoutingTable routingTable = routingTable(Function.identity());
+            final Set<String> inSyncIds = activeIds();
+            ESIndexLevelReplicationTestCase.this.recoverUnstartedReplica(replica, primary, targetSupplier, markAsRecovering, inSyncIds,
+                routingTable);
+            ESIndexLevelReplicationTestCase.this.startReplicaAfterRecovery(replica, primary, inSyncIds, routingTable);
         }
 
         public synchronized DiscoveryNode getPrimaryNode() {
@@ -502,7 +505,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
             @Override
             public void failShard(String message, Exception exception) {
-                throw new UnsupportedOperationException();
+                throw new UnsupportedOperationException("failing a primary isn't supported. failure: " + message, exception);
             }
 
             @Override
@@ -575,13 +578,13 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             public void failShardIfNeeded(ShardRouting replica, String message, Exception exception,
                                           Runnable onSuccess, Consumer<Exception> onPrimaryDemoted,
                                           Consumer<Exception> onIgnoredFailure) {
-                throw new UnsupportedOperationException();
+                throw new UnsupportedOperationException("failing shard " + replica + " isn't supported. failure: " + message, exception);
             }
 
             @Override
             public void markShardCopyAsStaleIfNeeded(ShardId shardId, String allocationId, Runnable onSuccess,
                                                      Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
-                throw new UnsupportedOperationException();
+                throw new UnsupportedOperationException("can't mark " + shardId  + ", aid [" + allocationId + "] as stale");
             }
         }
 

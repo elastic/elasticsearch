@@ -187,7 +187,6 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             remainingReplica.applyIndexOperationOnReplica(
                     remainingReplica.getLocalCheckpoint() + 1,
                     1,
-                    VersionType.EXTERNAL,
                     randomNonNegativeLong(),
                     false,
                     SourceToParse.source("index", "type", "replica", new BytesArray("{}"), XContentType.JSON));

@@ -148,7 +148,7 @@ public class LeafFieldsLookup implements Map {
                 reader.document(docId, fieldVisitor);
                 fieldVisitor.postProcess(mapperService);
                 List<Object> storedFields = fieldVisitor.fields().get(data.fieldType().name());
-                data.fields(singletonMap(name, storedFields));
+                data.fields(singletonMap(fieldName, storedFields));
             } catch (IOException e) {
                 throw new ElasticsearchParseException("failed to load field [{}]", e, name);
             }

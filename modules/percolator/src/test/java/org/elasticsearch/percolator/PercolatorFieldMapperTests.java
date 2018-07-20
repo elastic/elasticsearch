@@ -230,10 +230,10 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
     public void testExtractRanges() throws Exception {
         addQueryFieldMappings();
         BooleanQuery.Builder bq = new BooleanQuery.Builder();
-        Query rangeQuery1 = mapperService.documentMapper("doc").mappers().getMapper("number_field1").fieldType()
+        Query rangeQuery1 = mapperService.fullName("number_field1")
             .rangeQuery(10, 20, true, true, null, null, null, null);
         bq.add(rangeQuery1, Occur.MUST);
-        Query rangeQuery2 = mapperService.documentMapper("doc").mappers().getMapper("number_field1").fieldType()
+        Query rangeQuery2 = mapperService.fullName("number_field1")
             .rangeQuery(15, 20, true, true, null, null, null, null);
         bq.add(rangeQuery2, Occur.MUST);
 
@@ -265,7 +265,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         // Range queries on different fields:
         bq = new BooleanQuery.Builder();
         bq.add(rangeQuery1, Occur.MUST);
-        rangeQuery2 = mapperService.documentMapper("doc").mappers().getMapper("number_field2").fieldType()
+        rangeQuery2 = mapperService.fullName("number_field2")
             .rangeQuery(15, 20, true, true, null, null, null, null);
         bq.add(rangeQuery2, Occur.MUST);
 

@@ -44,7 +44,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         try {
             // Empty store
             {
-                recoveryEmptyReplica(replica);
+                recoveryEmptyReplica(replica, true);
                 final RecoveryTarget recoveryTarget = new RecoveryTarget(replica, null, null, null);
                 assertThat(PeerRecoveryTargetService.getStartingSeqNo(logger, recoveryTarget), equalTo(0L));
                 recoveryTarget.decRef();

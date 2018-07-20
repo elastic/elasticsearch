@@ -17,6 +17,7 @@ task openLdapFixture {
 String outputDir = "${project.buildDir}/generated-resources/${project.name}"
 task copyIdpTrust(type: Copy) {
     from idpFixtureProject.file('src/main/resources/certs/idptrust.jks');
+    from idpFixtureProject.file('src/main/resources/certs/ca.crt');
     into outputDir
 }
 if (project.rootProject.vagrantSupported) {

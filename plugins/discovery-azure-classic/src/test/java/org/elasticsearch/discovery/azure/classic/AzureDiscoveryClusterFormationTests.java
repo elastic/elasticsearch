@@ -40,6 +40,8 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.TcpTransport;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
+import org.junit.rules.ExternalResource;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
@@ -86,6 +88,14 @@ public class AzureDiscoveryClusterFormationTests extends ESIntegTestCase {
     }
 
     private static Path keyStoreFile;
+
+    @ClassRule
+    public static final ExternalResource MUTE_IN_FIPS_JVM = new ExternalResource() {
+        @Override
+        protected void before() {
+            assumeFalse("Can't run in a FIPS JVM because none of the supported Keystore types can be used", inFipsJvm());
+        }
+    };
 
     @BeforeClass
     public static void setupKeyStore() throws IOException {

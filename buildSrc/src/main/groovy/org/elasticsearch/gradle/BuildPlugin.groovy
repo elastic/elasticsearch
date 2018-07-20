@@ -19,7 +19,7 @@
 package org.elasticsearch.gradle
 
 import com.carrotsearch.gradle.junit4.RandomizedTestingTask
-import nebula.plugin.extraconfigurations.ProvidedBasePlugin
+import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.eclipse.jgit.lib.Constants
 import org.eclipse.jgit.lib.RepositoryBuilder
@@ -37,12 +37,14 @@ import org.gradle.api.artifacts.ModuleDependency
 import org.gradle.api.artifacts.ModuleVersionIdentifier
 import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.artifacts.ResolvedArtifact
+import org.gradle.api.artifacts.SelfResolvingDependency
 import org.gradle.api.artifacts.dsl.RepositoryHandler
 import org.gradle.api.execution.TaskExecutionGraph
 import org.gradle.api.plugins.JavaPlugin
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
 import org.gradle.api.publish.maven.tasks.GenerateMavenPom
+import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.bundling.Jar
 import org.gradle.api.tasks.compile.GroovyCompile
 import org.gradle.api.tasks.compile.JavaCompile
@@ -58,15 +60,15 @@ import java.time.ZonedDateTime
  */
 class BuildPlugin implements Plugin<Project> {
 
-    static final JavaVersion minimumRuntimeVersion = JavaVersion.VERSION_1_8
-    static final JavaVersion minimumCompilerVersion = JavaVersion.VERSION_1_10
-
     @Override
     void apply(Project project) {
         if (project.pluginManager.hasPlugin('elasticsearch.standalone-rest-test')) {
               throw new InvalidUserDataException('elasticsearch.standalone-test, '
                 + 'elasticearch.standalone-rest-test, and elasticsearch.build '
                 + 'are mutually exclusive')
+        }
+        if (GradleVersion.current() < GradleVersion.version('4.9')) {
+            throw new GradleException('Gradle 4.9+ is required to use elasticsearch.build plugin')
         }
         project.pluginManager.apply('java')
         project.pluginManager.apply('carrotsearch.randomized-testing')
@@ -95,6 +97,12 @@ class BuildPlugin implements Plugin<Project> {
     /** Performs checks on the build environment and prints information about the build environment. */
     static void globalBuildInfo(Project project) {
         if (project.rootProject.ext.has('buildChecksDone') == false) {
+            JavaVersion minimumRuntimeVersion = JavaVersion.toVersion(
+                    BuildPlugin.class.getClassLoader().getResourceAsStream("minimumRuntimeVersion").text.trim()
+            )
+            JavaVersion minimumCompilerVersion = JavaVersion.toVersion(
+                    BuildPlugin.class.getClassLoader().getResourceAsStream("minimumCompilerVersion").text.trim()
+            )
             String compilerJavaHome = findCompilerJavaHome()
             String runtimeJavaHome = findRuntimeJavaHome(compilerJavaHome)
             File gradleJavaHome = Jvm.current().javaHome
@@ -192,10 +200,12 @@ class BuildPlugin implements Plugin<Project> {
             project.rootProject.ext.runtimeJavaVersion = runtimeJavaVersionEnum
             project.rootProject.ext.javaVersions = javaVersions
             project.rootProject.ext.buildChecksDone = true
+            project.rootProject.ext.minimumCompilerVersion = minimumCompilerVersion
+            project.rootProject.ext.minimumRuntimeVersion = minimumRuntimeVersion
         }
 
-        project.targetCompatibility = minimumRuntimeVersion
-        project.sourceCompatibility = minimumRuntimeVersion
+        project.targetCompatibility = project.rootProject.ext.minimumRuntimeVersion
+        project.sourceCompatibility = project.rootProject.ext.minimumRuntimeVersion
 
         // set java home for each project, so they dont have to find it in the root project
         project.ext.compilerJavaHome = project.rootProject.ext.compilerJavaHome
@@ -348,7 +358,7 @@ class BuildPlugin implements Plugin<Project> {
                 // just a self contained test-fixture configuration, likely transitive and hellacious
                 return
             }
-            configuration.resolutionStrategy { 
+            configuration.resolutionStrategy {
                 failOnVersionConflict()
             }
         })
@@ -467,6 +477,24 @@ class BuildPlugin implements Plugin<Project> {
 
     /**Configuration generation of maven poms. */
     public static void configurePomGeneration(Project project) {
+        // Only works with  `enableFeaturePreview('STABLE_PUBLISHING')`
+        // https://github.com/gradle/gradle/issues/5696#issuecomment-396965185
+        project.tasks.withType(GenerateMavenPom.class) { GenerateMavenPom generatePOMTask ->
+            // The GenerateMavenPom task is aggressive about setting the destination, instead of fighting it,
+            // just make a copy.
+            doLast {
+                project.copy {
+                    from generatePOMTask.destination
+                    into "${project.buildDir}/distributions"
+                    rename { "${project.archivesBaseName}-${project.version}.pom" }
+                }
+            }
+            // build poms with assemble (if the assemble task exists)
+            Task assemble = project.tasks.findByName('assemble')
+            if (assemble) {
+                assemble.dependsOn(generatePOMTask)
+            }
+        }
         project.plugins.withType(MavenPublishPlugin.class).whenPluginAdded {
             project.publishing {
                 publications {
@@ -476,21 +504,41 @@ class BuildPlugin implements Plugin<Project> {
                     }
                 }
             }
-
-            // Work around Gradle 4.8 issue until we `enableFeaturePreview('STABLE_PUBLISHING')`
-            // https://github.com/gradle/gradle/issues/5696#issuecomment-396965185
-            project.getGradle().getTaskGraph().whenReady {
-                project.tasks.withType(GenerateMavenPom.class) { GenerateMavenPom t ->
-                    // place the pom next to the jar it is for
-                    t.destination = new File(project.buildDir, "distributions/${project.archivesBaseName}-${project.version}.pom")
-                    // build poms with assemble (if the assemble task exists)
-                    Task assemble = project.tasks.findByName('assemble')
-                    if (assemble) {
-                        assemble.dependsOn(t)
+            project.plugins.withType(ShadowPlugin).whenPluginAdded {
+                project.publishing {
+                    publications {
+                        nebula(MavenPublication) {
+                            artifact project.tasks.shadowJar
+                            artifactId = project.archivesBaseName
+                            /*
+                            * Configure the pom to include the "shadow" as compile dependencies
+                            * because that is how we're using them but remove all other dependencies
+                            * because they've been shaded into the jar.
+                            */
+                            pom.withXml { XmlProvider xml ->
+                                Node root = xml.asNode()
+                                root.remove(root.dependencies)
+                                Node dependenciesNode = root.appendNode('dependencies')
+                                project.configurations.shadow.allDependencies.each {
+                                    if (false == it instanceof SelfResolvingDependency) {
+                                        Node dependencyNode = dependenciesNode.appendNode('dependency')
+                                        dependencyNode.appendNode('groupId', it.group)
+                                        dependencyNode.appendNode('artifactId', it.name)
+                                        dependencyNode.appendNode('version', it.version)
+                                        dependencyNode.appendNode('scope', 'compile')
+                                    }
+                                }
+                                // Be tidy and remove the element if it is empty
+                                if (dependenciesNode.children.empty) {
+                                    root.remove(dependenciesNode)
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
+
     }
 
     /** Adds compiler settings to the project */
@@ -652,6 +700,28 @@ class BuildPlugin implements Plugin<Project> {
                 }
             }
         }
+        project.plugins.withType(ShadowPlugin).whenPluginAdded {
+            /*
+             * When we use the shadow plugin we entirely replace the
+             * normal jar with the shadow jar so we no longer want to run
+             * the jar task.
+             */
+            project.tasks.jar.enabled = false
+            project.tasks.shadowJar {
+                /*
+                 * Replace the default "shadow" classifier with null
+                 * which will leave the classifier off of the file name.
+                 */
+                classifier = null
+                /*
+                 * Not all cases need service files merged but it is
+                 * better to be safe
+                 */
+                mergeServiceFiles()
+            }
+            // Make sure we assemble the shadow jar
+            project.tasks.assemble.dependsOn project.tasks.shadowJar
+        }
     }
 
     /** Returns a closure of common configuration shared by unit and integration tests. */
@@ -735,6 +805,18 @@ class BuildPlugin implements Plugin<Project> {
             }
 
             exclude '**/*$*.class'
+
+            project.plugins.withType(ShadowPlugin).whenPluginAdded {
+                /*
+                 * If we make a shaded jar we test against it.
+                 */
+                classpath -= project.tasks.compileJava.outputs.files
+                classpath -= project.configurations.compile
+                classpath -= project.configurations.runtime
+                classpath += project.configurations.shadow
+                classpath += project.tasks.shadowJar.outputs.files
+                dependsOn project.tasks.shadowJar
+            }
         }
     }
 
@@ -751,13 +833,32 @@ class BuildPlugin implements Plugin<Project> {
         project.extensions.add('additionalTest', { String name, Closure config ->
             RandomizedTestingTask additionalTest = project.tasks.create(name, RandomizedTestingTask.class)
             additionalTest.classpath = test.classpath
-            additionalTest.testClassesDir = test.testClassesDir
+            additionalTest.testClassesDirs = test.testClassesDirs
             additionalTest.configure(commonTestConfig(project))
             additionalTest.configure(config)
             additionalTest.dependsOn(project.tasks.testClasses)
-            test.dependsOn(additionalTest)
+            project.check.dependsOn(additionalTest)
         });
-        return test
+
+        project.plugins.withType(ShadowPlugin).whenPluginAdded {
+            /*
+             * We need somewhere to configure dependencies that we don't wish
+             * to shade into the jar. The shadow plugin creates a "shadow"
+             * configuration which  is *almost* exactly that. It is never
+             * bundled into the shaded jar but is used for main source
+             * compilation. Unfortunately, by default it is not used for
+             * *test* source compilation and isn't used in tests at all. This
+             * change makes it available for test compilation.
+             *
+             * Note that this isn't going to work properly with qa projects
+             * but they have no business applying the shadow plugin in the
+             * firstplace.
+             */
+            SourceSet testSourceSet = project.sourceSets.findByName('test')
+            if (testSourceSet != null) {
+                testSourceSet.compileClasspath += project.configurations.shadow
+            }
+        }
     }
 
     private static configurePrecommit(Project project) {

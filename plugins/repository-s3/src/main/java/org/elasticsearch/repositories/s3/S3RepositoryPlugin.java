@@ -61,7 +61,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         });
     }
 
-    private final S3Service service;
+    protected final S3Service service;
 
     public S3RepositoryPlugin(final Settings settings) {
         this(settings, new S3Service(settings));
@@ -77,7 +77,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     // proxy method for testing
     protected S3Repository createRepository(final RepositoryMetaData metadata,
                                             final Settings settings,
-                                            final NamedXContentRegistry registry) throws IOException {
+                                            final NamedXContentRegistry registry) {
         return new S3Repository(metadata, settings, registry, service);
     }
 
@@ -92,6 +92,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             // named s3 client configuration settings
             S3ClientSettings.ACCESS_KEY_SETTING,
             S3ClientSettings.SECRET_KEY_SETTING,
+            S3ClientSettings.SESSION_TOKEN_SETTING,
             S3ClientSettings.ENDPOINT_SETTING,
             S3ClientSettings.PROTOCOL_SETTING,
             S3ClientSettings.PROXY_HOST_SETTING,

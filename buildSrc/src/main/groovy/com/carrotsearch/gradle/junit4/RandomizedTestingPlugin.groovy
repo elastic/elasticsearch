@@ -74,7 +74,7 @@ class RandomizedTestingPlugin implements Plugin<Project> {
         // since we can't be sure if the task was ever realized, we remove both the provider and the task
         TaskProvider<Test> oldTestProvider
         try {
-            oldTestProvider = tasks.getByNameLater(Test, 'test')
+            oldTestProvider = tasks.named('test')
         } catch (UnknownTaskException unused) {
             // no test task, ok, user will use testing task on their own
             return
@@ -89,7 +89,7 @@ class RandomizedTestingPlugin implements Plugin<Project> {
             description = 'Runs unit tests with the randomized testing framework'
             dependsOn oldTestTask.dependsOn, 'testClasses'
             classpath = oldTestTask.classpath
-            testClassesDir = oldTestTask.project.sourceSets.test.output.classesDir
+            testClassesDirs = oldTestTask.project.sourceSets.test.output.classesDirs
         }
 
         // hack so check task depends on custom test

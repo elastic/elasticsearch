@@ -86,11 +86,6 @@ public class LicensingTests extends SecurityIntegTestCase {
                     "    - names: 'b'\n" +
                     "      privileges: [all]\n";
 
-    public static final String USERS =
-            SecuritySettingsSource.CONFIG_STANDARD_USER +
-                    "user_a:{plain}passwd\n" +
-                    "user_b:{plain}passwd\n";
-
     public static final String USERS_ROLES =
             SecuritySettingsSource.CONFIG_STANDARD_USER_ROLES +
                     "role_a:user_a,user_b\n" +
@@ -103,7 +98,9 @@ public class LicensingTests extends SecurityIntegTestCase {
 
     @Override
     protected String configUsers() {
-        return USERS;
+        return SecuritySettingsSource.CONFIG_STANDARD_USER +
+            "user_a:{plain}passwd\n" +
+            "user_b:{plain}passwd\n";
     }
 
     @Override
@@ -310,7 +307,7 @@ public class LicensingTests extends SecurityIntegTestCase {
 
     public static void disableLicensing(License.OperationMode operationMode) {
         for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-            licenseState.update(operationMode, false);
+            licenseState.update(operationMode, false, null);
         }
     }
 
@@ -320,7 +317,7 @@ public class LicensingTests extends SecurityIntegTestCase {
 
     public static void enableLicensing(License.OperationMode operationMode) {
         for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-            licenseState.update(operationMode, true);
+            licenseState.update(operationMode, true, null);
         }
     }
 }

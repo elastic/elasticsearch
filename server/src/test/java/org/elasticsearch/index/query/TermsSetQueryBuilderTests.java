@@ -28,12 +28,14 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CoveringQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -83,10 +85,9 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
 
     @Override
     protected TermsSetQueryBuilder doCreateTestQueryBuilder() {
-        String fieldName;
-        do {
-            fieldName = randomFrom(MAPPED_FIELD_NAMES);
-        } while (fieldName.equals(GEO_POINT_FIELD_NAME) || fieldName.equals(GEO_SHAPE_FIELD_NAME));
+        String fieldName = randomValueOtherThanMany(
+            value -> value.equals(GEO_POINT_FIELD_NAME) || value.equals(GEO_SHAPE_FIELD_NAME),
+            () -> randomFrom(MAPPED_FIELD_NAMES));
         List<?> randomTerms = randomValues(fieldName);
         TermsSetQueryBuilder queryBuilder = new TermsSetQueryBuilder(STRING_FIELD_NAME, randomTerms);
         if (randomBoolean()) {
@@ -258,6 +259,22 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
                 assertThat(topDocs.scoreDocs[1].doc, equalTo(2));
                 assertThat(topDocs.scoreDocs[2].doc, equalTo(4));
             }
+        }
+    }
+
+    public void testFieldAlias() {
+        List<String> randomTerms = Arrays.asList(generateRandomStringArray(5, 10, false, false));
+        TermsSetQueryBuilder queryBuilder = new TermsSetQueryBuilder(STRING_ALIAS_FIELD_NAME, randomTerms)
+            .setMinimumShouldMatchField("m_s_m");
+
+        QueryShardContext context = createShardContext();
+        List<Query> termQueries = queryBuilder.createTermQueries(context);
+        assertEquals(randomTerms.size(), termQueries.size());
+
+        String expectedFieldName = expectedFieldName(queryBuilder.getFieldName());
+        for (int i = 0; i < randomTerms.size(); i++) {
+            Term term = new Term(expectedFieldName, randomTerms.get(i));
+            assertThat(termQueries.get(i), equalTo(new TermQuery(term)));
         }
     }
 

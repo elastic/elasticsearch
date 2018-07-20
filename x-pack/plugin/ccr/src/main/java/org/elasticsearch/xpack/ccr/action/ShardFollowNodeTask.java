@@ -61,7 +61,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private final BiConsumer<TimeValue, Runnable> scheduler;
 
     private volatile long lastRequestedSeqno;
-    private volatile long leaderGlobalCheckpoint;
+    // package-protected visibility for testing only:
+    volatile long leaderGlobalCheckpoint;
 
     private volatile int numConcurrentReads = 0;
     private volatile int numConcurrentWrites = 0;
@@ -182,7 +183,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     }
 
     synchronized void innerHandleReadResponse(long from, long maxRequiredSeqNo, ShardChangesAction.Response response) {
-        updateLeaderGlobalCheckpoint(response.getGlobalCheckpoint());
+        leaderGlobalCheckpoint = Math.max(leaderGlobalCheckpoint, response.getGlobalCheckpoint());
         final long newMinRequiredSeqNo;
         if (response.getOperations().length == 0) {
             newMinRequiredSeqNo = from;
@@ -219,11 +220,6 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 coordinateReads();
             }
         }
-    }
-
-    void updateLeaderGlobalCheckpoint(long newGlobalCheckpoint) {
-        assert Thread.holdsLock(this);
-        leaderGlobalCheckpoint = Math.max(leaderGlobalCheckpoint, newGlobalCheckpoint);
     }
 
     private void sendBulkShardOperationsRequest(List<Translog.Operation> operations) {

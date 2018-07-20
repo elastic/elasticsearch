@@ -54,6 +54,6 @@ public final class PainlessLookup {
     }
 
     public Class<?> getJavaClassFromPainlessType(String painlessType) {
-        return PainlessLookupUtility.painlessTypeNameToPainlessType(painlessType, painlessTypesToJavaClasses);
+        return PainlessLookupUtility.canonicalTypeNameToType(painlessType, painlessTypesToJavaClasses);
     }
 }

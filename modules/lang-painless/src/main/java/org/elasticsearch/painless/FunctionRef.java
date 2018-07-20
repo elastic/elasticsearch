@@ -168,7 +168,7 @@ public class FunctionRef {
         PainlessMethod method = painlessLookup.getPainlessStructFromJavaClass(expected).functionalMethod;
         if (method == null) {
             throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
-                    "to [" + PainlessLookupUtility.anyTypeToPainlessTypeName(expected) + "], not a functional interface");
+                    "to [" + PainlessLookupUtility.typeToCanonicalTypeName(expected) + "], not a functional interface");
         }
 
         // lookup requested method

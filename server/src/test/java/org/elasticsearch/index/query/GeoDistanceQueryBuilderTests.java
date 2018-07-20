@@ -43,7 +43,8 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
 
     @Override
     protected GeoDistanceQueryBuilder doCreateTestQueryBuilder() {
-        GeoDistanceQueryBuilder qb = new GeoDistanceQueryBuilder(GEO_POINT_FIELD_NAME);
+        String fieldName = randomFrom(GEO_POINT_FIELD_NAME, GEO_POINT_ALIAS_FIELD_NAME);
+        GeoDistanceQueryBuilder qb = new GeoDistanceQueryBuilder(fieldName);
         String distance = "" + randomDouble();
         if (randomBoolean()) {
             DistanceUnit unit = randomFrom(DistanceUnit.values());
@@ -130,13 +131,15 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
         // TODO: remove the if statement once we always use LatLonPoint
         if (query instanceof IndexOrDocValuesQuery) {
             Query indexQuery = ((IndexOrDocValuesQuery) query).getIndexQuery();
-            assertEquals(LatLonPoint.newDistanceQuery(queryBuilder.fieldName(),
+
+            String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
+            assertEquals(LatLonPoint.newDistanceQuery(expectedFieldName,
                     queryBuilder.point().lat(),
                     queryBuilder.point().lon(),
                     queryBuilder.distance()),
                     indexQuery);
             Query dvQuery = ((IndexOrDocValuesQuery) query).getRandomAccessQuery();
-            assertEquals(LatLonDocValuesField.newSlowDistanceQuery(queryBuilder.fieldName(),
+            assertEquals(LatLonDocValuesField.newSlowDistanceQuery(expectedFieldName,
                     queryBuilder.point().lat(),
                     queryBuilder.point().lon(),
                     queryBuilder.distance()),

@@ -89,18 +89,34 @@ String s3TemporarySessionToken = System.getenv("amazon_s3_session_token_temporar
 String s3TemporaryBucket = System.getenv("amazon_s3_bucket_temporary")
 String s3TemporaryBasePath = System.getenv("amazon_s3_base_path_temporary")
 
+String s3EC2Bucket = System.getenv("amazon_s3_bucket_ec2")
+String s3EC2BasePath = System.getenv("amazon_s3_base_path_ec2")
+
+String s3ECSBucket = System.getenv("amazon_s3_bucket_ecs")
+String s3ECSBasePath = System.getenv("amazon_s3_base_path_ecs")
+
 // If all these variables are missing then we are testing against the internal fixture instead, which has the following
 // credentials hard-coded in.
 
-if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3PermanentBasePath) {
+if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3PermanentBasePath
+        && !s3EC2Bucket && !s3EC2BasePath
+        && !s3ECSBucket && !s3ECSBasePath) {
   s3PermanentAccessKey = 's3_integration_test_permanent_access_key'
   s3PermanentSecretKey = 's3_integration_test_permanent_secret_key'
   s3PermanentBucket = 'permanent-bucket-test'
   s3PermanentBasePath = 'integration_test'
 
+  s3EC2Bucket = 'ec2-bucket-test'
+  s3EC2BasePath = 'integration_test'
+
+  s3ECSBucket = 'ecs-bucket-test'
+  s3ECSBasePath = 'integration_test'
+
   useFixture = true
 
-} else if (!s3PermanentAccessKey || !s3PermanentSecretKey || !s3PermanentBucket || !s3PermanentBasePath) {
+} else if (!s3PermanentAccessKey || !s3PermanentSecretKey || !s3PermanentBucket || !s3PermanentBasePath
+        || !s3EC2Bucket || !s3EC2BasePath
+        || !s3ECSBucket || !s3ECSBasePath) {
   throw new IllegalArgumentException("not all options specified to run against external S3 service")
 }
 
@@ -274,24 +290,56 @@ if (useFixture && minioDistribution) {
   integTestMinioRunner.dependsOn(startMinio)
   integTestMinioRunner.finalizedBy(stopMinio)
   // Minio only supports a single access key, see https://github.com/minio/minio/pull/5968
-  integTestMinioRunner.systemProperty 'tests.rest.blacklist', 'repository_s3/30_repository_temporary_credentials/*'
+  integTestMinioRunner.systemProperty 'tests.rest.blacklist', [
+          'repository_s3/30_repository_temporary_credentials/*',
+          'repository_s3/40_repository_ec2_credentials/*',
+          'repository_s3/50_repository_ecs_credentials/*'
+        ].join(",")
 
   project.check.dependsOn(integTestMinio)
+}
+
+File parentFixtures = new File(project.buildDir, "fixtures")
+File s3FixtureFile = new File(parentFixtures, 's3Fixture.properties')
+
+task s3FixtureProperties {
+  outputs.file(s3FixtureFile)
+  def s3FixtureOptions = [
+      "tests.seed"                       : project.testSeed,
+      "s3Fixture.permanent_bucket_name"  : s3PermanentBucket,
+      "s3Fixture.permanent_key"          : s3PermanentAccessKey,
+      "s3Fixture.temporary_bucket_name"  : s3TemporaryBucket,
+      "s3Fixture.temporary_key"          : s3TemporaryAccessKey,
+      "s3Fixture.temporary_session_token": s3TemporarySessionToken,
+      "s3Fixture.ec2_bucket_name"        : s3EC2Bucket,
+      "s3Fixture.ecs_bucket_name"        : s3ECSBucket
+  ]
+
+  doLast {
+    file(s3FixtureFile).text = s3FixtureOptions.collect { k, v -> "$k = $v" }.join("\n")
+  }
 }
 
 /** A task to start the AmazonS3Fixture which emulates an S3 service **/
 task s3Fixture(type: AntFixture) {
   dependsOn testClasses
+  dependsOn s3FixtureProperties
+  inputs.file(s3FixtureFile)
+
   env 'CLASSPATH', "${ -> project.sourceSets.test.runtimeClasspath.asPath }"
   executable = new File(project.runtimeJavaHome, 'bin/java')
-  args 'org.elasticsearch.repositories.s3.AmazonS3Fixture', baseDir, s3PermanentBucket, s3TemporaryBucket
+  args 'org.elasticsearch.repositories.s3.AmazonS3Fixture', baseDir, s3FixtureFile.getAbsolutePath()
 }
 
 Map<String, Object> expansions = [
   'permanent_bucket': s3PermanentBucket,
   'permanent_base_path': s3PermanentBasePath,
   'temporary_bucket': s3TemporaryBucket,
-  'temporary_base_path': s3TemporaryBasePath
+  'temporary_base_path': s3TemporaryBasePath,
+  'ec2_bucket': s3EC2Bucket,
+  'ec2_base_path': s3EC2BasePath,
+  'ecs_bucket': s3ECSBucket,
+  'ecs_base_path': s3ECSBasePath
 ]
 
 processTestResources {
@@ -319,10 +367,42 @@ integTestCluster {
     /* Use a closure on the string to delay evaluation until tests are executed */
     setting 's3.client.integration_test_permanent.endpoint', "http://${-> s3Fixture.addressAndPort}"
     setting 's3.client.integration_test_temporary.endpoint', "http://${-> s3Fixture.addressAndPort}"
+    setting 's3.client.integration_test_ec2.endpoint', "http://${-> s3Fixture.addressAndPort}"
+
+    // to redirect InstanceProfileCredentialsProvider to custom auth point
+    systemProperty "com.amazonaws.sdk.ec2MetadataServiceEndpointOverride", "http://${-> s3Fixture.addressAndPort}"
   } else {
     println "Using an external service to test the repository-s3 plugin"
   }
 }
+
+integTestRunner.systemProperty 'tests.rest.blacklist', 'repository_s3/50_repository_ecs_credentials/*'
+
+///
+RestIntegTestTask integTestECS = project.tasks.create('integTestECS', RestIntegTestTask.class) {
+  description = "Runs tests using the ECS repository."
+}
+
+// The following closure must execute before the afterEvaluate block in the constructor of the following integrationTest tasks:
+project.afterEvaluate {
+  ClusterConfiguration cluster = project.extensions.getByName('integTestECSCluster') as ClusterConfiguration
+  cluster.dependsOn(project.s3Fixture)
+
+  cluster.setting 's3.client.integration_test_ecs.endpoint', "http://${-> s3Fixture.addressAndPort}"
+
+  Task integTestECSTask = project.tasks.getByName('integTestECS')
+  integTestECSTask.clusterConfig.plugin(project.path)
+  integTestECSTask.clusterConfig.environment 'AWS_CONTAINER_CREDENTIALS_FULL_URI',
+          "http://${-> s3Fixture.addressAndPort}/ecs_credentials_endpoint"
+  integTestECSRunner.systemProperty 'tests.rest.blacklist', [
+          'repository_s3/10_basic/*',
+          'repository_s3/20_repository_permanent_credentials/*',
+          'repository_s3/30_repository_temporary_credentials/*',
+          'repository_s3/40_repository_ec2_credentials/*'
+  ].join(",")
+}
+project.check.dependsOn(integTestECS)
+///
 
 thirdPartyAudit.excludes = [
   // classes are missing

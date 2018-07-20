@@ -79,3 +79,11 @@ the only behavior in 8.0.0, this parameter is deprecated in 7.0.0 for removal in
 ==== The deprecated stored script contexts have now been removed
 When putting stored scripts, support for storing them with the deprecated `template` context or without a context is
 now removed. Scripts must be stored using the `script` context as mentioned in the documentation.
+
+==== Get Aliases API limitations when {security} is enabled removed
+
+The behavior and response codes of the get aliases API no longer vary
+depending on whether {security} is enabled. Previously a
+404 - NOT FOUND (IndexNotFoundException) could be returned in case the
+current user was not authorized for any alias. An empty response with
+status 200 - OK is now returned instead at all times.

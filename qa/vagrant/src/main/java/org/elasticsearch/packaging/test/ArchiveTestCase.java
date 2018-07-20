@@ -19,6 +19,7 @@
 
 package org.elasticsearch.packaging.test;
 
+import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.Archives;
 import org.elasticsearch.packaging.util.Platforms;
@@ -27,9 +28,6 @@ import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.FixMethodOrder;
-import org.junit.Test;
-import org.junit.runners.MethodSorters;
 
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Installation;
@@ -67,8 +65,8 @@ import static org.junit.Assume.assumeTrue;
  * Tests that apply to the archive distributions (tar, zip). To add a case for a distribution, subclass and
  * override {@link ArchiveTestCase#distribution()}. These tests should be the same across all archive distributions
  */
-@FixMethodOrder(MethodSorters.NAME_ASCENDING)
-public abstract class ArchiveTestCase {
+@TestCaseOrdering(TestCaseOrdering.AlphabeticOrder.class)
+public abstract class ArchiveTestCase extends PackagingTestCase {
 
     private static Installation installation;
 
@@ -86,13 +84,11 @@ public abstract class ArchiveTestCase {
         assumeTrue("only compatible distributions", distribution().packaging.compatible);
     }
 
-    @Test
     public void test10Install() {
         installation = installArchive(distribution());
         verifyArchiveInstallation(installation, distribution());
     }
 
-    @Test
     public void test20PluginsListWithNoPlugins() {
         assumeThat(installation, is(notNullValue()));
 
@@ -103,7 +99,6 @@ public abstract class ArchiveTestCase {
         assertThat(r.stdout, isEmptyString());
     }
 
-    @Test
     public void test30AbortWhenJavaMissing() {
         assumeThat(installation, is(notNullValue()));
 
@@ -146,7 +141,6 @@ public abstract class ArchiveTestCase {
         });
     }
 
-    @Test
     public void test40CreateKeystoreManually() {
         assumeThat(installation, is(notNullValue()));
 
@@ -180,7 +174,6 @@ public abstract class ArchiveTestCase {
         });
     }
 
-    @Test
     public void test50StartAndStop() throws IOException {
         assumeThat(installation, is(notNullValue()));
 
@@ -198,7 +191,6 @@ public abstract class ArchiveTestCase {
         Archives.stopElasticsearch(installation);
     }
 
-    @Test
     public void test60AutoCreateKeystore() {
         assumeThat(installation, is(notNullValue()));
 
@@ -218,7 +210,6 @@ public abstract class ArchiveTestCase {
         });
     }
 
-    @Test
     public void test70CustomPathConfAndJvmOptions() throws IOException {
         assumeThat(installation, is(notNullValue()));
 
@@ -268,7 +259,6 @@ public abstract class ArchiveTestCase {
         }
     }
 
-    @Test
     public void test80RelativePathConf() throws IOException {
         assumeThat(installation, is(notNullValue()));
 

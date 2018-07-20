@@ -61,8 +61,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private final BiConsumer<TimeValue, Runnable> scheduler;
 
     private volatile long lastRequestedSeqno;
-    // package-protected visibility for testing only:
-    volatile long leaderGlobalCheckpoint;
+    private volatile long leaderGlobalCheckpoint;
 
     private volatile int numConcurrentReads = 0;
     private volatile int numConcurrentWrites = 0;
@@ -79,10 +78,10 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         this.idleShardChangesRequestDelay = params.getIdleShardRetryDelay();
     }
 
-    void start(long followerGlobalCheckpoint) {
+    void start(long leaderGlobalCheckpoint, long followerGlobalCheckpoint) {
         this.lastRequestedSeqno = followerGlobalCheckpoint;
         this.followerGlobalCheckpoint = followerGlobalCheckpoint;
-        this.leaderGlobalCheckpoint = followerGlobalCheckpoint;
+        this.leaderGlobalCheckpoint = leaderGlobalCheckpoint;
 
         // Forcefully updates follower mapping, this gets us the leader imd version and
         // makes sure that leader and follower mapping are identical.

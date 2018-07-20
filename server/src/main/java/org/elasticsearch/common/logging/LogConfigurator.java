@@ -55,11 +55,14 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.StreamSupport;
 
@@ -157,6 +160,7 @@ public class LogConfigurator {
         final LoggerContext context = (LoggerContext) LogManager.getContext(false);
 
         final List<AbstractConfiguration> configurations = new ArrayList<>();
+
         /*
          * Subclass the properties configurator to hack the new pattern in
          * place of the so users don't have to change log4j2.properties in
@@ -167,6 +171,7 @@ public class LogConfigurator {
          * Everything in this subclass that isn't marked as a hack is copied
          * from log4j2's source.
          */
+        Set<String> locationsWithDeprecatedPatterns = Collections.synchronizedSet(new HashSet<>());
         final PropertiesConfigurationFactory factory = new PropertiesConfigurationFactory() {
             @Override
             public PropertiesConfiguration getConfiguration(final LoggerContext loggerContext, final ConfigurationSource source) {
@@ -178,11 +183,19 @@ public class LogConfigurator {
                 }
                 // Hack the new pattern into place
                 for (String name : properties.stringPropertyNames()) {
-                    if (false == name.endsWith(".pattern")) {
-                        continue;
-                    }
+                    if (false == name.endsWith(".pattern")) continue;
+                    // Null is weird here but we can't do anything with it so ignore it
                     String value = properties.getProperty(name);
-                    if (value != null && value.contains("%marker") && false == value.contains("%test_thread_info")) {
+                    if (value == null) continue;
+                    // Tests don't need to be changed
+                    if (value.contains("%test_thread_info")) continue;
+                    /*
+                     * Patterns without a marker are sufficiently customized
+                     * that we don't have an opinion about them.
+                     */
+                    if (false == value.contains("%marker")) continue;
+                    if (false == value.contains("%node_name")) {
+                        locationsWithDeprecatedPatterns.add(source.getLocation());
                         properties.setProperty(name, value.replace("%marker", "[%node_name]%marker "));
                     }
                 }
@@ -214,6 +227,14 @@ public class LogConfigurator {
         context.start(new CompositeConfiguration(configurations));
 
         configureLoggerLevels(settings);
+
+        final String deprecatedLocationsString = String.join("\n  ", locationsWithDeprecatedPatterns);
+        if (deprecatedLocationsString.length() > 0) {
+            LogManager.getLogger(LogConfigurator.class).warn("Some logging configurations have %marker but don't have %node_name. "
+                    + "We will automatically add %node_name to the pattern to ease the migration for users who customize "
+                    + "log4j2.properties but will stop this behavior in 7.0. You should manually replace `%node_name` with "
+                    + "`[%node_name]%marker ` in these locations:\n  {}", deprecatedLocationsString);
+        }
     }
 
     private static void configureStatusLogger() {

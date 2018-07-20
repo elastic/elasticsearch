@@ -142,7 +142,8 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         Client followerClient = wrapClient(client, params);
         ShardFollowNodeTask shardFollowNodeTask = (ShardFollowNodeTask) task;
         logger.info("{} Started to track leader shard {}", params.getFollowShardId(), params.getLeaderShardId());
-        fetchGlobalCheckpoint(followerClient, params.getFollowShardId(), shardFollowNodeTask::start, task::markAsFailed);
+        fetchGlobalCheckpoint(followerClient, params.getFollowShardId(),
+            followerGCP -> shardFollowNodeTask.start(followerGCP, followerGCP), task::markAsFailed);
     }
 
     private void fetchGlobalCheckpoint(Client client, ShardId shardId, LongConsumer handler, Consumer<Exception> errorHandler) {

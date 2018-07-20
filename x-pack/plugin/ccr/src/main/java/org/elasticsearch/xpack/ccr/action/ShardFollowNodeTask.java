@@ -78,10 +78,10 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         this.idleShardChangesRequestDelay = params.getIdleShardRetryDelay();
     }
 
-    void start(long followerGlobalCheckpoint) {
+    void start(long leaderGlobalCheckpoint, long followerGlobalCheckpoint) {
         this.lastRequestedSeqno = followerGlobalCheckpoint;
         this.followerGlobalCheckpoint = followerGlobalCheckpoint;
-        this.leaderGlobalCheckpoint = followerGlobalCheckpoint;
+        this.leaderGlobalCheckpoint = leaderGlobalCheckpoint;
 
         // Forcefully updates follower mapping, this gets us the leader imd version and
         // makes sure that leader and follower mapping are identical.
@@ -93,7 +93,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         });
     }
 
-    private synchronized void coordinateReads() {
+    synchronized void coordinateReads() {
         if (isStopped()) {
             LOGGER.info("{} shard follow task has been stopped", params.getFollowShardId());
             return;
@@ -105,7 +105,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         while (hasReadBudget() && lastRequestedSeqno < leaderGlobalCheckpoint) {
             numConcurrentReads++;
             long from = lastRequestedSeqno + 1;
-            long maxRequiredSeqno = Math.min(leaderGlobalCheckpoint, from + maxBatchOperationCount);
+            // -1 is needed, because maxRequiredSeqno is inclusive
+            long maxRequiredSeqno = Math.min(leaderGlobalCheckpoint, (from + maxBatchOperationCount) - 1);
             LOGGER.trace("{}[{}] read [{}/{}]", params.getFollowShardId(), numConcurrentReads, maxRequiredSeqno, maxBatchOperationCount);
             sendShardChangesRequest(from, maxBatchOperationCount, maxRequiredSeqno);
             lastRequestedSeqno = maxRequiredSeqno;
@@ -137,6 +138,11 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     }
 
     private synchronized void coordinateWrites() {
+        if (isStopped()) {
+            LOGGER.info("{} shard follow task has been stopped", params.getFollowShardId());
+            return;
+        }
+
         while (hasWriteBudget() && buffer.isEmpty() == false) {
             long sumEstimatedSize = 0L;
             int length = Math.min(params.getMaxBatchOperationCount(), buffer.size());
@@ -176,48 +182,48 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             e -> handleFailure(e, retryCounter, () -> sendShardChangesRequest(from, maxOperationCount, maxRequiredSeqNo, retryCounter)));
     }
 
-    private void handleReadResponse(long from, long maxRequiredSeqNo, ShardChangesAction.Response response) {
-        maybeUpdateMapping(response.getIndexMetadataVersion(), () -> {
-            synchronized (ShardFollowNodeTask.this) {
-                leaderGlobalCheckpoint = Math.max(leaderGlobalCheckpoint, response.getGlobalCheckpoint());
-                final long newMinRequiredSeqNo;
-                if (response.getOperations().length == 0) {
-                    newMinRequiredSeqNo = from;
-                } else {
-                    assert response.getOperations()[0].seqNo() == from :
-                        "first operation is not what we asked for. From is [" + from + "], got " + response.getOperations()[0];
-                    buffer.addAll(Arrays.asList(response.getOperations()));
-                    final long maxSeqNo = response.getOperations()[response.getOperations().length - 1].seqNo();
-                    assert maxSeqNo==
-                        Arrays.stream(response.getOperations()).mapToLong(Translog.Operation::seqNo).max().getAsLong();
-                    newMinRequiredSeqNo = maxSeqNo + 1;
-                    // update last requested seq no as we may have gotten more than we asked for and we don't want to ask it again.
-                    lastRequestedSeqno = Math.max(lastRequestedSeqno, maxSeqNo);
-                    assert lastRequestedSeqno <= leaderGlobalCheckpoint :  "lastRequestedSeqno [" + lastRequestedSeqno +
-                        "] is larger than the global checkpoint [" + leaderGlobalCheckpoint + "]";
-                    coordinateWrites();
-                }
+    void handleReadResponse(long from, long maxRequiredSeqNo, ShardChangesAction.Response response) {
+        maybeUpdateMapping(response.getIndexMetadataVersion(), () -> innerHandleReadResponse(from, maxRequiredSeqNo, response));
+    }
 
-                if (newMinRequiredSeqNo <= maxRequiredSeqNo) {
-                    int newSize = (int) (maxRequiredSeqNo - newMinRequiredSeqNo) + 1;
-                    LOGGER.trace("{} received [{}] ops, still missing [{}/{}], continuing to read...",
-                        params.getFollowShardId(), response.getOperations().length, newMinRequiredSeqNo, maxRequiredSeqNo);
-                    sendShardChangesRequest(newMinRequiredSeqNo, newSize, maxRequiredSeqNo);
-                } else {
-                    // read is completed, decrement
-                    numConcurrentReads--;
-                    if (response.getOperations().length == 0 && leaderGlobalCheckpoint == lastRequestedSeqno)  {
-                        // we got nothing and we have no reason to believe asking again well get us more, treat shard as idle and delay
-                        // future requests
-                        LOGGER.trace("{} received no ops and no known ops to fetch, scheduling to coordinate reads",
-                            params.getFollowShardId());
-                        scheduler.accept(idleShardChangesRequestDelay, this::coordinateReads);
-                    } else {
-                        coordinateReads();
-                    }
-                }
+    synchronized void innerHandleReadResponse(long from, long maxRequiredSeqNo, ShardChangesAction.Response response) {
+        leaderGlobalCheckpoint = Math.max(leaderGlobalCheckpoint, response.getGlobalCheckpoint());
+        final long newMinRequiredSeqNo;
+        if (response.getOperations().length == 0) {
+            newMinRequiredSeqNo = from;
+        } else {
+            assert response.getOperations()[0].seqNo() == from :
+                "first operation is not what we asked for. From is [" + from + "], got " + response.getOperations()[0];
+            buffer.addAll(Arrays.asList(response.getOperations()));
+            final long maxSeqNo = response.getOperations()[response.getOperations().length - 1].seqNo();
+            assert maxSeqNo ==
+                Arrays.stream(response.getOperations()).mapToLong(Translog.Operation::seqNo).max().getAsLong();
+            newMinRequiredSeqNo = maxSeqNo + 1;
+            // update last requested seq no as we may have gotten more than we asked for and we don't want to ask it again.
+            lastRequestedSeqno = Math.max(lastRequestedSeqno, maxSeqNo);
+            assert lastRequestedSeqno <= leaderGlobalCheckpoint :  "lastRequestedSeqno [" + lastRequestedSeqno +
+                "] is larger than the global checkpoint [" + leaderGlobalCheckpoint + "]";
+            coordinateWrites();
+        }
+
+        if (newMinRequiredSeqNo <= maxRequiredSeqNo && isStopped() == false) {
+            int newSize = (int) (maxRequiredSeqNo - newMinRequiredSeqNo) + 1;
+            LOGGER.trace("{} received [{}] ops, still missing [{}/{}], continuing to read...",
+                params.getFollowShardId(), response.getOperations().length, newMinRequiredSeqNo, maxRequiredSeqNo);
+            sendShardChangesRequest(newMinRequiredSeqNo, newSize, maxRequiredSeqNo);
+        } else {
+            // read is completed, decrement
+            numConcurrentReads--;
+            if (response.getOperations().length == 0 && leaderGlobalCheckpoint == lastRequestedSeqno)  {
+                // we got nothing and we have no reason to believe asking again well get us more, treat shard as idle and delay
+                // future requests
+                LOGGER.trace("{} received no ops and no known ops to fetch, scheduling to coordinate reads",
+                    params.getFollowShardId());
+                scheduler.accept(idleShardChangesRequestDelay, this::coordinateReads);
+            } else {
+                coordinateReads();
             }
-        });
+        }
     }
 
     private void sendBulkShardOperationsRequest(List<Translog.Operation> operations) {
@@ -306,8 +312,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     @Override
     public Status getStatus() {
-        return new Status(leaderGlobalCheckpoint, lastRequestedSeqno, followerGlobalCheckpoint, numConcurrentReads,
-            numConcurrentWrites, currentIndexMetadataVersion);
+        return new Status(leaderGlobalCheckpoint, lastRequestedSeqno, followerGlobalCheckpoint, numConcurrentReads, numConcurrentWrites, currentIndexMetadataVersion);
     }
 
     public static class Status implements Task.Status {

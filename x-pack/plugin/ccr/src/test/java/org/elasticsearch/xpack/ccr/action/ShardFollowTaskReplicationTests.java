@@ -45,7 +45,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             leaderGroup.assertAllEqual(docCount);
             followerGroup.startAll();
             ShardFollowNodeTask shardFollowTask = createShardFollowTask(leaderGroup, followerGroup);
-            shardFollowTask.start(followerGroup.getPrimary().getGlobalCheckpoint());
+            shardFollowTask.start(leaderGroup.getPrimary().getGlobalCheckpoint(), followerGroup.getPrimary().getGlobalCheckpoint());
             docCount += leaderGroup.appendDocs(randomInt(128));
             leaderGroup.syncGlobalCheckpoint();
 
@@ -62,7 +62,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             leaderGroup.startAll();
             followerGroup.startAll();
             ShardFollowNodeTask shardFollowTask = createShardFollowTask(leaderGroup, followerGroup);
-            shardFollowTask.start(followerGroup.getPrimary().getGlobalCheckpoint());
+            shardFollowTask.start(leaderGroup.getPrimary().getGlobalCheckpoint(), followerGroup.getPrimary().getGlobalCheckpoint());
             int docCount = 256;
             leaderGroup.appendDocs(1);
             Runnable task = () -> {

@@ -22,6 +22,8 @@ dependencies {
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 
     compile 'com.unboundid:unboundid-ldapsdk:3.2.0'
+    compileOnly 'org.bouncycastle:bcprov-jdk15on:1.59'
+    compileOnly 'org.bouncycastle:bcpkix-jdk15on:1.59'
 
     // the following are all SAML dependencies - might as well download the whole internet
     compile "org.opensaml:opensaml-core:3.3.0"

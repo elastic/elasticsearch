@@ -281,7 +281,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
 
         futureExecutor.schedule(() -> strings.add("also runnable"), TimeValue.MINUS_ONE);
 
-        runAllTasks(taskQueue);
+        taskQueue.runAllTasks();
 
         assertThat(taskQueue.getCurrentTimeMillis(), is(startTime + delayMillis));
         assertThat(strings, contains("runnable", "also runnable", "deferred"));
@@ -295,22 +295,10 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         assertFalse(taskQueue.hasRunnableTasks());
         assertTrue(taskQueue.hasDeferredTasks());
 
-        runAllTasks(taskQueue);
+        taskQueue.runAllTasks();
         assertThat(taskQueue.getCurrentTimeMillis(), is(startTime + delayMillis + delayMillis1));
-        assertThat(strings, contains("runnable", "also runnable", "deferred", "not quite so deferred", "further deferred"));
-    }
 
-    private static void runAllTasks(DeterministicTaskQueue taskQueue) {
-        while (true) {
-            while (taskQueue.hasRunnableTasks()) {
-                taskQueue.runNextTask();
-            }
-            if (taskQueue.hasDeferredTasks()) {
-                taskQueue.advanceTime();
-            } else {
-                break;
-            }
-        }
+        assertThat(strings, contains("runnable", "also runnable", "deferred", "not quite so deferred", "further deferred"));
     }
 
     private static DeterministicTaskQueue newTaskQueue() {

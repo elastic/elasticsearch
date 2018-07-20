@@ -17,20 +17,33 @@
  * under the License.
  */
 
-esplugin {
-    description 'Module for ingest processors that do not require additional security permissions or have large dependencies and resources'
-    classname 'org.elasticsearch.ingest.common.IngestCommonPlugin'
-    extendedPlugins = ['lang-painless']
-}
+package org.elasticsearch.ingest.common;
 
-dependencies {
-    compileOnly project(':modules:lang-painless')
-    compile project(':libs:grok')
-}
+import java.util.Map;
 
-compileJava.options.compilerArgs << "-Xlint:-unchecked,-rawtypes"
-compileTestJava.options.compilerArgs << "-Xlint:-unchecked,-rawtypes"
+public final class Processors {
 
-integTestCluster {
-    module project(':modules:lang-painless')
+    public static long bytes(String value) {
+        return BytesProcessor.apply(value);
+    }
+
+    public static String lowercase(String value) {
+        return LowercaseProcessor.apply(value);
+    }
+
+    public static String uppercase(String value) {
+        return UppercaseProcessor.apply(value);
+    }
+
+    public static Object json(Object fieldValue) {
+        return JsonProcessor.apply(fieldValue);
+    }
+
+    public static void json(Map<String, Object> ctx, String field) {
+        JsonProcessor.apply(ctx, field);
+    }
+
+    public static String urlDecode(String value) {
+        return URLDecodeProcessor.apply(value);
+    }
 }

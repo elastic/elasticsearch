@@ -17,23 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.index.settings;
+package org.elasticsearch.packaging.test;
 
-import org.elasticsearch.common.inject.BindingAnnotation;
+import org.elasticsearch.packaging.util.Distribution;
 
-import java.lang.annotation.Documented;
-import java.lang.annotation.Retention;
-import java.lang.annotation.Target;
+public class OssDebBasicTests extends PackageTestCase {
 
-import static java.lang.annotation.ElementType.FIELD;
-import static java.lang.annotation.ElementType.PARAMETER;
-import static java.lang.annotation.RetentionPolicy.RUNTIME;
-
-
-@BindingAnnotation
-@Target({FIELD, PARAMETER})
-@Retention(RUNTIME)
-@Documented
-public @interface IndexDynamicSettings {
-
+    @Override
+    protected Distribution distribution() {
+        return Distribution.OSS_DEB;
+    }
 }

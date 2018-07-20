@@ -724,8 +724,8 @@ public class RestHighLevelClientTests extends ESTestCase {
                 assertEquals(0, method.getExceptionTypes().length);
                 assertEquals(3, method.getParameterTypes().length);
                 assertThat(method.getParameterTypes()[0].getSimpleName(), endsWith("Request"));
-                assertThat(method.getParameterTypes()[1].getName(), equalTo(RequestOptions.class.getName()));
-                assertThat(method.getParameterTypes()[2].getName(), equalTo(ActionListener.class.getName()));
+                assertThat(method.getParameterTypes()[1], equalTo(RequestOptions.class));
+                assertThat(method.getParameterTypes()[2], equalTo(ActionListener.class));
             } else {
                 //A few methods return a boolean rather than a response object
                 if (apiName.equals("ping") || apiName.contains("exist")) {
@@ -738,18 +738,23 @@ public class RestHighLevelClientTests extends ESTestCase {
                 //a few methods don't accept a request object as argument
                 if (apiName.equals("ping") || apiName.equals("info")) {
                     assertEquals(1, method.getParameterTypes().length);
-                    assertThat(method.getParameterTypes()[0].getName(), equalTo(RequestOptions.class.getName()));
+                    assertThat(method.getParameterTypes()[0], equalTo(RequestOptions.class));
                 } else {
                     assertEquals(apiName, 2, method.getParameterTypes().length);
                     assertThat(method.getParameterTypes()[0].getSimpleName(), endsWith("Request"));
-                    assertThat(method.getParameterTypes()[1].getName(), equalTo(RequestOptions.class.getName()));
+                    assertThat(method.getParameterTypes()[1], equalTo(RequestOptions.class));
                 }
 
                 boolean remove = apiSpec.remove(apiName);
-                if (remove == false && deprecatedMethods.contains(apiName) == false) {
-                    //TODO xpack api are currently ignored, we need to load xpack yaml spec too
-                    if (apiName.startsWith("xpack.") == false) {
-                        apiNotFound.add(apiName);
+                if (remove == false) {
+                    if (deprecatedMethods.contains(apiName)) {
+                        assertTrue("method [" + method.getName() + "], api [" + apiName + "] should be deprecated",
+                            method.isAnnotationPresent(Deprecated.class));
+                    } else {
+                        //TODO xpack api are currently ignored, we need to load xpack yaml spec too
+                        if (apiName.startsWith("xpack.") == false) {
+                            apiNotFound.add(apiName);
+                        }
                     }
                 }
             }

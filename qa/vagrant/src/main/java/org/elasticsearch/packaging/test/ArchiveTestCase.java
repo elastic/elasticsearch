@@ -57,6 +57,7 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.isEmptyString;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeThat;
 import static org.junit.Assume.assumeTrue;
@@ -302,5 +303,26 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         }
     }
 
+    public void test90SecurityCliPackaging() {
+        assumeThat(installation, is(notNullValue()));
+
+        final Installation.Executables bin = installation.executables();
+        final Shell sh = new Shell();
+
+        if (distribution().equals(Distribution.DEFAULT_TAR) || distribution().equals(Distribution.DEFAULT_ZIP)) {
+            assertTrue(Files.exists(installation.lib.resolve("tools").resolve("security-cli")));
+            Platforms.onLinux(() -> {
+                final Result result = sh.run(bin.elasticsearchCertutil + " help");
+                assertThat(result.stdout, containsString("Simplifies certificate creation for use with the Elastic Stack"));
+            });
+
+            Platforms.onWindows(() -> {
+                final Result result = sh.run(bin.elasticsearchCertutil + " help");
+                assertThat(result.stdout, containsString("Simplifies certificate creation for use with the Elastic Stack"));
+            });
+        } else if (distribution().equals(Distribution.OSS_TAR) || distribution().equals(Distribution.OSS_ZIP)) {
+            assertFalse(Files.exists(installation.lib.resolve("tools").resolve("security-cli")));
+        }
+    }
 
 }

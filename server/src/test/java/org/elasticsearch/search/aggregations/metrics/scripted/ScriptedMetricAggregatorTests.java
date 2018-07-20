@@ -88,7 +88,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             Map<String, Object> state = (Map<String, Object>) params.get("state");
             state.put("collector", new ArrayList<Integer>());
             return state;
-            });
+        });
         SCRIPTS.put("mapScript", params -> {
             Map<String, Object> state = (Map<String, Object>) params.get("state");
             ((List<Integer>) state.get("collector")).add(1); // just add 1 for each doc the script is run on
@@ -103,7 +103,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             Map<String, Object> state = (Map<String, Object>) params.get("state");
             state.put("collector", new ArrayList<Double>());
             return state;
-            });
+        });
         SCRIPTS.put("mapScriptScore", params -> {
             Map<String, Object> state = (Map<String, Object>) params.get("state");
             ((List<Double>) state.get("collector")).add(((Number) params.get("_score")).doubleValue());

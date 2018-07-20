@@ -50,6 +50,7 @@ import java.util.concurrent.TimeUnit;
  * @deprecated {@link TransportClient} is deprecated in favour of the High Level REST client and will
  * be removed in Elasticsearch 8.0.
  */
+@SuppressWarnings({"unchecked","varargs"})
 @Deprecated
 public class PreBuiltTransportClient extends TransportClient {
 

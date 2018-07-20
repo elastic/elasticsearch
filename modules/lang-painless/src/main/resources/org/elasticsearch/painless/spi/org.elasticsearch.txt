@@ -175,3 +175,10 @@ class org.elasticsearch.index.similarity.ScriptedSimilarity$Doc {
   int getLength()
   float getFreq()
 }
+
+class org.elasticsearch.ingest.IngestDocument {
+}
+
+class org.elasticsearch.ingest.ExtraProcessors {
+  void invoke(String, Object)
+}

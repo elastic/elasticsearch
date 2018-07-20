@@ -20,6 +20,9 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.ingest.ExtraProcessors;
+import org.elasticsearch.ingest.IngestDocument;
+
 import java.util.Map;
 
 /**
@@ -27,7 +30,7 @@ import java.util.Map;
  */
 public abstract class IngestScript {
 
-    public static final String[] PARAMETERS = { "ctx" };
+    public static final String[] PARAMETERS = { "ctx", "doc"};
 
     /** The context used to compile {@link IngestScript} factories. */
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("ingest", Factory.class);
@@ -35,8 +38,11 @@ public abstract class IngestScript {
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;
 
-    public IngestScript(Map<String, Object> params) {
+    private final ExtraProcessors extraProcessors;
+
+    public IngestScript(Map<String, Object> params, ExtraProcessors extraProcessors) {
         this.params = params;
+        this.extraProcessors = extraProcessors;
     }
 
     /** Return the parameters for this script. */
@@ -44,9 +50,13 @@ public abstract class IngestScript {
         return params;
     }
 
-    public abstract void execute(Map<String, Object> ctx);
+    public ExtraProcessors getExtraProcessors() {
+        return extraProcessors;
+    }
+
+    public abstract void execute(Map<String, Object> ctx, IngestDocument doc);
 
     public interface Factory {
-        IngestScript newInstance(Map<String, Object> params);
+        IngestScript newInstance(Map<String, Object> params, ExtraProcessors extraProcessors);
     }
 }

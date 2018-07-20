@@ -312,8 +312,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     @Override
     public Status getStatus() {
-        return new Status(leaderGlobalCheckpoint, lastRequestedSeqno, followerGlobalCheckpoint, numConcurrentReads,
-            numConcurrentWrites, currentIndexMetadataVersion);
+        return new Status(leaderGlobalCheckpoint, lastRequestedSeqno, followerGlobalCheckpoint, numConcurrentReads, numConcurrentWrites,
+            currentIndexMetadataVersion);
     }
 
     public static class Status implements Task.Status {

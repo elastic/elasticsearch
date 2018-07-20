@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.security.LocalStateSecurity;
 
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.TrustManager;
 
 import java.io.IOException;

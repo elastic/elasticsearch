@@ -115,7 +115,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
             "testnode",
             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
             Arrays.asList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
-            try (Node node = new MockNode(nodeSettings.build(), Arrays.asList(LocalStateSecurity.class, TestZenDiscovery.TestPlugin.class))) {
+        try (Node node = new MockNode(nodeSettings.build(), Arrays.asList(LocalStateSecurity.class, TestZenDiscovery.TestPlugin.class))) {
             node.start();
             ensureStableCluster(cluster().size() + 1);
         }

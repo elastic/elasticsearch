@@ -21,7 +21,11 @@ package org.elasticsearch.index.search.nested;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause.Occur;
@@ -40,21 +44,37 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.TestUtil;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.fielddata.AbstractFieldDataTestCase;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.NoOrdinalsStringFieldDataTests;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.NestedQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.NestedSortBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.index.mapper.SeqNoFieldMapper.PRIMARY_TERM_NAME;
 import static org.hamcrest.Matchers.equalTo;
 
 public class NestedSortingTests extends AbstractFieldDataTestCase {
@@ -341,6 +361,439 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
         assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[4]).fields[0]).utf8ToString(), equalTo("e"));
 
         searcher.getIndexReader().close();
+    }
+
+    public void testMultiLevelNestedSorting() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.startObject("properties");
+                {
+                    {
+                        mapping.startObject("title");
+                        mapping.field("type", "text");
+                        mapping.endObject();
+                    }
+                    {
+                        mapping.startObject("genre");
+                        mapping.field("type", "keyword");
+                        mapping.endObject();
+                    }
+                    {
+                        mapping.startObject("chapters");
+                        mapping.field("type", "nested");
+                        {
+                            mapping.startObject("properties");
+                            {
+                                mapping.startObject("title");
+                                mapping.field("type", "text");
+                                mapping.endObject();
+                            }
+                            {
+                                mapping.startObject("read_time_seconds");
+                                mapping.field("type", "integer");
+                                mapping.endObject();
+                            }
+                            {
+                                mapping.startObject("paragraphs");
+                                mapping.field("type", "nested");
+                                {
+                                    mapping.startObject("properties");
+                                    {
+                                        {
+                                            mapping.startObject("header");
+                                            mapping.field("type", "text");
+                                            mapping.endObject();
+                                        }
+                                        {
+                                            mapping.startObject("content");
+                                            mapping.field("type", "text");
+                                            mapping.endObject();
+                                        }
+                                        {
+                                            mapping.startObject("word_count");
+                                            mapping.field("type", "integer");
+                                            mapping.endObject();
+                                        }
+                                    }
+                                    mapping.endObject();
+                                }
+                                mapping.endObject();
+                            }
+                            mapping.endObject();
+                        }
+                        mapping.endObject();
+                    }
+                }
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+        IndexService indexService = createIndex("nested_sorting", Settings.EMPTY, "_doc", mapping);
+
+        List<List<Document>> books = new ArrayList<>();
+        {
+            List<Document> book = new ArrayList<>();
+            Document document = new Document();
+            document.add(new TextField("chapters.paragraphs.header", "Paragraph 1", Field.Store.NO));
+            document.add(new StringField("_type", "__chapters.paragraphs", Field.Store.NO));
+            document.add(new TextField("chapters.paragraphs.text", "some text...", Field.Store.NO));
+            document.add(new SortedNumericDocValuesField("chapters.paragraphs.word_count", 743));
+            document.add(new IntPoint("chapters.paragraphs.word_count", 743));
+            book.add(document);
+            document = new Document();
+            document.add(new TextField("chapters.title", "chapter 3", Field.Store.NO));
+            document.add(new StringField("_type", "__chapters", Field.Store.NO));
+            document.add(new IntPoint("chapters.read_time_seconds", 400));
+            document.add(new NumericDocValuesField("chapters.read_time_seconds", 400));
+            book.add(document);
+            document = new Document();
+            document.add(new TextField("chapters.paragraphs.header", "Paragraph 1", Field.Store.NO));
+            document.add(new StringField("_type", "__chapters.paragraphs", Field.Store.NO));
+            document.add(new TextField("chapters.paragraphs.text", "some text...", Field.Store.NO));
+            document.add(new SortedNumericDocValuesField("chapters.paragraphs.word_count", 234));
+            document.add(new IntPoint("chapters.paragraphs.word_count", 234));
+            book.add(document);
+            document = new Document();
+            document.add(new TextField("chapters.title", "chapter 2", Field.Store.NO));
+            document.add(new StringField("_type", "__chapters", Field.Store.NO));
+            document.add(new IntPoint("chapters.read_time_seconds", 200));
+            document.add(new NumericDocValuesField("chapters.read_time_seconds", 200));
+            book.add(document);
+            document = new Document();
+            document.add(new TextField("chapters.paragraphs.header", "Paragraph 2", Field.Store.NO));
+            document.add(new StringField("_type", "__chapters.paragraphs", Field.Store.NO));
+            document.add(new TextField("chapters.paragraphs.text", "some text...", Field.Store.NO));
+            document.add(new SortedNumericDocValuesField("chapters.paragraphs.word_count", 478));
+            document.add(new IntPoint("chapters.paragraphs.word_count", 478));
+            book.add(document);
+            document = new Document();
+            document.add(new TextField("chapters.paragraphs.header", "Paragraph 1", Field.Store.NO));
+            document.add(new StringField("_type", "__chapters.paragraphs", Field.Store.NO));
+            document.add(new TextField("chapters.paragraphs.text", "some text...", Field.Store.NO));
+            document.add(new SortedNumericDocValuesField("chapters.paragraphs.word_count", 849));
+            document.add(new IntPoint("chapters.paragraphs.word_count", 849));
+            book.add(document);
+            document = new Document();
+            document.add(new TextField("chapters.title", "chapter 1", Field.Store.NO));
+            document.add(new StringField("_type", "__chapters", Field.Store.NO));
+            document.add(new IntPoint("chapters.read_time_seconds", 1400));
+            document.add(new NumericDocValuesField("chapters.read_time_seconds", 1400));
+            book.add(document);
+            document = new Document();
+            document.add(new StringField("genre", "science fiction", Field.Store.NO));
+            document.add(new StringField("_type", "_doc", Field.Store.NO));
+            document.add(new StringField("_id", "1", Field.Store.YES));
+            document.add(new NumericDocValuesField(PRIMARY_TERM_NAME, 0));
+            book.add(document);
+            books.add(book);
+        }
+        {
+            List<Document> book = new ArrayList<>();
+            Document document = new Document();
+            document.add(new TextField("chapters.paragraphs.header", "Introduction", Field.Store.NO));
+            document.add(new StringField("_type", "__chapters.paragraphs", Field.Store.NO));
+            document.add(new TextField("chapters.paragraphs.text", "some text...", Field.Store.NO));
+            document.add(new SortedNumericDocValuesField("chapters.paragraphs.word_count", 76));
+            document.add(new IntPoint("chapters.paragraphs.word_count", 76));
+            book.add(document);
+            document = new Document();
+            document.add(new TextField("chapters.title", "chapter 1", Field.Store.NO));
+            document.add(new StringField("_type", "__chapters", Field.Store.NO));
+            document.add(new IntPoint("chapters.read_time_seconds", 20));
+            document.add(new NumericDocValuesField("chapters.read_time_seconds", 20));
+            book.add(document);
+            document = new Document();
+            document.add(new StringField("genre", "romance", Field.Store.NO));
+            document.add(new StringField("_type", "_doc", Field.Store.NO));
+            document.add(new StringField("_id", "2", Field.Store.YES));
+            document.add(new NumericDocValuesField(PRIMARY_TERM_NAME, 0));
+            book.add(document);
+            books.add(book);
+        }
+        {
+            List<Document> book = new ArrayList<>();
+            Document document = new Document();
+            document.add(new TextField("chapters.paragraphs.header", "A bad dream", Field.Store.NO));
+            document.add(new StringField("_type", "__chapters.paragraphs", Field.Store.NO));
+            document.add(new TextField("chapters.paragraphs.text", "some text...", Field.Store.NO));
+            document.add(new SortedNumericDocValuesField("chapters.paragraphs.word_count", 976));
+            document.add(new IntPoint("chapters.paragraphs.word_count", 976));
+            book.add(document);
+            document = new Document();
+            document.add(new TextField("chapters.title", "The beginning of the end", Field.Store.NO));
+            document.add(new StringField("_type", "__chapters", Field.Store.NO));
+            document.add(new IntPoint("chapters.read_time_seconds", 1200));
+            document.add(new NumericDocValuesField("chapters.read_time_seconds", 1200));
+            book.add(document);
+            document = new Document();
+            document.add(new StringField("genre", "horror", Field.Store.NO));
+            document.add(new StringField("_type", "_doc", Field.Store.NO));
+            document.add(new StringField("_id", "3", Field.Store.YES));
+            document.add(new NumericDocValuesField(PRIMARY_TERM_NAME, 0));
+            book.add(document);
+            books.add(book);
+        }
+        {
+            List<Document> book = new ArrayList<>();
+            Document document = new Document();
+            document.add(new TextField("chapters.paragraphs.header", "macaroni", Field.Store.NO));
+            document.add(new StringField("_type", "__chapters.paragraphs", Field.Store.NO));
+            document.add(new TextField("chapters.paragraphs.text", "some text...", Field.Store.NO));
+            document.add(new SortedNumericDocValuesField("chapters.paragraphs.word_count", 180));
+            document.add(new IntPoint("chapters.paragraphs.word_count", 180));
+            book.add(document);
+            document = new Document();
+            document.add(new TextField("chapters.paragraphs.header", "hamburger", Field.Store.NO));
+            document.add(new StringField("_type", "__chapters.paragraphs", Field.Store.NO));
+            document.add(new TextField("chapters.paragraphs.text", "some text...", Field.Store.NO));
+            document.add(new SortedNumericDocValuesField("chapters.paragraphs.word_count", 150));
+            document.add(new IntPoint("chapters.paragraphs.word_count", 150));
+            book.add(document);
+            document = new Document();
+            document.add(new TextField("chapters.paragraphs.header", "tosti", Field.Store.NO));
+            document.add(new StringField("_type", "__chapters.paragraphs", Field.Store.NO));
+            document.add(new TextField("chapters.paragraphs.text", "some text...", Field.Store.NO));
+            document.add(new SortedNumericDocValuesField("chapters.paragraphs.word_count", 120));
+            document.add(new IntPoint("chapters.paragraphs.word_count", 120));
+            book.add(document);
+            document = new Document();
+            document.add(new TextField("chapters.title", "easy meals", Field.Store.NO));
+            document.add(new StringField("_type", "__chapters", Field.Store.NO));
+            document.add(new IntPoint("chapters.read_time_seconds", 800));
+            document.add(new NumericDocValuesField("chapters.read_time_seconds", 800));
+            book.add(document);
+            document = new Document();
+            document.add(new TextField("chapters.paragraphs.header", "introduction", Field.Store.NO));
+            document.add(new StringField("_type", "__chapters.paragraphs", Field.Store.NO));
+            document.add(new TextField("chapters.paragraphs.text", "some text...", Field.Store.NO));
+            document.add(new SortedNumericDocValuesField("chapters.paragraphs.word_count", 87));
+            document.add(new IntPoint("chapters.paragraphs.word_count", 87));
+            book.add(document);
+            document = new Document();
+            document.add(new TextField("chapters.title", "introduction", Field.Store.NO));
+            document.add(new StringField("_type", "__chapters", Field.Store.NO));
+            document.add(new IntPoint("chapters.read_time_seconds", 10));
+            document.add(new NumericDocValuesField("chapters.read_time_seconds", 10));
+            book.add(document);
+            document = new Document();
+            document.add(new StringField("genre", "cooking", Field.Store.NO));
+            document.add(new StringField("_type", "_doc", Field.Store.NO));
+            document.add(new StringField("_id", "4", Field.Store.YES));
+            document.add(new NumericDocValuesField(PRIMARY_TERM_NAME, 0));
+            book.add(document);
+            books.add(book);
+        }
+        {
+            List<Document> book = new ArrayList<>();
+            Document document = new Document();
+            document.add(new StringField("genre", "unknown", Field.Store.NO));
+            document.add(new StringField("_type", "_doc", Field.Store.NO));
+            document.add(new StringField("_id", "5", Field.Store.YES));
+            document.add(new NumericDocValuesField(PRIMARY_TERM_NAME, 0));
+            book.add(document);
+            books.add(book);
+        }
+
+        Collections.shuffle(books, random());
+        for (List<Document> book : books) {
+            writer.addDocuments(book);
+            if (randomBoolean()) {
+                writer.commit();
+            }
+        }
+        DirectoryReader reader = DirectoryReader.open(writer);
+        reader = ElasticsearchDirectoryReader.wrap(reader, new ShardId(indexService.index(), 0));
+        IndexSearcher searcher = new IndexSearcher(reader);
+        QueryShardContext queryShardContext = indexService.newQueryShardContext(0, reader, () -> 0L, null);
+
+        FieldSortBuilder sortBuilder = new FieldSortBuilder("chapters.paragraphs.word_count");
+        sortBuilder.setNestedSort(new NestedSortBuilder("chapters").setNestedSort(new NestedSortBuilder("chapters.paragraphs")));
+        QueryBuilder queryBuilder = new MatchAllQueryBuilder();
+        TopFieldDocs topFields = search(queryBuilder, sortBuilder, queryShardContext, searcher);
+        assertThat(topFields.totalHits, equalTo(5L));
+        assertThat(searcher.doc(topFields.scoreDocs[0].doc).get("_id"), equalTo("2"));
+        assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(76L));
+        assertThat(searcher.doc(topFields.scoreDocs[1].doc).get("_id"), equalTo("4"));
+        assertThat(((FieldDoc) topFields.scoreDocs[1]).fields[0], equalTo(87L));
+        assertThat(searcher.doc(topFields.scoreDocs[2].doc).get("_id"), equalTo("1"));
+        assertThat(((FieldDoc) topFields.scoreDocs[2]).fields[0], equalTo(234L));
+        assertThat(searcher.doc(topFields.scoreDocs[3].doc).get("_id"), equalTo("3"));
+        assertThat(((FieldDoc) topFields.scoreDocs[3]).fields[0], equalTo(976L));
+        assertThat(searcher.doc(topFields.scoreDocs[4].doc).get("_id"), equalTo("5"));
+        assertThat(((FieldDoc) topFields.scoreDocs[4]).fields[0], equalTo(Long.MAX_VALUE));
+
+        // Specific genre
+        {
+            queryBuilder = new TermQueryBuilder("genre", "romance");
+            topFields = search(queryBuilder, sortBuilder, queryShardContext, searcher);
+            assertThat(topFields.totalHits, equalTo(1L));
+            assertThat(searcher.doc(topFields.scoreDocs[0].doc).get("_id"), equalTo("2"));
+            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(76L));
+
+            queryBuilder = new TermQueryBuilder("genre", "science fiction");
+            topFields = search(queryBuilder, sortBuilder, queryShardContext, searcher);
+            assertThat(topFields.totalHits, equalTo(1L));
+            assertThat(searcher.doc(topFields.scoreDocs[0].doc).get("_id"), equalTo("1"));
+            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(234L));
+
+            queryBuilder = new TermQueryBuilder("genre", "horror");
+            topFields = search(queryBuilder, sortBuilder, queryShardContext, searcher);
+            assertThat(topFields.totalHits, equalTo(1L));
+            assertThat(searcher.doc(topFields.scoreDocs[0].doc).get("_id"), equalTo("3"));
+            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(976L));
+
+            queryBuilder = new TermQueryBuilder("genre", "cooking");
+            topFields = search(queryBuilder, sortBuilder, queryShardContext, searcher);
+            assertThat(topFields.totalHits, equalTo(1L));
+            assertThat(searcher.doc(topFields.scoreDocs[0].doc).get("_id"), equalTo("4"));
+            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(87L));
+        }
+
+        // reverse sort order
+        {
+            sortBuilder.order(SortOrder.DESC);
+            queryBuilder = new MatchAllQueryBuilder();
+            topFields = search(queryBuilder, sortBuilder, queryShardContext, searcher);
+            assertThat(topFields.totalHits, equalTo(5L));
+            assertThat(searcher.doc(topFields.scoreDocs[0].doc).get("_id"), equalTo("3"));
+            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(976L));
+            assertThat(searcher.doc(topFields.scoreDocs[1].doc).get("_id"), equalTo("1"));
+            assertThat(((FieldDoc) topFields.scoreDocs[1]).fields[0], equalTo(849L));
+            assertThat(searcher.doc(topFields.scoreDocs[2].doc).get("_id"), equalTo("4"));
+            assertThat(((FieldDoc) topFields.scoreDocs[2]).fields[0], equalTo(180L));
+            assertThat(searcher.doc(topFields.scoreDocs[3].doc).get("_id"), equalTo("2"));
+            assertThat(((FieldDoc) topFields.scoreDocs[3]).fields[0], equalTo(76L));
+            assertThat(searcher.doc(topFields.scoreDocs[4].doc).get("_id"), equalTo("5"));
+            assertThat(((FieldDoc) topFields.scoreDocs[4]).fields[0], equalTo(Long.MIN_VALUE));
+        }
+
+        // Specific genre and reverse sort order
+        {
+            queryBuilder = new TermQueryBuilder("genre", "romance");
+            topFields = search(queryBuilder, sortBuilder, queryShardContext, searcher);
+            assertThat(topFields.totalHits, equalTo(1L));
+            assertThat(searcher.doc(topFields.scoreDocs[0].doc).get("_id"), equalTo("2"));
+            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(76L));
+
+            queryBuilder = new TermQueryBuilder("genre", "science fiction");
+            topFields = search(queryBuilder, sortBuilder, queryShardContext, searcher);
+            assertThat(topFields.totalHits, equalTo(1L));
+            assertThat(searcher.doc(topFields.scoreDocs[0].doc).get("_id"), equalTo("1"));
+            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(849L));
+
+            queryBuilder = new TermQueryBuilder("genre", "horror");
+            topFields = search(queryBuilder, sortBuilder, queryShardContext, searcher);
+            assertThat(topFields.totalHits, equalTo(1L));
+            assertThat(searcher.doc(topFields.scoreDocs[0].doc).get("_id"), equalTo("3"));
+            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(976L));
+
+            queryBuilder = new TermQueryBuilder("genre", "cooking");
+            topFields = search(queryBuilder, sortBuilder, queryShardContext, searcher);
+            assertThat(topFields.totalHits, equalTo(1L));
+            assertThat(searcher.doc(topFields.scoreDocs[0].doc).get("_id"), equalTo("4"));
+            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(180L));
+        }
+
+        // Nested filter + query
+        {
+            queryBuilder = new RangeQueryBuilder("chapters.read_time_seconds").to(50L);
+            sortBuilder = new FieldSortBuilder("chapters.paragraphs.word_count");
+            sortBuilder.setNestedSort(
+                new NestedSortBuilder("chapters")
+                    .setFilter(queryBuilder)
+                    .setNestedSort(new NestedSortBuilder("chapters.paragraphs"))
+            );
+            topFields = search(new NestedQueryBuilder("chapters", queryBuilder, ScoreMode.None), sortBuilder, queryShardContext, searcher);
+            assertThat(topFields.totalHits, equalTo(2L));
+            assertThat(searcher.doc(topFields.scoreDocs[0].doc).get("_id"), equalTo("2"));
+            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(76L));
+            assertThat(searcher.doc(topFields.scoreDocs[1].doc).get("_id"), equalTo("4"));
+            assertThat(((FieldDoc) topFields.scoreDocs[1]).fields[0], equalTo(87L));
+
+            sortBuilder.order(SortOrder.DESC);
+            topFields = search(new NestedQueryBuilder("chapters", queryBuilder, ScoreMode.None), sortBuilder, queryShardContext, searcher);
+            assertThat(topFields.totalHits, equalTo(2L));
+            assertThat(searcher.doc(topFields.scoreDocs[0].doc).get("_id"), equalTo("4"));
+            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(87L));
+            assertThat(searcher.doc(topFields.scoreDocs[1].doc).get("_id"), equalTo("2"));
+            assertThat(((FieldDoc) topFields.scoreDocs[1]).fields[0], equalTo(76L));
+        }
+
+        // Multiple Nested filters + query
+        {
+            queryBuilder = new RangeQueryBuilder("chapters.read_time_seconds").to(50L);
+            sortBuilder = new FieldSortBuilder("chapters.paragraphs.word_count");
+            sortBuilder.setNestedSort(
+                new NestedSortBuilder("chapters")
+                    .setFilter(queryBuilder)
+                    .setNestedSort(
+                        new NestedSortBuilder("chapters.paragraphs")
+                            .setFilter(new RangeQueryBuilder("chapters.paragraphs.word_count").from(80L))
+                    )
+            );
+            topFields = search(new NestedQueryBuilder("chapters", queryBuilder, ScoreMode.None), sortBuilder, queryShardContext, searcher);
+            assertThat(topFields.totalHits, equalTo(2L));
+            assertThat(searcher.doc(topFields.scoreDocs[0].doc).get("_id"), equalTo("4"));
+            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(87L));
+            assertThat(searcher.doc(topFields.scoreDocs[1].doc).get("_id"), equalTo("2"));
+            assertThat(((FieldDoc) topFields.scoreDocs[1]).fields[0], equalTo(Long.MAX_VALUE));
+
+            sortBuilder.order(SortOrder.DESC);
+            topFields = search(new NestedQueryBuilder("chapters", queryBuilder, ScoreMode.None), sortBuilder, queryShardContext, searcher);
+            assertThat(topFields.totalHits, equalTo(2L));
+            assertThat(searcher.doc(topFields.scoreDocs[0].doc).get("_id"), equalTo("4"));
+            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(87L));
+            assertThat(searcher.doc(topFields.scoreDocs[1].doc).get("_id"), equalTo("2"));
+            assertThat(((FieldDoc) topFields.scoreDocs[1]).fields[0], equalTo(Long.MIN_VALUE));
+        }
+
+        // Nested filter + Specific genre
+        {
+            sortBuilder = new FieldSortBuilder("chapters.paragraphs.word_count");
+            sortBuilder.setNestedSort(
+                new NestedSortBuilder("chapters")
+                    .setFilter(new RangeQueryBuilder("chapters.read_time_seconds").to(50L))
+                    .setNestedSort(new NestedSortBuilder("chapters.paragraphs"))
+            );
+
+            queryBuilder = new TermQueryBuilder("genre", "romance");
+            topFields = search(queryBuilder, sortBuilder, queryShardContext, searcher);
+            assertThat(topFields.totalHits, equalTo(1L));
+            assertThat(searcher.doc(topFields.scoreDocs[0].doc).get("_id"), equalTo("2"));
+            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(76L));
+
+            queryBuilder = new TermQueryBuilder("genre", "science fiction");
+            topFields = search(queryBuilder, sortBuilder, queryShardContext, searcher);
+            assertThat(topFields.totalHits, equalTo(1L));
+            assertThat(searcher.doc(topFields.scoreDocs[0].doc).get("_id"), equalTo("1"));
+            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(Long.MAX_VALUE));
+
+            queryBuilder = new TermQueryBuilder("genre", "horror");
+            topFields = search(queryBuilder, sortBuilder, queryShardContext, searcher);
+            assertThat(topFields.totalHits, equalTo(1L));
+            assertThat(searcher.doc(topFields.scoreDocs[0].doc).get("_id"), equalTo("3"));
+            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(Long.MAX_VALUE));
+
+            queryBuilder = new TermQueryBuilder("genre", "cooking");
+            topFields = search(queryBuilder, sortBuilder, queryShardContext, searcher);
+            assertThat(topFields.totalHits, equalTo(1L));
+            assertThat(searcher.doc(topFields.scoreDocs[0].doc).get("_id"), equalTo("4"));
+            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(87L));
+        }
+    }
+
+    private static TopFieldDocs search(QueryBuilder queryBuilder, FieldSortBuilder sortBuilder, QueryShardContext queryShardContext,
+                                       IndexSearcher searcher) throws IOException {
+        Query query = new BooleanQuery.Builder()
+            .add(queryBuilder.toQuery(queryShardContext), Occur.MUST)
+            .add(Queries.newNonNestedFilter(Version.CURRENT), Occur.FILTER)
+            .build();
+        Sort sort = new Sort(sortBuilder.build(queryShardContext).field);
+        return searcher.search(query, 10, sort);
     }
 
 }

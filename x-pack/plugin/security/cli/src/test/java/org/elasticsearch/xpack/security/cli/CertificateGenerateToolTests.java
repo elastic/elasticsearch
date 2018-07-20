@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.ssl;
+package org.elasticsearch.xpack.security.cli;
 
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
@@ -33,9 +33,11 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
-import org.elasticsearch.xpack.core.ssl.CertificateGenerateTool.CAInfo;
-import org.elasticsearch.xpack.core.ssl.CertificateGenerateTool.CertificateInformation;
-import org.elasticsearch.xpack.core.ssl.CertificateGenerateTool.Name;
+import org.elasticsearch.xpack.security.cli.CertificateGenerateTool.CAInfo;
+import org.elasticsearch.xpack.security.cli.CertificateGenerateTool.CertificateInformation;
+import org.elasticsearch.xpack.security.cli.CertificateGenerateTool.Name;
+import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
+import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.BeforeClass;
@@ -359,8 +361,8 @@ public class CertificateGenerateToolTests extends ESTestCase {
 
     public void testGetCAInfo() throws Exception {
         Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
-        Path testNodeCertPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
-        Path testNodeKeyPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem");
+        Path testNodeCertPath = getDataPath("/org/elasticsearch/xpack/security/cli/testnode.crt");
+        Path testNodeKeyPath = getDataPath("/org/elasticsearch/xpack/security/cli/testnode.pem");
         final boolean passwordPrompt = randomBoolean();
         MockTerminal terminal = new MockTerminal();
         if (passwordPrompt) {

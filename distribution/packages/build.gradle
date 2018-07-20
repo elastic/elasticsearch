@@ -126,7 +126,7 @@ Closure commonPackageConfig(String type, boolean oss) {
       }
       into('lib') {
         with copySpec {
-          with libFiles
+          with libFiles(oss)
           // we need to specify every intermediate directory so we iterate through the parents; duplicate calls with the same part are fine
           eachFile { FileCopyDetails fcp ->
             String[] segments = fcp.relativePath.segments

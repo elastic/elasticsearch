@@ -709,6 +709,79 @@ public class SimpleNestedIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("1")); // missing last
     }
 
+    // https://github.com/elastic/elasticsearch/issues/31554
+    public void testLeakingSortValues() throws Exception {
+        assertAcked(prepareCreate("test")
+            .setSettings(Settings.builder().put("number_of_shards", 1))
+            .addMapping("test-type", "{\n"
+                    + "        \"dynamic\": \"strict\",\n"
+                    + "        \"properties\": {\n"
+                    + "          \"nested1\": {\n"
+                    + "            \"type\": \"nested\",\n"
+                    + "            \"properties\": {\n"
+                    + "              \"nested2\": {\n"
+                    + "                \"type\": \"nested\",\n"
+                    + "                \"properties\": {\n"
+                    + "                  \"nested2_keyword\": {\n"
+                    + "                    \"type\": \"keyword\"\n"
+                    + "                  },\n"
+                    + "                  \"sortVal\": {\n"
+                    + "                    \"type\": \"integer\"\n"
+                    + "                  }\n"
+                    + "                }\n"
+                    + "              }\n"
+                    + "            }\n"
+                    + "          }\n"
+                    + "        }\n"
+                    + "      }\n", XContentType.JSON));
+            ensureGreen();
+
+            client().prepareIndex("test", "test-type", "1").setSource("{\n"
+                    + "  \"nested1\": [\n"
+                    + "    {\n"
+                    + "      \"nested2\": [\n"
+                    + "        {\n"
+                    + "          \"nested2_keyword\": \"nested2_bar\",\n"
+                    + "          \"sortVal\": 1\n"
+                    + "        }\n"
+                    + "      ]\n"
+                    + "    }\n"
+                    + " ]\n"
+                    + "}", XContentType.JSON).execute().actionGet();
+
+            client().prepareIndex("test", "test-type", "2").setSource("{\n"
+                    + "  \"nested1\": [\n"
+                    + "    {\n"
+                    + "      \"nested2\": [\n"
+                    + "        {\n"
+                    + "          \"nested2_keyword\": \"nested2_bar\",\n"
+                    + "          \"sortVal\": 2\n"
+                    + "        }\n"
+                    + "      ]\n"
+                    + "    } \n"
+                    + "  ]\n"
+                    + "}", XContentType.JSON).execute().actionGet();
+
+            refresh();
+
+            SearchResponse searchResponse = client().prepareSearch()
+                .setQuery(termQuery("_id", 2))
+                .addSort(
+                    SortBuilders
+                        .fieldSort("nested1.nested2.sortVal")
+                        .setNestedSort(new NestedSortBuilder("nested1")
+                        .setNestedSort(new NestedSortBuilder("nested1.nested2")
+                        .setFilter(termQuery("nested1.nested2.nested2_keyword", "nested2_bar"))))
+                )
+                .execute().actionGet();
+
+            assertHitCount(searchResponse, 1);
+            assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+            assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("2"));
+            assertThat(searchResponse.getHits().getHits()[0].getSortValues()[0].toString(), equalTo("2"));
+
+    }
+
     public void testSortNestedWithNestedFilter() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("type1", XContentFactory.jsonBuilder()

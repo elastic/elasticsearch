@@ -20,11 +20,17 @@
 esplugin {
     description 'Module for ingest processors that do not require additional security permissions or have large dependencies and resources'
     classname 'org.elasticsearch.ingest.common.IngestCommonPlugin'
+    extendedPlugins = ['lang-painless']
 }
 
 dependencies {
+    compileOnly project(':modules:lang-painless')
     compile project(':libs:grok')
 }
 
 compileJava.options.compilerArgs << "-Xlint:-unchecked,-rawtypes"
 compileTestJava.options.compilerArgs << "-Xlint:-unchecked,-rawtypes"
+
+integTestCluster {
+    module project(':modules:lang-painless')
+}

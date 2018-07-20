@@ -16,14 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-apply plugin: 'elasticsearch.esplugin'
+plugins {
+  id 'elasticsearch.esplugin'
+}
 
 esplugin {
   name 'painless-whitelist'
   description 'An example whitelisting additional classes and methods in painless'
   classname 'org.elasticsearch.example.painlesswhitelist.MyWhitelistPlugin'
   extendedPlugins = ['lang-painless']
+  licenseFile rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
+  noticeFile rootProject.file('NOTICE.txt')
 }
 
 dependencies {

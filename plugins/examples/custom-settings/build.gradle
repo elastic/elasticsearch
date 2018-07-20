@@ -17,15 +17,21 @@
  * under the License.
  */
 
-apply plugin: 'elasticsearch.esplugin'
+plugins {
+  id 'elasticsearch.esplugin'
+}
 
 esplugin {
   name 'custom-settings'
   description 'An example plugin showing how to register custom settings'
   classname 'org.elasticsearch.example.customsettings.ExampleCustomSettingsPlugin'
+  licenseFile rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
+  noticeFile rootProject.file('NOTICE.txt')
 }
 
 integTestCluster {
   // Adds a setting in the Elasticsearch keystore before running the integration tests
   keystoreSetting 'custom.secured', 'password'
 }
+
+

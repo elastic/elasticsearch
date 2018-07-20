@@ -56,17 +56,38 @@ class PluginPropertiesExtension {
 
     /** A license file that should be included in the built plugin zip. */
     @Input
-    File licenseFile = null
+    private File licenseFile = null
 
     /**
      * A notice file that should be included in the built plugin zip. This will be
      * extended with notices from the {@code licenses/} directory.
      */
     @Input
-    File noticeFile = null
+    private File noticeFile = null
+
+    Project project = null
 
     PluginPropertiesExtension(Project project) {
         name = project.name
         version = project.version
+        this.project = project
+    }
+
+    File getLicenseFile() {
+        return licenseFile
+    }
+
+    void setLicenseFile(File licenseFile) {
+        project.ext.licenseFile = licenseFile
+        this.licenseFile = licenseFile
+    }
+
+    File getNoticeFile() {
+        return noticeFile
+    }
+
+    void setNoticeFile(File noticeFile) {
+        project.ext.noticeFile = noticeFile
+        this.noticeFile = noticeFile
     }
 }

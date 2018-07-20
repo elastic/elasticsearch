@@ -166,6 +166,13 @@ if (project != rootProject) {
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
     inputs.dir(file("src/testKit"))
+    // tell BuildExamplePluginsIT where to find the example plugins
+    systemProperty (
+            'test.build-tools.plugin.examples',
+            files(
+                    project(':example-plugins').subprojects.collect { it.projectDir }
+            ).asPath
+    )
   }
   check.dependsOn(integTest)
 

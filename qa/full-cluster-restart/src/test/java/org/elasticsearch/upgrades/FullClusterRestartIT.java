@@ -214,15 +214,17 @@ public class FullClusterRestartIT extends ESRestTestCase {
             Map<String, Object> recoverRsp = entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_recovery")));
             logger.debug("--> recovery status:\n{}", recoverRsp);
 
-            Map<String, Object> responseBody = toMap(client().performRequest("GET", "/" + index + "/_search",
-                Collections.singletonMap("preference", "_primary")));
-            assertNoFailures(responseBody);
-            int foundHits1 = (int) XContentMapValues.extractValue("hits.total", responseBody);
+            Request primarySearchRequest = new Request("GET", "/" + index + "/_search");
+            primarySearchRequest.addParameter("preference", "_primary");
+            Map<String, Object> primarySearchResponse = entityAsMap(client().performRequest(primarySearchRequest));
+            assertNoFailures(primarySearchResponse);
+            int foundHits1 = (int) XContentMapValues.extractValue("hits.total", primarySearchResponse);
 
-            responseBody = toMap(client().performRequest("GET", "/" + index + "/_search",
-                Collections.singletonMap("preference", "_replica")));
-            assertNoFailures(responseBody);
-            int foundHits2 = (int) XContentMapValues.extractValue("hits.total", responseBody);
+            Request replicaSearchRequest = new Request("GET", "/" + index + "/_search");
+            replicaSearchRequest.addParameter("preference", "_replica");
+            Map<String, Object> replicaSearchResponse = entityAsMap(client().performRequest(replicaSearchRequest));
+            assertNoFailures(replicaSearchResponse);
+            int foundHits2 = (int) XContentMapValues.extractValue("hits.total", replicaSearchResponse);
             assertEquals(foundHits1, foundHits2);
             // TODO: do something more with the replicas! index?
         }

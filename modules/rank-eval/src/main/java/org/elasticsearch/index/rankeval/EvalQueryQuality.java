@@ -102,8 +102,8 @@ public class EvalQueryQuality implements ToXContentFragment, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(queryId);
         builder.field(METRIC_SCORE_FIELD.getPreferredName(), this.metricScore);
-        builder.startArray(UNKNOWN_DOCS_FIELD.getPreferredName());
-        for (DocumentKey key : EvaluationMetric.filterUnknownDocuments(ratedHits)) {
+        builder.startArray(UNRATED_DOCS_FIELD.getPreferredName());
+        for (DocumentKey key : EvaluationMetric.filterUnratedDocuments(ratedHits)) {
             builder.startObject();
             builder.field(RatedDocument.INDEX_FIELD.getPreferredName(), key.getIndex());
             builder.field(RatedDocument.DOC_ID_FIELD.getPreferredName(), key.getDocId());
@@ -123,7 +123,7 @@ public class EvalQueryQuality implements ToXContentFragment, Writeable {
     }
 
     static final ParseField METRIC_SCORE_FIELD = new ParseField("metric_score");
-    private static final ParseField UNKNOWN_DOCS_FIELD = new ParseField("unknown_docs");
+    private static final ParseField UNRATED_DOCS_FIELD = new ParseField("unrated_docs");
     private static final ParseField HITS_FIELD = new ParseField("hits");
     private static final ParseField METRIC_DETAILS_FIELD = new ParseField("metric_details");
     private static final ObjectParser<ParsedEvalQueryQuality, Void> PARSER = new ObjectParser<>("eval_query_quality",

@@ -24,11 +24,11 @@ import org.elasticsearch.painless.spi.WhitelistClass;
 import org.elasticsearch.painless.spi.WhitelistConstructor;
 import org.elasticsearch.painless.spi.WhitelistField;
 import org.elasticsearch.painless.spi.WhitelistMethod;
-import org.objectweb.asm.Type;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -138,7 +138,7 @@ public class PainlessLookupBuilder {
 
         canonicalClassNamesToClasses.put(DEF_CLASS_NAME, def.class);
         classesToPainlessClassBuilders.put(def.class,
-                new PainlessClassBuilder(DEF_CLASS_NAME, Object.class, Type.getType(Object.class)));
+                new PainlessClassBuilder(DEF_CLASS_NAME, Object.class, org.objectweb.asm.Type.getType(Object.class)));
     }
 
     private Class<?> canonicalTypeNameToType(String canonicalTypeName) {
@@ -195,7 +195,8 @@ public class PainlessLookupBuilder {
         PainlessClassBuilder existingPainlessClassBuilder = classesToPainlessClassBuilders.get(clazz);
 
         if (existingPainlessClassBuilder == null) {
-            PainlessClassBuilder painlessClassBuilder = new PainlessClassBuilder(canonicalClassName, clazz, Type.getType(clazz));
+            PainlessClassBuilder painlessClassBuilder =
+                    new PainlessClassBuilder(canonicalClassName, clazz, org.objectweb.asm.Type.getType(clazz));
 
             canonicalClassNamesToClasses.put(canonicalClassName, clazz);
             classesToPainlessClassBuilders.put(clazz, painlessClassBuilder);
@@ -235,10 +236,11 @@ public class PainlessLookupBuilder {
         Objects.requireNonNull(targetCanonicalClassName);
         Objects.requireNonNull(typeNameParameters);
 
-        Class<?> clazz = canonicalClassNamesToClasses.get(targetCanonicalClassName);
+        Class<?> targetClass = canonicalClassNamesToClasses.get(targetCanonicalClassName);
 
-        if (clazz == null) {
-            throw new IllegalArgumentException("class [" + targetCanonicalClassName + "] not found");
+        if (targetClass == null) {
+            throw new IllegalArgumentException("target class [" + targetCanonicalClassName + "] not found" +
+                    "for constructor [[" + targetCanonicalClassName + "], " + typeNameParameters  + "]");
         }
 
         List<Class<?>> typeParameters = new ArrayList<>(typeNameParameters.size());
@@ -248,12 +250,12 @@ public class PainlessLookupBuilder {
                 Class<?> typeParameter = canonicalTypeNameToType(typeNameParameter);
                 typeParameters.add(typeParameter);
             } catch (IllegalArgumentException iae) {
-                throw new IllegalArgumentException("type [" + typeNameParameter + "] not found " +
+                throw new IllegalArgumentException("type parameter [" + typeNameParameter + "] not found " +
                         "for constructor [[" + targetCanonicalClassName + "], " + typeNameParameters  + "]", iae);
             }
         }
 
-        addPainlessConstructor(clazz, typeParameters);
+        addPainlessConstructor(targetClass, typeParameters);
     }
 
     public void addPainlessConstructor(Class<?> targetClass, List<Class<?>> typeParameters) {
@@ -268,7 +270,8 @@ public class PainlessLookupBuilder {
         PainlessClassBuilder painlessClassBuilder = classesToPainlessClassBuilders.get(targetClass);
 
         if (painlessClassBuilder == null) {
-            throw new IllegalArgumentException("class [" + targetCanonicalClassName + "] not found");
+            throw new IllegalArgumentException("target class [" + targetCanonicalClassName + "] not found" +
+                    "for constructor [[" + targetCanonicalClassName + "], " + typesToCanonicalTypeNames(typeParameters)  + "]");
         }
 
         int typeParametersSize = typeParameters.size();
@@ -278,8 +281,8 @@ public class PainlessLookupBuilder {
             try {
                 validateType(typeParameter);
             } catch (IllegalArgumentException iae) {
-                throw new IllegalArgumentException("type [" + typeToCanonicalTypeName(typeParameter) + "] not found " +
-                        "for constructor [[" + targetCanonicalClassName + "], " + typesToCanonicalTypeNames(typeParameters)  + "]", iae);
+                throw new IllegalArgumentException("type parameter [" + typeToCanonicalTypeName(typeParameter) + "] not found " +
+                        "for constructor [[" + targetCanonicalClassName + "], " + typesToCanonicalTypeNames(typeParameters) + "]", iae);
             }
 
             javaTypeParameters.add(typeToJavaType(typeParameter));
@@ -290,8 +293,8 @@ public class PainlessLookupBuilder {
         try {
             javaConstructor = targetClass.getConstructor(javaTypeParameters.toArray(new Class[typeParametersSize]));
         } catch (NoSuchMethodException nsme) {
-            throw new IllegalArgumentException(
-                    "constructor [[" + targetCanonicalClassName + "], " + typesToCanonicalTypeNames(typeParameters) + "] not found", nsme);
+            throw new IllegalArgumentException("constructor reflection object " +
+                    "[[" + targetCanonicalClassName + "], " + typesToCanonicalTypeNames(typeParameters) + "] not found", nsme);
         }
 
         String painlessMethodKey = buildPainlessMethodKey(CONSTRUCTOR_NAME, typeParametersSize);
@@ -304,7 +307,7 @@ public class PainlessLookupBuilder {
             try {
                 methodHandle = MethodHandles.publicLookup().in(targetClass).unreflectConstructor(javaConstructor);
             } catch (IllegalAccessException iae) {
-                throw new IllegalArgumentException("constructor " +
+                throw new IllegalArgumentException("constructor method handle " +
                         "[[" + targetCanonicalClassName + "], " + typesToCanonicalTypeNames(typeParameters) + "] not found", iae);
             }
 
@@ -332,198 +335,155 @@ public class PainlessLookupBuilder {
         Objects.requireNonNull(returnCanonicalTypeName);
         Objects.requireNonNull(typeNameParameters);
 
-        Class<?> javaClass = canonicalClassNamesToClasses.get(targetCanonicalClassName);
+        Class<?> targetClass = canonicalClassNamesToClasses.get(targetCanonicalClassName);
 
-        if (javaClass == null) {
-            throw new IllegalArgumentException("painless class [" + targetCanonicalClassName + "] not found");
+        if (targetClass == null) {
+            throw new IllegalArgumentException("target class [" + targetCanonicalClassName + "] not found for method " +
+                    "[[" + targetCanonicalClassName + "], [" + methodName + "], " + typeNameParameters + "]");
         }
 
-        PainlessClassBuilder painlessClassBuilder = javaClassesToPainlessClassBuilders.get(javaClass);
+        Class<?> augmentedClass = null;
 
-        if (painlessClassBuilder == null) {
-            throw new IllegalArgumentException("painless class [" + painlessClassName + "] not found");
-        }
-
-        if (METHOD_NAME_PATTERN.matcher(methodName).matches() == false) {
-            throw new IllegalArgumentException("invalid method name [" + methodName + "] for painless class [" + painlessClassName + "].");
-        }
-
-        int parametersSize = anyTypeNameParameters.size();
-        List<String> painlessTypeNameParameters = new ArrayList<>(parametersSize);
-
-        for (String anyTypeNameParameter : anyTypeNameParameters) {
-            String painlessTypeNameParameter = anyTypeNameToPainlessTypeName(anyTypeNameParameter);
-            painlessTypeNameParameters.add(painlessTypeNameParameter);
-        }
-
-        javaClass = painlessDefTypeToJavaObjectType(javaClass);
-        Class<?> augmentedJavaClass = null;
-
-        if (augmentedJavaClassName != null) {
+        if (augmentedCanonicalClassName != null) {
             try {
-                augmentedJavaClass = Class.forName(augmentedJavaClassName, true, classLoader);
+                augmentedClass = Class.forName(augmentedCanonicalClassName, true, classLoader);
             } catch (ClassNotFoundException cnfe) {
-                throw new IllegalArgumentException("augmented java class [" + augmentedJavaClassName + "] not found for painless method " +
-                        "[[" + painlessClassName + "], [" + methodName + "], " + painlessTypeNameParameters + "]", cnfe);
+                throw new IllegalArgumentException("augmented class [" + augmentedCanonicalClassName + "] not found for method " +
+                        "[[" + targetCanonicalClassName + "], [" + methodName + "], " + typeNameParameters + "]", cnfe);
             }
         }
 
-        int augmentedParameterOffset = augmentedJavaClass == null ? 0 : 1;
+        List<Class<?>> typeParameters = new ArrayList<>(typeNameParameters.size());
 
-        List<Class<?>> painlessTypeParameters = new ArrayList<>(parametersSize);
-        Class<?>[] javaTypeParameters = new Class<?>[parametersSize + augmentedParameterOffset];
-
-        if (augmentedJavaClass != null) {
-            javaTypeParameters[0] = javaClass;
-        }
-
-        for (int parameterIndex = 0; parameterIndex < parametersSize; ++parameterIndex) {
-            String painlessTypeNameParameter = painlessTypeNameParameters.get(parameterIndex);
-
+        for (String typeNameParameter : typeNameParameters) {
             try {
-                Class<?> painlessTypeParameter = painlessTypeNameToPainlessType(painlessTypeNameParameter);
-
-                painlessTypeParameters.add(painlessTypeParameter);
-                javaTypeParameters[parameterIndex + augmentedParameterOffset] = painlessDefTypeToJavaObjectType(painlessTypeParameter);
+                Class<?> typeParameter = canonicalTypeNameToType(typeNameParameter);
+                typeParameters.add(typeParameter);
             } catch (IllegalArgumentException iae) {
-                throw new IllegalArgumentException("painless type [" + painlessTypeNameParameter + "] parameter not found for " +
-                        "painless method [[" + painlessClassName + "], [" + methodName + "], " + painlessTypeNameParameters + "]", iae);
+                throw new IllegalArgumentException("parameter type [" + typeNameParameter + "] not found for method " +
+                        "[[" + targetCanonicalClassName + "], [" + methodName + "], " + typeNameParameters + "]", iae);
             }
         }
 
-        String painlessReturnTypeName = anyTypeNameToPainlessTypeName(anyTypeNameReturn);
-        Class<?> painlessTypeReturn;
+        Class<?> returnType;
 
         try {
-            painlessTypeReturn = painlessTypeNameToPainlessType(painlessReturnTypeName);
+            returnType = canonicalTypeNameToType(returnCanonicalTypeName);
         } catch (IllegalArgumentException iae) {
-            throw new IllegalArgumentException("painless type [" + painlessReturnTypeName + "] return not found " +
-                    "for painless method [[" + painlessClassName + "], [" + methodName + "], " + painlessTypeNameParameters + "]", iae);
+            throw new IllegalArgumentException("parameter type [" + returnCanonicalTypeName + "] not found for method " +
+                    "[[" + targetCanonicalClassName + "], [" + methodName + "], " + typeNameParameters + "]", iae);
         }
 
-        addPainlessMethod(javaClass, augmentedJavaClass, painlessClassName, painlessClassBuilder,
-                methodName, painlessTypeReturn, painlessTypeParameters, javaTypeParameters);
+        addPainlessMethod(targetClass, augmentedClass, methodName, returnType, typeParameters);
     }
 
-    public void addPainlessMethod(Class<?> javaClass, Class<?> augmentedJavaClass, String methodName,
-            Class<?> painlessTypeReturn, List<Class<?>> painlessTypeParameters) {
-        Objects.requireNonNull(javaClass);
+    public void addPainlessMethod(Class<?> targetClass, Class<?> augmentedClass, String methodName,
+            Class<?> returnType, List<Class<?>> typeParameters) {
+        Objects.requireNonNull(targetClass);
         Objects.requireNonNull(methodName);
-        Objects.requireNonNull(painlessTypeReturn);
-        Objects.requireNonNull(painlessTypeParameters);
+        Objects.requireNonNull(returnType);
+        Objects.requireNonNull(typeParameters);
 
-        if (javaClass == def.class) {
-            throw new IllegalArgumentException("cannot add method to reserved painless class [" + DEF_PAINLESS_CLASS_NAME + "]");
+        if (targetClass == def.class) {
+            throw new IllegalArgumentException("cannot add method to reserved class [" + DEF_CLASS_NAME + "]");
         }
 
-        String javaClassName = javaClass.getCanonicalName();
-        String painlessClassName = anyTypeNameToPainlessTypeName(javaClassName);
-        PainlessClassBuilder painlessClassBuilder = javaClassesToPainlessClassBuilders.get(javaClass);
 
-        if (painlessClassBuilder == null) {
-            throw new IllegalArgumentException("painless class [" + painlessClassName + "] not found");
-        }
+        String targetCanonicalClassName = typeToCanonicalTypeName(targetClass);
 
         if (METHOD_NAME_PATTERN.matcher(methodName).matches() == false) {
-            throw new IllegalArgumentException("invalid method name [" + methodName + "] for painless class [" + painlessClassName + "].");
+            throw new IllegalArgumentException(
+                    "invalid method name [" + methodName + "] for target class [" + targetCanonicalClassName + "].");
         }
 
-        int parametersSize = painlessTypeParameters.size();
-        int augmentedParameterOffset = augmentedJavaClass == null ? 0 : 1;
-        Class<?>[] javaTypeParameters = new Class<?>[parametersSize + augmentedParameterOffset];
-        int parameterIndex = 0;
+        PainlessClassBuilder painlessClassBuilder = classesToPainlessClassBuilders.get(targetClass);
 
-        if (augmentedJavaClass != null) {
-            javaTypeParameters[0] = javaClass;
+        if (painlessClassBuilder == null) {
+            throw new IllegalArgumentException("target class [" + targetCanonicalClassName + "] not found for method " +
+                    "[[" + targetCanonicalClassName + "], [" + methodName + "], " + typesToCanonicalTypeNames(typeParameters) + "]");
         }
 
-        for (Class<?> painlessTypeParameter : painlessTypeParameters) {
-            String anyTypeNameParameter = painlessTypeParameter.getCanonicalName();
-            String painlessTypeNameParameter = anyTypeNameToPainlessTypeName(anyTypeNameParameter);
+        int typeParametersSize = typeParameters.size();
+        int augmentedParameterOffset = augmentedClass == null ? 0 : 1;
+        List<Class<?>> javaTypeParameters = new ArrayList<>(typeParametersSize + augmentedParameterOffset);
 
+        if (augmentedClass != null) {
+            javaTypeParameters.add(targetClass);
+        }
+
+        for (Class<?> typeParameter : typeParameters) {
             try {
-                validatePainlessType(painlessTypeParameter);
+                validateType(typeParameter);
             } catch (IllegalArgumentException iae) {
-                throw new IllegalArgumentException(
-                        "painless type [" + painlessTypeNameParameter + "] parameter not found for painless constructor " +
-                                "[[" + painlessClassName + "], " + anyTypesListToCanonicalString(painlessTypeParameters, true)  + "]", iae);
+                throw new IllegalArgumentException("type parameter [" + typeToCanonicalTypeName(typeParameter) + "] " +
+                        "not found for method [[" + targetCanonicalClassName + "], [" + methodName + "], " +
+                        typesToCanonicalTypeNames(typeParameters) + "]", iae);
             }
 
-            javaTypeParameters[parameterIndex + augmentedParameterOffset] = painlessDefTypeToJavaObjectType(painlessTypeParameter);
-            ++parameterIndex;
+            javaTypeParameters.add(typeToJavaType(typeParameter));
         }
-
-        String anyTypeNameReturn = painlessTypeReturn.getCanonicalName();
-        String painlessTypeNameReturn = anyTypeNameToPainlessTypeName(anyTypeNameReturn);
 
         try {
-            validatePainlessType(painlessTypeReturn);
+            validateType(returnType);
         } catch (IllegalArgumentException iae) {
-            throw new IllegalArgumentException("painless type [" + painlessTypeNameReturn + "] return not found " +
-                    "for painless method [[" + painlessClassName + "], [" + methodName + "], " + painlessTypeParameters  + "]", iae);
+            throw new IllegalArgumentException("return type [" + typeToCanonicalTypeName(returnType) + "] not found for method " +
+                    "[[" + targetCanonicalClassName + "], [" + methodName + "], " + typesToCanonicalTypeNames(typeParameters) + "]", iae);
         }
 
-        addPainlessMethod(javaClass, augmentedJavaClass, painlessClassName, painlessClassBuilder, methodName,
-                painlessTypeReturn, painlessTypeParameters, javaTypeParameters);
-    }
+        Method javaMethod;
 
-    private void addPainlessMethod(Class<?> javaClass, Class<?> augmentedJavaClass,
-            String painlessClassName, PainlessClassBuilder painlessClassBuilder, String methodName,
-            Class<?> painlessTypeReturn, List<Class<?>> painlessTypeParameters, Class<?>[] javaTypeParameters) {
-        java.lang.reflect.Method javaMethod;
-
-        if (augmentedJavaClass == null) {
+        if (augmentedClass == null) {
             try {
-                javaMethod = javaClass.getMethod(methodName, javaTypeParameters);
+                javaMethod = targetClass.getMethod(methodName, javaTypeParameters.toArray(new Class[typeParametersSize]));
             } catch (NoSuchMethodException nsme) {
-                throw new IllegalArgumentException("java method [[" + javaClass.getCanonicalName() + "], [" + methodName + "], " +
-                        anyTypesArrayToCanonicalString(javaTypeParameters, false) + "] reflection object not found", nsme);
+                throw new IllegalArgumentException("method reflection object [[" + targetCanonicalClassName + "], " +
+                        "[" + methodName + "], " + typesToCanonicalTypeNames(typeParameters) + "] not found", nsme);
             }
         } else {
             try {
-                javaMethod = augmentedJavaClass.getMethod(methodName, javaTypeParameters);
+                javaMethod = augmentedClass.getMethod(methodName, javaTypeParameters.toArray(new Class[typeParametersSize]));
             } catch (NoSuchMethodException nsme) {
-                throw new IllegalArgumentException("java method [[" + augmentedJavaClass.getCanonicalName() + "], [" + methodName + "], " +
-                        anyTypesArrayToCanonicalString(javaTypeParameters, false) + "] reflection object not found", nsme);
+                throw new IllegalArgumentException("method reflection object [[" + targetCanonicalClassName + "], " +
+                        "[" + methodName + "], " + typesToCanonicalTypeNames(typeParameters) + "] not found " +
+                        "with augmented target class [" + typeToCanonicalTypeName(augmentedClass) + "]", nsme);
             }
         }
 
-        if (javaMethod.getReturnType() != painlessDefTypeToJavaObjectType(painlessTypeReturn)) {
-            throw new IllegalArgumentException("returned java type [" + javaMethod.getReturnType().getCanonicalName() + "] " +
-                    "does not match the specified returned java type [" + painlessTypeReturn.getCanonicalName() + "] " +
-                    "for java method [[" + javaClass.getCanonicalName() + "], [" + methodName + "], " +
-                    anyTypesArrayToCanonicalString(javaTypeParameters, false) + "]");
+        if (javaMethod.getReturnType() != typeToJavaType(returnType)) {
+            throw new IllegalArgumentException("return type [" + typeToCanonicalTypeName(javaMethod.getReturnType()) + "] " +
+                    "does not match the specified returned java type [" + typeToCanonicalTypeName(returnType) + "] " +
+                    "for java method [[" + targetClass.getCanonicalName() + "], [" + methodName + "], " +
+                    typesToCanonicalTypeNames(typeParameters) + "]");
         }
 
-        int parametersSize = painlessTypeParameters.size();
+        int parametersSize = typeParameters.size();
         String painlessMethodKey = buildPainlessMethodKey(methodName, parametersSize);
 
-        if (augmentedJavaClass == null && Modifier.isStatic(javaMethod.getModifiers())) {
+        if (augmentedClass == null && Modifier.isStatic(javaMethod.getModifiers())) {
             PainlessMethod painlessMethod = painlessClassBuilder.staticMethods.get(painlessMethodKey);
 
             if (painlessMethod == null) {
-                Method asmMethod = Method.getMethod(javaMethod);
+                org.objectweb.asm.commons.Method asmMethod = org.objectweb.asm.commons.Method.getMethod(javaMethod);
                 MethodHandle javaMethodHandle;
 
                 try {
-                    javaMethodHandle = MethodHandles.publicLookup().in(javaClass).unreflect(javaMethod);
+                    javaMethodHandle = MethodHandles.publicLookup().in(targetClass).unreflect(javaMethod);
                 } catch (IllegalAccessException iae) {
-                    throw new IllegalArgumentException(
-                            "static java method [[" + javaClass.getCanonicalName() + "], [" + methodName + "], " +
-                                    anyTypesArrayToCanonicalString(javaTypeParameters, false) + "] reflection object not found", iae);
+                    throw new IllegalArgumentException("static method handle [[" + targetClass.getCanonicalName() + "], " +
+                            "[" + methodName + "], " + typesToCanonicalTypeNames(typeParameters) + "] not found", iae);
                 }
 
                 painlessMethod = painlessMethodCache.computeIfAbsent(
-                        new PainlessMethodCacheKey(javaClass, methodName, painlessTypeParameters),
-                        key -> new PainlessMethod(methodName, javaClass, null, painlessTypeReturn,
-                                painlessTypeParameters, asmMethod, javaMethod.getModifiers(), javaMethodHandle));
+                        new PainlessMethodCacheKey(targetClass, methodName, typeParameters),
+                        key -> new PainlessMethod(methodName, targetClass, null, returnType,
+                                typeParameters, asmMethod, javaMethod.getModifiers(), javaMethodHandle));
 
                 painlessClassBuilder.staticMethods.put(painlessMethodKey, painlessMethod);
-            } else if ((painlessMethod.name.equals(methodName) && painlessMethod.rtn == painlessTypeReturn &&
-                    painlessMethod.arguments.equals(painlessTypeParameters)) == false) {
+            } else if ((painlessMethod.name.equals(methodName) && painlessMethod.rtn == returnType &&
+                    painlessMethod.arguments.equals(typeParameters)) == false) {
                 throw new IllegalArgumentException("illegal duplicate static painless methods [" + painlessMethodKey + "] found " +
                         "[[" + painlessClassName + "], [" + methodName + "], " +
-                        anyTypesListToCanonicalString(painlessTypeParameters, true) + "] and " +
+                        anyTypesListToCanonicalString(typeParameters, true) + "] and " +
                         "[[" + painlessClassName + "], [" + painlessMethod.name + "], " +
                         anyTypesListToCanonicalString(painlessMethod.arguments, true) + "]");
             }
@@ -531,31 +491,31 @@ public class PainlessLookupBuilder {
             PainlessMethod painlessMethod = painlessClassBuilder.staticMethods.get(painlessMethodKey);
 
             if (painlessMethod == null) {
-                Method asmMethod = Method.getMethod(javaMethod);
+                org.objectweb.asm.commons.Method asmMethod = org.objectweb.asm.commons.Method.getMethod(javaMethod);
                 MethodHandle javaMethodHandle;
 
                 try {
-                    if (augmentedJavaClass == null) {
-                        javaMethodHandle = MethodHandles.publicLookup().in(javaClass).unreflect(javaMethod);
+                    if (augmentedClass == null) {
+                        javaMethodHandle = MethodHandles.publicLookup().in(targetClass).unreflect(javaMethod);
                     } else {
-                        javaMethodHandle = MethodHandles.publicLookup().in(augmentedJavaClass).unreflect(javaMethod);
+                        javaMethodHandle = MethodHandles.publicLookup().in(augmentedClass).unreflect(javaMethod);
                     }
                 } catch (IllegalAccessException iae) {
-                    throw new IllegalArgumentException("java method [[" + javaClass.getCanonicalName() + "], [" + methodName + "], " +
+                    throw new IllegalArgumentException("java method [[" + targetClass.getCanonicalName() + "], [" + methodName + "], " +
                             anyTypesArrayToCanonicalString(javaTypeParameters, false) + "] reflection object not found", iae);
                 }
 
                 painlessMethod = painlessMethodCache.computeIfAbsent(
-                        new PainlessMethodCacheKey(javaClass, methodName, painlessTypeParameters),
-                        key -> new PainlessMethod(methodName, javaClass, augmentedJavaClass, painlessTypeReturn,
-                                painlessTypeParameters, asmMethod, javaMethod.getModifiers(), javaMethodHandle));
+                        new PainlessMethodCacheKey(targetClass, methodName, typeParameters),
+                        key -> new PainlessMethod(methodName, targetClass, augmentedClass, returnType,
+                                typeParameters, asmMethod, javaMethod.getModifiers(), javaMethodHandle));
 
                 painlessClassBuilder.methods.put(painlessMethodKey, painlessMethod);
-            } else if ((painlessMethod.name.equals(methodName) && painlessMethod.rtn == painlessTypeReturn &&
-                    painlessMethod.arguments.equals(painlessTypeParameters)) == false) {
+            } else if ((painlessMethod.name.equals(methodName) && painlessMethod.rtn == returnType &&
+                    painlessMethod.arguments.equals(typeParameters)) == false) {
                 throw new IllegalArgumentException("illegal duplicate painless methods [" + painlessMethodKey + "] found " +
                         "[[" + painlessClassName + "], [" + methodName + "], " +
-                        anyTypesListToCanonicalString(painlessTypeParameters, true) + "] and " +
+                        anyTypesListToCanonicalString(typeParameters, true) + "] and " +
                         "[[" + painlessClassName + "], [" + painlessMethod.name + "], " +
                         anyTypesListToCanonicalString(painlessMethod.arguments, true) + "]");
             }

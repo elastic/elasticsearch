@@ -38,7 +38,8 @@ setup:
   - gt: { snapshots.0.stats.total.file_count: 0 }
   - gt: { snapshots.0.stats.total.size_in_bytes: 0 }
   - is_true: snapshots.0.stats.start_time_in_millis
-  - is_true: snapshots.0.stats.time_in_millis
+## fast in memory snapshots can take less than one millisecond to complete.
+  - gte: { snapshots.0.stats.time_in_millis: 0 }
 
 ---
 "Get missing snapshot status throws an exception":

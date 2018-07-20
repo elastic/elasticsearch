@@ -23,7 +23,7 @@ public class HttpPipelinedRequest<R>  implements HttpPipelinedMessage {
     private final R request;
     private final int sequence;
 
-    HttpPipelinedRequest(int sequence, R request) {
+    public HttpPipelinedRequest(int sequence, R request) {
         this.sequence = sequence;
         this.request = request;
     }

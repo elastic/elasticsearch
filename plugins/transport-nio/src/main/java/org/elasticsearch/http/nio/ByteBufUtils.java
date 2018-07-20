@@ -21,6 +21,7 @@ package org.elasticsearch.http.nio;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
+import io.netty.buffer.UnpooledByteBufAllocator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -61,6 +62,14 @@ class ByteBufUtils {
                 throw new AssertionError("no IO happens here", ex);
             }
         }
+    }
+
+    /**
+     * @param buffer A byte buffer instance. Must not be null.
+     * @return <code>true</code> iff this byte buffer has been allocated outside of Netty's buffer pool.
+     */
+    static boolean isUnpooled(final ByteBuf buffer) {
+        return buffer.alloc() instanceof UnpooledByteBufAllocator;
     }
 
     static BytesReference toBytesReference(final ByteBuf buffer) {

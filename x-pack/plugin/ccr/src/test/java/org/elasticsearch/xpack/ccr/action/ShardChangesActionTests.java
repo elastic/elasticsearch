@@ -48,7 +48,7 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
             final Translog.Operation[] operations = ShardChangesAction.getOperations(indexShard,
                 indexShard.getGlobalCheckpoint(), min, size, Long.MAX_VALUE);
             final List<Long> seenSeqNos = Arrays.stream(operations).map(Translog.Operation::seqNo).collect(Collectors.toList());
-            final List<Long> expectedSeqNos = LongStream.range(min, max + 1).boxed().collect(Collectors.toList());
+            final List<Long> expectedSeqNos = LongStream.range(min, max).boxed().collect(Collectors.toList());
             assertThat(seenSeqNos, equalTo(expectedSeqNos));
         }
 

@@ -291,7 +291,8 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
             return EMPTY_OPERATIONS_ARRAY;
         }
         int seenBytes = 0;
-        long toSeqNo = Math.min(globalCheckpoint, fromSeqNo + maxOperationCount);
+        // - 1 is needed, because toSeqNo is inclusive
+        long toSeqNo = Math.min(globalCheckpoint, (fromSeqNo + maxOperationCount) - 1);
         final List<Translog.Operation> operations = new ArrayList<>();
         try (Translog.Snapshot snapshot = indexShard.newLuceneChangesSnapshot("ccr", fromSeqNo, toSeqNo, true)) {
             Translog.Operation op;

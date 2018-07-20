@@ -1337,11 +1337,21 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(response.getResponses()[0].getResponse().getFields().terms("field2").size(), equalTo(1L));
     }
 
-    public void testParentChild_parentField() {
+    public void testParentChild_parentField() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
+            .startObject("_parent")
+                .field("type", "parent")
+            .endObject()
+            .startObject("properties")
+                .startObject("field1")
+                    .field("type", "keyword")
+                .endObject()
+            .endObject()
+        .endObject();
         assertAcked(prepareCreate("test")
                 .setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id))
                 .addMapping("parent")
-                .addMapping("child", "_parent", "type=parent"));
+                .addMapping("child", mapping));
         ensureGreen();
 
         // index simple data
@@ -1388,7 +1398,25 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         source.put("join_field", joinField);
         client().prepareIndex("test", "doc", "c2").setSource(source).setRouting("p1").get();
         refresh();
+
         verifyParentChild();
+
+        // Perform the same checks, but using an alias for field1.
+        SearchResponse searchResponse = client()
+            .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+            .prepareSearch("test")
+            .setQuery(hasChildQuery("child", termQuery("alias", "yellow"), ScoreMode.None))
+            .get();
+        assertHitCount(searchResponse, 1L);
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("p1"));
+
+        searchResponse = client()
+            .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+            .prepareSearch("test")
+            .setQuery(hasChildQuery("child", termQuery("alias", "yellow"), ScoreMode.None))
+            .get();
+        assertHitCount(searchResponse, 0L);
     }
 
     private void verifyParentChild() {
@@ -1406,23 +1434,6 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
                 .prepareSearch("test")
                 .setQuery(hasChildQuery("child", termQuery("field1", "yellow"), ScoreMode.None))
                 .get();
-        assertHitCount(searchResponse, 0L);
-
-        // Perform the same checks, but using an alias for field1.
-        searchResponse = client()
-            .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
-            .prepareSearch("test")
-            .setQuery(hasChildQuery("child", termQuery("alias", "yellow"), ScoreMode.None))
-            .get();
-        assertHitCount(searchResponse, 1L);
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
-        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("p1"));
-
-        searchResponse = client()
-            .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
-            .prepareSearch("test")
-            .setQuery(hasChildQuery("child", termQuery("alias", "yellow"), ScoreMode.None))
-            .get();
         assertHitCount(searchResponse, 0L);
     }
 

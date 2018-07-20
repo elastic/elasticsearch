@@ -44,6 +44,8 @@ public final class FollowingEngine extends InternalEngine {
         if (operation.seqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
             throw new IllegalStateException("a following engine does not accept operations without an assigned sequence number");
         }
+        assert (operation.origin() == Operation.Origin.PRIMARY) == (operation.versionType() == VersionType.EXTERNAL) :
+            "invalid version_type in a following engine; version_type=" + operation.versionType() + "origin=" + operation.origin();
     }
 
     @Override

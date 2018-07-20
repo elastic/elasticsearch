@@ -277,16 +277,16 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         Arrays.asList(".kibana", ".kibana-devnull").forEach((index) -> {
             logger.info("index name [{}]", index);
-            assertThat(kibanaUserRole.indices().allowedIndicesMatcher("indices:foo").test(index), is(false));
-            assertThat(kibanaUserRole.indices().allowedIndicesMatcher("indices:bar").test(index), is(false));
+            assertThat(kibanaUserRole.indices().allowedIndicesMatcher("indices:foo").test(index), is(true));
+            assertThat(kibanaUserRole.indices().allowedIndicesMatcher("indices:bar").test(index), is(true));
 
-            assertThat(kibanaUserRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(index), is(false));
-            assertThat(kibanaUserRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(index), is(false));
-            assertThat(kibanaUserRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(index), is(false));
-            assertThat(kibanaUserRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(index), is(false));
-            assertThat(kibanaUserRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(index), is(false));
-            assertThat(kibanaUserRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(index), is(false));
-            assertThat(kibanaUserRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(index), is(false));
+            assertThat(kibanaUserRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(index), is(true));
+            assertThat(kibanaUserRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(index), is(true));
+            assertThat(kibanaUserRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(index), is(true));
+            assertThat(kibanaUserRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(index), is(true));
+            assertThat(kibanaUserRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(index), is(true));
+            assertThat(kibanaUserRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(index), is(true));
+            assertThat(kibanaUserRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(index), is(true));
         });
 
         final String randomApplication = "kibana-" + randomAlphaOfLengthBetween(8, 24);
@@ -295,6 +295,10 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final String application = "kibana-.kibana";
         assertThat(kibanaUserRole.application().grants(new ApplicationPrivilege(application, "app-foo", "foo"), "*"), is(false));
         assertThat(kibanaUserRole.application().grants(new ApplicationPrivilege(application, "app-all", "all"), "*"), is(true));
+
+        final String applicationWithRandomIndex = "kibana-.kibana_" + randomAlphaOfLengthBetween(8, 24);
+        assertThat(kibanaUserRole.application().grants(new ApplicationPrivilege(applicationWithRandomIndex, "app-random-index", "all"),
+            "*"), is(false));
     }
 
     public void testMonitoringUserRole() {
@@ -449,9 +453,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(dashboardsOnlyUserRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(index), is(false));
         assertThat(dashboardsOnlyUserRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(index), is(false));
 
-        assertThat(dashboardsOnlyUserRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(index), is(false));
-        assertThat(dashboardsOnlyUserRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(index), is(false));
-        assertThat(dashboardsOnlyUserRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(index), is(false));
+        assertThat(dashboardsOnlyUserRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(index), is(true));
+        assertThat(dashboardsOnlyUserRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(index), is(true));
+        assertThat(dashboardsOnlyUserRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(index), is(true));
 
         final String randomApplication = "kibana-" + randomAlphaOfLengthBetween(8, 24);
         assertThat(dashboardsOnlyUserRole.application().grants(new ApplicationPrivilege(randomApplication, "app-random", "all"), "*"),
@@ -461,6 +465,10 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(dashboardsOnlyUserRole.application().grants(new ApplicationPrivilege(application, "app-foo", "foo"), "*"), is(false));
         assertThat(dashboardsOnlyUserRole.application().grants(new ApplicationPrivilege(application, "app-all", "all"), "*"), is(false));
         assertThat(dashboardsOnlyUserRole.application().grants(new ApplicationPrivilege(application, "app-read", "read"), "*"), is(true));
+
+        final String applicationWithRandomIndex = "kibana-.kibana_" + randomAlphaOfLengthBetween(8, 24);
+        assertThat(dashboardsOnlyUserRole.application().grants(new ApplicationPrivilege(applicationWithRandomIndex, "app-random-index", "all"), "*"),
+            is(false));
     }
 
     public void testSuperuserRole() {

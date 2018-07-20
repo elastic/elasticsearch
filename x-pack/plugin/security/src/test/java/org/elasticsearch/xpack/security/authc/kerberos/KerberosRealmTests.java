@@ -11,17 +11,23 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.authc.support.MockLookupRealm;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper.UserData;
 import org.ietf.jgss.GSSException;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Collections;
 
 import javax.security.auth.login.LoginException;
 
@@ -31,6 +37,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.AdditionalMatchers.aryEq;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -94,4 +101,36 @@ public class KerberosRealmTests extends KerberosRealmTestCase {
         assertThat(future.actionGet(), is(nullValue()));
     }
 
+    public void testDelegatedAuthorization() throws Exception {
+        final String username = randomPrincipalName();
+        final String expectedUsername = maybeRemoveRealmName(username);
+        final MockLookupRealm otherRealm = spy(new MockLookupRealm(new RealmConfig("other_realm", Settings.EMPTY, globalSettings,
+                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings))));
+        final User lookupUser = new User(expectedUsername, new String[] { "admin-role" }, expectedUsername,
+                expectedUsername + "@example.com", Collections.singletonMap("k1", "v1"), true);
+        otherRealm.registerUser(lookupUser);
+
+        settings = Settings.builder().put(settings).putList("authorizing_realms", "other_realm").build();
+        final KerberosRealm kerberosRealm = createKerberosRealm(Collections.singletonList(otherRealm), username);
+        final User expectedUser = lookupUser;
+        final byte[] decodedTicket = "base64encodedticket".getBytes(StandardCharsets.UTF_8);
+        final Path keytabPath = config.env().configFile().resolve(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(config.settings()));
+        final boolean krbDebug = KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE.get(config.settings());
+        mockKerberosTicketValidator(decodedTicket, keytabPath, krbDebug, new Tuple<>(username, "out-token"), null);
+        final KerberosAuthenticationToken kerberosAuthenticationToken = new KerberosAuthenticationToken(decodedTicket);
+
+        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        kerberosRealm.authenticate(kerberosAuthenticationToken, future);
+        assertSuccessAuthenticationResult(expectedUser, "out-token", future.actionGet());
+
+        future = new PlainActionFuture<>();
+        kerberosRealm.authenticate(kerberosAuthenticationToken, future);
+        assertSuccessAuthenticationResult(expectedUser, "out-token", future.actionGet());
+
+        verify(mockKerberosTicketValidator, times(2)).validateTicket(aryEq(decodedTicket), eq(keytabPath), eq(krbDebug),
+                any(ActionListener.class));
+        verify(mockNativeRoleMappingStore).refreshRealmOnChange(kerberosRealm);
+        verifyNoMoreInteractions(mockKerberosTicketValidator, mockNativeRoleMappingStore);
+        verify(otherRealm, times(2)).lookupUser(eq(expectedUsername), any(ActionListener.class));
+    }
 }

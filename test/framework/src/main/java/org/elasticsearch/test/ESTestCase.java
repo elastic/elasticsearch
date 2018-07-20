@@ -128,6 +128,8 @@ import java.io.UncheckedIOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.ZoneId;
+import java.security.Security;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -135,6 +137,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
@@ -180,6 +183,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     private static final List<String> JODA_TIMEZONE_IDS;
     private static final List<String> JAVA_TIMEZONE_IDS;
+    private static final List<String> JAVA_ZONE_IDS;
 
     private static final AtomicInteger portGenerator = new AtomicInteger();
 
@@ -228,6 +232,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         List<String> javaTZIds = Arrays.asList(TimeZone.getAvailableIDs());
         Collections.sort(javaTZIds);
         JAVA_TIMEZONE_IDS = Collections.unmodifiableList(javaTZIds);
+
+        List<String> javaZoneIds = new ArrayList<>(ZoneId.getAvailableZoneIds());
+        Collections.sort(javaZoneIds);
+        JAVA_ZONE_IDS = Collections.unmodifiableList(javaZoneIds);
     }
 
     protected final Logger logger = Loggers.getLogger(getClass());
@@ -733,10 +741,17 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
-     * generate a random TimeZone from the ones available in java.time
+     * generate a random TimeZone from the ones available in java.util
      */
     public static TimeZone randomTimeZone() {
         return TimeZone.getTimeZone(randomFrom(JAVA_TIMEZONE_IDS));
+    }
+
+    /**
+     * generate a random TimeZone from the ones available in java.time
+     */
+    public static ZoneId randomZone() {
+        return ZoneId.of(randomFrom(JAVA_ZONE_IDS));
     }
 
     /**
@@ -1380,6 +1395,10 @@ public abstract class ESTestCase extends LuceneTestCase {
             this.tokenizer = tokenizer;
             this.charFilter = charFilter;
         }
+    }
+
+    public static boolean inFipsJvm() {
+        return Security.getProviders()[0].getName().toLowerCase(Locale.ROOT).contains("fips");
     }
 
 }

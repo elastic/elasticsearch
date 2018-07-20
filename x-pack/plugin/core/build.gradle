@@ -6,6 +6,8 @@ import java.nio.file.Paths
 import java.nio.file.StandardCopyOption
 
 apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'nebula.maven-base-publish'
+apply plugin: 'nebula.maven-scm'
 
 archivesBaseName = 'x-pack-core'
 
@@ -25,6 +27,7 @@ dependencyLicenses {
 
 dependencies {
     compileOnly "org.elasticsearch:elasticsearch:${version}"
+    compile project(':x-pack:protocol')
     compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
     compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
     compile "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"

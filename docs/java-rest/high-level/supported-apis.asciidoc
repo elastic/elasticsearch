@@ -53,9 +53,12 @@ The Java High Level REST Client supports the following Miscellaneous APIs:
 
 * <<java-rest-high-main>>
 * <<java-rest-high-ping>>
+* <<java-rest-high-x-pack-info>>
 
 include::miscellaneous/main.asciidoc[]
 include::miscellaneous/ping.asciidoc[]
+include::x-pack/x-pack-info.asciidoc[]
+include::x-pack/watcher/put-watch.asciidoc[]
 
 == Indices APIs
 
@@ -152,6 +155,7 @@ The Java High Level REST Client supports the following Snapshot APIs:
 * <<java-rest-high-snapshot-verify-repository>>
 * <<java-rest-high-snapshot-create-snapshot>>
 * <<java-rest-high-snapshot-get-snapshots>>
+* <<java-rest-high-snapshot-snapshots-status>>
 * <<java-rest-high-snapshot-delete-snapshot>>
 
 include::snapshot/get_repository.asciidoc[]
@@ -160,6 +164,7 @@ include::snapshot/delete_repository.asciidoc[]
 include::snapshot/verify_repository.asciidoc[]
 include::snapshot/create_snapshot.asciidoc[]
 include::snapshot/get_snapshots.asciidoc[]
+include::snapshot/snapshots_status.asciidoc[]
 include::snapshot/delete_snapshot.asciidoc[]
 
 == Tasks APIs
@@ -181,4 +186,3 @@ The Java High Level REST Client supports the following Scripts APIs:
 
 include::script/get_script.asciidoc[]
 include::script/delete_script.asciidoc[]
-

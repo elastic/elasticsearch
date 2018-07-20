@@ -41,13 +41,19 @@ setup:
 
 ---
 "Index - all":
+  - skip:
+      version: " - 6.3.99"
+      reason: "uuid is only available from 6.4.0 on"
+
   - do:
       indices.stats: { index: _all }
 
   - match: { _shards.total: 18 }
   - is_true: _all
   - is_true: indices.test1
+  - is_true: indices.test1.uuid
   - is_true: indices.test2
+  - is_true: indices.test2.uuid
 
 
 ---

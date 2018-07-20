@@ -24,16 +24,10 @@ import java.util.stream.Stream;
 
 public abstract class AbstractStructuredLogFileStructure extends AbstractLogFileStructure {
 
-    private static final String LOGSTASH_DATE_COPY_TEMPLATE = "  mutate {\n" +
-        "    copy => {\n" +
-        "      \"" + DEFAULT_TIMESTAMP_FIELD + "\" => %s%s%s \n" +
-        "    }\n" +
-        "  }\n";
     private static final String LOGSTASH_DATE_FILTER_TEMPLATE = "  date {\n" +
         "    match => [ %s%s%s, %s ]\n" +
         "%s" +
-        "  }\n" +
-        "%s";
+        "  }\n";
 
     protected AbstractStructuredLogFileStructure(Terminal terminal, String sampleFileName, String indexName, String typeName,
                                                  String elasticsearchHost, String logstashHost, String logstashFileTimezone,
@@ -100,33 +94,20 @@ public abstract class AbstractStructuredLogFileStructure extends AbstractLogFile
     protected String makeLogstashDateFilter(String timeFieldName, TimestampMatch timestampMatch, boolean isFromFilebeat) {
 
         String fieldQuote = bestLogstashQuoteFor(timeFieldName);
-        String copyFilter = DEFAULT_TIMESTAMP_FIELD.equals(timeFieldName) ? "" :
-            String.format(Locale.ROOT, LOGSTASH_DATE_COPY_TEMPLATE, fieldQuote, timeFieldName, fieldQuote);
         return String.format(Locale.ROOT, LOGSTASH_DATE_FILTER_TEMPLATE, fieldQuote, timeFieldName, fieldQuote,
             timestampMatch.dateFormats.stream().collect(Collectors.joining("\", \"", "\"", "\"")),
-            makeLogstashTimezoneSetting(timestampMatch.hasTimezoneDependentParsing(), isFromFilebeat), copyFilter);
+            makeLogstashTimezoneSetting(timestampMatch.hasTimezoneDependentParsing(), isFromFilebeat));
     }
 
     /**
      * Given the sampled record, guess appropriate Elasticsearch mappings.
-     * @param primaryTimestampField If known the name of the field that has been identified
-     *                              as the primary timestamp field.
      * @param sampleRecords The sampled records.
      * @return A map of field name to mapping type.  This may contain empty string values,
      *         indicating that no mapping type could be determined for that field.
      */
-    protected SortedMap<String, String> guessMappings(String primaryTimestampField, List<Map<String, ?>> sampleRecords)
-        throws UserException {
+    protected SortedMap<String, String> guessMappings(List<Map<String, ?>> sampleRecords) throws UserException {
 
         SortedMap<String, String> mappings = new TreeMap<>();
-
-        // If one of the fields has already been determined to be the primary timestamp field
-        // then we can save processing by adding it first.  The "date" type will never need
-        // an explicit format because date parsing in the ingest config will convert this field
-        // to ISO8601 format.
-        if (primaryTimestampField != null) {
-            mappings.put(primaryTimestampField, "date");
-        }
 
         if (sampleRecords != null) {
 

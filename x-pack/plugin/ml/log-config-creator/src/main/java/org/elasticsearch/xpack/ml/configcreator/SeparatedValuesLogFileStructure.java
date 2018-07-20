@@ -12,8 +12,8 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.ml.configcreator.TimestampFormatFinder.TimestampMatch;
 import org.supercsv.exception.SuperCsvException;
 import org.supercsv.io.CsvListReader;
-import org.supercsv.io.CsvMapReader;
 import org.supercsv.prefs.CsvPreference;
+import org.supercsv.util.Util;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -21,10 +21,12 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.DoubleSummaryStatistics;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Random;
 import java.util.SortedMap;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -45,6 +47,9 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
     private static final String LOGSTASH_CONVERSIONS_TEMPLATE = "    convert => {\n" +
         "%s" +
         "    }\n";
+    private static final String LOGSTASH_STRIP_FILTER_TEMPLATE = "  mutate {\n" +
+        "    strip => [ %s ]\n" +
+        "  }\n";
     private static final String LOGSTASH_FROM_FILEBEAT_TEMPLATE = "input {\n" +
         "  beats {\n" +
         "    port => 5044\n" +
@@ -59,6 +64,7 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
         "%s" +
         "    remove_field => [ \"message\" ]\n" +
         "  }\n" +
+        "%s" +
         "%s" +
         "}\n" +
         "\n" +
@@ -87,6 +93,7 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
         "    remove_field => [ \"message\" ]\n" +
         "  }\n" +
         "%s" +
+        "%s" +
         "}\n" +
         "\n" +
         "output {\n" +
@@ -101,7 +108,9 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
     private final CsvPreference csvPreference;
     private final boolean isCsvHeaderInFile;
     private final String[] csvHeader;
+    private final String[] csvHeaderWithNamedBlanks;
     private final List<Map<String, ?>> sampleRecords;
+    private final boolean trimFields;
     private SortedMap<String, String> mappings;
     private String filebeatToLogstashConfig;
     private String logstashFromFilebeatConfig;
@@ -109,52 +118,58 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
 
     SeparatedValuesLogFileStructure(Terminal terminal, String sampleFileName, String indexName, String typeName,
                                     String elasticsearchHost, String logstashHost, String logstashFileTimezone, String sample,
-                                    String charsetName, CsvPreference csvPreference)
-        throws IOException {
+                                    String charsetName, CsvPreference csvPreference, boolean trimFields) throws IOException {
         super(terminal, sampleFileName, indexName, typeName, elasticsearchHost, logstashHost, logstashFileTimezone, charsetName);
         this.csvPreference = Objects.requireNonNull(csvPreference);
-        Tuple<Boolean, String[]> headerInfo = findHeaderFromSample(terminal, sample, csvPreference);
+        this.trimFields = trimFields;
+
+        Tuple<List<List<String>>, List<Integer>> parsed = readRows(sample, csvPreference);
+        List<List<String>> rows = parsed.v1();
+        List<Integer> lineNumbers = parsed.v2();
+
+        Tuple<Boolean, String[]> headerInfo = findHeaderFromSample(terminal, rows);
         isCsvHeaderInFile = headerInfo.v1();
         csvHeader = headerInfo.v2();
-        try (CsvMapReader csvReader = new CsvMapReader(new StringReader(sample), csvPreference)) {
-            if (isCsvHeaderInFile) {
-                csvReader.getHeader(false);
-            }
-            sampleRecords = new ArrayList<>();
-            String preamble = null;
-            int lastGoodLineNumber = 0;
-            try {
-                Map<String, String> sampleRecord;
-                while ((sampleRecord = csvReader.read(csvHeader)) != null) {
-                    if (sampleRecords.size() == (isCsvHeaderInFile ? 0 : 1)) {
-                        preamble = Pattern.compile("\n").splitAsStream(sample).limit(csvReader.getLineNumber())
-                            .collect(Collectors.joining("\n", "", "\n"));
-                    }
-                    if (sampleRecords.isEmpty() || sampleRecord.size() == sampleRecords.get(0).size()) {
-                        sampleRecords.add(sampleRecord);
-                        lastGoodLineNumber = csvReader.getLineNumber();
-                    }
-                }
-            } catch (SuperCsvException e) {
-                // Tolerate an incomplete last record as long as we have one complete record
-                if (sampleRecords.isEmpty() || notUnexpectedEndOfFile(e)) {
-                    throw e;
-                }
-            }
-            createPreambleComment(lastGoodLineNumber, sampleRecords.size(), preamble);
+        csvHeaderWithNamedBlanks = new String[csvHeader.length];
+        for (int i = 0; i < csvHeader.length; ++i) {
+            String rawHeader = csvHeader[i].isEmpty() ? "column" + (i + 1) : csvHeader[i];
+            csvHeaderWithNamedBlanks[i] = trimFields ? rawHeader.trim() : rawHeader;
         }
+
+        sampleRecords = new ArrayList<>();
+        for (List<String> row : isCsvHeaderInFile ? rows.subList(1, rows.size()): rows) {
+            Map<String, String> sampleRecord = new HashMap<>();
+            Util.filterListToMap(sampleRecord, csvHeaderWithNamedBlanks,
+                trimFields ? row.stream().map(String::trim).collect(Collectors.toList()) : row);
+            sampleRecords.add(sampleRecord);
+        }
+
+        String preamble = Pattern.compile("\n").splitAsStream(sample).limit(lineNumbers.get(1)).collect(Collectors.joining("\n", "", "\n"));
+        createPreambleComment(lineNumbers.get(lineNumbers.size() - 1), sampleRecords.size(), preamble);
     }
 
-    static Tuple<Boolean, String[]> findHeaderFromSample(Terminal terminal, String sample, CsvPreference csvPreference) throws IOException {
+    static Tuple<List<List<String>>, List<Integer>> readRows(String sample, CsvPreference csvPreference) throws IOException {
 
-        boolean isCsvHeaderInFile = true;
+        int fieldsInFirstRow = -1;
+
         List<List<String>> rows = new ArrayList<>();
+        List<Integer> lineNumbers = new ArrayList<>();
+
         try (CsvListReader csvReader = new CsvListReader(new StringReader(sample), csvPreference)) {
 
             try {
                 List<String> row;
                 while ((row = csvReader.read()) != null) {
+                    if (fieldsInFirstRow < 0) {
+                        fieldsInFirstRow = row.size();
+                    } else {
+                        // Tolerate extra columns if and only if they're empty
+                        while (row.size() > fieldsInFirstRow && row.get(row.size() - 1) == null) {
+                            row.remove(row.size() - 1);
+                        }
+                    }
                     rows.add(row);
+                    lineNumbers.add(csvReader.getLineNumber());
                 }
             } catch (SuperCsvException e) {
                 // Tolerate an incomplete last row
@@ -164,10 +179,26 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
             }
         }
 
-        List<String> firstRow = rows.get(0);
-        if (firstRow.size() != rows.get(rows.size() - 1).size()) {
+        assert rows.isEmpty() == false;
+        assert lineNumbers.size() == rows.size();
+
+        if (rows.get(0).size() != rows.get(rows.size() - 1).size()) {
             rows.remove(rows.size() - 1);
+            lineNumbers.remove(lineNumbers.size() - 1);
         }
+
+        // This should have been enforced by canCreateFromSample()
+        assert rows.size() > 1;
+
+        return new Tuple<>(rows, lineNumbers);
+    }
+
+    static Tuple<Boolean, String[]> findHeaderFromSample(Terminal terminal, List<List<String>> rows) {
+
+        assert rows.isEmpty() == false;
+
+        List<String> firstRow = rows.get(0);
+        boolean isCsvHeaderInFile = true;
 
         if (rows.size() < 3) {
             terminal.println(Verbosity.VERBOSE, "Too little data to accurately assess whether header is in sample - guessing it is");
@@ -176,7 +207,8 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
         }
 
         if (isCsvHeaderInFile) {
-            return new Tuple<>(true, firstRow.toArray(new String[firstRow.size()]));
+            // SuperCSV will put nulls in the header if any columns don't have names, but empty strings are better for us
+            return new Tuple<>(true, firstRow.stream().map(field -> (field == null) ? "" : field).toArray(String[]::new));
         } else {
             return new Tuple<>(false, IntStream.rangeClosed(1, firstRow.size()).mapToObj(num -> "column" + num).toArray(String[]::new));
         }
@@ -186,16 +218,18 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
 
         assert rows.size() >= 3;
 
-        String firstRow = String.join("", rows.get(0));
-        List<String> otherRows = new ArrayList<>();
-        for (List<String> row : rows.subList(1, rows.size())) {
-            otherRows.add(String.join("", row));
+        List<String> firstRow = rows.get(0);
+        String firstRowStr = firstRow.stream().map(field -> (field == null) ? "" : field).collect(Collectors.joining(""));
+        List<List<String>> otherRows = rows.subList(1, rows.size());
+        List<String> otherRowStrs = new ArrayList<>();
+        for (List<String> row : otherRows) {
+            otherRowStrs.add(row.stream().map(str -> (str == null) ? "" : str).collect(Collectors.joining("")));
         }
 
         // Check lengths
 
-        double firstRowLength = firstRow.length();
-        DoubleSummaryStatistics otherRowStats = otherRows.stream().mapToDouble(otherRow -> (double) otherRow.length())
+        double firstRowLength = firstRowStr.length();
+        DoubleSummaryStatistics otherRowStats = otherRowStrs.stream().mapToDouble(otherRow -> (double) otherRow.length())
             .collect(DoubleSummaryStatistics::new, DoubleSummaryStatistics::accept, DoubleSummaryStatistics::combine);
 
         double otherLengthRange = otherRowStats.getMax() - otherRowStats.getMin();
@@ -212,14 +246,18 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
         // Check edit distances
 
         DoubleSummaryStatistics firstRowStats = otherRows.stream().limit(MAX_LEVENSHTEIN_COMPARISONS)
-            .mapToDouble(otherRow -> (double) levenshteinDistance(firstRow, otherRow))
+            .mapToDouble(otherRow -> (double) levenshteinCompareRows(firstRow, otherRow))
             .collect(DoubleSummaryStatistics::new, DoubleSummaryStatistics::accept, DoubleSummaryStatistics::combine);
 
         otherRowStats = new DoubleSummaryStatistics();
         int numComparisons = 0;
-        for (int i = 0; numComparisons < MAX_LEVENSHTEIN_COMPARISONS && i < otherRows.size(); ++i) {
-            for (int j = i + 1; numComparisons < MAX_LEVENSHTEIN_COMPARISONS && j < otherRows.size(); ++j) {
-                otherRowStats.accept((double) levenshteinDistance(otherRows.get(i), otherRows.get(j)));
+        int proportion = otherRowStrs.size() / MAX_LEVENSHTEIN_COMPARISONS;
+        int innerIncrement = 1 + proportion * proportion;
+        Random random = new Random(firstRow.hashCode());
+        for (int i = 0; numComparisons < MAX_LEVENSHTEIN_COMPARISONS && i < otherRowStrs.size(); ++i) {
+            for (int j = i + 1 + random.nextInt(innerIncrement); numComparisons < MAX_LEVENSHTEIN_COMPARISONS && j < otherRowStrs.size();
+                 j += innerIncrement) {
+                otherRowStats.accept((double) levenshteinCompareRows(otherRows.get(i), otherRows.get(j)));
                 ++numComparisons;
             }
         }
@@ -242,6 +280,32 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
     }
 
     /**
+     * Sum of the Levenshtein distances between corresponding elements
+     * in the two supplied lists _excluding_ the biggest difference.
+     * The reason the biggest difference is excluded is that sometimes
+     * there's a "message" field that is much longer than any of the other
+     * fields, varies enormously between rows, and skews the comparison.
+     */
+    static int levenshteinCompareRows(List<String> firstRow, List<String> secondRow) {
+
+        int largestSize = Math.max(firstRow.size(), secondRow.size());
+        if (largestSize <= 1) {
+            return 0;
+        }
+
+        int[] distances = new int[largestSize];
+
+        for (int index = 0; index < largestSize; ++index) {
+            distances[index] = levenshteinDistance((index < firstRow.size()) ? firstRow.get(index) : "",
+                (index < secondRow.size()) ? secondRow.get(index) : "");
+        }
+
+        Arrays.sort(distances);
+
+        return IntStream.of(distances).limit(distances.length - 1).sum();
+    }
+
+    /**
      * This method implements the simple algorithm for calculating Levenshtein distance.
      */
     static int levenshteinDistance(String first, String second) {
@@ -249,8 +313,8 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
         // There are some examples with pretty pictures of the matrix on Wikipedia here:
         // http://en.wikipedia.org/wiki/Levenshtein_distance
 
-        int firstLen = first.length();
-        int secondLen = second.length();
+        int firstLen = (first == null) ? 0 : first.length();
+        int secondLen = (second == null) ? 0 : second.length();
         if (firstLen == 0) {
             return secondLen;
         }
@@ -317,7 +381,8 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
         return false;
     }
 
-    static boolean canCreateFromSample(Terminal terminal, String sample, CsvPreference csvPreference, String formatName) {
+    static boolean canCreateFromSample(Terminal terminal, String sample, int minFieldsPerRow, CsvPreference csvPreference,
+                                       String formatName) {
 
         // Logstash's CSV parser won't tolerate fields where just part of the
         // value is quoted, whereas SuperCSV will, hence this extra check
@@ -340,16 +405,22 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
                 List<String> row;
                 while ((row = csvReader.read()) != null) {
 
+                    int fieldsInThisRow = row.size();
                     ++numberOfRows;
                     if (fieldsInFirstRow < 0) {
-                        fieldsInFirstRow = row.size();
-                        if (fieldsInFirstRow <= 1) {
-                            terminal.println(Verbosity.VERBOSE, "Not " + formatName + " because the first row has fewer than 2 fields: [" +
-                                fieldsInFirstRow + "]");
+                        fieldsInFirstRow = fieldsInThisRow;
+                        if (fieldsInFirstRow < minFieldsPerRow) {
+                            terminal.println(Verbosity.VERBOSE, "Not " + formatName + " because the first row has fewer than [" +
+                                minFieldsPerRow + "] fields: [" + fieldsInFirstRow + "]");
                             return false;
                         }
                         fieldsInLastRow = fieldsInFirstRow;
                         continue;
+                    }
+
+                    // Tolerate extra columns if and only if they're empty
+                    while (fieldsInThisRow > fieldsInFirstRow && row.get(fieldsInThisRow - 1) == null) {
+                        --fieldsInThisRow;
                     }
 
                     if (fieldsInLastRow != fieldsInFirstRow) {
@@ -359,7 +430,7 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
                         return false;
                     }
 
-                    fieldsInLastRow = row.size();
+                    fieldsInLastRow = fieldsInThisRow;
                 }
 
                 if (fieldsInLastRow > fieldsInFirstRow) {
@@ -398,7 +469,7 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
 
     void createConfigs() throws UserException {
         Tuple<String, TimestampMatch> timeField = guessTimestampField(sampleRecords);
-        mappings = guessMappings((timeField == null) ? null : timeField.v1(), sampleRecords);
+        mappings = guessMappings(sampleRecords);
 
         char delimiter = (char) csvPreference.getDelimiterChar();
         String timeLineRegex = null;
@@ -440,16 +511,17 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
         filebeatToLogstashConfig = String.format(Locale.ROOT, FILEBEAT_TO_LOGSTASH_TEMPLATE,
             makeFilebeatInputOptions(timeLineRegex, excludeColumns), makeFilebeatAddLocaleSetting(hasTimezoneDependentParsing),
             logstashHost);
-        String logstashColumns = Arrays.stream(csvHeader)
+        String logstashColumns = Arrays.stream(csvHeaderWithNamedBlanks)
             .map(column -> (column.indexOf('"') >= 0) ? ("'" + column + "'") : ("\"" + column + "\"")).collect(Collectors.joining(", "));
         String separatorIfRequired = (delimiter == ',') ? "" : String.format(Locale.ROOT, SEPARATOR_TEMPLATE, delimiter);
-        String logStashColumnConversions = makeColumnConversions(mappings);
+        String logstashColumnConversions = makeColumnConversions(mappings);
+        String logstashStripFilter = trimFields ? String.format(Locale.ROOT, LOGSTASH_STRIP_FILTER_TEMPLATE, logstashColumns) : "";
         logstashFromFilebeatConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILEBEAT_TEMPLATE, separatorIfRequired, logstashColumns,
-            logStashColumnConversions, logstashFromFilebeatDateFilter, elasticsearchHost);
+            logstashColumnConversions, logstashStripFilter, logstashFromFilebeatDateFilter, elasticsearchHost);
         String skipHeaderIfRequired = isCsvHeaderInFile ? "    skip_header => true\n": "";
         logstashFromFileConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILE_TEMPLATE, makeLogstashFileInput(timeLineRegex),
-            separatorIfRequired, logstashColumns, skipHeaderIfRequired, logStashColumnConversions, logstashFromFileDateFilter,
-            elasticsearchHost, indexName);
+            separatorIfRequired, logstashColumns, skipHeaderIfRequired, logstashColumnConversions, logstashStripFilter,
+            logstashFromFileDateFilter, elasticsearchHost, indexName);
     }
 
     String getFilebeatToLogstashConfig() {

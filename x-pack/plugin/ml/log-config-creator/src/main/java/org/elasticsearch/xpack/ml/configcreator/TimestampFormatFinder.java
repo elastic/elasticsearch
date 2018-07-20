@@ -323,14 +323,17 @@ public final class TimestampFormatFinder {
         /**
          * Sometimes Elasticsearch mappings for dates need to include the format.
          * This method returns the information in the form required by the mappings
-         * builder of this program: the word "date", followed if appropriate by a
+         * builder of this program: the mapping type, followed if appropriate by a
          * dollar sign and the format specifier.
          */
         public String getEsDateMappingTypeWithFormat() {
+            if (dateFormats.contains("TAI64N")) {
+                // There's no format for TAI64N in the date formats used in mappings
+                return "keyword";
+            }
             String formats = dateFormats.stream().flatMap(format -> {
                 switch (format) {
                     case "ISO8601":
-                    case "TAI64N":
                         return Stream.empty();
                     case "UNIX_MS":
                         return Stream.of("epoch_millis");

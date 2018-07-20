@@ -5,20 +5,15 @@
  */
 package org.elasticsearch.xpack.ml.configcreator;
 
-public class TsvLogFileStructureFactoryTests extends LogConfigCreatorTestCase {
+public class SemiColonSeparatedValuesLogFileStructureFactoryTests extends LogConfigCreatorTestCase {
 
-    private LogFileStructureFactory factory = new TsvLogFileStructureFactory(TEST_TERMINAL);
+    private LogFileStructureFactory factory = new SemiColonSeparatedValuesLogFileStructureFactory(TEST_TERMINAL);
 
-    // No need to check JSON, XML or CSV because they come earlier in the order we check formats
-
-    public void testCanCreateFromSampleGivenTsv() {
-
-        assertTrue(factory.canCreateFromSample(TSV_SAMPLE));
-    }
+    // No need to check JSON, XML, CSV or TSV because they come earlier in the order we check formats
 
     public void testCanCreateFromSampleGivenSemiColonSeparatedValues() {
 
-        assertFalse(factory.canCreateFromSample(SEMI_COLON_SEPARATED_VALUES_SAMPLE));
+        assertTrue(factory.canCreateFromSample(SEMI_COLON_SEPARATED_VALUES_SAMPLE));
     }
 
     public void testCanCreateFromSampleGivenPipeSeparatedValues() {

@@ -186,7 +186,7 @@ public class XmlLogFileStructure extends AbstractStructuredLogFileStructure impl
 
     void createConfigs() throws UserException {
         Tuple<String, TimestampMatch> timeField = guessTimestampField(sampleRecords);
-        mappings = guessMappings((timeField == null) ? null : timeField.v1(), sampleRecords);
+        mappings = guessMappings(sampleRecords);
 
         boolean hasTimezoneDependentParsing = false;
         String logstashFromFilebeatDateFilter = "";

@@ -18,7 +18,8 @@ public class TextLogFileStructureFactoryTests extends LogConfigCreatorTestCase {
         factory = new TextLogFileStructureFactory(TEST_TERMINAL, null);
     }
 
-    // No need to check JSON, XML, CSV or TSV because they come earlier in the order we check formats
+    // No need to check JSON, XML, CSV, TSV, semi-colon separated values or pipe
+    // separated values because they come earlier in the order we check formats
 
     public void testCanCreateFromSampleGivenText() {
 

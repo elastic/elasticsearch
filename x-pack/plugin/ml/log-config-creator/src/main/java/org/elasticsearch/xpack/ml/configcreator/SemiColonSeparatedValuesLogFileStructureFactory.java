@@ -11,26 +11,28 @@ import org.supercsv.prefs.CsvPreference;
 import java.io.IOException;
 import java.util.Objects;
 
-public class TsvLogFileStructureFactory implements LogFileStructureFactory {
+public class SemiColonSeparatedValuesLogFileStructureFactory implements LogFileStructureFactory {
 
     private final Terminal terminal;
 
-    public TsvLogFileStructureFactory(Terminal terminal) {
+    public SemiColonSeparatedValuesLogFileStructureFactory(Terminal terminal) {
         this.terminal = Objects.requireNonNull(terminal);
     }
 
     /**
      * Rules are:
-     * - The file must be valid TSV
+     * - The file must be valid semi-colon separated values
      * - It must contain at least two complete records
-     * - There must be at least two fields per record (otherwise files with no tabs could be treated as TSV!)
-     * - Every TSV record except the last must have the same number of fields
+     * - There must be at least four fields per record (otherwise files with coincidental
+     *   or no semi-colons could be treated as semi-colon separated)
+     * - Every semi-colon separated value record except the last must have the same number of fields
      * The reason the last record is allowed to have fewer fields than the others is that
      * it could have been truncated when the file was sampled.
      */
     @Override
     public boolean canCreateFromSample(String sample) {
-        return SeparatedValuesLogFileStructure.canCreateFromSample(terminal, sample, 2, CsvPreference.TAB_PREFERENCE, "TSV");
+        return SeparatedValuesLogFileStructure.canCreateFromSample(terminal, sample, 4, CsvPreference.EXCEL_NORTH_EUROPE_PREFERENCE,
+            "semi-colon separated values");
     }
 
     @Override
@@ -38,6 +40,6 @@ public class TsvLogFileStructureFactory implements LogFileStructureFactory {
                                              String logstashHost, String logstashFileTimezone, String sample, String charsetName)
         throws IOException {
         return new SeparatedValuesLogFileStructure(terminal, sampleFileName, indexName, typeName, elasticsearchHost, logstashHost,
-            logstashFileTimezone, sample, charsetName, CsvPreference.TAB_PREFERENCE, false);
+            logstashFileTimezone, sample, charsetName, CsvPreference.EXCEL_NORTH_EUROPE_PREFERENCE, false);
     }
 }

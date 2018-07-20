@@ -44,6 +44,19 @@ public abstract class LogConfigCreatorTestCase extends ESTestCase {
             "\"level\":\"INFO\",\"pid\":42,\"thread\":\"0x7fff7d2a8000\",\"message\":\"message 2\",\"class\":\"ml\"," +
             "\"method\":\"core::SomeNoiseMaker\",\"file\":\"Noisemaker.cc\",\"line\":333}\n";
 
+    protected static final String PIPE_SEPARATED_VALUES_SAMPLE = "2018-01-06 16:56:14.295748|INFO    |VirtualServer |1  |" +
+            "listening on 0.0.0.0:9987, :::9987\n" +
+        "2018-01-06 17:19:44.465252|INFO    |VirtualServer |1  |client " +
+            "'User1'(id:2) changed default admin channelgroup to 'Guest'(id:8)\n" +
+        "2018-01-06 17:21:25.764368|INFO    |VirtualServer |1  |client " +
+            "'User1'(id:2) was added to channelgroup 'Channel Admin'(id:5) by client 'User1'(id:2) in channel 'Default Channel'(id:1)";
+
+    protected static final String SEMI_COLON_SEPARATED_VALUES_SAMPLE = "\"pos_id\";\"trip_id\";\"latitude\";\"longitude\";\"altitude\";" +
+            "\"timestamp\"\n" +
+        "\"1\";\"3\";\"4703.7815\";\"1527.4713\";\"359.9\";\"2017-01-19 16:19:04.742113\"\n" +
+        "\"2\";\"3\";\"4703.7815\";\"1527.4714\";\"359.9\";\"2017-01-19 16:19:05.741890\"\n" +
+        "\"3\";\"3\";\"4703.7816\";\"1527.4716\";\"360.3\";\"2017-01-19 16:19:06.738842\"";
+
     protected static final String TEXT_SAMPLE = "[2018-05-11T17:07:29,461][INFO ][o.e.n.Node               ] [node-0] initializing ...\n" +
         "[2018-05-11T17:07:29,553][INFO ][o.e.e.NodeEnvironment    ] [node-0] using [1] data paths, mounts [[/ (/dev/disk1)]], " +
             "net usable_space [223.4gb], net total_space [464.7gb], types [hfs]\n" +

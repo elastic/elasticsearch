@@ -30,7 +30,7 @@ public class CsvLogFileStructureFactory implements LogFileStructureFactory {
      */
     @Override
     public boolean canCreateFromSample(String sample) {
-        return SeparatedValuesLogFileStructure.canCreateFromSample(terminal, sample, CsvPreference.EXCEL_PREFERENCE, "CSV");
+        return SeparatedValuesLogFileStructure.canCreateFromSample(terminal, sample, 2, CsvPreference.EXCEL_PREFERENCE, "CSV");
     }
 
     @Override
@@ -38,6 +38,6 @@ public class CsvLogFileStructureFactory implements LogFileStructureFactory {
                                              String logstashHost, String logstashFileTimezone, String sample, String charsetName)
         throws IOException {
         return new SeparatedValuesLogFileStructure(terminal, sampleFileName, indexName, typeName, elasticsearchHost, logstashHost,
-            logstashFileTimezone, sample, charsetName, CsvPreference.EXCEL_PREFERENCE);
+            logstashFileTimezone, sample, charsetName, CsvPreference.EXCEL_PREFERENCE, false);
     }
 }

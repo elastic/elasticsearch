@@ -99,6 +99,8 @@ public final class LogFileStructureFinder {
             // ND-JSON will often also be valid (although utterly weird) CSV, so JSON must come before CSV
             new CsvLogFileStructureFactory(terminal),
             new TsvLogFileStructureFactory(terminal),
+            new SemiColonSeparatedValuesLogFileStructureFactory(terminal),
+            new PipeSeparatedValuesLogFileStructureFactory(terminal),
             new TextLogFileStructureFactory(terminal, filebeatModuleStore)
         );
     }

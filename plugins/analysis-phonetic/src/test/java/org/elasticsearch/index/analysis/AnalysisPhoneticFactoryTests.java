@@ -33,8 +33,8 @@ public class AnalysisPhoneticFactoryTests extends AnalysisFactoryTestCase {
     @Override
     protected Map<String, Class<?>> getTokenFilters() {
         Map<String, Class<?>> filters = new HashMap<>(super.getTokenFilters());
-        filters.put("beidermorse", PhoneticTokenFilterFactory.class);
-        filters.put("doublemetaphone", PhoneticTokenFilterFactory.class);
+        filters.put("beider_morse", PhoneticTokenFilterFactory.class);
+        filters.put("double_metaphone", PhoneticTokenFilterFactory.class);
         filters.put("phonetic", PhoneticTokenFilterFactory.class);
         return filters;
     }

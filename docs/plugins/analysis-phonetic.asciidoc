@@ -25,7 +25,7 @@ The `phonetic` token filter takes the following settings:
 
     Whether or not the original token should be replaced by the phonetic
     token. Accepts `true` (default) and `false`.  Not supported by
-    `beidermorse` encoding.
+    `beider_morse` encoding.
 
 [source,js]
 --------------------------------------------------

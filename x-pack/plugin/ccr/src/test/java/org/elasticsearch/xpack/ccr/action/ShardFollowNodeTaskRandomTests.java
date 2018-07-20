@@ -12,6 +12,8 @@ import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -65,13 +67,10 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
             ShardFollowNodeTask.DEFAULT_MAX_BATCH_SIZE_IN_BYTES, concurrency, 10240,
             TimeValue.timeValueMillis(10), TimeValue.timeValueMillis(10), Collections.emptyMap());
 
+        ThreadPool threadPool = new TestThreadPool(getClass().getSimpleName());
         BiConsumer<TimeValue, Runnable> scheduler = (delay, task) -> {
-            try {
-                Thread.sleep(delay.millis());
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-            task.run();
+            assert delay.millis() < 100 : "The delay should be kept to a minimum, so that this test does not take to long to run";
+            threadPool.schedule(delay, ThreadPool.Names.GENERIC, task);
         };
         LocalCheckpointTracker tracker = new LocalCheckpointTracker(testRun.startSeqNo - 1, testRun.startSeqNo - 1);
         return new ShardFollowNodeTask(1L, "type", ShardFollowTask.NAME, "description", null, Collections.emptyMap(), params, scheduler) {
@@ -92,8 +91,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                 }
 
                 // Emulate network thread and avoid SO:
-                Thread thread = new Thread(() -> handler.accept(tracker.getCheckpoint()));
-                thread.start();
+                threadPool.generic().execute(() -> handler.accept(tracker.getCheckpoint()));
             }
 
             @Override
@@ -128,8 +126,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                         handler.accept(new ShardChangesAction.Response(0L, tracker.getCheckpoint(), new Translog.Operation[0]));
                     }
                 };
-                Thread thread = new Thread(task);
-                thread.start();
+                threadPool.generic().execute(task);
             }
 
             @Override
@@ -140,6 +137,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
             @Override
             public void markAsCompleted() {
                 stopped.set(true);
+                threadPool.shutdown();
             }
 
             @Override

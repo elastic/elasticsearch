@@ -21,6 +21,7 @@ package org.elasticsearch;
 
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.coordination.CoordinationStateRejectedException;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -1024,8 +1025,10 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         UNKNOWN_NAMED_OBJECT_EXCEPTION(org.elasticsearch.common.xcontent.UnknownNamedObjectException.class,
                 org.elasticsearch.common.xcontent.UnknownNamedObjectException::new, 148, Version.V_5_2_0),
         TOO_MANY_BUCKETS_EXCEPTION(MultiBucketConsumerService.TooManyBucketsException.class,
-                                   MultiBucketConsumerService.TooManyBucketsException::new, 149,
-            Version.V_7_0_0_alpha1);
+            MultiBucketConsumerService.TooManyBucketsException::new, 149, Version.V_7_0_0_alpha1),
+        COORDINATION_STATE_REJECTED_EXCEPTION(CoordinationStateRejectedException.class,
+            CoordinationStateRejectedException::new, 150, Version.V_7_0_0_alpha1);
+
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> constructor;

@@ -14,7 +14,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
@@ -40,15 +39,13 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
             final String id = Long.toString(i);
             SourceToParse sourceToParse = SourceToParse.source(indexShard.shardId().getIndexName(), "_doc", id,
                 new BytesArray("{}"), XContentType.JSON);
-            indexShard.applyIndexOperationOnReplica(++seqNo,
-                1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse);
+            indexShard.applyIndexOperationOnReplica(++seqNo, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse);
         }
         long seqNoBeforeGap = seqNo;
         seqNo += 8;
         SourceToParse sourceToParse = SourceToParse.source(indexShard.shardId().getIndexName(), "_doc", "9",
             new BytesArray("{}"), XContentType.JSON);
-        indexShard.applyIndexOperationOnReplica(seqNo,
-            1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse);
+        indexShard.applyIndexOperationOnReplica(seqNo, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse);
 
         // promote the replica to primary:
         final ShardRouting replicaRouting = indexShard.routingEntry();

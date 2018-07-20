@@ -29,7 +29,6 @@ import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
-import org.elasticsearch.painless.lookup.PainlessMethodKey;
 import org.elasticsearch.painless.lookup.def;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
@@ -77,12 +76,12 @@ final class SSubEachIterable extends AStatement {
         if (expression.actual == def.class) {
             method = null;
         } else {
-            method = locals.getPainlessLookup().
-                    getPainlessStructFromJavaClass(expression.actual).methods.get(new PainlessMethodKey("iterator", 0));
+            method = locals.getPainlessLookup().getPainlessStructFromJavaClass(expression.actual).methods
+                    .get(PainlessLookupUtility.buildPainlessMethodKey("iterator", 0));
 
             if (method == null) {
                 throw createError(new IllegalArgumentException("Unable to create iterator for the type " +
-                        "[" + PainlessLookupUtility.anyTypeToPainlessTypeName(expression.actual) + "]."));
+                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(expression.actual) + "]."));
             }
         }
 
@@ -133,6 +132,6 @@ final class SSubEachIterable extends AStatement {
 
     @Override
     public String toString() {
-        return singleLineToString(PainlessLookupUtility.anyTypeToPainlessTypeName(variable.clazz), variable.name, expression, block);
+        return singleLineToString(PainlessLookupUtility.typeToCanonicalTypeName(variable.clazz), variable.name, expression, block);
     }
 }

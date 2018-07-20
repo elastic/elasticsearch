@@ -385,7 +385,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             logger.info("--> Promote replica2 as the primary");
             shards.promoteReplicaToPrimary(replica2);
             logger.info("--> Recover replica3 from replica2");
-            recoverReplica(replica3, replica2);
+            recoverReplica(replica3, replica2, true);
             try (Translog.Snapshot snapshot = getTranslog(replica3).newSnapshot()) {
                 assertThat(snapshot.totalOperations(), equalTo(initDocs + 1));
                 final List<Translog.Operation> expectedOps = new ArrayList<>(initOperations);

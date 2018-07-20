@@ -343,13 +343,10 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
     protected AggregatorFactory<?> doBuild(SearchContext context, AggregatorFactory<?> parent,
             Builder subFactoriesBuilder) throws IOException {
         SignificanceHeuristic executionHeuristic = this.significanceHeuristic.rewrite(context);
-        String[] execFieldNames = sourceFieldNames;
-        if (execFieldNames == null) {
-            execFieldNames = new String[] { fieldName };
-        }
+
         return new SignificantTextAggregatorFactory(name, includeExclude, filterBuilder,
                 bucketCountThresholds, executionHeuristic, context, parent, subFactoriesBuilder,
-                fieldName, execFieldNames, filterDuplicateText, metaData);
+                fieldName, sourceFieldNames, filterDuplicateText, metaData);
     }
 
     @Override

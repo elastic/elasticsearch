@@ -106,6 +106,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
+import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
@@ -1094,6 +1095,25 @@ final class RequestConverters {
                     .map(c -> c.toString().toLowerCase(Locale.ROOT))
                     .collect(Collectors.joining(",")));
         }
+        return request;
+    }
+
+    static Request xPackWatcherPutWatch(PutWatchRequest putWatchRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("watcher")
+            .addPathPartAsIs("watch")
+            .addPathPart(putWatchRequest.getId())
+            .build();
+
+        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+        Params params = new Params(request).withVersion(putWatchRequest.getVersion());
+        if (putWatchRequest.isActive() == false) {
+            params.putParam("active", "false");
+        }
+        ContentType contentType = createContentType(putWatchRequest.xContentType());
+        BytesReference source = putWatchRequest.getSource();
+        request.setEntity(new ByteArrayEntity(source.toBytesRef().bytes, 0, source.length(), contentType));
         return request;
     }
 

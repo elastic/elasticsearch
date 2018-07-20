@@ -207,8 +207,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 // We don't store versionType in Lucene index, we need to exclude it from this check
                 final boolean sameOp;
                 if (newOp instanceof Translog.Index && prvOp instanceof Translog.Index) {
-                    final Translog.Index o1 = (Translog.Index) newOp;
-                    final Translog.Index o2 = (Translog.Index) prvOp;
+                    final Translog.Index o1 = (Translog.Index) prvOp;
+                    final Translog.Index o2 = (Translog.Index) newOp;
                     sameOp = Objects.equals(o1.id(), o2.id()) && Objects.equals(o1.type(), o2.type())
                         && Objects.equals(o1.source(), o2.source()) && Objects.equals(o1.routing(), o2.routing())
                         && o1.primaryTerm() == o2.primaryTerm() && o1.seqNo() == o2.seqNo()

@@ -75,7 +75,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
@@ -236,6 +235,7 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testFailShard() throws Exception {
+        allowShardFailures();
         IndexShard shard = newStartedShard();
         final ShardPath shardPath = shard.shardPath();
         assertNotNull(shardPath);
@@ -320,7 +320,8 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testPrimaryPromotionDelaysOperations() throws IOException, BrokenBarrierException, InterruptedException {
-        final IndexShard indexShard = newStartedShard(false);
+        final IndexShard indexShard = newShard(false);
+        recoveryEmptyReplica(indexShard, randomBoolean());
 
         final int operations = scaledRandomIntBetween(1, 64);
         final CyclicBarrier barrier = new CyclicBarrier(1 + operations);
@@ -364,20 +365,10 @@ public class IndexShardTests extends IndexShardTestCase {
         barrier.await();
         latch.await();
 
-        // promote the replica
         final ShardRouting replicaRouting = indexShard.routingEntry();
-        final ShardRouting primaryRouting =
-                newShardRouting(
-                        replicaRouting.shardId(),
-                        replicaRouting.currentNodeId(),
-                        null,
-                        true,
-                        ShardRoutingState.STARTED,
-                        replicaRouting.allocationId());
-        indexShard.updateShardState(primaryRouting, indexShard.getPrimaryTerm() + 1, (shard, listener) -> {},
-            0L, Collections.singleton(primaryRouting.allocationId().getId()),
-            new IndexShardRoutingTable.Builder(primaryRouting.shardId()).addShard(primaryRouting).build(),
-            Collections.emptySet());
+        promoteReplica(indexShard, Collections.singleton(replicaRouting.allocationId().getId()),
+            new IndexShardRoutingTable.Builder(replicaRouting.shardId()).addShard(replicaRouting).build());
+
 
         final int delayedOperations = scaledRandomIntBetween(1, 64);
         final CyclicBarrier delayedOperationsBarrier = new CyclicBarrier(1 + delayedOperations);
@@ -439,8 +430,9 @@ public class IndexShardTests extends IndexShardTestCase {
      * 1) Internal state (ala ReplicationTracker) have been updated
      * 2) Primary term is set to the new term
      */
-    public void testPublishingOrderOnPromotion() throws IOException, BrokenBarrierException, InterruptedException {
-        final IndexShard indexShard = newStartedShard(false);
+    public void testPublishingOrderOnPromotion() throws IOException, InterruptedException, BrokenBarrierException {
+        final IndexShard indexShard = newShard(false);
+        recoveryEmptyReplica(indexShard, randomBoolean());
         final long promotedTerm = indexShard.getPrimaryTerm() + 1;
         final CyclicBarrier barrier = new CyclicBarrier(2);
         final AtomicBoolean stop = new AtomicBoolean();
@@ -459,18 +451,10 @@ public class IndexShardTests extends IndexShardTestCase {
         });
         thread.start();
 
-        final ShardRouting replicaRouting = indexShard.routingEntry();
-        final ShardRouting primaryRouting = newShardRouting(replicaRouting.shardId(), replicaRouting.currentNodeId(), null, true,
-            ShardRoutingState.STARTED, replicaRouting.allocationId());
-
-
-        final Set<String> inSyncAllocationIds = Collections.singleton(primaryRouting.allocationId().getId());
-        final IndexShardRoutingTable routingTable =
-            new IndexShardRoutingTable.Builder(primaryRouting.shardId()).addShard(primaryRouting).build();
         barrier.await();
-        // promote the replica
-        indexShard.updateShardState(primaryRouting, promotedTerm, (shard, listener) -> {}, 0L, inSyncAllocationIds, routingTable,
-            Collections.emptySet());
+        final ShardRouting replicaRouting = indexShard.routingEntry();
+        promoteReplica(indexShard, Collections.singleton(replicaRouting.allocationId().getId()),
+            new IndexShardRoutingTable.Builder(replicaRouting.shardId()).addShard(replicaRouting).build());
 
         stop.set(true);
         thread.join();
@@ -479,7 +463,8 @@ public class IndexShardTests extends IndexShardTestCase {
 
 
     public void testPrimaryFillsSeqNoGapsOnPromotion() throws Exception {
-        final IndexShard indexShard = newStartedShard(false);
+        final IndexShard indexShard = newShard(false);
+        recoveryEmptyReplica(indexShard, randomBoolean());
 
         // most of the time this is large enough that most of the time there will be at least one gap
         final int operations = 1024 - scaledRandomIntBetween(0, 1024);
@@ -490,17 +475,8 @@ public class IndexShardTests extends IndexShardTestCase {
 
         // promote the replica
         final ShardRouting replicaRouting = indexShard.routingEntry();
-        final ShardRouting primaryRouting =
-                newShardRouting(
-                        replicaRouting.shardId(),
-                        replicaRouting.currentNodeId(),
-                        null,
-                        true,
-                        ShardRoutingState.STARTED,
-                        replicaRouting.allocationId());
-        indexShard.updateShardState(primaryRouting, indexShard.getPrimaryTerm() + 1, (shard, listener) -> {},
-            0L, Collections.singleton(primaryRouting.allocationId().getId()),
-            new IndexShardRoutingTable.Builder(primaryRouting.shardId()).addShard(primaryRouting).build(), Collections.emptySet());
+        promoteReplica(indexShard, Collections.singleton(replicaRouting.allocationId().getId()),
+            new IndexShardRoutingTable.Builder(replicaRouting.shardId()).addShard(replicaRouting).build());
 
         /*
          * This operation completing means that the delay operation executed as part of increasing the primary term has completed and the
@@ -517,7 +493,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
                     @Override
                     public void onFailure(Exception e) {
-                        throw new RuntimeException(e);
+                        throw new AssertionError(e);
                     }
                 },
                 ThreadPool.Names.GENERIC, "");
@@ -857,7 +833,7 @@ public class IndexShardTests extends IndexShardTestCase {
         // add a replica
         recoverShardFromStore(primaryShard);
         final IndexShard replicaShard = newShard(shardId, false);
-        recoverReplica(replicaShard, primaryShard);
+        recoverReplica(replicaShard, primaryShard, true);
         final int maxSeqNo = randomIntBetween(0, 128);
         for (int i = 0; i <= maxSeqNo; i++) {
             EngineTestCase.generateNewSeqNo(primaryShard.getEngine());
@@ -1555,17 +1531,17 @@ public class IndexShardTests extends IndexShardTestCase {
          * - If flush and then recover from the existing store, delete #1 will be removed while index #0 is still retained and replayed.
          */
         final IndexShard shard = newStartedShard(false);
-        shard.applyDeleteOperationOnReplica(1, 2, "_doc", "id", VersionType.EXTERNAL);
+        shard.applyDeleteOperationOnReplica(1, 2, "_doc", "id");
         shard.getEngine().rollTranslogGeneration(); // isolate the delete in it's own generation
-        shard.applyIndexOperationOnReplica(0, 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
+        shard.applyIndexOperationOnReplica(0, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
             SourceToParse.source(shard.shardId().getIndexName(), "_doc", "id", new BytesArray("{}"), XContentType.JSON));
-        shard.applyIndexOperationOnReplica(3, 3, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
+        shard.applyIndexOperationOnReplica(3, 3, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
             SourceToParse.source(shard.shardId().getIndexName(), "_doc", "id-3", new BytesArray("{}"), XContentType.JSON));
         // Flushing a new commit with local checkpoint=1 allows to skip the translog gen #1 in recovery.
         shard.flush(new FlushRequest().force(true).waitIfOngoing(true));
-        shard.applyIndexOperationOnReplica(2, 3, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
+        shard.applyIndexOperationOnReplica(2, 3, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
             SourceToParse.source(shard.shardId().getIndexName(), "_doc", "id-2", new BytesArray("{}"), XContentType.JSON));
-        shard.applyIndexOperationOnReplica(5, 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
+        shard.applyIndexOperationOnReplica(5, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
             SourceToParse.source(shard.shardId().getIndexName(), "_doc", "id-5", new BytesArray("{}"), XContentType.JSON));
 
         final int translogOps;
@@ -1636,7 +1612,7 @@ public class IndexShardTests extends IndexShardTestCase {
         IndexShardTestCase.updateRoutingEntry(primarySource, primarySource.routingEntry().relocate(randomAlphaOfLength(10), -1));
         final IndexShard primaryTarget = newShard(primarySource.routingEntry().getTargetRelocatingShard());
         updateMappings(primaryTarget, primarySource.indexSettings().getIndexMetaData());
-        recoverReplica(primaryTarget, primarySource);
+        recoverReplica(primaryTarget, primarySource, true);
 
         // check that local checkpoint of new primary is properly tracked after primary relocation
         assertThat(primaryTarget.getLocalCheckpoint(), equalTo(totalOps - 1L));
@@ -1656,8 +1632,7 @@ public class IndexShardTests extends IndexShardTestCase {
         updateMappings(otherShard, shard.indexSettings().getIndexMetaData());
         SourceToParse sourceToParse = SourceToParse.source(shard.shardId().getIndexName(), "_doc", "1",
             new BytesArray("{}"), XContentType.JSON);
-        otherShard.applyIndexOperationOnReplica(1, 1,
-            VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse);
+        otherShard.applyIndexOperationOnReplica(1, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse);
 
         final ShardRouting primaryShardRouting = shard.routingEntry();
         IndexShard newShard = reinitShard(otherShard, ShardRoutingHelper.initWithSameId(primaryShardRouting,
@@ -1773,18 +1748,18 @@ public class IndexShardTests extends IndexShardTestCase {
         final IndexShard shard = newStartedShard(false);
         final String indexName = shard.shardId().getIndexName();
         // Index #0, index #1
-        shard.applyIndexOperationOnReplica(0, 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
+        shard.applyIndexOperationOnReplica(0, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
             SourceToParse.source(indexName, "_doc", "doc-0", new BytesArray("{}"), XContentType.JSON));
         flushShard(shard);
         shard.updateGlobalCheckpointOnReplica(0, "test"); // stick the global checkpoint here.
-        shard.applyIndexOperationOnReplica(1, 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
+        shard.applyIndexOperationOnReplica(1, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
             SourceToParse.source(indexName, "_doc", "doc-1", new BytesArray("{}"), XContentType.JSON));
         flushShard(shard);
         assertThat(getShardDocUIDs(shard), containsInAnyOrder("doc-0", "doc-1"));
         // Simulate resync (without rollback): Noop #1, index #2
         acquireReplicaOperationPermitBlockingly(shard, shard.primaryTerm + 1);
         shard.markSeqNoAsNoop(1, "test");
-        shard.applyIndexOperationOnReplica(2, 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
+        shard.applyIndexOperationOnReplica(2, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
             SourceToParse.source(indexName, "_doc", "doc-2", new BytesArray("{}"), XContentType.JSON));
         flushShard(shard);
         assertThat(getShardDocUIDs(shard), containsInAnyOrder("doc-0", "doc-1", "doc-2"));
@@ -2094,7 +2069,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     assertFalse(replica.isSyncNeeded());
                     return localCheckpoint;
                 }
-            }, true);
+            }, true, true);
 
         closeShards(primary, replica);
     }
@@ -2114,11 +2089,11 @@ public class IndexShardTests extends IndexShardTestCase {
         int numCorruptEntries = 0;
         for (int i = 0; i < numTotalEntries; i++) {
             if (randomBoolean()) {
-                operations.add(new Translog.Index("_doc", "1", 0, primary.getPrimaryTerm(), 1, VersionType.INTERNAL,
+                operations.add(new Translog.Index("_doc", "1", 0, primary.getPrimaryTerm(), 1,
                     "{\"foo\" : \"bar\"}".getBytes(Charset.forName("UTF-8")), null, -1));
             } else {
                 // corrupt entry
-                operations.add(new Translog.Index("_doc", "2", 1,  primary.getPrimaryTerm(), 1, VersionType.INTERNAL,
+                operations.add(new Translog.Index("_doc", "2", 1,  primary.getPrimaryTerm(), 1,
                     "{\"foo\" : \"bar}".getBytes(Charset.forName("UTF-8")), null, -1));
                 numCorruptEntries++;
             }
@@ -2201,7 +2176,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     assertTrue(replica.isActive());
                     return localCheckpoint;
                 }
-            }, false);
+            }, false, true);
 
         closeShards(primary, replica);
     }
@@ -2253,7 +2228,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     super.finalizeRecovery(globalCheckpoint);
                     assertListenerCalled.accept(replica);
                 }
-            }, false);
+            }, false, true);
 
         closeShards(primary, replica);
     }
@@ -2630,8 +2605,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 final String id = Integer.toString(i);
                 SourceToParse sourceToParse = SourceToParse.source(indexShard.shardId().getIndexName(), "_doc", id,
                         new BytesArray("{}"), XContentType.JSON);
-                indexShard.applyIndexOperationOnReplica(i,
-                    1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse);
+                indexShard.applyIndexOperationOnReplica(i, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse);
                 if (!gap && i == localCheckpoint + 1) {
                     localCheckpoint++;
                 }

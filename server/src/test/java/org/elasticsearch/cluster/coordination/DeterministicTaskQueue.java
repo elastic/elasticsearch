@@ -54,28 +54,28 @@ public class DeterministicTaskQueue extends AbstractComponent {
     /**
      * @return whether there are any runnable tasks.
      */
-    boolean hasRunnableTasks() {
+    public boolean hasRunnableTasks() {
         return runnableTasks.isEmpty() == false;
     }
 
     /**
      * @return whether there are any deferred tasks, i.e. tasks that are scheduled for the future.
      */
-    boolean hasDeferredTasks() {
+    public boolean hasDeferredTasks() {
         return deferredTasks.isEmpty() == false;
     }
 
     /**
      * @return the current (simulated) time, in milliseconds.
      */
-    long getCurrentTimeMillis() {
+    public long getCurrentTimeMillis() {
         return currentTimeMillis;
     }
 
     /**
      * Runs the first runnable task.
      */
-    void runNextTask() {
+    public void runNextTask() {
         assert hasRunnableTasks();
         runTask(0);
     }
@@ -83,7 +83,7 @@ public class DeterministicTaskQueue extends AbstractComponent {
     /**
      * Runs an arbitrary runnable task.
      */
-    void runRandomTask(final Random random) {
+    public void runRandomTask(final Random random) {
         assert hasRunnableTasks();
         runTask(RandomNumbers.randomIntBetween(random, 0, runnableTasks.size() - 1));
     }

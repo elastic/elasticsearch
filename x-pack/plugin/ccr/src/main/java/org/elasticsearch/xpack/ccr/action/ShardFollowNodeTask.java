@@ -138,6 +138,11 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     }
 
     private synchronized void coordinateWrites() {
+        if (isStopped()) {
+            LOGGER.info("{} shard follow task has been stopped", params.getFollowShardId());
+            return;
+        }
+
         while (hasWriteBudget() && buffer.isEmpty() == false) {
             long sumEstimatedSize = 0L;
             int length = Math.min(params.getMaxBatchOperationCount(), buffer.size());
@@ -201,7 +206,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             coordinateWrites();
         }
 
-        if (newMinRequiredSeqNo < maxRequiredSeqNo) {
+        if (newMinRequiredSeqNo < maxRequiredSeqNo && isStopped() == false) {
             int newSize = (int) (maxRequiredSeqNo - newMinRequiredSeqNo) + 1;
             LOGGER.trace("{} received [{}] ops, still missing [{}/{}], continuing to read...",
                 params.getFollowShardId(), response.getOperations().length, newMinRequiredSeqNo, maxRequiredSeqNo);

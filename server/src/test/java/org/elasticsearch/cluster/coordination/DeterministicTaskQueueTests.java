@@ -262,14 +262,14 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         final FutureExecutor futureExecutor = taskQueue.getFutureExecutor();
         final long delayMillis = randomLongBetween(1, 100);
 
-        futureExecutor.schedule(TimeValue.timeValueMillis(delayMillis), () -> strings.add("deferred"));
+        futureExecutor.schedule(() -> strings.add("deferred"), TimeValue.timeValueMillis(delayMillis));
         assertFalse(taskQueue.hasRunnableTasks());
         assertTrue(taskQueue.hasDeferredTasks());
 
-        futureExecutor.schedule(TimeValue.ZERO, () -> strings.add("runnable"));
+        futureExecutor.schedule(() -> strings.add("runnable"), TimeValue.ZERO);
         assertTrue(taskQueue.hasRunnableTasks());
 
-        futureExecutor.schedule(TimeValue.MINUS_ONE, () -> strings.add("also runnable"));
+        futureExecutor.schedule(() -> strings.add("also runnable"), TimeValue.MINUS_ONE);
 
         runAllTasks(taskQueue);
 
@@ -279,8 +279,8 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         final long delayMillis1 = randomLongBetween(2, 100);
         final long delayMillis2 = randomLongBetween(1, delayMillis1 - 1);
 
-        futureExecutor.schedule(TimeValue.timeValueMillis(delayMillis1), () -> strings.add("further deferred"));
-        futureExecutor.schedule(TimeValue.timeValueMillis(delayMillis2), () -> strings.add("not quite so deferred"));
+        futureExecutor.schedule(() -> strings.add("further deferred"), TimeValue.timeValueMillis(delayMillis1));
+        futureExecutor.schedule(() -> strings.add("not quite so deferred"), TimeValue.timeValueMillis(delayMillis2));
 
         assertFalse(taskQueue.hasRunnableTasks());
         assertTrue(taskQueue.hasDeferredTasks());

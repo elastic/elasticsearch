@@ -28,6 +28,6 @@ public interface FutureExecutor {
     /**
      * Schedule the given task for execution after the given delay has elapsed.
      */
-    void schedule(TimeValue delay, Runnable task);
+    void schedule(Runnable task, TimeValue delay);
 }
 

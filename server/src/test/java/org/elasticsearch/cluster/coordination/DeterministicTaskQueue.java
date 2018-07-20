@@ -148,7 +148,7 @@ public class DeterministicTaskQueue extends AbstractComponent {
      * @return A <code>FutureExecutor</code> that uses this task queue.
      */
     public FutureExecutor getFutureExecutor() {
-        return (delay, task) -> scheduleAt(currentTimeMillis + delay.millis(), task);
+        return (task, delay) -> scheduleAt(currentTimeMillis + delay.millis(), task);
     }
 
     /**

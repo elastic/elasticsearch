@@ -41,12 +41,12 @@ task krb5AddPrincipals { dependsOn krb5kdcFixture }
 List<String> principals = [
     "HTTP/localhost",
     "peppa",
-    "george:dino"
+    "george~dino"
 ]
 String realm = "BUILD.ELASTIC.CO"
 
 for (String principal : principals) {
-    String[] princPwdPair = principal.split(':');
+    String[] princPwdPair = principal.split('~');
     String princName = princPwdPair[0];
     String password = "";
     if (princPwdPair.length > 1) {
@@ -67,6 +67,7 @@ task copyKeytabToGeneratedResources(type: Copy) {
     Path peppaKeytab = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("keytabs").resolve("peppa.keytab").toAbsolutePath()
     from peppaKeytab;
     into generatedResources
+    dependsOn krb5AddPrincipals
 }
 
 integTestCluster {

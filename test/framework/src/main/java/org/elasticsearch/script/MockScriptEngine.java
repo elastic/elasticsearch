@@ -116,7 +116,7 @@ public class MockScriptEngine implements ScriptEngine {
             ScriptHeuristicScript.Factory factory = () -> new ScriptHeuristicScript() {
                 @Override
                 public double execute(Map<String, Object> vars) {
-                    return (double) script.apply(vars);
+                    return ((Number) script.apply(vars)).doubleValue();
                 }
             };
             return context.factoryClazz.cast(factory);

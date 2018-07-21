@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.ingest.DroppedDocumentException;
 import org.elasticsearch.script.ScriptException;
 
 import java.util.ArrayList;
@@ -56,6 +57,9 @@ public interface PainlessScript {
      * @return The generated ScriptException.
      */
     default ScriptException convertToScriptException(Throwable t, Map<String, List<String>> extraMetadata) {
+        if (t instanceof DroppedDocumentException) {
+            throw (DroppedDocumentException) t;
+        }
         // create a script stack: this is just the script portion
         List<String> scriptStack = new ArrayList<>();
         for (StackTraceElement element : t.getStackTrace()) {

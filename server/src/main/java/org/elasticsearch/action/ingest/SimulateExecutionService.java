@@ -21,6 +21,7 @@ package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.ingest.DroppedDocumentException;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.CompoundProcessor;
@@ -55,6 +56,8 @@ class SimulateExecutionService {
             try {
                 pipeline.execute(ingestDocument);
                 return new SimulateDocumentBaseResult(ingestDocument);
+            } catch (DroppedDocumentException e) {
+                return null;
             } catch (Exception e) {
                 return new SimulateDocumentBaseResult(e);
             }
@@ -67,7 +70,10 @@ class SimulateExecutionService {
             protected void doRun() throws Exception {
                 List<SimulateDocumentResult> responses = new ArrayList<>();
                 for (IngestDocument ingestDocument : request.getDocuments()) {
-                    responses.add(executeDocument(request.getPipeline(), ingestDocument, request.isVerbose()));
+                    SimulateDocumentResult response = executeDocument(request.getPipeline(), ingestDocument, request.isVerbose());
+                    if (response != null) {
+                        responses.add(response);
+                    }
                 }
                 listener.onResponse(new SimulatePipelineResponse(request.getPipeline().getId(), request.isVerbose(), responses));
             }

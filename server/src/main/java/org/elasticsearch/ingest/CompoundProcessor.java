@@ -21,6 +21,7 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -99,6 +100,9 @@ public class CompoundProcessor implements Processor {
             try {
                 processor.execute(ingestDocument);
             } catch (Exception e) {
+                if (ExceptionsHelper.unwrap(e, DroppedDocumentException.class) != null) {
+                    throw e;
+                }
                 if (ignoreFailure) {
                     continue;
                 }

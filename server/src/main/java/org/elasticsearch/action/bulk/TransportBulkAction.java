@@ -27,6 +27,7 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -37,6 +38,7 @@ import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -57,6 +59,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
+import org.elasticsearch.ingest.DroppedDocumentException;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
@@ -488,11 +491,16 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     void processBulkIndexIngestRequest(Task task, BulkRequest original, ActionListener<BulkResponse> listener) {
         long ingestStartTimeInNanos = System.nanoTime();
         BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(original);
-        ingestService.getPipelineExecutionService().executeBulkRequest(() -> bulkRequestModifier, (indexRequest, exception) -> {
-            logger.debug(() -> new ParameterizedMessage("failed to execute pipeline [{}] for document [{}/{}/{}]",
-                indexRequest.getPipeline(), indexRequest.index(), indexRequest.type(), indexRequest.id()), exception);
-            bulkRequestModifier.markCurrentItemAsFailed(exception);
-        }, (exception) -> {
+        ingestService.getPipelineExecutionService().executeBulkRequest(() -> bulkRequestModifier,
+            (indexRequest, exception) -> {
+                if (ExceptionsHelper.unwrap(exception, DroppedDocumentException.class) != null) {
+                    bulkRequestModifier.markCurrentItemAsDropped();
+                } else {
+                    logger.debug(() -> new ParameterizedMessage("failed to execute pipeline [{}] for document [{}/{}/{}]",
+                        indexRequest.getPipeline(), indexRequest.index(), indexRequest.type(), indexRequest.id()), exception);
+                    bulkRequestModifier.markCurrentItemAsFailed(exception);
+                }
+            }, (exception) -> {
             if (exception != null) {
                 logger.error("failed to execute pipeline for a bulk request", exception);
                 listener.onFailure(exception);
@@ -569,6 +577,19 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             } else {
                 return new IngestBulkResponseListener(ingestTookInMillis, originalSlots, itemResponses, actionListener);
             }
+        }
+
+        void markCurrentItemAsDropped() {
+            IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(currentSlot);
+            failedSlots.set(currentSlot);
+            itemResponses.add(
+                new BulkItemResponse(currentSlot, indexRequest.opType(),
+                    new UpdateResponse(
+                        new ShardId(indexRequest.index(), IndexMetaData.INDEX_UUID_NA_VALUE, 0),
+                        indexRequest.type(), indexRequest.id(), indexRequest.version(), DocWriteResponse.Result.NOOP
+                    )
+                )
+            );
         }
 
         void markCurrentItemAsFailed(Exception e) {

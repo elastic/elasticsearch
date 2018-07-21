@@ -112,6 +112,14 @@ public class MockScriptEngine implements ScriptEngine {
                 }
             };
             return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(ScriptHeuristicScript.class)) {
+            ScriptHeuristicScript.Factory factory = () -> new ScriptHeuristicScript() {
+                @Override
+                public double execute(Map<String, Object> vars) {
+                    return (double) script.apply(vars);
+                }
+            };
+            return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(TemplateScript.class)) {
             TemplateScript.Factory factory = vars -> {
                 // TODO: need a better way to implement all these new contexts

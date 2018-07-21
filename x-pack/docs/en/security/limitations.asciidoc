@@ -19,8 +19,6 @@ with {security} enabled.
 Elasticsearch clusters with {security} enabled apply the `/_all` wildcard, and
 all other wildcards, to the indices that the current user has privileges for, not
 the set of all indices on the cluster.
-While creating or retrieving aliases by providing wildcard expressions for alias names, if there are no existing authorized aliases
-that match the wildcard expression provided an IndexNotFoundException is returned.
 
 [float]
 === Multi Document APIs

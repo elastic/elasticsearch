@@ -59,7 +59,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
     private static final String MAX_AGG_NAME = "maxAgg";
 
     /**
-     * For each provided field type, we also register an alias with name <field>-alias.
+     * For each provided field type, we also register an alias with name {@code <field>-alias}.
      */
     @Override
     protected Map<String, MappedFieldType> getFieldAliases(MappedFieldType... fieldTypes) {

@@ -40,7 +40,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.index.rankeval.EvaluationMetric.filterUnknownDocuments;
+import static org.elasticsearch.index.rankeval.EvaluationMetric.filterUnratedDocuments;
 
 public class RankEvalIT extends ESRestHighLevelClientTestCase {
 
@@ -84,7 +84,7 @@ public class RankEvalIT extends ESRestHighLevelClientTestCase {
         Map<String, EvalQueryQuality> partialResults = response.getPartialResults();
         assertEquals(2, partialResults.size());
         EvalQueryQuality amsterdamQueryQuality = partialResults.get("amsterdam_query");
-        assertEquals(2, filterUnknownDocuments(amsterdamQueryQuality.getHitsAndRatings()).size());
+        assertEquals(2, filterUnratedDocuments(amsterdamQueryQuality.getHitsAndRatings()).size());
         List<RatedSearchHit> hitsAndRatings = amsterdamQueryQuality.getHitsAndRatings();
         assertEquals(7, hitsAndRatings.size());
         for (RatedSearchHit hit : hitsAndRatings) {
@@ -96,7 +96,7 @@ public class RankEvalIT extends ESRestHighLevelClientTestCase {
             }
         }
         EvalQueryQuality berlinQueryQuality = partialResults.get("berlin_query");
-        assertEquals(6, filterUnknownDocuments(berlinQueryQuality.getHitsAndRatings()).size());
+        assertEquals(6, filterUnratedDocuments(berlinQueryQuality.getHitsAndRatings()).size());
         hitsAndRatings = berlinQueryQuality.getHitsAndRatings();
         assertEquals(7, hitsAndRatings.size());
         for (RatedSearchHit hit : hitsAndRatings) {

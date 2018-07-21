@@ -139,6 +139,10 @@ public class IndexShardSnapshotStatus {
         return stage.get() == Stage.ABORTED;
     }
 
+    public boolean isFailed() {
+        return stage.get() == Stage.FAILURE;
+    }
+
     /**
      * Increments number of processed files
      */

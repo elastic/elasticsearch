@@ -41,7 +41,11 @@ public enum SnapshotIndexShardStage {
     /**
      * Snapshot failed
      */
-    FAILURE((byte)4, true);
+    FAILURE((byte)4, true),
+    /**
+     * Snapshot aborted
+     */
+    ABORTED((byte)5, false);
 
     private byte value;
 
@@ -88,6 +92,8 @@ public enum SnapshotIndexShardStage {
                 return DONE;
             case 4:
                 return FAILURE;
+            case 5:
+                return ABORTED;
             default:
                 throw new IllegalArgumentException("No snapshot shard stage for value [" + value + "]");
         }

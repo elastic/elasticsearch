@@ -81,6 +81,9 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
             case FAILURE:
                 stage = SnapshotIndexShardStage.FAILURE;
                 break;
+            case ABORTED:
+                stage = SnapshotIndexShardStage.ABORTED;
+                break;
             default:
                 throw new IllegalArgumentException("Unknown stage type " + indexShardStatus.getStage());
         }

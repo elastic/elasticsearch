@@ -41,6 +41,7 @@ public class SnapshotShardsStats implements ToXContentObject {
     private int finalizingShards;
     private int doneShards;
     private int failedShards;
+    private int abortedShards;
     private int totalShards;
 
     SnapshotShardsStats(Collection<SnapshotIndexShardStatus> shards) {
@@ -61,6 +62,9 @@ public class SnapshotShardsStats implements ToXContentObject {
                     break;
                 case FAILURE:
                     failedShards++;
+                    break;
+                case ABORTED:
+                    abortedShards++;
                     break;
                 default:
                     throw new IllegalArgumentException("Unknown stage type " + shard.getStage());
@@ -114,6 +118,13 @@ public class SnapshotShardsStats implements ToXContentObject {
     }
 
     /**
+     * Number of shards with the snapshot in the aborted stage
+     */
+    public int getAbortedShards() {
+        return abortedShards;
+    }
+
+    /**
      * Total number of shards
      */
     public int getTotalShards() {
@@ -127,6 +138,7 @@ public class SnapshotShardsStats implements ToXContentObject {
         static final String FINALIZING = "finalizing";
         static final String DONE = "done";
         static final String FAILED = "failed";
+        static final String ABORTED = "aborted";
         static final String TOTAL = "total";
     }
 
@@ -139,6 +151,7 @@ public class SnapshotShardsStats implements ToXContentObject {
             builder.field(Fields.FINALIZING, getFinalizingShards());
             builder.field(Fields.DONE, getDoneShards());
             builder.field(Fields.FAILED, getFailedShards());
+            builder.field(Fields.ABORTED, getAbortedShards());
             builder.field(Fields.TOTAL, getTotalShards());
         }
         builder.endObject();

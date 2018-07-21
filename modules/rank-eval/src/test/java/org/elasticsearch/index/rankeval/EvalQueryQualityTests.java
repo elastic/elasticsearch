@@ -26,7 +26,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.rankeval.RatedDocument.DocumentKey;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 
@@ -52,11 +51,6 @@ public class EvalQueryQualityTests extends ESTestCase {
     }
 
     public static EvalQueryQuality randomEvalQueryQuality() {
-        List<DocumentKey> unknownDocs = new ArrayList<>();
-        int numberOfUnknownDocs = randomInt(5);
-        for (int i = 0; i < numberOfUnknownDocs; i++) {
-            unknownDocs.add(new DocumentKey(randomAlphaOfLength(10), randomAlphaOfLength(10)));
-        }
         int numberOfSearchHits = randomInt(5);
         List<RatedSearchHit> ratedHits = new ArrayList<>();
         for (int i = 0; i < numberOfSearchHits; i++) {

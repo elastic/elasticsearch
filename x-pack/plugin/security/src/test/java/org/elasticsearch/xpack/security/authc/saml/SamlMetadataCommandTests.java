@@ -296,6 +296,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
     }
 
     public void testSigningMetadataWithPfx() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, PKCS12 keystores are not usable", inFipsJvm());
         final Path certPath = getDataPath("saml.crt");
         final Path keyPath = getDataPath("saml.key");
         final Path p12Path = getDataPath("saml.p12");
@@ -355,6 +356,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
     }
 
     public void testSigningMetadataWithPasswordProtectedPfx() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, PKCS12 keystores are not usable", inFipsJvm());
         final Path certPath = getDataPath("saml.crt");
         final Path keyPath = getDataPath("saml.key");
         final Path p12Path = getDataPath("saml_with_password.p12");
@@ -393,11 +395,13 @@ public class SamlMetadataCommandTests extends SamlTestCase {
     public void testErrorSigningMetadataWithWrongPassword() throws Exception {
         final Path certPath = getDataPath("saml.crt");
         final Path keyPath = getDataPath("saml.key");
-        final Path p12Path = getDataPath("saml_with_password.p12");
+        final Path signingKeyPath = getDataPath("saml_with_password.key");
         final SamlMetadataCommand command = new SamlMetadataCommand((e) -> randomFrom(keyStore, null));
         final OptionSet options = command.getParser().parse(new String[]{
-                "-signing-bundle", p12Path.toString(),
-                "-signing-key-password", "wrong_password"
+            "-signing-cert", certPath.toString(),
+            "-signing-key", signingKeyPath.toString(),
+            "-signing-key-password", "wrongpassword"
+
         });
 
         final boolean useSigningCredentials = randomBoolean();
@@ -422,7 +426,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         final UserException userException = expectThrows(UserException.class, () -> command.possiblySignDescriptor(terminal, options,
                 descriptor, env));
         assertThat(userException.getMessage(), containsString("Unable to create metadata document"));
-        assertThat(terminal.getOutput(), containsString("keystore password was incorrect"));
+        assertThat(terminal.getOutput(), containsString("Error parsing Private Key from"));
     }
 
     public void testSigningMetadataWithPem() throws Exception {
@@ -473,7 +477,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         final OptionSet options = command.getParser().parse(new String[]{
                 "-signing-cert", certPath.toString(),
                 "-signing-key", signingKeyPath.toString(),
-                "-signing-key-password", "saml"
+            "-signing-key-password", "saml"
 
         });
 

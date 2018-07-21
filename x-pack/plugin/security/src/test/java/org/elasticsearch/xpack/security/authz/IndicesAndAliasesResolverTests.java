@@ -80,6 +80,7 @@ import java.util.Set;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
@@ -781,10 +782,11 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     public void testResolveAliasesWildcardsIndicesAliasesRequestDeleteActionsNoAuthorizedIndices() {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
         request.addAliasAction(AliasActions.remove().index("foo*").alias("foo*"));
-        //no authorized aliases match bar*, hence this action fails and makes the whole request fail
+        //no authorized aliases match bar*, hence aliases are replaced with empty string for that action
         request.addAliasAction(AliasActions.remove().index("*bar").alias("bar*"));
-        expectThrows(IndexNotFoundException.class, () -> resolveIndices(
-                request, buildAuthorizedIndices(user, IndicesAliasesAction.NAME)));
+        resolveIndices(request, buildAuthorizedIndices(user, IndicesAliasesAction.NAME));
+        assertThat(request.getAliasActions().get(0).aliases().length, equalTo(1));
+        assertThat(request.getAliasActions().get(1).aliases().length, equalTo(0));
     }
 
     public void testResolveWildcardsIndicesAliasesRequestAddAndDeleteActions() {
@@ -1086,12 +1088,11 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testResolveAliasesWildcardsGetAliasesRequestNoAuthorizedIndices() {
         GetAliasesRequest request = new GetAliasesRequest();
-        //no authorized aliases match bar*, hence the request fails
+        //no authorized aliases match bar*, hence aliases are replaced with empty array
         request.aliases("bar*");
         request.indices("*bar");
-        IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
-                () -> resolveIndices(request, buildAuthorizedIndices(user, GetAliasesAction.NAME)));
-        assertEquals("no such index", e.getMessage());
+        resolveIndices(request, buildAuthorizedIndices(user, GetAliasesAction.NAME));
+        assertThat(request.aliases().length, equalTo(0));
     }
 
     public void testResolveAliasesAllGetAliasesRequestNoAuthorizedIndices() {
@@ -1100,10 +1101,10 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             request.aliases("_all");
         }
         request.indices("non_existing");
-        //current user is not authorized for any index, foo* resolves to no indices, the request fails
-        IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
-                () -> resolveIndices(request, buildAuthorizedIndices(userNoIndices, GetAliasesAction.NAME)));
-        assertEquals("no such index", e.getMessage());
+        //current user is not authorized for any index, foo* resolves to no indices, aliases are replaced with empty array
+        ResolvedIndices resolvedIndices = resolveIndices(request, buildAuthorizedIndices(userNoIndices, GetAliasesAction.NAME));
+        assertThat(resolvedIndices.getLocal(), contains("non_existing"));
+        assertThat(request.aliases().length, equalTo(0));
     }
 
     /**

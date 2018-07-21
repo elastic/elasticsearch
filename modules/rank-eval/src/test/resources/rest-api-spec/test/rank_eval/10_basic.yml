@@ -73,7 +73,7 @@ setup:
 
   - match: { quality_level: 1}
   - match: { details.amsterdam_query.quality_level: 1.0}
-  - match: { details.amsterdam_query.unknown_docs:  [ {"_index": "foo", "_id": "doc4"}]}
+  - match: { details.amsterdam_query.unrated_docs:  [ {"_index": "foo", "_id": "doc4"}]}
   - match: { details.amsterdam_query.metric_details.precision: {"relevant_docs_retrieved": 2, "docs_retrieved": 2}}
   
   - length: { details.amsterdam_query.hits: 3}
@@ -85,7 +85,7 @@ setup:
   - is_false: details.amsterdam_query.hits.2.rating
   
   - match: { details.berlin_query.quality_level: 1.0}
-  - match: { details.berlin_query.unknown_docs:  [ {"_index": "foo", "_id": "doc4"}]}
+  - match: { details.berlin_query.unrated_docs:  [ {"_index": "foo", "_id": "doc4"}]}
   - match: { details.berlin_query.metric_details.precision: {"relevant_docs_retrieved": 1, "docs_retrieved": 1}}
   - length: { details.berlin_query.hits: 2}
   - match: { details.berlin_query.hits.0.hit._id: "doc1" }
@@ -155,9 +155,9 @@ setup:
   - gt: {details.amsterdam_query.quality_level: 0.333}
   - lt: {details.amsterdam_query.quality_level: 0.334}
   - match: {details.amsterdam_query.metric_details.mean_reciprocal_rank: {"first_relevant": 3}}
-  - match: {details.amsterdam_query.unknown_docs:  [ {"_index": "foo", "_id": "doc2"},
+  - match: {details.amsterdam_query.unrated_docs:  [ {"_index": "foo", "_id": "doc2"},
                                                                {"_index": "foo", "_id": "doc3"} ]}
   - match: {details.berlin_query.quality_level: 0.5}
   - match: {details.berlin_query.metric_details.mean_reciprocal_rank: {"first_relevant": 2}}
-  - match: {details.berlin_query.unknown_docs:  [ {"_index": "foo", "_id": "doc1"}]}
+  - match: {details.berlin_query.unrated_docs:  [ {"_index": "foo", "_id": "doc1"}]}
 

@@ -23,7 +23,6 @@ package org.elasticsearch.search.aggregations.pipeline.bucketselector;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.script.BucketAggregationSelectorScript;
-import org.elasticsearch.script.BucketAggregationScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
@@ -84,23 +83,12 @@ public class BucketSelectorPipelineAggregator extends PipelineAggregator {
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = originalAgg.getBuckets();
 
         List<InternalMultiBucketAggregation.InternalBucket> newBuckets = new ArrayList<>();
-        if ("expression".equals(script.getLang())) {
-            BucketAggregationScript.Factory factory =
-                reduceContext.scriptService().compile(script, BucketAggregationScript.CONTEXT);
-            BucketAggregationScript executableScript = factory.newInstance();
-            for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
-                if (executableScript.execute(scriptArgs(originalAgg, bucket)) == 1.0) {
-                    newBuckets.add(bucket);
-                }
-            }
-        } else {
-            BucketAggregationSelectorScript.Factory factory =
-                reduceContext.scriptService().compile(script, BucketAggregationSelectorScript.CONTEXT);
-            BucketAggregationSelectorScript executableScript = factory.newInstance();
-            for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
-                if (executableScript.execute(scriptArgs(originalAgg, bucket))) {
-                    newBuckets.add(bucket);
-                }
+        BucketAggregationSelectorScript.Factory factory =
+            reduceContext.scriptService().compile(script, BucketAggregationSelectorScript.CONTEXT);
+        BucketAggregationSelectorScript executableScript = factory.newInstance();
+        for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
+            if (executableScript.execute(scriptArgs(originalAgg, bucket))) {
+                newBuckets.add(bucket);
             }
         }
         return originalAgg.create(newBuckets);

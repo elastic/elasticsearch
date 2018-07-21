@@ -21,6 +21,7 @@ import org.junit.BeforeClass;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -89,8 +90,12 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
         Settings.Builder builder = Settings.builder()
                 .put("path.home", home)
                 .put("path.conf", conf.toString());
-        SecuritySettingsSource.addSSLSettingsForStore(builder,
-            "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks", "testnode");
+        SecuritySettingsSource.addSSLSettingsForPEMFiles(
+            builder,
+            "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem",
+            "testnode",
+            "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
+            Arrays.asList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
         Settings settings = builder.build();
         logger.error("--> retrieving users using URL: {}, home: {}", url, home);
 
@@ -131,8 +136,11 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
         String url = getHttpURL();
         ESNativeRealmMigrateTool.MigrateUserOrRoles muor = new ESNativeRealmMigrateTool.MigrateUserOrRoles();
         Settings.Builder builder = Settings.builder().put("path.home", home);
-        SecuritySettingsSource.addSSLSettingsForStore(builder,
-                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks", "testclient");
+        SecuritySettingsSource.addSSLSettingsForPEMFiles(builder,
+            "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.pem",
+            "testclient",
+            "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt",
+            Arrays.asList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
         Settings settings = builder.build();
         logger.error("--> retrieving roles using URL: {}, home: {}", url, home);
 

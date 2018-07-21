@@ -85,7 +85,7 @@ public class SEach extends AStatement {
             sub = new SSubEachIterable(location, variable, expression, block);
         } else {
             throw createError(new IllegalArgumentException("Illegal for each type " +
-                    "[" + PainlessLookupUtility.anyTypeToPainlessTypeName(expression.actual) + "]."));
+                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(expression.actual) + "]."));
         }
 
         sub.analyze(locals);

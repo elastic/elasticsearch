@@ -6,6 +6,8 @@ import java.nio.file.Paths
 import java.nio.file.StandardCopyOption
 
 apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'nebula.maven-base-publish'
+apply plugin: 'nebula.maven-scm'
 
 archivesBaseName = 'x-pack-core'
 

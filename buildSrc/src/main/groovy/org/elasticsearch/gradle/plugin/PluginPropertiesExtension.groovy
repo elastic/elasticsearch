@@ -20,6 +20,7 @@ package org.elasticsearch.gradle.plugin
 
 import org.gradle.api.Project
 import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.InputFile
 
 /**
  * A container for plugin properties that will be written to the plugin descriptor, for easy
@@ -55,14 +56,12 @@ class PluginPropertiesExtension {
     boolean requiresKeystore = false
 
     /** A license file that should be included in the built plugin zip. */
-    @Input
     private File licenseFile = null
 
     /**
      * A notice file that should be included in the built plugin zip. This will be
      * extended with notices from the {@code licenses/} directory.
      */
-    @Input
     private File noticeFile = null
 
     Project project = null
@@ -73,6 +72,7 @@ class PluginPropertiesExtension {
         this.project = project
     }
 
+    @InputFile
     File getLicenseFile() {
         return licenseFile
     }
@@ -82,6 +82,7 @@ class PluginPropertiesExtension {
         this.licenseFile = licenseFile
     }
 
+    @InputFile
     File getNoticeFile() {
         return noticeFile
     }

@@ -39,6 +39,7 @@ import org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.BucketAggregationScript;
+import org.elasticsearch.script.BucketAggregationSelectorScript;
 import org.elasticsearch.script.ClassPermission;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.FilterScript;
@@ -116,6 +117,18 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(BucketAggregationScript.class)) {
             return context.factoryClazz.cast(newBucketAggregationScriptFactory(expr));
+        } else if (context.instanceClazz.equals(BucketAggregationSelectorScript.class)) {
+            BucketAggregationScript.Factory factory = newBucketAggregationScriptFactory(expr);
+            BucketAggregationSelectorScript.Factory wrappedFactory = () -> {
+                BucketAggregationScript script = factory.newInstance();
+                return new BucketAggregationSelectorScript() {
+                    @Override
+                    public boolean execute(Map<String, Object> params) {
+                        return script.execute(params) == 1.0;
+                    }
+                };
+            };
+            return context.factoryClazz.cast(wrappedFactory);
         } else if (context.instanceClazz.equals(FilterScript.class)) {
             FilterScript.Factory factory = (p, lookup) -> newFilterScript(expr, lookup, p);
             return context.factoryClazz.cast(factory);

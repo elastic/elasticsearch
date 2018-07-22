@@ -312,9 +312,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         }
 
         final UpdateResponse updateResponse;
+        final DocWriteRequest.OpType opType;
         if (translatedResult == DocWriteResponse.Result.CREATED || translatedResult == DocWriteResponse.Result.UPDATED) {
             final IndexRequest updateIndexRequest = translate.action();
             final IndexResponse indexResponse = operationResponse.getResponse();
+            opType = updateIndexRequest.opType();
             updateResponse = new UpdateResponse(indexResponse.getShardInfo(), indexResponse.getShardId(),
                 indexResponse.getType(), indexResponse.getId(), indexResponse.getSeqNo(), indexResponse.getPrimaryTerm(),
                 indexResponse.getVersion(), indexResponse.getResult());
@@ -328,6 +330,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             }
         } else if (translatedResult == DocWriteResponse.Result.DELETED) {
             final DeleteResponse deleteResponse = operationResponse.getResponse();
+            opType = DocWriteRequest.OpType.DELETE;
             updateResponse = new UpdateResponse(deleteResponse.getShardInfo(), deleteResponse.getShardId(),
                 deleteResponse.getType(), deleteResponse.getId(), deleteResponse.getSeqNo(), deleteResponse.getPrimaryTerm(),
                 deleteResponse.getVersion(), deleteResponse.getResult());
@@ -339,7 +342,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         } else {
             throw new IllegalArgumentException("unknown operation type: " + translatedResult);
         }
-        return new BulkItemResponse(operationResponse.getItemId(), DocWriteRequest.OpType.UPDATE, updateResponse);
+        return new BulkItemResponse(operationResponse.getItemId(), opType, updateResponse);
     }
 
 

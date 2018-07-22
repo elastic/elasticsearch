@@ -187,7 +187,7 @@ class PrimaryExecutionContext {
         assert currentItemState == ItemProcessingState.TRANSLATED: currentItemState;
         assert executionResult == null : executionResult;
         final BulkItemRequest current = getCurrentItem();
-        DocWriteRequest docWriteRequest = current.request();
+        DocWriteRequest docWriteRequest = getRequestToExecute();
         switch (result.getResultType()) {
             case SUCCESS:
                 final DocWriteResponse response;

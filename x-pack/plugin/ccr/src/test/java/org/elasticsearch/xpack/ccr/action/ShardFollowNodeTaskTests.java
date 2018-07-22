@@ -71,7 +71,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
 
         shardChangesRequests.clear();
         // Also invokes the coordinatesReads() method:
-        task.innerHandleReadResponse(0L, 63L, generateShardChangesResponse(0, 64, 0L, 128L));
+        task.innerHandleReadResponse(0L, 63L, generateShardChangesResponse(0, 63, 0L, 128L));
         assertThat(shardChangesRequests.size(), equalTo(0)); // no more reads, because write buffer is full
 
         ShardFollowNodeTask.Status status = task.getStatus();
@@ -237,7 +237,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         startTask(task, 63, -1);
 
         task.coordinateReads();
-        ShardChangesAction.Response response = generateShardChangesResponse(0, 64, 0L, 63L);
+        ShardChangesAction.Response response = generateShardChangesResponse(0, 63, 0L, 63L);
         task.innerHandleReadResponse(0L, 63L, response);
 
         assertThat(bulkShardOperationRequests.size(), equalTo(1));
@@ -263,7 +263,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(shardChangesRequests.get(0)[1], equalTo(64L));
 
         shardChangesRequests.clear();
-        ShardChangesAction.Response response = generateShardChangesResponse(0, 32, 0L, 31L);
+        ShardChangesAction.Response response = generateShardChangesResponse(0, 31, 0L, 31L);
         task.innerHandleReadResponse(0L, 64L, response);
 
         assertThat(shardChangesRequests.size(), equalTo(1));
@@ -288,7 +288,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
 
         shardChangesRequests.clear();
         task.markAsCompleted();
-        ShardChangesAction.Response response = generateShardChangesResponse(0, 32, 0L, 31L);
+        ShardChangesAction.Response response = generateShardChangesResponse(0, 31, 0L, 31L);
         task.innerHandleReadResponse(0L, 64L, response);
 
         assertThat(shardChangesRequests.size(), equalTo(0));
@@ -310,8 +310,8 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(shardChangesRequests.get(0)[1], equalTo(64L));
 
         shardChangesRequests.clear();
-        ShardChangesAction.Response response = generateShardChangesResponse(0, 0, 0L, 0L);
-        task.innerHandleReadResponse(0L, 64L, response);
+        task.innerHandleReadResponse(0L, 64L,
+            new ShardChangesAction.Response(0, 0, new Translog.Operation[0]));
 
         assertThat(shardChangesRequests.size(), equalTo(1));
         assertThat(shardChangesRequests.get(0)[0], equalTo(0L));
@@ -331,7 +331,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
             task.run();
         };
         ShardFollowNodeTask task = createShardFollowTask(64, 1, 1, Integer.MAX_VALUE, Long.MAX_VALUE);
-        startTask(task, 64, -1);
+        startTask(task, 63, -1);
 
         task.coordinateReads();
         assertThat(shardChangesRequests.size(), equalTo(1));
@@ -339,11 +339,11 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(shardChangesRequests.get(0)[1], equalTo(64L));
 
         shardChangesRequests.clear();
-        ShardChangesAction.Response response = generateShardChangesResponse(0, 65, 0L, 64L);
+        ShardChangesAction.Response response = generateShardChangesResponse(0, 63, 0L, 63L);
         // Also invokes coordinateReads()
-        task.innerHandleReadResponse(0L, 64L, response);
-        response = generateShardChangesResponse(0, 0, 0L, 64L);
-        task.innerHandleReadResponse(65L, 64L, response);
+        task.innerHandleReadResponse(0L, 63L, response);
+        task.innerHandleReadResponse(64L, 63L,
+            new ShardChangesAction.Response(0, 63L, new Translog.Operation[0]));
         assertThat(counter[0], equalTo(1));
     }
 
@@ -353,7 +353,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
 
         imdVersions.add(1L);
         task.coordinateReads();
-        ShardChangesAction.Response response = generateShardChangesResponse(0, 64, 1L, 63L);
+        ShardChangesAction.Response response = generateShardChangesResponse(0, 63, 1L, 63L);
         task.handleReadResponse(0L, 63L, response);
 
         assertThat(bulkShardOperationRequests.size(), equalTo(1));
@@ -378,7 +378,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         }
         imdVersions.add(1L);
         task.coordinateReads();
-        ShardChangesAction.Response response = generateShardChangesResponse(0, 64, 1L, 63L);
+        ShardChangesAction.Response response = generateShardChangesResponse(0, 63, 1L, 63L);
         task.handleReadResponse(0L, 63L, response);
 
         assertThat(mappingUpdateFailures.size(), equalTo(0));
@@ -446,7 +446,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(shardChangesRequests.get(0)[0], equalTo(0L));
         assertThat(shardChangesRequests.get(0)[1], equalTo(64L));
 
-        ShardChangesAction.Response response = generateShardChangesResponse(0, 64, 0L, 63L);
+        ShardChangesAction.Response response = generateShardChangesResponse(0, 63, 0L, 63L);
         // Also invokes coordinatesWrites()
         task.innerHandleReadResponse(0L, 63L, response);
 
@@ -507,7 +507,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
 
     public void testRetryableError() {
         ShardFollowNodeTask task = createShardFollowTask(64, 1, 1, Integer.MAX_VALUE, Long.MAX_VALUE);
-        startTask(task, 64, -1);
+        startTask(task, 63, -1);
 
         task.coordinateReads();
         assertThat(shardChangesRequests.size(), equalTo(1));
@@ -518,9 +518,9 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         for (int i = 0; i < max; i++) {
             writeFailures.add(new ShardNotFoundException(new ShardId("leader_index", "", 0)));
         }
-        ShardChangesAction.Response response = generateShardChangesResponse(0, 64, 0L, 64L);
+        ShardChangesAction.Response response = generateShardChangesResponse(0, 63, 0L, 63L);
         // Also invokes coordinatesWrites()
-        task.innerHandleReadResponse(0L, 64L, response);
+        task.innerHandleReadResponse(0L, 63L, response);
 
         // Number of requests is equal to initial request + retried attempts:
         assertThat(bulkShardOperationRequests.size(), equalTo(max + 1));
@@ -535,7 +535,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
 
     public void testRetryableErrorRetriedTooManyTimes() {
         ShardFollowNodeTask task = createShardFollowTask(64, 1, 1, Integer.MAX_VALUE, Long.MAX_VALUE);
-        startTask(task, 64, -1);
+        startTask(task, 63, -1);
 
         task.coordinateReads();
         assertThat(shardChangesRequests.size(), equalTo(1));
@@ -546,9 +546,9 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         for (int i = 0; i < max; i++) {
             writeFailures.add(new ShardNotFoundException(new ShardId("leader_index", "", 0)));
         }
-        ShardChangesAction.Response response = generateShardChangesResponse(0, 64, 0L, 64L);
+        ShardChangesAction.Response response = generateShardChangesResponse(0, 63, 0L, 643);
         // Also invokes coordinatesWrites()
-        task.innerHandleReadResponse(0L, 64L, response);
+        task.innerHandleReadResponse(0L, 63L, response);
 
         // Number of requests is equal to initial request + retried attempts:
         assertThat(bulkShardOperationRequests.size(), equalTo(11));
@@ -563,7 +563,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
 
     public void testNonRetryableError() {
         ShardFollowNodeTask task = createShardFollowTask(64, 1, 1, Integer.MAX_VALUE, Long.MAX_VALUE);
-        startTask(task, 64, -1);
+        startTask(task, 63, -1);
 
         task.coordinateReads();
         assertThat(shardChangesRequests.size(), equalTo(1));
@@ -571,9 +571,9 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(shardChangesRequests.get(0)[1], equalTo(64L));
 
         writeFailures.add(new RuntimeException());
-        ShardChangesAction.Response response = generateShardChangesResponse(0, 64, 0L, 64L);
+        ShardChangesAction.Response response = generateShardChangesResponse(0, 63, 0L, 63L);
         // Also invokes coordinatesWrites()
-        task.innerHandleReadResponse(0L, 64L, response);
+        task.innerHandleReadResponse(0L, 63L, response);
 
         assertThat(bulkShardOperationRequests.size(), equalTo(1));
         assertThat(bulkShardOperationRequests.get(0), equalTo(Arrays.asList(response.getOperations())));
@@ -592,7 +592,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(shardChangesRequests.get(0)[0], equalTo(0L));
         assertThat(shardChangesRequests.get(0)[1], equalTo(64L));
 
-        ShardChangesAction.Response response = generateShardChangesResponse(0, 64, 0L, 64L);
+        ShardChangesAction.Response response = generateShardChangesResponse(0, 63, 0L, 64L);
         // Also invokes coordinatesWrites()
         task.innerHandleReadResponse(0L, 64L, response);
 
@@ -610,7 +610,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
 
         shardChangesRequests.clear();
         followerGlobalCheckpoints.add(63L);
-        ShardChangesAction.Response response = generateShardChangesResponse(0, 64, 0L, 63L);
+        ShardChangesAction.Response response = generateShardChangesResponse(0, 63, 0L, 63L);
         // Also invokes coordinatesWrites()
         task.innerHandleReadResponse(0L, 63L, response);
 
@@ -702,10 +702,10 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         };
     }
 
-    private static ShardChangesAction.Response generateShardChangesResponse(long fromSeqNo, int size, long imdVersion,
+    private static ShardChangesAction.Response generateShardChangesResponse(long fromSeqNo, long toSeqNo, long imdVersion,
                                                                             long leaderGlobalCheckPoint) {
         List<Translog.Operation> ops = new ArrayList<>();
-        for (long seqNo = 0; seqNo < fromSeqNo + size; seqNo++) {
+        for (long seqNo = fromSeqNo; seqNo <= toSeqNo; seqNo++) {
             String id = UUIDs.randomBase64UUID();
             byte[] source = "{}".getBytes(StandardCharsets.UTF_8);
             ops.add(new Translog.Index("doc", id, seqNo, 0, source));

@@ -60,7 +60,11 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 // then delayed allocation will kick in. When the node comes back, the master will search for a copy
                 // but the recovering copy will be seen as invalid and the cluster health won't return to GREEN
                 // before timing out
-                .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms");
+                .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
+                // if this index can be allocated to any testing nodes, the rebalance allocation decider may relocate
+                // this index. if the relocation from 5.x to 6.x, we will have two different history_uuids because
+                // history_uuid is bootstrapped twice by two different 6.x nodes: a replica and a relocating primary.
+                .put("index.routing.allocation.include._name", "*node-0,*node-1");
             createIndex(index, settings.build());
         } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
             ensureGreen(index);

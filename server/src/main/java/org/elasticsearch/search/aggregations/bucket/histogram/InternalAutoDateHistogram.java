@@ -289,7 +289,7 @@ public final class InternalAutoDateHistogram extends
      * rounding returned across all the shards so the resolution of the buckets
      * is the same and they can be reduced together.
      */
-    private BucketReduceResult reduceBuckets(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public BucketReduceResult reduceBuckets(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
 
         // First we need to find the highest level rounding used across all the
         // shards

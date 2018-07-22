@@ -1220,13 +1220,13 @@ public class IndexShardTests extends IndexShardTestCase {
                 null, new InternalEngineFactory(), () -> {}, EMPTY_EVENT_LISTENER);
 
         recoverShardFromStore(shard);
-        boolean corruptIndexException = true;
 
-        if (randomBoolean()) {
+        final boolean corruptIndexException = randomBoolean();
+
+        if (corruptIndexException) {
             exceptionToThrow.set(() -> new CorruptIndexException("Test CorruptIndexException", "Test resource"));
             throwWhenMarkingStoreCorrupted.set(randomBoolean());
         } else {
-            corruptIndexException = false;
             exceptionToThrow.set(() -> new IOException("Test IOException"));
         }
         ElasticsearchException e = expectThrows(ElasticsearchException.class, shard::storeStats);

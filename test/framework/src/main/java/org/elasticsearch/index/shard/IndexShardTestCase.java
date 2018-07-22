@@ -172,7 +172,6 @@ public abstract class IndexShardTestCase extends ESTestCase {
         final DirectoryService directoryService = new DirectoryService(shardId, indexSettings) {
             @Override
             public Directory newDirectory() throws IOException {
-
                 return directory;
             }
         };
@@ -296,7 +295,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
 
     /**
      * creates a new initializing shard.
-     *  @param routing                       shard routing to use
+     * @param routing                       shard routing to use
      * @param shardPath                     path to use for shard data
      * @param indexMetaData                 indexMetaData for the shard, including any mapping
      * @param store                         an optional custom store to use. If null a default file based store will be created

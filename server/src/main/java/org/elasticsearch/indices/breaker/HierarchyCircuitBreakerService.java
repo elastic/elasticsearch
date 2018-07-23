@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 /**
  * CircuitBreakerService that attempts to redistribute space between breakers
@@ -201,7 +202,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         }
         // Manually add the parent breaker settings since they aren't part of the breaker map
         allStats.add(new CircuitBreakerStats(CircuitBreaker.PARENT, parentSettings.getLimit(),
-                        parentEstimated, 1.0, parentTripCount.get()));
+            parentEstimated, 1.0, parentTripCount.get()));
         return new AllCircuitBreakerStats(allStats.toArray(new CircuitBreakerStats[allStats.size()]));
     }
 
@@ -223,11 +224,20 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         long parentLimit = this.parentSettings.getLimit();
         if (totalUsed > parentLimit) {
             this.parentTripCount.incrementAndGet();
-            final String message = "[parent] Data too large, data for [" + label + "]" +
+            final StringBuilder message = new StringBuilder("[parent] Data too large, data for [" + label + "]" +
                     " would be [" + totalUsed + "/" + new ByteSizeValue(totalUsed) + "]" +
                     ", which is larger than the limit of [" +
-                    parentLimit + "/" + new ByteSizeValue(parentLimit) + "]";
-            throw new CircuitBreakingException(message, totalUsed, parentLimit);
+                    parentLimit + "/" + new ByteSizeValue(parentLimit) + "]");
+                message.append(", usages [");
+                message.append(String.join(", ",
+                    this.breakers.entrySet().stream().map(e -> {
+                        final CircuitBreaker breaker = e.getValue();
+                        final long breakerUsed = (long)(breaker.getUsed() * breaker.getOverhead());
+                        return e.getKey() + "=" + breakerUsed + "/" + new ByteSizeValue(breakerUsed);
+                    })
+                        .collect(Collectors.toList())));
+                message.append("]");
+            throw new CircuitBreakingException(message.toString(), totalUsed, parentLimit);
         }
     }
 

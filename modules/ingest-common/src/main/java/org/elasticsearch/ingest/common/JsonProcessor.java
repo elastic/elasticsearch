@@ -67,13 +67,11 @@ public final class JsonProcessor extends AbstractProcessor {
         return addToRoot;
     }
 
-    @Override
-    public void execute(IngestDocument document) throws Exception {
-        Object fieldValue = document.getFieldValue(field, Object.class);
-        BytesReference bytesRef = (fieldValue == null) ? new BytesArray("null") : new BytesArray(fieldValue.toString());
+    public static Object apply(Object fieldValue) {
+        BytesReference bytesRef = fieldValue == null ? new BytesArray("null") : new BytesArray(fieldValue.toString());
         try (InputStream stream = bytesRef.streamInput();
              XContentParser parser = JsonXContent.jsonXContent
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, stream)) {
+                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, stream)) {
             XContentParser.Token token = parser.nextToken();
             Object value = null;
             if (token == XContentParser.Token.VALUE_NULL) {
@@ -91,17 +89,29 @@ public final class JsonProcessor extends AbstractProcessor {
             } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
                 throw new IllegalArgumentException("cannot read binary value");
             }
-            if (addToRoot && (value instanceof Map)) {
-                for (Map.Entry<String, Object> entry : ((Map<String, Object>) value).entrySet()) {
-                    document.setFieldValue(entry.getKey(), entry.getValue());
-                }
-            } else if (addToRoot) {
-                throw new IllegalArgumentException("cannot add non-map fields to root of document");
-            } else {
-                document.setFieldValue(targetField, value);
-            }
+            return value;
         } catch (IOException e) {
             throw new IllegalArgumentException(e);
+        }
+    }
+
+    public static void apply(Map<String, Object> ctx, String fieldName) {
+        Object value = apply(ctx.get(fieldName));
+        if (value instanceof Map) {
+            @SuppressWarnings("unchecked")
+                Map<String, Object> map = (Map<String, Object>) value;
+                ctx.putAll(map);
+        } else {
+            throw new IllegalArgumentException("cannot add non-map fields to root of document");
+        }
+    }
+
+    @Override
+    public void execute(IngestDocument document) throws Exception {
+        if (addToRoot) {
+           apply(document.getSourceAndMetadata(), field);
+        } else {
+            document.setFieldValue(targetField, apply(document.getFieldValue(field, Object.class)));
         }
     }
 

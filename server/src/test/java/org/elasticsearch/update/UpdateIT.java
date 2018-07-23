@@ -141,8 +141,7 @@ public class UpdateIT extends ESIntegTestCase {
 
     private void createTestIndex() throws Exception {
         logger.info("--> creating index test");
-
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias").writeIndex(randomFrom(true, null))));
     }
 
     public void testUpsert() throws Exception {

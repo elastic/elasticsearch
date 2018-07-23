@@ -219,39 +219,39 @@ subprojects {
     them as external dependencies so the build plugin that we use can be used
     to build elasticsearch plugins outside of the elasticsearch source tree. */
   ext.projectSubstitutions = [
-          "org.elasticsearch.gradle:build-tools:${version}"                         : ':build-tools',
-          "org.elasticsearch:rest-api-spec:${version}"                              : ':rest-api-spec',
-          "org.elasticsearch:elasticsearch:${version}"                              : ':server',
-          "org.elasticsearch:elasticsearch-cli:${version}"                          : ':libs:elasticsearch-cli',
-          "org.elasticsearch:elasticsearch-core:${version}"                         : ':libs:core',
-          "org.elasticsearch:elasticsearch-nio:${version}"                          : ':libs:nio',
-          "org.elasticsearch:elasticsearch-x-content:${version}"                    : ':libs:x-content',
-          "org.elasticsearch:elasticsearch-secure-sm:${version}"                    : ':libs:secure-sm',
-          "org.elasticsearch.client:elasticsearch-rest-client:${version}"           : ':client:rest',
-          "org.elasticsearch.client:elasticsearch-rest-client-sniffer:${version}"   : ':client:sniffer',
-          "org.elasticsearch.client:elasticsearch-rest-high-level-client:${version}": ':client:rest-high-level',
-          "org.elasticsearch.client:test:${version}"                                : ':client:test',
-          "org.elasticsearch.client:transport:${version}"                           : ':client:transport',
-          "org.elasticsearch.test:framework:${version}"                             : ':test:framework',
-          "org.elasticsearch.distribution.integ-test-zip:elasticsearch:${version}"  : ':distribution:archives:integ-test-zip',
-          "org.elasticsearch.distribution.zip:elasticsearch:${version}"             : ':distribution:archives:zip',
-          "org.elasticsearch.distribution.zip:elasticsearch-oss:${version}"         : ':distribution:archives:oss-zip',
-          "org.elasticsearch.distribution.tar:elasticsearch:${version}"             : ':distribution:archives:tar',
-          "org.elasticsearch.distribution.tar:elasticsearch-oss:${version}"         : ':distribution:archives:oss-tar',
-          "org.elasticsearch.distribution.rpm:elasticsearch:${version}"             : ':distribution:packages:rpm',
-          "org.elasticsearch.distribution.rpm:elasticsearch-oss:${version}"         : ':distribution:packages:oss-rpm',
-          "org.elasticsearch.distribution.deb:elasticsearch:${version}"             : ':distribution:packages:deb',
-          "org.elasticsearch.distribution.deb:elasticsearch-oss:${version}"         : ':distribution:packages:oss-deb',
-          "org.elasticsearch.test:logger-usage:${version}"                          : ':test:logger-usage',
-          "org.elasticsearch.xpack.test:feature-aware:${version}"                   : ':x-pack:test:feature-aware',
-          // for transport client
-          "org.elasticsearch.plugin:transport-netty4-client:${version}"             : ':modules:transport-netty4',
-          "org.elasticsearch.plugin:reindex-client:${version}"                      : ':modules:reindex',
-          "org.elasticsearch.plugin:lang-mustache-client:${version}"                : ':modules:lang-mustache',
-          "org.elasticsearch.plugin:parent-join-client:${version}"                  : ':modules:parent-join',
-          "org.elasticsearch.plugin:aggs-matrix-stats-client:${version}"            : ':modules:aggs-matrix-stats',
-          "org.elasticsearch.plugin:percolator-client:${version}"                   : ':modules:percolator',
-          "org.elasticsearch.plugin:rank-eval-client:${version}"                    : ':modules:rank-eval',
+    "org.elasticsearch.gradle:build-tools:${version}": ':build-tools',
+    "org.elasticsearch:rest-api-spec:${version}": ':rest-api-spec',
+    "org.elasticsearch:elasticsearch:${version}": ':server',
+    "org.elasticsearch:elasticsearch-cli:${version}": ':libs:elasticsearch-cli',
+    "org.elasticsearch:elasticsearch-core:${version}": ':libs:core',
+    "org.elasticsearch:elasticsearch-nio:${version}": ':libs:nio',
+    "org.elasticsearch:elasticsearch-x-content:${version}": ':libs:x-content',
+    "org.elasticsearch:elasticsearch-secure-sm:${version}": ':libs:secure-sm',
+    "org.elasticsearch.client:elasticsearch-rest-client:${version}": ':client:rest',
+    "org.elasticsearch.client:elasticsearch-rest-client-sniffer:${version}": ':client:sniffer',
+    "org.elasticsearch.client:elasticsearch-rest-high-level-client:${version}": ':client:rest-high-level',
+    "org.elasticsearch.client:test:${version}": ':client:test',
+    "org.elasticsearch.client:transport:${version}": ':client:transport',
+    "org.elasticsearch.test:framework:${version}": ':test:framework',
+    "org.elasticsearch.distribution.integ-test-zip:elasticsearch:${version}": ':distribution:archives:integ-test-zip',
+    "org.elasticsearch.distribution.zip:elasticsearch:${version}": ':distribution:archives:zip',
+    "org.elasticsearch.distribution.zip:elasticsearch-oss:${version}": ':distribution:archives:oss-zip',
+    "org.elasticsearch.distribution.tar:elasticsearch:${version}": ':distribution:archives:tar',
+    "org.elasticsearch.distribution.tar:elasticsearch-oss:${version}": ':distribution:archives:oss-tar',
+    "org.elasticsearch.distribution.rpm:elasticsearch:${version}": ':distribution:packages:rpm',
+    "org.elasticsearch.distribution.rpm:elasticsearch-oss:${version}": ':distribution:packages:oss-rpm',
+    "org.elasticsearch.distribution.deb:elasticsearch:${version}": ':distribution:packages:deb',
+    "org.elasticsearch.distribution.deb:elasticsearch-oss:${version}": ':distribution:packages:oss-deb',
+    "org.elasticsearch.test:logger-usage:${version}": ':test:logger-usage',
+    "org.elasticsearch.xpack.test:feature-aware:${version}": ':x-pack:test:feature-aware',
+    // for transport client
+    "org.elasticsearch.plugin:transport-netty4-client:${version}": ':modules:transport-netty4',
+    "org.elasticsearch.plugin:reindex-client:${version}": ':modules:reindex',
+    "org.elasticsearch.plugin:lang-mustache-client:${version}": ':modules:lang-mustache',
+    "org.elasticsearch.plugin:parent-join-client:${version}": ':modules:parent-join',
+    "org.elasticsearch.plugin:aggs-matrix-stats-client:${version}": ':modules:aggs-matrix-stats',
+    "org.elasticsearch.plugin:percolator-client:${version}": ':modules:percolator',
+    "org.elasticsearch.plugin:rank-eval-client:${version}": ':modules:rank-eval',
   ]
 
   bwcVersions.snapshotProjectNames.each { snapshotName ->
@@ -339,18 +339,18 @@ subprojects {
       }
       boolean hasShadow = project.plugins.hasPlugin(ShadowPlugin)
       project.configurations.compile.dependencies
-              .findAll()
-              .toSorted(sortClosure)
-              .each({ c -> depJavadocClosure(hasShadow, c) })
+          .findAll()
+          .toSorted(sortClosure)
+          .each({ c -> depJavadocClosure(hasShadow, c) })
       project.configurations.compileOnly.dependencies
-              .findAll()
-              .toSorted(sortClosure)
-              .each({ c -> depJavadocClosure(hasShadow, c) })
+          .findAll()
+          .toSorted(sortClosure)
+          .each({ c -> depJavadocClosure(hasShadow, c) })
       if (hasShadow) {
         project.configurations.shadow.dependencies
-                .findAll()
-                .toSorted(sortClosure)
-                .each({ c -> depJavadocClosure(false, c) })
+            .findAll()
+            .toSorted(sortClosure)
+            .each({ c -> depJavadocClosure(false, c) })
       }
     }
   }
@@ -574,7 +574,7 @@ subprojects { project ->
       commandLine "${->new File(rootProject.compilerJavaHome, 'bin/jar')}",
           'xf', "${-> jarTask.outputs.files.singleFile}", 'META-INF/LICENSE.txt', 'META-INF/NOTICE.txt'
       workingDir destination
-      onlyIf { jarTask.enabled }
+      onlyIf {jarTask.enabled}
       doFirst {
         project.delete(destination)
         Files.createDirectories(destination)
@@ -583,7 +583,7 @@ subprojects { project ->
 
     final Task checkNotice = project.task("verify${jarTask.name.capitalize()}Notice") {
       dependsOn extract
-      onlyIf { jarTask.enabled }
+      onlyIf {jarTask.enabled}
       doLast {
         final List<String> noticeLines = Files.readAllLines(project.noticeFile.toPath())
         final Path noticePath = extract.destination.resolve('META-INF/NOTICE.txt')
@@ -594,7 +594,7 @@ subprojects { project ->
 
     final Task checkLicense = project.task("verify${jarTask.name.capitalize()}License") {
       dependsOn extract
-      onlyIf { jarTask.enabled }
+      onlyIf {jarTask.enabled}
       doLast {
         final List<String> licenseLines = Files.readAllLines(project.licenseFile.toPath())
         final Path licensePath = extract.destination.resolve('META-INF/LICENSE.txt')

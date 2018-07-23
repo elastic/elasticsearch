@@ -112,6 +112,8 @@ File nodeCert = file("$keystoreDir/testnode.crt")
 // Add key and certs to test classpath: it expects them there
 // User cert and key PEM files instead of a JKS Keystore for the cluster's trust material so that
 // it can run in a FIPS 140 JVM
+// TODO: Remove all existing uses of cross project file references when the new approach for referencing static files is available
+// https://github.com/elastic/elasticsearch/pull/32201
 task copyKeyCerts(type: Copy) {
   from(project(':x-pack:plugin:core').file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/')) {
     include 'testnode.crt', 'testnode.pem'

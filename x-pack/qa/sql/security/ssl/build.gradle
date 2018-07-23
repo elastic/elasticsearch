@@ -278,7 +278,7 @@ class SanEvaluator {
       InetAddress address = list.get(i);
       String hostAddress;
       if (address instanceof Inet6Address) {
-        hostAddress = compressedIPV6Address((Inet6Address) address);
+        hostAddress = compressedIPV6Address((Inet6Address)address);
       } else {
         hostAddress = address.getHostAddress();
       }
@@ -349,9 +349,9 @@ class SanEvaluator {
   private static String hextetsToIPv6String(int[] hextets) {
     /*
      * While scanning the array, handle these state transitions:
-     *   start->num => "num"   start->gap => "::"
-     *   num->num   => ":num"  num->gap   => "::"
-     *   gap->num   => "num"   gap->gap   => ""
+     *   start->num => "num"     start->gap => "::"
+     *   num->num   => ":num"    num->gap   => "::"
+     *   gap->num   => "num"     gap->gap   => ""
      */
     StringBuilder buf = new StringBuilder(39);
     boolean lastWasNumber = false;

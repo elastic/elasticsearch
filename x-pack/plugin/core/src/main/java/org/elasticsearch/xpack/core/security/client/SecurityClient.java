@@ -100,7 +100,6 @@ public class SecurityClient {
      * Clears the realm caches. It's possible to clear all user entries from all realms in the cluster or alternatively
      * select the realms (by their unique names) and/or users (by their usernames) that should be evicted.
      */
-    @SuppressWarnings("unchecked")
     public ClearRealmCacheRequestBuilder prepareClearRealmCache() {
         return new ClearRealmCacheRequestBuilder(client);
     }
@@ -109,7 +108,6 @@ public class SecurityClient {
      * Clears the realm caches. It's possible to clear all user entries from all realms in the cluster or alternatively
      * select the realms (by their unique names) and/or users (by their usernames) that should be evicted.
      */
-    @SuppressWarnings("unchecked")
     public void clearRealmCache(ClearRealmCacheRequest request, ActionListener<ClearRealmCacheResponse> listener) {
         client.execute(ClearRealmCacheAction.INSTANCE, request, listener);
     }
@@ -118,7 +116,6 @@ public class SecurityClient {
      * Clears the realm caches. It's possible to clear all user entries from all realms in the cluster or alternatively
      * select the realms (by their unique names) and/or users (by their usernames) that should be evicted.
      */
-    @SuppressWarnings("unchecked")
     public ActionFuture<ClearRealmCacheResponse> clearRealmCache(ClearRealmCacheRequest request) {
         return client.execute(ClearRealmCacheAction.INSTANCE, request);
     }

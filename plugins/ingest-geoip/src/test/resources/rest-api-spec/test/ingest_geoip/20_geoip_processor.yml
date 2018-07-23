@@ -30,11 +30,12 @@
         type: test
         id: 1
   - match: { _source.field1: "128.101.101.101" }
-  - length: { _source.geoip: 5 }
+  - length: { _source.geoip: 6 }
   - match: { _source.geoip.city_name: "Minneapolis" }
   - match: { _source.geoip.country_iso_code: "US" }
   - match: { _source.geoip.location.lon: -93.2166 }
   - match: { _source.geoip.location.lat: 44.9759 }
+  - match: { _source.geoip.region_iso_code: "US-MN" }
   - match: { _source.geoip.region_name: "Minnesota" }
   - match: { _source.geoip.continent_name: "North America" }
 
@@ -54,7 +55,7 @@
               {
                 "geoip" : {
                   "field" : "field1",
-                  "properties" : ["city_name", "country_iso_code", "ip", "location", "timezone", "country_name", "region_name", "continent_name"]
+                  "properties" : ["city_name", "country_iso_code", "ip", "location", "timezone", "country_name", "region_iso_code", "region_name", "continent_name"]
                 }
               }
             ]
@@ -75,7 +76,7 @@
         type: test
         id: 1
   - match: { _source.field1: "128.101.101.101" }
-  - length: { _source.geoip: 8 }
+  - length: { _source.geoip: 9 }
   - match: { _source.geoip.city_name: "Minneapolis" }
   - match: { _source.geoip.country_iso_code: "US" }
   - match: { _source.geoip.ip: "128.101.101.101" }
@@ -83,6 +84,7 @@
   - match: { _source.geoip.location.lat: 44.9759 }
   - match: { _source.geoip.timezone: "America/Chicago" }
   - match: { _source.geoip.country_name: "United States" }
+  - match: { _source.geoip.region_iso_code: "US-MN" }
   - match: { _source.geoip.region_name: "Minnesota" }
   - match: { _source.geoip.continent_name: "North America" }
 
@@ -188,11 +190,12 @@
         type: test
         id: 2
   - match: { _source.field1: "128.101.101.101" }
-  - length: { _source.geoip: 5 }
+  - length: { _source.geoip: 6 }
   - match: { _source.geoip.city_name: "Minneapolis" }
   - match: { _source.geoip.country_iso_code: "US" }
   - match: { _source.geoip.location.lon: -93.2166 }
   - match: { _source.geoip.location.lat: 44.9759 }
+  - match: { _source.geoip.region_iso_code: "US-MN" }
   - match: { _source.geoip.region_name: "Minnesota" }
   - match: { _source.geoip.continent_name: "North America" }
 

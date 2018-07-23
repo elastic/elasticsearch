@@ -144,7 +144,7 @@ public class PluginBuildPlugin extends BuildPlugin {
             /*
              * We bundle the plugin's jar file and its dependencies. We have
              * to wait until the project is evaluated before we know if the
-             * plug *has* the shadow plugin. If it does we need the shadow
+             * project *has* the shadow plugin. If it does we need the shadow
              * jar and the deps in the shadow configuration because those are
              * the jars that are not bundled into the plugin's jar. Otherwise
              * we're fine with the jar an all of the non-provided runtime

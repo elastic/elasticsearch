@@ -262,7 +262,6 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
         });
     }
 
-    @SuppressWarnings("unchecked")
     private void executeTestCase(Query query, AggregationBuilder aggBuilder, Consumer<InternalAggregation> verify) throws IOException {
         executeTestCase(query, aggBuilder, verify, indexWriter -> {
             Document document = new Document();
@@ -282,7 +281,6 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
         });
     }
 
-    @SuppressWarnings("unchecked")
     private void executeTestCase(Query query, AggregationBuilder aggBuilder, Consumer<InternalAggregation> verify,
                                  CheckedConsumer<RandomIndexWriter, IOException> setup) throws IOException {
 

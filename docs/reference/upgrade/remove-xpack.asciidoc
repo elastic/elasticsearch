@@ -1,0 +1,4 @@
+IMPORTANT: If you use {xpack} and are upgrading from a version prior to 6.3,
+remove {xpack} before restarting: `bin/elasticsearch-plugin remove x-pack`. As
+of 6.3, {xpack} is included in the default distribution. The node will fail to
+start if the old {xpack} plugin is present.

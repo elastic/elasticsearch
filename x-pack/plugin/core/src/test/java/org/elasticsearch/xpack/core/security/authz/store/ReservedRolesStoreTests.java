@@ -299,8 +299,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         Arrays.asList(".kibana", ".kibana-devnull").forEach((index) -> {
             logger.info("index name [{}]", index);
-            assertThat(kibanaUserRole.indices().allowedIndicesMatcher("indices:foo").test(index), is(true));
-            assertThat(kibanaUserRole.indices().allowedIndicesMatcher("indices:bar").test(index), is(true));
+            assertThat(kibanaUserRole.indices().allowedIndicesMatcher("indices:foo").test(index), is(false));
+            assertThat(kibanaUserRole.indices().allowedIndicesMatcher("indices:bar").test(index), is(false));
 
             assertThat(kibanaUserRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(index), is(true));
             assertThat(kibanaUserRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(index), is(true));

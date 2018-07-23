@@ -32,8 +32,8 @@ import org.elasticsearch.ingest.IngestDocument;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class SimulateProcessorResult implements Writeable, ToXContentObject {
 
@@ -42,7 +42,6 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
     private final WriteableIngestDocument ingestDocument;
     private final Exception failure;
 
-    @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<ElasticsearchException, Void> IGNORED_ERROR_PARSER =
         new ConstructingObjectParser<>(
             "ignored_error_parser",
@@ -57,7 +56,6 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
         );
     }
 
-    @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<SimulateProcessorResult, Void> PARSER =
         new ConstructingObjectParser<>(
             "simulate_processor_result",

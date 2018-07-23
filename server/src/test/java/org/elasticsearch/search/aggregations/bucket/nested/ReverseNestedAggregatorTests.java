@@ -170,6 +170,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
 
     public void testFieldAlias() throws IOException {
         int numParentDocs = randomIntBetween(1, 20);
+        int expectedParentDocs = 0;
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(
             NumberFieldMapper.NumberType.LONG);
@@ -180,6 +181,10 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                 for (int i = 0; i < numParentDocs; i++) {
                     List<Document> documents = new ArrayList<>();
                     int numNestedDocs = randomIntBetween(0, 20);
+                    if (numNestedDocs > 0) {
+                        expectedParentDocs++;
+                    }
+
                     for (int nested = 0; nested < numNestedDocs; nested++) {
                         Document document = new Document();
                         document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)),
@@ -204,7 +209,6 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
             }
 
             try (IndexReader indexReader = wrap(DirectoryReader.open(directory))) {
-
                 MaxAggregationBuilder maxAgg = max(MAX_AGG_NAME).field(VALUE_FIELD_NAME);
                 MaxAggregationBuilder aliasMaxAgg = max(MAX_AGG_NAME).field(VALUE_FIELD_NAME + "-alias");
 
@@ -221,8 +225,8 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                 ReverseNested reverseNested = nested.getAggregations().get(REVERSE_AGG_NAME);
                 ReverseNested aliasReverseNested = aliasNested.getAggregations().get(REVERSE_AGG_NAME);
 
-                assertTrue(reverseNested.getDocCount() > 0);
                 assertEquals(reverseNested, aliasReverseNested);
+                assertEquals(expectedParentDocs, reverseNested.getDocCount());
             }
         }
     }

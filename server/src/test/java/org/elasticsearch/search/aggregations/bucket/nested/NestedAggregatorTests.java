@@ -659,6 +659,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
 
     public void testFieldAlias() throws IOException {
         int numRootDocs = randomIntBetween(1, 20);
+        int expectedNestedDocs = 0;
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(
             NumberFieldMapper.NumberType.LONG);
@@ -669,6 +670,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 for (int i = 0; i < numRootDocs; i++) {
                     List<Document> documents = new ArrayList<>();
                     int numNestedDocs = randomIntBetween(0, 20);
+                    expectedNestedDocs += numNestedDocs;
                     generateDocuments(documents, numNestedDocs, i, NESTED_OBJECT, VALUE_FIELD_NAME);
 
                     Document document = new Document();
@@ -685,7 +687,6 @@ public class NestedAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = wrap(DirectoryReader.open(directory))) {
                 NestedAggregationBuilder agg = nested(NESTED_AGG, NESTED_OBJECT).subAggregation(
                     max(MAX_AGG_NAME).field(VALUE_FIELD_NAME));
-
                 NestedAggregationBuilder aliasAgg = nested(NESTED_AGG, NESTED_OBJECT).subAggregation(
                     max(MAX_AGG_NAME).field(VALUE_FIELD_NAME + "-alias"));
 
@@ -694,8 +695,8 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 Nested aliasNested = search(newSearcher(indexReader, false, true),
                     new MatchAllDocsQuery(), aliasAgg, fieldType);
 
-                assertTrue(nested.getDocCount() > 0);
                 assertEquals(nested, aliasNested);
+                assertEquals(expectedNestedDocs, nested.getDocCount());
             }
         }
     }

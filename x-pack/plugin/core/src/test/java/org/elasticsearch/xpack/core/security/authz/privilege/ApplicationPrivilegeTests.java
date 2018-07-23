@@ -86,6 +86,20 @@ public class ApplicationPrivilegeTests extends ESTestCase {
         }
     }
 
+    public void testNonePrivilege() {
+        final ApplicationPrivilege none = ApplicationPrivilege.NONE.apply("super-mega-app");
+        CharacterRunAutomaton run = new CharacterRunAutomaton(none.getAutomaton());
+        for (int i = randomIntBetween(5, 10); i > 0; i--) {
+            final String action;
+            if (randomBoolean()) {
+                action = randomAlphaOfLengthBetween(3, 12);
+            } else {
+                action = randomAlphaOfLengthBetween(3, 6) + randomFrom(":", "/") + randomAlphaOfLengthBetween(3, 8);
+            }
+            assertFalse("NONE should not grant " + action, run.run(action));
+        }
+    }
+
     public void testGetPrivilegeByName() {
         final ApplicationPrivilegeDescriptor descriptor = descriptor("my-app", "read", "data:read/*", "action:login");
         final ApplicationPrivilegeDescriptor myWrite = descriptor("my-app", "write", "data:write/*", "action:login");

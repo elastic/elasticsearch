@@ -20,7 +20,7 @@ import java.util.stream.Collectors;
 
 /**
  * An application privilege has an application name (e.g. {@code "my-app"}) that identifies an application (that exists
- * outside of elasticsearch), a privilege name (e.g. {@code "admin}) that is meaningful to that application, and zero or
+ * outside of elasticsearch), a privilege name (e.g. {@code "admin}) that is meaningful to that application, and one or
  * more "action patterns" (e.g {@code "admin/user/*", "admin/team/*"}).
  * Action patterns must contain at least one special character from ({@code /}, {@code :}, {@code *}) to distinguish them
  * from privilege names.

@@ -87,15 +87,48 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         }
         RoundingInfo roundingInfo = roundingInfos[roundingIdx];
 
-        Map<Long, Long> expectedCounts = new TreeMap<>();
+        long lowest = Long.MAX_VALUE;
+        long highest = 0;
         for (InternalAutoDateHistogram histogram : inputs) {
             for (Histogram.Bucket bucket : histogram.getBuckets()) {
                 long bucketKey = ((DateTime) bucket.getKey()).getMillis();
-                long count = bucket.getDocCount();
-                expectedCounts.compute(roundingInfo.rounding.round(bucketKey),
-                        (key, oldValue) -> (oldValue == null ? 0 : oldValue) + count);
+                if (bucketKey < lowest) {
+                    lowest = bucketKey;
+                }
+                if (bucketKey > highest) {
+                    highest = bucketKey;
+                }
             }
         }
+        long normalizedDuration = (highest - lowest) / roundingInfo.getRoughEstimateDurationMillis();
+        long innerIntervalToUse = 0;
+        for (int interval : roundingInfo.innerIntervals) {
+            if (normalizedDuration / interval < maxNumberOfBuckets()) {
+                innerIntervalToUse = interval;
+            }
+        }
+        Map<Long, Long> expectedCounts = new TreeMap<>();
+        long intervalInMillis = innerIntervalToUse*roundingInfo.getRoughEstimateDurationMillis();
+        for (long keyForBucket = roundingInfo.rounding.round(lowest);
+             keyForBucket <= highest;
+             keyForBucket = keyForBucket + intervalInMillis) {
+            expectedCounts.put(keyForBucket, 0L);
+
+            for (InternalAutoDateHistogram histogram : inputs) {
+                for (Histogram.Bucket bucket : histogram.getBuckets()) {
+                    long bucketKey = ((DateTime) bucket.getKey()).getMillis();
+                    long roundedBucketKey = roundingInfo.rounding.round(bucketKey);
+                    if (roundedBucketKey >= keyForBucket
+                        && roundedBucketKey < keyForBucket + intervalInMillis) {
+                        long count = bucket.getDocCount();
+                        expectedCounts.compute(keyForBucket,
+                            (key, oldValue) -> (oldValue == null ? 0 : oldValue) + count);
+                    }
+                }
+            }
+        }
+
+
         Map<Long, Long> actualCounts = new TreeMap<>();
         for (Histogram.Bucket bucket : reduced.getBuckets()) {
             actualCounts.compute(((DateTime) bucket.getKey()).getMillis(),

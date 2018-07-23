@@ -181,17 +181,17 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
-            if (hasDocValues()) {
+            if (context.getIndexSettings().isSingleType() == false) {
                 return new TermRangeQuery(name(), lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
                         upperTerm == null ? null : indexedValueForSearch(upperTerm), includeLower, includeUpper);
             } else {
                 // this means the index has a single type and the type field is implicit
                 DEPRECATION_LOGGER.deprecatedAndMaybeLog("range_single_type",
                         "Running [range] query on [_type] field for an index with a single type. As types are deprecated, this functionality will be removed in future releases.");
-                Query result = new MatchAllDocsQuery();
                 Collection<String> types = context.getMapperService().types();
                 String type = types.iterator().hasNext() ? types.iterator().next() : null;
                 if (type != null) {
+                    Query result = new MatchAllDocsQuery();
                     BytesRef typeBytes = new BytesRef(type);
                     if (lowerTerm != null) {
                         int comp = indexedValueForSearch(lowerTerm).compareTo(typeBytes);
@@ -205,8 +205,10 @@ public class TypeFieldMapper extends MetadataFieldMapper {
                             result = new MatchNoDocsQuery("[_type] was lexicographically greater than upper bound of range");
                         }
                     }
+                    return result;
+                } else {
+                    return new MatchNoDocsQuery();
                 }
-                return result;
             }
         }
     }

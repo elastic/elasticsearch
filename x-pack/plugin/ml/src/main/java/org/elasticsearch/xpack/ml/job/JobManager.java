@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
+import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
@@ -50,6 +51,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeSta
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.process.autodetect.UpdateParams;
@@ -171,13 +173,29 @@ public class JobManager extends AbstractComponent {
     }
 
     /**
+     * Validate the char filter/tokenizer/token filter names used in the categorization analyzer config (if any).
+     * This validation has to be done server-side; it cannot be done in a client as that won't have loaded the
+     * appropriate analysis modules/plugins.
+     * The overall structure can be validated at parse time, but the exact names need to be checked separately,
+     * as plugins that provide the functionality can be installed/uninstalled.
+     */
+    static void validateCategorizationAnalyzer(Job.Builder jobBuilder, AnalysisRegistry analysisRegistry, Environment environment)
+        throws IOException {
+        CategorizationAnalyzerConfig categorizationAnalyzerConfig = jobBuilder.getAnalysisConfig().getCategorizationAnalyzerConfig();
+        if (categorizationAnalyzerConfig != null) {
+            CategorizationAnalyzer.verifyConfigBuilder(new CategorizationAnalyzerConfig.Builder(categorizationAnalyzerConfig),
+                analysisRegistry, environment);
+        }
+    }
+
+    /**
      * Stores a job in the cluster state
      */
     public void putJob(PutJobAction.Request request, AnalysisRegistry analysisRegistry, ClusterState state,
                        ActionListener<PutJobAction.Response> actionListener) throws IOException {
 
         request.getJobBuilder().validateAnalysisLimitsAndSetDefaults(maxModelMemoryLimit);
-        request.getJobBuilder().validateCategorizationAnalyzer(analysisRegistry, environment);
+        validateCategorizationAnalyzer(request.getJobBuilder(), analysisRegistry, environment);
 
         Job job = request.getJobBuilder().build(new Date());
 

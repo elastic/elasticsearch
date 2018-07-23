@@ -26,7 +26,7 @@ import java.util.Map;
 
 public class InitializerTests extends ScriptTestCase {
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    @SuppressWarnings({"rawtypes"})
     public void testArrayInitializers() {
         int[] ints = (int[])exec("new int[] {}");
 
@@ -59,7 +59,7 @@ public class InitializerTests extends ScriptTestCase {
         assertEquals("aaaaaa", objects[3]);
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    @SuppressWarnings({"rawtypes"})
     public void testListInitializers() {
         List list = (List)exec("[]");
 
@@ -91,7 +91,7 @@ public class InitializerTests extends ScriptTestCase {
         assertEquals("aaaaaa", list.get(3));
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    @SuppressWarnings({"rawtypes"})
     public void testMapInitializers() {
         Map map = (Map)exec("[:]");
 

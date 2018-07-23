@@ -152,7 +152,6 @@ class BuildPlugin implements Plugin<Project> {
                 println "  JAVA_HOME             : ${gradleJavaHome}"
             }
             println "  Random Testing Seed   : ${project.testSeed}"
-            println "  in FIPS MODE          : ${inFipsJvm}"
 
             // enforce Gradle version
             final GradleVersion currentGradleVersion = GradleVersion.current();

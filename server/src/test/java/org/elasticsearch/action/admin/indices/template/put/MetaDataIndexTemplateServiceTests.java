@@ -69,7 +69,7 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 containsString("Failed to parse value [0] for setting [index.number_of_shards] must be >= 1"));
         assertThat(throwables.get(0).getMessage(),
                 containsString("unknown value for [index.shard.check_on_startup] " +
-                                "must be one of [true, false, fix, checksum] but was: blargh"));
+                                "must be one of [true, false, checksum] but was: blargh"));
     }
 
     public void testIndexTemplateValidationAccumulatesValidationErrors() {

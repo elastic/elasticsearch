@@ -134,7 +134,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     static final int VERSION_STACK_TRACE = 1; // we write the stack trace too since 1.4.0
     static final int VERSION_START = 0;
     static final int VERSION = VERSION_WRITE_THROWABLE;
-    static final String CORRUPTED = "corrupted_";
+    // public is for test purposes
+    public static final String CORRUPTED = "corrupted_";
     public static final Setting<TimeValue> INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING =
         Setting.timeSetting("index.store.stats_refresh_interval", TimeValue.timeValueSeconds(10), Property.IndexScope);
 
@@ -355,18 +356,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         try (CheckIndex checkIndex = new CheckIndex(directory)) {
             checkIndex.setInfoStream(out);
             return checkIndex.checkIndex();
-        } finally {
-            metadataLock.writeLock().unlock();
-        }
-    }
-
-    /**
-     * Repairs the index using the previous returned status from {@link #checkIndex(PrintStream)}.
-     */
-    public void exorciseIndex(CheckIndex.Status status) throws IOException {
-        metadataLock.writeLock().lock();
-        try (CheckIndex checkIndex = new CheckIndex(directory)) {
-            checkIndex.exorciseIndex(status);
         } finally {
             metadataLock.writeLock().unlock();
         }

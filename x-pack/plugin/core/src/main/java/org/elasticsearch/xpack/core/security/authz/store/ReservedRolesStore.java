@@ -51,7 +51,8 @@ public class ReservedRolesStore {
                             .build() }, new RoleDescriptor.ApplicationResourcePrivileges[] {
                         RoleDescriptor.ApplicationResourcePrivileges.builder()
                             .application("kibana-.kibana").resources("*").privileges("all").build() },
-                        null, MetadataUtils.DEFAULT_RESERVED_METADATA, null))
+                        null, null,
+                        MetadataUtils.DEFAULT_RESERVED_METADATA, null))
                 .put("monitoring_user", new RoleDescriptor("monitoring_user",
                         new String[] { "cluster:monitor/main" },
                         new RoleDescriptor.IndicesPrivileges[] {
@@ -84,7 +85,7 @@ public class ReservedRolesStore {
                         new RoleDescriptor.ApplicationResourcePrivileges[] {
                             RoleDescriptor.ApplicationResourcePrivileges.builder()
                             .application("kibana-.kibana").resources("*").privileges("read").build() },
-                        null,
+                        null, null,
                         MetadataUtils.DEFAULT_RESERVED_METADATA,
                         null))
                 .put(KibanaUser.ROLE_NAME, new RoleDescriptor(KibanaUser.ROLE_NAME,

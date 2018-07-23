@@ -26,14 +26,20 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 public class PutLicenseResponseTests extends AbstractStreamableXContentTestCase<PutLicenseResponse> {
 
     @Override
     protected boolean supportsUnknownFields() {
-        // The structure of the response is such that unknown fields cannot be supported since they are treated as messages from
-        // new services
-        return false;
+        return true;
+    }
+
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        // The structure of the response is such that unknown fields inside acknowledge cannot be supported since they
+        // are treated as messages from new services
+        return p -> p.startsWith("acknowledge");
     }
 
     @Override

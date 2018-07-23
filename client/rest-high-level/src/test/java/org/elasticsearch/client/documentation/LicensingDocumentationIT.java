@@ -58,7 +58,7 @@ public class LicensingDocumentationIT extends ESRestHighLevelClientTestCase {
             //tag::put-license-execute
             PutLicenseRequest request = new PutLicenseRequest();
             request.setLicenseDefinition(license);  // <1>
-            request.setAcknowledge(false);           // <2>
+            request.setAcknowledge(false);          // <2>
 
             PutLicenseResponse response = client.xpack().license().putLicense(request, RequestOptions.DEFAULT);
             //end::put-license-execute

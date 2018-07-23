@@ -39,7 +39,8 @@ import java.util.Objects;
 public class IncidentEvent implements ToXContentObject {
 
     static final String HOST = "events.pagerduty.com";
-    static final String PATH = "/generic/2010-04-15/create_event.json";
+    static final String PATH = "/v2/enqueue";
+    static final String ACCEPT_HEADER = "application/vnd.pagerduty+json;version=2";
 
     final String description;
     @Nullable final HttpProxy proxy;
@@ -99,38 +100,83 @@ public class IncidentEvent implements ToXContentObject {
                 .scheme(Scheme.HTTPS)
                 .path(PATH)
                 .proxy(proxy)
+                .setHeader("Accept", ACCEPT_HEADER)
                 .jsonBody(new ToXContent() {
                     @Override
                     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                        builder.field(Fields.SERVICE_KEY.getPreferredName(), serviceKey);
-                        builder.field(Fields.EVENT_TYPE.getPreferredName(), eventType);
-                        builder.field(Fields.DESCRIPTION.getPreferredName(), description);
+                        builder.field("routing_key", serviceKey);
+                        builder.field("event_action", eventType);
                         if (incidentKey != null) {
-                            builder.field(Fields.INCIDENT_KEY.getPreferredName(), incidentKey);
+                            builder.field("dedup_key", incidentKey);
                         }
+
+                        builder.startObject("payload");
+                        {
+                            builder.field("summary", description);
+
+                            if (attachPayload) {
+                                builder.startObject("custom_details");
+                                builder.field(Fields.PAYLOAD.getPreferredName());
+                                payload.toXContent(builder, params);
+                                builder.endObject();
+                            }
+
+                            // TODO externalize this into something user editable
+                            builder.field("source", "watcher");
+                            builder.field("severity", "critical");
+                        }
+                        builder.endObject();
+
                         if (client != null) {
                             builder.field(Fields.CLIENT.getPreferredName(), client);
                         }
                         if (clientUrl != null) {
                             builder.field(Fields.CLIENT_URL.getPreferredName(), clientUrl);
                         }
-                        if (attachPayload) {
-                            builder.startObject(Fields.DETAILS.getPreferredName());
-                            builder.field(Fields.PAYLOAD.getPreferredName());
-                            payload.toXContent(builder, params);
-                            builder.endObject();
-                        }
+
                         if (contexts != null && contexts.length > 0) {
-                            builder.startArray(Fields.CONTEXTS.getPreferredName());
-                            for (IncidentEventContext context : contexts) {
-                                context.toXContent(builder, params);
-                            }
-                            builder.endArray();
+                            toXContentV2Contexts(builder, params, contexts);
                         }
+
                         return builder;
                     }
                 })
                 .build();
+    }
+
+    /**
+     * Turns the V1 API contexts into 2 distinct lists, images and links. The V2 API has separated these out into 2 top level fields.
+     */
+    private void toXContentV2Contexts(XContentBuilder builder, ToXContent.Params params,
+                                      IncidentEventContext[] contexts) throws IOException {
+        // contexts can be either links or images, and the v2 api needs them separate
+        List<IncidentEventContext> links = new ArrayList<>();
+        List<IncidentEventContext> images = new ArrayList<>();
+        for (IncidentEventContext context: contexts) {
+            if (context.type == IncidentEventContext.Type.LINK) {
+                links.add(context);
+            } else if (context.type == IncidentEventContext.Type.IMAGE) {
+                images.add(context);
+            }
+        }
+        if (links.isEmpty() == false) {
+            builder.startArray("links");
+            {
+                for (IncidentEventContext link: links) {
+                    link.toXContent(builder, params);
+                }
+            }
+            builder.endArray();
+        }
+        if (images.isEmpty() == false) {
+            builder.startArray("images");
+            {
+                for (IncidentEventContext image: images) {
+                    image.toXContent(builder, params);
+                }
+            }
+            builder.endArray();
+        }
     }
 
     @Override

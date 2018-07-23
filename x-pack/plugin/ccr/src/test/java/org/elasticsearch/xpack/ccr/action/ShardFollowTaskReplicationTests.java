@@ -35,6 +35,8 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTestCase {
 
     public void testSimpleCcrReplication() throws Exception {
@@ -51,7 +53,10 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
 
             leaderGroup.assertAllEqual(docCount);
             int expectedCount = docCount;
-            assertBusy(() -> followerGroup.assertAllEqual(expectedCount));
+            assertBusy(() -> {
+                assertThat(followerGroup.getPrimary().getGlobalCheckpoint(), equalTo(leaderGroup.getPrimary().getGlobalCheckpoint()));
+                followerGroup.assertAllEqual(expectedCount);
+            });
             shardFollowTask.markAsCompleted();
         }
     }

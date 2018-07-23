@@ -19,7 +19,12 @@
 
 package org.elasticsearch.painless;
 
-public class TutorialTests extends ScriptTestCase {
+/**
+ * These tests run the Painless scripts used in the context docs against
+ * slightly modified data designed around unit tests rather than a fully-
+ * running Elasticsearch server.
+ */
+public class ContextExampleTests extends ScriptTestCase {
 
     // **** Docs Generator Code ****
 
@@ -223,6 +228,7 @@ public class TutorialTests extends ScriptTestCase {
       }
     }
     '
+
     */
 
     // Create Ingest to Modify Dates:
@@ -240,8 +246,9 @@ public class TutorialTests extends ScriptTestCase {
           }
         ]
     }
+    '
 
-    '*/
+    */
 
     public void testIngestProcessorScript() {
         assertEquals(1535785200000L,

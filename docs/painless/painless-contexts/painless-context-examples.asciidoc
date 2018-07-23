@@ -1,0 +1,78 @@
+[[painless-context-examples]]
+=== Context examples
+
+Use the commands below to setup an Elasticsearch cluster to execute the example
+scripts for each context where an example is provided. Each example must be
+executed in the order of the table in the
+<<painless-contexts, previous section>> to work correctly.
+
+
+. Download the seat data for use in the examples. The data is a fictional set of
+plays and their locations and times where each individual document represents a
+single seat in a theater for a single play.
++
+Each document contains the following values:
++
+`theatre` ({es_version}/keyword.html[`keyword`])::
+        The name of the theater the play is in.
+`play` ({es_version}/text.html[`text`])::
+        The name of the play.
+`actors` ({es_version}/text.html[`text`])::
+        A list of actors in the play.
+`row` ({es_version}/number.html[`integer`])::
+        The row of the seat.
+`number` ({es_version}/number.html[`integer`])::
+        The number of the seat within a row.
+`cost` ({es_version}/number.html[`double`])::
+        The cost of the ticket for the seat.
+`sold` ({es_version}/boolean.html[`boolean`])::
+        Whether or not the seat is sold.
+`datetime` ({es_version}/date.html[`date`])::
+        The date and time of the play as a date object.
+`date` ({es_version}/keyword.html[`keyword`])::
+        The date of the play as a keyword.
+`time` ({es_version}/keyword.html[`keyword`])::
+        The time of the play as a keyword.
+
+. {es_version}/running-elasticsearch.html[Run] an elasticsearch cluster. The
+examples assume the cluster is running locally. Modify the examples as necessary
+to execute against a remote cluster.
+
+. Create {es_version}/mapping.html[mappings] using the following console
+command:
++
+[source,js]
+----
+PUT /seats
+{
+  "mappings": {
+    "seat": {
+      "properties": {
+        "theatre":  { "type": "keyword" },
+        "play":     { "type": "text"    },
+        "actors":   { "type": "text"    },
+        "row":      { "type": "integer" },
+        "number":   { "type": "integer" },
+        "cost":     { "type": "double"  },
+        "sold":     { "type": "boolean" },
+        "datetime": { "type": "date"    },
+        "date":     { "type": "keyword" },
+        "time":     { "type": "keyword" }
+      }
+    }
+  }
+}
+----
++
+//CONSOLE
+
+. Execute the <<painless-ingest-processor-context, ingest>> example.  This is a
+requirement to upload the seat data for use in all the examples.
+
+. Upload the seat data using the following console command:
++
+[source,js]
+----
+curl -XPOST localhost:9200/seats/seat/_bulk?pipeline=seats -H "Content-Type: application/x-ndjson" --data-binary "@/<local-file-path>/seats.json"
+----
+

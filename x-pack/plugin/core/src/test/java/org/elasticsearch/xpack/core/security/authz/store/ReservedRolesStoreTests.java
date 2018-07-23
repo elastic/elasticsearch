@@ -467,8 +467,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(dashboardsOnlyUserRole.application().grants(new ApplicationPrivilege(application, "app-read", "read"), "*"), is(true));
 
         final String applicationWithRandomIndex = "kibana-.kibana_" + randomAlphaOfLengthBetween(8, 24);
-        assertThat(dashboardsOnlyUserRole.application().grants(new ApplicationPrivilege(applicationWithRandomIndex, "app-random-index", "all"), "*"),
-            is(false));
+        assertThat(dashboardsOnlyUserRole.application().grants(
+            new ApplicationPrivilege(applicationWithRandomIndex, "app-random-index", "all"), "*"), is(false));
     }
 
     public void testSuperuserRole() {

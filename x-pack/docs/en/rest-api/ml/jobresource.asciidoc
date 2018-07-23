@@ -424,16 +424,16 @@ A rule has the following properties:
 
 `actions`::
   (array) The set of actions to be triggered when the rule applies.
+  If more than one action is specified the effects of all actions are combined.
   The available actions include: +
-  `skip_result`::: The result will not be created. Note this also means this 
-  result will not impact the scoring of results. This is the default value. 
-  Unless you also specify `skip_model_update`, the model will be updated as 
-  usual with the corresponding series value. 
-  `skip_model_update`::: The value for that series will not be used to update 
-  the model. Unless you also specify `skip_result`, the results will be created 
-  as usual. This action is suitable when certain values are expected to be 
-  consistently anomalous and they affect the model in a way that negatively 
-  impacts the rest of the results. 
+  `skip_result`::: The result will not be created. This is the default value.
+  Unless you also specify `skip_model_update`, the model will be updated as
+  usual with the corresponding series value.
+  `skip_model_update`::: The value for that series will not be used to update
+  the model. Unless you also specify `skip_result`, the results will be created
+  as usual. This action is suitable when certain values are expected to be
+  consistently anomalous and they affect the model in a way that negatively
+  impacts the rest of the results.
 `scope`::
   (object) An optional scope of series where the rule applies. By default the scope
   includes all series. Scoping is allowed for any of the partition/by/over fields.

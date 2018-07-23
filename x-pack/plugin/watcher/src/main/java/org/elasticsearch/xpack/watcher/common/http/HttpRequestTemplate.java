@@ -18,8 +18,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuth;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthRegistry;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 
@@ -42,14 +40,14 @@ public class HttpRequestTemplate implements ToXContentObject {
     private final TextTemplate path;
     private final Map<String, TextTemplate> params;
     private final Map<String, TextTemplate> headers;
-    private final HttpAuth auth;
+    private final BasicAuth auth;
     private final TextTemplate body;
     @Nullable private final TimeValue connectionTimeout;
     @Nullable private final TimeValue readTimeout;
     @Nullable private final HttpProxy proxy;
 
     public HttpRequestTemplate(String host, int port, @Nullable Scheme scheme, @Nullable HttpMethod method, @Nullable TextTemplate path,
-                               Map<String, TextTemplate> params, Map<String, TextTemplate> headers, HttpAuth auth,
+                               Map<String, TextTemplate> params, Map<String, TextTemplate> headers, BasicAuth auth,
                                TextTemplate body, @Nullable TimeValue connectionTimeout, @Nullable TimeValue readTimeout,
                                @Nullable HttpProxy proxy) {
         this.host = host;
@@ -94,7 +92,7 @@ public class HttpRequestTemplate implements ToXContentObject {
         return headers;
     }
 
-    public HttpAuth auth() {
+    public BasicAuth auth() {
         return auth;
     }
 
@@ -185,7 +183,7 @@ public class HttpRequestTemplate implements ToXContentObject {
         }
         if (auth != null) {
             builder.startObject(HttpRequest.Field.AUTH.getPreferredName())
-                    .field(auth.type(), auth, params)
+                    .field(BasicAuth.TYPE, auth, params)
                     .endObject();
         }
         if (body != null) {
@@ -261,14 +259,7 @@ public class HttpRequestTemplate implements ToXContentObject {
     }
 
     public static class Parser {
-
-        private final HttpAuthRegistry httpAuthRegistry;
-
-        public Parser(HttpAuthRegistry httpAuthRegistry) {
-            this.httpAuthRegistry = httpAuthRegistry;
-        }
-
-        public HttpRequestTemplate parse(XContentParser parser) throws IOException {
+        public static HttpRequestTemplate parse(XContentParser parser) throws IOException {
             assert parser.currentToken() == XContentParser.Token.START_OBJECT;
 
             Builder builder = new Builder();
@@ -312,8 +303,8 @@ public class HttpRequestTemplate implements ToXContentObject {
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if (HttpRequest.Field.AUTH.match(currentFieldName, parser.getDeprecationHandler())) {
-                        builder.auth(httpAuthRegistry.parse(parser));
-                    }  else {
+                        builder.auth(BasicAuth.parse(parser));
+                    } else {
                         throw new ElasticsearchParseException("could not parse http request template. unexpected object field [{}]",
                                 currentFieldName);
                     }
@@ -387,7 +378,7 @@ public class HttpRequestTemplate implements ToXContentObject {
         private TextTemplate path;
         private final Map<String, TextTemplate> params = new HashMap<>();
         private final Map<String, TextTemplate> headers = new HashMap<>();
-        private HttpAuth auth;
+        private BasicAuth auth;
         private TextTemplate body;
         private TimeValue connectionTimeout;
         private TimeValue readTimeout;
@@ -444,7 +435,7 @@ public class HttpRequestTemplate implements ToXContentObject {
             return this;
         }
 
-        public Builder auth(HttpAuth auth) {
+        public Builder auth(BasicAuth auth) {
             this.auth = auth;
             return this;
         }

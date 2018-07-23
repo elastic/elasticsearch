@@ -13,11 +13,9 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthRegistry;
 
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
-import static org.mockito.Mockito.mock;
 
 public class HttpConnectionTimeoutTests extends ESTestCase {
     // setting an unroutable IP to simulate a connection timeout
@@ -26,8 +24,7 @@ public class HttpConnectionTimeoutTests extends ESTestCase {
     @Network
     public void testDefaultTimeout() throws Exception {
         Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
-        HttpClient httpClient = new HttpClient(Settings.EMPTY, mock(HttpAuthRegistry.class),
-                new SSLService(environment.settings(), environment));
+        HttpClient httpClient = new HttpClient(Settings.EMPTY, new SSLService(environment.settings(), environment), null);
 
         HttpRequest request = HttpRequest.builder(UNROUTABLE_IP, 12345)
                 .method(HttpMethod.POST)
@@ -52,8 +49,7 @@ public class HttpConnectionTimeoutTests extends ESTestCase {
     public void testDefaultTimeoutCustom() throws Exception {
         Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
         HttpClient httpClient = new HttpClient(Settings.builder()
-                .put("xpack.http.default_connection_timeout", "5s").build()
-                , mock(HttpAuthRegistry.class), new SSLService(environment.settings(), environment));
+                .put("xpack.http.default_connection_timeout", "5s").build(), new SSLService(environment.settings(), environment), null);
 
         HttpRequest request = HttpRequest.builder(UNROUTABLE_IP, 12345)
                 .method(HttpMethod.POST)
@@ -78,8 +74,7 @@ public class HttpConnectionTimeoutTests extends ESTestCase {
     public void testTimeoutCustomPerRequest() throws Exception {
         Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
         HttpClient httpClient = new HttpClient(Settings.builder()
-                .put("xpack.http.default_connection_timeout", "10s").build()
-                , mock(HttpAuthRegistry.class), new SSLService(environment.settings(), environment));
+                .put("xpack.http.default_connection_timeout", "10s").build(), new SSLService(environment.settings(), environment), null);
 
         HttpRequest request = HttpRequest.builder(UNROUTABLE_IP, 12345)
                 .connectionTimeout(TimeValue.timeValueSeconds(5))

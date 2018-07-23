@@ -70,7 +70,7 @@ public class HttpInput implements Input {
         return builder;
     }
 
-    public static HttpInput parse(String watchId, XContentParser parser, HttpRequestTemplate.Parser requestParser) throws IOException {
+    public static HttpInput parse(String watchId, XContentParser parser) throws IOException {
         Set<String> extract = null;
         HttpRequestTemplate request = null;
         HttpContentType expectedResponseBodyType = null;
@@ -82,7 +82,7 @@ public class HttpInput implements Input {
                 currentFieldName = parser.currentName();
             } else if (Field.REQUEST.match(currentFieldName, parser.getDeprecationHandler())) {
                 try {
-                    request = requestParser.parse(parser);
+                    request = HttpRequestTemplate.Parser.parse(parser);
                 } catch (ElasticsearchParseException pe) {
                     throw new ElasticsearchParseException("could not parse [{}] input for watch [{}]. failed to parse http request " +
                             "template", pe, TYPE, watchId);

@@ -59,6 +59,15 @@ public class ConvertProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue(fieldName, Integer.class), equalTo(randomInt));
     }
 
+    public void testConvertIntHexError() {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        String value = "0x" + randomAlphaOfLengthBetween(1, 10);
+        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, value);
+        Processor processor = new ConvertProcessor(randomAlphaOfLength(10), fieldName, fieldName, Type.INTEGER, false);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(e.getMessage(), equalTo("unable to convert [" + value + "] to integer"));
+    }
+
     public void testConvertIntList() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         int numItems = randomIntBetween(1, 10);
@@ -110,6 +119,15 @@ public class ConvertProcessorTests extends ESTestCase {
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), fieldName, fieldName, Type.LONG, false);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(fieldName, Long.class), equalTo(randomLong));
+    }
+
+    public void testConvertLongHexError() {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        String value = "0x" + randomAlphaOfLengthBetween(1, 10);
+        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, value);
+        Processor processor = new ConvertProcessor(randomAlphaOfLength(10), fieldName, fieldName, Type.LONG, false);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(e.getMessage(), equalTo("unable to convert [" + value + "] to long"));
     }
 
     public void testConvertLongList() throws Exception {

@@ -24,6 +24,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
@@ -48,6 +50,7 @@ public class RoleDescriptor implements ToXContentObject {
 
     private final String name;
     private final String[] clusterPrivileges;
+    private final ConditionalClusterPrivilege[] conditionalClusterPrivileges;
     private final IndicesPrivileges[] indicesPrivileges;
     private final ApplicationResourcePrivileges[] applicationPrivileges;
     private final String[] runAs;
@@ -62,7 +65,8 @@ public class RoleDescriptor implements ToXContentObject {
     }
 
     /**
-     * @deprecated Use {@link #RoleDescriptor(String, String[], IndicesPrivileges[], ApplicationResourcePrivileges[], String[], Map, Map)}
+     * @deprecated Use {@link #RoleDescriptor(String, String[], IndicesPrivileges[], ApplicationResourcePrivileges[],
+     * ConditionalClusterPrivilege[], String[], Map, Map)}
      */
     @Deprecated
     public RoleDescriptor(String name,
@@ -74,7 +78,8 @@ public class RoleDescriptor implements ToXContentObject {
     }
 
     /**
-     * @deprecated Use {@link #RoleDescriptor(String, String[], IndicesPrivileges[], ApplicationResourcePrivileges[], String[], Map, Map)}
+     * @deprecated Use {@link #RoleDescriptor(String, String[], IndicesPrivileges[], ApplicationResourcePrivileges[],
+     * ConditionalClusterPrivilege[], String[], Map, Map)}
      */
     @Deprecated
     public RoleDescriptor(String name,
@@ -83,18 +88,21 @@ public class RoleDescriptor implements ToXContentObject {
                           @Nullable String[] runAs,
                           @Nullable Map<String, Object> metadata,
                           @Nullable Map<String, Object> transientMetadata) {
-        this(name, clusterPrivileges, indicesPrivileges, null, runAs, metadata, transientMetadata);
+        this(name, clusterPrivileges, indicesPrivileges, null, null, runAs, metadata, transientMetadata);
     }
 
     public RoleDescriptor(String name,
                           @Nullable String[] clusterPrivileges,
                           @Nullable IndicesPrivileges[] indicesPrivileges,
                           @Nullable ApplicationResourcePrivileges[] applicationPrivileges,
+                          @Nullable ConditionalClusterPrivilege[] conditionalClusterPrivileges,
                           @Nullable String[] runAs,
                           @Nullable Map<String, Object> metadata,
                           @Nullable Map<String, Object> transientMetadata) {
         this.name = name;
         this.clusterPrivileges = clusterPrivileges != null ? clusterPrivileges : Strings.EMPTY_ARRAY;
+        this.conditionalClusterPrivileges = conditionalClusterPrivileges != null
+            ? conditionalClusterPrivileges : ConditionalClusterPrivileges.EMPTY_ARRAY;
         this.indicesPrivileges = indicesPrivileges != null ? indicesPrivileges : IndicesPrivileges.NONE;
         this.applicationPrivileges = applicationPrivileges != null ? applicationPrivileges : ApplicationResourcePrivileges.NONE;
         this.runAs = runAs != null ? runAs : Strings.EMPTY_ARRAY;
@@ -109,6 +117,10 @@ public class RoleDescriptor implements ToXContentObject {
 
     public String[] getClusterPrivileges() {
         return this.clusterPrivileges;
+    }
+
+    public ConditionalClusterPrivilege[] getConditionalClusterPrivileges() {
+        return this.conditionalClusterPrivileges;
     }
 
     public IndicesPrivileges[] getIndicesPrivileges() {
@@ -140,6 +152,7 @@ public class RoleDescriptor implements ToXContentObject {
         StringBuilder sb = new StringBuilder("Role[");
         sb.append("name=").append(name);
         sb.append(", cluster=[").append(Strings.arrayToCommaDelimitedString(clusterPrivileges));
+        sb.append("], policy=[").append(Strings.arrayToCommaDelimitedString(conditionalClusterPrivileges));
         sb.append("], indicesPrivileges=[");
         for (IndicesPrivileges group : indicesPrivileges) {
             sb.append(group.toString()).append(",");
@@ -164,6 +177,7 @@ public class RoleDescriptor implements ToXContentObject {
 
         if (!name.equals(that.name)) return false;
         if (!Arrays.equals(clusterPrivileges, that.clusterPrivileges)) return false;
+        if (!Arrays.equals(conditionalClusterPrivileges, that.conditionalClusterPrivileges)) return false;
         if (!Arrays.equals(indicesPrivileges, that.indicesPrivileges)) return false;
         if (!Arrays.equals(applicationPrivileges, that.applicationPrivileges)) return false;
         if (!metadata.equals(that.getMetadata())) return false;
@@ -174,6 +188,7 @@ public class RoleDescriptor implements ToXContentObject {
     public int hashCode() {
         int result = name.hashCode();
         result = 31 * result + Arrays.hashCode(clusterPrivileges);
+        result = 31 * result + Arrays.hashCode(conditionalClusterPrivileges);
         result = 31 * result + Arrays.hashCode(indicesPrivileges);
         result = 31 * result + Arrays.hashCode(applicationPrivileges);
         result = 31 * result + Arrays.hashCode(runAs);
@@ -200,6 +215,10 @@ public class RoleDescriptor implements ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params, boolean docCreation) throws IOException {
         builder.startObject();
         builder.array(Fields.CLUSTER.getPreferredName(), clusterPrivileges);
+        if (conditionalClusterPrivileges.length != 0) {
+            builder.field(Fields.POLICY.getPreferredName());
+            ConditionalClusterPrivileges.toXContent(builder, params, Arrays.asList(conditionalClusterPrivileges));
+        }
         builder.array(Fields.INDICES.getPreferredName(), (Object[]) indicesPrivileges);
         builder.array(Fields.APPLICATIONS.getPreferredName(), (Object[]) applicationPrivileges);
         if (runAs != null) {
@@ -233,13 +252,17 @@ public class RoleDescriptor implements ToXContentObject {
         }
 
         final ApplicationResourcePrivileges[] applicationPrivileges;
+        final ConditionalClusterPrivilege[] conditionalClusterPrivileges;
         if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             applicationPrivileges = in.readArray(ApplicationResourcePrivileges::createFrom, ApplicationResourcePrivileges[]::new);
+            conditionalClusterPrivileges = ConditionalClusterPrivileges.readArray(in);
         } else {
             applicationPrivileges = ApplicationResourcePrivileges.NONE;
+            conditionalClusterPrivileges = ConditionalClusterPrivileges.EMPTY_ARRAY;
         }
 
-        return new RoleDescriptor(name, clusterPrivileges, indicesPrivileges, applicationPrivileges, runAs, metadata, transientMetadata);
+        return new RoleDescriptor(name, clusterPrivileges, indicesPrivileges, applicationPrivileges, conditionalClusterPrivileges,
+            runAs, metadata, transientMetadata);
     }
 
     public static void writeTo(RoleDescriptor descriptor, StreamOutput out) throws IOException {
@@ -256,6 +279,7 @@ public class RoleDescriptor implements ToXContentObject {
         }
         if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             out.writeArray(ApplicationResourcePrivileges::write, descriptor.applicationPrivileges);
+            ConditionalClusterPrivileges.writeArray(out, descriptor.getConditionalClusterPrivileges());
         }
     }
 
@@ -287,6 +311,7 @@ public class RoleDescriptor implements ToXContentObject {
         String currentFieldName = null;
         IndicesPrivileges[] indicesPrivileges = null;
         String[] clusterPrivileges = null;
+        List<ConditionalClusterPrivilege> conditionalClusterPrivileges = Collections.emptyList();
         ApplicationResourcePrivileges[] applicationPrivileges = null;
         String[] runAsUsers = null;
         Map<String, Object> metadata = null;
@@ -303,6 +328,8 @@ public class RoleDescriptor implements ToXContentObject {
             } else if (Fields.APPLICATIONS.match(currentFieldName, parser.getDeprecationHandler())
                     || Fields.APPLICATION.match(currentFieldName, parser.getDeprecationHandler())) {
                 applicationPrivileges = parseApplicationPrivileges(name, parser);
+            } else if (Fields.POLICY.match(currentFieldName, parser.getDeprecationHandler())) {
+                conditionalClusterPrivileges = ConditionalClusterPrivileges.parse(parser);
             } else if (Fields.METADATA.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (token != XContentParser.Token.START_OBJECT) {
                     throw new ElasticsearchParseException(
@@ -322,7 +349,9 @@ public class RoleDescriptor implements ToXContentObject {
                 throw new ElasticsearchParseException("failed to parse role [{}]. unexpected field [{}]", name, currentFieldName);
             }
         }
-        return new RoleDescriptor(name, clusterPrivileges, indicesPrivileges, applicationPrivileges, runAsUsers, metadata, null);
+        return new RoleDescriptor(name, clusterPrivileges, indicesPrivileges, applicationPrivileges,
+            conditionalClusterPrivileges.toArray(new ConditionalClusterPrivilege[conditionalClusterPrivileges.size()]), runAsUsers,
+            metadata, null);
     }
 
     private static String[] readStringArray(String roleName, XContentParser parser, boolean allowNull) throws IOException {
@@ -377,7 +406,7 @@ public class RoleDescriptor implements ToXContentObject {
                     throw new ElasticsearchParseException("Field [{}] is not supported in a has_privileges request", Fields.QUERY);
                 }
             }
-            return new RoleDescriptor(description, clusterPrivileges, indexPrivileges, applicationPrivileges, null, null, null);
+            return new RoleDescriptor(description, clusterPrivileges, indexPrivileges, applicationPrivileges, null, null, null, null);
         }
     }
 
@@ -937,6 +966,7 @@ public class RoleDescriptor implements ToXContentObject {
 
     public interface Fields {
         ParseField CLUSTER = new ParseField("cluster");
+        ParseField POLICY = new ParseField("policy");
         ParseField INDEX = new ParseField("index");
         ParseField INDICES = new ParseField("indices");
         ParseField APPLICATIONS = new ParseField("applications");

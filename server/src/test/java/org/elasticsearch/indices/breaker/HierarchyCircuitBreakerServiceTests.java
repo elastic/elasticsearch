@@ -199,6 +199,8 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
                 .addEstimateBytesAndMaybeBreak(new ByteSizeValue(50, ByteSizeUnit.MB).getBytes(), "should break"));
             assertThat(exception.getMessage(), containsString("[parent] Data too large, data for [should break] would be"));
             assertThat(exception.getMessage(), containsString("which is larger than the limit of [209715200/200mb]"));
+            assertThat(exception.getMessage(),
+                containsString("usages [request=157286400/150mb, fielddata=54001664/51.5mb, in_flight_requests=0/0b, accounting=0/0b]"));
         }
     }
 
@@ -206,7 +208,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         Settings clusterSettings = Settings.builder()
             .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), Boolean.TRUE)
             .put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "200b")
-            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "300b")
+            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "350b")
             .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING.getKey(), 2)
             .build();
 
@@ -239,6 +241,9 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         // it was the parent that rejected the reservation
         assertThat(exception.getMessage(), containsString("[parent] Data too large, data for [request] would be"));
         assertThat(exception.getMessage(), containsString("which is larger than the limit of [200/200b]"));
+        assertThat(exception.getMessage(),
+            containsString("real usage: [181/181b], new bytes reserved: [" + (reservationInBytes * 2) +
+                "/" + new ByteSizeValue(reservationInBytes * 2) + "]"));
         assertEquals(0, requestBreaker.getTrippedCount());
         assertEquals(1, service.stats().getStats(CircuitBreaker.PARENT).getTrippedCount());
 

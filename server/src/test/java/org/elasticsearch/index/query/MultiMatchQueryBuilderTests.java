@@ -230,9 +230,10 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         assertThat(query, instanceOf(DisjunctionMaxQuery.class));
         DisjunctionMaxQuery dQuery = (DisjunctionMaxQuery) query;
         assertThat(dQuery.getTieBreakerMultiplier(), equalTo(1.0f));
-        assertThat(dQuery.getDisjuncts().size(), equalTo(2));
-        assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 0).getTerm(), equalTo(new Term(STRING_FIELD_NAME_2, "test")));
-        assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 1).getTerm(), equalTo(new Term(STRING_FIELD_NAME, "test")));
+        assertThat(dQuery.getDisjuncts().size(), equalTo(3));
+        assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 0).getTerm(), equalTo(new Term(STRING_FIELD_NAME, "test")));
+        assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 1).getTerm(), equalTo(new Term(STRING_FIELD_NAME_2, "test")));
+        assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 2).getTerm(), equalTo(new Term(STRING_FIELD_NAME, "test")));
     }
 
     public void testToQueryFieldMissing() throws Exception {

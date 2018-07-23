@@ -42,7 +42,6 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
-import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
@@ -51,7 +50,6 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -74,7 +72,6 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQuery
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBooleanSubQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertDisjunctionSubQuery;
-import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -90,12 +87,16 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         }
         QueryStringQueryBuilder queryStringQueryBuilder = new QueryStringQueryBuilder(query);
         if (randomBoolean()) {
-            queryStringQueryBuilder.defaultField(randomBoolean() ?
-                STRING_FIELD_NAME : randomAlphaOfLengthBetween(1, 10));
+            String defaultFieldName = randomFrom(STRING_FIELD_NAME,
+                STRING_ALIAS_FIELD_NAME,
+                randomAlphaOfLengthBetween(1, 10));
+            queryStringQueryBuilder.defaultField(defaultFieldName);
         } else {
             int numFields = randomIntBetween(1, 5);
             for (int i = 0; i < numFields; i++) {
-                String fieldName = randomBoolean() ? STRING_FIELD_NAME : randomAlphaOfLengthBetween(1, 10);
+                String fieldName = randomFrom(STRING_FIELD_NAME,
+                    STRING_ALIAS_FIELD_NAME,
+                    randomAlphaOfLengthBetween(1, 10));
                 if (randomBoolean()) {
                     queryStringQueryBuilder.field(fieldName);
                 } else {
@@ -377,11 +378,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     @Override
     protected void doAssertLuceneQuery(QueryStringQueryBuilder queryBuilder,
                                        Query query, SearchContext context) throws IOException {
-        assertThat(query, either(instanceOf(TermQuery.class))
-            .or(instanceOf(BooleanQuery.class)).or(instanceOf(DisjunctionMaxQuery.class))
-            .or(instanceOf(PhraseQuery.class)).or(instanceOf(BoostQuery.class))
-            .or(instanceOf(MultiPhrasePrefixQuery.class)).or(instanceOf(PrefixQuery.class)).or(instanceOf(SpanQuery.class))
-            .or(instanceOf(MatchNoDocsQuery.class)));
+        // nothing yet, put additional assertions here.
     }
 
     // Tests fix for https://github.com/elastic/elasticsearch/issues/29403
@@ -508,10 +505,12 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         Query query = queryStringQuery("test").field("mapped_str*").toQuery(createShardContext());
         assertThat(query, instanceOf(DisjunctionMaxQuery.class));
         DisjunctionMaxQuery dQuery = (DisjunctionMaxQuery) query;
-        assertThat(dQuery.getDisjuncts().size(), equalTo(2));
+        assertThat(dQuery.getDisjuncts().size(), equalTo(3));
         assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 0).getTerm(),
-            equalTo(new Term(STRING_FIELD_NAME_2, "test")));
+            equalTo(new Term(STRING_FIELD_NAME, "test")));
         assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 1).getTerm(),
+            equalTo(new Term(STRING_FIELD_NAME_2, "test")));
+        assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 2).getTerm(),
             equalTo(new Term(STRING_FIELD_NAME, "test")));
     }
 

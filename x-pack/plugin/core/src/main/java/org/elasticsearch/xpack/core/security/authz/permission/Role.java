@@ -14,10 +14,12 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -106,11 +108,7 @@ public final class Role {
 
         private Builder(RoleDescriptor rd, @Nullable FieldPermissionsCache fieldPermissionsCache) {
             this.names = new String[] { rd.getName() };
-            if (rd.getClusterPrivileges().length == 0) {
-                cluster = ClusterPermission.SimpleClusterPermission.NONE;
-            } else {
-                this.cluster(ClusterPrivilege.get(Sets.newHashSet(rd.getClusterPrivileges())));
-            }
+            cluster(Sets.newHashSet(rd.getClusterPrivileges()), Arrays.asList(rd.getConditionalClusterPrivileges()));
             groups.addAll(convertFromIndicesPrivileges(rd.getIndicesPrivileges(), fieldPermissionsCache));
 
             final RoleDescriptor.ApplicationResourcePrivileges[] applicationPrivileges = rd.getApplicationPrivileges();
@@ -124,6 +122,28 @@ public final class Role {
             }
         }
 
+        public Builder cluster(Set<String> privilegeNames, Iterable<ConditionalClusterPrivilege> conditionalClusterPrivileges) {
+            List<ClusterPermission> clusterPermissions = new ArrayList<>();
+            if (privilegeNames.isEmpty() == false) {
+                clusterPermissions.add(new ClusterPermission.SimpleClusterPermission(ClusterPrivilege.get(privilegeNames)));
+            }
+            for (ConditionalClusterPrivilege ccp : conditionalClusterPrivileges) {
+                clusterPermissions.add(new ClusterPermission.ConditionalClusterPermission(ccp));
+            }
+            if (clusterPermissions.isEmpty()) {
+                this.cluster = ClusterPermission.SimpleClusterPermission.NONE;
+            } else if (clusterPermissions.size() == 1) {
+                this.cluster = clusterPermissions.get(0);
+            } else {
+                this.cluster = new ClusterPermission.CompositeClusterPermission(clusterPermissions);
+            }
+            return this;
+        }
+
+        /**
+         * @deprecated Use {@link #cluster(Set, Iterable)}
+         */
+        @Deprecated
         public Builder cluster(ClusterPrivilege privilege) {
             cluster = new ClusterPermission.SimpleClusterPermission(privilege);
             return this;

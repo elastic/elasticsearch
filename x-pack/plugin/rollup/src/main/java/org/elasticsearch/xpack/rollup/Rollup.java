@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.DeleteRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupCapsAction;
+import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupJobsAction;
 import org.elasticsearch.xpack.core.rollup.action.PutRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
@@ -47,6 +48,7 @@ import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.rollup.action.TransportDeleteRollupJobAction;
 import org.elasticsearch.xpack.rollup.action.TransportGetRollupCapsAction;
+import org.elasticsearch.xpack.rollup.action.TransportGetRollupIndexCapsAction;
 import org.elasticsearch.xpack.rollup.action.TransportGetRollupJobAction;
 import org.elasticsearch.xpack.rollup.action.TransportPutRollupJobAction;
 import org.elasticsearch.xpack.rollup.action.TransportRollupSearchAction;
@@ -55,6 +57,7 @@ import org.elasticsearch.xpack.rollup.action.TransportStopRollupAction;
 import org.elasticsearch.xpack.rollup.job.RollupJobTask;
 import org.elasticsearch.xpack.rollup.rest.RestDeleteRollupJobAction;
 import org.elasticsearch.xpack.rollup.rest.RestGetRollupCapsAction;
+import org.elasticsearch.xpack.rollup.rest.RestGetRollupIndexCapsAction;
 import org.elasticsearch.xpack.rollup.rest.RestGetRollupJobsAction;
 import org.elasticsearch.xpack.rollup.rest.RestPutRollupJobAction;
 import org.elasticsearch.xpack.rollup.rest.RestRollupSearchAction;
@@ -136,13 +139,14 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
         }
 
         return Arrays.asList(
-                new RestRollupSearchAction(settings, restController),
-                new RestPutRollupJobAction(settings, restController),
-                new RestStartRollupJobAction(settings, restController),
-                new RestStopRollupJobAction(settings, restController),
-                new RestDeleteRollupJobAction(settings, restController),
-                new RestGetRollupJobsAction(settings, restController),
-                new RestGetRollupCapsAction(settings, restController)
+            new RestRollupSearchAction(settings, restController),
+            new RestPutRollupJobAction(settings, restController),
+            new RestStartRollupJobAction(settings, restController),
+            new RestStopRollupJobAction(settings, restController),
+            new RestDeleteRollupJobAction(settings, restController),
+            new RestGetRollupJobsAction(settings, restController),
+            new RestGetRollupCapsAction(settings, restController),
+            new RestGetRollupIndexCapsAction(settings, restController)
         );
 
     }
@@ -153,13 +157,14 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
             return emptyList();
         }
         return Arrays.asList(
-                new ActionHandler<>(RollupSearchAction.INSTANCE, TransportRollupSearchAction.class),
-                new ActionHandler<>(PutRollupJobAction.INSTANCE, TransportPutRollupJobAction.class),
-                new ActionHandler<>(StartRollupJobAction.INSTANCE, TransportStartRollupAction.class),
-                new ActionHandler<>(StopRollupJobAction.INSTANCE, TransportStopRollupAction.class),
-                new ActionHandler<>(DeleteRollupJobAction.INSTANCE, TransportDeleteRollupJobAction.class),
-                new ActionHandler<>(GetRollupJobsAction.INSTANCE, TransportGetRollupJobAction.class),
-                new ActionHandler<>(GetRollupCapsAction.INSTANCE, TransportGetRollupCapsAction.class)
+            new ActionHandler<>(RollupSearchAction.INSTANCE, TransportRollupSearchAction.class),
+            new ActionHandler<>(PutRollupJobAction.INSTANCE, TransportPutRollupJobAction.class),
+            new ActionHandler<>(StartRollupJobAction.INSTANCE, TransportStartRollupAction.class),
+            new ActionHandler<>(StopRollupJobAction.INSTANCE, TransportStopRollupAction.class),
+            new ActionHandler<>(DeleteRollupJobAction.INSTANCE, TransportDeleteRollupJobAction.class),
+            new ActionHandler<>(GetRollupJobsAction.INSTANCE, TransportGetRollupJobAction.class),
+            new ActionHandler<>(GetRollupCapsAction.INSTANCE, TransportGetRollupCapsAction.class),
+            new ActionHandler<>(GetRollupIndexCapsAction.INSTANCE, TransportGetRollupIndexCapsAction.class)
         );
     }
 

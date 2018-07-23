@@ -9,6 +9,8 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges.ManageApplicationPrivileges;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.UsernamesField;
@@ -30,7 +32,7 @@ public class ReservedRolesStore {
             new RoleDescriptor.ApplicationResourcePrivileges[] {
                 RoleDescriptor.ApplicationResourcePrivileges.builder().application("*").privileges("*").resources("*").build()
             },
-            new String[] { "*" },
+            null, new String[] { "*" },
             MetadataUtils.DEFAULT_RESERVED_METADATA, Collections.emptyMap());
     public static final Role SUPERUSER_ROLE = Role.builder(SUPERUSER_ROLE_DESCRIPTOR, null).build();
     private static final Map<String, RoleDescriptor> RESERVED_ROLES = initializeReservedRoles();
@@ -88,8 +90,6 @@ public class ReservedRolesStore {
                 .put(KibanaUser.ROLE_NAME, new RoleDescriptor(KibanaUser.ROLE_NAME,
                         new String[] {
                             "monitor", "manage_index_templates", MonitoringBulkAction.NAME, "manage_saml",
-                            "cluster:admin/xpack/security/privilege/get",
-                            "cluster:admin/xpack/security/privilege/put",
                         },
                         new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder().indices(".kibana*", ".reporting-*").privileges("all").build(),
@@ -98,7 +98,9 @@ public class ReservedRolesStore {
                                 RoleDescriptor.IndicesPrivileges.builder()
                                         .indices(".management-beats").privileges("create_index", "read", "write").build()
                         },
-                        null, MetadataUtils.DEFAULT_RESERVED_METADATA))
+                        null,
+                        new ConditionalClusterPrivilege[] { new ManageApplicationPrivileges(Collections.singleton("kibana-*")) },
+                        null, MetadataUtils.DEFAULT_RESERVED_METADATA, null))
                 .put("logstash_system", new RoleDescriptor("logstash_system", new String[] { "monitor", MonitoringBulkAction.NAME},
                         null, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("beats_admin", new RoleDescriptor("beats_admin",

@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -41,6 +42,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -49,6 +51,63 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 
 public class MetaDataTests extends ESTestCase {
+
+    public void testFindAliases() {
+        MetaData metaData = MetaData.builder().put(IndexMetaData.builder("index")
+            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putAlias(AliasMetaData.builder("alias1").build())
+            .putAlias(AliasMetaData.builder("alias2").build())).build();
+
+        {
+            ImmutableOpenMap<String, List<AliasMetaData>> aliases = metaData.findAliases(new GetAliasesRequest(), Strings.EMPTY_ARRAY);
+            assertThat(aliases.size(), equalTo(0));
+        }
+        {
+            ImmutableOpenMap<String, List<AliasMetaData>> aliases = metaData.findAliases(new GetAliasesRequest(), new String[]{"index"});
+            assertThat(aliases.size(), equalTo(1));
+            List<AliasMetaData> aliasMetaDataList = aliases.get("index");
+            assertThat(aliasMetaDataList.size(), equalTo(2));
+            assertThat(aliasMetaDataList.get(0).alias(), equalTo("alias1"));
+            assertThat(aliasMetaDataList.get(1).alias(), equalTo("alias2"));
+        }
+        {
+            GetAliasesRequest getAliasesRequest = new GetAliasesRequest("alias1");
+            getAliasesRequest.replaceAliases(Strings.EMPTY_ARRAY);
+            ImmutableOpenMap<String, List<AliasMetaData>> aliases = metaData.findAliases(getAliasesRequest, new String[]{"index"});
+            assertThat(aliases.size(), equalTo(0));
+        }
+        {
+            ImmutableOpenMap<String, List<AliasMetaData>> aliases =
+                metaData.findAliases(new GetAliasesRequest("alias*"), new String[]{"index"});
+            assertThat(aliases.size(), equalTo(1));
+            List<AliasMetaData> aliasMetaDataList = aliases.get("index");
+            assertThat(aliasMetaDataList.size(), equalTo(2));
+            assertThat(aliasMetaDataList.get(0).alias(), equalTo("alias1"));
+            assertThat(aliasMetaDataList.get(1).alias(), equalTo("alias2"));
+        }
+        {
+            ImmutableOpenMap<String, List<AliasMetaData>> aliases =
+                metaData.findAliases(new GetAliasesRequest("alias1"), new String[]{"index"});
+            assertThat(aliases.size(), equalTo(1));
+            List<AliasMetaData> aliasMetaDataList = aliases.get("index");
+            assertThat(aliasMetaDataList.size(), equalTo(1));
+            assertThat(aliasMetaDataList.get(0).alias(), equalTo("alias1"));
+        }
+        {
+            ImmutableOpenMap<String, List<AliasMetaData>> aliases = metaData.findAllAliases(new String[]{"index"});
+            assertThat(aliases.size(), equalTo(1));
+            List<AliasMetaData> aliasMetaDataList = aliases.get("index");
+            assertThat(aliasMetaDataList.size(), equalTo(2));
+            assertThat(aliasMetaDataList.get(0).alias(), equalTo("alias1"));
+            assertThat(aliasMetaDataList.get(1).alias(), equalTo("alias2"));
+        }
+        {
+            ImmutableOpenMap<String, List<AliasMetaData>> aliases = metaData.findAllAliases(Strings.EMPTY_ARRAY);
+            assertThat(aliases.size(), equalTo(0));
+        }
+    }
 
     public void testIndexAndAliasWithSameName() {
         IndexMetaData.Builder builder = IndexMetaData.builder("index")
@@ -613,7 +672,6 @@ public class MetaDataTests extends ESTestCase {
     public static void assertLeafs(Map<String, Object> properties, String... fields) {
         for (String field : fields) {
             assertTrue(properties.containsKey(field));
-            @SuppressWarnings("unchecked")
             Map<String, Object> fieldProp = (Map<String, Object>)properties.get(field);
             assertNotNull(fieldProp);
             assertFalse(fieldProp.containsKey("properties"));

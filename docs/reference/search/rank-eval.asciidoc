@@ -274,7 +274,7 @@ that shows potential errors of individual queries. The response has the followin
         "details": {  
             "my_query_id1": { <2>
                 "quality_level": 0.6, <3>
-                "unknown_docs": [ <4>
+                "unrated_docs": [ <4>
                     {
                         "_index": "my_index",
                         "_id": "1960795"
@@ -309,7 +309,7 @@ that shows potential errors of individual queries. The response has the followin
 <1> the overall evaluation quality calculated by the defined metric
 <2> the `details` section contains one entry for every query in the original `requests` section, keyed by the search request id
 <3> the `quality_level` in the `details` section shows the contribution of this query to the global quality score
-<4> the `unknown_docs` section contains an `_index` and `_id` entry for each document in the search result for this
+<4> the `unrated_docs` section contains an `_index` and `_id` entry for each document in the search result for this
 query that didn't have a ratings value. This can be used to ask the user to supply ratings for these documents
 <5> the `hits` section shows a grouping of the search results with their supplied rating
 <6> the `metric_details` give additional information about the calculated quality metric (e.g. how many of the retrieved

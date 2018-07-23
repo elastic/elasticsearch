@@ -178,7 +178,6 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
     /**
      * The source of the document (As a map).
      */
-    @SuppressWarnings({"unchecked"})
     public Map<String, Object> sourceAsMap() throws ElasticsearchParseException {
         if (source == null) {
             return null;

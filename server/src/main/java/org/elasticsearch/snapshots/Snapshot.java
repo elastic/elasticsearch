@@ -80,7 +80,7 @@ public final class Snapshot implements Writeable {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        @SuppressWarnings("unchecked") Snapshot that = (Snapshot) o;
+        Snapshot that = (Snapshot) o;
         return repository.equals(that.repository) && snapshotId.equals(that.snapshotId);
     }
 

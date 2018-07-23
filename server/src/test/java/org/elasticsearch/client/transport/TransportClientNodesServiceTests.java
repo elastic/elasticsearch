@@ -456,13 +456,8 @@ public class TransportClientNodesServiceTests extends ESTestCase {
         }
 
         @Override
-        public boolean supportsPing() {
-            return connection.supportsPing();
-        }
-
-        @Override
-        public void sendPing() {
-            connection.sendPing();
+        public boolean sendPing() {
+            return connection.sendPing();
         }
 
         @Override

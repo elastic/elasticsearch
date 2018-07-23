@@ -79,13 +79,13 @@ public abstract class FaultDetection extends AbstractComponent implements Closea
 
         this.connectionListener = new FDConnectionListener();
         if (registerConnectionListener) {
-            transportService.addNodeConnectionListener(connectionListener);
+            transportService.addConnectionListener(connectionListener);
         }
     }
 
     @Override
     public void close() {
-        transportService.removeNodeConnectionListener(connectionListener);
+        transportService.removeConnectionListener(connectionListener);
     }
 
     /**
@@ -93,11 +93,7 @@ public abstract class FaultDetection extends AbstractComponent implements Closea
      */
     abstract void handleTransportDisconnect(DiscoveryNode node);
 
-    private class FDConnectionListener implements TransportConnectionListener.NodeConnection {
-        @Override
-        public void onNodeConnected(DiscoveryNode node) {
-        }
-
+    private class FDConnectionListener implements TransportConnectionListener {
         @Override
         public void onNodeDisconnected(DiscoveryNode node) {
             AbstractRunnable runnable = new AbstractRunnable() {

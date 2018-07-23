@@ -385,12 +385,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
 
         @Override
-        public boolean supportsPing() {
-            return true;
-        }
-
-        @Override
-        public void sendPing() {
+        public boolean sendPing() {
             for (TcpChannel channel : channels) {
                 internalSendMessage(channel, pingMessage, new SendMetricListener(pingMessage.length()) {
                     @Override
@@ -411,6 +406,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                     }
                 });
             }
+            return true;
         }
 
         @Override
@@ -1781,14 +1777,28 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
 
         @Override
-        public void onConnectionOpened(Transport.Connection nodeChannels) {
+        public void onNodeDisconnected(DiscoveryNode key) {
+            for (TransportConnectionListener listener : listeners) {
+                listener.onNodeDisconnected(key);
+            }
+        }
+
+        @Override
+        public void onConnectionOpened(Connection nodeChannels) {
             for (TransportConnectionListener listener : listeners) {
                 listener.onConnectionOpened(nodeChannels);
             }
         }
 
         @Override
-        public void onConnectionClosed(Transport.Connection nodeChannels) {
+        public void onNodeConnected(DiscoveryNode node) {
+            for (TransportConnectionListener listener : listeners) {
+                listener.onNodeConnected(node);
+            }
+        }
+
+        @Override
+        public void onConnectionClosed(Connection nodeChannels) {
             for (TransportConnectionListener listener : listeners) {
                 listener.onConnectionClosed(nodeChannels);
             }

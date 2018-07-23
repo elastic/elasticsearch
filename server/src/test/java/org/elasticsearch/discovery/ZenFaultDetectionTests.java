@@ -96,7 +96,7 @@ public class ZenFaultDetectionTests extends ESTestCase {
         // wait till all nodes are properly connected and the event has been sent, so tests in this class
         // will not get this callback called on the connections done in this setup
         final CountDownLatch latch = new CountDownLatch(2);
-        TransportConnectionListener.NodeConnection waitForConnection = new TransportConnectionListener.NodeConnection() {
+        TransportConnectionListener waitForConnection = new TransportConnectionListener() {
             @Override
             public void onNodeConnected(DiscoveryNode node) {
                 latch.countDown();

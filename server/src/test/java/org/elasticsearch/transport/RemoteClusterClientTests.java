@@ -81,12 +81,7 @@ public class RemoteClusterClientTests extends ESTestCase {
             try (MockTransportService service = MockTransportService.createNewService(localSettings, Version.CURRENT, threadPool, null)) {
                 Semaphore semaphore = new Semaphore(1);
                 service.start();
-                service.addNodeConnectionListener(new TransportConnectionListener.NodeConnection() {
-                    @Override
-                    public void onNodeConnected(DiscoveryNode node) {
-
-                    }
-
+                service.addNodeConnectionListener(new TransportConnectionListener() {
                     @Override
                     public void onNodeDisconnected(DiscoveryNode node) {
                         if (remoteNode.equals(node)) {

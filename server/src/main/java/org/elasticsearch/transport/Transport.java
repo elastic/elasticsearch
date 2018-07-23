@@ -123,12 +123,8 @@ public interface Transport extends LifecycleComponent {
         void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options) throws
             IOException, TransportException;
 
-        default boolean supportsPing() {
+        default boolean sendPing() {
             return false;
-        }
-
-        default void sendPing() {
-            throw new UnsupportedOperationException("Not support by this connection type");
         }
 
         default boolean isClosed() {

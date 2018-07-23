@@ -76,7 +76,7 @@ import java.util.stream.Collectors;
  * {@link RemoteClusterService#REMOTE_CONNECTIONS_PER_CLUSTER} until either all eligible nodes are exhausted or the maximum number of
  * connections per cluster has been reached.
  */
-final class RemoteClusterConnection extends AbstractComponent implements TransportConnectionListener.NodeConnection, Closeable {
+final class RemoteClusterConnection extends AbstractComponent implements TransportConnectionListener, Closeable {
 
     private final TransportService transportService;
     private final ConnectionProfile remoteProfile;
@@ -121,7 +121,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
         this.skipUnavailable = RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE
                 .getConcreteSettingForNamespace(clusterAlias).get(settings);
         this.connectHandler = new ConnectHandler();
-        transportService.addNodeConnectionListener(this);
+        transportService.addConnectionListener(this);
     }
 
     /**
@@ -137,10 +137,6 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
      */
     void updateSkipUnavailable(boolean skipUnavailable) {
         this.skipUnavailable = skipUnavailable;
-    }
-
-    @Override
-    public void onNodeConnected(DiscoveryNode node) {
     }
 
     @Override
@@ -294,13 +290,8 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
         }
 
         @Override
-        public boolean supportsPing() {
-            return proxyConnection.supportsPing();
-        }
-
-        @Override
-        public void sendPing() {
-            proxyConnection.sendPing();
+        public boolean sendPing() {
+            return proxyConnection.sendPing();
         }
 
         @Override

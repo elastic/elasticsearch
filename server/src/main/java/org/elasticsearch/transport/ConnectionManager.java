@@ -64,11 +64,11 @@ public class ConnectionManager implements Closeable {
         }
     }
 
-    public void addListener(TransportConnectionListener.NodeConnection listener) {
+    public void addListener(TransportConnectionListener listener) {
         this.connectionListener.listeners.add(listener);
     }
 
-    public void removeListener(TransportConnectionListener.NodeConnection listener) {
+    public void removeListener(TransportConnectionListener listener) {
         this.connectionListener.listeners.remove(listener);
     }
 
@@ -182,8 +182,8 @@ public class ConnectionManager implements Closeable {
         protected void doRunInLifecycle() {
             for (Map.Entry<DiscoveryNode, Transport.Connection> entry : connectedNodes.entrySet()) {
                 Transport.Connection connection = entry.getValue();
-                if (connection.supportsPing()) {
-                    connection.sendPing();
+                if (connection.sendPing() == false) {
+                    logger.warn("attempted to send ping to connection without support for pings [{}]", connection);
                 }
             }
         }
@@ -211,20 +211,20 @@ public class ConnectionManager implements Closeable {
         }
     }
 
-    private static final class DelegatingNodeConnectionListener implements TransportConnectionListener.NodeConnection {
+    private static final class DelegatingNodeConnectionListener implements TransportConnectionListener {
 
-        private final List<TransportConnectionListener.NodeConnection> listeners = new CopyOnWriteArrayList<>();
+        private final List<TransportConnectionListener> listeners = new CopyOnWriteArrayList<>();
 
         @Override
         public void onNodeDisconnected(DiscoveryNode key) {
-            for (TransportConnectionListener.NodeConnection listener : listeners) {
+            for (TransportConnectionListener listener : listeners) {
                 listener.onNodeDisconnected(key);
             }
         }
 
         @Override
         public void onNodeConnected(DiscoveryNode node) {
-            for (TransportConnectionListener.NodeConnection listener : listeners) {
+            for (TransportConnectionListener listener : listeners) {
                 listener.onNodeConnected(node);
             }
         }

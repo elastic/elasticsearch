@@ -190,7 +190,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         MockNode node = new MockNode(discoveryNode, service, listener, logger);
         node.action = buildPublishClusterStateAction(settings, service, node);
         final CountDownLatch latch = new CountDownLatch(nodes.size() * 2);
-        TransportConnectionListener.NodeConnection waitForConnection = new TransportConnectionListener.NodeConnection() {
+        TransportConnectionListener waitForConnection = new TransportConnectionListener() {
             @Override
             public void onNodeConnected(DiscoveryNode node) {
                 latch.countDown();

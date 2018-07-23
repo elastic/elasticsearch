@@ -20,6 +20,7 @@ package org.elasticsearch.gradle
 
 import com.carrotsearch.gradle.junit4.RandomizedTestingTask
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
+import org.apache.commons.io.IOUtils
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.eclipse.jgit.lib.Constants
 import org.eclipse.jgit.lib.RepositoryBuilder
@@ -53,6 +54,7 @@ import org.gradle.internal.jvm.Jvm
 import org.gradle.process.ExecResult
 import org.gradle.util.GradleVersion
 
+import java.nio.charset.StandardCharsets
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
 /**
@@ -67,12 +69,12 @@ class BuildPlugin implements Plugin<Project> {
                 + 'elasticearch.standalone-rest-test, and elasticsearch.build '
                 + 'are mutually exclusive')
         }
-        Properties wrapper = new Properties()
-        InputStream is = getClass().getResourceAsStream("/gradle-wrapper.properties")
-        try { wrapper.load(is) } finally { is.close() }
-        if (GradleVersion.current() < GradleVersion.version(wrapper.get('gradleVersion'))) {
+        final String minimumGradleVersion
+        InputStream is = getClass().getResourceAsStream("/minimumGradleVersion")
+        try { minimumGradleVersion = IOUtils.toString(is, StandardCharsets.UTF_8.toString()) } finally { is.close() }
+        if (GradleVersion.current() < GradleVersion.version(minimumGradleVersion.trim())) {
             throw new GradleException(
-                    "Gradle ${wrapper.get('gradleVersion')}+ is required to use elasticsearch.build plugin"
+                    "Gradle ${minimumGradleVersion}+ is required to use elasticsearch.build plugin"
             )
         }
         project.pluginManager.apply('java')

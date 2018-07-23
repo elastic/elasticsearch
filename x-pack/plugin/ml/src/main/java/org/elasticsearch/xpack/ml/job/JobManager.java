@@ -185,17 +185,28 @@ public class JobManager extends AbstractComponent {
         return MlMetadata.getMlMetadata(clusterState).expandJobIds(expression, allowNoJobs);
     }
 
+    // TODO Paging?
+    public void getAllJobs(ActionListener<QueryPage<Job>> jobsListener) {
+        QueryBuilder qb = new TermQueryBuilder(Job.JOB_TYPE.getPreferredName(), Job.ANOMALY_DETECTOR_JOB_TYPE);
+        getJobs(qb, jobsListener);
+    }
+
     private void getJobs(Collection<String> jobIds, ActionListener<QueryPage<Job>> jobsListener) {
         QueryBuilder qb = new BoolQueryBuilder()
                 .filter(new TermQueryBuilder(Job.JOB_TYPE.getPreferredName(), Job.ANOMALY_DETECTOR_JOB_TYPE))
                 .filter(new TermsQueryBuilder(Job.ID.getPreferredName(), jobIds));
 
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(qb);
+        getJobs(qb, jobsListener);
+    }
+
+
+    private void getJobs(QueryBuilder query, ActionListener<QueryPage<Job>> jobsListener) {
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(query);
         sourceBuilder.sort(Job.ID.getPreferredName());
 
         SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.jobConfigIndexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                .setQuery(qb)
+                .setQuery(query)
                 .setSource(sourceBuilder).request();
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
@@ -226,6 +237,7 @@ public class JobManager extends AbstractComponent {
      * @param clusterState the cluster state
      * @param listener     Jobs listener containing the matching {@code Job}s
      */
+    // TODO Paging?
     public void expandJobs(String expression, boolean allowNoJobs, ClusterState clusterState, ActionListener<QueryPage<Job>> listener) {
         Set<String> jobIds = expandJobIds(expression, allowNoJobs, clusterState);
         getJobs(jobIds, listener);
@@ -467,31 +479,28 @@ public class JobManager extends AbstractComponent {
             return;
         }
 
-        ClusterState clusterState = clusterService.state();
-        Set<String> openJobIds = expandJobIds(MetaData.ALL, true, clusterState)
-                .stream().filter(id -> isJobOpen(clusterState, id))
-                .collect(Collectors.toSet());
-
-        getJobs(openJobIds, ActionListener.wrap(
+        getAllJobs(ActionListener.wrap(
                 jobs -> {
-                    // TODO don't fire all these off at once
+                    ClusterState clusterState = clusterService.state();
+
+                    // NORELEASE  don't fire all these off at once
                     for (Job job : jobs.results()) {
                         Set<String> jobFilters = job.getAnalysisConfig().extractReferencedFilters();
                         if (jobFilters.contains(filter.getId())) {
-                            updateJobProcessNotifier.submitJobUpdate(UpdateParams.filterUpdate(job.getId(), filter), ActionListener.wrap(
-                                    isUpdated -> {
-                                        if (isUpdated) {
-                                            auditFilterChanges(job.getId(), filter.getId(), addedItems, removedItems);
+                            if (isJobOpen(clusterState, job.getId())) {
+                                updateJobProcessNotifier.submitJobUpdate(UpdateParams.filterUpdate(job.getId(), filter), ActionListener.wrap(
+                                        isUpdated -> {
+                                            if (isUpdated) {
+                                                auditFilterChanges(job.getId(), filter.getId(), addedItems, removedItems);
+                                            }
+                                        }, e -> {
                                         }
-                                    }, e -> {
-                                    }
-                            ));
-                        } else {
-                            auditFilterChanges(job.getId(), filter.getId(), addedItems, removedItems);
+                                ));
+                            } else {
+                                auditFilterChanges(job.getId(), filter.getId(), addedItems, removedItems);
+                            }
                         }
-
                     }
-
                 },
                 e -> {
                 }

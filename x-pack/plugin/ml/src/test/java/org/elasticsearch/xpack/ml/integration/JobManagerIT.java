@@ -238,6 +238,14 @@ public class JobManagerIT extends MlSingleNodeTestCase {
         assertThat(result.results().get(0).getId(), equalTo("0"));
         assertThat(result.results().get(1).getId(), equalTo("1"));
         assertThat(result.results().get(2).getId(), equalTo("2"));
+
+        blockingCall(actionListener -> jobManager.getAllJobs(actionListener),
+                expandedJobsHolder, exceptionHolder);
+        result = expandedJobsHolder.get();
+        assertThat(result.count(), equalTo(3L));
+        assertThat(result.results().get(0).getId(), equalTo("0"));
+        assertThat(result.results().get(1).getId(), equalTo("1"));
+        assertThat(result.results().get(2).getId(), equalTo("2"));
     }
 
     private Job.Builder createJob(String jobId) {

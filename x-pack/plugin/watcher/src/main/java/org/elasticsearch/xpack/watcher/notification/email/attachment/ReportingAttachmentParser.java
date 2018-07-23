@@ -69,8 +69,7 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
     private HttpClient httpClient;
     private final TextTemplateEngine templateEngine;
 
-    public ReportingAttachmentParser(Settings settings, HttpClient httpClient,
-                                     TextTemplateEngine templateEngine) {
+    public ReportingAttachmentParser(Settings settings, HttpClient httpClient, TextTemplateEngine templateEngine) {
         this.interval = INTERVAL_SETTING.get(settings);
         this.retries = RETRIES_SETTING.get(settings);
         this.httpClient = httpClient;

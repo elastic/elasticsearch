@@ -672,7 +672,6 @@ public class MetaDataTests extends ESTestCase {
     public static void assertLeafs(Map<String, Object> properties, String... fields) {
         for (String field : fields) {
             assertTrue(properties.containsKey(field));
-            @SuppressWarnings("unchecked")
             Map<String, Object> fieldProp = (Map<String, Object>)properties.get(field);
             assertNotNull(fieldProp);
             assertFalse(fieldProp.containsKey("properties"));

@@ -37,7 +37,6 @@ public class MlRestTestStateCleaner {
         final Request datafeedsRequest = new Request("GET", "/_xpack/ml/datafeeds");
         datafeedsRequest.addParameter("filter_path", "datafeeds");
         final Response datafeedsResponse = adminClient.performRequest(datafeedsRequest);
-        @SuppressWarnings("unchecked")
         final List<Map<String, Object>> datafeeds =
                 (List<Map<String, Object>>) XContentMapValues.extractValue("datafeeds", ESRestTestCase.entityAsMap(datafeedsResponse));
         if (datafeeds == null) {

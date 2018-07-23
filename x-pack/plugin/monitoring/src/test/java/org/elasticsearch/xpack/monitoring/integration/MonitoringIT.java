@@ -35,11 +35,11 @@ import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackUsageRequestBuilder;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
+import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
+import org.elasticsearch.xpack.core.monitoring.MonitoringFeatureSetUsage;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkRequestBuilder;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkResponse;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
-import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
-import org.elasticsearch.xpack.core.monitoring.MonitoringFeatureSetUsage;
 import org.elasticsearch.xpack.monitoring.LocalStateMonitoring;
 import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.collector.cluster.ClusterStatsMonitoringDoc;
@@ -112,7 +112,6 @@ public class MonitoringIT extends ESSingleNodeTestCase {
      * This test uses the Monitoring Bulk API to index document as an external application like Kibana would do. It
      * then ensure that the documents were correctly indexed and have the expected information.
      */
-    @SuppressWarnings("unchecked")
     public void testMonitoringBulk() throws Exception {
         whenExportersAreReady(() -> {
             final MonitoredSystem system = randomSystem();
@@ -188,7 +187,6 @@ public class MonitoringIT extends ESSingleNodeTestCase {
      * have been indexed with the expected information.
      */
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/29880")
-    @SuppressWarnings("unchecked")
     public void testMonitoringService() throws Exception {
         final boolean createAPMIndex = randomBoolean();
         final String indexName = createAPMIndex ? "apm-2017.11.06" : "books";
@@ -284,7 +282,6 @@ public class MonitoringIT extends ESSingleNodeTestCase {
      * Asserts that the source_node information (provided as a Map) of a monitoring document correspond to
      * the current local node information
      */
-    @SuppressWarnings("unchecked")
     private void assertMonitoringDocSourceNode(final Map<String, Object> sourceNode) {
         assertEquals(6, sourceNode.size());
 
@@ -541,7 +538,6 @@ public class MonitoringIT extends ESSingleNodeTestCase {
     /**
      * Disable the monitoring service and the Local exporter.
      */
-    @SuppressWarnings("unchecked")
     public void disableMonitoring() throws Exception {
         final Settings settings = Settings.builder()
                 .putNull("xpack.monitoring.collection.enabled")

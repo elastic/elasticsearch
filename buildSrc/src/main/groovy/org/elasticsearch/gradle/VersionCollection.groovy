@@ -52,6 +52,8 @@ import java.util.regex.Matcher
  */
 class VersionCollection {
 
+    public static final int LAST_RELEASED_MAJOR = 6
+
     private final List<Version> versions
     Version nextMinorSnapshot
     Version stagedMinorSnapshot
@@ -281,6 +283,10 @@ class VersionCollection {
      * This means that there is more than just a major.0.0 or major.0.0-alpha in a branch to signify it has been prevously released.
      */
     private boolean isMajorReleased(Version version, TreeSet<Version> items) {
+        if (version.getMajor() <= LAST_RELEASED_MAJOR) {
+            // TODO: Starting with 7.0.0 we no longer store qualifiers in Version.java we are not able to tell from qualifiers
+            return true
+        }
         return items
             .tailSet(Version.fromString("${version.major}.0.0"))
             .headSet(Version.fromString("${version.major + 1}.0.0"))

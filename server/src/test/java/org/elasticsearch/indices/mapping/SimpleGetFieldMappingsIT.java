@@ -77,10 +77,6 @@ public class SimpleGetFieldMappingsIT extends ESIntegTestCase {
                     .startObject("field1")
                         .field("type", "text")
                     .endObject()
-                   .startObject("alias")
-                        .field("type", "alias")
-                        .field("path", "field1")
-                    .endObject()
                     .startObject("obj")
                         .startObject("properties")
                             .startObject("subfield")
@@ -232,7 +228,18 @@ public class SimpleGetFieldMappingsIT extends ESIntegTestCase {
 
     @SuppressWarnings("unchecked")
     public void testGetFieldMappingsWithFieldAlias() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type", getMappingForType("type")));
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("field1")
+                    .field("type", "text")
+                .endObject()
+               .startObject("alias")
+                    .field("type", "alias")
+                    .field("path", "field1")
+                .endObject()
+            .endObject()
+        .endObject();
+        assertAcked(prepareCreate("test").addMapping("type", mapping));
 
         GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings()
             .setFields("alias", "field1").get();

@@ -1,6 +1,10 @@
 [[alias]]
 === Alias datatype
 
+NOTE: Field aliases can only be specified on indexes with a single mapping type. To add a field
+alias, the index must therefore have been created in 6.0 or later, or be an older index with
+the setting `index.mapping.single_type: true`. Please see <<removal-of-types>> for more information.
+
 An `alias` mapping defines an alternate name for a field in the  index.
 The alias can be used in place of the target field in <<search, search>> requests,
 and selected other APIs like <<search-field-caps, field capabilities>>.

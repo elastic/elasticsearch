@@ -507,7 +507,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         DisjunctionMaxQuery dQuery = (DisjunctionMaxQuery) query;
         assertThat(dQuery.getDisjuncts().size(), equalTo(3));
         assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 0).getTerm(),
-            equalTo(new Term(STRING_FIELD_NAME, "test")));
+            equalTo(new Term(expectedFieldName(STRING_ALIAS_FIELD_NAME), "test")));
         assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 1).getTerm(),
             equalTo(new Term(STRING_FIELD_NAME_2, "test")));
         assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 2).getTerm(),

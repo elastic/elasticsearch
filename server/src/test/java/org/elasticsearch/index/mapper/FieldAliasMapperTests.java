@@ -19,19 +19,31 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.VersionUtils;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Collection;
 
 public class FieldAliasMapperTests extends ESSingleNodeTestCase {
     private MapperService mapperService;
     private DocumentMapperParser parser;
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(InternalSettingsPlugin.class);
+    }
 
     @Before
     public void setup() {
@@ -163,5 +175,32 @@ public class FieldAliasMapperTests extends ESSingleNodeTestCase {
             () -> mapperService.merge("type", new CompressedXContent(newMapping), MergeReason.MAPPING_UPDATE, false));
         assertEquals("Cannot merge a field alias mapping [alias-field] with a mapping that is not for a field alias.",
             exception.getMessage());
+    }
+
+    public void testFieldAliasDisallowedWithMultipleTypes() throws IOException {
+        Version version = VersionUtils.randomVersionBetween(random(), null, Version.V_5_6_0);
+        Settings settings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, version)
+            .build();
+        IndexService indexService = createIndex("alias-test", settings);
+        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
+
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+            .startObject("type")
+                .startObject("properties")
+                    .startObject("alias-field")
+                        .field("type", "alias")
+                        .field("path", "concrete-field")
+                    .endObject()
+                    .startObject("concrete-field")
+                        .field("type", "keyword")
+                    .endObject()
+                .endObject()
+            .endObject()
+        .endObject());
+        IllegalStateException e = expectThrows(IllegalStateException.class,
+            () -> parser.parse("type", new CompressedXContent(mapping)));
+        assertEquals("Cannot create a field alias [alias-field] on index [alias-test],"
+            + " as it has multiple types.", e.getMessage());
     }
 }

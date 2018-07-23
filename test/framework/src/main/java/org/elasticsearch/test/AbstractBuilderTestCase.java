@@ -143,6 +143,10 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         return currentTypes;
     }
 
+    protected static boolean isSingleType() {
+        return serviceHolder.idxSettings.isSingleType();
+    }
+
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return Collections.emptyList();
     }
@@ -217,7 +221,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
     }
 
     protected static String expectedFieldName(String builderFieldName) {
-        if (currentTypes.length == 0) {
+        if (currentTypes.length == 0 || !isSingleType()) {
             return builderFieldName;
         }
         return ALIAS_TO_CONCRETE_FIELD_NAME.getOrDefault(builderFieldName, builderFieldName);
@@ -384,20 +388,36 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 mapperService.merge(type, new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(type,
                     STRING_FIELD_NAME, "type=text",
                     STRING_FIELD_NAME_2, "type=keyword",
-                    STRING_ALIAS_FIELD_NAME, "type=alias,path=" + STRING_FIELD_NAME,
                     INT_FIELD_NAME, "type=integer",
-                    INT_ALIAS_FIELD_NAME, "type=alias,path=" + INT_FIELD_NAME,
                     INT_RANGE_FIELD_NAME, "type=integer_range",
                     DOUBLE_FIELD_NAME, "type=double",
                     BOOLEAN_FIELD_NAME, "type=boolean",
                     DATE_FIELD_NAME, "type=date",
-                    DATE_ALIAS_FIELD_NAME, "type=alias,path=" + DATE_FIELD_NAME,
                     DATE_RANGE_FIELD_NAME, "type=date_range",
                     OBJECT_FIELD_NAME, "type=object",
                     GEO_POINT_FIELD_NAME, "type=geo_point",
-                    GEO_POINT_ALIAS_FIELD_NAME, "type=alias,path=" + GEO_POINT_FIELD_NAME,
                     GEO_SHAPE_FIELD_NAME, "type=geo_shape"
                 ))), MapperService.MergeReason.MAPPING_UPDATE, false);
+
+                // Field aliases are only supported on indexes with a single type. If the index has multiple types, we
+                // still create fields with the same names as the alias fields, but with a concrete definition. This
+                // avoids the need for various test classes to check whether the index contains a single type.
+                if (idxSettings.isSingleType()) {
+                    mapperService.merge(type, new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(type,
+                        STRING_ALIAS_FIELD_NAME, "type=alias,path=" + STRING_FIELD_NAME,
+                        INT_ALIAS_FIELD_NAME, "type=alias,path=" + INT_FIELD_NAME,
+                        DATE_ALIAS_FIELD_NAME, "type=alias,path=" + DATE_FIELD_NAME,
+                        GEO_POINT_ALIAS_FIELD_NAME, "type=alias,path=" + GEO_POINT_FIELD_NAME
+                    ))), MapperService.MergeReason.MAPPING_UPDATE, false);
+                } else {
+                    mapperService.merge(type, new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(type,
+                        STRING_ALIAS_FIELD_NAME, "type=text",
+                        INT_ALIAS_FIELD_NAME, "type=integer",
+                        DATE_ALIAS_FIELD_NAME, "type=date",
+                        GEO_POINT_ALIAS_FIELD_NAME, "type=geo_point"
+                    ))), MapperService.MergeReason.MAPPING_UPDATE, false);
+                }
+
                 // also add mappings for two inner field in the object field
                 mapperService.merge(type, new CompressedXContent("{\"properties\":{\"" + OBJECT_FIELD_NAME + "\":{\"type\":\"object\","
                                 + "\"properties\":{\"" + DATE_FIELD_NAME + "\":{\"type\":\"date\"},\"" +

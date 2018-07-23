@@ -150,7 +150,9 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
 
         } else if (getCurrentTypes().length == 0 ||
             (expectedFieldName.equals(DATE_FIELD_NAME) == false
+                && expectedFieldName.equals(DATE_ALIAS_FIELD_NAME) == false
                 && expectedFieldName.equals(INT_FIELD_NAME) == false
+                && expectedFieldName.equals(INT_ALIAS_FIELD_NAME) == false
                 && expectedFieldName.equals(DATE_RANGE_FIELD_NAME) == false
                 && expectedFieldName.equals(INT_RANGE_FIELD_NAME) == false)) {
             assertThat(query, instanceOf(TermRangeQuery.class));

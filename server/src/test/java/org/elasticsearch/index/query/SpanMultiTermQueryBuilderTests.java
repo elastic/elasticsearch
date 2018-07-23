@@ -62,13 +62,16 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
             .startObject("prefix_field")
                 .field("type", "text")
                 .startObject("index_prefixes").endObject()
-            .endObject()
-            .startObject("prefix_field_alias")
-                .field("type", "alias")
-                .field("path", "prefix_field")
-            .endObject()
-        .endObject().endObject().endObject();
+            .endObject();
 
+        // Field aliases are only supported on indexes with a single type.
+        if (mapperService.getIndexSettings().isSingleType()) {
+            mapping.startObject("prefix_field_alias")
+                    .field("type", "alias")
+                    .field("path", "prefix_field")
+                .endObject();
+        }
+        mapping.endObject().endObject().endObject();
         mapperService.merge("_doc",
             new CompressedXContent(Strings.toString(mapping)), MapperService.MergeReason.MAPPING_UPDATE, true);
     }
@@ -178,7 +181,9 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
     }
 
     public void testToQueryInnerTermQuery() throws IOException {
-        String fieldName = randomFrom("prefix_field", "prefix_field_alias");
+        String fieldName = isSingleType()
+            ? randomFrom("prefix_field", "prefix_field_alias")
+            : "prefix_field";
         final QueryShardContext context = createShardContext();
         if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_4_0)) {
             Query query = new SpanMultiTermQueryBuilder(new PrefixQueryBuilder(fieldName, "foo"))

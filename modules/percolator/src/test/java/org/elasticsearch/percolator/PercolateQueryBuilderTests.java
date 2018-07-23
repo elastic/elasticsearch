@@ -97,12 +97,20 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         queryField = randomAlphaOfLength(4);
-        aliasField = randomAlphaOfLength(4);
 
         String docType = "_doc";
         mapperService.merge(docType, new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(docType,
-                queryField, "type=percolator", aliasField, "type=alias,path=" + queryField
+                queryField, "type=percolator"
         ))), MapperService.MergeReason.MAPPING_UPDATE, false);
+
+        // Field aliases are only supported on indexes with a single type.
+        if (mapperService.getIndexSettings().isSingleType()) {
+            aliasField = randomAlphaOfLength(4);
+            mapperService.merge(docType, new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(docType,
+                 aliasField, "type=alias,path=" + queryField
+            ))), MapperService.MergeReason.MAPPING_UPDATE, false);
+        }
+
         mapperService.merge(docType, new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(docType,
                 STRING_FIELD_NAME, "type=text"
         ))), MapperService.MergeReason.MAPPING_UPDATE, false);
@@ -369,6 +377,8 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     }
 
     public void testFieldAlias() throws IOException {
+        assumeTrue("Test only runs when there is a single mapping type.", isSingleType());
+
         QueryShardContext shardContext = createShardContext();
 
         PercolateQueryBuilder builder = doCreateTestQueryBuilder(false);

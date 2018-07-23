@@ -106,14 +106,14 @@ integTestRunner {
 
 // location for keys and certificates
 File keystoreDir = new File(project.buildDir, 'keystore')
-File nodeKey = new File(keystoreDir, 'testnode.pem')
-File nodeCert = new File(keystoreDir, 'testnode.crt')
+File nodeKey = file("$keystoreDir/testnode.pem")
+File nodeCert = file("$keystoreDir/testnode.crt")
 
 // Add key and certs to test classpath: it expects them there
 // User cert and key PEM files instead of a JKS Keystore for the cluster's trust material so that
 // it can run in a FIPS 140 JVM
 task copyKeyCerts(type: Copy) {
-  from('./core/src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/') {
+  from(project(':x-pack:plugin:core').file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/')) {
     include 'testnode.crt', 'testnode.pem'
     }
   into keystoreDir

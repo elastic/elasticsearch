@@ -125,6 +125,9 @@ class BuildPlugin implements Plugin<Project> {
                 runtimeJavaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(project, runtimeJavaHome))
             }
 
+            String inFipsJvmScript = 'print(java.security.Security.getProviders()[0].name.toLowerCase().contains("fips"));'
+            boolean inFipsJvm = Boolean.parseBoolean(runJavascript(project, runtimeJavaHome, inFipsJvmScript))
+
             // Build debugging info
             println '======================================='
             println 'Elasticsearch Build Hamster says Hello!'
@@ -143,6 +146,7 @@ class BuildPlugin implements Plugin<Project> {
                 println "  JAVA_HOME             : ${gradleJavaHome}"
             }
             println "  Random Testing Seed   : ${project.testSeed}"
+            println "  in FIPS MODE          : ${inFipsJvm}"
 
             // enforce Gradle version
             final GradleVersion currentGradleVersion = GradleVersion.current();
@@ -196,6 +200,7 @@ class BuildPlugin implements Plugin<Project> {
             project.rootProject.ext.buildChecksDone = true
             project.rootProject.ext.minimumCompilerVersion = minimumCompilerVersion
             project.rootProject.ext.minimumRuntimeVersion = minimumRuntimeVersion
+            project.rootProject.ext.inFipsJvm = inFipsJvm
         }
 
         project.targetCompatibility = project.rootProject.ext.minimumRuntimeVersion
@@ -207,6 +212,7 @@ class BuildPlugin implements Plugin<Project> {
         project.ext.compilerJavaVersion = project.rootProject.ext.compilerJavaVersion
         project.ext.runtimeJavaVersion = project.rootProject.ext.runtimeJavaVersion
         project.ext.javaVersions = project.rootProject.ext.javaVersions
+        project.ext.inFipsJvm = project.rootProject.ext.inFipsJvm
     }
 
     private static String findCompilerJavaHome() {
@@ -287,7 +293,7 @@ class BuildPlugin implements Plugin<Project> {
     }
 
     /** Runs the given javascript using jjs from the jdk, and returns the output */
-    static String runJavascript(Project project, String javaHome, String script) {
+    private static String runJavascript(Project project, String javaHome, String script) {
         ByteArrayOutputStream stdout = new ByteArrayOutputStream()
         ByteArrayOutputStream stderr = new ByteArrayOutputStream()
         if (Os.isFamily(Os.FAMILY_WINDOWS)) {
@@ -705,7 +711,11 @@ class BuildPlugin implements Plugin<Project> {
                     systemProperty property.getKey(), property.getValue()
                 }
             }
-
+            // Set the system keystore/truststore password if we're running tests in a FIPS-140 JVM
+            if (project.inFipsJvm) {
+                systemProperty 'javax.net.ssl.trustStorePassword', 'password'
+                systemProperty 'javax.net.ssl.keyStorePassword', 'password'
+            }
             boolean assertionsEnabled = Boolean.parseBoolean(System.getProperty('tests.asserts', 'true'))
             enableSystemAssertions assertionsEnabled
             enableAssertions assertionsEnabled

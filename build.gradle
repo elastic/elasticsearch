@@ -477,19 +477,6 @@ allprojects {
   tasks.eclipse.dependsOn(cleanEclipse, copyEclipseSettings)
 }
 
-// Set the system keystore/truststore password if we're running tests in a FIPS-140 JVM
-allprojects {
-  tasks.withType(RandomizedTestingTask) {
-    // So that this gets executed only right before the test runs
-    doFirst {
-      String inFipsJvmScript = 'print(java.security.Security.getProviders()[0].name.toLowerCase().contains("fips"));'
-      if (Boolean.parseBoolean(BuildPlugin.runJavascript(project, project.runtimeJavaHome, inFipsJvmScript))) {
-        systemProperty 'javax.net.ssl.trustStorePassword', 'password'
-        systemProperty 'javax.net.ssl.keyStorePassword', 'password'
-      }
-    }
-  }
-}
 // we need to add the same --debug-jvm option as
 // the real RunTask has, so we can pass it through
 class Run extends DefaultTask {

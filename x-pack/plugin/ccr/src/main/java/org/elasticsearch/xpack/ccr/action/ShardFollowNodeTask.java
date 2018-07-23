@@ -188,9 +188,9 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     synchronized void innerHandleReadResponse(long from, long maxRequiredSeqNo, ShardChangesAction.Response response) {
         leaderGlobalCheckpoint = Math.max(leaderGlobalCheckpoint, response.getGlobalCheckpoint());
-        final long newMinRequiredSeqNo;
+        final long newFromSeqNo;
         if (response.getOperations().length == 0) {
-            newMinRequiredSeqNo = from;
+            newFromSeqNo = from;
         } else {
             assert response.getOperations()[0].seqNo() == from :
                 "first operation is not what we asked for. From is [" + from + "], got " + response.getOperations()[0];
@@ -198,19 +198,18 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             final long maxSeqNo = response.getOperations()[response.getOperations().length - 1].seqNo();
             assert maxSeqNo ==
                 Arrays.stream(response.getOperations()).mapToLong(Translog.Operation::seqNo).max().getAsLong();
-            newMinRequiredSeqNo = maxSeqNo + 1;
+            newFromSeqNo = maxSeqNo + 1;
             // update last requested seq no as we may have gotten more than we asked for and we don't want to ask it again.
             lastRequestedSeqno = Math.max(lastRequestedSeqno, maxSeqNo);
             assert lastRequestedSeqno <= leaderGlobalCheckpoint :  "lastRequestedSeqno [" + lastRequestedSeqno +
                 "] is larger than the global checkpoint [" + leaderGlobalCheckpoint + "]";
             coordinateWrites();
         }
-
-        if (newMinRequiredSeqNo < maxRequiredSeqNo && isStopped() == false) {
-            int newSize = (int) (maxRequiredSeqNo - newMinRequiredSeqNo) + 1;
+        if (newFromSeqNo <= maxRequiredSeqNo && isStopped() == false) {
+            int newSize = Math.toIntExact(maxRequiredSeqNo - newFromSeqNo + 1);
             LOGGER.trace("{} received [{}] ops, still missing [{}/{}], continuing to read...",
-                params.getFollowShardId(), response.getOperations().length, newMinRequiredSeqNo, maxRequiredSeqNo);
-            sendShardChangesRequest(newMinRequiredSeqNo, newSize, maxRequiredSeqNo);
+                params.getFollowShardId(), response.getOperations().length, newFromSeqNo, maxRequiredSeqNo);
+            sendShardChangesRequest(newFromSeqNo, newSize, maxRequiredSeqNo);
         } else {
             // read is completed, decrement
             numConcurrentReads--;

@@ -25,13 +25,14 @@ import java.util.regex.Pattern;
 
 /**
  * <p>A Key of a dissect pattern. This class models the name and modifiers and provides some validation.</p>
- * <p>For dissect pattern of {@code %{a->} %{b}} the dissect keys are:
+ * <p>For dissect pattern of {@code %{a} %{+a} %{b}} the dissect keys are:
  * <ul>
- * <li>{@code a->}</li>
+ * <li>{@code a}</li>
+ * <li>{@code +a}</li>
  * <li>{@code b}</li>
  * </ul>
  * This class represents a single key.
- * <p>A single key is composed of a name and it's modifiers. For the key {@code a->}, {@code a} is the name and {@code ->} is the modifier.
+ * <p>A single key is composed of a name and it's modifiers. For the key {@code +a}, {@code a} is the name and {@code +} is the modifier.
  */
 public final class DissectKey {
     private static final Pattern LEFT_MODIFIER_PATTERN = Pattern.compile("([+?&])(.*?)(->)?$", Pattern.DOTALL);
@@ -46,7 +47,7 @@ public final class DissectKey {
     /**
      * Constructor - parses the String key into it's name and modifier(s)
      *
-     * @param key The key without the leading <code>%{</code> or trailing <code>}</code>, for example a->
+     * @param key The key without the leading <code>%{</code> or trailing <code>}</code>, for example {@code a->}
      */
     DissectKey(String key) {
         skip = key == null || key.isEmpty();
@@ -89,7 +90,6 @@ public final class DissectKey {
                     skipRightPadding = matcher.group(4) != null;
                 }
                 break;
-
         }
 
         if (name == null || (name.isEmpty() && !skip)) {
@@ -127,7 +127,6 @@ public final class DissectKey {
             ", name='" + name + '\'' +
             '}';
     }
-
 
     public enum Modifier {
         NONE(""), APPEND_WITH_ORDER("/"), APPEND("+"), FIELD_NAME("?"), FIELD_VALUE("&");

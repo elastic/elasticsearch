@@ -257,7 +257,6 @@ public final class DissectParser {
         return postProcess(results.stream().filter(dissectPair -> !dissectPair.getKey().skip()).collect(Collectors.toList()));
     }
 
-
     /**
      * Verify that each key has a entry in the result, don't rely only on size since some error cases would result in false positives
      */
@@ -271,7 +270,6 @@ public final class DissectParser {
         }
         return valid;
     }
-
 
     private List<DissectPair> postProcess(List<DissectPair> results) {
         if (needsPostParsing) {

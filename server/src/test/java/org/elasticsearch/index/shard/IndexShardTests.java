@@ -1184,7 +1184,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 .primaryTerm(0, 1)
                 .build();
 
-        // Override one Directory methods to make it fail at our will
+        // Override two Directory methods to make them fail at our will
         // We use AtomicReference here to inject failure in the middle of the test not immediately
         // We use Supplier<IOException> instead of IOException to produce meaningful stacktrace
         // (remember stack trace is filled when exception is instantiated)
@@ -1215,31 +1215,29 @@ public class IndexShardTests extends IndexShardTestCase {
             }
         };
 
-        Store store = createStore(shardId, new IndexSettings(metaData, Settings.EMPTY), directory);
-        IndexShard shard = newShard(shardRouting, shardPath, metaData, store,
-                null, new InternalEngineFactory(), () -> {}, EMPTY_EVENT_LISTENER);
+        try (Store store = createStore(shardId, new IndexSettings(metaData, Settings.EMPTY), directory)) {
+            IndexShard shard = newShard(shardRouting, shardPath, metaData, store,
+                    null, new InternalEngineFactory(), () -> {
+                    }, EMPTY_EVENT_LISTENER);
+            AtomicBoolean failureCallbackTriggered = new AtomicBoolean(false);
+            shard.addShardFailureCallback((ig)->failureCallbackTriggered.set(true));
 
-        recoverShardFromStore(shard);
+            recoverShardFromStore(shard);
 
-        final boolean corruptIndexException = randomBoolean();
+            final boolean corruptIndexException = randomBoolean();
 
-        if (corruptIndexException) {
-            exceptionToThrow.set(() -> new CorruptIndexException("Test CorruptIndexException", "Test resource"));
-            throwWhenMarkingStoreCorrupted.set(randomBoolean());
-        } else {
-            exceptionToThrow.set(() -> new IOException("Test IOException"));
-        }
-        ElasticsearchException e = expectThrows(ElasticsearchException.class, shard::storeStats);
-        assertThat(shard.state(), equalTo(IndexShardState.CLOSED));
-        if (corruptIndexException && !throwWhenMarkingStoreCorrupted.get()) {
-            assertTrue(store.isMarkedCorrupted());
-        }
+            if (corruptIndexException) {
+                exceptionToThrow.set(() -> new CorruptIndexException("Test CorruptIndexException", "Test resource"));
+                throwWhenMarkingStoreCorrupted.set(randomBoolean());
+            } else {
+                exceptionToThrow.set(() -> new IOException("Test IOException"));
+            }
+            ElasticsearchException e = expectThrows(ElasticsearchException.class, shard::storeStats);
+            assertTrue(failureCallbackTriggered.get());
 
-        //TODO Should it be invoked when closing the shard?
-        try {
-            directory.close();
-        } catch (IOException expected){
-            //expected
+            if (corruptIndexException && !throwWhenMarkingStoreCorrupted.get()) {
+                assertTrue(store.isMarkedCorrupted());
+            }
         }
     }
 

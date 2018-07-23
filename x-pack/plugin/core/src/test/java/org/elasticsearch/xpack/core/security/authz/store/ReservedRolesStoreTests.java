@@ -77,8 +77,11 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFiel
 import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationAction;
@@ -89,6 +92,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl.IndexAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.core.security.user.LogstashSystemUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
@@ -108,6 +112,7 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.hasEntry;
@@ -192,10 +197,27 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(kibanaRole.cluster().check(InvalidateTokenAction.NAME, request), is(true));
         assertThat(kibanaRole.cluster().check(CreateTokenAction.NAME, request), is(false));
 
-        // Security
-        assertThat(kibanaRole.cluster().check(DeletePrivilegesAction.NAME, request), is(false));
-        assertThat(kibanaRole.cluster().check(GetPrivilegesAction.NAME, request), is(true));
-        assertThat(kibanaRole.cluster().check(PutPrivilegesAction.NAME, request), is(true));
+        // Application Privileges
+        DeletePrivilegesRequest deleteKibanaPrivileges = new DeletePrivilegesRequest("kibana-.kibana", new String[]{ "all", "read" });
+        DeletePrivilegesRequest deleteLogstashPrivileges = new DeletePrivilegesRequest("logstash", new String[]{ "all", "read" });
+        assertThat(kibanaRole.cluster().check(DeletePrivilegesAction.NAME, deleteKibanaPrivileges), is(true));
+        assertThat(kibanaRole.cluster().check(DeletePrivilegesAction.NAME, deleteLogstashPrivileges), is(false));
+
+        GetPrivilegesRequest getKibanaPrivileges = new GetPrivilegesRequest();
+        getKibanaPrivileges.application("kibana-.kibana-sales");
+        GetPrivilegesRequest getApmPrivileges = new GetPrivilegesRequest();
+        getApmPrivileges.application("apm");
+        assertThat(kibanaRole.cluster().check(GetPrivilegesAction.NAME, getKibanaPrivileges), is(true));
+        assertThat(kibanaRole.cluster().check(GetPrivilegesAction.NAME, getApmPrivileges), is(false));
+
+        PutPrivilegesRequest putKibanaPrivileges = new PutPrivilegesRequest();
+        putKibanaPrivileges.setPrivileges(Collections.singletonList(new ApplicationPrivilegeDescriptor(
+            "kibana-.kibana-" + randomAlphaOfLengthBetween(2,6), "all", Collections.emptySet(), Collections.emptyMap())));
+        PutPrivilegesRequest putSwiftypePrivileges = new PutPrivilegesRequest();
+        putSwiftypePrivileges.setPrivileges(Collections.singletonList(new ApplicationPrivilegeDescriptor(
+            "swiftype-kibana" , "all", Collections.emptySet(), Collections.emptyMap())));
+        assertThat(kibanaRole.cluster().check(PutPrivilegesAction.NAME, putKibanaPrivileges), is(true));
+        assertThat(kibanaRole.cluster().check(PutPrivilegesAction.NAME, putSwiftypePrivileges), is(false));
 
         // Everything else
         assertThat(kibanaRole.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));

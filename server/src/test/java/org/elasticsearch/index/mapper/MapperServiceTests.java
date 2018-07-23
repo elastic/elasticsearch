@@ -270,6 +270,37 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         assertThat(e.getMessage(), containsString("Invalid [path] value [nested.field] for field alias [alias]"));
     }
 
+    public void testTotalFieldsLimitWithFieldAlias() throws Throwable {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties")
+                .startObject("alias")
+                    .field("type", "alias")
+                    .field("path", "field")
+                .endObject()
+                .startObject("field")
+                    .field("type", "text")
+                .endObject()
+            .endObject()
+        .endObject().endObject());
+
+        DocumentMapper documentMapper = createIndex("test1").mapperService()
+            .merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+
+        // Set the total fields limit to the number of non-alias fields, to verify that adding
+        // a field alias pushes the mapping over the limit.
+        int numFields = documentMapper.mapping().metadataMappers.length + 2;
+        int numNonAliasFields = numFields - 1;
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            Settings settings = Settings.builder()
+                .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), numNonAliasFields)
+                .build();
+            createIndex("test2", settings).mapperService()
+                .merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+        });
+        assertEquals("Limit of total fields [" + numNonAliasFields + "] in index [test2] has been exceeded", e.getMessage());
+    }
+
     public void testForbidMultipleTypes() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
         MapperService mapperService = createIndex("test").mapperService();

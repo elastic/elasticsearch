@@ -91,7 +91,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
     private final SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
 
     /**
-     * For each provided field type, we also register an alias with name <field>-alias.
+     * For each provided field type, we also register an alias with name {@code <field>-alias}.
      */
     @Override
     protected Map<String, MappedFieldType> getFieldAliases(MappedFieldType... fieldTypes) {

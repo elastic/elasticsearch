@@ -67,6 +67,9 @@ class BuildPlugin implements Plugin<Project> {
                 + 'elasticearch.standalone-rest-test, and elasticsearch.build '
                 + 'are mutually exclusive')
         }
+        if (GradleVersion.current() < GradleVersion.version('4.9')) {
+            throw new GradleException('Gradle 4.9+ is required to use elasticsearch.build plugin')
+        }
         project.pluginManager.apply('java')
         project.pluginManager.apply('carrotsearch.randomized-testing')
         // these plugins add lots of info to our jars
@@ -219,7 +222,11 @@ class BuildPlugin implements Plugin<Project> {
                 // IntelliJ does not set JAVA_HOME, so we use the JDK that Gradle was run with
                 return Jvm.current().javaHome
             } else {
-                throw new GradleException("JAVA_HOME must be set to build Elasticsearch")
+                throw new GradleException(
+                        "JAVA_HOME must be set to build Elasticsearch. " +
+                                "Note that if the variable was just set you might have to run `./gradlew --stop` for " +
+                                "it to be picked up. See https://github.com/elastic/elasticsearch/issues/31399 details."
+                )
             }
         }
         return javaHome
@@ -750,7 +757,6 @@ class BuildPlugin implements Plugin<Project> {
             systemProperty 'tests.task', path
             systemProperty 'tests.security.manager', 'true'
             systemProperty 'jna.nosys', 'true'
-            systemProperty 'es.scripting.exception_for_missing_value', 'true'
             // TODO: remove setting logging level via system property
             systemProperty 'tests.logger.level', 'WARN'
             for (Map.Entry<String, String> property : System.properties.entrySet()) {

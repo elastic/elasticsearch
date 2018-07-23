@@ -78,7 +78,7 @@ public class PipelineExecutionService implements ClusterStateApplier {
                             innerExecute(indexRequest, getPipeline(indexRequest.getPipeline()));
                             //this shouldn't be needed here but we do it for consistency with index api
                             // which requires it to prevent double execution
-                            indexRequest.setPipeline(null);
+                            indexRequest.setPipeline("");
                         } catch (Exception e) {
                             itemFailureHandler.accept(indexRequest, e);
                         }

@@ -8,26 +8,31 @@ coming[6.4.0]
 
 See also <<release-notes-6.4.0,{es} 6.4.0 release notes>>. 
 
+[float]
 === Aggregations
 
 * Auto-interval Date Histogram - A new `auto_date_histogram` aggregation has been added which instead of taking an `interval` takes a `buckets` option which defines the maximum number of buckets it should return. The aggregation internally determines the best interval to use to get as close to the `bucket` option as possible without exceeding it.
 
+[float]
 === Analysis
 
-* Option to index phrases on text fields - A new `index_phrases` option has been added to `text` fields. When enabled this option will index 2-shingles of the field in a separate Lucene field to allow faster, more efficient, phrase searches on that field with the trade-off of consuming more disk space in the index. For more information see <<text, text field type>>
-* Korean analysis tools - A new plugin has been added which provides analysis tools for the Korean language. The new `nori` analyzer can be used to analyze Korean text "out of the box" and custom analyzers can use a tokenizer, part of speech token filter and a Hanja reading form token filter. For more information see {:plugins:}/analysis-nori.html[Nori Plugin]
-* Add multiplexing token filter - This new token filter allows you to run tokens through multiple different tokenfilters and stack the results. For example, you can now easily index the original form of a token, its lowercase form and a stemmed form all at the same position, allowing you to search for stemmed and unstemmed tokens in the same field. For more information see <<analysis-multiplexer-tokenfilter,Multiplexer token filter>>
+* Option to index phrases on text fields - A new `index_phrases` option has been added to `text` fields. When enabled this option will index 2-shingles of the field in a separate Lucene field to allow faster, more efficient, phrase searches on that field with the trade-off of consuming more disk space in the index. For more information, see <<text, text field type>>.
+* Korean analysis tools - A new plugin has been added which provides analysis tools for the Korean language. The new `nori` analyzer can be used to analyze Korean text "out of the box" and custom analyzers can use a tokenizer, part of speech token filter and a Hanja reading form token filter. For more information, see {plugins}/analysis-nori.html[Nori Plugin].
+* Add multiplexing token filter - This new token filter allows you to run tokens through multiple different tokenfilters and stack the results. For example, you can now easily index the original form of a token, its lowercase form and a stemmed form all at the same position, allowing you to search for stemmed and unstemmed tokens in the same field. For more information, see <<analysis-multiplexer-tokenfilter,Multiplexer token filter>>.
 
+[float]
 === Mappings
 
-* `_ignored` meta field - A new meta field has been added to documents. The `_ignored` field will contain the field names of any fields that were ignored at index time due to the `ignore_malformed` option. This means that malformed documents can be more easily discovered by using `exists` or `term` queries on this new meta field. <<mapping-ignored-field,_ignored field>>
+* `_ignored` meta field - A new meta field has been added to documents. The `_ignored` field will contain the field names of any fields that were ignored at index time due to the `ignore_malformed` option. This means that malformed documents can be more easily discovered by using `exists` or `term` queries on this new meta field. See <<mapping-ignored-field,_ignored field>>.
 
+[float]
 === Rank Eval API
 
-* Expected Reciprocal Rank metric for Rank Eval API - The Expected Reciprocal Rank has been added to the available metrics in the Rank Eval API. ERR is an extension of the classical reciprocal rank which in order to determine the usefulness of a document at position K in the results, it uses the degree of relevance of the document at posiitons less than K as well.
+* Expected Reciprocal Rank metric for Rank Eval API - The Expected Reciprocal Rank has been added to the available metrics in the Rank Eval API. ERR is an extension of the classical reciprocal rank which in order to determine the usefulness of a document at position K in the results, it uses the degree of relevance of the document at positions less than K as well.
 
+[float]
 === Search
 
 * Cross Cluster Search will no longer use dedicated master nodes as gateway nodes - Previously the gateway node on a remote cluster used by Cross Cluster search was selected based only on the node's version and node attributes set in the `search.remote.node.attr` setting. This meant that unless carefully configured any node in the cluster could potentially be used as a gateway node for a cross cluster search. This may cause problems when running with dedicated master nodes as it is undesirable for master eligible nodes to be used for any search activity. Starting from 6.4.0 cross cluster search will no longer consider dedicated master eligible nodes as potential gateway nodes providing a better out of the box default for running cross cluster searches.
-* Format option for doc_value fields - `doc_value` fields in the Search API can now specify a `format` field to control the format of the value in the response. For more information see <search-request-docvalue-fields, doc_value fields>>
-* Support second level of field collapse -  This extends the field collapsing feature to allow the top item for two fields to be retrieved. For example retrieving top scored tweets by country, and for each country, top scored tweets for each user. This can be an alternative to using multiple levels of terms aggregations along with top hits. For more information see <<search-request-collapse,Field Collapsing>>
+* Format option for doc_value fields - `doc_value` fields in the Search API can now specify a `format` field to control the format of the value in the response. For more information, see <<search-request-docvalue-fields, doc_value fields>>.
+* Support second level of field collapse -  This extends the field collapsing feature to allow the top item for two fields to be retrieved. For example retrieving top scored tweets by country, and for each country, top scored tweets for each user. This can be an alternative to using multiple levels of terms aggregations along with top hits. For more information, see <<search-request-collapse,Field Collapsing>>.

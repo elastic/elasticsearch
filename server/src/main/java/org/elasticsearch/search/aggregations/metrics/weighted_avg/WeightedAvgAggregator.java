@@ -95,7 +95,7 @@ public class WeightedAvgAggregator extends NumericMetricsAggregator.SingleValue 
                             "single document. Use a script to combine multiple weights-per-doc into a single value.");
                     }
                     // There should always be one weight if advanceExact lands us here, either
-                    // a real weight or a `missing` value
+                    // a real weight or a `missing` weight
                     assert docWeights.docValueCount() == 1;
                     final double weight = docWeights.nextValue();
 

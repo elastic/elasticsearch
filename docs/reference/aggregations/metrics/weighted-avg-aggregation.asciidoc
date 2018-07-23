@@ -12,17 +12,6 @@ As a formula, a weighted average is the `∑(value * weight) / ∑(weight)`
 
 A regular average can be thought of as a weighted average where every value has an implicit weight of `1`.
 
-[NOTE]
-======
-While multiple values-per-field are allowed, only one weight is allowed.  If the aggregation encounters
-a document that has more than one weight (e.g. the weight field is a multi-valued field) it will throw an exception.
-If you have this situation, you will need to specify a `script` for the weight field, and use the script
-to combine the multiple values into a single value to be used.
-
-This single weight will be applied independently to each value extracted from the `value` field.
-======
-
-
 .`weighted_avg` Parameters
 |===
 |Parameter Name |Description |Required |Default Value
@@ -93,6 +82,61 @@ Which yields a response like:
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
+
+While multiple values-per-field are allowed, only one weight is allowed.  If the aggregation encounters
+a document that has more than one weight (e.g. the weight field is a multi-valued field) it will throw an exception.
+If you have this situation, you will need to specify a `script` for the weight field, and use the script
+to combine the multiple values into a single value to be used.
+
+This single weight will be applied independently to each value extracted from the `value` field.
+
+This example show how a single document with multiple values will be averaged with a single weight:
+
+[source,js]
+--------------------------------------------------
+POST /exams/_doc?refresh
+{
+    "grade": [1, 2, 3],
+    "weight": 2
+}
+
+POST /exams/_search
+{
+    "size": 0,
+    "aggs" : {
+        "weighted_grade": {
+            "weighted_avg": {
+                "value": {
+                    "field": "grade"
+                },
+                "weight": {
+                    "field": "weight"
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST
+
+The three values (`1`, `2`, and `3`) will be included as independent values, all with the weight of `2`:
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+    "aggregations": {
+        "weighted_grade": {
+            "value": 2.0
+        }
+    }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+
+The aggregation returns `2.0` as the result, which matches what we would expect when calculating by hand:
+`((1*2) + (2*2) + (3*2)) / (2+2+2) == 2`
 
 ==== Script
 

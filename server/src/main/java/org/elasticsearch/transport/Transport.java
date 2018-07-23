@@ -20,6 +20,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -126,6 +127,11 @@ public interface Transport extends LifecycleComponent {
         default boolean sendPing() {
             return false;
         }
+
+        default void addCloseListener(ActionListener<Void> listener) {
+            throw new UnsupportedOperationException("Not supported");
+        }
+
 
         default boolean isClosed() {
             // TODO: should probably not be default

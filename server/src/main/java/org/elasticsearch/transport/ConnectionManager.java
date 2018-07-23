@@ -20,6 +20,7 @@ package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.component.Lifecycle;
@@ -96,21 +97,15 @@ public class ConnectionManager implements Closeable {
                 try {
                     connectionListener.onNodeConnected(node);
                 } finally {
-                    // TODO: Need to add node disconnect listener
-                    if (connection.isClosed()) {
-                        // we got closed concurrently due to a disconnect or some other event on the channel.
-                        // the close callback will close the NodeChannel instance first and then try to remove
-                        // the connection from the connected nodes. It will NOT acquire the connectionLock for
-                        // the node to prevent any blocking calls on network threads. Yet, we still establish a happens
-                        // before relationship to the connectedNodes.put since we check if we can remove the
-                        // (DiscoveryNode, NodeChannels) tuple from the map after we closed. Here we check if it's closed an if so we
-                        // try to remove it first either way one of the two wins even if the callback has run before we even added the
-                        // tuple to the map since in that case we remove it here again
-                        if (connectedNodes.remove(node, connection)) {
+                    final Transport.Connection finalConnection = connection;
+                    connection.addCloseListener(ActionListener.wrap(() -> {
+                        if (connectedNodes.remove(node, finalConnection)) {
                             connectionListener.onNodeDisconnected(node);
                         }
-                        throw new NodeNotConnectedException(node, "connection concurrently closed");
-                    }
+                    }));
+                }
+                if (connection.isClosed()) {
+                    throw new NodeNotConnectedException(node, "connection concurrently closed");
                 }
                 success = true;
             } catch (ConnectTransportException e) {
@@ -170,6 +165,10 @@ public class ConnectionManager implements Closeable {
         }
 
         lifecycle.moveToClosed();
+    }
+
+    public int connectedNodeCount() {
+        return connectedNodes.size();
     }
 
     private class ScheduledPing extends AbstractLifecycleRunnable {

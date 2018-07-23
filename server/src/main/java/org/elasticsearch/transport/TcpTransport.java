@@ -41,6 +41,7 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.compress.NotCompressedException;
+import org.elasticsearch.common.concurrent.CompletableContext;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -257,7 +258,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             out.writeInt(TcpTransport.PING_DATA_SIZE);
             pingMessage = out.bytes();
         } catch (IOException e) {
-            throw new IllegalStateException(e.getMessage(), e); // won't happen
+            throw new AssertionError(e.getMessage(), e); // won't happen
         }
     }
 
@@ -347,8 +348,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         private final Map<TransportRequestOptions.Type, ConnectionProfile.ConnectionTypeHandle> typeMapping;
         private final List<TcpChannel> channels;
         private final DiscoveryNode node;
-        private final AtomicBoolean closed = new AtomicBoolean(false);
         private final Version version;
+        private final CompletableContext<Void> closeContext = new CompletableContext<>();
 
         NodeChannels(DiscoveryNode node, List<TcpChannel> channels, ConnectionProfile connectionProfile, Version handshakeVersion) {
             this.node = node;
@@ -410,8 +411,13 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
 
         @Override
+        public void addCloseListener(ActionListener<Void> listener) {
+            closeContext.addListener(ActionListener.toBiConsumer(listener));
+        }
+
+        @Override
         public void close() {
-            if (closed.compareAndSet(false, true)) {
+            if (closeContext.complete(null)) {
                 try {
                     if (lifecycle.stopped()) {
                         /* We set SO_LINGER timeout to 0 to ensure that when we shutdown the node we don't
@@ -447,7 +453,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         @Override
         public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
             throws IOException, TransportException {
-            if (closed.get()) {
+            if (closeContext.isDone()) {
                 throw new NodeNotConnectedException(node, "connection already closed");
             }
             TcpChannel channel = channel(options.type());
@@ -456,7 +462,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
         @Override
         public boolean isClosed() {
-            return closed.get();
+            return closeContext.isDone();
         }
     }
 

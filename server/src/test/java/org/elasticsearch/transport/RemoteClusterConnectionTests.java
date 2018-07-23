@@ -294,55 +294,55 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         }
     }
 
-    public void testNodeDisconnected() throws Exception {
-        List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
-        try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
-             MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes, Version.CURRENT);
-             MockTransportService spareTransport = startTransport("spare_node", knownNodes, Version.CURRENT)) {
-            DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
-            DiscoveryNode discoverableNode = discoverableTransport.getLocalDiscoNode();
-            DiscoveryNode spareNode = spareTransport.getLocalDiscoNode();
-            knownNodes.add(seedTransport.getLocalDiscoNode());
-            knownNodes.add(discoverableTransport.getLocalDiscoNode());
-            Collections.shuffle(knownNodes, random());
-
-            try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
-                service.start();
-                service.acceptIncomingRequests();
-                try (RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",
-                    Arrays.asList(seedNode), service, Integer.MAX_VALUE, n -> true)) {
-                    updateSeedNodes(connection, Arrays.asList(seedNode));
-                    assertTrue(service.nodeConnected(seedNode));
-                    assertTrue(service.nodeConnected(discoverableNode));
-                    assertFalse(service.nodeConnected(spareNode));
-                    knownNodes.add(spareNode);
-                    CountDownLatch latchDisconnect = new CountDownLatch(1);
-                    CountDownLatch latchConnected = new CountDownLatch(1);
-                    service.addNodeConnectionListener(new TransportConnectionListener() {
-                        @Override
-                        public void onNodeDisconnected(DiscoveryNode node) {
-                            if (node.equals(discoverableNode)) {
-                                latchDisconnect.countDown();
-                            }
-                        }
-
-                        @Override
-                        public void onNodeConnected(DiscoveryNode node) {
-                            if (node.equals(spareNode)) {
-                                latchConnected.countDown();
-                            }
-                        }
-                    });
-
-                    discoverableTransport.close();
-                    // now make sure we try to connect again to other nodes once we got disconnected
-                    assertTrue(latchDisconnect.await(10, TimeUnit.SECONDS));
-                    assertTrue(latchConnected.await(10, TimeUnit.SECONDS));
-                    assertTrue(service.nodeConnected(spareNode));
-                }
-            }
-        }
-    }
+//    public void testNodeDisconnected() throws Exception {
+//        List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
+//        try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
+//             MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes, Version.CURRENT);
+//             MockTransportService spareTransport = startTransport("spare_node", knownNodes, Version.CURRENT)) {
+//            DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
+//            DiscoveryNode discoverableNode = discoverableTransport.getLocalDiscoNode();
+//            DiscoveryNode spareNode = spareTransport.getLocalDiscoNode();
+//            knownNodes.add(seedTransport.getLocalDiscoNode());
+//            knownNodes.add(discoverableTransport.getLocalDiscoNode());
+//            Collections.shuffle(knownNodes, random());
+//
+//            try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
+//                service.start();
+//                service.acceptIncomingRequests();
+//                try (RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",
+//                    Arrays.asList(seedNode), service, Integer.MAX_VALUE, n -> true)) {
+//                    updateSeedNodes(connection, Arrays.asList(seedNode));
+//                    assertTrue(service.nodeConnected(seedNode));
+//                    assertTrue(service.nodeConnected(discoverableNode));
+//                    assertFalse(service.nodeConnected(spareNode));
+//                    knownNodes.add(spareNode);
+//                    CountDownLatch latchDisconnect = new CountDownLatch(1);
+//                    CountDownLatch latchConnected = new CountDownLatch(1);
+//                    service.addNodeConnectionListener(new TransportConnectionListener() {
+//                        @Override
+//                        public void onNodeDisconnected(DiscoveryNode node) {
+//                            if (node.equals(discoverableNode)) {
+//                                latchDisconnect.countDown();
+//                            }
+//                        }
+//
+//                        @Override
+//                        public void onNodeConnected(DiscoveryNode node) {
+//                            if (node.equals(spareNode)) {
+//                                latchConnected.countDown();
+//                            }
+//                        }
+//                    });
+//
+//                    discoverableTransport.close();
+//                    // now make sure we try to connect again to other nodes once we got disconnected
+//                    assertTrue(latchDisconnect.await(10, TimeUnit.SECONDS));
+//                    assertTrue(latchConnected.await(10, TimeUnit.SECONDS));
+//                    assertTrue(service.nodeConnected(spareNode));
+//                }
+//            }
+//        }
+//    }
 
     public void testFilterDiscoveredNodes() throws Exception {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
@@ -1296,7 +1296,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
 //                        }
 //                        return super.getConnection(node);
 //                    }
-
+//
 //                    @Override
 //                    public boolean nodeConnected(DiscoveryNode node) {
 //                        return node.equals(connectedNode);

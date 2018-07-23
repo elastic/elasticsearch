@@ -461,6 +461,11 @@ public class TransportClientNodesServiceTests extends ESTestCase {
         }
 
         @Override
+        public void addCloseListener(ActionListener<Void> listener) {
+            connection.addCloseListener(listener);
+        }
+
+        @Override
         public boolean isClosed() {
             return closed.get();
         }

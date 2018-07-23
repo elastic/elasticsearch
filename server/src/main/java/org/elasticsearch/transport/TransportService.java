@@ -21,6 +21,7 @@ package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.termvectors.TermVectorsFilter;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -385,12 +386,11 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
      * @param handshakeTimeout handshake timeout
      * @param clusterNamePredicate cluster name validation predicate
      * @return the handshake response
-     * @throws ConnectTransportException if the connection failed
      * @throws IllegalStateException if the handshake failed
      */
     public HandshakeResponse handshake(
         final Transport.Connection connection,
-        final long handshakeTimeout, Predicate<ClusterName> clusterNamePredicate) throws ConnectTransportException {
+        final long handshakeTimeout, Predicate<ClusterName> clusterNamePredicate) {
         final HandshakeResponse response;
         final DiscoveryNode node = connection.getNode();
         try {
@@ -415,6 +415,10 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         }
 
         return response;
+    }
+
+    public ConnectionManager getConnectionManager() {
+        return connectionManager;
     }
 
     static class HandshakeRequest extends TransportRequest {

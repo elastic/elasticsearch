@@ -21,7 +21,7 @@ public final class Version implements Comparable<Version> {
     private static final Pattern pattern =
             Pattern.compile("(\\d)+\\.(\\d+)\\.(\\d+)(-alpha\\d+|-beta\\d+|-rc\\d+)?(-SNAPSHOT)?");
 
-    public Version(int major, int minor, int revision, String suffix, boolean snapshot) {
+    Version(int major, int minor, int revision, String suffix, boolean snapshot) {
         Objects.requireNonNull(major, "major version can't be null");
         Objects.requireNonNull(minor, "minor version can't be null");
         Objects.requireNonNull(revision, "revision version can't be null");
@@ -160,6 +160,14 @@ public final class Version implements Comparable<Version> {
         return major == other.major &&
             minor == other.minor &&
             revision == other.revision;
+    }
+
+    public Version dropQualifier() {
+        return new Version(major, minor, revision, "", snapshot);
+    }
+
+    public Version dropSnapshot() {
+        return new Version(major, minor, revision, suffix, false);
     }
 
     public int getMajor() {

@@ -17,15 +17,15 @@ The `phonetic` token filter takes the following settings:
 `encoder`::
 
     Which phonetic encoder to use.  Accepts `metaphone` (default),
-    `doublemetaphone`, `soundex`, `refinedsoundex`, `caverphone1`,
+    `double_metaphone`, `soundex`, `refined_soundex`, `caverphone1`,
     `caverphone2`, `cologne`, `nysiis`, `koelnerphonetik`, `haasephonetik`,
-    `beidermorse`, `daitch_mokotoff`.
+    `beider_morse`, `daitch_mokotoff`.
 
 `replace`::
 
     Whether or not the original token should be replaced by the phonetic
     token. Accepts `true` (default) and `false`.  Not supported by
-    `beidermorse` encoding.
+    `beider_morse` encoding.
 
 [source,js]
 --------------------------------------------------

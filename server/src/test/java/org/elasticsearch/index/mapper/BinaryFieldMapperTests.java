@@ -27,6 +27,8 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
@@ -49,32 +51,32 @@ public class BinaryFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testDefaultMapping() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
                 .startObject("field")
                 .field("type", "binary")
                 .endObject()
                 .endObject()
-                .endObject().endObject());
+                .endObject().endObject();
 
-        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+        MapperService mapperService = createIndex("test", Settings.EMPTY, "type", mapping).mapperService();
+        MappedFieldType fieldType = mapperService.fullName("field");
 
-        FieldMapper fieldMapper = mapper.mappers().getMapper("field");
-        assertThat(fieldMapper, instanceOf(BinaryFieldMapper.class));
-        assertThat(fieldMapper.fieldType().stored(), equalTo(false));
+        assertThat(fieldType, instanceOf(BinaryFieldMapper.BinaryFieldType.class));
+        assertThat(fieldType.stored(), equalTo(false));
     }
 
     public void testStoredValue() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
                 .startObject("field")
                 .field("type", "binary")
                 .field("store", true)
                 .endObject()
                 .endObject()
-                .endObject().endObject());
+                .endObject().endObject();
 
-        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+        MapperService mapperService = createIndex("test", Settings.EMPTY, "type", mapping).mapperService();
 
         // case 1: a simple binary value
         final byte[] binaryValue1 = new byte[100];
@@ -89,13 +91,14 @@ public class BinaryFieldMapperTests extends ESSingleNodeTestCase {
         assertTrue(CompressorFactory.isCompressed(new BytesArray(binaryValue2)));
 
         for (byte[] value : Arrays.asList(binaryValue1, binaryValue2)) {
-            ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "id",
+            ParsedDocument doc = mapperService.documentMapper().parse(SourceToParse.source("test", "type", "id",
                     BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", value).endObject()),
                     XContentType.JSON));
             BytesRef indexedValue = doc.rootDoc().getBinaryValue("field");
             assertEquals(new BytesRef(value), indexedValue);
-            FieldMapper fieldMapper = mapper.mappers().getMapper("field");
-            Object originalValue = fieldMapper.fieldType().valueForDisplay(indexedValue);
+
+            MappedFieldType fieldType = mapperService.fullName("field");
+            Object originalValue = fieldType.valueForDisplay(indexedValue);
             assertEquals(new BytesArray(value), originalValue);
         }
     }

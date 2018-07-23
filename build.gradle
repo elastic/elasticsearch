@@ -17,8 +17,7 @@
  * under the License.
  */
 
-
-import com.carrotsearch.gradle.junit4.RandomizedTestingTask
+import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.BuildPlugin
@@ -220,39 +219,39 @@ subprojects {
     them as external dependencies so the build plugin that we use can be used
     to build elasticsearch plugins outside of the elasticsearch source tree. */
   ext.projectSubstitutions = [
-    "org.elasticsearch.gradle:build-tools:${version}": ':build-tools',
-    "org.elasticsearch:rest-api-spec:${version}": ':rest-api-spec',
-    "org.elasticsearch:elasticsearch:${version}": ':server',
-    "org.elasticsearch:elasticsearch-cli:${version}": ':libs:cli',
-    "org.elasticsearch:elasticsearch-core:${version}": ':libs:core',
-    "org.elasticsearch:elasticsearch-nio:${version}": ':libs:nio',
-    "org.elasticsearch:elasticsearch-x-content:${version}": ':libs:x-content',
-    "org.elasticsearch:elasticsearch-secure-sm:${version}": ':libs:secure-sm',
-    "org.elasticsearch.client:elasticsearch-rest-client:${version}": ':client:rest',
-    "org.elasticsearch.client:elasticsearch-rest-client-sniffer:${version}": ':client:sniffer',
-    "org.elasticsearch.client:elasticsearch-rest-high-level-client:${version}": ':client:rest-high-level',
-    "org.elasticsearch.client:test:${version}": ':client:test',
-    "org.elasticsearch.client:transport:${version}": ':client:transport',
-    "org.elasticsearch.test:framework:${version}": ':test:framework',
-    "org.elasticsearch.distribution.integ-test-zip:elasticsearch:${version}": ':distribution:archives:integ-test-zip',
-    "org.elasticsearch.distribution.zip:elasticsearch:${version}": ':distribution:archives:zip',
-    "org.elasticsearch.distribution.zip:elasticsearch-oss:${version}": ':distribution:archives:oss-zip',
-    "org.elasticsearch.distribution.tar:elasticsearch:${version}": ':distribution:archives:tar',
-    "org.elasticsearch.distribution.tar:elasticsearch-oss:${version}": ':distribution:archives:oss-tar',
-    "org.elasticsearch.distribution.rpm:elasticsearch:${version}": ':distribution:packages:rpm',
-    "org.elasticsearch.distribution.rpm:elasticsearch-oss:${version}": ':distribution:packages:oss-rpm',
-    "org.elasticsearch.distribution.deb:elasticsearch:${version}": ':distribution:packages:deb',
-    "org.elasticsearch.distribution.deb:elasticsearch-oss:${version}": ':distribution:packages:oss-deb',
-    "org.elasticsearch.test:logger-usage:${version}": ':test:logger-usage',
-    "org.elasticsearch.xpack.test:feature-aware:${version}": ':x-pack:test:feature-aware',
-    // for transport client
-    "org.elasticsearch.plugin:transport-netty4-client:${version}": ':modules:transport-netty4',
-    "org.elasticsearch.plugin:reindex-client:${version}": ':modules:reindex',
-    "org.elasticsearch.plugin:lang-mustache-client:${version}": ':modules:lang-mustache',
-    "org.elasticsearch.plugin:parent-join-client:${version}": ':modules:parent-join',
-    "org.elasticsearch.plugin:aggs-matrix-stats-client:${version}": ':modules:aggs-matrix-stats',
-    "org.elasticsearch.plugin:percolator-client:${version}": ':modules:percolator',
-    "org.elasticsearch.plugin:rank-eval-client:${version}": ':modules:rank-eval',
+          "org.elasticsearch.gradle:build-tools:${version}"                         : ':build-tools',
+          "org.elasticsearch:rest-api-spec:${version}"                              : ':rest-api-spec',
+          "org.elasticsearch:elasticsearch:${version}"                              : ':server',
+          "org.elasticsearch:elasticsearch-cli:${version}"                          : ':libs:elasticsearch-cli',
+          "org.elasticsearch:elasticsearch-core:${version}"                         : ':libs:core',
+          "org.elasticsearch:elasticsearch-nio:${version}"                          : ':libs:nio',
+          "org.elasticsearch:elasticsearch-x-content:${version}"                    : ':libs:x-content',
+          "org.elasticsearch:elasticsearch-secure-sm:${version}"                    : ':libs:secure-sm',
+          "org.elasticsearch.client:elasticsearch-rest-client:${version}"           : ':client:rest',
+          "org.elasticsearch.client:elasticsearch-rest-client-sniffer:${version}"   : ':client:sniffer',
+          "org.elasticsearch.client:elasticsearch-rest-high-level-client:${version}": ':client:rest-high-level',
+          "org.elasticsearch.client:test:${version}"                                : ':client:test',
+          "org.elasticsearch.client:transport:${version}"                           : ':client:transport',
+          "org.elasticsearch.test:framework:${version}"                             : ':test:framework',
+          "org.elasticsearch.distribution.integ-test-zip:elasticsearch:${version}"  : ':distribution:archives:integ-test-zip',
+          "org.elasticsearch.distribution.zip:elasticsearch:${version}"             : ':distribution:archives:zip',
+          "org.elasticsearch.distribution.zip:elasticsearch-oss:${version}"         : ':distribution:archives:oss-zip',
+          "org.elasticsearch.distribution.tar:elasticsearch:${version}"             : ':distribution:archives:tar',
+          "org.elasticsearch.distribution.tar:elasticsearch-oss:${version}"         : ':distribution:archives:oss-tar',
+          "org.elasticsearch.distribution.rpm:elasticsearch:${version}"             : ':distribution:packages:rpm',
+          "org.elasticsearch.distribution.rpm:elasticsearch-oss:${version}"         : ':distribution:packages:oss-rpm',
+          "org.elasticsearch.distribution.deb:elasticsearch:${version}"             : ':distribution:packages:deb',
+          "org.elasticsearch.distribution.deb:elasticsearch-oss:${version}"         : ':distribution:packages:oss-deb',
+          "org.elasticsearch.test:logger-usage:${version}"                          : ':test:logger-usage',
+          "org.elasticsearch.xpack.test:feature-aware:${version}"                   : ':x-pack:test:feature-aware',
+          // for transport client
+          "org.elasticsearch.plugin:transport-netty4-client:${version}"             : ':modules:transport-netty4',
+          "org.elasticsearch.plugin:reindex-client:${version}"                      : ':modules:reindex',
+          "org.elasticsearch.plugin:lang-mustache-client:${version}"                : ':modules:lang-mustache',
+          "org.elasticsearch.plugin:parent-join-client:${version}"                  : ':modules:parent-join',
+          "org.elasticsearch.plugin:aggs-matrix-stats-client:${version}"            : ':modules:aggs-matrix-stats',
+          "org.elasticsearch.plugin:percolator-client:${version}"                   : ':modules:percolator',
+          "org.elasticsearch.plugin:rank-eval-client:${version}"                    : ':modules:rank-eval',
   ]
 
   bwcVersions.snapshotProjectNames.each { snapshotName ->
@@ -304,18 +303,55 @@ subprojects {
     if (project.plugins.hasPlugin(BuildPlugin)) {
       String artifactsHost = VersionProperties.elasticsearch.isSnapshot() ? "https://snapshots.elastic.co" : "https://artifacts.elastic.co"
       Closure sortClosure = { a, b -> b.group <=> a.group }
-      Closure depJavadocClosure = { dep ->
-        if (dep.group != null && dep.group.startsWith('org.elasticsearch')) {
-          Project upstreamProject = dependencyToProject(dep)
-          if (upstreamProject != null) {
-            project.javadoc.dependsOn "${upstreamProject.path}:javadoc"
-            String artifactPath = dep.group.replaceAll('\\.', '/') + '/' + dep.name.replaceAll('\\.', '/') + '/' + dep.version
-            project.javadoc.options.linksOffline artifactsHost + "/javadoc/" + artifactPath, "${upstreamProject.buildDir}/docs/javadoc/"
+      Closure depJavadocClosure = { shadowed, dep ->
+        if (dep.group == null || false == dep.group.startsWith('org.elasticsearch')) {
+          return
+        }
+        Project upstreamProject = dependencyToProject(dep)
+        if (upstreamProject == null) {
+          return
+        }
+        if (shadowed) {
+          /*
+           * Include the source of shadowed upstream projects so we don't
+           * have to publish their javadoc.
+           */
+          project.evaluationDependsOn(upstreamProject.path)
+          project.javadoc.source += upstreamProject.javadoc.source
+          /*
+           * Do not add those projects to the javadoc classpath because
+           * we are going to resolve them with their source instead.
+           */
+          project.javadoc.classpath = project.javadoc.classpath.filter { f ->
+            false == upstreamProject.configurations.archives.artifacts.files.files.contains(f)
           }
+          /*
+           * Instead we need the upstream project's javadoc classpath so
+           * we don't barf on the classes that it references.
+           */
+          project.javadoc.classpath += upstreamProject.javadoc.classpath
+        } else {
+          // Link to non-shadowed dependant projects
+          project.javadoc.dependsOn "${upstreamProject.path}:javadoc"
+          String artifactPath = dep.group.replaceAll('\\.', '/') + '/' + dep.name.replaceAll('\\.', '/') + '/' + dep.version
+          project.javadoc.options.linksOffline artifactsHost + "/javadoc/" + artifactPath, "${upstreamProject.buildDir}/docs/javadoc/"
         }
       }
-      project.configurations.compile.dependencies.findAll().toSorted(sortClosure).each(depJavadocClosure)
-      project.configurations.compileOnly.dependencies.findAll().toSorted(sortClosure).each(depJavadocClosure)
+      boolean hasShadow = project.plugins.hasPlugin(ShadowPlugin)
+      project.configurations.compile.dependencies
+              .findAll()
+              .toSorted(sortClosure)
+              .each({ c -> depJavadocClosure(hasShadow, c) })
+      project.configurations.compileOnly.dependencies
+              .findAll()
+              .toSorted(sortClosure)
+              .each({ c -> depJavadocClosure(hasShadow, c) })
+      if (hasShadow) {
+        project.configurations.shadow.dependencies
+                .findAll()
+                .toSorted(sortClosure)
+                .each({ c -> depJavadocClosure(false, c) })
+      }
     }
   }
 }
@@ -436,6 +472,9 @@ allprojects {
     if (isEclipse) {
       // set this so generated dirs will be relative to eclipse build
       project.buildDir = eclipseBuild
+      // Work around https://docs.gradle.org/current/userguide/java_gradle_plugin.html confusing Eclipse by the metadata
+      // it adds to the  classpath
+      project.file("$buildDir/pluginUnderTestMetadata").mkdirs()
     }
     eclipse.classpath.file.whenMerged { classpath ->
       // give each source folder a unique corresponding output folder
@@ -535,6 +574,7 @@ subprojects { project ->
       commandLine "${->new File(rootProject.compilerJavaHome, 'bin/jar')}",
           'xf', "${-> jarTask.outputs.files.singleFile}", 'META-INF/LICENSE.txt', 'META-INF/NOTICE.txt'
       workingDir destination
+      onlyIf { jarTask.enabled }
       doFirst {
         project.delete(destination)
         Files.createDirectories(destination)
@@ -543,6 +583,7 @@ subprojects { project ->
 
     final Task checkNotice = project.task("verify${jarTask.name.capitalize()}Notice") {
       dependsOn extract
+      onlyIf { jarTask.enabled }
       doLast {
         final List<String> noticeLines = Files.readAllLines(project.noticeFile.toPath())
         final Path noticePath = extract.destination.resolve('META-INF/NOTICE.txt')
@@ -553,6 +594,7 @@ subprojects { project ->
 
     final Task checkLicense = project.task("verify${jarTask.name.capitalize()}License") {
       dependsOn extract
+      onlyIf { jarTask.enabled }
       doLast {
         final List<String> licenseLines = Files.readAllLines(project.licenseFile.toPath())
         final Path licensePath = extract.destination.resolve('META-INF/LICENSE.txt')
@@ -580,6 +622,21 @@ gradle.projectsEvaluated {
       }
     }
   }
+  // Having the same group and name for distinct projects causes Gradle to consider them equal when resolving
+  // dependencies leading to hard to debug failures. Run a check across all project to prevent this from happening.
+  // see: https://github.com/gradle/gradle/issues/847
+  Map coordsToProject = [:]
+  project.allprojects.forEach { p ->
+    String coords = "${p.group}:${p.name}"
+    if (false == coordsToProject.putIfAbsent(coords, p)) {
+      throw new GradleException(
+              "Detected that two projects: ${p.path} and ${coordsToProject[coords].path} " +
+                      "have the same name and group: ${coords}. " +
+                      "This doesn't currently work correctly in Gradle, see: " +
+                      "https://github.com/gradle/gradle/issues/847"
+      )
+    }
+  }
 }
 
 if (System.properties.get("build.compare") != null) {
@@ -594,7 +651,7 @@ if (System.properties.get("build.compare") != null) {
       }
     }
     sourceBuild {
-      gradleVersion = "4.8.1" // does not default to gradle weapper of project dir, but current version
+      gradleVersion = gradle.getGradleVersion()
       projectDir = referenceProject
       tasks = ["clean", "assemble"]
       arguments = ["-Dbuild.compare_friendly=true"]

@@ -541,7 +541,6 @@ public class AuthenticationService extends AbstractComponent {
 
         private final RestRequest request;
 
-        @SuppressWarnings("unchecked")
         AuditableRestRequest(AuditTrail auditTrail, AuthenticationFailureHandler failureHandler, ThreadContext threadContext,
                              RestRequest request) {
             super(auditTrail, failureHandler, threadContext);

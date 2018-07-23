@@ -19,9 +19,9 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessCast;
-import org.elasticsearch.painless.lookup.PainlessLookup.def;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.lookup.def;
 
 import java.util.Objects;
 
@@ -465,8 +465,9 @@ public final class AnalyzerCaster {
                 (actual.isAssignableFrom(expected) && explicit)) {
             return PainlessCast.standard(actual, expected, explicit);
         } else {
-            throw location.createError(new ClassCastException(
-                    "Cannot cast from [" + PainlessLookup.ClassToName(actual) + "] to [" + PainlessLookup.ClassToName(expected) + "]."));
+            throw location.createError(new ClassCastException("Cannot cast from " +
+                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(actual) + "] to " +
+                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(expected) + "]."));
         }
     }
 

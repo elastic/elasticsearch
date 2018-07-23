@@ -518,7 +518,6 @@ public abstract class StreamInput extends InputStream {
         return (Map<String, Object>) readGenericValue();
     }
 
-    @SuppressWarnings({"unchecked"})
     @Nullable
     public Object readGenericValue() throws IOException {
         byte type = readByte();

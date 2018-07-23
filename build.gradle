@@ -541,7 +541,7 @@ wrapper {
         final URI sha256Uri = new URI(distributionUri.toString() + ".sha256")
         final String sha256Sum = new String(sha256Uri.toURL().bytes)
         wrapper.getPropertiesFile() << "distributionSha256Sum=${sha256Sum}\n"
-        println "Added checksum and version to wrapper properties"
+        println "Added checksum to wrapper properties"
         // Update build-tools to reflect the Gradle upgrade
         // TODO: we can remove this once we have tests to make sure older versions work.
         project(':build-tools').file('src/main/resources/minimumGradleVersion').text = gradleVersion

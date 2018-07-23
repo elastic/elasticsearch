@@ -85,10 +85,15 @@ public abstract class Terminal {
 
     /** Prints message to the terminal at {@code verbosity} level, without a newline. */
     public final void print(Verbosity verbosity, String msg) {
-        if (this.verbosity.ordinal() >= verbosity.ordinal()) {
+        if (isPrintable(verbosity)) {
             getWriter().print(msg);
             getWriter().flush();
         }
+    }
+
+    /** Checks if is enough {@code verbosity} level to be printed */
+    public final boolean isPrintable(Verbosity verbosity) {
+        return this.verbosity.ordinal() >= verbosity.ordinal();
     }
 
     /**

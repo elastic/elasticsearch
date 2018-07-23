@@ -273,6 +273,10 @@ Other index settings are available in index modules:
 
     Control over the transaction log and background flush operations.
 
+<<index-modules-command-line-tools,Command-line tools>>::
+
+    Command-line tools if shard is corrupted
+
 --
 
 include::index-modules/analysis.asciidoc[]
@@ -290,5 +294,7 @@ include::index-modules/slowlog.asciidoc[]
 include::index-modules/store.asciidoc[]
 
 include::index-modules/translog.asciidoc[]
+
+include::index-modules/command-line-tools.asciidoc[]
 
 include::index-modules/index-sorting.asciidoc[]

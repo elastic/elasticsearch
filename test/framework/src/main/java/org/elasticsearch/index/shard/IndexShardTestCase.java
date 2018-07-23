@@ -311,11 +311,31 @@ public abstract class IndexShardTestCase extends ESTestCase {
                                   Runnable globalCheckpointSyncer,
                                   IndexingOperationListener... listeners)
         throws IOException {
+        return newShard(routing, indexMetaData, null, indexSearcherWrapper, engineFactory, globalCheckpointSyncer, listeners);
+    }
+
+    /**
+     * creates a new initializing shard. The shard will will be put in its proper path under the
+     * current node id the shard is assigned to.
+     * @param routing                shard routing to use
+     * @param indexMetaData          indexMetaData for the shard, including any mapping
+     * @param storeProvider          an optional custom store provider to use. If null a default file based store will be created
+     * @param indexSearcherWrapper   an optional wrapper to be used during searchers
+     * @param globalCheckpointSyncer callback for syncing global checkpoints
+     * @param listeners              an optional set of listeners to add to the shard
+     */
+    protected IndexShard newShard(ShardRouting routing, IndexMetaData indexMetaData,
+                                  @Nullable CheckedFunction<IndexSettings, Store, IOException> storeProvider,
+                                  @Nullable IndexSearcherWrapper indexSearcherWrapper,
+                                  @Nullable EngineFactory engineFactory,
+                                  Runnable globalCheckpointSyncer,
+                                  IndexingOperationListener... listeners)
+        throws IOException {
         // add node id as name to settings for proper logging
         final ShardId shardId = routing.shardId();
         final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(createTempDir());
         ShardPath shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
-        return newShard(routing, shardPath, indexMetaData, null, indexSearcherWrapper, engineFactory, globalCheckpointSyncer,
+        return newShard(routing, shardPath, indexMetaData, storeProvider, indexSearcherWrapper, engineFactory, globalCheckpointSyncer,
             EMPTY_EVENT_LISTENER, listeners);
     }
 

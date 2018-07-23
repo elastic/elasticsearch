@@ -138,7 +138,6 @@ final class TranslogHeader {
         final long primaryTerm;
         if (version == VERSION_PRIMARY_TERM) {
             primaryTerm = in.readLong();
-            assert primaryTerm >= 0 : "Primary term must be non-negative [" + primaryTerm + "]; translog path [" + path + "]";
         } else {
             assert version == VERSION_CHECKPOINTS : "Unknown header version [" + version + "]";
             primaryTerm = UNKNOWN_PRIMARY_TERM;
@@ -147,6 +146,8 @@ final class TranslogHeader {
         if (version >= VERSION_PRIMARY_TERM) {
             Translog.verifyChecksum(in);
         }
+        assert primaryTerm >= 0 : "Primary term must be non-negative [" + primaryTerm + "]; translog path [" + path + "]";
+
         final int headerSizeInBytes = headerSizeInBytes(version, uuid.length);
         assert channel.position() == headerSizeInBytes :
             "Header is not fully read; header size [" + headerSizeInBytes + "], position [" + channel.position() + "]";

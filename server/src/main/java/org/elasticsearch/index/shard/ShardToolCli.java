@@ -16,24 +16,26 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-package org.elasticsearch.index.translog;
+package org.elasticsearch.index.shard;
 
 import org.elasticsearch.cli.LoggingAwareMultiCommand;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.index.translog.TruncateTranslogCommand;
 
 /**
- * Class encapsulating and dispatching commands from the {@code elasticsearch-translog} command line tool
+ * Class encapsulating and dispatching commands from the {@code elasticsearch-shard} command line tool
  */
-public class TranslogToolCli extends LoggingAwareMultiCommand {
+public class ShardToolCli extends LoggingAwareMultiCommand {
 
-    private TranslogToolCli() {
-        super("A CLI tool for various Elasticsearch translog actions");
-        subcommands.put("truncate", new TruncateTranslogCommand());
+    private ShardToolCli() {
+        super("A CLI tool to manage shard");
+        subcommands.put("truncate-translog", new TruncateTranslogCommand());
+        subcommands.put("remove-corrupted-segments", new RemoveCorruptedSegmentsCommand());
     }
 
     public static void main(String[] args) throws Exception {
-        exit(new TranslogToolCli().main(args, Terminal.DEFAULT));
+        exit(new ShardToolCli().main(args, Terminal.DEFAULT));
     }
 
 }
+

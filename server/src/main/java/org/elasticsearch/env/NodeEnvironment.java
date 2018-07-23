@@ -696,6 +696,13 @@ public final class NodeEnvironment  implements Closeable {
     }
 
     /**
+     * Returns shared data path for this node environment
+     */
+    public Path sharedDataPath() {
+        return sharedDataPath;
+    }
+
+    /**
      * returns the unique uuid describing this node. The uuid is persistent in the data folder of this node
      * and remains across restarts.
      **/
@@ -955,11 +962,22 @@ public final class NodeEnvironment  implements Closeable {
      * @param indexSettings settings for the index
      */
     public Path resolveBaseCustomLocation(IndexSettings indexSettings) {
+        return resolveBaseCustomLocation(indexSettings, sharedDataPath, nodeLockId);
+    }
+
+    /**
+     * Resolve the custom path for a index's shard.
+     * Uses the {@code IndexMetaData.SETTING_DATA_PATH} setting to determine
+     * the root path for the index.
+     *
+     * @param indexSettings settings for the index
+     */
+    public static Path resolveBaseCustomLocation(IndexSettings indexSettings, Path sharedDataPath, int nodeLockId) {
         String customDataDir = indexSettings.customDataPath();
         if (customDataDir != null) {
             // This assert is because this should be caught by MetaDataCreateIndexService
             assert sharedDataPath != null;
-            return sharedDataPath.resolve(customDataDir).resolve(Integer.toString(this.nodeLockId));
+            return sharedDataPath.resolve(customDataDir).resolve(Integer.toString(nodeLockId));
         } else {
             throw new IllegalArgumentException("no custom " + IndexMetaData.SETTING_DATA_PATH + " setting available");
         }
@@ -973,7 +991,11 @@ public final class NodeEnvironment  implements Closeable {
      * @param indexSettings settings for the index
      */
     private Path resolveIndexCustomLocation(IndexSettings indexSettings) {
-        return resolveBaseCustomLocation(indexSettings).resolve(indexSettings.getUUID());
+        return resolveIndexCustomLocation(indexSettings, sharedDataPath, nodeLockId);
+    }
+
+    private static Path resolveIndexCustomLocation(IndexSettings indexSettings, Path sharedDataPath, int nodeLockId) {
+        return resolveBaseCustomLocation(indexSettings, sharedDataPath, nodeLockId).resolve(indexSettings.getUUID());
     }
 
     /**
@@ -985,7 +1007,11 @@ public final class NodeEnvironment  implements Closeable {
      * @param shardId shard to resolve the path to
      */
     public Path resolveCustomLocation(IndexSettings indexSettings, final ShardId shardId) {
-        return resolveIndexCustomLocation(indexSettings).resolve(Integer.toString(shardId.id()));
+        return resolveCustomLocation(indexSettings, shardId, sharedDataPath, nodeLockId);
+    }
+
+    public static Path resolveCustomLocation(IndexSettings indexSettings, final ShardId shardId, Path sharedDataPath, int nodeLockId) {
+        return resolveIndexCustomLocation(indexSettings, sharedDataPath, nodeLockId).resolve(Integer.toString(shardId.id()));
     }
 
     /**

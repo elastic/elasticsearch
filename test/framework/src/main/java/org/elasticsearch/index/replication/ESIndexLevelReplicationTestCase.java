@@ -109,9 +109,14 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
     }
 
     protected IndexMetaData buildIndexMetaData(int replicas, Map<String, String> mappings) throws IOException {
+        return buildIndexMetaData(replicas, mappings, Settings.EMPTY);
+    }
+
+    protected IndexMetaData buildIndexMetaData(int replicas, Map<String, String> mappings, Settings indexSettings) throws IOException {
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, replicas)
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(indexSettings)
             .build();
         IndexMetaData.Builder metaData = IndexMetaData.builder(index.getName())
             .settings(settings)

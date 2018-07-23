@@ -27,7 +27,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Map;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiAlphanumOfLengthBetween;
 
@@ -42,6 +42,7 @@ public class DissectParserTests extends ESTestCase {
         assertMatch("%{?a} %{b} %{&a}", "foo bar baz", Arrays.asList("foo", "b"), Arrays.asList("baz", "bar"));
         assertMatch("%{a} %{} %{c}", "foo bar baz", Arrays.asList("a", "c"), Arrays.asList("foo", "baz"));
         assertMatch("%{a},%{b},%{c},%{d}", "foo,,,", Arrays.asList("a", "b", "c", "d"), Arrays.asList("foo", "", "", ""));
+        assertMatch("%{a->},%{b}", "foo,,,,,,bar", Arrays.asList("a", "b"), Arrays.asList("foo", "bar"));
     }
 
     /**
@@ -175,6 +176,7 @@ public class DissectParserTests extends ESTestCase {
     }
 
     public void testAppend() {
+        assertMatch("%{a} %{+a} %{+a}", "foo bar baz", Arrays.asList("a"), Arrays.asList("foobarbaz"));
         assertMatch("%{a} %{+a} %{b} %{+b}", "foo bar baz lol", Arrays.asList("a", "b"), Arrays.asList("foobar", "bazlol"));
         assertMatch("%{a} %{+a/2} %{+a/1}", "foo bar baz", Arrays.asList("a"), Arrays.asList("foobazbar"));
         assertMatch("%{a} %{+a/2} %{+a/1}", "foo bar baz", Arrays.asList("a"), Arrays.asList("foo baz bar"), " ");
@@ -248,6 +250,11 @@ public class DissectParserTests extends ESTestCase {
         assertMatch("%{a} %{b->},", "foo bar,,,,,,", Arrays.asList("a", "b"), Arrays.asList("foo", "bar"));
     }
 
+    public void testLeadingDelimiter(){
+        assertMatch(",,,%{a} %{b}", ",,,foo bar", Arrays.asList("a", "b"), Arrays.asList("foo", "bar"));
+        assertMatch(",%{a} %{b}", ",,foo bar", Arrays.asList("a", "b"), Arrays.asList(",foo", "bar"));
+    }
+
     /**
      * Runtime errors
      */
@@ -275,7 +282,6 @@ public class DissectParserTests extends ESTestCase {
         assertThat(e.getMessage(), CoreMatchers.containsString("Unable to find match for dissect pattern"));
         assertThat(e.getMessage(), CoreMatchers.containsString(pattern));
         assertThat(e.getMessage(), input == null ? CoreMatchers.containsString("null") : CoreMatchers.containsString(input));
-
     }
 
     private void assertBadPattern(String pattern) {
@@ -299,9 +305,9 @@ public class DissectParserTests extends ESTestCase {
     }
 
     private void assertMatch(String pattern, String input, List<String> expectedKeys, List<String> expectedValues, String appendSeperator) {
-        List<DissectPair> dissectPairs = new DissectParser(pattern, appendSeperator).parse(input);
-        List<String> foundKeys = dissectPairs.stream().map(d -> d.getKey().getName()).collect(Collectors.toList());
-        List<String> foundValues = dissectPairs.stream().map(DissectPair::getValue).collect(Collectors.toList());
+        Map<String, String> results = new DissectParser(pattern, appendSeperator).parse(input);
+        List<String> foundKeys = new ArrayList<>(results.keySet());
+        List<String> foundValues = new ArrayList<>(results.values());
         Collections.sort(foundKeys);
         Collections.sort(foundValues);
         Collections.sort(expectedKeys);

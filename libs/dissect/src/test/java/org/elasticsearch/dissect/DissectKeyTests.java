@@ -37,7 +37,7 @@ public class DissectKeyTests extends ESTestCase {
         assertThat(dissectKey.getModifier(), equalTo(DissectKey.Modifier.NONE));
         assertThat(dissectKey.skip(), is(false));
         assertThat(dissectKey.skipRightPadding(), is(false));
-        assertThat(dissectKey.getOrderPosition(), equalTo(0));
+        assertThat(dissectKey.getAppendPosition(), equalTo(0));
         assertThat(dissectKey.getName(), equalTo(keyName));
     }
 
@@ -47,7 +47,7 @@ public class DissectKeyTests extends ESTestCase {
         assertThat(dissectKey.getModifier(), equalTo(DissectKey.Modifier.APPEND));
         assertThat(dissectKey.skip(), is(false));
         assertThat(dissectKey.skipRightPadding(), is(false));
-        assertThat(dissectKey.getOrderPosition(), equalTo(0));
+        assertThat(dissectKey.getAppendPosition(), equalTo(0));
         assertThat(dissectKey.getName(), equalTo(keyName));
     }
 
@@ -58,7 +58,7 @@ public class DissectKeyTests extends ESTestCase {
         assertThat(dissectKey.getModifier(), equalTo(DissectKey.Modifier.APPEND_WITH_ORDER));
         assertThat(dissectKey.skip(), is(false));
         assertThat(dissectKey.skipRightPadding(), is(false));
-        assertThat(dissectKey.getOrderPosition(), equalTo(length));
+        assertThat(dissectKey.getAppendPosition(), equalTo(length));
         assertThat(dissectKey.getName(), equalTo(keyName));
     }
 
@@ -81,7 +81,7 @@ public class DissectKeyTests extends ESTestCase {
         assertThat(dissectKey.getModifier(), equalTo(DissectKey.Modifier.FIELD_NAME));
         assertThat(dissectKey.skip(), is(false));
         assertThat(dissectKey.skipRightPadding(), is(false));
-        assertThat(dissectKey.getOrderPosition(), equalTo(0));
+        assertThat(dissectKey.getAppendPosition(), equalTo(0));
         assertThat(dissectKey.getName(), equalTo(keyName));
     }
 
@@ -91,7 +91,7 @@ public class DissectKeyTests extends ESTestCase {
         assertThat(dissectKey.getModifier(), equalTo(DissectKey.Modifier.FIELD_VALUE));
         assertThat(dissectKey.skip(), is(false));
         assertThat(dissectKey.skipRightPadding(), is(false));
-        assertThat(dissectKey.getOrderPosition(), equalTo(0));
+        assertThat(dissectKey.getAppendPosition(), equalTo(0));
         assertThat(dissectKey.getName(), equalTo(keyName));
     }
 
@@ -101,7 +101,7 @@ public class DissectKeyTests extends ESTestCase {
         assertThat(dissectKey.getModifier(), equalTo(DissectKey.Modifier.NONE));
         assertThat(dissectKey.skip(), is(false));
         assertThat(dissectKey.skipRightPadding(), is(true));
-        assertThat(dissectKey.getOrderPosition(), equalTo(0));
+        assertThat(dissectKey.getAppendPosition(), equalTo(0));
         assertThat(dissectKey.getName(), equalTo(keyName));
 
         dissectKey = new DissectKey("?" + keyName + "->");
@@ -135,7 +135,7 @@ public class DissectKeyTests extends ESTestCase {
         assertThat(dissectKey.getModifier(), equalTo(DissectKey.Modifier.NONE));
         assertThat(dissectKey.skip(), is(true));
         assertThat(dissectKey.skipRightPadding(), is(false));
-        assertThat(dissectKey.getOrderPosition(), equalTo(0));
+        assertThat(dissectKey.getAppendPosition(), equalTo(0));
         assertThat(dissectKey.getName(), equalTo(keyName));
     }
     public void testSkipKeyWithPadding() {
@@ -144,7 +144,7 @@ public class DissectKeyTests extends ESTestCase {
         assertThat(dissectKey.getModifier(), equalTo(DissectKey.Modifier.NONE));
         assertThat(dissectKey.skip(), is(true));
         assertThat(dissectKey.skipRightPadding(), is(true));
-        assertThat(dissectKey.getOrderPosition(), equalTo(0));
+        assertThat(dissectKey.getAppendPosition(), equalTo(0));
         assertThat(dissectKey.getName(), equalTo(keyName));
     }
 

@@ -33,6 +33,7 @@ import java.util.regex.Pattern;
  * </ul>
  * This class represents a single key.
  * <p>A single key is composed of a name and it's modifiers. For the key {@code +a}, {@code a} is the name and {@code +} is the modifier.
+ * @see DissectParser
  */
 public final class DissectKey {
     private static final Pattern LEFT_MODIFIER_PATTERN = Pattern.compile("([+?&])(.*?)(->)?$", Pattern.DOTALL);
@@ -41,7 +42,7 @@ public final class DissectKey {
     private final Modifier modifier;
     private boolean skip;
     private boolean skipRightPadding;
-    private int orderPosition;
+    private int appendPosition;
     private String name;
 
     /**
@@ -86,7 +87,7 @@ public final class DissectKey {
                 matcher = APPEND_WITH_ORDER_PATTERN.matcher(key);
                 while (matcher.find()) {
                     name = matcher.group(1);
-                    orderPosition = Short.valueOf(matcher.group(3));
+                    appendPosition = Short.valueOf(matcher.group(3));
                     skipRightPadding = matcher.group(4) != null;
                 }
                 break;
@@ -97,6 +98,19 @@ public final class DissectKey {
         }
     }
 
+    /**
+     * Copy constructor to explicitly override the modifier.
+     * @param key The key to copy (except for the modifier)
+     * @param modifier the modifer to use for this copy
+     */
+    DissectKey(DissectKey key, DissectKey.Modifier modifier){
+        this.modifier = modifier;
+        this.skipRightPadding = key.skipRightPadding;
+        this.skip = key.skip;
+        this.name = key.name;
+        this.appendPosition = key.appendPosition;
+    }
+
     Modifier getModifier() {
         return modifier;
     }
@@ -105,15 +119,15 @@ public final class DissectKey {
         return skip;
     }
 
-    public boolean skipRightPadding() {
+    boolean skipRightPadding() {
         return skipRightPadding;
     }
 
-    int getOrderPosition() {
-        return orderPosition;
+    int getAppendPosition() {
+        return appendPosition;
     }
 
-    public String getName() {
+    String getName() {
         return name;
     }
 
@@ -123,7 +137,7 @@ public final class DissectKey {
         return "DissectKey{" +
             "modifier=" + modifier +
             ", skip=" + skip +
-            ", orderPosition=" + orderPosition +
+            ", appendPosition=" + appendPosition +
             ", name='" + name + '\'' +
             '}';
     }

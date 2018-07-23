@@ -57,6 +57,7 @@ public class RestAuthenticateActionTests extends SecurityIntegTestCase {
         RequestOptions.Builder options = request.getOptions().toBuilder();
         options.addHeader("Authorization", basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
                 new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())));
+        request.setOptions(options);
         ObjectPath objectPath = ObjectPath.createFromResponse(getRestClient().performRequest(request));
         assertThat(objectPath.evaluate("username").toString(), equalTo(SecuritySettingsSource.TEST_USER_NAME));
         @SuppressWarnings("unchecked")

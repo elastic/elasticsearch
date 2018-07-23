@@ -917,7 +917,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         try {
             return store.stats();
         } catch (IOException e) {
-            failShard("Failing shard because of exception during storeState " + e.getMessage(), e);
+            failShard("Failing shard because of exception during storeStats " + e.getMessage(), e);
             throw new ElasticsearchException("io exception while building 'store stats'", e);
         }
     }

@@ -2100,7 +2100,8 @@ public class IndexShardTests extends IndexShardTestCase {
                 ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE),
                 shard.shardPath(),
                 shard.indexSettings().getIndexMetaData(),
-                null, wrapper,
+                null,
+                wrapper,
                 new InternalEngineFactory(),
                 () -> {},
                 EMPTY_EVENT_LISTENER);

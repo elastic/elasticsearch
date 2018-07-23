@@ -499,7 +499,7 @@ public final class InternalAutoDateHistogram extends
                     reducedBucketsResult.roundingInfo, reduceContext);
 
             // Now finally see if we need to merge consecutive buckets together to make a coarser interval at the same rounding
-            reducedBucketsResult = maybeMergeConsecutiveBuckets(reducedBucketsResult, reduceContext);
+            reducedBucketsResult = maybeMergeConsecutiveBuckets(reducedBucketsResult, reduceContext, targetBuckets, format);
         }
 
         BucketInfo bucketInfo = new BucketInfo(this.bucketInfo.roundingInfos, reducedBucketsResult.roundingIdx,
@@ -509,7 +509,10 @@ public final class InternalAutoDateHistogram extends
                 pipelineAggregators(), getMetaData());
     }
 
-    private BucketReduceResult maybeMergeConsecutiveBuckets(BucketReduceResult reducedBucketsResult, ReduceContext reduceContext) {
+    private static BucketReduceResult maybeMergeConsecutiveBuckets(BucketReduceResult reducedBucketsResult,
+                                                                   ReduceContext reduceContext,
+                                                                   int targetBuckets,
+                                                                   DocValueFormat format) {
         List<Bucket> buckets = reducedBucketsResult.buckets;
         RoundingInfo roundingInfo = reducedBucketsResult.roundingInfo;
         int roundingIdx = reducedBucketsResult.roundingIdx;
@@ -517,15 +520,15 @@ public final class InternalAutoDateHistogram extends
             for (int interval : roundingInfo.innerIntervals) {
                 int resultingBuckets = buckets.size() / interval;
                 if (resultingBuckets <= targetBuckets) {
-                    return mergeConsecutiveBuckets(buckets, interval, roundingIdx, roundingInfo, reduceContext);
+                    return mergeConsecutiveBuckets(buckets, interval, roundingIdx, roundingInfo, reduceContext, format);
                 }
             }
         }
         return reducedBucketsResult;
     }
 
-    private BucketReduceResult mergeConsecutiveBuckets(List<Bucket> reducedBuckets, int mergeInterval, int roundingIdx,
-            RoundingInfo roundingInfo, ReduceContext reduceContext) {
+    private static BucketReduceResult mergeConsecutiveBuckets(List<Bucket> reducedBuckets, int mergeInterval, int roundingIdx,
+            RoundingInfo roundingInfo, ReduceContext reduceContext, DocValueFormat format) {
         List<Bucket> mergedBuckets = new ArrayList<>();
         List<Bucket> sameKeyedBuckets = new ArrayList<>();
 
@@ -539,7 +542,7 @@ public final class InternalAutoDateHistogram extends
                 key = roundingInfo.rounding.round(bucket.key);
             }
             reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(bucket) - 1);
-            sameKeyedBuckets.add(createBucket(key, bucket.docCount, bucket.aggregations));
+            sameKeyedBuckets.add(new Bucket(Math.round(key), bucket.docCount, format, bucket.aggregations));
         }
         if (sameKeyedBuckets.isEmpty() == false) {
             reduceContext.consumeBucketsAndMaybeBreak(1);

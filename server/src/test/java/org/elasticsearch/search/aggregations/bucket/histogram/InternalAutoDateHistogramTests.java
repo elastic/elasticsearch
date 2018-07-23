@@ -51,7 +51,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         format = randomNumericDocValueFormat();
         AutoDateHistogramAggregationBuilder aggregationBuilder = new AutoDateHistogramAggregationBuilder("_name");
         // TODO[PCS]: timezone set automagically here?
-        roundingInfos = aggregationBuilder.getRoundings();
+        roundingInfos = aggregationBuilder.buildRoundings();
     }
 
     @Override

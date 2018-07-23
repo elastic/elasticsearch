@@ -64,42 +64,14 @@ public class AutoDateHistogramAggregationBuilder
         PARSER.declareInt(AutoDateHistogramAggregationBuilder::setNumBuckets, NUM_BUCKETS_FIELD);
     }
 
-    private final RoundingInfo[] roundings;
-
-    public RoundingInfo[] getRoundings() {
-        return roundings;
-    }
-
-    public static AutoDateHistogramAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new AutoDateHistogramAggregationBuilder(aggregationName), null);
-    }
-
-    private int numBuckets = 10;
-
-    /** Create a new builder with the given name. */
-    public AutoDateHistogramAggregationBuilder(String name) {
-        super(name, ValuesSourceType.NUMERIC, ValueType.DATE);
-        roundings = new RoundingInfo[6];
-        initRoundings();
-    }
-
-    /** Read from a stream, for internal use only. */
-    public AutoDateHistogramAggregationBuilder(StreamInput in) throws IOException {
-        super(in, ValuesSourceType.NUMERIC, ValueType.DATE);
-        numBuckets = in.readVInt();
-        roundings = new RoundingInfo[6];
-        initRoundings();
-    }
-
-    protected AutoDateHistogramAggregationBuilder(AutoDateHistogramAggregationBuilder clone, Builder factoriesBuilder,
-            Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
-        this.numBuckets = clone.numBuckets;
-        roundings = new RoundingInfo[6];
-        initRoundings();
-    }
-
-    private void initRoundings() {
+    /**
+     *
+     * Build roundings, computed dynamically as roundings are time zone dependent.
+     * The current implementation probably should not be invoked in a tight loop.
+     * @return Array of RoundingInfo
+     */
+    RoundingInfo[] buildRoundings() {
+        RoundingInfo[] roundings = new RoundingInfo[6];
         roundings[0] = new RoundingInfo(createRounding(DateTimeUnit.SECOND_OF_MINUTE, timeZone()),
             1000L, 1, 5, 10, 30);
         roundings[1] = new RoundingInfo(createRounding(DateTimeUnit.MINUTES_OF_HOUR, timeZone()),
@@ -112,6 +84,30 @@ public class AutoDateHistogramAggregationBuilder
             30 * 24 * 60 * 60 * 1000L, 1, 3);
         roundings[5] = new RoundingInfo(createRounding(DateTimeUnit.YEAR_OF_CENTURY, timeZone()),
             365 * 24 * 60 * 60 * 1000L, 1, 5, 10, 20, 50, 100);
+        return roundings;
+    }
+
+    public static AutoDateHistogramAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
+        return PARSER.parse(parser, new AutoDateHistogramAggregationBuilder(aggregationName), null);
+    }
+
+    private int numBuckets = 10;
+
+    /** Create a new builder with the given name. */
+    public AutoDateHistogramAggregationBuilder(String name) {
+        super(name, ValuesSourceType.NUMERIC, ValueType.DATE);
+    }
+
+    /** Read from a stream, for internal use only. */
+    public AutoDateHistogramAggregationBuilder(StreamInput in) throws IOException {
+        super(in, ValuesSourceType.NUMERIC, ValueType.DATE);
+        numBuckets = in.readVInt();
+    }
+
+    protected AutoDateHistogramAggregationBuilder(AutoDateHistogramAggregationBuilder clone, Builder factoriesBuilder,
+            Map<String, Object> metaData) {
+        super(clone, factoriesBuilder, metaData);
+        this.numBuckets = clone.numBuckets;
     }
 
     @Override
@@ -144,6 +140,7 @@ public class AutoDateHistogramAggregationBuilder
     @Override
     protected ValuesSourceAggregatorFactory<Numeric, ?> innerBuild(SearchContext context, ValuesSourceConfig<Numeric> config,
             AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
+        RoundingInfo[] roundings = buildRoundings();
         int maxRoundingInterval = Arrays.stream(roundings,0, roundings.length-1)
             .map(rounding -> rounding.innerIntervals)
             .flatMapToInt(Arrays::stream)

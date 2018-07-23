@@ -16,12 +16,12 @@ public final class Version implements Comparable<Version> {
     /**
      * Suffix on the version name.
      */
-    private final String suffix;
+    private final String qualifier;
 
     private static final Pattern pattern =
             Pattern.compile("(\\d)+\\.(\\d+)\\.(\\d+)(-alpha\\d+|-beta\\d+|-rc\\d+)?(-SNAPSHOT)?");
 
-    Version(int major, int minor, int revision, String suffix, boolean snapshot) {
+    Version(int major, int minor, int revision, String qualifier, boolean snapshot) {
         Objects.requireNonNull(major, "major version can't be null");
         Objects.requireNonNull(minor, "minor version can't be null");
         Objects.requireNonNull(revision, "revision version can't be null");
@@ -29,29 +29,29 @@ public final class Version implements Comparable<Version> {
         this.minor = minor;
         this.revision = revision;
         this.snapshot = snapshot;
-        if (suffix == null || suffix.isEmpty()) {
-            this.suffix = "";
-        } else if (suffix.startsWith("-")) {
-            this.suffix = suffix;
+        if (qualifier == null || qualifier.isEmpty()) {
+            this.qualifier = "";
+        } else if (qualifier.startsWith("-")) {
+            this.qualifier = qualifier;
         } else {
-            this.suffix = "-" + suffix;
+            this.qualifier = "-" + qualifier;
         }
 
         int suffixOffset = 0;
-        if (this.suffix.isEmpty()) {
-            // no suffix will be considered smaller, uncomment to change that
+        if (this.qualifier.isEmpty()) {
+            // no qualifier will be considered smaller, uncomment to change that
             // suffixOffset = 100;
         } else {
-            if (this.suffix.contains("alpha")) {
-                suffixOffset += parseSuffixNumber(this.suffix.substring(6));
-            } else if (this.suffix.contains("beta")) {
-                suffixOffset += 25 + parseSuffixNumber(this.suffix.substring(5));
-            } else if (this.suffix.contains("rc")) {
-                suffixOffset += 50 + parseSuffixNumber(this.suffix.substring(3));
+            if (this.qualifier.contains("alpha")) {
+                suffixOffset += parseSuffixNumber(this.qualifier.substring(6));
+            } else if (this.qualifier.contains("beta")) {
+                suffixOffset += 25 + parseSuffixNumber(this.qualifier.substring(5));
+            } else if (this.qualifier.contains("rc")) {
+                suffixOffset += 50 + parseSuffixNumber(this.qualifier.substring(3));
             }
             else {
                 throw new IllegalArgumentException(
-                    "Suffix must contain one of: alpha, beta or rc instead of: " + this.suffix
+                    "Suffix must contain one of: alpha, beta or rc instead of: " + this.qualifier
                 );
             }
         }
@@ -62,7 +62,7 @@ public final class Version implements Comparable<Version> {
 
     private static int parseSuffixNumber(String substring) {
         if (substring.isEmpty()) {
-            throw new IllegalArgumentException("Invalid suffix, must contain a number e.x. alpha2");
+            throw new IllegalArgumentException("Invalid qualifier, must contain a number e.x. alpha2");
         }
         return Integer.parseInt(substring);
     }
@@ -89,7 +89,7 @@ public final class Version implements Comparable<Version> {
     public String toString() {
         final String snapshotStr = snapshot ? "-SNAPSHOT" : "";
         return String.valueOf(getMajor()) + "." + String.valueOf(getMinor()) + "." + String.valueOf(getRevision()) +
-                (suffix == null ? "" : suffix) + snapshotStr;
+                (qualifier == null ? "" : qualifier) + snapshotStr;
     }
 
     public boolean before(Version compareTo) {
@@ -129,12 +129,12 @@ public final class Version implements Comparable<Version> {
             return id < otherVersion.getId();
         }
 
-        if (suffix.equals("")) {
-            return otherVersion.getSuffix().equals("");
+        if (qualifier.equals("")) {
+            return otherVersion.getQualifier().equals("");
         }
 
 
-        return otherVersion.getSuffix().equals("") || suffix.compareTo(otherVersion.getSuffix()) < 0;
+        return otherVersion.getQualifier().equals("") || qualifier.compareTo(otherVersion.getQualifier()) < 0;
     }
 
     @Override
@@ -147,13 +147,13 @@ public final class Version implements Comparable<Version> {
                 revision == version.revision &&
                 id == version.id &&
                 snapshot == version.snapshot &&
-                Objects.equals(suffix, version.suffix);
+                Objects.equals(qualifier, version.qualifier);
     }
 
     @Override
     public int hashCode() {
 
-        return Objects.hash(major, minor, revision, id, snapshot, suffix);
+        return Objects.hash(major, minor, revision, id, snapshot, qualifier);
     }
 
     public boolean isSameVersionNumber(Version other) {
@@ -167,7 +167,7 @@ public final class Version implements Comparable<Version> {
     }
 
     public Version dropSnapshot() {
-        return new Version(major, minor, revision, suffix, false);
+        return new Version(major, minor, revision, qualifier, false);
     }
 
     public int getMajor() {
@@ -190,8 +190,8 @@ public final class Version implements Comparable<Version> {
         return snapshot;
     }
 
-    public String getSuffix() {
-        return suffix;
+    public String getQualifier() {
+        return qualifier;
     }
 
     @Override

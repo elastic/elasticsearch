@@ -31,7 +31,7 @@ public class VersionProperties {
         if (baseVersion.isSnapshot()) {
             throw new IllegalArgumentException("version.properties can't contain a snapshot version for elasticsearch");
         }
-        if (baseVersion.getSuffix().isEmpty() == false) {
+        if (baseVersion.getQualifier().isEmpty() == false) {
             throw new IllegalArgumentException("version.properties can't contain a version suffix for elasticsearch");
         }
         elasticsearch = new Version(

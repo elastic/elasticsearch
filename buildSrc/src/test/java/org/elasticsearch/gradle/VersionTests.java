@@ -149,9 +149,9 @@ public class VersionTests extends GradleUnitTestCase {
         Version.fromString("foo.bar.baz");
     }
 
-    public void testExceptionSuffixNumber() {
+    public void testExceptionQualifierNumber() {
         expectedEx.expect(IllegalArgumentException.class);
-        expectedEx.expectMessage("Invalid suffix");
+        expectedEx.expectMessage("Invalid qualifier");
         new Version(7, 1, 1, "-alpha", true);
     }
 
@@ -213,7 +213,7 @@ public class VersionTests extends GradleUnitTestCase {
         } else {
             assertFalse("Expected version not to be a snapshot but it was", version.isSnapshot());
         }
-        assertEquals(sufix, version.getSuffix());
+        assertEquals(sufix, version.getQualifier());
     }
 
 }

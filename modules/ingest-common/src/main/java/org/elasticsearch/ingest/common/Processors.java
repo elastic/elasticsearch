@@ -17,23 +17,33 @@
  * under the License.
  */
 
-package org.elasticsearch.index.settings;
+package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.common.inject.BindingAnnotation;
+import java.util.Map;
 
-import java.lang.annotation.Documented;
-import java.lang.annotation.Retention;
-import java.lang.annotation.Target;
+public final class Processors {
 
-import static java.lang.annotation.ElementType.FIELD;
-import static java.lang.annotation.ElementType.PARAMETER;
-import static java.lang.annotation.RetentionPolicy.RUNTIME;
+    public static long bytes(String value) {
+        return BytesProcessor.apply(value);
+    }
 
+    public static String lowercase(String value) {
+        return LowercaseProcessor.apply(value);
+    }
 
-@BindingAnnotation
-@Target({FIELD, PARAMETER})
-@Retention(RUNTIME)
-@Documented
-public @interface IndexDynamicSettings {
+    public static String uppercase(String value) {
+        return UppercaseProcessor.apply(value);
+    }
 
+    public static Object json(Object fieldValue) {
+        return JsonProcessor.apply(fieldValue);
+    }
+
+    public static void json(Map<String, Object> ctx, String field) {
+        JsonProcessor.apply(ctx, field);
+    }
+
+    public static String urlDecode(String value) {
+        return URLDecodeProcessor.apply(value);
+    }
 }

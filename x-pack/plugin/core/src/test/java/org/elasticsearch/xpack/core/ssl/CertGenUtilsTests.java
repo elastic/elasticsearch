@@ -12,6 +12,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.BeforeClass;
 
 import java.math.BigInteger;
 import java.net.InetAddress;
@@ -31,6 +32,11 @@ import static org.mockito.Mockito.when;
  * Unit tests for cert utils
  */
 public class CertGenUtilsTests extends ESTestCase {
+
+    @BeforeClass
+    public static void muteInFips(){
+        assumeFalse("Can't run in a FIPS JVM", inFipsJvm());
+    }
 
     public void testSerialNotRepeated() {
         int iterations = scaledRandomIntBetween(10, 100);

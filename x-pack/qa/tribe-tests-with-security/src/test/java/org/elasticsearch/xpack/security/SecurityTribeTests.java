@@ -556,6 +556,20 @@ public class SecurityTribeTests extends NativeRealmIntegTestCase {
                         s, anyOf(startsWith("tribe.blocks"), startsWith("tribe.name"), startsWith("tribe.on_conflict"))));
     }
 
+    public void testNoTribeSecureSettings() throws Exception {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        Path home = createTempDir();
+        secureSettings.setString("xpack.security.http.ssl.keystore.secure_password", "dummypass");
+        Settings settings = Settings.builder().setSecureSettings(secureSettings)
+            .put("path.home", home)
+            .put("tribe.t1.cluster.name", "foo")
+            .put("xpack.security.enabled", true).build();
+        Security security = new Security(settings, home.resolve("config"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, security::additionalSettings);
+        assertThat(e.getMessage(),
+            equalTo("Secure setting [xpack.security.http.ssl.keystore.secure_password] cannot be used with tribe client node"));
+    }
+
     private void assertTribeNodeHasAllIndices() throws Exception {
         assertBusy(() -> {
             Set<String> indices = new HashSet<>();

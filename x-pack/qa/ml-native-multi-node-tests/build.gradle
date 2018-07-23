@@ -19,10 +19,22 @@ integTestRunner {
 }
 
 // location for keys and certificates
-File nodeKey = project(':test:cert-files').file("src/main/resources/testnode.pem")
-File nodeCert = project(':test:cert-files').file("src/main/resources/testnode.crt")
+File keystoreDir = new File(project.buildDir, 'keystore')
+File nodeKey = new File(keystoreDir, 'testnode.pem')
+File nodeCert = new File(keystoreDir, 'testnode.crt')
+// Add key and certs to test classpath: it expects it there
+task copyKeyCerts(type: Copy) {
+    from('../../plugin/core/src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/') {
+        include 'testnode.crt', 'testnode.pem'
+    }
+    into keystoreDir
+}
+// Add keys and cets to test classpath: it expects it there
+sourceSets.test.resources.srcDir(keystoreDir)
+processTestResources.dependsOn(copyKeyCerts)
 
 integTestCluster {
+    dependsOn copyKeyCerts
     setting 'xpack.security.enabled', 'true'
     setting 'xpack.ml.enabled', 'true'
     setting 'logger.org.elasticsearch.xpack.ml.datafeed', 'TRACE'

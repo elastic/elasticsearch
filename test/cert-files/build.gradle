@@ -1,2 +1,0 @@
-apply plugin: 'java'
-licenseHeaders.enabled = false

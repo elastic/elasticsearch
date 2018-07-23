@@ -16,7 +16,6 @@ apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
   testCompile project(path: xpackModule('core'), configuration: 'runtime')
-  testRuntime project(':test:cert-files')
 }
 
 String outputDir = "${buildDir}/generated-resources/${project.name}"
@@ -30,13 +29,27 @@ project.sourceSets.test.output.dir(outputDir, builtBy: copyXPackPluginProps)
 // needed to be consistent with ssl host checking
 Object san = new SanEvaluator()
 
-// location of keystores, keys and certificates
-File nodeKeystore = project(':test:cert-files').file("src/main/resources/testnode.jks")
-File nodeKey = project(':test:cert-files').file("src/main/resources/testnode.pem")
-File nodeCert = project(':test:cert-files').file("src/main/resources/testnode.crt")
-File clientKeyStore = project(':test:cert-files').file("src/main/resources/testclient.jks")
-File clientKey = project(':test:cert-files').file("src/main/resources/testclient.pem")
-File clientCert = project(':test:cert-files').file("src/main/resources/testclient.crt")
+// location of generated keystores and certificates
+File keystoreDir = new File(project.buildDir, 'keystore')
+File nodeKeystore = new File(keystoreDir, 'testnode.jks')
+File nodeKey = new File(keystoreDir, 'testnode.pem')
+File nodeCert = new File(keystoreDir, 'testnode.crt')
+File clientKeyStore = new File(keystoreDir, 'testclient.jks')
+File clientKey = new File(keystoreDir, 'testclient.pem')
+File clientCert = new File(keystoreDir, 'testclient.crt')
+
+// Add keystores to test classpath: it expects it there
+task copyKeyCerts(type: Copy) {
+  from('./') {
+      include '*.crt', '*.pem', '*.jks'
+  }
+  into keystoreDir
+}
+// Add keystores to test classpath: it expects it there
+sourceSets.test.resources.srcDir(keystoreDir)
+processTestResources.dependsOn(copyKeyCerts)
+
+integTestCluster.dependsOn(copyKeyCerts)
 
 ext.pluginsCount = 0
 project(':plugins').getChildProjects().each { pluginName, pluginProject ->

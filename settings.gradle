@@ -37,8 +37,7 @@ List projects = [
   'test:fixtures:hdfs-fixture',
   'test:fixtures:krb5kdc-fixture',
   'test:fixtures:old-elasticsearch',
-  'test:logger-usage',
-  'test:cert-files'
+  'test:logger-usage'
 ]
 
 /**

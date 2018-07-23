@@ -75,7 +75,6 @@ public class RangeIT extends ESIntegTestCase {
     public static class CustomScriptPlugin extends AggregationTestScriptsPlugin {
 
         @Override
-        @SuppressWarnings("unchecked")
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             Map<String, Function<Map<String, Object>, Object>> scripts = super.pluginScripts();
 

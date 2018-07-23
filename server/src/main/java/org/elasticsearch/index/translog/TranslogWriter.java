@@ -202,9 +202,11 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             if (previous.v1().equals(data) == false) {
                 Translog.Operation newOp = Translog.readOperation(new BufferedChecksumStreamInput(data.streamInput()));
                 Translog.Operation prvOp = Translog.readOperation(new BufferedChecksumStreamInput(previous.v1().streamInput()));
-                throw new AssertionError(
-                    "seqNo [" + seqNo + "] was processed twice in generation [" + generation + "], with different data. " +
-                        "prvOp [" + prvOp + "], newOp [" + newOp + "]", previous.v2());
+                if (newOp.equals(prvOp) == false) {
+                    throw new AssertionError(
+                        "seqNo [" + seqNo + "] was processed twice in generation [" + generation + "], with different data. " +
+                            "prvOp [" + prvOp + "], newOp [" + newOp + "]", previous.v2());
+                }
             }
         } else {
             seenSequenceNumbers.put(seqNo,

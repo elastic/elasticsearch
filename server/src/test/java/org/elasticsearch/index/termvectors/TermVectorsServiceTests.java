@@ -109,12 +109,62 @@ public class TermVectorsServiceTests extends ESSingleNodeTestCase {
         IndexService test = indicesService.indexService(resolveIndex("test"));
         IndexShard shard = test.getShardOrNull(0);
         assertThat(shard, notNullValue());
-        TermVectorsResponse response = TermVectorsService.getTermVectors(shard, request);
+        TermVectorsResponse response = TermVectorsService.getTermVectors(shard, request);        
+        assertEquals(1, response.getFields().size());            
 
         Terms terms = response.getFields().terms("text");
         TermsEnum iterator = terms.iterator();
         while (iterator.next() != null) {
             assertEquals(max, iterator.docFreq());
         }
-    }
+    }  
+    
+    public void testWithIndexedPhrases() throws IOException {
+        XContentBuilder mapping = jsonBuilder()
+            .startObject()
+                .startObject("_doc")
+                    .startObject("properties")
+                        .startObject("text")
+                            .field("type", "text")
+                            .field("index_phrases", true)                            
+                            .field("term_vector", "with_positions_offsets_payloads")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject();
+        Settings settings = Settings.builder()
+                .put("number_of_shards", 1)
+                .build();
+        createIndex("test", settings, "_doc", mapping);
+        ensureGreen();
+
+        int max = between(3, 10);
+        BulkRequestBuilder bulk = client().prepareBulk();
+        for (int i = 0; i < max; i++) {
+            bulk.add(client().prepareIndex("test", "_doc", Integer.toString(i))
+                    .setSource("text", "the quick brown fox jumped over the lazy dog"));
+        }
+        bulk.get();
+
+        TermVectorsRequest request = new TermVectorsRequest("test", "_doc", "0").termStatistics(true);
+
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService(resolveIndex("test"));
+        IndexShard shard = test.getShardOrNull(0);
+        assertThat(shard, notNullValue());
+        TermVectorsResponse response = TermVectorsService.getTermVectors(shard, request);        
+        assertEquals(2, response.getFields().size());
+
+        Terms terms = response.getFields().terms("text");
+        TermsEnum iterator = terms.iterator();
+        while (iterator.next() != null) {
+            assertEquals(max, iterator.docFreq());
+        }
+                
+        Terms phrases = response.getFields().terms("text._index_phrase");
+        TermsEnum phraseIterator = phrases.iterator();
+        while (phraseIterator.next() != null) {
+            assertEquals(max, phraseIterator.docFreq());
+        }
+    }  
 }

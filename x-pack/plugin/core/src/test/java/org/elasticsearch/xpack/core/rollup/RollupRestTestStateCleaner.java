@@ -65,7 +65,6 @@ public class RollupRestTestStateCleaner {
     private static void deleteAllJobs(RestClient adminClient) throws Exception {
         Response response = adminClient.performRequest("GET", "/_xpack/rollup/job/_all");
         Map<String, Object> jobs = ESRestTestCase.entityAsMap(response);
-        @SuppressWarnings("unchecked")
         List<Map<String, Object>> jobConfigs =
                 (List<Map<String, Object>>) XContentMapValues.extractValue("jobs", jobs);
 

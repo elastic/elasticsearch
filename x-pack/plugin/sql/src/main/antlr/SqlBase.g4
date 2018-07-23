@@ -243,7 +243,12 @@ functionExpression
     ;
     
 functionTemplate
-    : identifier '(' (setQuantifier? expression (',' expression)*)? ')'
+    : functionName '(' (setQuantifier? expression (',' expression)*)? ')'
+    ;
+functionName
+    : LEFT 
+    | RIGHT 
+    | identifier
     ;
     
 constant

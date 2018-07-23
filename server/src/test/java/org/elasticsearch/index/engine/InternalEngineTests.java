@@ -127,6 +127,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 
@@ -5013,13 +5014,16 @@ public class InternalEngineTests extends EngineTestCase {
             engine.refresh("test");
             engine.delete(replicaDeleteForDoc("1", 4, 3, threadPool.relativeTimeInMillis()));
             engine.index(replicaIndexForDoc(createParsedDoc("1", null), 3, 2, false));
-            engine.index(replicaIndexForDoc(createParsedDoc("1", null), 5, 4, false));
+            engine.index(replicaIndexForDoc(createParsedDoc("1", null), 6, 5, false));
+            engine.delete(replicaDeleteForDoc("1", 5, 4, threadPool.relativeTimeInMillis()));
             Map<Long, Long> seqNos = readUpdatedBySeqNos.apply(engine);
             assertThat(seqNos, hasEntry(0L, 1L)); // 0 -> 1
-            assertThat(seqNos, hasEntry(1L, 4L)); // 1 -> 3 -> 4
+            assertThat(seqNos, hasEntry(1L, 5L)); // 1 -> 3 -> 5
             assertThat(seqNos, hasEntry(2L, 3L)); // 2 -> 3 (stale)
-            assertThat(seqNos, not(hasKey(3L)));  // delete does not have updated_by_seqno
-            assertThat(seqNos.keySet(), hasSize(3));
+            assertThat(seqNos, not(hasKey(3L)));  // regular delete tombstone does not have updated_by_seqno
+            assertThat(seqNos, hasEntry(4L, 5L)); // stale delete tombstone has updated_by_seqno
+            assertThat(seqNos, not(hasKey(5L)));  // a live index
+            assertThat(seqNos.keySet(), hasSize(4));
         }
         // On primary
         try (Store store = createStore();

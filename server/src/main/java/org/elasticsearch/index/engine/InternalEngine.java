@@ -1055,8 +1055,8 @@ public class InternalEngine extends Engine {
                     "indexIntoLucene: " + indexIntoLucene
                     + "  earlyResultOnPreFlightError:" + earlyResultOnPreFlightError;
             // TODO: assert greater (i.e. remove or equals) after rollback is implemented
-            assert (addStaleOpToLucene && seqNoOfNewerDocIfStale >= seqNoForIndexing) || (addStaleOpToLucene == false && seqNoOfNewerDocIfStale == -1) :
-                "stale=" + addStaleOpToLucene + ", seqno_for_indexing=" + seqNoForIndexing + ", seqno_of_newer_doc=" + seqNoOfNewerDocIfStale;
+            assert addStaleOpToLucene == false || seqNoOfNewerDocIfStale >= seqNoForIndexing :
+                "stale=" + addStaleOpToLucene + " seqno_for_indexing=" + seqNoForIndexing + " seqno_of_newer_doc=" + seqNoOfNewerDocIfStale;
             this.currentNotFoundOrDeleted = currentNotFoundOrDeleted;
             this.useLuceneUpdateDocument = useLuceneUpdateDocument;
             this.seqNoForIndexing = seqNoForIndexing;
@@ -1221,7 +1221,9 @@ public class InternalEngine extends Engine {
             if (prevSeqNo.isPresent() == false || prevSeqNo.getAsLong() < delete.seqNo()) {
                 plan = DeletionStrategy.processNormally(prevSeqNo.isPresent() == false, delete.seqNo(), delete.version());
             } else {
-                plan = DeletionStrategy.processAsStaleOp(softDeleteEnabled, false, delete.seqNo(), delete.version());
+                boolean addStaleOpToLucene = this.softDeleteEnabled;
+                plan = DeletionStrategy.processAsStaleOp(addStaleOpToLucene, false, delete.seqNo(), delete.version(),
+                    addStaleOpToLucene ? prevSeqNo.getAsLong() : -1);
             }
         }
         return plan;
@@ -1271,6 +1273,9 @@ public class InternalEngine extends Engine {
                 assert doc.getField(SeqNoFieldMapper.TOMBSTONE_NAME) != null :
                     "Delete tombstone document but _tombstone field is not set [" + doc + " ]";
                 doc.add(softDeleteField);
+                if (plan.addStaleOpToLucene) {
+                    doc.add(new NumericDocValuesField(SeqNoFieldMapper.UPDATED_BY_SEQNO_NAME, plan.seqNoOfNewerDocIfStale));
+                }
                 if (plan.addStaleOpToLucene || plan.currentlyDeleted) {
                     indexWriter.addDocument(doc);
                 } else {
@@ -1308,20 +1313,24 @@ public class InternalEngine extends Engine {
         final boolean currentlyDeleted;
         final long seqNoOfDeletion;
         final long versionOfDeletion;
+        final long seqNoOfNewerDocIfStale; // the seqno of the newer copy of this _uid if exists; otherwise -1
         final Optional<DeleteResult> earlyResultOnPreflightError;
 
-        private DeletionStrategy(boolean deleteFromLucene, boolean addStaleOpToLucene, boolean currentlyDeleted,
-                                 long seqNoOfDeletion, long versionOfDeletion,
-                                 DeleteResult earlyResultOnPreflightError) {
+        private DeletionStrategy(boolean deleteFromLucene, boolean addStaleOpToLucene, boolean currentlyDeleted, long seqNoOfDeletion,
+                                 long versionOfDeletion, long seqNoOfNewerDocIfStale, DeleteResult earlyResultOnPreflightError) {
             assert (deleteFromLucene && earlyResultOnPreflightError != null) == false :
                 "can only delete from lucene or have a preflight result but not both." +
                     "deleteFromLucene: " + deleteFromLucene
                     + "  earlyResultOnPreFlightError:" + earlyResultOnPreflightError;
+            // TODO: assert greater (i.e. remove or equals) after rollback is implemented
+            assert addStaleOpToLucene == false || seqNoOfNewerDocIfStale >= seqNoOfDeletion :
+                "stale=" + addStaleOpToLucene + " seqno_for_deletion=" + seqNoOfDeletion + " seqno_of_newer_doc=" + seqNoOfNewerDocIfStale;
             this.deleteFromLucene = deleteFromLucene;
             this.addStaleOpToLucene = addStaleOpToLucene;
             this.currentlyDeleted = currentlyDeleted;
             this.seqNoOfDeletion = seqNoOfDeletion;
             this.versionOfDeletion = versionOfDeletion;
+            this.seqNoOfNewerDocIfStale = seqNoOfNewerDocIfStale;
             this.earlyResultOnPreflightError = earlyResultOnPreflightError == null ?
                 Optional.empty() : Optional.of(earlyResultOnPreflightError);
         }
@@ -1330,22 +1339,22 @@ public class InternalEngine extends Engine {
                 VersionConflictEngineException e, long currentVersion, boolean currentlyDeleted) {
             final long unassignedSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
             final DeleteResult deleteResult = new DeleteResult(e, currentVersion, unassignedSeqNo, currentlyDeleted == false);
-            return new DeletionStrategy(false, false, currentlyDeleted, unassignedSeqNo, Versions.NOT_FOUND, deleteResult);
+            return new DeletionStrategy(false, false, currentlyDeleted, unassignedSeqNo, Versions.NOT_FOUND, -1, deleteResult);
         }
 
         static DeletionStrategy processNormally(boolean currentlyDeleted, long seqNoOfDeletion, long versionOfDeletion) {
-            return new DeletionStrategy(true, false, currentlyDeleted, seqNoOfDeletion, versionOfDeletion, null);
+            return new DeletionStrategy(true, false, currentlyDeleted, seqNoOfDeletion, versionOfDeletion, -1, null);
 
         }
 
         public static DeletionStrategy processButSkipLucene(boolean currentlyDeleted,
                                                             long seqNoOfDeletion, long versionOfDeletion) {
-            return new DeletionStrategy(false, false, currentlyDeleted, seqNoOfDeletion, versionOfDeletion, null);
+            return new DeletionStrategy(false, false, currentlyDeleted, seqNoOfDeletion, versionOfDeletion, -1, null);
         }
 
-        static DeletionStrategy processAsStaleOp(boolean addStaleOpToLucene, boolean currentlyDeleted,
-                                                        long seqNoOfDeletion, long versionOfDeletion) {
-            return new DeletionStrategy(false, addStaleOpToLucene, currentlyDeleted, seqNoOfDeletion, versionOfDeletion, null);
+        static DeletionStrategy processAsStaleOp(boolean addStaleOpToLucene, boolean currentlyDeleted, long seqNoOfDeletion,
+                                                 long versionOfDeletion, long seqNoOfNewerDocIfStale) {
+            return new DeletionStrategy(false, addStaleOpToLucene, currentlyDeleted, seqNoOfDeletion, versionOfDeletion, seqNoOfNewerDocIfStale, null);
         }
     }
 

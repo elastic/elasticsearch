@@ -5,7 +5,8 @@
  */
 package org.elasticsearch.integration;
 
-import org.apache.http.message.BasicHeader;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
@@ -388,9 +389,12 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
 
     public void testThatUnknownUserIsRejectedProperly() throws Exception {
         try {
-            getRestClient().performRequest("GET", "/",
-                    new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                            UsernamePasswordToken.basicAuthHeaderValue("idonotexist", new SecureString("passwd".toCharArray()))));
+            Request request = new Request("GET", "/");
+            RequestOptions.Builder options = request.getOptions().toBuilder();
+            options.addHeader("Authorization",
+                    UsernamePasswordToken.basicAuthHeaderValue("idonotexist", new SecureString("passwd".toCharArray())));
+            request.setOptions(options);
+            getRestClient().performRequest(request);
             fail("request should have failed");
         } catch(ResponseException e) {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), is(401));

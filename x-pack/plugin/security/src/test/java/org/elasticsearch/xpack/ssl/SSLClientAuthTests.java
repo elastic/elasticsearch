@@ -6,12 +6,13 @@
 package org.elasticsearch.xpack.ssl;
 
 import org.apache.http.conn.ssl.NoopHostnameVerifier;
-import org.apache.http.message.BasicHeader;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.transport.TransportClient;
@@ -71,7 +72,7 @@ public class SSLClientAuthTests extends SecurityIntegTestCase {
     public void testThatHttpFailsWithoutSslClientAuth() throws IOException {
         SSLIOSessionStrategy sessionStrategy = new SSLIOSessionStrategy(SSLContexts.createDefault(), NoopHostnameVerifier.INSTANCE);
         try (RestClient restClient = createRestClient(httpClientBuilder -> httpClientBuilder.setSSLStrategy(sessionStrategy), "https")) {
-            restClient.performRequest("GET", "/");
+            restClient.performRequest(new Request("GET", "/"));
             fail("Expected SSLHandshakeException");
         } catch (IOException e) {
             Throwable t = ExceptionsHelper.unwrap(e, CertPathBuilderException.class);
@@ -87,8 +88,11 @@ public class SSLClientAuthTests extends SecurityIntegTestCase {
     public void testThatHttpWorksWithSslClientAuth() throws IOException {
         SSLIOSessionStrategy sessionStrategy = new SSLIOSessionStrategy(getSSLContext(), NoopHostnameVerifier.INSTANCE);
         try (RestClient restClient = createRestClient(httpClientBuilder -> httpClientBuilder.setSSLStrategy(sessionStrategy), "https")) {
-            Response response = restClient.performRequest("GET", "/",
-                    new BasicHeader("Authorization", basicAuthHeaderValue(transportClientUsername(), transportClientPassword())));
+            Request request = new Request("GET", "/");
+            RequestOptions.Builder options = request.getOptions().toBuilder();
+            options.addHeader("Authorization", basicAuthHeaderValue(transportClientUsername(), transportClientPassword()));
+            request.setOptions(options);
+            Response response = restClient.performRequest(request);
             assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
             assertThat(EntityUtils.toString(response.getEntity()), containsString("You Know, for Search"));
         }

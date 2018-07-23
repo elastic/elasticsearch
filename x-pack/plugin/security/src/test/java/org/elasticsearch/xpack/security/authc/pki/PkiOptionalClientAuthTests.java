@@ -5,8 +5,9 @@
  */
 package org.elasticsearch.xpack.security.authc.pki;
 
-import org.apache.http.message.BasicHeader;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
@@ -76,13 +77,15 @@ public class PkiOptionalClientAuthTests extends SecuritySingleNodeTestCase {
     public void testRestClientWithoutClientCertificate() throws Exception {
         SSLIOSessionStrategy sessionStrategy = new SSLIOSessionStrategy(getSSLContext());
         try (RestClient restClient = createRestClient(httpClientBuilder -> httpClientBuilder.setSSLStrategy(sessionStrategy), "https")) {
-            ResponseException e = expectThrows(ResponseException.class, () -> restClient.performRequest("GET", "_nodes"));
+            ResponseException e = expectThrows(ResponseException.class, () -> restClient.performRequest(new Request("GET", "_nodes")));
             assertThat(e.getResponse().getStatusLine().getStatusCode(), is(401));
 
-            Response response = restClient.performRequest("GET", "_nodes",
-                    new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                            UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
-                                    new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()))));
+            Request request = new Request("GET", "_nodes");
+            RequestOptions.Builder options = request.getOptions().toBuilder();
+            options.addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
+                    new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())));
+            request.setOptions(options);
+            Response response = restClient.performRequest(request);
             assertThat(response.getStatusLine().getStatusCode(), is(200));
         }
     }

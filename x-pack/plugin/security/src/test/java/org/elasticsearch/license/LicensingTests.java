@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.license;
 
-import org.apache.http.message.BasicHeader;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -15,6 +14,8 @@ import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
@@ -189,31 +190,36 @@ public class LicensingTests extends SecurityIntegTestCase {
     }
 
     public void testRestAuthenticationByLicenseType() throws Exception {
-        Response response = getRestClient().performRequest("GET", "/");
+        Response unauthorizedRootResponse = getRestClient().performRequest(new Request("GET", "/"));
         // the default of the licensing tests is basic
-        assertThat(response.getStatusLine().getStatusCode(), is(200));
+        assertThat(unauthorizedRootResponse.getStatusLine().getStatusCode(), is(200));
         ResponseException e = expectThrows(ResponseException.class,
-                () -> getRestClient().performRequest("GET", "/_xpack/security/_authenticate"));
+                () -> getRestClient().performRequest(new Request("GET", "/_xpack/security/_authenticate")));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), is(403));
 
         // generate a new license with a mode that enables auth
         License.OperationMode mode = randomFrom(License.OperationMode.GOLD, License.OperationMode.TRIAL,
                 License.OperationMode.PLATINUM, License.OperationMode.STANDARD);
         enableLicensing(mode);
-        e = expectThrows(ResponseException.class, () -> getRestClient().performRequest("GET", "/"));
+        e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(new Request("GET", "/")));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), is(401));
         e = expectThrows(ResponseException.class,
-            () -> getRestClient().performRequest("GET", "/_xpack/security/_authenticate"));
+            () -> getRestClient().performRequest(new Request("GET", "/_xpack/security/_authenticate")));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), is(401));
 
-        final String basicAuthValue = UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
-                new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()));
-        response = getRestClient().performRequest("GET", "/", new BasicHeader("Authorization", basicAuthValue));
-        assertThat(response.getStatusLine().getStatusCode(), is(200));
-        response = getRestClient().performRequest("GET", "/_xpack/security/_authenticate",
-                    new BasicHeader("Authorization", basicAuthValue));
-        assertThat(response.getStatusLine().getStatusCode(), is(200));
+        RequestOptions.Builder optionsBuilder = RequestOptions.DEFAULT.toBuilder();
+        optionsBuilder.addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
+                new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())));
+        RequestOptions options = optionsBuilder.build();
 
+        Request rootRequest = new Request("GET", "/");
+        rootRequest.setOptions(options);
+        Response authorizedRootResponse = getRestClient().performRequest(rootRequest);
+        assertThat(authorizedRootResponse.getStatusLine().getStatusCode(), is(200));
+        Request authenticateRequest = new Request("GET", "/_xpack/security/_authenticate");
+        authenticateRequest.setOptions(options);
+        Response authorizedAuthenticateResponse = getRestClient().performRequest(authenticateRequest);
+        assertThat(authorizedAuthenticateResponse.getStatusLine().getStatusCode(), is(200));
     }
 
     public void testSecurityActionsByLicenseType() throws Exception {

@@ -679,7 +679,6 @@ public class RestHighLevelClientTests extends ESTestCase {
             "render_search_template",
             "scripts_painless_execute",
             "snapshot.restore",
-            "snapshot.status",
             "tasks.get",
             "termvectors",
             "update_by_query"

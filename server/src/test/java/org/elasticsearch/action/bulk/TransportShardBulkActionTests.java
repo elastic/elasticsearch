@@ -29,7 +29,6 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.replication.TransportWriteAction.WritePrimaryResult;
 import org.elasticsearch.action.update.UpdateHelper;
@@ -45,7 +44,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -277,7 +275,6 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
     }
 
     public void testExecuteBulkIndexRequestWithMappingUpdates() throws Exception {
-        IndexShard shard = newStartedShard(true);
 
         BulkItemRequest[] items = new BulkItemRequest[3];
         DocWriteRequest<IndexRequest> writeRequest = new IndexRequest("index", "_doc", "id")
@@ -285,6 +282,14 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         items[0] = new BulkItemRequest(0, writeRequest);
         BulkShardRequest bulkShardRequest =
             new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+
+        Engine.IndexResult mappingUpdate =
+            new Engine.IndexResult(new Mapping(null, null, new MetadataFieldMapper[0], Collections.emptyMap()));
+        Translog.Location resultLocation = new Translog.Location(42, 42, 42);
+        Engine.IndexResult success = new FakeIndexResult(1, 13, true, resultLocation);
+
+        IndexShard shard = mock(IndexShard.class);
+        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyBoolean())).thenReturn(mappingUpdate);
 
 
         // Pretend the mappings haven't made it to the node yet
@@ -304,12 +309,10 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         // Verify that the shard "executed" the operation twice
         verify(shard, times(2)).applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyBoolean());
 
-        final MapperService mapperService = shard.mapperService();
-        logger.info("--> mapperService.index(): {}", mapperService.index());
-        mapperService.updateMapping(indexMetaData());
+        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyBoolean())).thenReturn(success);
         context.resetForExecutionAfterRetry();
 
-        TransportShardBulkAction.executeIndexRequestOnPrimary(context,
+        TransportShardBulkAction.executeBulkItemRequest(context, null, threadPool::absoluteTimeInMillis,
             (update, shardId, type) -> fail("should not have had to update the mappings"));
 
 
@@ -322,7 +325,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         assertThat(primaryResponse.getItemId(), equalTo(0));
         assertThat(primaryResponse.getId(), equalTo("id"));
-        assertThat(primaryResponse.getOpType(), equalTo(DocWriteRequest.OpType.CREATE));
+        assertThat(primaryResponse.getOpType(), equalTo(writeRequest.opType()));
         assertFalse(primaryResponse.isFailed());
 
         closeShards(shard);
@@ -721,16 +724,12 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         }
         BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
-        final long translogSizeInBytesBeforeIndexing = shard.translogStats().getTranslogSizeInBytes();
         UpdateHelper updateHelper = null;
-        PlainActionFuture<WritePrimaryResult<BulkShardRequest, BulkShardResponse>> callback = new PlainActionFuture<>();
         WritePrimaryResult<BulkShardRequest, BulkShardResponse> result = TransportShardBulkAction.performOnPrimary(
             bulkShardRequest, shard, updateHelper, threadPool::absoluteTimeInMillis, new NoopMappingUpdatePerformer(),
             new ClusterStateObserver(clusterService, logger, threadPool.getThreadContext()), clusterService.localNode());
 
-        final long translogSizeInBytesAfterIndexing = shard.translogStats().getTranslogSizeInBytes();
-        assertThat(result.location.translogLocation,
-            equalTo(translogSizeInBytesAfterIndexing - translogSizeInBytesBeforeIndexing - 1));
+        assertTrue(shard.isSyncNeeded());
 
         // if we sync the location, nothing else is unsynced
         CountDownLatch latch = new CountDownLatch(1);

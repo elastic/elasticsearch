@@ -33,7 +33,7 @@ live?
 
 ==== Request Body
 
-There is no request body for the Get Jobs API.
+There is no request body for the Get Rollup Caps API.
 
 ==== Authorization
 

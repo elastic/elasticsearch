@@ -144,6 +144,7 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
                 Request request = new Request("GET", "/_nodes");
                 RequestOptions.Builder options = request.getOptions().toBuilder();
                 options.addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER, TEST_PASSWORD_SECURE_STRING));
+                request.setOptions(options);
                 getRestClient().performRequest(request);
                 fail("request should have failed");
             } catch (ResponseException e) {

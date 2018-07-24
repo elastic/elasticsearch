@@ -259,6 +259,8 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
             } else {
                 final BytesReference source = fields.source();
                 if (source == null) {
+                    // TODO: Callers should ask for the range that source should be retained. Thus we should always
+                    // check for the existence source once we make peer-recovery to send ops after the local checkpoint.
                     if (requiredFullRange) {
                         throw new IllegalStateException("source not found for seqno=" + seqNo +
                             " from_seqno=" + fromSeqNo + " to_seqno=" + toSeqNo);

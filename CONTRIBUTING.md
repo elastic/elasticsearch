@@ -319,8 +319,8 @@ common configurations in our build and how we use them:
 
 <dl>
 <dt>`compile`</dt><dd>Code that is on the classpath at both compile and
-runtime. If the `shadow` plugin is applied to the project then this code is
-bundled into the jar produced by the project.</dd>
+runtime. If the [`shadow`][shadow-plugin] plugin is applied to the project then
+this code is bundled into the jar produced by the project.</dd>
 <dt>`runtime`</dt><dd>Code that is not on the classpath at compile time but is
 on the classpath at runtime. We mostly use this configuration to make sure that
 we do not accidentally compile against dependencies of our dependencies also
@@ -370,3 +370,4 @@ repeating in this section because it has come up in this context.
 
 [eclipse]: http://www.eclipse.org/community/eclipse_newsletter/2017/june/
 [intellij]: https://blog.jetbrains.com/idea/2017/07/intellij-idea-2017-2-is-here-smart-sleek-and-snappy/
+[shadow-plugin]: https://github.com/johnrengelman/shadow

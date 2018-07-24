@@ -10,7 +10,7 @@ apply plugin: 'elasticsearch.build'
 test.enabled = false
 
 dependencies {
-  testCompile project(path: xpackModule('core'), configuration: 'runtime')
+  testCompile project(path: xpackModule('core'), configuration: 'shadow')
   testCompile project(path: xpackModule('security'), configuration: 'runtime')
   testCompile project(path: xpackModule('core'), configuration: 'testArtifacts') // to be moved in a later commit
 }
@@ -284,7 +284,7 @@ subprojects {
   check.dependsOn(integTest)
 
   dependencies {
-    testCompile project(path: xpackModule('core'), configuration: 'runtime')
+    testCompile project(path: xpackModule('core'), configuration: 'shadow')
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
     testCompile project(path: xpackModule('watcher'))
   }

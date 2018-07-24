@@ -19,18 +19,14 @@
 package org.elasticsearch.gradle.plugin
 
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
-import nebula.plugin.info.scm.ScmInfoPlugin
+import groovy.xml.XmlUtil
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.NoticeTask
 import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.test.RunTask
 import org.gradle.api.InvalidUserDataException
-import org.gradle.api.JavaVersion
 import org.gradle.api.Project
 import org.gradle.api.Task
-import org.gradle.api.XmlProvider
-import org.gradle.api.publish.maven.MavenPublication
-import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
 import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.bundling.Zip
 
@@ -69,16 +65,16 @@ public class PluginBuildPlugin extends BuildPlugin {
             String name = project.pluginProperties.extension.name
             project.archivesBaseName = name
 
+            // while the jar isn't normally published, we still at least build a pom of deps
+            // in case it is published, for instance when other plugins extend this plugin
+            configureJarPom(project)
+
             if (project.pluginProperties.extension.hasClientJar) {
                 // for plugins which work with the transport client, we copy the jar
                 // file to a new name, copy the nebula generated pom to the same name,
                 // and generate a different pom for the zip
-                addClientJarPomGeneration(project)
                 addClientJarTask(project)
             }
-            // while the jar isn't normally published, we still at least build a pom of deps
-            // in case it is published, for instance when other plugins extend this plugin
-            configureJarPom(project)
 
             project.integTestCluster.dependsOn(project.bundlePlugin)
             project.tasks.run.dependsOn(project.bundlePlugin)
@@ -169,37 +165,6 @@ public class PluginBuildPlugin extends BuildPlugin {
         project.artifacts.add('zip', bundle)
     }
 
-    /** Adds a task to move jar and associated files to a "-client" name. */
-    protected static void addClientJarTask(Project project) {
-        Task clientJar = project.tasks.create('clientJar')
-        clientJar.dependsOn(project.jar, project.tasks.generatePomFileForClientJarPublication, project.javadocJar, project.sourcesJar)
-        clientJar.doFirst {
-            Path jarFile = project.jar.outputs.files.singleFile.toPath()
-            String clientFileName = jarFile.fileName.toString().replace(project.version, "client-${project.version}")
-            Files.copy(jarFile, jarFile.resolveSibling(clientFileName), StandardCopyOption.REPLACE_EXISTING)
-
-            String clientPomFileName = clientFileName.replace('.jar', '.pom')
-            Files.copy(
-                    project.tasks.generatePomFileForClientJarPublication.outputs.files.singleFile.toPath(),
-                    jarFile.resolveSibling(clientPomFileName),
-                    StandardCopyOption.REPLACE_EXISTING
-            )
-
-            String sourcesFileName = jarFile.fileName.toString().replace('.jar', '-sources.jar')
-            String clientSourcesFileName = clientFileName.replace('.jar', '-sources.jar')
-            Files.copy(jarFile.resolveSibling(sourcesFileName), jarFile.resolveSibling(clientSourcesFileName),
-                    StandardCopyOption.REPLACE_EXISTING)
-
-            String javadocFileName = jarFile.fileName.toString().replace('.jar', '-javadoc.jar')
-            String clientJavadocFileName = clientFileName.replace('.jar', '-javadoc.jar')
-            Files.copy(jarFile.resolveSibling(javadocFileName), jarFile.resolveSibling(clientJavadocFileName),
-                    StandardCopyOption.REPLACE_EXISTING)
-        }
-        project.assemble.dependsOn(clientJar)
-    }
-
-    static final Pattern GIT_PATTERN = Pattern.compile(/git@([^:]+):([^\.]+)\.git/)
-
     /** Find the reponame. */
     static String urlFromOrigin(String origin) {
         if (origin == null) {
@@ -216,40 +181,45 @@ public class PluginBuildPlugin extends BuildPlugin {
         }
     }
 
-    /** Adds nebula publishing task to generate a pom file for the plugin. */
-    protected static void addClientJarPomGeneration(Project project) {
-        project.plugins.apply(MavenPublishPlugin.class)
+    static final Pattern GIT_PATTERN = Pattern.compile(/git@([^:]+):([^\.]+)\.git/)
 
-        project.publishing {
-            publications {
-                clientJar(MavenPublication) {
-                    from project.components.java
-                    artifactId = project.pluginProperties.extension.name + '-client'
-                    pom.withXml { XmlProvider xml ->
-                        Node root = xml.asNode()
-                        root.appendNode('name', project.pluginProperties.extension.name)
-                        root.appendNode('description', project.pluginProperties.extension.description)
-                        root.appendNode('url', urlFromOrigin(project.scminfo.origin))
-                        Node scmNode = root.appendNode('scm')
-                        scmNode.appendNode('url', project.scminfo.origin)
-                    }
-                }
-            }
+    /** Adds a task to move jar and associated files to a "-client" name. */
+    protected static void addClientJarTask(Project project) {
+        Task clientJar = project.tasks.create('clientJar')
+        clientJar.dependsOn(project.jar, project.tasks.generatePomFileForNebulaPublication, project.javadocJar, project.sourcesJar)
+        clientJar.doFirst {
+            Path jarFile = project.jar.outputs.files.singleFile.toPath()
+            String clientFileName = jarFile.fileName.toString().replace(project.version, "client-${project.version}")
+            Files.copy(jarFile, jarFile.resolveSibling(clientFileName), StandardCopyOption.REPLACE_EXISTING)
+
+            // We need to change the artifact name in the nebula pom
+            String clientPomFileName = clientFileName.replace('.jar', '.pom')
+            Node pom = new XmlParser()
+                    .parse(project.tasks.generatePomFileForNebulaPublication.outputs.files.singleFile)
+            pom.artifactId[0].value = project.name + "-client"
+            jarFile.resolveSibling(clientPomFileName).toFile().text = XmlUtil.serialize(pom)
+            // Groovy has an odd way of formatting the XML, fix it up3
+                    .replaceAll(/\n\s*\n/, "\n")
+                    .replace("\"UTF-8\"?><project", "\"UTF-8\"?>\n<project");
+
+            String sourcesFileName = jarFile.fileName.toString().replace('.jar', '-sources.jar')
+            String clientSourcesFileName = clientFileName.replace('.jar', '-sources.jar')
+            Files.copy(jarFile.resolveSibling(sourcesFileName), jarFile.resolveSibling(clientSourcesFileName),
+                    StandardCopyOption.REPLACE_EXISTING)
+
+            String javadocFileName = jarFile.fileName.toString().replace('.jar', '-javadoc.jar')
+            String clientJavadocFileName = clientFileName.replace('.jar', '-javadoc.jar')
+            Files.copy(jarFile.resolveSibling(javadocFileName), jarFile.resolveSibling(clientJavadocFileName),
+                    StandardCopyOption.REPLACE_EXISTING)
         }
+        project.assemble.dependsOn(clientJar)
     }
 
     /** Configure the pom for the main jar of this plugin */
     protected static void configureJarPom(Project project) {
-        project.plugins.apply(ScmInfoPlugin.class)
-        project.plugins.apply(MavenPublishPlugin.class)
-
-        project.publishing {
-            publications {
-                nebula(MavenPublication) {
-                    artifactId project.pluginProperties.extension.name
-                }
-            }
-        }
+        project.plugins.apply(nebula.plugin.publishing.maven.MavenScmPlugin.class)
+        // have the nebula plugin set the correct description
+        project.description = project.pluginProperties.extension.description
     }
 
     protected void addNoticeGeneration(Project project) {

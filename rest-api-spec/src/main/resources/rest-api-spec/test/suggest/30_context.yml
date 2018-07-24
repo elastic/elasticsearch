@@ -339,8 +339,8 @@ setup:
 ---
 "Indexing and Querying without contexts is forbidden":
   - skip:
-      version: "all"
-      reason: AwaitsFix https://github.com/elastic/elasticsearch/issues/32269
+      version: " - 6.99.99"
+      reason: this feature was removed in 7.0
 
   - do:
       index:

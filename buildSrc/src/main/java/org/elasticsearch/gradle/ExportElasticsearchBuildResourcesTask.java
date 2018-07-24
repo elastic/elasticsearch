@@ -18,77 +18,73 @@
  */
 package org.elasticsearch.gradle;
 
-import groovy.lang.GString;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
+import org.gradle.api.file.DirectoryProperty;
+import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.Input;
-import org.gradle.api.tasks.OutputFiles;
+import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.StopExecutionException;
 import org.gradle.api.tasks.TaskAction;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
-import java.util.ArrayList;
-import java.util.Collection;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Export Elasticsearch build resources to configurable paths
- *
+ * <p>
  * Wil overwrite existing files and create missing directories.
  * Useful for resources that that need to be passed to other processes trough the filesystem or otherwise can't be
  * consumed from the classpath.
  */
 public class ExportElasticsearchBuildResourcesTask extends DefaultTask {
 
-    private final Logger logger =  Logging.getLogger(ExportElasticsearchBuildResourcesTask.class);
+    private final Logger logger = Logging.getLogger(ExportElasticsearchBuildResourcesTask.class);
 
-    private final Set<ExportPair> resources = new HashSet<>();
+    private final Set<String> resources = new HashSet<>();
+
+    private DirectoryProperty outputDir;
+
+    public ExportElasticsearchBuildResourcesTask() {
+        outputDir = getProject().getLayout().directoryProperty(
+            getProject().getLayout().getBuildDirectory().dir("build-tools-exported")
+        );
+    }
+
+    @OutputDirectory
+    public DirectoryProperty getOutputDir() {
+        return outputDir;
+    }
 
     @Input
     @SkipWhenEmpty
-    public Set<ExportPair> getResources() {
+    public Set<String> getResources() {
         return Collections.unmodifiableSet(resources);
     }
 
     @Classpath
-    public String getResourceSourceFiles() {
+    public String getResourcesClasspath() {
+        // This will make sure the task is not considered up to date if the resources are changed.
         logger.info("Classpath: {}", System.getProperty("java.class.path"));
         return System.getProperty("java.class.path");
     }
 
-    @OutputFiles
-    public List<File> getOutputFiles() {
-        return resources.stream()
-            .map(ExportPair::getOutputFile)
-            .collect(Collectors.collectingAndThen(Collectors.toList(), Collections::unmodifiableList));
+    public void setOutputDir(DirectoryProperty outputDir) {
+        this.outputDir = outputDir;
     }
 
-    public void resource(Map<ElasticsearchBuildResource, File> resourcesMap) {
-        resourcesMap.forEach(this::resource);
-    }
-
-    public void resource(ElasticsearchBuildResource resource, File outputFile) {
-        resources.add(new ExportPair(resource, outputFile));
-    }
-
-    public void resource(ElasticsearchBuildResource resource, String outputFile) {
-        resources.add(new ExportPair(resource, getProject().file(outputFile)));
-    }
-
-    public void resource(ElasticsearchBuildResource resource, GString outputFile) {
-        resources.add(new ExportPair(resource, getProject().file(outputFile)));
+    public RegularFileProperty resource(String resource) {
+        resources.add(resource);
+        return getProject().getLayout().fileProperty(outputDir.file(resource));
     }
 
     @TaskAction
@@ -97,59 +93,17 @@ public class ExportElasticsearchBuildResourcesTask extends DefaultTask {
             throw new StopExecutionException();
         }
         resources.stream().parallel()
-            .forEach(pair -> {
-                try {
-                    try(InputStream is = getClass().getResourceAsStream(pair.getResource().getFullName())) {
-                        Files.copy(is, pair.getOutputFile().toPath());
+            .forEach(resourcePath -> {
+                Path destination = outputDir.get().file(resourcePath).getAsFile().toPath();
+                try (InputStream is = getClass().getClassLoader().getResourceAsStream(resourcePath)) {
+                    if (is == null) {
+                        throw new GradleException("Can't export `" + resourcePath + "` from build-tools: not found");
                     }
+                    Files.copy(is, destination);
                 } catch (IOException e) {
-                    throw new GradleException(
-                        "Can't write resource " + pair.getResource().name() + " to " + pair.getOutputFile()
-                    );
+                    throw new GradleException("Can't write resource `" + resourcePath + "` to " + destination);
                 }
             });
-    }
-
-    // Gradle wants this to be Serializable, we achieve this by extending list,
-    // also alows for variable expansion in Groovy.
-    public static class ExportPair extends ArrayList<Object> {
-        private final ElasticsearchBuildResource resource;
-        private final File outputFile;
-
-        public ExportPair(ElasticsearchBuildResource resource, File outputFile) {
-            this.resource = resource;
-            this.outputFile = outputFile;
-            super.add(resource);
-            super.add(outputFile);
-        }
-
-        public ElasticsearchBuildResource getResource() {
-            return resource;
-        }
-
-        public File getOutputFile() {
-            return outputFile;
-        }
-
-        @Override
-        public boolean add(Object o) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void add(int index, Object element) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public boolean addAll(Collection<?> c) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public boolean addAll(int index, Collection<?> c) {
-            throw new UnsupportedOperationException();
-        }
     }
 
 }

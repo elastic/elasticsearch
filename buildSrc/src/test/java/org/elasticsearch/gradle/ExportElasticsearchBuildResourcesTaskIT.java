@@ -21,10 +21,12 @@ package org.elasticsearch.gradle;
 
 import org.elasticsearch.gradle.test.GradleIntegrationTestCase;
 import org.gradle.testkit.runner.BuildResult;
+import org.gradle.testkit.runner.BuildTask;
 import org.gradle.testkit.runner.GradleRunner;
 import org.gradle.testkit.runner.TaskOutcome;
 
-import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 public class ExportElasticsearchBuildResourcesTaskIT extends GradleIntegrationTestCase {
 
@@ -38,26 +40,58 @@ public class ExportElasticsearchBuildResourcesTaskIT extends GradleIntegrationTe
             .build();
 
         BuildResult result = GradleRunner.create()
-            .withProjectDir(getProjectDir("elasticsearch-build-resources"))
+            .withProjectDir(getProjectDir(PROJECT_NAME))
             .withArguments("exportBuildResources", "-s", "-i")
             .withPluginClasspath()
             .build();
-        assertEquals(TaskOutcome.SUCCESS, result.task(":exportBuildResources").getOutcome());
-        assertTrue(new File(getBuildDir(PROJECT_NAME), "checkstyle-1.xml").exists());
-        assertTrue(new File(getBuildDir(PROJECT_NAME), "checkstyle-2.xml").exists());
-        assertTrue(new File(getBuildDir(PROJECT_NAME), "checkstyle-3.xml").exists());
+        assertTaskSuccessFull(result, ":exportBuildResources");
+        assertBuildFileExists(result, PROJECT_NAME, "build-tools-exported/checkstyle.xml");
+
 
         result = GradleRunner.create()
-            .withProjectDir(getProjectDir("elasticsearch-build-resources"))
+            .withProjectDir(getProjectDir(PROJECT_NAME))
             .withArguments("exportBuildResources", "-s", "-i")
             .withPluginClasspath()
             .build();
         assertEquals(TaskOutcome.UP_TO_DATE, result.task(":exportBuildResources").getOutcome());
-        assertTrue(new File(getBuildDir(PROJECT_NAME), "checkstyle-1.xml").exists());
-        assertTrue(new File(getBuildDir(PROJECT_NAME), "checkstyle-2.xml").exists());
-        assertTrue(new File(getBuildDir(PROJECT_NAME), "checkstyle-3.xml").exists());
+        assertBuildFileExists(result, PROJECT_NAME, "build-tools-exported/checkstyle.xml");
+    }
 
+    public void testImplicitTaskDependencyCopy() {
+        BuildResult result = GradleRunner.create()
+            .withProjectDir(getProjectDir(PROJECT_NAME))
+            .withArguments("clean", "sampleCopyAll", "-s", "-i")
+            .withPluginClasspath()
+            .build();
+        assertTaskSuccessFull(result, ":exportBuildResources");
+        assertTaskSuccessFull(result, ":sampleCopyAll");
+        assertBuildFileExists(result, PROJECT_NAME, "sampleCopyAll/checkstyle.xml");
+    }
 
+    public void testImplicitTaskDependencyInputFileOfOther() {
+        BuildResult result = GradleRunner.create()
+            .withProjectDir(getProjectDir(PROJECT_NAME))
+            .withArguments("clean", "sample", "-s", "-i")
+            .withPluginClasspath()
+            .build();
+
+        assertBuildFileExists(result, PROJECT_NAME, "build-tools-exported/checkstyle.xml");
+    }
+
+    private void assertTaskSuccessFull(BuildResult result, String taskName) {
+        BuildTask task = result.task(taskName);
+        if (task == null) {
+            fail("Expected task `" + taskName + "` to be successful, but it did not run");
+        }
+        assertEquals(TaskOutcome.SUCCESS, task.getOutcome());
+    }
+
+    private void assertBuildFileExists(BuildResult result, String projectName, String path) {
+        Path absPath = getBuildDir(projectName).toPath().resolve(path);
+        assertTrue(
+            result.getOutput() + "\n\nExpected `" + absPath + "` to exists but it did not",
+            Files.exists(absPath)
+        );
     }
 
 }

@@ -1,0 +1,127 @@
+import java.nio.file.Path
+import java.nio.file.Paths
+import java.nio.file.Files
+
+apply plugin: 'elasticsearch.vagrantsupport'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+
+dependencies {
+    testCompile project(path: xpackModule('core'), configuration: 'runtime')
+    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+    testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
+}
+
+// MIT Kerberos Vagrant Testing Fixture
+String box = "krb5kdc"
+Map<String,String> vagrantEnvVars = [
+    'VAGRANT_CWD'           : "${project(':test:fixtures:krb5kdc-fixture').projectDir}",
+    'VAGRANT_VAGRANTFILE'   : 'Vagrantfile',
+    'VAGRANT_PROJECT_DIR'   : "${project(':test:fixtures:krb5kdc-fixture').projectDir}"
+]
+
+task krb5kdcUpdate(type: org.elasticsearch.gradle.vagrant.VagrantCommandTask) {
+    command 'box'
+    subcommand 'update'
+    boxName box
+    environmentVars vagrantEnvVars
+    dependsOn "vagrantCheckVersion", "virtualboxCheckVersion"
+}
+
+task krb5kdcFixture(type: org.elasticsearch.gradle.test.VagrantFixture) {
+    command 'up'
+    args '--provision', '--provider', 'virtualbox'
+    boxName box
+    environmentVars vagrantEnvVars
+    dependsOn krb5kdcUpdate
+}
+
+task krb5AddPrincipals { dependsOn krb5kdcFixture }
+
+List<String> principals = [
+    "HTTP/localhost",
+    "peppa",
+    "george~dino"
+]
+String realm = "BUILD.ELASTIC.CO"
+
+for (String principal : principals) {
+    String[] princPwdPair = principal.split('~');
+    String princName = princPwdPair[0];
+    String password = "";
+    if (princPwdPair.length > 1) {
+        password = princPwdPair[1];
+    }
+    Task create = project.tasks.create("addPrincipal#${principal}".replace('/', '_'), org.elasticsearch.gradle.vagrant.VagrantCommandTask) {
+        command 'ssh'
+        args '--command', "sudo bash /vagrant/src/main/resources/provision/addprinc.sh $princName $password"
+        boxName box
+        environmentVars vagrantEnvVars
+        dependsOn krb5kdcFixture
+    }
+    krb5AddPrincipals.dependsOn(create)
+}
+
+def generatedResources = "$buildDir/generated-resources/keytabs"
+task copyKeytabToGeneratedResources(type: Copy) {
+    Path peppaKeytab = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("keytabs").resolve("peppa.keytab").toAbsolutePath()
+    from peppaKeytab;
+    into generatedResources
+    dependsOn krb5AddPrincipals
+}
+
+integTestCluster {
+    setting 'xpack.license.self_generated.type', 'trial'
+    setting 'xpack.security.enabled', 'true'
+    setting 'xpack.security.authc.realms.file.type', 'file'
+    setting 'xpack.security.authc.realms.file.order', '0'
+    setting 'xpack.ml.enabled', 'false'
+    setting 'xpack.security.audit.enabled', 'true'
+    // Kerberos realm
+    setting 'xpack.security.authc.realms.kerberos.type', 'kerberos'
+    setting 'xpack.security.authc.realms.kerberos.order', '1'
+    setting 'xpack.security.authc.realms.kerberos.keytab.path', 'es.keytab'
+    setting 'xpack.security.authc.realms.kerberos.krb.debug', 'true'
+    setting 'xpack.security.authc.realms.kerberos.remove_realm_name', 'false'
+
+    Path krb5conf = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("conf").resolve("krb5.conf").toAbsolutePath()
+    String jvmArgsStr = " -Djava.security.krb5.conf=${krb5conf}" + " -Dsun.security.krb5.debug=true"
+    jvmArgs jvmArgsStr
+    Path esKeytab = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("keytabs").resolve("HTTP_localhost.keytab").toAbsolutePath()
+    extraConfigFile("es.keytab", "${esKeytab}")
+
+    setupCommand 'setupTestAdmin',
+            'bin/elasticsearch-users', 'useradd', "test_admin", '-p', 'x-pack-test-password', '-r', "superuser"
+
+    waitCondition = { node, ant ->
+        File tmpFile = new File(node.cwd, 'wait.success')
+        ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",
+        dest: tmpFile.toString(),
+        username: 'test_admin',
+        password: 'x-pack-test-password',
+        ignoreerrors: true,
+        retries: 10)
+        return tmpFile.exists()
+    }
+
+}
+
+integTestRunner {
+    Path peppaKeytab = Paths.get("${project.buildDir}", "generated-resources", "keytabs", "peppa.keytab")
+    systemProperty 'test.userkt', "peppa@${realm}"
+    systemProperty 'test.userkt.keytab', "${peppaKeytab}"
+    systemProperty 'test.userpwd', "george@${realm}"
+    systemProperty 'test.userpwd.password', "dino"
+    systemProperty 'tests.security.manager', 'true'
+    Path krb5conf = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("conf").resolve("krb5.conf").toAbsolutePath()
+    List jvmargs = ["-Djava.security.krb5.conf=${krb5conf}","-Dsun.security.krb5.debug=true"]
+    jvmArgs jvmargs
+}
+
+if (project.rootProject.vagrantSupported == false) {
+    integTest.enabled = false
+} else {
+    project.sourceSets.test.output.dir(generatedResources, builtBy: copyKeytabToGeneratedResources)
+    integTestCluster.dependsOn krb5AddPrincipals, krb5kdcFixture, copyKeytabToGeneratedResources
+    integTest.finalizedBy project(':test:fixtures:krb5kdc-fixture').halt
+}

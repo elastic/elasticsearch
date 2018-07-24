@@ -11,7 +11,7 @@ apply plugin: 'elasticsearch.build'
 test.enabled = false
 
 dependencies {
-    testCompile project(path: xpackModule('core'), configuration: 'runtime')
+    testCompile project(path: xpackModule('core'), configuration: 'shadow')
     testCompile (project(path: xpackModule('security'), configuration: 'runtime')) {
         // Need to drop the guava dependency here or we get a conflict with watcher's guava dependency.
         // This is total #$%, but the solution is to get the SAML realm (which uses guava) out of security proper
@@ -125,8 +125,8 @@ subprojects {
 
   String output = "${buildDir}/generated-resources/${project.name}"
   task copyTestNodeKeystore(type: Copy) {
-    from project(xpackModule('core'))
-            .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
+    from project(':x-pack:plugin:core')
+      .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
     into outputDir
   }
 
@@ -249,7 +249,7 @@ subprojects {
   check.dependsOn(integTest)
 
   dependencies {
-      testCompile project(path: xpackModule('core'), configuration: 'runtime')
+      testCompile project(path: xpackModule('core'), configuration: 'shadow')
       testCompile project(path: xpackModule('watcher'), configuration: 'runtime')
       testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
       testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')

@@ -19,7 +19,8 @@
 
 package org.elasticsearch.search.suggest.completion.context;
 
-import org.apache.lucene.document.StringField;
+import org.apache.lucene.document.LatLonDocValuesField;
+import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.ElasticsearchParseException;
@@ -200,18 +201,24 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
                             geohashes.add(stringEncode(spare.getLon(), spare.getLat(), precision));
                         }
                     }
+                } else {
+                    throw new ElasticsearchParseException(
+                        "cannot parse geo context field [{}], expected object with lat/lon fields or geo_point", fieldName);
                 }
             } else {
                 for (IndexableField field : fields) {
-                    if (field instanceof StringField) {
-                        spare.resetFromString(field.stringValue());
-                    } else {
+                    if (field instanceof LatLonPoint || field instanceof LatLonDocValuesField){
                         // todo return this to .stringValue() once LatLonPoint implements it
                         spare.resetFromIndexableField(field);
+                        geohashes.add(spare.geohash());
                     }
-                    geohashes.add(spare.geohash());
+                }
+                if (geohashes.isEmpty()) {
+                    throw new ElasticsearchParseException(
+                        "cannot parse geo context field [{}], expected object with lat/lon fields or geo_point", fieldName);
                 }
             }
+
         }
 
         Set<CharSequence> locations = new HashSet<>();

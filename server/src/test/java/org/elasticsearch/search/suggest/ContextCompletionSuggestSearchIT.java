@@ -20,6 +20,7 @@ package org.elasticsearch.search.suggest;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -493,14 +494,24 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
     }
 
     public void testGeoField() throws Exception {
-//        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_5_0_0_alpha5);
-//        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         XContentBuilder mapping = jsonBuilder();
         mapping.startObject();
         mapping.startObject(TYPE);
         mapping.startObject("properties");
         mapping.startObject("pin");
-        mapping.field("type", "geo_point");
+        if (randomBoolean()) {
+            mapping.field("type", "geo_point");
+            // Enable store and disable indexing sometimes
+            if (randomBoolean()) {
+                mapping.field("store", "true");
+            }
+            if (randomBoolean()) {
+                mapping.field("index", "false");
+            }
+        } else {
+            // Make it object sometimes
+            mapping.field("type", "object");
+        }
         mapping.endObject();
         mapping.startObject(FIELD);
         mapping.field("type", "completion");
@@ -549,6 +560,96 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
 
         assertEquals(searchResponse.getSuggest().size(), 1);
         assertEquals("Hotel Amsterdam in Berlin", searchResponse.getSuggest().getSuggestion(suggestionName).iterator().next().getOptions().iterator().next().getText().string());
+    }
+
+    public void testMalformedGeoField() throws Exception {
+        XContentBuilder mapping = jsonBuilder();
+        mapping.startObject();
+        mapping.startObject(TYPE);
+        mapping.startObject("properties");
+        mapping.startObject("pin");
+        String type = randomFrom("text", "keyword", "long", "object");
+        mapping.field("type", type);
+        mapping.endObject();
+        mapping.startObject(FIELD);
+        mapping.field("type", "completion");
+        mapping.field("analyzer", "simple");
+
+        mapping.startArray("contexts");
+        mapping.startObject();
+        mapping.field("name", "st");
+        mapping.field("type", "geo");
+        mapping.field("path", "pin");
+        mapping.field("precision", 5);
+        mapping.endObject();
+        mapping.endArray();
+
+        mapping.endObject();
+        mapping.endObject();
+        mapping.endObject();
+        mapping.endObject();
+
+        assertAcked(prepareCreate(INDEX).addMapping(TYPE, mapping));
+
+        if ("object".equals(type)) {
+            XContentBuilder source1 = jsonBuilder()
+                .startObject()
+                .startObject("pin")
+                .endObject()
+                .startObject(FIELD)
+                .array("input", "Hotel Amsterdam in Berlin")
+                .endObject()
+                .endObject();
+            assertThat(expectThrows(ElasticsearchParseException.class, () ->
+                    client().prepareIndex(INDEX, TYPE, "1").setSource(source1).execute().actionGet()).getMessage(),
+                equalTo("cannot parse geo context field [pin], expected object with lat/lon fields or geo_point"));
+
+            XContentBuilder source2 = jsonBuilder()
+                .startObject()
+                .startObject("pin")
+                .field("lat", 10.0)
+                .endObject()
+                .startObject(FIELD)
+                .array("input", "Hotel Berlin in Amsterdam")
+                .endObject()
+                .endObject();
+            assertThat(expectThrows(ElasticsearchParseException.class, () ->
+                client().prepareIndex(INDEX, TYPE, "2").setSource(source2).execute().actionGet()).getMessage(),
+                equalTo("cannot parse geo context field [pin], expected object with lat/lon fields or geo_point"));
+        } else if ("long".equals(type)) {
+            XContentBuilder source2 = jsonBuilder()
+                .startObject()
+                .field("pin", 1000)
+                .startObject(FIELD)
+                .array("input", "Hotel Berlin in Amsterdam")
+                .endObject()
+                .endObject();
+            assertThat(expectThrows(ElasticsearchParseException.class, () ->
+                    client().prepareIndex(INDEX, TYPE, "2").setSource(source2).execute().actionGet()).getMessage(),
+                equalTo("cannot parse geo context field [pin], expected object with lat/lon fields or geo_point"));
+        } else {
+            XContentBuilder source1 = jsonBuilder()
+                .startObject()
+                .field("pin", "52.529172, 13.407333")
+                .startObject(FIELD)
+                .array("input", "Hotel Amsterdam in Berlin")
+                .endObject()
+                .endObject();
+            assertThat(expectThrows(ElasticsearchParseException.class, () ->
+                    client().prepareIndex(INDEX, TYPE, "1").setSource(source1).execute().actionGet()).getMessage(),
+                equalTo("cannot parse geo context field [pin], expected object with lat/lon fields or geo_point"));
+
+            XContentBuilder source2 = jsonBuilder()
+                .startObject()
+                .field("pin", "u173zhryfg5n")
+                .startObject(FIELD)
+                .array("input", "Hotel Berlin in Amsterdam")
+                .endObject()
+                .endObject();
+            assertThat(expectThrows(ElasticsearchParseException.class, () ->
+                    client().prepareIndex(INDEX, TYPE, "2").setSource(source2).execute().actionGet()).getMessage(),
+                equalTo("cannot parse geo context field [pin], expected object with lat/lon fields or geo_point"));
+        }
     }
 
     public void testSkipDuplicatesWithContexts() throws Exception {

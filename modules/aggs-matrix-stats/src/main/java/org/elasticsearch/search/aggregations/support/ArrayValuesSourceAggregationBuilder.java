@@ -44,13 +44,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSource, AB extends MultiValuesSourceAggregationBuilder<VS, AB>>
-        extends AbstractAggregationBuilder<AB> {
+public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSource, AB extends ArrayValuesSourceAggregationBuilder<VS, AB>>
+    extends AbstractAggregationBuilder<AB> {
 
     public static final ParseField MULTIVALUE_MODE_FIELD = new ParseField("mode");
 
-    public abstract static class LeafOnly<VS extends ValuesSource, AB extends MultiValuesSourceAggregationBuilder<VS, AB>>
-            extends MultiValuesSourceAggregationBuilder<VS, AB> {
+    public abstract static class LeafOnly<VS extends ValuesSource, AB extends ArrayValuesSourceAggregationBuilder<VS, AB>>
+        extends ArrayValuesSourceAggregationBuilder<VS, AB> {
 
         protected LeafOnly(String name, ValuesSourceType valuesSourceType, ValueType targetValueType) {
             super(name, valuesSourceType, targetValueType);
@@ -94,7 +94,7 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
     private Object missing = null;
     private Map<String, Object> missingMap = Collections.emptyMap();
 
-    protected MultiValuesSourceAggregationBuilder(String name, ValuesSourceType valuesSourceType, ValueType targetValueType) {
+    protected ArrayValuesSourceAggregationBuilder(String name, ValuesSourceType valuesSourceType, ValueType targetValueType) {
         super(name);
         if (valuesSourceType == null) {
             throw new IllegalArgumentException("[valuesSourceType] must not be null: [" + name + "]");
@@ -103,7 +103,7 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
         this.targetValueType = targetValueType;
     }
 
-    protected MultiValuesSourceAggregationBuilder(MultiValuesSourceAggregationBuilder<VS, AB> clone,
+    protected ArrayValuesSourceAggregationBuilder(ArrayValuesSourceAggregationBuilder<VS, AB> clone,
                                                   Builder factoriesBuilder, Map<String, Object> metaData) {
         super(clone, factoriesBuilder, metaData);
         this.valuesSourceType = clone.valuesSourceType;
@@ -115,7 +115,7 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
         this.missing = clone.missing;
     }
 
-    protected MultiValuesSourceAggregationBuilder(StreamInput in, ValuesSourceType valuesSourceType, ValueType targetValueType)
+    protected ArrayValuesSourceAggregationBuilder(StreamInput in, ValuesSourceType valuesSourceType, ValueType targetValueType)
         throws IOException {
         super(in);
         assert false == serializeTargetValueType() : "Wrong read constructor called for subclass that provides its targetValueType";
@@ -124,7 +124,7 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
         read(in);
     }
 
-    protected MultiValuesSourceAggregationBuilder(StreamInput in, ValuesSourceType valuesSourceType) throws IOException {
+    protected ArrayValuesSourceAggregationBuilder(StreamInput in, ValuesSourceType valuesSourceType) throws IOException {
         super(in);
         assert serializeTargetValueType() : "Wrong read constructor called for subclass that serializes its targetValueType";
         this.valuesSourceType = valuesSourceType;
@@ -239,10 +239,10 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
     }
 
     @Override
-    protected final MultiValuesSourceAggregatorFactory<VS, ?> doBuild(SearchContext context, AggregatorFactory<?> parent,
-            AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+    protected final ArrayValuesSourceAggregatorFactory<VS, ?> doBuild(SearchContext context, AggregatorFactory<?> parent,
+                                                                      AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         Map<String, ValuesSourceConfig<VS>> configs = resolveConfig(context);
-        MultiValuesSourceAggregatorFactory<VS, ?> factory = innerBuild(context, configs, parent, subFactoriesBuilder);
+        ArrayValuesSourceAggregatorFactory<VS, ?> factory = innerBuild(context, configs, parent, subFactoriesBuilder);
         return factory;
     }
 
@@ -255,9 +255,10 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
         return configs;
     }
 
-    protected abstract MultiValuesSourceAggregatorFactory<VS, ?> innerBuild(SearchContext context,
-            Map<String, ValuesSourceConfig<VS>> configs, AggregatorFactory<?> parent,
-            AggregatorFactories.Builder subFactoriesBuilder) throws IOException;
+    protected abstract ArrayValuesSourceAggregatorFactory<VS, ?> innerBuild(SearchContext context,
+                                                                Map<String, ValuesSourceConfig<VS>> configs,
+                                                                AggregatorFactory<?> parent,
+                                                                AggregatorFactories.Builder subFactoriesBuilder) throws IOException;
 
     public ValuesSourceConfig<VS> config(SearchContext context, String field, Script script) {
 
@@ -355,14 +356,14 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
     @Override
     protected final int doHashCode() {
         return Objects.hash(fields, format, missing, targetValueType, valueType, valuesSourceType,
-                innerHashCode());
+            innerHashCode());
     }
 
     protected abstract int innerHashCode();
 
     @Override
     protected final boolean doEquals(Object obj) {
-        MultiValuesSourceAggregationBuilder<?, ?> other = (MultiValuesSourceAggregationBuilder<?, ?>) obj;
+        ArrayValuesSourceAggregationBuilder<?, ?> other = (ArrayValuesSourceAggregationBuilder<?, ?>) obj;
         if (!Objects.equals(fields, other.fields))
             return false;
         if (!Objects.equals(format, other.format))

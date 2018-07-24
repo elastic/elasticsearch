@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.core.ssl;
+package org.elasticsearch.xpack.security.cli;
 
 import org.bouncycastle.asn1.x509.GeneralName;
 import org.bouncycastle.asn1.x509.GeneralNames;
@@ -12,6 +12,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.security.cli.CertGenUtils;
 import org.junit.BeforeClass;
 
 import java.math.BigInteger;

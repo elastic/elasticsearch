@@ -20,7 +20,6 @@ esplugin {
 }
 
 dependencyLicenses {
-  mapping from: /bc.*/, to: 'bouncycastle'
   mapping from: /http.*/, to: 'httpclient' // pulled in by rest client
   mapping from: /commons-.*/, to: 'commons' // pulled in by rest client
 }
@@ -38,8 +37,6 @@ dependencies {
 
     // security deps
     compile 'com.unboundid:unboundid-ldapsdk:3.2.0'
-    compile 'org.bouncycastle:bcprov-jdk15on:1.59'
-    compile 'org.bouncycastle:bcpkix-jdk15on:1.59'
     compile project(path: ':modules:transport-netty4', configuration: 'runtime')
 
     testCompile 'org.elasticsearch:securemock:1.2'
@@ -116,6 +113,7 @@ task testJar(type: Jar) {
     appendix 'test'
     from sourceSets.test.output
 }
+
 artifacts {
     // normal es plugins do not publish the jar but we need to since users need it for Transport Clients and extensions
     archives jar

@@ -16,24 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.search.aggregations.metrics.weighted_avg;
 
-package org.elasticsearch.index.settings;
+import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 
-import org.elasticsearch.common.inject.BindingAnnotation;
+/**
+ * An aggregation that computes the average of the values in the current bucket.
+ */
+public interface WeightedAvg extends NumericMetricsAggregation.SingleValue {
 
-import java.lang.annotation.Documented;
-import java.lang.annotation.Retention;
-import java.lang.annotation.Target;
-
-import static java.lang.annotation.ElementType.FIELD;
-import static java.lang.annotation.ElementType.PARAMETER;
-import static java.lang.annotation.RetentionPolicy.RUNTIME;
-
-
-@BindingAnnotation
-@Target({FIELD, PARAMETER})
-@Retention(RUNTIME)
-@Documented
-public @interface IndexDynamicSettings {
-
+    /**
+     * The average value.
+     */
+    double getValue();
 }

@@ -97,6 +97,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         terminate(threadPool);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32308")
     public void testRandomClusterStateUpdates() {
         // we have an IndicesClusterStateService per node in the cluster
         final Map<DiscoveryNode, IndicesClusterStateService> clusterStateServiceMap = new HashMap<>();

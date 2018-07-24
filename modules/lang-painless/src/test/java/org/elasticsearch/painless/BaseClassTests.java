@@ -20,7 +20,7 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.lookup.PainlessLookup;
-import org.elasticsearch.painless.lookup.WhitelistsToPainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
 import org.elasticsearch.painless.spi.Whitelist;
 
 import java.util.Collections;
@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.startsWith;
  */
 public class BaseClassTests extends ScriptTestCase {
 
-    private final PainlessLookup painlessLookup = WhitelistsToPainlessLookup.build(Whitelist.BASE_WHITELISTS);
+    private final PainlessLookup painlessLookup = PainlessLookupBuilder.whitelistsToPainlessLookup(Whitelist.BASE_WHITELISTS);
 
     public abstract static class Gets {
 

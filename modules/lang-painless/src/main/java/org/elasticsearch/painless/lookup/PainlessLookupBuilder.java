@@ -19,6 +19,12 @@
 
 package org.elasticsearch.painless.lookup;
 
+import org.elasticsearch.painless.spi.Whitelist;
+import org.elasticsearch.painless.spi.WhitelistClass;
+import org.elasticsearch.painless.spi.WhitelistConstructor;
+import org.elasticsearch.painless.spi.WhitelistField;
+import org.elasticsearch.painless.spi.WhitelistMethod;
+
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Constructor;
@@ -119,6 +125,51 @@ public class PainlessLookupBuilder {
     private static final Pattern CLASS_NAME_PATTERN  = Pattern.compile("^[_a-zA-Z][._a-zA-Z0-9]*$");
     private static final Pattern METHOD_NAME_PATTERN = Pattern.compile("^[_a-zA-Z][_a-zA-Z0-9]*$");
     private static final Pattern FIELD_NAME_PATTERN  = Pattern.compile("^[_a-zA-Z][_a-zA-Z0-9]*$");
+
+    public static PainlessLookup whitelistsToPainlessLookup(List<Whitelist> whitelists) {
+        PainlessLookupBuilder painlessLookupBuilder = new PainlessLookupBuilder();
+        String origin = "internal error";
+
+        try {
+            for (Whitelist whitelist : whitelists) {
+                for (WhitelistClass whitelistClass : whitelist.whitelistStructs) {
+                    origin = whitelistClass.origin;
+                    painlessLookupBuilder.addPainlessClass(
+                            whitelist.javaClassLoader, whitelistClass.javaClassName, whitelistClass.onlyFQNJavaClassName == false);
+                }
+            }
+
+            for (Whitelist whitelist : whitelists) {
+                for (WhitelistClass whitelistClass : whitelist.whitelistStructs) {
+                    String targetCanonicalClassName = whitelistClass.javaClassName.replace('$', '.');
+
+                    for (WhitelistConstructor whitelistConstructor : whitelistClass.whitelistConstructors) {
+                        origin = whitelistConstructor.origin;
+                        painlessLookupBuilder.addPainlessConstructor(
+                                targetCanonicalClassName, whitelistConstructor.painlessParameterTypeNames);
+                    }
+
+                    for (WhitelistMethod whitelistMethod : whitelistClass.whitelistMethods) {
+                        origin = whitelistMethod.origin;
+                        painlessLookupBuilder.addPainlessMethod(
+                                whitelist.javaClassLoader, targetCanonicalClassName, whitelistMethod.javaAugmentedClassName,
+                                whitelistMethod.javaMethodName, whitelistMethod.painlessReturnTypeName,
+                                whitelistMethod.painlessParameterTypeNames);
+                    }
+
+                    for (WhitelistField whitelistField : whitelistClass.whitelistFields) {
+                        origin = whitelistField.origin;
+                        painlessLookupBuilder.addPainlessField(
+                                targetCanonicalClassName, whitelistField.javaFieldName, whitelistField.painlessFieldTypeName);
+                    }
+                }
+            }
+        } catch (Exception exception) {
+            throw new IllegalArgumentException("error loading whitelist(s) " + origin, exception);
+        }
+
+        return painlessLookupBuilder.build();
+    }
 
     private final Map<String, Class<?>> canonicalClassNamesToClasses;
     private final Map<Class<?>, PainlessClassBuilder> classesToPainlessClassBuilders;

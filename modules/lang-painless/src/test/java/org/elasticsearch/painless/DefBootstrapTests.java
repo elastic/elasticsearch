@@ -20,7 +20,7 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.lookup.PainlessLookup;
-import org.elasticsearch.painless.lookup.WhitelistsToPainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.test.ESTestCase;
 
@@ -33,7 +33,7 @@ import java.util.Collections;
 import java.util.HashMap;
 
 public class DefBootstrapTests extends ESTestCase {
-    private final PainlessLookup painlessLookup = WhitelistsToPainlessLookup.build(Whitelist.BASE_WHITELISTS);
+    private final PainlessLookup painlessLookup = PainlessLookupBuilder.whitelistsToPainlessLookup(Whitelist.BASE_WHITELISTS);
 
     /** calls toString() on integers, twice */
     public void testOneType() throws Throwable {

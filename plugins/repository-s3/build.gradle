@@ -114,9 +114,7 @@ if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3P
 
   useFixture = true
 
-} else if (!s3PermanentAccessKey || !s3PermanentSecretKey || !s3PermanentBucket || !s3PermanentBasePath
-        || !s3EC2Bucket || !s3EC2BasePath
-        || !s3ECSBucket || !s3ECSBasePath) {
+} else if (!s3PermanentAccessKey || !s3PermanentSecretKey || !s3PermanentBucket || !s3PermanentBasePath) {
   throw new IllegalArgumentException("not all options specified to run against external S3 service")
 }
 
@@ -349,8 +347,13 @@ processTestResources {
 
 project.afterEvaluate {
   if (useFixture == false) {
-    // 30_repository_temporary_credentials is not ready for CI yet
-    integTestRunner.systemProperty 'tests.rest.blacklist', 'repository_s3/30_repository_temporary_credentials/*'
+    // temporary_credentials, ec2_credentials and ecs_credentials are not ready for third-party-tests yet
+    integTestRunner.systemProperty 'tests.rest.blacklist',
+            [
+                'repository_s3/30_repository_temporary_credentials/*',
+                'repository_s3/40_repository_ec2_credentials/*',
+                'repository_s3/50_repository_ecs_credentials/*'
+            ].join(",")
   }
 }
 

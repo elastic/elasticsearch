@@ -186,3 +186,12 @@ The Java High Level REST Client supports the following Scripts APIs:
 
 include::script/get_script.asciidoc[]
 include::script/delete_script.asciidoc[]
+
+
+== Licensing APIs
+
+The Java High Level REST Client supports the following Licensing APIs:
+
+* <<java-rest-high-put-license>>
+
+include::licensing/put-license.asciidoc[]

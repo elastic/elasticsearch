@@ -23,7 +23,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -71,10 +70,6 @@ public class RestoreInfo implements ToXContentObject, Streamable {
         return name;
     }
 
-    private void setName(String name) {
-        this.name = name;
-    }
-
     /**
      * List of restored indices
      *
@@ -82,10 +77,6 @@ public class RestoreInfo implements ToXContentObject, Streamable {
      */
     public List<String> indices() {
         return indices;
-    }
-
-    private void setIndices(List<String> indices) {
-        this.indices = indices;
     }
 
     /**
@@ -115,11 +106,6 @@ public class RestoreInfo implements ToXContentObject, Streamable {
         return successfulShards;
     }
 
-    private void setShards(Shards shards) {
-        this.successfulShards = shards.getSuccessfulShards();
-        this.totalShards = shards.getTotalShards();
-    }
-
     /**
      * REST status of the operation
      *
@@ -138,9 +124,6 @@ public class RestoreInfo implements ToXContentObject, Streamable {
         static final String SUCCESSFUL = "successful";
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -159,66 +142,23 @@ public class RestoreInfo implements ToXContentObject, Streamable {
         return builder;
     }
 
-    /**
-     * Internal helper class solely for XContent parsing.
-     */
-    private static final class Shards {
-        private static final ContextParser<Void, Shards> PARSER;
-
-        static {
-            ObjectParser<Shards, Void> internalParser = new ObjectParser<>("shards");
-            internalParser.declareInt(Shards::setTotalShards, new ParseField(Fields.TOTAL));
-            internalParser.declareInt(Shards::setFailedShards, new ParseField(Fields.FAILED));
-            internalParser.declareInt(Shards::setSuccessfulShards, new ParseField(Fields.SUCCESSFUL));
-            PARSER = (p, v) -> internalParser.parse(p, new Shards(), null);
-        }
-
-        private int totalShards;
-
-        private int failedShards;
-
-        private int successfulShards;
-
-        public int getTotalShards() {
-            return totalShards;
-        }
-
-        public void setTotalShards(int totalShards) {
-            this.totalShards = totalShards;
-        }
-
-        public int getFailedShards() {
-            return failedShards;
-        }
-
-        public void setFailedShards(int failedShards) {
-            this.failedShards = failedShards;
-        }
-
-        public int getSuccessfulShards() {
-            return successfulShards;
-        }
-
-        public void setSuccessfulShards(int successfulShards) {
-            this.successfulShards = successfulShards;
-        }
-    }
-
-    private static final ObjectParser<RestoreInfo, Void> PARSER = new ObjectParser<>(RestoreInfo.class.getName(), RestoreInfo::new);
+    private static final ObjectParser<RestoreInfo, Void> PARSER = new ObjectParser<>(RestoreInfo.class.getName(), true, RestoreInfo::new);
 
     static {
-        PARSER.declareString(RestoreInfo::setName, new ParseField(Fields.SNAPSHOT));
-        PARSER.declareStringArray(RestoreInfo::setIndices, new ParseField(Fields.INDICES));
-        PARSER.declareObject(RestoreInfo::setShards, Shards.PARSER, new ParseField(Fields.SHARDS));
+        ObjectParser<RestoreInfo, Void> shardsParser = new ObjectParser<>("shards", true, null);
+        shardsParser.declareInt((r, s) -> r.totalShards = s, new ParseField(Fields.TOTAL));
+        shardsParser.declareInt((r, s) -> { /* only consume, don't set */ }, new ParseField(Fields.FAILED));
+        shardsParser.declareInt((r, s) -> r.successfulShards = s, new ParseField(Fields.SUCCESSFUL));
+
+        PARSER.declareString((r, n) -> r.name = n, new ParseField(Fields.SNAPSHOT));
+        PARSER.declareStringArray((r, i) -> r.indices = i, new ParseField(Fields.INDICES));
+        PARSER.declareField(shardsParser::parse, new ParseField(Fields.SHARDS), ObjectParser.ValueType.OBJECT);
     }
 
     public static RestoreInfo fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public void readFrom(StreamInput in) throws IOException {
         name = in.readString();
@@ -232,9 +172,6 @@ public class RestoreInfo implements ToXContentObject, Streamable {
         successfulShards = in.readVInt();
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);

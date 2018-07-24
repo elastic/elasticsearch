@@ -51,6 +51,6 @@ public class RestoreSnapshotResponseTests extends AbstractXContentTestCase<Resto
 
     @Override
     protected boolean supportsUnknownFields() {
-        return false;
+        return true;
     }
 }

@@ -21,8 +21,10 @@ package org.elasticsearch.action.admin.cluster.snapshots.restore;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -32,6 +34,8 @@ import org.elasticsearch.snapshots.RestoreInfo;
 
 import java.io.IOException;
 import java.util.Objects;
+
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Contains information about restores snapshot
@@ -89,38 +93,23 @@ public class RestoreSnapshotResponse extends ActionResponse implements ToXConten
         return builder;
     }
 
+    public static final ConstructingObjectParser<RestoreSnapshotResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "restore_snapshot", true, v -> {
+        RestoreInfo restoreInfo = (RestoreInfo) v[0];
+        Boolean accepted = (Boolean) v[1];
+        assert (accepted == null && restoreInfo != null) ||
+               (accepted != null && accepted && restoreInfo == null) : "accepted: [" + accepted + "], restoreInfo: [" + restoreInfo + "]";
+        return new RestoreSnapshotResponse(restoreInfo);
+    });
+
+    static {
+        PARSER.declareObject(optionalConstructorArg(), (parser, context) -> RestoreInfo.fromXContent(parser), new ParseField("snapshot"));
+        PARSER.declareBoolean(optionalConstructorArg(), new ParseField("accepted"));
+    }
+
+
     public static RestoreSnapshotResponse fromXContent(XContentParser parser) throws IOException {
-        RestoreSnapshotResponse response = new RestoreSnapshotResponse();
-
-        parser.nextToken(); // move to '{'
-
-        if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
-            throw new IllegalArgumentException("unexpected token [" + parser.currentToken() + "], expected ['{']");
-        }
-
-        parser.nextToken(); // move to 'snapshot' || 'accepted'
-
-        if ("snapshot".equals(parser.currentName())) {
-            response.restoreInfo = RestoreInfo.fromXContent(parser);
-        } else if ("accepted".equals(parser.currentName())) {
-            parser.nextToken(); // move to 'accepted' field value
-
-            if (parser.booleanValue()) {
-                // ensure accepted is a boolean value
-            }
-
-            parser.nextToken(); // move past 'true'/'false'
-        } else {
-            throw new IllegalArgumentException("unexpected token [" + parser.currentToken() + "] expected ['snapshot', 'accepted']");
-        }
-
-        if (parser.currentToken() != XContentParser.Token.END_OBJECT) {
-            throw new IllegalArgumentException("unexpected token [" + parser.currentToken() + "], expected ['}']");
-        }
-
-        parser.nextToken(); // move past '}'
-
-        return response;
+        return PARSER.parse(parser, null);
     }
 
     @Override

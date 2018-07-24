@@ -7,9 +7,11 @@ executed in the order of the table in the
 <<painless-contexts, previous section>> to work correctly.
 
 
-. Download the seat data for use in the examples. The data is a fictional set of
-plays and their locations and times where each individual document represents a
-single seat in a theater for a single play.
+. Download the
+https://download.elastic.co/demos/painless/contexts/seats.json[seat data]
+for use in the examples. The data is a fictional set of plays and their
+locations and times where each individual document represents a single seat in
+a theater for a single play.
 +
 Each document contains the following values:
 +

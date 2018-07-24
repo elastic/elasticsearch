@@ -12,7 +12,7 @@ esplugin {
 archivesBaseName = 'x-pack-security'
 
 dependencies {
-    compileOnly "org.elasticsearch.plugin:x-pack-core:${version}"
+    compileOnly project(path: xpackModule('core'), configuration: 'shadow')
     compileOnly project(path: ':modules:transport-netty4', configuration: 'runtime')
     compileOnly project(path: ':plugins:transport-nio', configuration: 'runtime')
 

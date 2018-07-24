@@ -391,6 +391,9 @@ class BuildPlugin implements Plugin<Project> {
         project.configurations.compile.dependencies.all(disableTransitiveDeps)
         project.configurations.testCompile.dependencies.all(disableTransitiveDeps)
         project.configurations.compileOnly.dependencies.all(disableTransitiveDeps)
+        project.plugins.withType(ShadowPlugin).whenPluginAdded {
+            project.configurations.shadow.dependencies.all(disableTransitiveDeps)
+        }
     }
 
     /** Adds repositories used by ES dependencies */
@@ -882,11 +885,20 @@ class BuildPlugin implements Plugin<Project> {
         project.dependencyLicenses.dependencies = project.configurations.runtime.fileCollection {
             it.group.startsWith('org.elasticsearch') == false
         } - project.configurations.compileOnly
+        project.plugins.withType(ShadowPlugin).whenPluginAdded {
+            project.dependencyLicenses.dependencies += project.configurations.shadow.fileCollection {
+                it.group.startsWith('org.elasticsearch') == false
+            }
+        }
     }
 
     private static configureDependenciesInfo(Project project) {
         Task deps = project.tasks.create("dependenciesInfo", DependenciesInfoTask.class)
         deps.runtimeConfiguration = project.configurations.runtime
+        project.plugins.withType(ShadowPlugin).whenPluginAdded {
+            deps.runtimeConfiguration = project.configurations.create('infoDeps')
+            deps.runtimeConfiguration.extendsFrom(project.configurations.runtime, project.configurations.shadow)
+        }
         deps.compileOnlyConfiguration = project.configurations.compileOnly
         project.afterEvaluate {
             deps.mappings = project.dependencyLicenses.mappings

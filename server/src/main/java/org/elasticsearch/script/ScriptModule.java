@@ -50,6 +50,7 @@ public class ScriptModule {
             ExecutableScript.AGGS_CONTEXT,
             ExecutableScript.UPDATE_CONTEXT,
             IngestScript.CONTEXT,
+            ProcessorConditionalScript.CONTEXT,
             FilterScript.CONTEXT,
             SimilarityScript.CONTEXT,
             SimilarityWeightScript.CONTEXT,

@@ -372,11 +372,15 @@ public final class ConfigurationUtils {
     public static Processor readProcessor(Map<String, Processor.Factory> processorFactories,
                                            String type, Map<String, Object> config) throws Exception {
         String tag = ConfigurationUtils.readOptionalStringProperty(null, null, config, TAG_KEY);
+        Map<String, Object> parsedConfig = maybeExtractConditional(config, type);
+        if (parsedConfig != config) {
+            type = "conditional";
+        }
         Processor.Factory factory = processorFactories.get(type);
         if (factory != null) {
             boolean ignoreFailure = ConfigurationUtils.readBooleanProperty(null, null, config, "ignore_failure", false);
             List<Map<String, Object>> onFailureProcessorConfigs =
-                ConfigurationUtils.readOptionalList(null, null, config, Pipeline.ON_FAILURE_KEY);
+                ConfigurationUtils.readOptionalList(null, null, parsedConfig, Pipeline.ON_FAILURE_KEY);
 
             List<Processor> onFailureProcessors = readProcessorConfigs(onFailureProcessorConfigs, processorFactories);
 
@@ -386,10 +390,10 @@ public final class ConfigurationUtils {
             }
 
             try {
-                Processor processor = factory.create(processorFactories, tag, config);
-                if (config.isEmpty() == false) {
+                Processor processor = factory.create(processorFactories, tag, parsedConfig);
+                if (parsedConfig.isEmpty() == false) {
                     throw new ElasticsearchParseException("processor [{}] doesn't support one or more provided configuration parameters {}",
-                        type, Arrays.toString(config.keySet().toArray()));
+                        type, Arrays.toString(parsedConfig.keySet().toArray()));
                 }
                 if (onFailureProcessors.size() > 0 || ignoreFailure) {
                     return new CompoundProcessor(ignoreFailure, Collections.singletonList(processor), onFailureProcessors);
@@ -401,5 +405,17 @@ public final class ConfigurationUtils {
             }
         }
         throw newConfigurationException(type, tag, null, "No processor type exists with name [" + type + "]");
+    }
+
+    private static Map<String, Object> maybeExtractConditional(Map<String, Object> config, String type) {
+        if (config.containsKey("if")) {
+            Map<String, Object> rewrittenConfig = new HashMap<>();
+            Map<String, Object> rewrittenProcessorConfig = new HashMap<>(config);
+            rewrittenConfig.put("script", rewrittenProcessorConfig.remove("if"));
+            rewrittenConfig.put("processor", Collections.singletonMap(type, rewrittenProcessorConfig));
+            return rewrittenConfig;
+        } else {
+            return config;
+        }
     }
 }

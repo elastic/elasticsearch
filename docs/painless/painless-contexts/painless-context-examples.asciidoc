@@ -40,7 +40,7 @@ to execute against a remote cluster.
 
 . Create {es_version}/mapping.html[mappings] using the following console
 command:
-+
+
 [source,js]
 ----
 PUT /seats
@@ -63,8 +63,7 @@ PUT /seats
   }
 }
 ----
-+
-//CONSOLE
+// CONSOLE
 
 . Execute the <<painless-ingest-processor-context, ingest>> example.  This is a
 requirement to upload the seat data for use in all the examples.
@@ -75,4 +74,5 @@ requirement to upload the seat data for use in all the examples.
 ----
 curl -XPOST localhost:9200/seats/seat/_bulk?pipeline=seats -H "Content-Type: application/x-ndjson" --data-binary "@/<local-file-path>/seats.json"
 ----
+// NOTCONSOLE
 

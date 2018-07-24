@@ -22,6 +22,7 @@ package org.elasticsearch.packaging.test;
 import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Installation;
+import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.Shell;
 
 import org.junit.Before;
@@ -30,6 +31,7 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.nio.file.Files;
 
+import static junit.framework.TestCase.assertFalse;
 import static junit.framework.TestCase.assertTrue;
 import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
 import static org.elasticsearch.packaging.util.FileUtils.assertPathsDontExist;
@@ -123,7 +125,9 @@ public abstract class PackageTestCase extends PackagingTestCase {
             installation.pidDir
         );
 
-        assertTrue(Files.exists(SYSTEMD_SERVICE));
+        // we treat the systemd service file as a configuration file, which are preserved in debs and removed from rpms
+        Platforms.onDPKG(() -> assertTrue(Files.exists(SYSTEMD_SERVICE)));
+        Platforms.onRPM(() -> assertFalse(Files.exists(SYSTEMD_SERVICE)));
     }
 
     public void test60Reinstall() {

@@ -98,39 +98,29 @@ public class ReplicationOperation<
 
         totalShards.incrementAndGet();
         pendingActions.incrementAndGet(); // increase by 1 until we finish all primary coordination
-        try {
-            primary.perform(request, ActionListener.wrap(
-                result -> {
-                    primaryResult = result;
-                    primary.updateLocalCheckpointForShard(primaryRouting.allocationId().getId(), primary.localCheckpoint());
-                    final ReplicaRequest replicaRequest = primaryResult.replicaRequest();
-                    if (replicaRequest != null) {
-                        if (logger.isTraceEnabled()) {
-                            logger.trace("[{}] op [{}] completed on primary for request [{}]", primaryId, opType, request);
-                        }
+        primaryResult = primary.perform(request);
+        primary.updateLocalCheckpointForShard(primaryRouting.allocationId().getId(), primary.localCheckpoint());
+        final ReplicaRequest replicaRequest = primaryResult.replicaRequest();
+        if (replicaRequest != null) {
+            if (logger.isTraceEnabled()) {
+                logger.trace("[{}] op [{}] completed on primary for request [{}]", primaryId, opType, request);
+            }
 
-                        // we have to get the replication group after successfully indexing into the primary in order to honour recovery
-                        // semantics. We have to make sure that every operation indexed into the primary after recovery start will also be
-                        // replicated to the recovery target. If we used an old replication group, we may miss a recovery that has started
-                        // since then. we also have to make sure to get the global checkpoint before the replication group, to ensure that
-                        // the global checkpoint is valid for this replication group. If we would sample in the reverse, the global
-                        // checkpoint might be based on a subset of the sampled replication group, and advanced further than what the given
-                        // replication group would allow it to. This would entail that some shards could learn about a global checkpoint
-                        // that would be higher than its local checkpoint.
-                        final long globalCheckpoint = primary.globalCheckpoint();
-                        final ReplicationGroup replicationGroup = primary.getReplicationGroup();
-                        markUnavailableShardsAsStale(replicaRequest, replicationGroup);
-                        performOnReplicas(replicaRequest, globalCheckpoint, replicationGroup);
-                    }
-
-                    successfulShards.incrementAndGet();  // mark primary as successful
-                    decPendingAndFinishIfNeeded();
-                },
-                this::finishAsFailed
-            ));
-        } catch (Exception e) {
-            this.finishAsFailed(e);
+            // we have to get the replication group after successfully indexing into the primary in order to honour recovery semantics.
+            // we have to make sure that every operation indexed into the primary after recovery start will also be replicated
+            // to the recovery target. If we used an old replication group, we may miss a recovery that has started since then.
+            // we also have to make sure to get the global checkpoint before the replication group, to ensure that the global checkpoint
+            // is valid for this replication group. If we would sample in the reverse, the global checkpoint might be based on a subset
+            // of the sampled replication group, and advanced further than what the given replication group would allow it to.
+            // This would entail that some shards could learn about a global checkpoint that would be higher than its local checkpoint.
+            final long globalCheckpoint = primary.globalCheckpoint();
+            final ReplicationGroup replicationGroup = primary.getReplicationGroup();
+            markUnavailableShardsAsStale(replicaRequest, replicationGroup);
+            performOnReplicas(replicaRequest, globalCheckpoint, replicationGroup);
         }
+
+        successfulShards.incrementAndGet();  // mark primary as successful
+        decPendingAndFinishIfNeeded();
     }
 
     private void markUnavailableShardsAsStale(ReplicaRequest replicaRequest, ReplicationGroup replicationGroup) {
@@ -298,7 +288,7 @@ public class ReplicationOperation<
          * @param request the request to perform
          * @return the request to send to the replicas
          */
-        void perform(RequestT request, ActionListener<PrimaryResultT> callback);
+        PrimaryResultT perform(RequestT request) throws Exception;
 
         /**
          * Notifies the primary of a local checkpoint for the given allocation.

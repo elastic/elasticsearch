@@ -22,7 +22,6 @@ package org.elasticsearch.action.bulk;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -115,73 +114,64 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     @Override
-    protected void asyncShardWriteOperationOnPrimary(BulkShardRequest request, IndexShard primary,
-                                                     ActionListener<WritePrimaryResult<BulkShardRequest, BulkShardResponse>> callback) {
+    protected WritePrimaryResult<BulkShardRequest, BulkShardResponse> shardOperationOnPrimary(BulkShardRequest request, IndexShard primary)
+        throws Exception {
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, request.timeout(), logger, threadPool.getThreadContext());
-        performOnPrimary(request, primary, updateHelper, threadPool::absoluteTimeInMillis,
-            new ConcreteMappingUpdatePerformer(), observer, clusterService.localNode(),
-            callback);
+        return performOnPrimary(request, primary, updateHelper, threadPool::absoluteTimeInMillis,
+            new ConcreteMappingUpdatePerformer(), observer, clusterService.localNode());
     }
 
-    public static void performOnPrimary(
+    public static WritePrimaryResult<BulkShardRequest, BulkShardResponse> performOnPrimary(
         BulkShardRequest request,
         IndexShard primary,
         UpdateHelper updateHelper,
         LongSupplier nowInMillisSupplier,
-        MappingUpdatePerformer mappingUpdater, ClusterStateObserver observer, DiscoveryNode localNode,
-        ActionListener<WritePrimaryResult<BulkShardRequest, BulkShardResponse>> callback) {
+        MappingUpdatePerformer mappingUpdater, ClusterStateObserver observer, DiscoveryNode localNode) throws Exception {
         PrimaryExecutionContext context = new PrimaryExecutionContext(request, primary);
         context.advance();
-        performOnPrimary(context, updateHelper, nowInMillisSupplier, mappingUpdater, observer, localNode, callback);
+        return performOnPrimary(context, updateHelper, nowInMillisSupplier, mappingUpdater, observer, localNode);
     }
 
-    private static void performOnPrimary(PrimaryExecutionContext context, UpdateHelper updateHelper,
-                                         LongSupplier nowInMillisSupplier,
-                                         MappingUpdatePerformer mappingUpdater, ClusterStateObserver observer,
-                                         DiscoveryNode localNode,
-                                         ActionListener<WritePrimaryResult<BulkShardRequest, BulkShardResponse>> callback) {
+    private static WritePrimaryResult<BulkShardRequest, BulkShardResponse> performOnPrimary(
+        PrimaryExecutionContext context, UpdateHelper updateHelper, LongSupplier nowInMillisSupplier,
+        MappingUpdatePerformer mappingUpdater, ClusterStateObserver observer, DiscoveryNode localNode) throws Exception {
 
-        try {
-            while (context.isAllFinalized() == false) {
-                executeBulkItemRequest(context, updateHelper, nowInMillisSupplier, mappingUpdater);
-                if (context.isFinalized()) {
-                    context.advance();
-                } else if (context.requiresWaitingForMappingUpdate()) {
-                    PlainActionFuture<Void> waitingFuture = new PlainActionFuture<>();
-                    observer.waitForNextChange(new ClusterStateObserver.Listener() {
-                        @Override
-                        public void onNewClusterState(ClusterState state) {
-                            waitingFuture.onResponse(null);
-                        }
-
-                        @Override
-                        public void onClusterServiceClose() {
-                            waitingFuture.onFailure(new NodeClosedException(localNode));
-                        }
-
-                        @Override
-                        public void onTimeout(TimeValue timeout) {
-                            waitingFuture.onFailure(
-                                new MapperException("timed out while waiting for a dynamic mapping update"));
-                        }
-                    });
-                    try {
-                        waitingFuture.get();
-                        context.resetForExecutionAfterRetry();
-                    } catch (Exception e) {
-                        context.failOnMappingUpdate(e);
+        while (context.isAllFinalized() == false) {
+            executeBulkItemRequest(context, updateHelper, nowInMillisSupplier, mappingUpdater);
+            if (context.isFinalized()) {
+                context.advance();
+            } else if (context.requiresWaitingForMappingUpdate()) {
+                PlainActionFuture<Void> waitingFuture = new PlainActionFuture<>();
+                observer.waitForNextChange(new ClusterStateObserver.Listener() {
+                    @Override
+                    public void onNewClusterState(ClusterState state) {
+                        waitingFuture.onResponse(null);
                     }
-                } else {
-                    assert context.requiresImmediateRetry();
+
+                    @Override
+                    public void onClusterServiceClose() {
+                        waitingFuture.onFailure(new NodeClosedException(localNode));
+                    }
+
+                    @Override
+                    public void onTimeout(TimeValue timeout) {
+                        waitingFuture.onFailure(
+                            new MapperException("timed out while waiting for a dynamic mapping update"));
+                    }
+                });
+                try {
+                    waitingFuture.get();
                     context.resetForExecutionAfterRetry();
+                } catch (Exception e) {
+                    context.failOnMappingUpdate(e);
                 }
+            } else {
+                assert context.requiresImmediateRetry();
+                context.resetForExecutionAfterRetry();
             }
-            callback.onResponse(new WritePrimaryResult<>(
-                context.getBulkShardRequest(), context.buildShardResponse(), context.getLocationToSync(), null, context.getPrimary(),
-                logger));
-        } catch (Exception e) {
-            callback.onFailure(e);
         }
+        return new WritePrimaryResult<>(context.getBulkShardRequest(), context.buildShardResponse(), context.getLocationToSync(),
+            null, context.getPrimary(), logger);
     }
 
 

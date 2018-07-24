@@ -70,28 +70,27 @@ public abstract class TransportSingleItemBulkWriteAction<
     }
 
     @Override
-    protected void asyncShardWriteOperationOnPrimary(Request request, IndexShard primary,
-                                                     ActionListener<WritePrimaryResult<Request, Response>> callback) {
+    protected WritePrimaryResult<Request, Response> shardOperationOnPrimary(
+        Request request, final IndexShard primary) throws Exception {
         BulkItemRequest[] itemRequests = new BulkItemRequest[1];
         WriteRequest.RefreshPolicy refreshPolicy = request.getRefreshPolicy();
         request.setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
         itemRequests[0] = new BulkItemRequest(0, ((DocWriteRequest<?>) request));
         BulkShardRequest bulkShardRequest = new BulkShardRequest(request.shardId(), refreshPolicy, itemRequests);
-        shardBulkAction.asyncShardWriteOperationOnPrimary(bulkShardRequest, primary,
-            ActionListener.wrap(bulkResult -> {
-                assert bulkResult.finalResponseIfSuccessful.getResponses().length == 1 : "expected only one bulk shard response";
-                BulkItemResponse itemResponse = bulkResult.finalResponseIfSuccessful.getResponses()[0];
-                final Response response;
-                final Exception failure;
-                if (itemResponse.isFailed()) {
-                    failure = itemResponse.getFailure().getCause();
-                    response = null;
-                } else {
-                    response = (Response) itemResponse.getResponse();
-                    failure = null;
-                }
-                callback.onResponse(new WritePrimaryResult<>(request, response, bulkResult.location, failure, primary, logger));
-            }, callback::onFailure));
+        WritePrimaryResult<BulkShardRequest, BulkShardResponse> bulkResult =
+            shardBulkAction.shardOperationOnPrimary(bulkShardRequest, primary);
+        assert bulkResult.finalResponseIfSuccessful.getResponses().length == 1 : "expected only one bulk shard response";
+        BulkItemResponse itemResponse = bulkResult.finalResponseIfSuccessful.getResponses()[0];
+        final Response response;
+        final Exception failure;
+        if (itemResponse.isFailed()) {
+            failure = itemResponse.getFailure().getCause();
+            response = null;
+        } else {
+            response = (Response) itemResponse.getResponse();
+            failure = null;
+        }
+        return new WritePrimaryResult<>(request, response, bulkResult.location, failure, primary, logger);
     }
 
     @Override

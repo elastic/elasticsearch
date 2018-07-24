@@ -60,7 +60,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.action.bulk.TransportShardBulkAction.replicaItemExecutionMode;
@@ -245,11 +244,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         rejectItem.abort("index", rejectionCause);
 
         UpdateHelper updateHelper = null;
-        PlainActionFuture<WritePrimaryResult<BulkShardRequest, BulkShardResponse>> callback = new PlainActionFuture<>();
-        TransportShardBulkAction.performOnPrimary(
+        WritePrimaryResult<BulkShardRequest, BulkShardResponse> result = TransportShardBulkAction.performOnPrimary(
             bulkShardRequest, shard, updateHelper, threadPool::absoluteTimeInMillis, new NoopMappingUpdatePerformer(),
-            new ClusterStateObserver(clusterService, logger, threadPool.getThreadContext()), clusterService.localNode(), callback);
-        WritePrimaryResult<BulkShardRequest, BulkShardResponse> result = callback.get();
+            new ClusterStateObserver(clusterService, logger, threadPool.getThreadContext()), clusterService.localNode());
 
         // since at least 1 item passed, the tran log location should exist,
         assertThat(result.location, notNullValue());
@@ -727,10 +724,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         final long translogSizeInBytesBeforeIndexing = shard.translogStats().getTranslogSizeInBytes();
         UpdateHelper updateHelper = null;
         PlainActionFuture<WritePrimaryResult<BulkShardRequest, BulkShardResponse>> callback = new PlainActionFuture<>();
-        TransportShardBulkAction.performOnPrimary(
+        WritePrimaryResult<BulkShardRequest, BulkShardResponse> result = TransportShardBulkAction.performOnPrimary(
             bulkShardRequest, shard, updateHelper, threadPool::absoluteTimeInMillis, new NoopMappingUpdatePerformer(),
-            new ClusterStateObserver(clusterService, logger, threadPool.getThreadContext()), clusterService.localNode(), callback);
-        WritePrimaryResult<BulkShardRequest, BulkShardResponse> result = callback.get();
+            new ClusterStateObserver(clusterService, logger, threadPool.getThreadContext()), clusterService.localNode());
 
         final long translogSizeInBytesAfterIndexing = shard.translogStats().getTranslogSizeInBytes();
         assertThat(result.location.translogLocation,
@@ -796,7 +792,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
-    public void testRetries() throws IOException, ExecutionException, InterruptedException {
+    public void testRetries() throws Exception {
         IndexSettings indexSettings = new IndexSettings(indexMetaData(), Settings.EMPTY);
         UpdateRequest writeRequest = new UpdateRequest("index", "_doc", "id")
             .doc(Requests.INDEX_CONTENT_TYPE, "field", "value");
@@ -837,18 +833,15 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
 
-        PlainActionFuture<WritePrimaryResult<BulkShardRequest, BulkShardResponse>> callback = new PlainActionFuture<>();
         final ClusterStateObserver observer = mock(ClusterStateObserver.class);
         doAnswer(invocationOnMock -> {
             ((ClusterStateObserver.Listener) invocationOnMock.getArguments()[0]).onNewClusterState(null);
             return null;
         })
             .when(observer).waitForNextChange(any());
-        TransportShardBulkAction.performOnPrimary(
+        WritePrimaryResult<BulkShardRequest, BulkShardResponse> result = TransportShardBulkAction.performOnPrimary(
             bulkShardRequest, shard, updateHelper, threadPool::absoluteTimeInMillis, new NoopMappingUpdatePerformer(),
-            observer, clusterService.localNode(), callback);
-
-        WritePrimaryResult<BulkShardRequest, BulkShardResponse> result = callback.get();
+            observer, clusterService.localNode());
 
         assertThat(result.location, equalTo(resultLocation));
         BulkItemResponse primaryResponse = result.replicaRequest().items()[0].getPrimaryResponse();

@@ -485,12 +485,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             }
 
             @Override
-            public void perform(Request request, ActionListener<PrimaryResult> callback) {
-                try {
-                    callback.onResponse(performOnPrimary(replicationGroup.primary, request));
-                } catch (Exception e) {
-                    callback.onFailure(e);
-                }
+            public PrimaryResult perform(Request request) throws Exception {
+                return performOnPrimary(replicationGroup.primary, request);
             }
 
             @Override
@@ -625,12 +621,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         final TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse> result;
         try (Releasable ignored = permitAcquiredFuture.actionGet()) {
             MappingUpdatePerformer noopMappingUpdater = (update, shardId, type) -> { };
-            PlainActionFuture<TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse>> listener =
-                new PlainActionFuture<>();
-
-            TransportShardBulkAction.performOnPrimary(request, primary, null, System::currentTimeMillis, noopMappingUpdater,
-                null, null, listener);
-            result = listener.get();
+            result = TransportShardBulkAction.performOnPrimary(request, primary, null, System::currentTimeMillis, noopMappingUpdater,
+                null, null);
         }
         TransportWriteActionTestHelper.performPostWriteActions(primary, request, result.location, logger);
         return result;

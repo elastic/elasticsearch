@@ -68,36 +68,6 @@ public abstract class TransportWriteAction<
                 indexNameExpressionResolver, request, replicaRequest, executor, true);
     }
 
-    @Override
-    protected final void asyncShardOperationOnPrimary(Request shardRequest, IndexShard primary,
-                                                      ActionListener<PrimaryResult<ReplicaRequest, Response>> callback) {
-        asyncShardWriteOperationOnPrimary(shardRequest, primary, ActionListener.wrap(callback::onResponse, callback::onFailure));
-    }
-
-    @Override
-    protected final PrimaryResult<ReplicaRequest, Response> shardOperationOnPrimary(Request shardRequest, IndexShard primary){
-        throw new UnsupportedOperationException();
-    }
-
-    protected void asyncShardWriteOperationOnPrimary(Request shardRequest, IndexShard primary,
-                                                     ActionListener<WritePrimaryResult<ReplicaRequest, Response>> callback) {
-        try {
-            WritePrimaryResult result = shardWriteOperationOnPrimary(shardRequest, primary);
-            assert result.replicaRequest() == null || result.finalFailure == null : "a replica request [" + result.replicaRequest()
-                + "] with a primary failure [" + result.finalFailure + "]";
-            callback.onResponse(result);
-        } catch (Exception e) {
-            callback.onFailure(e);
-        }
-
-    }
-
-    protected WritePrimaryResult<ReplicaRequest, Response> shardWriteOperationOnPrimary(Request shardRequest, IndexShard primary)
-        throws Exception {
-        throw new UnsupportedOperationException("please over either asyncShardWriteOperationOnPrimary or shardWriteOperationOnPrimary");
-    }
-
-
     /** Syncs operation result to the translog or throws a shard not available failure */
     protected static Location syncOperationResultOrThrow(final Engine.Result operationResult,
                                                          final Location currentLocation) throws Exception {
@@ -129,6 +99,16 @@ public abstract class TransportWriteAction<
     protected ReplicationOperation.Replicas newReplicasProxy(long primaryTerm) {
         return new WriteActionReplicasProxy(primaryTerm);
     }
+
+    /**
+     * Called on the primary with a reference to the primary {@linkplain IndexShard} to modify.
+     *
+     * @return the result of the operation on primary, including current translog location and operation response and failure
+     * async refresh is performed on the <code>primary</code> shard according to the <code>Request</code> refresh policy
+     */
+    @Override
+    protected abstract WritePrimaryResult<ReplicaRequest, Response> shardOperationOnPrimary(
+            Request request, IndexShard primary) throws Exception;
 
     /**
      * Called once per replica with a reference to the replica {@linkplain IndexShard} to modify.

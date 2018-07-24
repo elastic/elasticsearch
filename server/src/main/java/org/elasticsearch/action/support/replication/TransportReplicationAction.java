@@ -190,34 +190,13 @@ public abstract class TransportReplicationAction<
     }
 
     /**
-     * Async method for the primary operation on the primary {@link IndexShard} copy. Default
-     * implementation relies on {@link #shardOperationOnPrimary(ReplicationRequest, IndexShard)}
-     *
-     * @param shardRequest the request to the primary shard
-     * @param primary      the primary shard to perform the operation on
-     */
-    protected void asyncShardOperationOnPrimary(
-        Request shardRequest, IndexShard primary, ActionListener<PrimaryResult<ReplicaRequest, Response>> callback) {
-        try {
-            PrimaryResult result = shardOperationOnPrimary(shardRequest, primary);
-            assert result.replicaRequest() == null || result.finalFailure == null : "a replica request [" + result.replicaRequest()
-                + "] with a primary failure [" + result.finalFailure + "]";
-            callback.onResponse(result);
-        } catch (Exception e) {
-            callback.onFailure(e);
-        }
-    }
-
-    /**
      * Primary operation on node with primary copy.
      *
      * @param shardRequest the request to the primary shard
      * @param primary      the primary shard to perform the operation on
      */
-    protected  PrimaryResult<ReplicaRequest, Response> shardOperationOnPrimary(
-            Request shardRequest, IndexShard primary) throws Exception {
-        throw new UnsupportedOperationException("please over either asyncShardOperationOnPrimary or shardOperationOnPrimary");
-    }
+    protected abstract PrimaryResult<ReplicaRequest, Response> shardOperationOnPrimary(
+            Request shardRequest, IndexShard primary) throws Exception;
 
     /**
      * Synchronously execute the specified replica operation. This is done under a permit from
@@ -1017,8 +996,11 @@ public abstract class TransportReplicationAction<
         }
 
         @Override
-        public void perform(Request request, ActionListener<PrimaryResult<ReplicaRequest, Response>> callback) {
-            asyncShardOperationOnPrimary(request, indexShard, callback);
+        public PrimaryResult perform(Request request) throws Exception {
+            PrimaryResult result = shardOperationOnPrimary(request, indexShard);
+            assert result.replicaRequest() == null || result.finalFailure == null : "a replica request [" + result.replicaRequest()
+                + "] with a primary failure [" + result.finalFailure + "]";
+            return result;
         }
 
         @Override

@@ -30,7 +30,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -93,6 +92,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
                     .indices(request.getDatafeed().getIndices().toArray(new String[0]))
                     .privileges(SearchAction.NAME)
                     .build());
+            privRequest.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
 
             client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
         } else {
@@ -108,8 +108,8 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
         } else {
             XContentBuilder builder = JsonXContent.contentBuilder();
             builder.startObject();
-            for (HasPrivilegesResponse.IndexPrivileges index : response.getIndexPrivileges()) {
-                builder.field(index.getIndex());
+            for (HasPrivilegesResponse.ResourcePrivileges index : response.getIndexPrivileges()) {
+                builder.field(index.getResource());
                 builder.map(index.getPrivileges());
             }
             builder.endObject();
@@ -149,7 +149,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
         MlMetadata newMetadata = new MlMetadata.Builder(currentMetadata)
                 .putDatafeed(request.getDatafeed(), headers).build();
         return ClusterState.builder(clusterState).metaData(
-                MetaData.builder(clusterState.getMetaData()).putCustom(MLMetadataField.TYPE, newMetadata).build())
+                MetaData.builder(clusterState.getMetaData()).putCustom(MlMetadata.TYPE, newMetadata).build())
                 .build();
     }
 

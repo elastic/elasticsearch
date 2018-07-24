@@ -300,7 +300,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
         if (other instanceof MoveDecision == false) {
             return false;
         }
-        @SuppressWarnings("unchecked") MoveDecision that = (MoveDecision) other;
+        MoveDecision that = (MoveDecision) other;
         return Objects.equals(allocationDecision, that.allocationDecision)
                    && Objects.equals(canRemainDecision, that.canRemainDecision)
                    && Objects.equals(clusterRebalanceDecision, that.clusterRebalanceDecision)

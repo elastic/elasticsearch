@@ -131,6 +131,9 @@ class BuildPlugin implements Plugin<Project> {
                 runtimeJavaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(project, runtimeJavaHome))
             }
 
+            String inFipsJvmScript = 'print(java.security.Security.getProviders()[0].name.toLowerCase().contains("fips"));'
+            boolean inFipsJvm = Boolean.parseBoolean(runJavascript(project, runtimeJavaHome, inFipsJvmScript))
+
             // Build debugging info
             println '======================================='
             println 'Elasticsearch Build Hamster says Hello!'
@@ -202,6 +205,7 @@ class BuildPlugin implements Plugin<Project> {
             project.rootProject.ext.buildChecksDone = true
             project.rootProject.ext.minimumCompilerVersion = minimumCompilerVersion
             project.rootProject.ext.minimumRuntimeVersion = minimumRuntimeVersion
+            project.rootProject.ext.inFipsJvm = inFipsJvm
         }
 
         project.targetCompatibility = project.rootProject.ext.minimumRuntimeVersion
@@ -213,6 +217,7 @@ class BuildPlugin implements Plugin<Project> {
         project.ext.compilerJavaVersion = project.rootProject.ext.compilerJavaVersion
         project.ext.runtimeJavaVersion = project.rootProject.ext.runtimeJavaVersion
         project.ext.javaVersions = project.rootProject.ext.javaVersions
+        project.ext.inFipsJvm = project.rootProject.ext.inFipsJvm
     }
 
     private static String findCompilerJavaHome() {
@@ -222,7 +227,11 @@ class BuildPlugin implements Plugin<Project> {
                 // IntelliJ does not set JAVA_HOME, so we use the JDK that Gradle was run with
                 return Jvm.current().javaHome
             } else {
-                throw new GradleException("JAVA_HOME must be set to build Elasticsearch")
+                throw new GradleException(
+                        "JAVA_HOME must be set to build Elasticsearch. " +
+                                "Note that if the variable was just set you might have to run `./gradlew --stop` for " +
+                                "it to be picked up. See https://github.com/elastic/elasticsearch/issues/31399 details."
+                )
             }
         }
         return javaHome
@@ -382,6 +391,9 @@ class BuildPlugin implements Plugin<Project> {
         project.configurations.compile.dependencies.all(disableTransitiveDeps)
         project.configurations.testCompile.dependencies.all(disableTransitiveDeps)
         project.configurations.compileOnly.dependencies.all(disableTransitiveDeps)
+        project.plugins.withType(ShadowPlugin).whenPluginAdded {
+            project.configurations.shadow.dependencies.all(disableTransitiveDeps)
+        }
     }
 
     /** Adds repositories used by ES dependencies */
@@ -766,7 +778,11 @@ class BuildPlugin implements Plugin<Project> {
                     systemProperty property.getKey(), property.getValue()
                 }
             }
-
+            // Set the system keystore/truststore password if we're running tests in a FIPS-140 JVM
+            if (project.inFipsJvm) {
+                systemProperty 'javax.net.ssl.trustStorePassword', 'password'
+                systemProperty 'javax.net.ssl.keyStorePassword', 'password'
+            }
             boolean assertionsEnabled = Boolean.parseBoolean(System.getProperty('tests.asserts', 'true'))
             enableSystemAssertions assertionsEnabled
             enableAssertions assertionsEnabled
@@ -869,11 +885,20 @@ class BuildPlugin implements Plugin<Project> {
         project.dependencyLicenses.dependencies = project.configurations.runtime.fileCollection {
             it.group.startsWith('org.elasticsearch') == false
         } - project.configurations.compileOnly
+        project.plugins.withType(ShadowPlugin).whenPluginAdded {
+            project.dependencyLicenses.dependencies += project.configurations.shadow.fileCollection {
+                it.group.startsWith('org.elasticsearch') == false
+            }
+        }
     }
 
     private static configureDependenciesInfo(Project project) {
         Task deps = project.tasks.create("dependenciesInfo", DependenciesInfoTask.class)
         deps.runtimeConfiguration = project.configurations.runtime
+        project.plugins.withType(ShadowPlugin).whenPluginAdded {
+            deps.runtimeConfiguration = project.configurations.create('infoDeps')
+            deps.runtimeConfiguration.extendsFrom(project.configurations.runtime, project.configurations.shadow)
+        }
         deps.compileOnlyConfiguration = project.configurations.compileOnly
         project.afterEvaluate {
             deps.mappings = project.dependencyLicenses.mappings

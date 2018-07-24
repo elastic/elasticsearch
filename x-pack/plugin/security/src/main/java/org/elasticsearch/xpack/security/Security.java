@@ -34,6 +34,7 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -811,11 +812,22 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             }
 
             // we passed all the checks now we need to copy in all of the x-pack security settings
-            settings.keySet().forEach(k -> {
+            SecureSettings secureSettings = Settings.builder().put(settings).getSecureSettings(); // hack to get at secure settings...
+            Set<String> secureSettingKeys = secureSettings == null ? Collections.emptySet() : secureSettings.getSettingNames();
+            List<String> invalidSettings = new ArrayList<>();
+            for (String k : settings.keySet()) {
                 if (k.startsWith("xpack.security.")) {
-                    settingsBuilder.copy(tribePrefix + k, k, settings);
+                    if (secureSettingKeys.contains(k)) {
+                        invalidSettings.add(k);
+                    } else {
+                        settingsBuilder.copy(tribePrefix + k, k, settings);
+                    }
                 }
-            });
+            }
+            if (invalidSettings.isEmpty() == false) {
+                throw new IllegalArgumentException("Secure settings " + invalidSettings.toString() +
+                                                   " cannot be used with tribe client node");
+            }
         }
 
         Map<String, Settings> realmsSettings = settings.getGroups(SecurityField.setting("authc.realms"), true);

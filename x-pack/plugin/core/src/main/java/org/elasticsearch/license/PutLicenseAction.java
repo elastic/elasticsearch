@@ -6,6 +6,7 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 
 public class PutLicenseAction extends Action<PutLicenseResponse> {
 

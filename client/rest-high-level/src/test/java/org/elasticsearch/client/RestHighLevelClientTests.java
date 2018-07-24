@@ -794,7 +794,9 @@ public class RestHighLevelClientTests extends ESTestCase {
         return Arrays.stream(clientClass.getMethods()).filter(method -> method.getDeclaringClass().equals(clientClass)
                 && (method.getParameterCount() == 0
                     || method.getParameterTypes()[method.getParameterCount() - 1].equals(Header[].class) == false))
-                .map(method -> Tuple.tuple(namespace + "." + toSnakeCase(method.getName()), method));
+                .map(method -> Tuple.tuple(namespace + "." + toSnakeCase(method.getName()), method))
+                .flatMap(tuple -> tuple.v2().getReturnType().getName().endsWith("Client")
+                    ? getSubClientMethods(tuple.v1(), tuple.v2().getReturnType()) : Stream.of(tuple));
     }
 
     private static String toSnakeCase(String camelCase) {

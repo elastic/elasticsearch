@@ -28,7 +28,7 @@ See also <<release-notes-6.4.0,{es} 6.4.0 release notes>>.
 [float]
 === Rank Eval API
 
-* Expected Reciprocal Rank metric for Rank Eval API - The Expected Reciprocal Rank has been added to the available metrics in the Rank Eval API. ERR is an extension of the classical reciprocal rank which in order to determine the usefulness of a document at position K in the results, it uses the degree of relevance of the document at positions less than K as well.
+* Expected Reciprocal Rank metric for Rank Eval API - The Expected Reciprocal Rank has been added to the available metrics in the Rank Eval API. ERR is an extension of the classical reciprocal rank which in order to determine the usefulness of a document at position K in the results, it uses the degree of relevance of the document at positions less than K as well. For more information see <<search-rank-eval, Rank Evaluation API>>
 
 [float]
 === Search

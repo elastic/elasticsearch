@@ -183,10 +183,9 @@ public class IndexLifecycleRunner {
             throw new IllegalArgumentException("index [" + indexName + "] is not on current step [" + currentStepKey + "]");
         }
 
-        try {
-            stepRegistry.getStep(indexPolicySetting, nextStepKey);
-        } catch (IllegalStateException e) {
-            throw new IllegalArgumentException(e.getMessage());
+        Step nextStep = stepRegistry.getStep(indexPolicySetting, nextStepKey);
+        if (nextStep == null) {
+            throw new IllegalArgumentException("step [" + nextStepKey + "] with policy [" + indexPolicySetting + "] does not exist");
         }
 
         return IndexLifecycleRunner.moveClusterStateToNextStep(idxMeta.getIndex(), currentState, currentStepKey, nextStepKey, nowSupplier);

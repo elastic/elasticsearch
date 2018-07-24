@@ -52,10 +52,12 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
     private static final StepKey firstStepKey = new StepKey("phase_1", "action_1", "step_1");
     private static final StepKey secondStepKey = new StepKey("phase_1", "action_1", "step_2");
     private static final StepKey thirdStepKey = new StepKey("phase_1", "action_1", "step_3");
+    private static final StepKey invalidStepKey = new StepKey("invalid", "invalid", "invalid");
     private ClusterState clusterState;
     private PolicyStepsRegistry policyStepsRegistry;
     private String mixedPolicyName;
     private String allClusterPolicyName;
+    private String invalidPolicyName;
     private Index index;
     private MockClusterStateActionStep firstStep;
     private MockClusterStateWaitStep secondStep;
@@ -75,17 +77,23 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         thirdStep = new MockStep(thirdStepKey, null);
         mixedPolicyName = randomAlphaOfLengthBetween(5, 10);
         allClusterPolicyName = randomAlphaOfLengthBetween(1, 4);
+        invalidPolicyName = randomAlphaOfLength(11);
         Phase mixedPhase = new Phase("first_phase", TimeValue.ZERO, Collections.singletonMap(MockAction.NAME,
             new MockAction(Arrays.asList(firstStep, secondStep, thirdStep))));
         Phase allClusterPhase = new Phase("first_phase", TimeValue.ZERO, Collections.singletonMap(MockAction.NAME,
             new MockAction(Arrays.asList(firstStep, allClusterSecondStep))));
+        Phase invalidPhase = new Phase("invalid_phase", TimeValue.ZERO, Collections.singletonMap(MockAction.NAME,
+            new MockAction(Arrays.asList(new MockClusterStateActionStep(firstStepKey, invalidStepKey)))));
         LifecyclePolicy mixedPolicy = new LifecyclePolicy(TestLifecycleType.INSTANCE, mixedPolicyName,
             Collections.singletonMap(mixedPhase.getName(), mixedPhase));
         LifecyclePolicy allClusterPolicy = new LifecyclePolicy(TestLifecycleType.INSTANCE, allClusterPolicyName,
             Collections.singletonMap(allClusterPhase.getName(), allClusterPhase));
+        LifecyclePolicy invalidPolicy = new LifecyclePolicy(TestLifecycleType.INSTANCE, invalidPolicyName,
+            Collections.singletonMap(invalidPhase.getName(), invalidPhase));
         Map<String, LifecyclePolicyMetadata> policyMap = new HashMap<>();
         policyMap.put(mixedPolicyName, new LifecyclePolicyMetadata(mixedPolicy, Collections.emptyMap()));
         policyMap.put(allClusterPolicyName, new LifecyclePolicyMetadata(allClusterPolicy, Collections.emptyMap()));
+        policyMap.put(invalidPolicyName, new LifecyclePolicyMetadata(invalidPolicy, Collections.emptyMap()));
         policyStepsRegistry = new PolicyStepsRegistry();
 
         IndexMetaData indexMetadata = IndexMetaData.builder(randomAlphaOfLength(5))
@@ -163,6 +171,26 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         assertThat(LifecycleSettings.LIFECYCLE_PHASE_TIME_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(-1L));
         assertThat(LifecycleSettings.LIFECYCLE_ACTION_TIME_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(-1L));
         assertThat(LifecycleSettings.LIFECYCLE_STEP_INFO_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(""));
+    }
+
+    public void testExecuteInvalidStartStep() throws IOException {
+        setStateToKey(firstStepKey);
+        Step startStep = policyStepsRegistry.getStep(mixedPolicyName, firstStepKey);
+        long now = randomNonNegativeLong();
+        ExecuteStepsUpdateTask task = new ExecuteStepsUpdateTask(invalidPolicyName, index, startStep, policyStepsRegistry, () -> now);
+        ClusterState newState = task.execute(clusterState);
+        assertSame(newState, clusterState);
+
+    }
+
+    public void testExecuteUntilNullStep() throws IOException {
+        setStateToKey(firstStepKey);
+        Step startStep = policyStepsRegistry.getStep(invalidPolicyName, firstStepKey);
+        long now = randomNonNegativeLong();
+        ExecuteStepsUpdateTask task = new ExecuteStepsUpdateTask(invalidPolicyName, index, startStep, policyStepsRegistry, () -> now);
+        ClusterState newState = task.execute(clusterState);
+        StepKey currentStepKey = IndexLifecycleRunner.getCurrentStepKey(newState.metaData().index(index).getSettings());
+        assertThat(currentStepKey, equalTo(invalidStepKey));
     }
 
     public void testExecuteIncompleteWaitStepNoInfo() throws IOException {

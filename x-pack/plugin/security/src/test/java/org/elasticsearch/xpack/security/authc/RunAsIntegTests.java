@@ -219,7 +219,7 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
         }
     }
 
-    private Request requestForUserRunAsUser(String user) {
+    private static Request requestForUserRunAsUser(String user) {
         Request request = new Request("GET", "/_nodes");
         RequestOptions.Builder options = request.getOptions().toBuilder();
         options.addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER, TEST_PASSWORD_SECURE_STRING));

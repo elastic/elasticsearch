@@ -23,7 +23,8 @@ See also <<release-notes-6.4.0,{es} 6.4.0 release notes>>.
 [float]
 === Mappings
 
-* `_ignored` meta field - A new meta field has been added to documents. The `_ignored` field will contain the field names of any fields that were ignored at index time due to the `ignore_malformed` option. This means that malformed documents can be more easily discovered by using `exists` or `term` queries on this new meta field. See <<mapping-ignored-field,_ignored field>>.
+* `alias` field type - A new field type can now be added in the mappings. An `alias` field allows a field to be defined in the mappings which is an alias of another field meaning that the alias name can be used when referring to the field. For example the mapping in an index may have a `hostname` field and the mapping might define a alias field `host_name` so that when a user searches using thee field `host_name` it actually searches the `hostname` field. This can be useful for helping migrate between schemas where field names have been changed an for searching across multiple indexes which may have different field names for the same information. For more information, see <<alias, Alias field type>>
+* `_ignored` meta field - A new meta field has been added to documents. The `_ignored` field will contain the field names of any fields that were ignored at index time due to the `ignore_malformed` option. This means that malformed documents can be more easily discovered by using `exists` or `term` queries on this new meta field. For more information, see <<mapping-ignored-field,_ignored field>>.
 
 [float]
 === Rank Eval API

@@ -1,5 +1,5 @@
 [[release-notes-6.3.2]]
-== 6.3.2 Release Notes
+== {es} version 6.3.2
 
 Also see <<breaking-changes-6.3>>.
 
@@ -17,9 +17,14 @@ Core::
 * Disable C2 from using AVX-512 on JDK 10 {pull}32138[#32138] (issue: {issue}31425[#31425])
 
 Machine Learning::
-* Fix calendar and filter updates from non-master nodes {pull}31804[#31804] (issue: {issue}31803[#31803])
-* Don't treat stale FAILED jobs as OPENING in job allocation {pull}31800[#31800] (issue: {issue}31794[#31794])
-* Rate limit established model memory updates {pull}31768[#31768]
+* Fixes calendar and filter updates from non-master nodes {pull}31804[#31804] (issue: {issue}31803[#31803])
+* No longer treats stale FAILED jobs as OPENING in job allocation {pull}31800[#31800] (issue: {issue}31794[#31794])
+* Rate limits established model memory updates {pull}31768[#31768]
+* Fixes SIGSEGV when upgrading a job directly from 5.6.10 to 6.3. It also fixes 
+the upgrade for the trend component model, which caused large prediction errors 
+immediately after upgrading. {ml-pull}143[#143] (issue: {ml-issue}141[#141])
+* Fixes issues upgrading the state, which could cause the autodetect process to 
+crash. {ml-pull}140[#140] (issue: {ml-issue}136[#136])
 
 Recovery::
 * X-pack rolling upgrade failures [ISSUE] {pull}31827[#31827]

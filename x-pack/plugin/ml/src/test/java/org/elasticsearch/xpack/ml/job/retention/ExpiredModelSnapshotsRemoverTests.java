@@ -24,7 +24,6 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -212,7 +211,7 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         MlMetadata mlMetadata = mock(MlMetadata.class);
         when(mlMetadata.getJobs()).thenReturn(jobsMap);
         MetaData metadata = mock(MetaData.class);
-        when(metadata.custom(MLMetadataField.TYPE)).thenReturn(mlMetadata);
+        when(metadata.custom(MlMetadata.TYPE)).thenReturn(mlMetadata);
         when(clusterState.getMetaData()).thenReturn(metadata);
     }
 

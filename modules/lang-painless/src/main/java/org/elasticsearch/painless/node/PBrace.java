@@ -68,7 +68,7 @@ public final class PBrace extends AStoreable {
             sub = new PSubListShortcut(location, locals.getPainlessLookup().getPainlessStructFromJavaClass(prefix.actual), index);
         } else {
             throw createError(new IllegalArgumentException("Illegal array access on type " +
-                    "[" + PainlessLookupUtility.anyTypeToPainlessTypeName(prefix.actual) + "]."));
+                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(prefix.actual) + "]."));
         }
 
         sub.write = write;

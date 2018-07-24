@@ -163,15 +163,20 @@ public abstract class IndexShardTestCase extends ESTestCase {
         return Settings.EMPTY;
     }
 
-    private Store createStore(IndexSettings indexSettings, ShardPath shardPath) throws IOException {
-        final ShardId shardId = shardPath.getShardId();
+
+    protected Store createStore(IndexSettings indexSettings, ShardPath shardPath) throws IOException {
+        return createStore(shardPath.getShardId(), indexSettings, newFSDirectory(shardPath.resolveIndex()));
+    }
+
+    protected Store createStore(ShardId shardId, IndexSettings indexSettings, Directory directory) throws IOException {
         final DirectoryService directoryService = new DirectoryService(shardId, indexSettings) {
             @Override
             public Directory newDirectory() throws IOException {
-                return newFSDirectory(shardPath.resolveIndex());
+                return directory;
             }
         };
         return new Store(shardId, indexSettings, directoryService, new DummyShardLock(shardId));
+
     }
 
     /**
@@ -284,29 +289,32 @@ public abstract class IndexShardTestCase extends ESTestCase {
         final ShardId shardId = routing.shardId();
         final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(createTempDir());
         ShardPath shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
-        return newShard(routing, shardPath, indexMetaData, indexSearcherWrapper, engineFactory, globalCheckpointSyncer,
+        return newShard(routing, shardPath, indexMetaData, null, indexSearcherWrapper, engineFactory, globalCheckpointSyncer,
             EMPTY_EVENT_LISTENER, listeners);
     }
 
     /**
      * creates a new initializing shard.
-     * @param routing                shard routing to use
-     * @param shardPath              path to use for shard data
-     * @param indexMetaData          indexMetaData for the shard, including any mapping
-     * @param indexSearcherWrapper   an optional wrapper to be used during searchers
-     * @param globalCheckpointSyncer callback for syncing global checkpoints
-     * @param indexEventListener     index even listener
-     * @param listeners              an optional set of listeners to add to the shard
+     * @param routing                       shard routing to use
+     * @param shardPath                     path to use for shard data
+     * @param indexMetaData                 indexMetaData for the shard, including any mapping
+     * @param store                         an optional custom store to use. If null a default file based store will be created
+     * @param indexSearcherWrapper          an optional wrapper to be used during searchers
+     * @param globalCheckpointSyncer        callback for syncing global checkpoints
+     * @param indexEventListener            index event listener
+     * @param listeners                     an optional set of listeners to add to the shard
      */
     protected IndexShard newShard(ShardRouting routing, ShardPath shardPath, IndexMetaData indexMetaData,
-                                  @Nullable IndexSearcherWrapper indexSearcherWrapper,
+                                  @Nullable Store store, @Nullable IndexSearcherWrapper indexSearcherWrapper,
                                   @Nullable EngineFactory engineFactory,
                                   Runnable globalCheckpointSyncer,
                                   IndexEventListener indexEventListener, IndexingOperationListener... listeners) throws IOException {
         final Settings nodeSettings = Settings.builder().put("node.name", routing.currentNodeId()).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetaData, nodeSettings);
         final IndexShard indexShard;
-        final Store store = createStore(indexSettings, shardPath);
+        if (store == null) {
+            store = createStore(indexSettings, shardPath);
+        }
         boolean success = false;
         try {
             IndexCache indexCache = new IndexCache(indexSettings, new DisabledQueryCache(indexSettings), null);
@@ -356,6 +364,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 routing,
                 current.shardPath(),
                 current.indexSettings().getIndexMetaData(),
+                null,
                 null,
                 current.engineFactory,
                 current.getGlobalCheckpointSyncer(),

@@ -49,9 +49,6 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
     public void setUp() throws Exception {
         super.setUp();
         format = randomNumericDocValueFormat();
-        AutoDateHistogramAggregationBuilder aggregationBuilder = new AutoDateHistogramAggregationBuilder("_name");
-        // TODO[PCS]: timezone set automagically here?
-        roundingInfos = aggregationBuilder.buildRoundings();
     }
 
     @Override
@@ -59,6 +56,9 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
                                                        List<PipelineAggregator> pipelineAggregators,
                                                        Map<String, Object> metaData,
                                                        InternalAggregations aggregations) {
+        AutoDateHistogramAggregationBuilder aggregationBuilder = new AutoDateHistogramAggregationBuilder("_name");
+        roundingInfos = AutoDateHistogramAggregationBuilder.buildRoundings(aggregationBuilder.timeZone());
+        
         int nbBuckets = randomNumberOfBuckets();
         int targetBuckets = randomIntBetween(1, nbBuckets * 2 + 1);
         List<InternalAutoDateHistogram.Bucket> buckets = new ArrayList<>(nbBuckets);
@@ -73,6 +73,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         }
         InternalAggregations subAggregations = new InternalAggregations(Collections.emptyList());
         BucketInfo bucketInfo = new BucketInfo(roundingInfos, randomIntBetween(0, roundingInfos.length - 1), subAggregations);
+
 
         return new InternalAutoDateHistogram(name, buckets, targetBuckets, bucketInfo, format, pipelineAggregators, metaData);
     }

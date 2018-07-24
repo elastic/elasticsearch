@@ -70,19 +70,19 @@ public class AutoDateHistogramAggregationBuilder
      * The current implementation probably should not be invoked in a tight loop.
      * @return Array of RoundingInfo
      */
-    RoundingInfo[] buildRoundings() {
+    static RoundingInfo[] buildRoundings(DateTimeZone timeZone) {
         RoundingInfo[] roundings = new RoundingInfo[6];
-        roundings[0] = new RoundingInfo(createRounding(DateTimeUnit.SECOND_OF_MINUTE, timeZone()),
+        roundings[0] = new RoundingInfo(createRounding(DateTimeUnit.SECOND_OF_MINUTE, timeZone),
             1000L, 1, 5, 10, 30);
-        roundings[1] = new RoundingInfo(createRounding(DateTimeUnit.MINUTES_OF_HOUR, timeZone()),
+        roundings[1] = new RoundingInfo(createRounding(DateTimeUnit.MINUTES_OF_HOUR, timeZone),
             60 * 1000L, 1, 5, 10, 30);
-        roundings[2] = new RoundingInfo(createRounding(DateTimeUnit.HOUR_OF_DAY, timeZone()),
+        roundings[2] = new RoundingInfo(createRounding(DateTimeUnit.HOUR_OF_DAY, timeZone),
             60 * 60 * 1000L, 1, 3, 12);
-        roundings[3] = new RoundingInfo(createRounding(DateTimeUnit.DAY_OF_MONTH, timeZone()),
+        roundings[3] = new RoundingInfo(createRounding(DateTimeUnit.DAY_OF_MONTH, timeZone),
             24 * 60 * 60 * 1000L, 1, 7);
-        roundings[4] = new RoundingInfo(createRounding(DateTimeUnit.MONTH_OF_YEAR, timeZone()),
+        roundings[4] = new RoundingInfo(createRounding(DateTimeUnit.MONTH_OF_YEAR, timeZone),
             30 * 24 * 60 * 60 * 1000L, 1, 3);
-        roundings[5] = new RoundingInfo(createRounding(DateTimeUnit.YEAR_OF_CENTURY, timeZone()),
+        roundings[5] = new RoundingInfo(createRounding(DateTimeUnit.YEAR_OF_CENTURY, timeZone),
             365 * 24 * 60 * 60 * 1000L, 1, 5, 10, 20, 50, 100);
         return roundings;
     }
@@ -140,7 +140,7 @@ public class AutoDateHistogramAggregationBuilder
     @Override
     protected ValuesSourceAggregatorFactory<Numeric, ?> innerBuild(SearchContext context, ValuesSourceConfig<Numeric> config,
             AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
-        RoundingInfo[] roundings = buildRoundings();
+        RoundingInfo[] roundings = buildRoundings(timeZone());
         int maxRoundingInterval = Arrays.stream(roundings,0, roundings.length-1)
             .map(rounding -> rounding.innerIntervals)
             .flatMapToInt(Arrays::stream)
@@ -156,7 +156,7 @@ public class AutoDateHistogramAggregationBuilder
         return new AutoDateHistogramAggregatorFactory(name, config, numBuckets, roundings, context, parent, subFactoriesBuilder, metaData);
     }
 
-    private Rounding createRounding(DateTimeUnit interval, DateTimeZone timeZone) {
+    private static Rounding createRounding(DateTimeUnit interval, DateTimeZone timeZone) {
         Rounding.Builder tzRoundingBuilder = Rounding.builder(interval);
         if (timeZone != null) {
             tzRoundingBuilder.timeZone(timeZone);

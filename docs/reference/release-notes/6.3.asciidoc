@@ -22,9 +22,6 @@ Machine Learning::
 * Rate limit established model memory updates {pull}31768[#31768]
 * Wait for aliases in multi-node tests {pull}32086[#32086] (issue: {issue}32034[#32034])
 
-Mapping::
-* Fix put mappings java API documentation {pull}31955[#31955] (issue: {issue}31906[#31906])
-
 Recovery::
 * X-pack rolling upgrade failures [ISSUE] {pull}31827[#31827]
 
@@ -35,7 +32,7 @@ SQL::
 * HAVING clause should accept only aggregates {pull}31872[#31872] (issue: {issue}31726[#31726])
 * Fix incorrect HAVING equality {pull}31820[#31820] (issue: {issue}31796[#31796])
 * Fix incorrect message for aliases {pull}31792[#31792] (issue: {issue}31611[#31611])
-* querying an alias having different mappings indices generates an incorrect error message [ISSUE] {pull}31784[#31784]
+* Fix querying an alias having different mappings indices generates an incorrect error message [ISSUE] {pull}31784[#31784]
 * Allow long literals {pull}31777[#31777] (issue: {issue}31750[#31750])
 * Fix stackoverflow on getObject and timestamp conversion {pull}31735[#31735] (issue: {issue}31734[#31734])
 

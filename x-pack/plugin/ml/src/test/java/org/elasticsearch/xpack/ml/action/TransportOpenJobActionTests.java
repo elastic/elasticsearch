@@ -35,6 +35,7 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -317,7 +318,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
         assertTrue(result.getExplanation().contains("because node exceeds [2] the maximum number of jobs [2] in opening state"));
 
         tasksBuilder = PersistentTasksCustomMetaData.builder(tasks);
-        tasksBuilder.reassignTask(MlMetadata.jobTaskId("job_id6"), new Assignment("_node_id3", "test assignment"));
+        tasksBuilder.reassignTask(MlTasks.jobTaskId("job_id6"), new Assignment("_node_id3", "test assignment"));
         tasks = tasksBuilder.build();
 
         csBuilder = ClusterState.builder(cs);
@@ -328,7 +329,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
         assertTrue(result.getExplanation().contains("because node exceeds [2] the maximum number of jobs [2] in opening state"));
 
         tasksBuilder = PersistentTasksCustomMetaData.builder(tasks);
-        tasksBuilder.updateTaskState(MlMetadata.jobTaskId("job_id6"), null);
+        tasksBuilder.updateTaskState(MlTasks.jobTaskId("job_id6"), null);
         tasks = tasksBuilder.build();
 
         csBuilder = ClusterState.builder(cs);
@@ -354,7 +355,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
         PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
         addJobTask("job_id1", "_node_id1", JobState.fromString("failed"), tasksBuilder);
         // This will make the allocation stale for job_id1
-        tasksBuilder.reassignTask(MlMetadata.jobTaskId("job_id1"), new Assignment("_node_id1", "test assignment"));
+        tasksBuilder.reassignTask(MlTasks.jobTaskId("job_id1"), new Assignment("_node_id1", "test assignment"));
         addJobTask("job_id2", "_node_id1", null, tasksBuilder);
         addJobTask("job_id3", "_node_id2", null, tasksBuilder);
         addJobTask("job_id4", "_node_id2", null, tasksBuilder);
@@ -675,10 +676,10 @@ public class TransportOpenJobActionTests extends ESTestCase {
     }
 
     public static void addJobTask(String jobId, String nodeId, JobState jobState, PersistentTasksCustomMetaData.Builder builder) {
-        builder.addTask(MlMetadata.jobTaskId(jobId), OpenJobAction.TASK_NAME, new OpenJobAction.JobParams(jobId),
+        builder.addTask(MlTasks.jobTaskId(jobId), OpenJobAction.TASK_NAME, new OpenJobAction.JobParams(jobId),
                 new Assignment(nodeId, "test assignment"));
         if (jobState != null) {
-            builder.updateTaskState(MlMetadata.jobTaskId(jobId), new JobTaskState(jobState, builder.getLastAllocationId()));
+            builder.updateTaskState(MlTasks.jobTaskId(jobId), new JobTaskState(jobState, builder.getLastAllocationId()));
         }
     }
 

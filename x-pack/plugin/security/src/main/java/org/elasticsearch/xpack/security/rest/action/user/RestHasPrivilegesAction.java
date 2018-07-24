@@ -6,8 +6,11 @@
 package org.elasticsearch.xpack.security.rest.action.user;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
@@ -56,8 +59,8 @@ public class RestHasPrivilegesAction extends SecurityBaseRestHandler {
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String username = getUsername(request);
-        HasPrivilegesRequestBuilder requestBuilder = new SecurityClient(client)
-                .prepareHasPrivileges(username, request.requiredContent(), request.getXContentType());
+        final Tuple<XContentType, BytesReference> content = request.contentOrSourceParam();
+        HasPrivilegesRequestBuilder requestBuilder = new SecurityClient(client).prepareHasPrivileges(username, content.v2(), content.v1());
         return channel -> requestBuilder.execute(new HasPrivilegesRestResponseBuilder(username, channel));
     }
 

@@ -129,7 +129,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         });
 
         Platforms.onLinux(() -> {
-            final String javaPath = sh.run("which java").stdout.trim();
+            final String javaPath = sh.run("command -v java").stdout.trim();
 
             try {
                 sh.run("chmod -x '" + javaPath + "'");

@@ -222,7 +222,11 @@ class BuildPlugin implements Plugin<Project> {
                 // IntelliJ does not set JAVA_HOME, so we use the JDK that Gradle was run with
                 return Jvm.current().javaHome
             } else {
-                throw new GradleException("JAVA_HOME must be set to build Elasticsearch")
+                throw new GradleException(
+                        "JAVA_HOME must be set to build Elasticsearch. " +
+                                "Note that if the variable was just set you might have to run `./gradlew --stop` for " +
+                                "it to be picked up. See https://github.com/elastic/elasticsearch/issues/31399 details."
+                )
             }
         }
         return javaHome

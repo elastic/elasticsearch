@@ -31,6 +31,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -50,8 +51,6 @@ import java.util.function.Function;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-
-import org.elasticsearch.script.ScriptType;
 import static org.elasticsearch.search.sort.SortBuilders.scriptSort;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -104,7 +103,6 @@ public class SimpleSortIT extends ESIntegTestCase {
         /**
          * Return the minimal value from a set of values.
          */
-        @SuppressWarnings("unchecked")
         static <T extends Comparable<T>> T getMinValueScript(Map<String, Object> vars, T initialValue, String fieldName,
                                                              Function<Object, T> converter) {
             T retval = initialValue;

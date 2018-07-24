@@ -161,7 +161,6 @@ public final class IndexGraveyard implements MetaData.Custom {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public Diff<MetaData.Custom> diff(final MetaData.Custom previous) {
         return new IndexGraveyardDiff((IndexGraveyard) previous, this);
     }
@@ -321,7 +320,7 @@ public final class IndexGraveyard implements MetaData.Custom {
 
         @Override
         public IndexGraveyard apply(final MetaData.Custom previous) {
-            @SuppressWarnings("unchecked") final IndexGraveyard old = (IndexGraveyard) previous;
+            final IndexGraveyard old = (IndexGraveyard) previous;
             if (removedCount > old.tombstones.size()) {
                 throw new IllegalStateException("IndexGraveyardDiff cannot remove [" + removedCount + "] entries from [" +
                                                 old.tombstones.size() + "] tombstones.");
@@ -416,7 +415,7 @@ public final class IndexGraveyard implements MetaData.Custom {
             if (other == null || getClass() != other.getClass()) {
                 return false;
             }
-            @SuppressWarnings("unchecked") Tombstone that = (Tombstone) other;
+            Tombstone that = (Tombstone) other;
             return index.equals(that.index) && deleteDateInMillis == that.deleteDateInMillis;
         }
 

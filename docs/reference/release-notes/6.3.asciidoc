@@ -20,7 +20,6 @@ Machine Learning::
 * Fix calendar and filter updates from non-master nodes {pull}31804[#31804] (issue: {issue}31803[#31803])
 * Don't treat stale FAILED jobs as OPENING in job allocation {pull}31800[#31800] (issue: {issue}31794[#31794])
 * Rate limit established model memory updates {pull}31768[#31768]
-* Wait for aliases in multi-node tests {pull}32086[#32086] (issue: {issue}32034[#32034])
 
 Recovery::
 * X-pack rolling upgrade failures [ISSUE] {pull}31827[#31827]

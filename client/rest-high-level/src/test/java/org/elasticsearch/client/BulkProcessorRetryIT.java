@@ -129,7 +129,7 @@ public class BulkProcessorRetryIT extends ESRestHighLevelClientTestCase {
         }
 
         highLevelClient().indices().refresh(new RefreshRequest(), RequestOptions.DEFAULT);
-        int multiGetResponsesCount = highLevelClient().multiGet(multiGetRequest, RequestOptions.DEFAULT).getResponses().length;
+        int multiGetResponsesCount = highLevelClient().mget(multiGetRequest, RequestOptions.DEFAULT).getResponses().length;
 
         if (rejectedExecutionExpected) {
             assertThat(multiGetResponsesCount, lessThanOrEqualTo(numberOfAsyncOps));

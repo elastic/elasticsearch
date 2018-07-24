@@ -157,7 +157,7 @@ public abstract class AExpression extends ANode {
 
                 return ecast;
             } else {
-                if (PainlessLookupUtility.isAnyTypeConstant(expected)) {
+                if (PainlessLookupUtility.isConstantType(expected)) {
                     // For the case where a cast is required, a constant is set,
                     // and the constant can be immediately cast to the expected type.
                     // An EConstant replaces this node with the constant cast appropriately

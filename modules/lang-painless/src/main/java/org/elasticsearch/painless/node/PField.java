@@ -27,7 +27,6 @@ import org.elasticsearch.painless.lookup.PainlessClass;
 import org.elasticsearch.painless.lookup.PainlessField;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
-import org.elasticsearch.painless.lookup.PainlessMethodKey;
 import org.elasticsearch.painless.lookup.def;
 
 import java.util.List;
@@ -64,7 +63,7 @@ public final class PField extends AStoreable {
         prefix = prefix.cast(locals);
 
         if (prefix.actual.isArray()) {
-            sub = new PSubArrayLength(location, PainlessLookupUtility.anyTypeToPainlessTypeName(prefix.actual), value);
+            sub = new PSubArrayLength(location, PainlessLookupUtility.typeToCanonicalTypeName(prefix.actual), value);
         } else if (prefix.actual == def.class) {
             sub = new PSubDefField(location, value);
         } else {
@@ -74,19 +73,20 @@ public final class PField extends AStoreable {
             if (field != null) {
                 sub = new PSubField(location, field);
             } else {
-                PainlessMethod getter = struct.methods.get(
-                    new PainlessMethodKey("get" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0));
+                PainlessMethod getter = struct.methods.get(PainlessLookupUtility.buildPainlessMethodKey(
+                        "get" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0));
 
                 if (getter == null) {
-                    getter = struct.methods.get(
-                        new PainlessMethodKey("is" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0));
+                    getter = struct.methods.get(PainlessLookupUtility.buildPainlessMethodKey(
+                            "is" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0));
                 }
 
-                PainlessMethod setter = struct.methods.get(
-                    new PainlessMethodKey("set" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 1));
+                PainlessMethod setter = struct.methods.get(PainlessLookupUtility.buildPainlessMethodKey(
+                        "set" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 1));
 
                 if (getter != null || setter != null) {
-                    sub = new PSubShortcut(location, value, PainlessLookupUtility.anyTypeToPainlessTypeName(prefix.actual), getter, setter);
+                    sub = new PSubShortcut(
+                            location, value, PainlessLookupUtility.typeToCanonicalTypeName(prefix.actual), getter, setter);
                 } else {
                     EConstant index = new EConstant(location, value);
                     index.analyze(locals);
@@ -104,7 +104,7 @@ public final class PField extends AStoreable {
 
         if (sub == null) {
             throw createError(new IllegalArgumentException(
-                "Unknown field [" + value + "] for type [" + PainlessLookupUtility.anyTypeToPainlessTypeName(prefix.actual) + "]."));
+                "Unknown field [" + value + "] for type [" + PainlessLookupUtility.typeToCanonicalTypeName(prefix.actual) + "]."));
         }
 
         if (nullSafe) {

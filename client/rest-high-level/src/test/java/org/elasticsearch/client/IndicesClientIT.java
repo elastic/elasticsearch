@@ -443,7 +443,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             .types("_doc");
 
         GetMappingsResponse getMappingsResponse =
-            execute(request, highLevelClient().indices()::getMappings, highLevelClient().indices()::getMappingsAsync);
+            execute(request, highLevelClient().indices()::getMapping, highLevelClient().indices()::getMappingAsync);
 
         Map<String, Object> mappings = getMappingsResponse.getMappings().get(indexName).get("_doc").sourceAsMap();
         Map<String, String> type = new HashMap<>();
@@ -796,7 +796,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             createIndex(index, settings);
             ForceMergeRequest forceMergeRequest = new ForceMergeRequest(index);
             ForceMergeResponse forceMergeResponse =
-                execute(forceMergeRequest, highLevelClient().indices()::forceMerge, highLevelClient().indices()::forceMergeAsync);
+                execute(forceMergeRequest, highLevelClient().indices()::forcemerge, highLevelClient().indices()::forcemergeAsync);
             assertThat(forceMergeResponse.getTotalShards(), equalTo(1));
             assertThat(forceMergeResponse.getSuccessfulShards(), equalTo(1));
             assertThat(forceMergeResponse.getFailedShards(), equalTo(0));
@@ -807,7 +807,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             assertFalse(indexExists(nonExistentIndex));
             ForceMergeRequest forceMergeRequest = new ForceMergeRequest(nonExistentIndex);
             ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-                () -> execute(forceMergeRequest, highLevelClient().indices()::forceMerge, highLevelClient().indices()::forceMergeAsync));
+                () -> execute(forceMergeRequest, highLevelClient().indices()::forcemerge, highLevelClient().indices()::forcemergeAsync));
             assertEquals(RestStatus.NOT_FOUND, exception.status());
         }
     }

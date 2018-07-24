@@ -19,6 +19,7 @@
 
 package org.elasticsearch.packaging.test;
 
+import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.Archives;
 import org.elasticsearch.packaging.util.Platforms;
@@ -27,9 +28,6 @@ import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.FixMethodOrder;
-import org.junit.Test;
-import org.junit.runners.MethodSorters;
 
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Installation;
@@ -59,6 +57,7 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.isEmptyString;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeThat;
 import static org.junit.Assume.assumeTrue;
@@ -67,8 +66,8 @@ import static org.junit.Assume.assumeTrue;
  * Tests that apply to the archive distributions (tar, zip). To add a case for a distribution, subclass and
  * override {@link ArchiveTestCase#distribution()}. These tests should be the same across all archive distributions
  */
-@FixMethodOrder(MethodSorters.NAME_ASCENDING)
-public abstract class ArchiveTestCase {
+@TestCaseOrdering(TestCaseOrdering.AlphabeticOrder.class)
+public abstract class ArchiveTestCase extends PackagingTestCase {
 
     private static Installation installation;
 
@@ -86,13 +85,11 @@ public abstract class ArchiveTestCase {
         assumeTrue("only compatible distributions", distribution().packaging.compatible);
     }
 
-    @Test
     public void test10Install() {
         installation = installArchive(distribution());
         verifyArchiveInstallation(installation, distribution());
     }
 
-    @Test
     public void test20PluginsListWithNoPlugins() {
         assumeThat(installation, is(notNullValue()));
 
@@ -103,7 +100,6 @@ public abstract class ArchiveTestCase {
         assertThat(r.stdout, isEmptyString());
     }
 
-    @Test
     public void test30AbortWhenJavaMissing() {
         assumeThat(installation, is(notNullValue()));
 
@@ -133,7 +129,7 @@ public abstract class ArchiveTestCase {
         });
 
         Platforms.onLinux(() -> {
-            final String javaPath = sh.run("which java").stdout.trim();
+            final String javaPath = sh.run("command -v java").stdout.trim();
 
             try {
                 sh.run("chmod -x '" + javaPath + "'");
@@ -146,7 +142,6 @@ public abstract class ArchiveTestCase {
         });
     }
 
-    @Test
     public void test40CreateKeystoreManually() {
         assumeThat(installation, is(notNullValue()));
 
@@ -180,7 +175,6 @@ public abstract class ArchiveTestCase {
         });
     }
 
-    @Test
     public void test50StartAndStop() throws IOException {
         assumeThat(installation, is(notNullValue()));
 
@@ -198,7 +192,6 @@ public abstract class ArchiveTestCase {
         Archives.stopElasticsearch(installation);
     }
 
-    @Test
     public void test60AutoCreateKeystore() {
         assumeThat(installation, is(notNullValue()));
 
@@ -218,7 +211,6 @@ public abstract class ArchiveTestCase {
         });
     }
 
-    @Test
     public void test70CustomPathConfAndJvmOptions() throws IOException {
         assumeThat(installation, is(notNullValue()));
 
@@ -268,7 +260,6 @@ public abstract class ArchiveTestCase {
         }
     }
 
-    @Test
     public void test80RelativePathConf() throws IOException {
         assumeThat(installation, is(notNullValue()));
 
@@ -312,5 +303,26 @@ public abstract class ArchiveTestCase {
         }
     }
 
+    public void test90SecurityCliPackaging() {
+        assumeThat(installation, is(notNullValue()));
+
+        final Installation.Executables bin = installation.executables();
+        final Shell sh = new Shell();
+
+        if (distribution().equals(Distribution.DEFAULT_TAR) || distribution().equals(Distribution.DEFAULT_ZIP)) {
+            assertTrue(Files.exists(installation.lib.resolve("tools").resolve("security-cli")));
+            Platforms.onLinux(() -> {
+                final Result result = sh.run(bin.elasticsearchCertutil + " help");
+                assertThat(result.stdout, containsString("Simplifies certificate creation for use with the Elastic Stack"));
+            });
+
+            Platforms.onWindows(() -> {
+                final Result result = sh.run(bin.elasticsearchCertutil + " help");
+                assertThat(result.stdout, containsString("Simplifies certificate creation for use with the Elastic Stack"));
+            });
+        } else if (distribution().equals(Distribution.OSS_TAR) || distribution().equals(Distribution.OSS_ZIP)) {
+            assertFalse(Files.exists(installation.lib.resolve("tools").resolve("security-cli")));
+        }
+    }
 
 }

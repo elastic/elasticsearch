@@ -289,7 +289,7 @@ public final class InternalAutoDateHistogram extends
      * rounding returned across all the shards so the resolution of the buckets
      * is the same and they can be reduced together.
      */
-    public BucketReduceResult reduceBuckets(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    private BucketReduceResult reduceBuckets(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
 
         // First we need to find the highest level rounding used across all the
         // shards
@@ -418,7 +418,7 @@ public final class InternalAutoDateHistogram extends
             return currentResult;
         }
         int roundingIdx = getAppropriateRounding(list.get(0).key, list.get(list.size() - 1).key, currentResult.roundingIdx,
-                bucketInfo.roundingInfos, targetBuckets);
+                bucketInfo.roundingInfos);
         RoundingInfo roundingInfo = bucketInfo.roundingInfos[roundingIdx];
         Rounding rounding = roundingInfo.rounding;
         // merge buckets using the new rounding
@@ -447,8 +447,8 @@ public final class InternalAutoDateHistogram extends
         return new BucketReduceResult(list, roundingInfo, roundingIdx);
     }
 
-    private static int getAppropriateRounding(long minKey, long maxKey, int roundingIdx,
-                                              RoundingInfo[] roundings, int targetBuckets) {
+    private int getAppropriateRounding(long minKey, long maxKey, int roundingIdx,
+                                              RoundingInfo[] roundings) {
         if (roundingIdx == roundings.length - 1) {
             return roundingIdx;
         }
@@ -500,7 +500,7 @@ public final class InternalAutoDateHistogram extends
                     reducedBucketsResult.roundingInfo, reduceContext);
 
             // Now finally see if we need to merge consecutive buckets together to make a coarser interval at the same rounding
-            reducedBucketsResult = maybeMergeConsecutiveBuckets(reducedBucketsResult, reduceContext, targetBuckets, format);
+            reducedBucketsResult = maybeMergeConsecutiveBuckets(reducedBucketsResult, reduceContext);
         }
 
         BucketInfo bucketInfo = new BucketInfo(this.bucketInfo.roundingInfos, reducedBucketsResult.roundingIdx,
@@ -510,10 +510,8 @@ public final class InternalAutoDateHistogram extends
                 pipelineAggregators(), getMetaData());
     }
 
-    private static BucketReduceResult maybeMergeConsecutiveBuckets(BucketReduceResult reducedBucketsResult,
-                                                                   ReduceContext reduceContext,
-                                                                   int targetBuckets,
-                                                                   DocValueFormat format) {
+    private BucketReduceResult maybeMergeConsecutiveBuckets(BucketReduceResult reducedBucketsResult,
+                                                                   ReduceContext reduceContext) {
         List<Bucket> buckets = reducedBucketsResult.buckets;
         RoundingInfo roundingInfo = reducedBucketsResult.roundingInfo;
         int roundingIdx = reducedBucketsResult.roundingIdx;
@@ -521,15 +519,15 @@ public final class InternalAutoDateHistogram extends
             for (int interval : roundingInfo.innerIntervals) {
                 int resultingBuckets = buckets.size() / interval;
                 if (resultingBuckets <= targetBuckets) {
-                    return mergeConsecutiveBuckets(buckets, interval, roundingIdx, roundingInfo, reduceContext, format);
+                    return mergeConsecutiveBuckets(buckets, interval, roundingIdx, roundingInfo, reduceContext);
                 }
             }
         }
         return reducedBucketsResult;
     }
 
-    private static BucketReduceResult mergeConsecutiveBuckets(List<Bucket> reducedBuckets, int mergeInterval, int roundingIdx,
-            RoundingInfo roundingInfo, ReduceContext reduceContext, DocValueFormat format) {
+    private BucketReduceResult mergeConsecutiveBuckets(List<Bucket> reducedBuckets, int mergeInterval, int roundingIdx,
+            RoundingInfo roundingInfo, ReduceContext reduceContext) {
         List<Bucket> mergedBuckets = new ArrayList<>();
         List<Bucket> sameKeyedBuckets = new ArrayList<>();
 

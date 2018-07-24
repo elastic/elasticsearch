@@ -243,6 +243,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         DiscoveryPlugin, MapperPlugin, ExtensiblePlugin {
 
     private static final Logger logger = Loggers.getLogger(Security.class);
+    static final Setting<Boolean> FIPS_MODE_ENABLED =
+        Setting.boolSetting("xpack.security.fips_mode.enabled", false, Property.NodeScope);
 
     static final Setting<List<String>> AUDIT_OUTPUTS_SETTING =
         Setting.listSetting(SecurityField.setting("audit.outputs"),
@@ -291,7 +293,10 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 new TokenSSLBootstrapCheck(),
                 new PkiRealmBootstrapCheck(getSslService()),
                 new TLSLicenseBootstrapCheck(),
-                new PasswordHashingAlgorithmBootstrapCheck()));
+                new PasswordHashingAlgorithmBootstrapCheck(),
+                new FIPS140SecureSettingsBootstrapCheck(settings, env),
+                new FIPS140JKSKeystoreBootstrapCheck(settings),
+                new FIPS140PasswordHashingAlgorithmBootstrapCheck(settings)));
             checks.addAll(InternalRealms.getBootstrapChecks(settings, env));
             this.bootstrapChecks = Collections.unmodifiableList(checks);
         } else {
@@ -552,6 +557,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         }
 
         // The following just apply in node mode
+        settingsList.add(FIPS_MODE_ENABLED);
 
         // IP Filter settings
         IPFilter.addSettings(settingsList);

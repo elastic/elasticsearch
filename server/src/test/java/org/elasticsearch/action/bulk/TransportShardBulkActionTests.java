@@ -724,16 +724,16 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         }
         BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
-        UpdateHelper updateHelper = null;
-        WritePrimaryResult<BulkShardRequest, BulkShardResponse> result = TransportShardBulkAction.performOnPrimary(
-            bulkShardRequest, shard, updateHelper, threadPool::absoluteTimeInMillis, new NoopMappingUpdatePerformer(),
-            new ClusterStateObserver(clusterService, logger, threadPool.getThreadContext()), clusterService.localNode());
+        PrimaryExecutionContext context = new PrimaryExecutionContext(bulkShardRequest, shard);
+        context.advance();
+        TransportShardBulkAction.executeBulkItemRequest(context, null, threadPool::absoluteTimeInMillis,
+            new NoopMappingUpdatePerformer());
 
         assertTrue(shard.isSyncNeeded());
 
         // if we sync the location, nothing else is unsynced
         CountDownLatch latch = new CountDownLatch(1);
-        shard.sync(result.location, e -> {
+        shard.sync(context.getLocationToSync(), e -> {
             if (e != null) {
                 throw new AssertionError(e);
             }

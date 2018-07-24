@@ -1,4 +1,7 @@
 setup:
+  - skip:
+      version: " - 6.3.99"
+      reason: weighted_avg is only available as of 6.4.0
   - do:
       indices.create:
           index: test_1

@@ -107,7 +107,7 @@ subprojects {
 
   String output = "${buildDir}/generated-resources/${project.name}"
   task copyTestNodeKeystore(type: Copy) {
-    from project(xpackModule('core'))
+    from project(':x-pack:plugin:core')
             .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
     into outputDir
   }

@@ -27,9 +27,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.Discovery.AckListener;
-import org.elasticsearch.discovery.zen2.Messages.ApplyCommit;
-import org.elasticsearch.discovery.zen2.Messages.LegislatorPublishResponse;
-import org.elasticsearch.discovery.zen2.Messages.PublishRequest;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
 
@@ -67,7 +64,6 @@ public abstract class Publication extends AbstractComponent {
 
     @Override
     public String toString() {
-        // everything here is immutable so no synchronisation required
         return "Publication{term=" + publishRequest.getAcceptedState().term() +
             ", version=" + publishRequest.getAcceptedState().version() + '}';
     }

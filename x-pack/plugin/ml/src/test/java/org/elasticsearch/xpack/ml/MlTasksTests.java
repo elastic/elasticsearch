@@ -42,4 +42,27 @@ public class MlTasksTests extends ESTestCase {
         tasksBuilder.updateTaskState(MlTasks.datafeedTaskId("foo"), DatafeedState.STARTED);
         assertEquals(DatafeedState.STARTED, MlTasks.getDatafeedState("foo", tasksBuilder.build()));
     }
+
+    public void testGetJobTask() {
+        assertNull(MlTasks.getJobTask("foo", null));
+
+        PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
+        tasksBuilder.addTask(MlTasks.jobTaskId("foo"), OpenJobAction.TASK_NAME, new OpenJobAction.JobParams("foo"),
+                new PersistentTasksCustomMetaData.Assignment("bar", "test assignment"));
+
+        assertNotNull(MlTasks.getJobTask("foo", tasksBuilder.build()));
+        assertNull(MlTasks.getJobTask("other", tasksBuilder.build()));
+    }
+
+    public void testGetDatafeedTask() {
+        assertNull(MlTasks.getDatafeedTask("foo", null));
+
+        PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
+        tasksBuilder.addTask(MlTasks.datafeedTaskId("foo"), StartDatafeedAction.TASK_NAME,
+                new StartDatafeedAction.DatafeedParams("foo", 0L),
+                new PersistentTasksCustomMetaData.Assignment("bar", "test assignment"));
+
+        assertNotNull(MlTasks.getDatafeedTask("foo", tasksBuilder.build()));
+        assertNull(MlTasks.getDatafeedTask("other", tasksBuilder.build()));
+    }
 }

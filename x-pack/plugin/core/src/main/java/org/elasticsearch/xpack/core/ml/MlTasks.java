@@ -35,19 +35,13 @@ public final class MlTasks {
 
     @Nullable
     public static PersistentTasksCustomMetaData.PersistentTask<?> getJobTask(String jobId, @Nullable PersistentTasksCustomMetaData tasks) {
-        if (tasks == null) {
-            return null;
-        }
-        return tasks.getTask(jobTaskId(jobId));
+        return tasks == null ? null : tasks.getTask(jobTaskId(jobId));
     }
 
     @Nullable
     public static PersistentTasksCustomMetaData.PersistentTask<?> getDatafeedTask(String datafeedId,
                                                                                   @Nullable PersistentTasksCustomMetaData tasks) {
-        if (tasks == null) {
-            return null;
-        }
-        return tasks.getTask(datafeedTaskId(datafeedId));
+        return tasks == null ? null : tasks.getTask(datafeedTaskId(datafeedId));
     }
 
     public static JobState getJobState(String jobId, @Nullable PersistentTasksCustomMetaData tasks) {

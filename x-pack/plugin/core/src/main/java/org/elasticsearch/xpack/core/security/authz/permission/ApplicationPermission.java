@@ -97,6 +97,7 @@ public final class ApplicationPermission {
 
         private boolean grants(ApplicationPrivilege other, Automaton resource) {
             return this.application.test(other.getApplication())
+                && Operations.isEmpty(privilege.getAutomaton()) == false
                 && Operations.subsetOf(other.getAutomaton(), privilege.getAutomaton())
                 && Operations.subsetOf(resource, this.resources);
         }

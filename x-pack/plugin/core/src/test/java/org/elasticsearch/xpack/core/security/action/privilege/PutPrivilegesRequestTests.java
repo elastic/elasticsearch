@@ -57,6 +57,10 @@ public class PutPrivilegesRequestTests extends ESTestCase {
         assertValidationFailure(request(spaceName), "Application privilege names must match");
         assertValidationFailure(request(numericName), "Application privilege names must match");
 
+        // no actions
+        final ApplicationPrivilegeDescriptor nothing = descriptor("*", "nothing");
+        assertValidationFailure(request(nothing), "Application privileges must have at least one action");
+
         // reserved metadata
         final ApplicationPrivilegeDescriptor reservedMetadata = new ApplicationPrivilegeDescriptor("app", "all",
             Collections.emptySet(), Collections.singletonMap("_notAllowed", true)

@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -23,6 +24,7 @@ public class ApplicationPermissionTests extends ESTestCase {
     private List<ApplicationPrivilegeDescriptor> store = new ArrayList<>();
 
     private ApplicationPrivilege app1All = storePrivilege("app1", "all", "*");
+    private ApplicationPrivilege app1Empty = storePrivilege("app1", "empty");
     private ApplicationPrivilege app1Read = storePrivilege("app1", "read", "read/*");
     private ApplicationPrivilege app1Write = storePrivilege("app1", "write", "write/*");
     private ApplicationPrivilege app1Delete = storePrivilege("app1", "delete", "write/delete");
@@ -45,6 +47,15 @@ public class ApplicationPermissionTests extends ESTestCase {
         assertThat(hasPermission.grants(app1Read, "foo"), equalTo(false));
         assertThat(hasPermission.grants(app1All, "*"), equalTo(false));
         assertThat(hasPermission.grants(app1All, "foo"), equalTo(false));
+    }
+
+    public void testNonePermission() {
+        final ApplicationPermission hasPermission = buildPermission(ApplicationPrivilege.NONE.apply("app1"), "*");
+        for (ApplicationPrivilege privilege : Arrays.asList(app1All, app1Empty, app1Create, app1Delete, app1Read, app1Write, app2Read)) {
+            assertThat("Privilege " + privilege + " on *", hasPermission.grants(privilege, "*"), equalTo(false));
+            final String resource = randomAlphaOfLengthBetween(1, 6);
+            assertThat("Privilege " + privilege + " on " + resource, hasPermission.grants(privilege, resource), equalTo(false));
+        }
     }
 
     public void testResourceMatching() {

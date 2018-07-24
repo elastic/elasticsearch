@@ -50,6 +50,9 @@ public final class PutPrivilegesRequest extends ActionRequest implements Applica
             } catch (IllegalArgumentException e) {
                 validationException = addValidationError(e.getMessage(), validationException);
             }
+            if (privilege.getActions().isEmpty()) {
+                validationException = addValidationError("Application privileges must have at least one action", validationException);
+            }
             for (String action : privilege.getActions()) {
                 if (action.indexOf('/') == -1 && action.indexOf('*') == -1 && action.indexOf(':') == -1) {
                     validationException = addValidationError("action [" + action + "] must contain one of [ '/' , '*' , ':' ]",

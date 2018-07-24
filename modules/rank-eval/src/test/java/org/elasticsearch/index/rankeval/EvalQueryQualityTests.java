@@ -129,7 +129,7 @@ public class EvalQueryQualityTests extends ESTestCase {
 
     private static EvalQueryQuality mutateTestItem(EvalQueryQuality original) {
         String id = original.getId();
-        double qualityLevel = original.getQualityLevel();
+        double metricScore = original.metricScore();
         List<RatedSearchHit> ratedHits = new ArrayList<>(original.getHitsAndRatings());
         MetricDetail metricDetails = original.getMetricDetails();
         switch (randomIntBetween(0, 3)) {
@@ -137,7 +137,7 @@ public class EvalQueryQualityTests extends ESTestCase {
             id = id + "_";
             break;
         case 1:
-            qualityLevel = qualityLevel + 0.1;
+            metricScore = metricScore + 0.1;
             break;
         case 2:
             if (metricDetails == null) {
@@ -152,7 +152,7 @@ public class EvalQueryQualityTests extends ESTestCase {
         default:
             throw new IllegalStateException("The test should only allow four parameters mutated");
         }
-        EvalQueryQuality evalQueryQuality = new EvalQueryQuality(id, qualityLevel);
+        EvalQueryQuality evalQueryQuality = new EvalQueryQuality(id, metricScore);
         evalQueryQuality.setMetricDetails(metricDetails);
         evalQueryQuality.addHitsAndRatings(ratedHits);
         return evalQueryQuality;

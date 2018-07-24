@@ -125,32 +125,22 @@ Closure commonPackageConfig(String type, boolean oss) {
         fileMode 0644
       }
       into('lib') {
-        with copySpec {
-          with libFiles(oss)
-          // we need to specify every intermediate directory so we iterate through the parents; duplicate calls with the same part are fine
-          eachFile { FileCopyDetails fcp ->
-            String[] segments = fcp.relativePath.segments
-            for (int i = segments.length - 2; i > 0 && segments[i] != 'lib'; --i) {
-              directory('/' + segments[0..i].join('/'), 0755)
-            }
-            fcp.mode = 0644
-          }
-        }
+        with libFiles(oss)
       }
       into('modules') {
-        with copySpec {
-          with modulesFiles(oss)
-          // we need to specify every intermediate directory so we iterate through the parents; duplicate calls with the same part are fine
-          eachFile { FileCopyDetails fcp ->
-            String[] segments = fcp.relativePath.segments
-            for (int i = segments.length - 2; i > 0 && segments[i] != 'modules'; --i) {
-              directory('/' + segments[0..i].join('/'), 0755)
-            }
-            if (segments[-2] == 'bin') {
-              fcp.mode = 0755
-            } else {
-              fcp.mode = 0644
-            }
+        with modulesFiles(oss)
+      }
+      // we need to specify every intermediate directory in these paths so the package managers know they are explicitly
+      // intended to manage them; otherwise they may be left behind on uninstallation. duplicate calls of the same
+      // directory are fine
+      eachFile { FileCopyDetails fcp ->
+        String[] segments = fcp.relativePath.segments
+        for (int i = segments.length - 2; i > 2; --i) {
+          directory('/' + segments[0..i].join('/'), 0755)
+          if (segments[-2] == 'bin') {
+            fcp.mode = 0755
+          } else {
+            fcp.mode = 0644
           }
         }
       }
@@ -333,12 +323,6 @@ Closure commonRpmConfig(boolean oss) {
 
     // without this the rpm will have parent dirs of any files we copy in, eg /etc/elasticsearch
     addParentDirs false
-
-    // Declare the folders so that the RPM package manager removes
-    // them when upgrading or removing the package
-    directory('/usr/share/elasticsearch/bin', 0755)
-    directory('/usr/share/elasticsearch/lib', 0755)
-    directory('/usr/share/elasticsearch/modules', 0755)
   }
 }
 

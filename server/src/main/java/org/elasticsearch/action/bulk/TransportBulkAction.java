@@ -142,7 +142,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             hasIndexRequestsWithPipelines = true;
                         }
                     }
-                } else if (!pipeline.isEmpty()) {
+                } else if (pipeline.isEmpty() == false) {
                     hasIndexRequestsWithPipelines = true;
                 }
             }

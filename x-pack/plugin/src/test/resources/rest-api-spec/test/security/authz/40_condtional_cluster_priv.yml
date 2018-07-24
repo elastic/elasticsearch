@@ -21,7 +21,7 @@ setup:
         name: "app_manage"
         body:  >
             {
-              "policy": {
+              "global": {
                 "application": {
                   "manage": {
                     "applications": [ "app" , "app-*" ]

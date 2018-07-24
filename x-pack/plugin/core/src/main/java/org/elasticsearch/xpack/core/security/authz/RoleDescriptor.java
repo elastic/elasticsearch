@@ -152,7 +152,7 @@ public class RoleDescriptor implements ToXContentObject {
         StringBuilder sb = new StringBuilder("Role[");
         sb.append("name=").append(name);
         sb.append(", cluster=[").append(Strings.arrayToCommaDelimitedString(clusterPrivileges));
-        sb.append("], policy=[").append(Strings.arrayToCommaDelimitedString(conditionalClusterPrivileges));
+        sb.append("], global=[").append(Strings.arrayToCommaDelimitedString(conditionalClusterPrivileges));
         sb.append("], indicesPrivileges=[");
         for (IndicesPrivileges group : indicesPrivileges) {
             sb.append(group.toString()).append(",");
@@ -216,7 +216,7 @@ public class RoleDescriptor implements ToXContentObject {
         builder.startObject();
         builder.array(Fields.CLUSTER.getPreferredName(), clusterPrivileges);
         if (conditionalClusterPrivileges.length != 0) {
-            builder.field(Fields.POLICY.getPreferredName());
+            builder.field(Fields.GLOBAL.getPreferredName());
             ConditionalClusterPrivileges.toXContent(builder, params, Arrays.asList(conditionalClusterPrivileges));
         }
         builder.array(Fields.INDICES.getPreferredName(), (Object[]) indicesPrivileges);
@@ -328,7 +328,7 @@ public class RoleDescriptor implements ToXContentObject {
             } else if (Fields.APPLICATIONS.match(currentFieldName, parser.getDeprecationHandler())
                     || Fields.APPLICATION.match(currentFieldName, parser.getDeprecationHandler())) {
                 applicationPrivileges = parseApplicationPrivileges(name, parser);
-            } else if (Fields.POLICY.match(currentFieldName, parser.getDeprecationHandler())) {
+            } else if (Fields.GLOBAL.match(currentFieldName, parser.getDeprecationHandler())) {
                 conditionalClusterPrivileges = ConditionalClusterPrivileges.parse(parser);
             } else if (Fields.METADATA.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (token != XContentParser.Token.START_OBJECT) {
@@ -966,7 +966,7 @@ public class RoleDescriptor implements ToXContentObject {
 
     public interface Fields {
         ParseField CLUSTER = new ParseField("cluster");
-        ParseField POLICY = new ParseField("policy");
+        ParseField GLOBAL = new ParseField("global");
         ParseField INDEX = new ParseField("index");
         ParseField INDICES = new ParseField("indices");
         ParseField APPLICATIONS = new ParseField("applications");

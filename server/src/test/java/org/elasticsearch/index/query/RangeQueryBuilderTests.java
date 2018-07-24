@@ -162,12 +162,12 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             assertThat(termRangeQuery.getUpperTerm(), equalTo(BytesRefs.toBytesRef(queryBuilder.to())));
             assertThat(termRangeQuery.includesLower(), equalTo(queryBuilder.includeLower()));
             assertThat(termRangeQuery.includesUpper(), equalTo(queryBuilder.includeUpper()));
-        } else if (expectedFieldName.equals(DATE_FIELD_NAME)) {
+        } else if (expectedFieldName.equals(DATE_FIELD_NAME) || expectedFieldName.equals(DATE_ALIAS_FIELD_NAME)) {
             assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
             query = ((IndexOrDocValuesQuery) query).getIndexQuery();
             assertThat(query, instanceOf(PointRangeQuery.class));
             MapperService mapperService = context.getQueryShardContext().getMapperService();
-            MappedFieldType mappedFieldType = mapperService.fullName(DATE_FIELD_NAME);
+            MappedFieldType mappedFieldType = mapperService.fullName(expectedFieldName);
             final Long fromInMillis;
             final Long toInMillis;
             // we have to normalize the incoming value into milliseconds since it could be literally anything
@@ -206,8 +206,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                     maxLong--;
                 }
             }
-            assertEquals(LongPoint.newRangeQuery(DATE_FIELD_NAME, minLong, maxLong), query);
-        } else if (expectedFieldName.equals(INT_FIELD_NAME)) {
+            assertEquals(LongPoint.newRangeQuery(expectedFieldName, minLong, maxLong), query);
+        } else if (expectedFieldName.equals(INT_FIELD_NAME) || expectedFieldName.equals(INT_ALIAS_FIELD_NAME)) {
             assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
             query = ((IndexOrDocValuesQuery) query).getIndexQuery();
             assertThat(query, instanceOf(PointRangeQuery.class));

@@ -27,6 +27,7 @@ import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import java.io.IOException;
 
 import static java.util.Collections.emptySet;
+import static java.util.Collections.singleton;
 
 public final class WatcherClient {
 
@@ -75,7 +76,7 @@ public final class WatcherClient {
      */
     public DeleteWatchResponse deleteWatch(DeleteWatchRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::xPackWatcherDeleteWatch, options,
-            DeleteWatchResponse::fromXContent, emptySet());
+            DeleteWatchResponse::fromXContent, singleton(404));
     }
 
     /**
@@ -88,6 +89,6 @@ public final class WatcherClient {
      */
     public void deleteWatchAsync(DeleteWatchRequest request, RequestOptions options, ActionListener<DeleteWatchResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::xPackWatcherDeleteWatch, options,
-            DeleteWatchResponse::fromXContent, listener, emptySet());
+            DeleteWatchResponse::fromXContent, listener, singleton(404));
     }
 }

@@ -20,7 +20,6 @@ package org.elasticsearch.client;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
@@ -68,7 +67,7 @@ public class WatcherIT extends ESRestHighLevelClientTestCase {
             DeleteWatchResponse deleteWatchResponse = highLevelClient().xpack().watcher().deleteWatch(new DeleteWatchRequest(watchId),
                 RequestOptions.DEFAULT);
             assertThat(deleteWatchResponse.getId(), is(watchId));
-            assertThat(deleteWatchResponse.getVersion(), is(Versions.NOT_FOUND));
+            assertThat(deleteWatchResponse.getVersion(), is(1L));
             assertThat(deleteWatchResponse.isFound(), is(false));
         }
     }

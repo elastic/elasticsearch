@@ -55,6 +55,7 @@ import java.util.stream.Collectors;
 
 public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
 
+    public static final String TYPE = "ml";
     private static final ParseField JOBS_FIELD = new ParseField("jobs");
     private static final ParseField DATAFEEDS_FIELD = new ParseField("datafeeds");
 
@@ -119,7 +120,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
 
     @Override
     public String getWriteableName() {
-        return MLMetadataField.TYPE;
+        return TYPE;
     }
 
     @Override
@@ -213,7 +214,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
 
         @Override
         public String getWriteableName() {
-            return MLMetadataField.TYPE;
+            return TYPE;
         }
 
         static Diff<Job> readJobDiffFrom(StreamInput in) throws IOException {
@@ -423,7 +424,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
 
 
     public static MlMetadata getMlMetadata(ClusterState state) {
-        MlMetadata mlMetadata = (state == null) ? null : state.getMetaData().custom(MLMetadataField.TYPE);
+        MlMetadata mlMetadata = (state == null) ? null : state.getMetaData().custom(TYPE);
         if (mlMetadata == null) {
             return EMPTY_METADATA;
         }

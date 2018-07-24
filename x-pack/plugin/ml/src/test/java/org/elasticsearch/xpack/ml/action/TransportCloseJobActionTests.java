@@ -20,7 +20,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
@@ -108,7 +107,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
         addJobTask("job_id_4", null, JobState.CLOSING, tasksBuilder);
 
         ClusterState cs1 = ClusterState.builder(new ClusterName("_name"))
-                .metaData(new MetaData.Builder().putCustom(MLMetadataField.TYPE, mlBuilder.build())
+                .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, mlBuilder.build())
                         .putCustom(PersistentTasksCustomMetaData.TYPE,  tasksBuilder.build()))
                 .build();
 
@@ -134,7 +133,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
         addJobTask("job_id_1", null, JobState.OPENED, tasksBuilder);
 
         ClusterState cs1 = ClusterState.builder(new ClusterName("_name"))
-                .metaData(new MetaData.Builder().putCustom(MLMetadataField.TYPE, mlBuilder.build())
+                .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, mlBuilder.build())
                         .putCustom(PersistentTasksCustomMetaData.TYPE,  tasksBuilder.build()))
                 .build();
 
@@ -148,7 +147,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
 
         // Job without task is closed
         cs1 = ClusterState.builder(new ClusterName("_name"))
-                .metaData(new MetaData.Builder().putCustom(MLMetadataField.TYPE, mlBuilder.build()))
+                .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, mlBuilder.build()))
                 .build();
 
         openJobs.clear();
@@ -163,7 +162,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
         mlBuilder.putJob(BaseMlIntegTestCase.createFareQuoteJob("job_id_1").build(new Date()), false);
 
         ClusterState cs1 = ClusterState.builder(new ClusterName("_name"))
-                .metaData(new MetaData.Builder().putCustom(MLMetadataField.TYPE, mlBuilder.build()))
+                .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, mlBuilder.build()))
                 .build();
 
         List<String> openJobs = new ArrayList<>();
@@ -182,7 +181,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
         addJobTask("job_id_failed", null, JobState.FAILED, tasksBuilder);
 
         ClusterState cs1 = ClusterState.builder(new ClusterName("_name")).metaData(new MetaData.Builder()
-                .putCustom(MLMetadataField.TYPE, mlBuilder.build()).putCustom(PersistentTasksCustomMetaData.TYPE,
+                .putCustom(MlMetadata.TYPE, mlBuilder.build()).putCustom(PersistentTasksCustomMetaData.TYPE,
                         tasksBuilder.build())).build();
 
         List<String> openJobs = new ArrayList<>();
@@ -217,7 +216,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
         // closed job has no task
 
         ClusterState cs1 = ClusterState.builder(new ClusterName("_name"))
-                .metaData(new MetaData.Builder().putCustom(MLMetadataField.TYPE, mlBuilder.build())
+                .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, mlBuilder.build())
                         .putCustom(PersistentTasksCustomMetaData.TYPE,  tasksBuilder.build()))
                 .build();
 
@@ -257,7 +256,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
         addJobTask("foo", null, JobState.CLOSED, tasksBuilder);
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-                .metaData(new MetaData.Builder().putCustom(MLMetadataField.TYPE, mlBuilder.build())
+                .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, mlBuilder.build())
                         .putCustom(PersistentTasksCustomMetaData.TYPE,  tasksBuilder.build()))
                 .build();
 

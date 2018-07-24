@@ -22,7 +22,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.DeleteDatafeedAction;
@@ -129,7 +128,7 @@ public class TransportDeleteDatafeedAction extends TransportMasterNodeAction<Del
                         MlMetadata newMetadata = new MlMetadata.Builder(currentMetadata)
                                 .removeDatafeed(request.getDatafeedId(), persistentTasks).build();
                         return ClusterState.builder(currentState).metaData(
-                                MetaData.builder(currentState.getMetaData()).putCustom(MLMetadataField.TYPE, newMetadata).build())
+                                MetaData.builder(currentState.getMetaData()).putCustom(MlMetadata.TYPE, newMetadata).build())
                                 .build();
                     }
                 });

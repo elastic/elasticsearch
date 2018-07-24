@@ -32,7 +32,6 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -718,7 +717,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
             Job job = jobCreator.apply(jobId);
             mlMetadata.putJob(job, false);
         }
-        metaData.putCustom(MLMetadataField.TYPE, mlMetadata.build());
+        metaData.putCustom(MlMetadata.TYPE, mlMetadata.build());
     }
 
     private ClusterState getClusterStateWithMappingsWithMetaData(Map<String, Object> namesAndVersions) throws IOException {

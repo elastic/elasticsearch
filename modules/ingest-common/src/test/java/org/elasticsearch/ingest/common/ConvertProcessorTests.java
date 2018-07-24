@@ -134,7 +134,7 @@ public class ConvertProcessorTests extends ESTestCase {
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, "010");
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), fieldName, fieldName, Type.LONG, false);
         processor.execute(ingestDocument);
-        assertThat(ingestDocument.getFieldValue(fieldName, Long.class), equalTo(10));
+        assertThat(ingestDocument.getFieldValue(fieldName, Long.class), equalTo(10L));
     }
 
     public void testConvertLongHexError() {

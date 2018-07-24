@@ -85,7 +85,6 @@ public class PersistentTasksClusterService extends AbstractComponent implements 
                 listener.onFailure(e);
             }
 
-            @SuppressWarnings("unchecked")
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 PersistentTasksCustomMetaData tasks = newState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);

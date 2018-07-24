@@ -40,6 +40,7 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsRequest
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
@@ -977,6 +978,20 @@ final class RequestConverters {
         Params parameters = new Params(request);
         parameters.withMasterTimeout(snapshotsStatusRequest.masterNodeTimeout());
         parameters.withIgnoreUnavailable(snapshotsStatusRequest.ignoreUnavailable());
+        return request;
+    }
+
+    static Request restoreSnapshot(RestoreSnapshotRequest restoreSnapshotRequest) throws IOException {
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_snapshot")
+            .addPathPart(restoreSnapshotRequest.repository())
+            .addPathPart(restoreSnapshotRequest.snapshot())
+            .addPathPartAsIs("_restore")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        Params parameters = new Params(request);
+        parameters.withMasterTimeout(restoreSnapshotRequest.masterNodeTimeout());
+        parameters.withWaitForCompletion(restoreSnapshotRequest.waitForCompletion());
+        request.setEntity(createEntity(restoreSnapshotRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 

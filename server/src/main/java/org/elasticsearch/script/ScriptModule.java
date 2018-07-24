@@ -68,11 +68,6 @@ public class ScriptModule {
         ).collect(Collectors.toMap(c -> c.name, Function.identity()));
     }
 
-    public static final boolean EXCEPTION_FOR_MISSING_VALUE =
-        Booleans.parseBoolean(System.getProperty("es.scripting.exception_for_missing_value", "false"));
-
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(ScriptModule.class));
-
     private final ScriptService scriptService;
 
     public ScriptModule(Settings settings, List<ScriptPlugin> scriptPlugins) {
@@ -96,10 +91,6 @@ public class ScriptModule {
                 }
             }
         }
-        if (EXCEPTION_FOR_MISSING_VALUE == false)
-            DEPRECATION_LOGGER.deprecated("Script: returning default values for missing document values is deprecated. " +
-                    "Set system property '-Des.scripting.exception_for_missing_value=true' " +
-                    "to make behaviour compatible with future major versions.");
         scriptService = new ScriptService(settings, Collections.unmodifiableMap(engines), Collections.unmodifiableMap(contexts));
 
         if (USE_JAVA_TIME == false) {

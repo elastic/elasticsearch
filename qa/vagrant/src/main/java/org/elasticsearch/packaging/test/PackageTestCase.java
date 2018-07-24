@@ -30,16 +30,20 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
 import static org.elasticsearch.packaging.util.FileUtils.assertPathsDontExist;
+import static org.elasticsearch.packaging.util.FileUtils.mv;
 import static org.elasticsearch.packaging.util.Packages.SYSTEMD_SERVICE;
 import static org.elasticsearch.packaging.util.Packages.assertInstalled;
 import static org.elasticsearch.packaging.util.Packages.assertRemoved;
 import static org.elasticsearch.packaging.util.Packages.install;
 import static org.elasticsearch.packaging.util.Packages.remove;
+import static org.elasticsearch.packaging.util.Packages.runInstallCommand;
 import static org.elasticsearch.packaging.util.Packages.startElasticsearch;
 import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
 import static org.elasticsearch.packaging.util.Platforms.getOsRelease;
@@ -73,6 +77,21 @@ public abstract class PackageTestCase extends PackagingTestCase {
     @Before
     public void onlyCompatibleDistributions() {
         assumeTrue("only compatible distributions", distribution().packaging.compatible);
+    }
+
+    public void test05InstallFailsWhenJavaMissing() {
+        final Shell sh = new Shell();
+        final Result java = sh.run("command -v java");
+
+        final Path originalJavaPath = Paths.get(java.stdout.trim());
+        final Path relocatedJavaPath = originalJavaPath.getParent().resolve("java.relocated");
+        try {
+            mv(originalJavaPath, relocatedJavaPath);
+            final Result installResult = runInstallCommand(distribution());
+            assertThat(installResult.exitCode, is(1));
+        } finally {
+            mv(relocatedJavaPath, originalJavaPath);
+        }
     }
 
     public void test10InstallPackage() {

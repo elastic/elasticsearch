@@ -33,18 +33,24 @@ import org.apache.lucene.index.NoDeletionPolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.Bits;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -52,6 +58,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class LuceneTests extends ESTestCase {
     public void testWaitForIndex() throws Exception {
@@ -405,5 +413,57 @@ public class LuceneTests extends ESTestCase {
     public void testMMapHackSupported() throws Exception {
         // add assume's here if needed for certain platforms, but we should know if it does not work.
         assertTrue("MMapDirectory does not support unmapping: " + MMapDirectory.UNMAP_NOT_SUPPORTED_REASON, MMapDirectory.UNMAP_SUPPORTED);
+    }
+
+    public void testWrapAllDocsLive() throws Exception {
+        Directory dir = newDirectory();
+        IndexWriterConfig config = newIndexWriterConfig().setSoftDeletesField(Lucene.SOFT_DELETE_FIELD)
+            .setMergePolicy(new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETE_FIELD, MatchAllDocsQuery::new, newMergePolicy()));
+        IndexWriter writer = new IndexWriter(dir, config);
+        int numDocs = between(10, 100);
+        Set<String> liveDocs = new HashSet<>();
+        for (int i = 0; i < numDocs; i++) {
+            String id = Integer.toString(i);
+            Document doc = new Document();
+            doc.add(new StringField("id", id, Store.YES));
+            writer.addDocument(doc);
+            liveDocs.add(id);
+        }
+        for (int i = 0; i < numDocs; i++) {
+            if (randomBoolean()) {
+                String id = Integer.toString(i);
+                Document doc = new Document();
+                doc.add(new StringField("id", "v2-" + id, Store.YES));
+                if (randomBoolean()) {
+                    writer.softUpdateDocument(new Term("id", id), doc, Lucene.newSoftDeleteField());
+                    liveDocs.add("v2-" + id);
+                }
+            }
+            // aborted document should never be exposed
+            if (randomBoolean()) {
+                try {
+                    Document doc = new Document();
+                    doc.add(new StringField("aborted", UUIDs.randomBase64UUID(), Store.YES));
+                    StringReader reader = new StringReader("");
+                    doc.add(new TextField("other", reader));
+                    reader.close(); // mark the indexing hit non-aborting error
+                    writer.addDocument(doc);
+                    fail("index should have failed");
+                } catch (Exception ignored) { }
+            }
+            // TODO: add rolled back docs
+        }
+        try (DirectoryReader unwrapped = DirectoryReader.open(writer)) {
+            DirectoryReader reader = Lucene.wrapAllDocsLive(unwrapped);
+            assertThat(reader.numDocs(), equalTo(liveDocs.size()));
+            IndexSearcher searcher = new IndexSearcher(reader);
+            Set<String> actualDocs = new HashSet<>();
+            TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), Integer.MAX_VALUE);
+            for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
+                actualDocs.add(reader.document(scoreDoc.doc).get("id"));
+            }
+            assertThat(actualDocs, equalTo(liveDocs));
+        }
+        IOUtils.close(writer, dir);
     }
 }

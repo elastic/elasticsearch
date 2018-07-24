@@ -79,6 +79,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -837,7 +838,8 @@ public class Lucene {
     }
 
     /**
-     * Wraps a directory reader to include all live docs.
+     * Wraps a directory reader to make all documents live except those were rolled back
+     * or hard-deleted due to non-aborting exceptions during indexing.
      * The wrapped reader can be used to query all documents.
      *
      * @param in the input directory reader
@@ -848,17 +850,21 @@ public class Lucene {
     }
 
     private static final class DirectoryReaderWithAllLiveDocs extends FilterDirectoryReader {
-        static final class SubReaderWithAllLiveDocs extends FilterLeafReader {
-            SubReaderWithAllLiveDocs(LeafReader in) {
+        static final class LeafReaderWithLiveDocs extends FilterLeafReader {
+            final Bits liveDocs;
+            final int numDocs;
+            LeafReaderWithLiveDocs(LeafReader in, Bits liveDocs, int  numDocs) {
                 super(in);
+                this.liveDocs = liveDocs;
+                this.numDocs = numDocs;
             }
             @Override
             public Bits getLiveDocs() {
-                return null;
+                return liveDocs;
             }
             @Override
             public int numDocs() {
-                return maxDoc();
+                return numDocs;
             }
             @Override
             public CacheHelper getCoreCacheHelper() {
@@ -869,14 +875,29 @@ public class Lucene {
                 return null; // Modifying liveDocs
             }
         }
+
         DirectoryReaderWithAllLiveDocs(DirectoryReader in) throws IOException {
-            super(in, new FilterDirectoryReader.SubReaderWrapper() {
+            super(in, new SubReaderWrapper() {
                 @Override
                 public LeafReader wrap(LeafReader leaf) {
-                    return new SubReaderWithAllLiveDocs(leaf);
+                    try {
+                        SegmentReader segmentReader = segmentReader(leaf);
+                        SegmentCommitInfo si = segmentReader.getSegmentInfo();
+                        // TODO: Replace this by hard live bits in LUCENE-8425 and add tests for rolled back
+                        if (si.getDelCount() == 0) {
+                            return new LeafReaderWithLiveDocs(segmentReader, null, segmentReader.maxDoc());
+                        } else {
+                            Bits hardLiveBits = si.info.getCodec().liveDocsFormat().readLiveDocs(si.info.dir, si, IOContext.READ);
+                            int numDocs = si.info.maxDoc() - si.getDelCount();
+                            return new LeafReaderWithLiveDocs(segmentReader, hardLiveBits, numDocs);
+                        }
+                    } catch (IOException ex) {
+                        throw new UncheckedIOException(ex);
+                    }
                 }
             });
         }
+
         @Override
         protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
             return wrapAllDocsLive(in);

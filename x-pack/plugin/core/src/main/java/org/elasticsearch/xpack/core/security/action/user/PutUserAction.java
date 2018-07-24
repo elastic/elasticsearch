@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.security.action.user;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.protocol.xpack.security.PutUserResponse;
 
 /**
  * Action for putting (adding/updating) a native user.

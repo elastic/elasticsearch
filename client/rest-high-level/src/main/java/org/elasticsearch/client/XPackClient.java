@@ -42,10 +42,12 @@ public final class XPackClient {
 
     private final RestHighLevelClient restHighLevelClient;
     private final WatcherClient watcherClient;
+    private final SecurityClient securityClient;
 
     XPackClient(RestHighLevelClient restHighLevelClient) {
         this.restHighLevelClient = restHighLevelClient;
         this.watcherClient = new WatcherClient(restHighLevelClient);
+        this.securityClient = new SecurityClient(restHighLevelClient);
     }
 
     public WatcherClient watcher() {
@@ -99,5 +101,14 @@ public final class XPackClient {
     public void usageAsync(XPackUsageRequest request, RequestOptions options, ActionListener<XPackUsageResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::xpackUsage, options,
             XPackUsageResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Provides an {@link SecurityClient} which can be used to access the Security APIs.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api.html">Security APIs on elastic.co</a>
+     */
+    public SecurityClient security() {
+        return securityClient;
     }
 }

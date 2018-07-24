@@ -35,7 +35,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
     private String[] runAs = Strings.EMPTY_ARRAY;
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
     private Map<String, Object> metadata;
-    
+
     public PutRoleRequest() {
     }
 

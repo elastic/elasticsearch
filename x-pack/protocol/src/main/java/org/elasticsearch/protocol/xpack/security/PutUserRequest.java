@@ -1,9 +1,23 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
-package org.elasticsearch.xpack.core.security.action.user;
+
+package org.elasticsearch.protocol.xpack.security;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -13,10 +27,9 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.core.security.authc.support.CharArrays;
-import org.elasticsearch.xpack.core.security.support.MetadataUtils;
-import org.elasticsearch.xpack.core.security.support.Validation;
+import org.elasticsearch.common.CharArrays;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
@@ -26,7 +39,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Request object to put a native user.
  */
-public class PutUserRequest extends ActionRequest implements UserRequest, WriteRequest<PutUserRequest> {
+public class PutUserRequest extends ActionRequest implements UserRequest, WriteRequest<PutUserRequest>, ToXContentObject {
 
     private String username;
     private String[] roles;
@@ -34,6 +47,7 @@ public class PutUserRequest extends ActionRequest implements UserRequest, WriteR
     private String email;
     private Map<String, Object> metadata;
     private char[] passwordHash;
+    private char[] password;
     private boolean enabled = true;
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
 
@@ -45,18 +59,15 @@ public class PutUserRequest extends ActionRequest implements UserRequest, WriteR
         ActionRequestValidationException validationException = null;
         if (username == null) {
             validationException = addValidationError("user is missing", validationException);
-        } else {
-            Validation.Error error = Validation.Users.validateUsername(username, false, Settings.EMPTY);
-            if (error != null) {
-                validationException = addValidationError(error.toString(), validationException);
-            }
         }
         if (roles == null) {
             validationException = addValidationError("roles are missing", validationException);
         }
-        if (metadata != null && MetadataUtils.containsReservedMetadata(metadata)) {
-            validationException = addValidationError("metadata keys may not start with [" + MetadataUtils.RESERVED_PREFIX + "]",
-                    validationException);
+        if (metadata != null && metadata.keySet().stream().anyMatch(s -> s.startsWith("_"))) {
+            validationException = addValidationError("metadata keys may not start with [_]", validationException);
+        }
+        if (password != null && passwordHash != null) {
+            validationException = addValidationError("only one of [password, passwordHash] can be provided", validationException);
         }
         // we do not check for a password hash here since it is possible that the user exists and we don't want to update the password
         return validationException;
@@ -86,8 +97,12 @@ public class PutUserRequest extends ActionRequest implements UserRequest, WriteR
         this.passwordHash = passwordHash;
     }
 
-    public boolean enabled() {
-        return enabled;
+    public void enabled(boolean enabled) {
+        this.enabled = enabled;
+    }
+
+    public void password(@Nullable char[] password) {
+        this.password = password;
     }
 
     /**
@@ -130,8 +145,8 @@ public class PutUserRequest extends ActionRequest implements UserRequest, WriteR
         return passwordHash;
     }
 
-    public void enabled(boolean enabled) {
-        this.enabled = enabled;
+    public boolean enabled() {
+        return enabled;
     }
 
     @Override
@@ -139,16 +154,16 @@ public class PutUserRequest extends ActionRequest implements UserRequest, WriteR
         return new String[] { username };
     }
 
+    @Nullable
+    public char[] password() {
+        return password;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         username = in.readString();
-        BytesReference passwordHashRef = in.readBytesReference();
-        if (passwordHashRef == BytesArray.EMPTY) {
-            passwordHash = null;
-        } else {
-            passwordHash = CharArrays.utf8BytesToChars(BytesReference.toBytes(passwordHashRef));
-        }
+        passwordHash = readCharArrayFromStream(in);
         roles = in.readStringArray();
         fullName = in.readOptionalString();
         email = in.readOptionalString();
@@ -161,13 +176,10 @@ public class PutUserRequest extends ActionRequest implements UserRequest, WriteR
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(username);
-        BytesReference passwordHashRef;
-        if (passwordHash == null) {
-            passwordHashRef = null;
-        } else {
-            passwordHashRef = new BytesArray(CharArrays.toUtf8Bytes(passwordHash));
+        writeCharArrayToStream(out, passwordHash);
+        if (password != null) {
+            throw new IllegalStateException("password cannot be serialized. it is only used for HL rest");
         }
-        out.writeBytesReference(passwordHashRef);
         out.writeStringArray(roles);
         out.writeOptionalString(fullName);
         out.writeOptionalString(email);
@@ -179,5 +191,46 @@ public class PutUserRequest extends ActionRequest implements UserRequest, WriteR
         }
         refreshPolicy.writeTo(out);
         out.writeBoolean(enabled);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        if (password != null) {
+            byte[] charBytes = CharArrays.toUtf8Bytes(password);
+            builder.field("password").utf8Value(charBytes, 0, charBytes.length);
+        }
+        if (roles != null) {
+            builder.field("roles", roles);
+        }
+        if (fullName != null) {
+            builder.field("full_name", fullName);
+        }
+        if (email != null) {
+            builder.field("email", email);
+        }
+        if (metadata != null) {
+            builder.field("metadata", metadata);
+        }
+        return builder.endObject();
+    }
+
+    private static char[] readCharArrayFromStream(StreamInput in) throws IOException {
+        BytesReference charBytesRef = in.readBytesReference();
+        if (charBytesRef == BytesArray.EMPTY) {
+            return null;
+        } else {
+            return CharArrays.utf8BytesToChars(BytesReference.toBytes(charBytesRef));
+        }
+    }
+
+    private static void writeCharArrayToStream(StreamOutput out, char[] chars) throws IOException {
+        final BytesReference charBytesRef;
+        if (chars == null) {
+            charBytesRef = null;
+        } else {
+            charBytesRef = new BytesArray(CharArrays.toUtf8Bytes(chars));
+        }
+        out.writeBytesReference(charBytesRef);
     }
 }

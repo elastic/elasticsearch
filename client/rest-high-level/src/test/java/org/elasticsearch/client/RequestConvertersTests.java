@@ -126,6 +126,7 @@ import org.elasticsearch.index.rankeval.RankEvalSpec;
 import org.elasticsearch.index.rankeval.RatedRequest;
 import org.elasticsearch.index.rankeval.RestRankEvalAction;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
+import org.elasticsearch.protocol.xpack.security.PutUserRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.action.search.RestSearchAction;
@@ -2578,6 +2579,38 @@ public class RequestConvertersTests extends ESTestCase {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         request.getEntity().writeTo(bos);
         assertThat(bos.toString("UTF-8"), is(body));
+    }
+
+    public void testPutUser() throws IOException {
+        PutUserRequest putUserRequest = new PutUserRequest();
+        putUserRequest.username(randomAlphaOfLengthBetween(4, 12));
+        if (randomBoolean()) {
+            putUserRequest.password(randomAlphaOfLengthBetween(8, 12).toCharArray());
+        }
+        putUserRequest.roles(generateRandomStringArray(randomIntBetween(2, 8), randomIntBetween(8, 16), false, true));
+        putUserRequest.email(randomBoolean() ? null : randomAlphaOfLengthBetween(12, 24));
+        putUserRequest.fullName(randomBoolean() ? null : randomAlphaOfLengthBetween(7, 14));
+        putUserRequest.enabled(randomBoolean());
+        if (randomBoolean()) {
+            Map<String, Object> metadata = new HashMap<>();
+            for (int i = 0; i < randomIntBetween(1, 10); i++) {
+                metadata.put(String.valueOf(i), randomAlphaOfLengthBetween(1, 12));
+            }
+            putUserRequest.metadata(metadata);
+        }
+        putUserRequest.setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
+        final Map<String, String> expectedParams;
+        if (putUserRequest.getRefreshPolicy() != WriteRequest.RefreshPolicy.NONE) {
+            expectedParams = Collections.singletonMap("refresh", putUserRequest.getRefreshPolicy().getValue());
+        } else {
+            expectedParams = Collections.emptyMap();
+        }
+
+        Request request = RequestConverters.putUser(putUserRequest);
+        assertEquals(HttpPut.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/security/user/" + putUserRequest.username(), request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertToXContentBody(putUserRequest, request.getEntity());
     }
 
     /**

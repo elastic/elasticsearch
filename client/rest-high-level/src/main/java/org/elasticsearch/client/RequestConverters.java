@@ -109,6 +109,7 @@ import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
+import org.elasticsearch.protocol.xpack.security.PutUserRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
 import org.elasticsearch.script.mustache.SearchTemplateRequest;
@@ -1136,6 +1137,15 @@ final class RequestConverters {
         Request request = new Request(HttpGet.METHOD_NAME, "/_xpack/usage");
         Params parameters = new Params(request);
         parameters.withMasterTimeout(usageRequest.masterNodeTimeout());
+        return request;
+    }
+
+    static Request putUser(PutUserRequest putUserRequest) throws IOException {
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_xpack/security/user").addPathPart(putUserRequest.username()).build();
+        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(putUserRequest, REQUEST_BODY_CONTENT_TYPE));
+        Params params = new Params(request);
+        params.withRefreshPolicy(putUserRequest.getRefreshPolicy());
         return request;
     }
 

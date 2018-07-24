@@ -1,0 +1,23 @@
+import org.elasticsearch.gradle.BuildPlugin
+
+evaluationDependsOn(xpackModule('core'))
+
+apply plugin: 'elasticsearch.esplugin'
+
+esplugin {
+  name 'ml-feature-index-builder'
+  description 'A plugin to build feature indexes'
+  classname 'org.elasticsearch.xpack.ml.featureIndexBuilder.FeatureIndexBuilder'
+  extendedPlugins = ['x-pack-core']
+}
+
+dependencies {
+    compileOnly "org.elasticsearch:elasticsearch:${version}"
+
+    compileOnly "org.elasticsearch.plugin:x-pack-core:${version}"
+    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+}
+
+
+
+integTest.enabled = false

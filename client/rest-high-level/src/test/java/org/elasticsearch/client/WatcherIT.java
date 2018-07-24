@@ -51,16 +51,6 @@ public class WatcherIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testDeleteWatch() throws Exception {
-        // delete watch that does not exist
-        {
-            String watchId = randomAlphaOfLength(10);
-            DeleteWatchResponse deleteWatchResponse = highLevelClient().xpack().watcher().deleteWatch(new DeleteWatchRequest(watchId),
-                RequestOptions.DEFAULT);
-            assertThat(deleteWatchResponse.getId(), is(watchId));
-            assertThat(deleteWatchResponse.getVersion(), is(Versions.NOT_FOUND));
-            assertThat(deleteWatchResponse.isFound(), is(false));
-        }
-
         // delete watch that exists
         {
             String watchId = randomAlphaOfLength(10);
@@ -70,6 +60,16 @@ public class WatcherIT extends ESRestHighLevelClientTestCase {
             assertThat(deleteWatchResponse.getId(), is(watchId));
             assertThat(deleteWatchResponse.getVersion(), is(1));
             assertThat(deleteWatchResponse.isFound(), is(true));
+        }
+
+        // delete watch that does not exist
+        {
+            String watchId = randomAlphaOfLength(10);
+            DeleteWatchResponse deleteWatchResponse = highLevelClient().xpack().watcher().deleteWatch(new DeleteWatchRequest(watchId),
+                RequestOptions.DEFAULT);
+            assertThat(deleteWatchResponse.getId(), is(watchId));
+            assertThat(deleteWatchResponse.getVersion(), is(Versions.NOT_FOUND));
+            assertThat(deleteWatchResponse.isFound(), is(false));
         }
     }
 

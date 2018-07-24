@@ -263,19 +263,19 @@ in the query. Defaults to 10.
 ==== Expected Reciprocal Rank (ERR)
 
 Expected Reciprocal Rank (ERR) is an extension of the classical reciprocal rank for the graded relevance case
-(Chapelle, Olivier, Donald Metzler, Ya Zhang, and Pierre Grinspan. 2009. 
-http://olivier.chapelle.cc/pub/err.pdf[Expected reciprocal rank for graded relevance].)
+(Olivier Chapelle, Donald Metzler, Ya Zhang, and Pierre Grinspan. 2009. http://olivier.chapelle.cc/pub/err.pdf[Expected reciprocal rank for graded relevance].)
 
-It is based on the assumption of a cascade model of search, which models that a user scans through ranked search 
-results in order and stops at the first document satisfies the information need of the user. For this reason, it
-is a good metric for question answering and navigation queries, but less for survey oriented information needs
-where the user is interested in finding several relevant documents in the top k results.
+It is based on the assumption of a cascade model of search, in which a user scans through ranked search
+results in order and stops at the first document that satisfies the information need. For this reason, it
+is a good metric for question answering and navigation queries, but less so for survey oriented information 
+needs where the user is interested in finding many relevant documents in the top k results.
 
-The metric tries to model the expectation of the reciprocal of the position of a result at which a user stops.
-This means, relevant document in top ranking positions will contribute much to the overall ERR score. The same 
-document will contribute much less to the score on a lower rank, but even more so if there were some
-relevant documents preceding it. By this, ERR discounts documents which are shown below very relevant documents
-and introduces some kind of dependency in the ordering of relevant documents.
+The metric models the expectation of the reciprocal of the position at which a user stops reading through
+the result list. This means that relevant document in top ranking positions will contribute much to the
+overall score. However, the same document will contribute much less to the score if it appears in a lower rank,
+even more so if there are some relevant (but maybe less relevant) documents preceding it. 
+In this way, the ERR metric discounts documents which are shown after very relevant documents. This introduces 
+a notion of dependency in the ordering of relevant documents that e.g. Precision or DCG don't account for.
 
 [source,js]
 --------------------------------
@@ -303,7 +303,7 @@ The `expected_reciprocal_rank` metric takes the following parameters:
 [cols="<,<",options="header",]
 |=======================================================================
 |Parameter |Description
-| `maximum_relevance` | Mandatory parameter. The highest relevance grade used in the user supplied
+| `maximum_relevance` | Mandatory parameter. The highest relevance grade used in the user supplied
 relevance judgments.
 |`k` | sets the maximum number of documents retrieved per query. This value will act in place of the usual `size` parameter
 in the query. Defaults to 10.

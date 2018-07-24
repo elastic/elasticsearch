@@ -25,6 +25,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractLifecycleRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -53,11 +55,11 @@ public class ConnectionManager implements Closeable {
     private final Lifecycle lifecycle = new Lifecycle();
     private final DelegatingNodeConnectionListener connectionListener = new DelegatingNodeConnectionListener();
 
-    public ConnectionManager(Logger logger, Transport transport, ThreadPool threadPool, TimeValue pingSchedule) {
-        this.logger = logger;
+    public ConnectionManager(Settings settings, Transport transport, ThreadPool threadPool) {
+        this.logger = Loggers.getLogger(getClass(), settings);
         this.transport = transport;
         this.threadPool = threadPool;
-        this.pingSchedule = pingSchedule;
+        this.pingSchedule = TcpTransport.PING_SCHEDULE.get(settings);
         this.lifecycle.moveToStarted();
 
         if (pingSchedule.millis() > 0) {
@@ -141,10 +143,8 @@ public class ConnectionManager implements Closeable {
         }
     }
 
-    private void ensureOpen() {
-        if (lifecycle.started() == false) {
-            throw new IllegalStateException("connection manager is closed");
-        }
+    public int connectedNodeCount() {
+        return connectedNodes.size();
     }
 
     @Override
@@ -167,8 +167,10 @@ public class ConnectionManager implements Closeable {
         lifecycle.moveToClosed();
     }
 
-    public int connectedNodeCount() {
-        return connectedNodes.size();
+    private void ensureOpen() {
+        if (lifecycle.started() == false) {
+            throw new IllegalStateException("connection manager is closed");
+        }
     }
 
     private class ScheduledPing extends AbstractLifecycleRunnable {

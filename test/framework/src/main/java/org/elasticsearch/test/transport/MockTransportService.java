@@ -74,6 +74,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * A mock transport service that allows to simulate different network topology failures.
@@ -122,6 +123,7 @@ public final class MockTransportService extends TransportService {
     }
 
     private final Transport original;
+    private final MockConnectionManager connectionManager;
 
     /**
      * Build the service.
@@ -145,9 +147,18 @@ public final class MockTransportService extends TransportService {
     public MockTransportService(Settings settings, Transport transport, ThreadPool threadPool, TransportInterceptor interceptor,
                                 Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
                                 @Nullable ClusterSettings clusterSettings, Set<String> taskHeaders) {
+        this(settings, new LookupTestTransport(transport), threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders,
+            new MockConnectionManager(settings, transport, threadPool));
+    }
+
+    private MockTransportService(Settings settings, Transport transport, ThreadPool threadPool, TransportInterceptor interceptor,
+                                 Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
+                                 @Nullable ClusterSettings clusterSettings, Set<String> taskHeaders,
+                                 MockConnectionManager connectionManager) {
         super(settings, new LookupTestTransport(transport), threadPool, interceptor, localNodeFactory, clusterSettings,
-            taskHeaders);
+            taskHeaders, new MockConnectionManager(settings, transport, threadPool));
         this.original = transport;
+        this.connectionManager = connectionManager;
     }
 
     public static TransportAddress[] extractTransportAddresses(TransportService transportService) {
@@ -171,6 +182,7 @@ public final class MockTransportService extends TransportService {
      * Clears all the registered rules.
      */
     public void clearAllRules() {
+        connectionManager.clearSendBehaviors();
         transport().transports.clear();
     }
 
@@ -222,13 +234,19 @@ public final class MockTransportService extends TransportService {
                 throw new ConnectTransportException(node, "DISCONNECT: simulated");
             }
 
-            @Override
-            protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
-                                       TransportRequestOptions options) throws IOException {
-                connection.close();
-                // send the request, which will blow up
-                connection.sendRequest(requestId, action, request, options);
-            }
+//            @Override
+//            protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
+//                                       TransportRequestOptions options) throws IOException {
+//                connection.close();
+//                // send the request, which will blow up
+//                connection.sendRequest(requestId, action, request, options);
+//            }
+        });
+
+        connectionManager.addSendBehavior(transportAddress, (connection, requestId, action, request, options) -> {
+            connection.close();
+            // send the request, which will blow up
+            connection.sendRequest(requestId, action, request, options);
         });
     }
 
@@ -259,18 +277,25 @@ public final class MockTransportService extends TransportService {
      * Adds a rule that will cause matching operations to throw ConnectTransportExceptions
      */
     public void addFailToSendNoConnectRule(TransportAddress transportAddress, final Set<String> blockedActions) {
+//        addDelegate(transportAddress, new DelegateTransport(original) {
+//
+//            @Override
+//            protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
+//                                       TransportRequestOptions options) throws IOException {
+//                if (blockedActions.contains(action)) {
+//                    logger.info("--> preventing {} request", action);
+//                    connection.close();
+//                }
+//                connection.sendRequest(requestId, action, request, options);
+//            }
+//        });
 
-        addDelegate(transportAddress, new DelegateTransport(original) {
-
-            @Override
-            protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
-                                       TransportRequestOptions options) throws IOException {
-                if (blockedActions.contains(action)) {
-                    logger.info("--> preventing {} request", action);
-                    connection.close();
-                }
-                connection.sendRequest(requestId, action, request, options);
+        connectionManager.addSendBehavior(transportAddress, (connection, requestId, action, request, options) -> {
+            if (blockedActions.contains(action)) {
+                logger.info("--> preventing {} request", action);
+                connection.close();
             }
+            connection.sendRequest(requestId, action, request, options);
         });
     }
 
@@ -295,12 +320,10 @@ public final class MockTransportService extends TransportService {
             public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) {
                 throw new ConnectTransportException(node, "UNRESPONSIVE: simulated");
             }
+        });
 
-            @Override
-            protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
-                                       TransportRequestOptions options) throws IOException {
-                // don't send anything, the receiving node is unresponsive
-            }
+        connectionManager.addSendBehavior(transportAddress, (connection, requestId, action, request, options) -> {
+            // don't send anything, the receiving node is unresponsive
         });
     }
 
@@ -325,17 +348,15 @@ public final class MockTransportService extends TransportService {
     public void addUnresponsiveRule(TransportAddress transportAddress, final TimeValue duration) {
         final long startTime = System.currentTimeMillis();
 
+        Supplier<TimeValue> delaySupplier = () -> new TimeValue(duration.millis() - (System.currentTimeMillis() - startTime));
+
         addDelegate(transportAddress, new ClearableTransport(original) {
             private final Queue<Runnable> requestsToSendWhenCleared = new LinkedBlockingDeque<>();
             private boolean cleared = false;
 
-            TimeValue getDelay() {
-                return new TimeValue(duration.millis() - (System.currentTimeMillis() - startTime));
-            }
-
             @Override
             public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) {
-                TimeValue delay = getDelay();
+                TimeValue delay = delaySupplier.get();
                 if (delay.millis() <= 0) {
                     return original.openConnection(node, profile);
                 }
@@ -355,11 +376,68 @@ public final class MockTransportService extends TransportService {
                 }
             }
 
+//            @Override
+//            protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
+//                                       TransportRequestOptions options) throws IOException {
+//                // delayed sending - even if larger then the request timeout to simulated a potential late response from target node
+//                TimeValue delay = getDelay();
+//                if (delay.millis() <= 0) {
+//                    connection.sendRequest(requestId, action, request, options);
+//                    return;
+//                }
+//
+//                // poor mans request cloning...
+//                RequestHandlerRegistry reg = MockTransportService.this.getRequestHandler(action);
+//                BytesStreamOutput bStream = new BytesStreamOutput();
+//                request.writeTo(bStream);
+//                final TransportRequest clonedRequest = reg.newRequest(bStream.bytes().streamInput());
+//
+//                Runnable runnable = new AbstractRunnable() {
+//                    AtomicBoolean requestSent = new AtomicBoolean();
+//
+//                    @Override
+//                    public void onFailure(Exception e) {
+//                        logger.debug("failed to send delayed request", e);
+//                    }
+//
+//                    @Override
+//                    protected void doRun() throws IOException {
+//                        if (requestSent.compareAndSet(false, true)) {
+//                            connection.sendRequest(requestId, action, clonedRequest, options);
+//                        }
+//                    }
+//                };
+//
+//                // store the request to send it once the rule is cleared.
+//                synchronized (this) {
+//                    if (cleared) {
+//                        runnable.run();
+//                    } else {
+//                        requestsToSendWhenCleared.add(runnable);
+//                        threadPool.schedule(delay, ThreadPool.Names.GENERIC, runnable);
+//                    }
+//                }
+//            }
+
+//            @Override
+            public void clearRule() {
+//                synchronized (this) {
+//                    assert cleared == false;
+//                    cleared = true;
+//                    requestsToSendWhenCleared.forEach(Runnable::run);
+//                }
+            }
+        });
+
+        connectionManager.addSendBehavior(transportAddress, new SendRequestBehavior() {
+            private final Queue<Runnable> requestsToSendWhenCleared = new LinkedBlockingDeque<>();
+            private boolean cleared = false;
+
             @Override
-            protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
-                                       TransportRequestOptions options) throws IOException {
+            public void sendRequest(Transport.Connection connection, long requestId, String action, TransportRequest request,
+                                    TransportRequestOptions options) throws IOException {
                 // delayed sending - even if larger then the request timeout to simulated a potential late response from target node
-                TimeValue delay = getDelay();
+                TimeValue delay = delaySupplier.get();
                 if (delay.millis() <= 0) {
                     connection.sendRequest(requestId, action, request, options);
                     return;
@@ -399,7 +477,7 @@ public final class MockTransportService extends TransportService {
             }
 
             @Override
-            public void clearRule() {
+            public void clearCallback() {
                 synchronized (this) {
                     assert cleared == false;
                     cleared = true;
@@ -749,5 +827,13 @@ public final class MockTransportService extends TransportService {
 
     public DiscoveryNode getLocalDiscoNode() {
         return this.getLocalNode();
+    }
+
+    @FunctionalInterface
+    public interface SendRequestBehavior {
+        void sendRequest(Transport.Connection connection, long requestId, String action, TransportRequest request,
+                         TransportRequestOptions options) throws IOException;
+
+        default void clearCallback() {};
     }
 }

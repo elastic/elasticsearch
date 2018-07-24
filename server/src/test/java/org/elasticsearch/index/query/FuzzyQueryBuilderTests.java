@@ -41,7 +41,8 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
 
     @Override
     protected FuzzyQueryBuilder doCreateTestQueryBuilder() {
-        FuzzyQueryBuilder query = new FuzzyQueryBuilder(STRING_FIELD_NAME, getRandomValueForFieldName(STRING_FIELD_NAME));
+        String fieldName = randomFrom(STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME);
+        FuzzyQueryBuilder query = new FuzzyQueryBuilder(fieldName, getRandomValueForFieldName(fieldName));
         if (randomBoolean()) {
             query.fuzziness(randomFuzziness(query.fieldName()));
         }
@@ -76,6 +77,11 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
     @Override
     protected void doAssertLuceneQuery(FuzzyQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         assertThat(query, instanceOf(FuzzyQuery.class));
+
+        FuzzyQuery fuzzyQuery = (FuzzyQuery) query;
+        String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
+        String actualFieldName = fuzzyQuery.getTerm().field();
+        assertThat(actualFieldName, equalTo(expectedFieldName));
     }
 
     public void testIllegalArguments() {

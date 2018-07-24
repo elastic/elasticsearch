@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.security.authz.permission;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 
@@ -20,7 +19,6 @@ import java.util.List;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
 
-@TestLogging("org.elasticsearch.xpack.core.security.authz.permission:TRACE")
 public class ApplicationPermissionTests extends ESTestCase {
 
     private List<ApplicationPrivilegeDescriptor> store = new ArrayList<>();

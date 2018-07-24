@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.security.authc.saml;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.X509KeyPairSettings;
 
@@ -89,6 +90,7 @@ public class SamlRealmSettings {
         set.addAll(DN_ATTRIBUTE.settings());
         set.addAll(NAME_ATTRIBUTE.settings());
         set.addAll(MAIL_ATTRIBUTE.settings());
+        set.addAll(DelegatedAuthorizationSettings.getSettings());
         return set;
     }
 

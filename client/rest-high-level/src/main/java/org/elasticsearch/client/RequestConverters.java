@@ -109,6 +109,7 @@ import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
+import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
 import org.elasticsearch.script.mustache.SearchTemplateRequest;
@@ -1136,6 +1137,18 @@ final class RequestConverters {
         Request request = new Request(HttpGet.METHOD_NAME, "/_xpack/usage");
         Params parameters = new Params(request);
         parameters.withMasterTimeout(usageRequest.masterNodeTimeout());
+        return request;
+    }
+
+    static Request putLicense(PutLicenseRequest putLicenseRequest) {
+        Request request = new Request(HttpPut.METHOD_NAME, "/_xpack/license");
+        Params parameters = new Params(request);
+        parameters.withTimeout(putLicenseRequest.timeout());
+        parameters.withMasterTimeout(putLicenseRequest.masterNodeTimeout());
+        if (putLicenseRequest.isAcknowledge()) {
+            parameters.putParam("acknowledge", "true");
+        }
+        request.setJsonEntity(putLicenseRequest.getLicenseDefinition());
         return request;
     }
 

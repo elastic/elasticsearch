@@ -170,6 +170,7 @@ import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
+import org.elasticsearch.xpack.security.authc.kerberos.KerberosRealmBootstrapCheck;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.SecuritySearchOperationListener;
@@ -294,11 +295,12 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             // fetched
             final List<BootstrapCheck> checks = new ArrayList<>();
             checks.addAll(Arrays.asList(
-                    new TokenPassphraseBootstrapCheck(settings),
-                    new TokenSSLBootstrapCheck(),
-                    new PkiRealmBootstrapCheck(getSslService()),
-                    new TLSLicenseBootstrapCheck(),
-                    new PasswordHashingAlgorithmBootstrapCheck()));
+                new TokenPassphraseBootstrapCheck(settings),
+                new TokenSSLBootstrapCheck(),
+                new PkiRealmBootstrapCheck(getSslService()),
+                new TLSLicenseBootstrapCheck(),
+                new PasswordHashingAlgorithmBootstrapCheck(),
+                new KerberosRealmBootstrapCheck(env)));
             checks.addAll(InternalRealms.getBootstrapChecks(settings, env));
             this.bootstrapChecks = Collections.unmodifiableList(checks);
         } else {
@@ -446,23 +448,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
         securityIndex.get().addIndexStateListener(nativeRoleMappingStore::onSecurityIndexStateChange);
 
-        AuthenticationFailureHandler failureHandler = null;
-        String extensionName = null;
-        for (SecurityExtension extension : securityExtensions) {
-            AuthenticationFailureHandler extensionFailureHandler = extension.getAuthenticationFailureHandler();
-            if (extensionFailureHandler != null && failureHandler != null) {
-                throw new IllegalStateException("Extensions [" + extensionName + "] and [" + extension.toString() + "] " +
-                        "both set an authentication failure handler");
-            }
-            failureHandler = extensionFailureHandler;
-            extensionName = extension.toString();
-        }
-        if (failureHandler == null) {
-            logger.debug("Using default authentication failure handler");
-            failureHandler = new DefaultAuthenticationFailureHandler();
-        } else {
-            logger.debug("Using authentication failure handler from extension [" + extensionName + "]");
-        }
+        final AuthenticationFailureHandler failureHandler = createAuthenticationFailureHandler(realms);
 
         authcService.set(new AuthenticationService(settings, realms, auditTrailService, failureHandler, threadPool, anonymousUser, tokenService));
         components.add(authcService.get());
@@ -516,6 +502,45 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
     private synchronized void setIndicesAdminFilteredFields(boolean enabled) {
         this.indicesAdminFilteredFields = enabled;
+    }
+
+    private AuthenticationFailureHandler createAuthenticationFailureHandler(final Realms realms) {
+        AuthenticationFailureHandler failureHandler = null;
+        String extensionName = null;
+        for (SecurityExtension extension : securityExtensions) {
+            AuthenticationFailureHandler extensionFailureHandler = extension.getAuthenticationFailureHandler();
+            if (extensionFailureHandler != null && failureHandler != null) {
+                throw new IllegalStateException("Extensions [" + extensionName + "] and [" + extension.toString() + "] "
+                        + "both set an authentication failure handler");
+            }
+            failureHandler = extensionFailureHandler;
+            extensionName = extension.toString();
+        }
+        if (failureHandler == null) {
+            logger.debug("Using default authentication failure handler");
+            final Map<String, List<String>> defaultFailureResponseHeaders = new HashMap<>();
+            realms.asList().stream().forEach((realm) -> {
+                Map<String, List<String>> realmFailureHeaders = realm.getAuthenticationFailureHeaders();
+                realmFailureHeaders.entrySet().stream().forEach((e) -> {
+                    String key = e.getKey();
+                    e.getValue().stream()
+                            .filter(v -> defaultFailureResponseHeaders.computeIfAbsent(key, x -> new ArrayList<>()).contains(v) == false)
+                            .forEach(v -> defaultFailureResponseHeaders.get(key).add(v));
+                });
+            });
+
+            if (TokenService.isTokenServiceEnabled(settings)) {
+                String bearerScheme = "Bearer realm=\"" + XPackField.SECURITY + "\"";
+                if (defaultFailureResponseHeaders.computeIfAbsent("WWW-Authenticate", x -> new ArrayList<>())
+                        .contains(bearerScheme) == false) {
+                    defaultFailureResponseHeaders.get("WWW-Authenticate").add(bearerScheme);
+                }
+            }
+            failureHandler = new DefaultAuthenticationFailureHandler(defaultFailureResponseHeaders);
+        } else {
+            logger.debug("Using authentication failure handler from extension [" + extensionName + "]");
+        }
+        return failureHandler;
     }
 
     @Override

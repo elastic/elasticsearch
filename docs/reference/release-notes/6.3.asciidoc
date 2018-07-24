@@ -1,3 +1,58 @@
+[[release-notes-6.3.2]]
+== 6.3.2 Release Notes
+
+Also see <<breaking-changes-6.3>>.
+
+[[bug-6.3.2]]
+[float]
+=== Bug fixes
+
+Allocation::
+* A replica can be promoted and started in one cluster state update {pull}32042[#32042]
+
+Authentication::
+* Fix building AD URL from domain name {pull}31849[#31849]
+
+Core::
+* Disable C2 from using AVX-512 on JDK 10 {pull}32138[#32138] (issue: {issue}31425[#31425])
+
+Machine Learning::
+* [ML] Fix calendar and filter updates from non-master nodes {pull}31804[#31804] (issue: {issue}31803[#31803])
+* [ML] Don't treat stale FAILED jobs as OPENING in job allocation {pull}31800[#31800] (issue: {issue}31794[#31794])
+* [ML] Rate limit established model memory updates {pull}31768[#31768]
+* [ML] Wait for aliases in multi-node tests {pull}32086[#32086] (issue: {issue}32034[#32034])
+
+Mapping::
+* Fix put mappings java API documentation {pull}31955[#31955] (issue: {issue}31906[#31906])
+
+Monitoring::
+* [CI] XPackRestIT "monitoring/bulk/10_basic/Bulk indexing of monitoring data" [OPEN] [ISSUE] {pull}30935[#30935]
+
+Recovery::
+* X-pack rolling upgrade failures [ISSUE] {pull}31827[#31827]
+
+Rollup::
+* [Rollup] Histo group config should support scaled_floats {pull}32048[#32048] (issue: {issue}32035[#32035])
+
+SQL::
+* SQL: HAVING clause should accept only aggregates {pull}31872[#31872] (issue: {issue}31726[#31726])
+* SQL: Fix incorrect HAVING equality {pull}31820[#31820] (issue: {issue}31796[#31796])
+* SQL: Fix incorrect message for aliases {pull}31792[#31792] (issue: {issue}31611[#31611])
+* SQL: querying an alias having different mappings indices generates an incorrect error message [ISSUE] {pull}31784[#31784]
+* SQL: Allow long literals {pull}31777[#31777] (issue: {issue}31750[#31750])
+* JDBC: Fix stackoverflow on getObject and timestamp conversion {pull}31735[#31735] (issue: {issue}31734[#31734])
+
+Search::
+* Fix multi level nested sort {pull}32204[#32204] (issues: {issue}31554[#31554], {issue}31776[#31776], {issue}31783[#31783], {issue}32130[#32130])
+
+Security::
+* Detect old trial licenses and mimic behaviour {pull}32209[#32209]
+
+Watcher::
+* Watcher: Add ssl.trust email account setting {pull}31684[#31684]
+* Watcher: Fix check for currently executed watches {pull}31137[#31137]
+* Watcher: Increase HttpClient parallel sent requests {pull}31859[#31859] (issue: {issue}30130[#30130])
+
 [[release-notes-6.3.1]]
 == {es} version 6.3.1
 
@@ -685,6 +740,3 @@ Network::
 
 Search::
 * Upgrade to lucene-7.3.1 {pull}30729[#30729]
-
-
-

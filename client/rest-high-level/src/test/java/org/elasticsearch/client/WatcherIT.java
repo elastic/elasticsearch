@@ -58,7 +58,7 @@ public class WatcherIT extends ESRestHighLevelClientTestCase {
             DeleteWatchResponse deleteWatchResponse = highLevelClient().xpack().watcher().deleteWatch(new DeleteWatchRequest(watchId),
                 RequestOptions.DEFAULT);
             assertThat(deleteWatchResponse.getId(), is(watchId));
-            assertThat(deleteWatchResponse.getVersion(), is(1));
+            assertThat(deleteWatchResponse.getVersion(), is(2L));
             assertThat(deleteWatchResponse.isFound(), is(true));
         }
 

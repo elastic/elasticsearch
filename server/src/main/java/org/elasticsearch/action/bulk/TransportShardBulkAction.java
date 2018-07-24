@@ -204,6 +204,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             executeIndexRequestOnPrimary(context, mappingUpdater);
         }
 
+        if (context.requiresWaitingForMappingUpdate()) {
+            return;
+        }
+
         if (opType == DocWriteRequest.OpType.UPDATE &&
             context.getExecutionResult().isFailed() &&
             isConflictException(context.getExecutionResult().getFailure().getCause())) {

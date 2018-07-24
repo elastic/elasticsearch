@@ -30,7 +30,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -149,7 +148,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
         MlMetadata newMetadata = new MlMetadata.Builder(currentMetadata)
                 .putDatafeed(request.getDatafeed(), headers).build();
         return ClusterState.builder(clusterState).metaData(
-                MetaData.builder(clusterState.getMetaData()).putCustom(MLMetadataField.TYPE, newMetadata).build())
+                MetaData.builder(clusterState.getMetaData()).putCustom(MlMetadata.TYPE, newMetadata).build())
                 .build();
     }
 

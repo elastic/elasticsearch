@@ -9,11 +9,6 @@ coming[6.4.0]
 See also <<release-notes-6.4.0,{es} 6.4.0 release notes>>. 
 
 [float]
-=== Aggregations
-
-* Auto-interval Date Histogram - A new `auto_date_histogram` aggregation has been added which instead of taking an `interval` takes a `buckets` option which defines the maximum number of buckets it should return. The aggregation internally determines the best interval to use to get as close to the `bucket` option as possible without exceeding it.
-
-[float]
 === Analysis
 
 * Option to index phrases on text fields - A new `index_phrases` option has been added to `text` fields. When enabled this option will index 2-shingles of the field in a separate Lucene field to allow faster, more efficient, phrase searches on that field with the trade-off of consuming more disk space in the index. For more information, see <<text, text field type>>.

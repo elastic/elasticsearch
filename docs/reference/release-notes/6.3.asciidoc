@@ -21,8 +21,8 @@ Machine Learning::
 * No longer treats stale FAILED jobs as OPENING in job allocation {pull}31800[#31800] (issue: {issue}31794[#31794])
 * Rate limits established model memory updates {pull}31768[#31768]
 * Fixes SIGSEGV when upgrading a job directly from 5.6.10 to 6.3. It also fixes 
-the upgrade for the trend component model, which was caused large 
-prediction errors immediately after upgrading. {ml-pull}143[#143] (issue: {ml-issue}141[#141])
+the upgrade for the trend component model, which caused large prediction errors 
+immediately after upgrading. {ml-pull}143[#143] (issue: {ml-issue}141[#141])
 * Fixes issues upgrading the state, which could cause the autodetect process to 
 crash. {ml-pull}140[#140] (issue: {ml-issue}136[#136])
 

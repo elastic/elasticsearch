@@ -15,7 +15,7 @@ Deletes a filter.
 
 ==== Description
 
-This API deletes a filter. 
+This API deletes a {stack-ov}/ml-rules.html[filter]. 
 If a {ml} job references the filter, you cannot delete the filter. You must 
 update or delete the job before you can delete the filter.
 

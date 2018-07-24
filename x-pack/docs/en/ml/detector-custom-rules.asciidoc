@@ -2,9 +2,8 @@
 [[ml-configuring-detector-custom-rules]]
 === Customizing detectors with rules and filters
 
-Rules and filters enable you to change the behavior of anomaly detectors based 
-on domain-specific knowledge.
-//TO-DO: Add link to rules overview page
+<<ml-rules,Rules and filters>> enable you to change the behavior of anomaly 
+detectors based on domain-specific knowledge.
 
 Rules describe _when_ a detector should take a certain _action_ instead
 of following its default behavior. To specify the _when_ a rule uses

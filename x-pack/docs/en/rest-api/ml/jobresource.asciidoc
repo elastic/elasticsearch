@@ -417,8 +417,8 @@ For more information, see
 [[ml-detector-custom-rule]]
 ==== Detector Custom Rule
 
-Custom rules enable you to customize the way detectors operate.
-//TO-DO: Add link to rules overview
+{stack-ov}/ml-rules.html[Custom rules] enable you to customize the way detectors 
+operate. 
 
 A rule has the following properties:
 

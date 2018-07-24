@@ -17,7 +17,8 @@ Retrieves filters.
 
 ===== Description
 
-You can get a single filter or all filters.
+You can get a single filter or all filters. For more information, see 
+{stack-ov}/ml-rules.html[Machine learning rules and filters].
 
 
 ==== Path Parameters

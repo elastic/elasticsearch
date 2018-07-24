@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -32,7 +33,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -48,13 +48,13 @@ public class JsonProcessorTests extends ESTestCase {
 
         Map<String, Object> randomJsonMap = RandomDocumentPicks.randomSource(random());
         XContentBuilder builder = JsonXContent.contentBuilder().map(randomJsonMap);
-        String randomJson = XContentHelper.convertToJson(builder.bytes(), false, XContentType.JSON);
+        String randomJson = XContentHelper.convertToJson(BytesReference.bytes(builder), false, XContentType.JSON);
         document.put(randomField, randomJson);
 
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         jsonProcessor.execute(ingestDocument);
         Map<String, Object> jsonified = ingestDocument.getFieldValue(randomTargetField, Map.class);
-        assertIngestDocument(ingestDocument.getFieldValue(randomTargetField, Object.class), jsonified);
+        assertEquals(ingestDocument.getFieldValue(randomTargetField, Object.class), jsonified);
     }
 
     public void testInvalidValue() {
@@ -146,7 +146,6 @@ public class JsonProcessorTests extends ESTestCase {
         assertThat(exception.getMessage(), equalTo("field [field] not present as part of path [field]"));
     }
 
-    @SuppressWarnings("unchecked")
     public void testAddToRoot() throws Exception {
         String processorTag = randomAlphaOfLength(3);
         String randomTargetField = randomAlphaOfLength(2);
@@ -160,13 +159,10 @@ public class JsonProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         jsonProcessor.execute(ingestDocument);
 
-        Map<String, Object> expected = new HashMap<>();
-        expected.put("a", 1);
-        expected.put("b", 2);
-        expected.put("c", "see");
-        IngestDocument expectedIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), expected);
-
-        assertIngestDocument(ingestDocument, expectedIngestDocument);
+        Map<String, Object> sourceAndMetadata = ingestDocument.getSourceAndMetadata();
+        assertEquals(1, sourceAndMetadata.get("a"));
+        assertEquals(2, sourceAndMetadata.get("b"));
+        assertEquals("see", sourceAndMetadata.get("c"));
     }
 
     public void testAddBoolToRoot() {

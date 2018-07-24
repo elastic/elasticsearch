@@ -31,10 +31,8 @@ import org.elasticsearch.index.IndexSettings;
 
 /**
  * Uses the {@link org.apache.lucene.analysis.icu.ICUNormalizer2Filter} to normalize tokens.
- * <p>The <tt>name</tt> can be used to provide the type of normalization to perform.</p>
- * <p>The <tt>unicodeSetFilter</tt> attribute can be used to provide the UniCodeSet for filtering.</p>
- *
- *
+ * <p>The {@code name} can be used to provide the type of normalization to perform.</p>
+ * <p>The {@code unicodeSetFilter} attribute can be used to provide the UniCodeSet for filtering.</p>
  */
 public class IcuNormalizerTokenFilterFactory extends AbstractTokenFilterFactory implements MultiTermAwareComponent {
 

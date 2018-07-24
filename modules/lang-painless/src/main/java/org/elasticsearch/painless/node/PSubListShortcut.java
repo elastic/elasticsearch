@@ -19,15 +19,14 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.Struct;
-import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.WriterConstants;
+import org.elasticsearch.painless.lookup.PainlessClass;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.lookup.PainlessMethod;
 
 import java.util.Objects;
 import java.util.Set;
@@ -37,13 +36,13 @@ import java.util.Set;
  */
 final class PSubListShortcut extends AStoreable {
 
-    private final Struct struct;
+    private final PainlessClass struct;
     private AExpression index;
 
-    private Method getter;
-    private Method setter;
+    private PainlessMethod getter;
+    private PainlessMethod setter;
 
-    PSubListShortcut(Location location, Struct struct, AExpression index) {
+    PSubListShortcut(Location location, PainlessClass struct, AExpression index) {
         super(location);
 
         this.struct = Objects.requireNonNull(struct);
@@ -57,15 +56,15 @@ final class PSubListShortcut extends AStoreable {
 
     @Override
     void analyze(Locals locals) {
-        getter = struct.methods.get(new Definition.MethodKey("get", 1));
-        setter = struct.methods.get(new Definition.MethodKey("set", 2));
+        getter = struct.methods.get(PainlessLookupUtility.buildPainlessMethodKey("get", 1));
+        setter = struct.methods.get(PainlessLookupUtility.buildPainlessMethodKey("set", 2));
 
-        if (getter != null && (getter.rtn.clazz == void.class || getter.arguments.size() != 1 ||
-            getter.arguments.get(0).clazz != int.class)) {
+        if (getter != null && (getter.rtn == void.class || getter.arguments.size() != 1 ||
+            getter.arguments.get(0) != int.class)) {
             throw createError(new IllegalArgumentException("Illegal list get shortcut for type [" + struct.name + "]."));
         }
 
-        if (setter != null && (setter.arguments.size() != 2 || setter.arguments.get(0).clazz != int.class)) {
+        if (setter != null && (setter.arguments.size() != 2 || setter.arguments.get(0) != int.class)) {
             throw createError(new IllegalArgumentException("Illegal list set shortcut for type [" + struct.name + "]."));
         }
 
@@ -75,7 +74,7 @@ final class PSubListShortcut extends AStoreable {
         }
 
         if ((read || write) && (!read || getter != null) && (!write || setter != null)) {
-            index.expected = locals.getDefinition().intType;
+            index.expected = int.class;
             index.analyze(locals);
             index = index.cast(locals);
 
@@ -102,7 +101,7 @@ final class PSubListShortcut extends AStoreable {
     }
 
     @Override
-    void updateActual(Type actual) {
+    void updateActual(Class<?> actual) {
         throw new IllegalArgumentException("Illegal tree structure.");
     }
 
@@ -120,8 +119,8 @@ final class PSubListShortcut extends AStoreable {
 
         getter.write(writer);
 
-        if (!getter.rtn.clazz.equals(getter.handle.type().returnType())) {
-            writer.checkCast(getter.rtn.type);
+        if (getter.rtn == getter.handle.type().returnType()) {
+            writer.checkCast(MethodWriter.getType(getter.rtn));
         }
     }
 
@@ -131,7 +130,7 @@ final class PSubListShortcut extends AStoreable {
 
         setter.write(writer);
 
-        writer.writePop(setter.rtn.type.getSize());
+        writer.writePop(MethodWriter.getType(setter.rtn).getSize());
     }
 
     @Override

@@ -46,7 +46,7 @@ shards the index has. In order to maintain the exact same distribution as a pre 
 `index.number_of_routing_shards` must be set to the `index.number_of_shards` at index creation time.
 Note: if the number of routing shards equals the number of shards `_split` operations are not supported.
 
-==== Skipped background refresh on search idle shards.
+==== Skipped background refresh on search idle shards
 
 Shards belonging to an index that does not have an explicit
 `index.refresh_interval` configured will  no longer refresh in the background
@@ -55,3 +55,26 @@ traffic for `index.search.idle.after` seconds (defaults to `30s`). Searches
 that access a search idle shard will be "parked" until the next refresh
 happens.  Indexing requests with `wait_for_refresh` will also trigger
 a background refresh.
+
+==== Remove deprecated url parameters for Clear Indices Cache API
+
+The following previously deprecated url parameter have been removed:
+
+* `filter` - use `query` instead
+* `filter_cache` - use `query` instead
+* `request_cache` - use `request` instead
+* `field_data` - use `fielddata` instead
+
+==== `network.breaker.inflight_requests.overhead` increased to 2
+
+Previously the in flight requests circuit breaker considered only the raw byte representation.
+By bumping the value of `network.breaker.inflight_requests.overhead` from 1 to 2, this circuit
+breaker considers now also the memory overhead of representing the request as a structured object.
+
+==== Parent circuit breaker changes
+
+The parent circuit breaker defines a new setting `indices.breaker.total.use_real_memory` which is
+`true` by default. This means that the parent circuit breaker will trip based on currently used
+heap memory instead of only considering the reserved memory by child circuit breakers. When this
+setting is `true`, the default parent breaker limit also changes from 70% to 95% of the JVM heap size.
+The previous behavior can be restored by setting `indices.breaker.total.use_real_memory` to `false`.

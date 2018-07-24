@@ -19,8 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -34,13 +32,13 @@ import java.util.Set;
  */
 final class PSubBrace extends AStoreable {
 
-    private final Type type;
+    private final Class<?> clazz;
     private AExpression index;
 
-    PSubBrace(Location location, Type type, AExpression index) {
+    PSubBrace(Location location, Class<?> clazz, AExpression index) {
         super(location);
 
-        this.type = Objects.requireNonNull(type);
+        this.clazz = Objects.requireNonNull(clazz);
         this.index = Objects.requireNonNull(index);
     }
 
@@ -51,11 +49,11 @@ final class PSubBrace extends AStoreable {
 
     @Override
     void analyze(Locals locals) {
-        index.expected = locals.getDefinition().intType;
+        index.expected = int.class;
         index.analyze(locals);
         index = index.cast(locals);
 
-        actual = locals.getDefinition().getType(type.struct, type.dimensions - 1);
+        actual = clazz.getComponentType();
     }
 
     @Override
@@ -75,7 +73,7 @@ final class PSubBrace extends AStoreable {
     }
 
     @Override
-    void updateActual(Type actual) {
+    void updateActual(Class<?> actual) {
         throw createError(new IllegalStateException("Illegal tree structure."));
     }
 
@@ -88,13 +86,13 @@ final class PSubBrace extends AStoreable {
     @Override
     void load(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
-        writer.arrayLoad(actual.type);
+        writer.arrayLoad(MethodWriter.getType(actual));
     }
 
     @Override
     void store(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
-        writer.arrayStore(actual.type);
+        writer.arrayStore(MethodWriter.getType(actual));
     }
 
     @Override

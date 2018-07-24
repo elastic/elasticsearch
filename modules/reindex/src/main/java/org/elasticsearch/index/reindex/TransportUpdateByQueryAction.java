@@ -27,14 +27,12 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
-import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.script.Script;
@@ -45,18 +43,21 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.Map;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
 public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateByQueryRequest, BulkByScrollResponse> {
+
+    private final ThreadPool threadPool;
     private final Client client;
     private final ScriptService scriptService;
     private final ClusterService clusterService;
 
     @Inject
-    public TransportUpdateByQueryAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver, Client client, TransportService transportService,
-            ScriptService scriptService, ClusterService clusterService) {
-        super(settings, UpdateByQueryAction.NAME, threadPool, transportService, actionFilters,
-                indexNameExpressionResolver, UpdateByQueryRequest::new);
+    public TransportUpdateByQueryAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters, Client client,
+                                        TransportService transportService, ScriptService scriptService, ClusterService clusterService) {
+        super(settings, UpdateByQueryAction.NAME, transportService, actionFilters,
+            (Supplier<UpdateByQueryRequest>) UpdateByQueryRequest::new);
+        this.threadPool = threadPool;
         this.client = client;
         this.scriptService = scriptService;
         this.clusterService = clusterService;
@@ -75,11 +76,6 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                     listener).start();
             }
         );
-    }
-
-    @Override
-    protected void doExecute(UpdateByQueryRequest request, ActionListener<BulkByScrollResponse> listener) {
-        throw new UnsupportedOperationException("task required");
     }
 
     /**
@@ -159,11 +155,6 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             @Override
             protected void scriptChangedRouting(RequestWrapper<?> request, Object to) {
                 throw new IllegalArgumentException("Modifying [" + RoutingFieldMapper.NAME + "] not allowed");
-            }
-
-            @Override
-            protected void scriptChangedParent(RequestWrapper<?> request, Object to) {
-                throw new IllegalArgumentException("Modifying [" + ParentFieldMapper.NAME + "] not allowed");
             }
 
         }

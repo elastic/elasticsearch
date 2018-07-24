@@ -16,7 +16,8 @@ explicitly by setting `query`, `fielddata` or `request`.
 
 All caches relating to a specific field(s) can also be cleared by
 specifying `fields` parameter with a comma delimited list of the
-relevant fields.
+relevant fields. Note that the provided names must refer to concrete
+fields -- objects and field aliases are not supported.
 
 [float]
 === Multi Index

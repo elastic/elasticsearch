@@ -19,14 +19,14 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.Struct;
-import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.PainlessClass;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.objectweb.asm.Type;
 
 import java.util.List;
 import java.util.Objects;
@@ -40,7 +40,7 @@ public final class ENewObj extends AExpression {
     private final String type;
     private final List<AExpression> arguments;
 
-    private Method constructor;
+    private PainlessMethod constructor;
 
     public ENewObj(Location location, String type, List<AExpression> arguments) {
         super(location);
@@ -58,19 +58,17 @@ public final class ENewObj extends AExpression {
 
     @Override
     void analyze(Locals locals) {
-        final Type type;
-
         try {
-            type = locals.getDefinition().getType(this.type);
+            actual = locals.getPainlessLookup().getJavaClassFromPainlessType(this.type);
         } catch (IllegalArgumentException exception) {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }
 
-        Struct struct = type.struct;
-        constructor = struct.constructors.get(new Definition.MethodKey("<init>", arguments.size()));
+        PainlessClass struct = locals.getPainlessLookup().getPainlessStructFromJavaClass(actual);
+        constructor = struct.constructors.get(PainlessLookupUtility.buildPainlessMethodKey("<init>", arguments.size()));
 
         if (constructor != null) {
-            Type[] types = new Type[constructor.arguments.size()];
+            Class<?>[] types = new Class<?>[constructor.arguments.size()];
             constructor.arguments.toArray(types);
 
             if (constructor.arguments.size() != arguments.size()) {
@@ -88,7 +86,6 @@ public final class ENewObj extends AExpression {
             }
 
             statement = true;
-            actual = type;
         } else {
             throw createError(new IllegalArgumentException("Unknown new call on type [" + struct.name + "]."));
         }
@@ -98,7 +95,7 @@ public final class ENewObj extends AExpression {
     void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        writer.newInstance(actual.type);
+        writer.newInstance(MethodWriter.getType(actual));
 
         if (read) {
             writer.dup();
@@ -108,7 +105,7 @@ public final class ENewObj extends AExpression {
             argument.write(writer, globals);
         }
 
-        writer.invokeConstructor(constructor.owner.type, constructor.method);
+        writer.invokeConstructor(Type.getType(constructor.target), constructor.method);
     }
 
     @Override

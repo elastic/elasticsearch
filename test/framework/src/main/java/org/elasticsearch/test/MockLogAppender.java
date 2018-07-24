@@ -30,7 +30,6 @@ import java.util.regex.Pattern;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.junit.Assert.assertTrue;
 
 /**
  * Test appender that can be used to verify that certain events were logged correctly
@@ -92,7 +91,7 @@ public class MockLogAppender extends AbstractAppender {
                         saw = true;
                     }
                 } else {
-                    if (event.getMessage().toString().contains(message)) {
+                    if (event.getMessage().getFormattedMessage().contains(message)) {
                         saw = true;
                     }
                 }

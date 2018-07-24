@@ -27,8 +27,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collection;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
@@ -41,24 +43,22 @@ public class MockTaskManager extends TaskManager {
 
     private final Collection<MockTaskManagerListener> listeners = new CopyOnWriteArrayList<>();
 
-    public MockTaskManager(Settings settings) {
-        super(settings);
+    public MockTaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
+        super(settings, threadPool, taskHeaders);
     }
 
     @Override
     public Task register(String type, String action, TaskAwareRequest request) {
         Task task = super.register(type, action, request);
-        if (task != null) {
-            for (MockTaskManagerListener listener : listeners) {
-                try {
-                    listener.onTaskRegistered(task);
-                } catch (Exception e) {
-                    logger.warn(
-                        (Supplier<?>) () -> new ParameterizedMessage(
-                            "failed to notify task manager listener about unregistering the task with id {}",
-                            task.getId()),
-                        e);
-                }
+        for (MockTaskManagerListener listener : listeners) {
+            try {
+                listener.onTaskRegistered(task);
+            } catch (Exception e) {
+                logger.warn(
+                    (Supplier<?>) () -> new ParameterizedMessage(
+                        "failed to notify task manager listener about registering the task with id {}",
+                        task.getId()),
+                    e);
             }
         }
         return task;

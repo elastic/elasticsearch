@@ -20,7 +20,7 @@
 package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.index.rankeval.RatedDocument.DocumentKey;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -36,26 +36,25 @@ import java.util.stream.Collectors;
  * Implementations of {@link EvaluationMetric} need to provide a way to compute the quality metric for
  * a result list returned by some search (@link {@link SearchHits}) and a list of rated documents.
  */
-public interface EvaluationMetric extends ToXContent, NamedWriteable {
+public interface EvaluationMetric extends ToXContentObject, NamedWriteable {
 
     /**
-     * Returns a single metric representing the ranking quality of a set of returned
-     * documents wrt. to a set of document ids labeled as relevant for this search.
+     * Evaluates a single ranking evaluation case.
      *
      * @param taskId
-     *            the id of the query for which the ranking is currently evaluated
+     *            an identifier of the query for which the search ranking is
+     *            evaluated
      * @param hits
-     *            the result hits as returned by a search request
+     *            the search result hits
      * @param ratedDocs
-     *            the documents that were ranked by human annotators for this query
-     *            case
-     * @return some metric representing the quality of the result hit list wrt. to
-     *         relevant doc ids.
+     *            the documents that contain the document rating for this query case
+     * @return an {@link EvalQueryQuality} instance that contains the metric score
+     *         with respect to the provided search hits and ratings
      */
     EvalQueryQuality evaluate(String taskId, SearchHit[] hits, List<RatedDocument> ratedDocs);
 
     /**
-     * join hits with rated documents using the joint _index/_id document key
+     * Joins hits with rated documents using the joint _index/_id document key.
      */
     static List<RatedSearchHit> joinHitsWithRatings(SearchHit[] hits, List<RatedDocument> ratedDocs) {
         Map<DocumentKey, RatedDocument> ratedDocumentMap = ratedDocs.stream()
@@ -74,20 +73,19 @@ public interface EvaluationMetric extends ToXContent, NamedWriteable {
     }
 
     /**
-     * filter @link {@link RatedSearchHit} that don't have a rating
+     * Filter {@link RatedSearchHit}s that do not have a rating.
      */
-    static List<DocumentKey> filterUnknownDocuments(List<RatedSearchHit> ratedHits) {
-        List<DocumentKey> unknownDocs = ratedHits.stream().filter(hit -> hit.getRating().isPresent() == false)
+    static List<DocumentKey> filterUnratedDocuments(List<RatedSearchHit> ratedHits) {
+        return ratedHits.stream().filter(hit -> hit.getRating().isPresent() == false)
                 .map(hit -> new DocumentKey(hit.getSearchHit().getIndex(), hit.getSearchHit().getId())).collect(Collectors.toList());
-        return unknownDocs;
     }
 
     /**
-     * how evaluation metrics for particular search queries get combined for the overall evaluation score.
-     * Defaults to averaging over the partial results.
+     * Combine several {@link EvalQueryQuality} results into the overall evaluation score.
+     * This defaults to averaging over the partial results, but can be overwritten to obtain a different behavior.
      */
     default double combine(Collection<EvalQueryQuality> partialResults) {
-        return partialResults.stream().mapToDouble(EvalQueryQuality::getQualityLevel).sum() / partialResults.size();
+        return partialResults.stream().mapToDouble(EvalQueryQuality::metricScore).sum() / partialResults.size();
     }
 
     /**

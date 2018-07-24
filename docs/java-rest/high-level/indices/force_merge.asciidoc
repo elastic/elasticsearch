@@ -1,0 +1,102 @@
+[[java-rest-high-force-merge]]
+=== Force Merge API
+
+[[java-rest-high-force-merge-request]]
+==== Force merge Request
+
+A `ForceMergeRequest` can be applied to one or more indices, or even on `_all` the indices:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[force-merge-request]
+--------------------------------------------------
+<1> Force merge one index
+<2> Force merge multiple indices
+<3> Force merge all the indices
+
+==== Optional arguments
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[force-merge-request-indicesOptions]
+--------------------------------------------------
+<1> Setting `IndicesOptions` controls how unavailable indices are resolved and
+how wildcard expressions are expanded
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[force-merge-request-segments-num]
+--------------------------------------------------
+<1> Set `max_num_segments` to control the number of segments to merge down to.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[force-merge-request-only-expunge-deletes]
+--------------------------------------------------
+<1> Set the `only_expunge_deletes` flag to `true`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[force-merge-request-flush]
+--------------------------------------------------
+<1> Set the `flush` flag to `true`
+
+[[java-rest-high-force-merge-sync]]
+==== Synchronous Execution
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[force-merge-execute]
+--------------------------------------------------
+
+[[java-rest-high-force-merge-async]]
+==== Asynchronous Execution
+
+The asynchronous execution of a force merge request requires both the `ForceMergeRequest`
+instance and an `ActionListener` instance to be passed to the asynchronous
+method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[force-merge-execute-async]
+--------------------------------------------------
+<1> The `ForceMergeRequest` to execute and the `ActionListener` to use when
+the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `ForceMergeResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[force-merge-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument
+<2> Called in case of failure. The raised exception is provided as an argument
+
+[[java-rest-high-force-merge-response]]
+==== Force Merge Response
+
+The returned `ForceMergeResponse` allows to retrieve information about the
+executed operation as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[force-merge-response]
+--------------------------------------------------
+<1> Total number of shards hit by the force merge request
+<2> Number of shards where the force merge has succeeded
+<3> Number of shards where the force merge has failed
+<4> A list of failures if the operation failed on one or more shards
+
+By default, if the indices were not found, an `ElasticsearchException` will be thrown:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[force-merge-notfound]
+--------------------------------------------------
+<1> Do something if the indices to be force merged were not found

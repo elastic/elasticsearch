@@ -42,7 +42,7 @@ public class JarHellTask extends LoggedExec {
             inputs.files(classpath)
             dependsOn(classpath)
             description = "Runs CheckJarHell on ${classpath}"
-            executable = new File(project.javaHome, 'bin/java')
+            executable = new File(project.runtimeJavaHome, 'bin/java')
             doFirst({
                 /* JarHell doesn't like getting directories that don't exist but
                   gradle isn't especially careful about that. So we have to do it

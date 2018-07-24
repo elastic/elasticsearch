@@ -45,6 +45,12 @@ setup:
         id: 3
         body: { "integer_range" : { "gte": 4, "lte": 5 } }
 
+  - do:
+      index:
+        index: test
+        type: doc
+        id: 4
+        body: { "integer_range" : null }
 
   - do:
       indices.refresh: {}
@@ -78,6 +84,12 @@ setup:
         body: { "size" : 0, "query" : { "range" : { "integer_range" : { "gte": 3, "lte" : 4, "relation": "within" } } } }
 
   - match: { hits.total: 0 }
+
+  - do:
+      search:
+        body: { "query" : { "match_all": {} } }
+
+  - match: { hits.total: 4 }
 
 ---
 "Long range":

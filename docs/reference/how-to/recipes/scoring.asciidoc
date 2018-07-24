@@ -35,9 +35,9 @@ consistent across queries.
 
 This work around has another benefit: when two documents have the same score,
 they will be sorted by their internal Lucene doc id (which is unrelated to the
-`_id` or `_uid`) by default. However these doc ids could be different across
-copies of the same shard. So by always hitting the same shard, we would get
-more consistent ordering of documents that have the same scores.
+`_id`) by default. However these doc ids could be different across copies of
+the same shard. So by always hitting the same shard, we would get more
+consistent ordering of documents that have the same scores.
 
 [float]
 ==== Relevancy looks wrong
@@ -65,7 +65,7 @@ documents and scores will be consistent.
 
 Otherwise the recommended way to work around this issue is to use the
 <<dfs-query-then-fetch,`dfs_query_then_fetch`>> search type. This will make
-Elasticsearch perform an inital round trip to all involved shards, asking
+Elasticsearch perform an initial round trip to all involved shards, asking
 them for their index statistics relatively to the query, then the coordinating
 node will merge those statistics and send the merged statistics alongside the
 request when asking shards to perform the `query` phase, so that shards can

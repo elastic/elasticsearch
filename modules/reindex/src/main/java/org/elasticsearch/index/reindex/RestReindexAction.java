@@ -40,6 +40,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.Script;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -56,7 +57,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  */
 public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexRequest, ReindexAction> {
     static final ObjectParser<ReindexRequest, Void> PARSER = new ObjectParser<>("reindex");
-    private static final Pattern HOST_PATTERN = Pattern.compile("(?<scheme>[^:]+)://(?<host>[^:]+):(?<port>\\d+)");
+    private static final Pattern HOST_PATTERN = Pattern.compile("(?<scheme>[^:]+)://(?<host>[^:]+):(?<port>\\d+)(?<pathPrefix>/.*)?");
 
     static {
         ObjectParser.Parser<ReindexRequest, Void> sourceParser = (parser, request, context) -> {
@@ -73,8 +74,10 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
             request.setRemoteInfo(buildRemoteInfo(source));
             XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
             builder.map(source);
-            try (XContentParser innerParser = parser.contentType().xContent().createParser(parser.getXContentRegistry(), builder.bytes())) {
-                request.getSearchRequest().source().parseXContent(innerParser);
+            try (InputStream stream = BytesReference.bytes(builder).streamInput();
+                 XContentParser innerParser = parser.contentType().xContent()
+                     .createParser(parser.getXContentRegistry(), parser.getDeprecationHandler(), stream)) {
+                request.getSearchRequest().source().parseXContent(innerParser, false);
             }
         };
 
@@ -112,12 +115,15 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
     @Override
     protected ReindexRequest buildRequest(RestRequest request) throws IOException {
         if (request.hasParam("pipeline")) {
-            throw new IllegalArgumentException("_reindex doesn't support [pipeline] as a query parmaeter. "
+            throw new IllegalArgumentException("_reindex doesn't support [pipeline] as a query parameter. "
                     + "Specify it in the [dest] object instead.");
         }
         ReindexRequest internal = new ReindexRequest(new SearchRequest(), new IndexRequest());
         try (XContentParser parser = request.contentParser()) {
             PARSER.parse(parser, internal, null);
+        }
+        if (request.hasParam("scroll")) {
+            internal.setScroll(parseTimeValue(request.param("scroll"), "scroll"));
         }
         return internal;
     }
@@ -133,10 +139,12 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         String hostInRequest = requireNonNull(extractString(remote, "host"), "[host] must be specified to reindex from a remote cluster");
         Matcher hostMatcher = HOST_PATTERN.matcher(hostInRequest);
         if (false == hostMatcher.matches()) {
-            throw new IllegalArgumentException("[host] must be of the form [scheme]://[host]:[port] but was [" + hostInRequest + "]");
+            throw new IllegalArgumentException("[host] must be of the form [scheme]://[host]:[port](/[pathPrefix])? but was ["
+                + hostInRequest + "]");
         }
         String scheme = hostMatcher.group("scheme");
         String host = hostMatcher.group("host");
+        String pathPrefix = hostMatcher.group("pathPrefix");
         int port = Integer.parseInt(hostMatcher.group("port"));
         Map<String, String> headers = extractStringStringMap(remote, "headers");
         TimeValue socketTimeout = extractTimeValue(remote, "socket_timeout", RemoteInfo.DEFAULT_SOCKET_TIMEOUT);
@@ -145,7 +153,8 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
             throw new IllegalArgumentException(
                     "Unsupported fields in [remote]: [" + Strings.collectionToCommaDelimitedString(remote.keySet()) + "]");
         }
-        return new RemoteInfo(scheme, host, port, queryForRemote(source), username, password, headers, socketTimeout, connectTimeout);
+        return new RemoteInfo(scheme, host, port, pathPrefix, queryForRemote(source),
+            username, password, headers, socketTimeout, connectTimeout);
     }
 
     /**
@@ -207,13 +216,13 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         Object query = source.remove("query");
         if (query == null) {
-            return matchAllQuery().toXContent(builder, ToXContent.EMPTY_PARAMS).bytes();
+            return BytesReference.bytes(matchAllQuery().toXContent(builder, ToXContent.EMPTY_PARAMS));
         }
         if (!(query instanceof Map)) {
             throw new IllegalArgumentException("Expected [query] to be an object but was [" + query + "]");
         }
         @SuppressWarnings("unchecked")
         Map<String, Object> map = (Map<String, Object>) query;
-        return builder.map(map).bytes();
+        return BytesReference.bytes(builder.map(map));
     }
 }

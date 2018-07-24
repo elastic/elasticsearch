@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.index.rankeval.EvaluationMetric.joinHitsWithRatings;
 
@@ -109,8 +110,7 @@ public class MeanReciprocalRank implements EvaluationMetric {
      * Compute ReciprocalRank based on provided relevant document IDs.
      **/
     @Override
-    public EvalQueryQuality evaluate(String taskId, SearchHit[] hits,
-            List<RatedDocument> ratedDocs) {
+    public EvalQueryQuality evaluate(String taskId, SearchHit[] hits, List<RatedDocument> ratedDocs) {
         List<RatedSearchHit> ratedHits = joinHitsWithRatings(hits, ratedDocs);
         int firstRelevant = -1;
         int rank = 1;
@@ -127,7 +127,7 @@ public class MeanReciprocalRank implements EvaluationMetric {
 
         double reciprocalRank = (firstRelevant == -1) ? 0 : 1.0d / firstRelevant;
         EvalQueryQuality evalQueryQuality = new EvalQueryQuality(taskId, reciprocalRank);
-        evalQueryQuality.setMetricDetails(new Breakdown(firstRelevant));
+        evalQueryQuality.setMetricDetails(new Detail(firstRelevant));
         evalQueryQuality.addHitsAndRatings(ratedHits);
         return evalQueryQuality;
     }
@@ -180,23 +180,41 @@ public class MeanReciprocalRank implements EvaluationMetric {
         return Objects.hash(relevantRatingThreshhold, k);
     }
 
-    static class Breakdown implements MetricDetails {
+    public static final class Detail implements MetricDetail {
 
         private final int firstRelevantRank;
+        private static ParseField FIRST_RELEVANT_RANK_FIELD = new ParseField("first_relevant");
 
-        Breakdown(int firstRelevantRank) {
+        Detail(int firstRelevantRank) {
             this.firstRelevantRank = firstRelevantRank;
         }
 
-        Breakdown(StreamInput in) throws IOException {
+        Detail(StreamInput in) throws IOException {
             this.firstRelevantRank = in.readVInt();
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params)
+        public
+        String getMetricName() {
+            return NAME;
+        }
+
+        @Override
+        public XContentBuilder innerToXContent(XContentBuilder builder, Params params)
                 throws IOException {
-            builder.field("first_relevant", firstRelevantRank);
-            return builder;
+            return builder.field(FIRST_RELEVANT_RANK_FIELD.getPreferredName(), firstRelevantRank);
+        }
+
+        private static final ConstructingObjectParser<Detail, Void> PARSER = new ConstructingObjectParser<>(NAME, true, args -> {
+            return new Detail((Integer) args[0]);
+        });
+
+        static {
+            PARSER.declareInt(constructorArg(), FIRST_RELEVANT_RANK_FIELD);
+        }
+
+        public static Detail fromXContent(XContentParser parser) {
+            return PARSER.apply(parser, null);
         }
 
         @Override
@@ -209,24 +227,28 @@ public class MeanReciprocalRank implements EvaluationMetric {
             return NAME;
         }
 
-        int getFirstRelevantRank() {
+        /**
+         * the ranking of the first relevant document, or -1 if no relevant document was
+         * found
+         */
+        public int getFirstRelevantRank() {
             return firstRelevantRank;
         }
 
         @Override
-        public final boolean equals(Object obj) {
+        public boolean equals(Object obj) {
             if (this == obj) {
                 return true;
             }
             if (obj == null || getClass() != obj.getClass()) {
                 return false;
             }
-            MeanReciprocalRank.Breakdown other = (MeanReciprocalRank.Breakdown) obj;
+            MeanReciprocalRank.Detail other = (MeanReciprocalRank.Detail) obj;
             return Objects.equals(firstRelevantRank, other.firstRelevantRank);
         }
 
         @Override
-        public final int hashCode() {
+        public int hashCode() {
             return Objects.hash(firstRelevantRank);
         }
     }

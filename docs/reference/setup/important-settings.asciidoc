@@ -30,3 +30,5 @@ include::important-settings/heap-size.asciidoc[]
 include::important-settings/heap-dump-path.asciidoc[]
 
 include::important-settings/gc-logging.asciidoc[]
+
+include::important-settings/error-file.asciidoc[]

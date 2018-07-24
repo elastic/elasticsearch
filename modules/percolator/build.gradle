@@ -31,7 +31,7 @@ dependencyLicenses {
   // Don't check the client's license. We know it.
   dependencies = project.configurations.runtime.fileCollection {
     it.group.startsWith('org.elasticsearch') == false
-  } - project.configurations.provided
+  } - project.configurations.compileOnly
 }
 
 compileJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes"

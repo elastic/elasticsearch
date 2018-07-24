@@ -32,6 +32,9 @@ include::synced-flush.asciidoc[]
 
 --
 
+. *Stop any machine learning jobs that are running.* See
+{xpack-ref}/stopping-ml.html[Stopping Machine Learning].
+
 . [[upgrade-node]] *Shut down a single node*.
 +
 --
@@ -50,6 +53,8 @@ include::set-paths-tip.asciidoc[]
 Use the `elasticsearch-plugin` script to install the upgraded version of each
 installed Elasticsearch plugin. All plugins must be upgraded when you upgrade
 a node.
++
+include::remove-xpack.asciidoc[]
 
 . *Start the upgraded node.*
 +
@@ -69,15 +74,15 @@ GET _cat/nodes
 +
 --
 
-Once the node has joined the cluster, reenable shard allocation to start using
-the node:
+Once the node has joined the cluster, remove the `cluster.routing.allocation.enable`
+setting to enable shard allocation and start using the node:
 
 [source,js]
 --------------------------------------------------
 PUT _cluster/settings
 {
-  "transient": {
-    "cluster.routing.allocation.enable": "all"
+  "persistent": {
+    "cluster.routing.allocation.enable": null
   }
 }
 --------------------------------------------------
@@ -140,6 +145,8 @@ When  the node has recovered and the cluster is stable, repeat these steps
 for each node that needs to be updated.
 
 --
+
+. *Restart machine learning jobs.*
 
 [IMPORTANT]
 ====================================================

@@ -19,14 +19,16 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.MethodKey;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.lookup.def;
+import org.objectweb.asm.Type;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -36,8 +38,8 @@ import java.util.Set;
 public final class EListInit extends AExpression {
     private final List<AExpression> values;
 
-    private Method constructor = null;
-    private Method method = null;
+    private PainlessMethod constructor = null;
+    private PainlessMethod method = null;
 
     public EListInit(Location location, List<AExpression> values) {
         super(location);
@@ -58,15 +60,17 @@ public final class EListInit extends AExpression {
             throw createError(new IllegalArgumentException("Must read from list initializer."));
         }
 
-        actual = locals.getDefinition().ArrayListType;
+        actual = ArrayList.class;
 
-        constructor = actual.struct.constructors.get(new MethodKey("<init>", 0));
+        constructor = locals.getPainlessLookup().getPainlessStructFromJavaClass(actual).constructors
+                .get(PainlessLookupUtility.buildPainlessMethodKey("<init>", 0));
 
         if (constructor == null) {
             throw createError(new IllegalStateException("Illegal tree structure."));
         }
 
-        method = actual.struct.methods.get(new MethodKey("add", 1));
+        method = locals.getPainlessLookup().getPainlessStructFromJavaClass(actual).methods
+                .get(PainlessLookupUtility.buildPainlessMethodKey("add", 1));
 
         if (method == null) {
             throw createError(new IllegalStateException("Illegal tree structure."));
@@ -75,7 +79,7 @@ public final class EListInit extends AExpression {
         for (int index = 0; index < values.size(); ++index) {
             AExpression expression = values.get(index);
 
-            expression.expected = locals.getDefinition().DefType;
+            expression.expected = def.class;
             expression.internal = true;
             expression.analyze(locals);
             values.set(index, expression.cast(locals));
@@ -86,9 +90,9 @@ public final class EListInit extends AExpression {
     void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        writer.newInstance(actual.type);
+        writer.newInstance(MethodWriter.getType(actual));
         writer.dup();
-        writer.invokeConstructor(constructor.owner.type, constructor.method);
+        writer.invokeConstructor(Type.getType(constructor.target), constructor.method);
 
         for (AExpression value : values) {
             writer.dup();

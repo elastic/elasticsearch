@@ -34,13 +34,13 @@ compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-tr
 
 dependencies {
     // network stack
-    compile "io.netty:netty-buffer:4.1.13.Final"
-    compile "io.netty:netty-codec:4.1.13.Final"
-    compile "io.netty:netty-codec-http:4.1.13.Final"
-    compile "io.netty:netty-common:4.1.13.Final"
-    compile "io.netty:netty-handler:4.1.13.Final"
-    compile "io.netty:netty-resolver:4.1.13.Final"
-    compile "io.netty:netty-transport:4.1.13.Final"
+    compile "io.netty:netty-buffer:4.1.16.Final"
+    compile "io.netty:netty-codec:4.1.16.Final"
+    compile "io.netty:netty-codec-http:4.1.16.Final"
+    compile "io.netty:netty-common:4.1.16.Final"
+    compile "io.netty:netty-handler:4.1.16.Final"
+    compile "io.netty:netty-resolver:4.1.16.Final"
+    compile "io.netty:netty-transport:4.1.16.Final"
 }
 
 dependencyLicenses {
@@ -149,18 +149,18 @@ thirdPartyAudit.excludes = [
         'io.netty.util.internal.PlatformDependent0$3',
         'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueConsumerNodeRef',
         'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueProducerNodeRef',
-        'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueue',
-        'io.netty.util.internal.shaded.org.jctools.queues.ConcurrentSequencedCircularArrayQueue',
+        'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueColdProducerFields',
+        'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueConsumerFields',
+        'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueProducerFields',
         'io.netty.util.internal.shaded.org.jctools.queues.LinkedQueueNode',
-        'io.netty.util.internal.shaded.org.jctools.queues.MpmcArrayQueueConsumerField',
-        'io.netty.util.internal.shaded.org.jctools.queues.MpmcArrayQueueProducerField',
-        'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueConsumerField',
-        'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueHeadLimitField',
-        'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueTailField',
-        'io.netty.util.internal.shaded.org.jctools.util.JvmInfo',
+        'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueConsumerIndexField',
+        'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerIndexField',
+        'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerLimitField',
         'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
         'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
 
+        'org.conscrypt.AllocatedBuffer',
+        'org.conscrypt.BufferAllocator',
         'org.conscrypt.Conscrypt$Engines',
         'org.conscrypt.HandshakeListener'
 ]

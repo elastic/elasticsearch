@@ -1,0 +1,28 @@
+[[painless-min-should-match-context]]
+=== Minimum should match context
+
+Use a Painless script to specify the
+{es_version}/query-dsl-terms-set-query.html[minimum] number of terms that a
+specified field needs to match with for a document to be part of the query
+results.
+
+*Variables*
+
+`params` (`Map`, read-only)::
+        User-defined parameters passed in as part of the query.
+
+`params['num_terms']` (`int`, read-only)::
+        The number of terms specified to match with.
+
+`doc` (`Map`, read-only)::
+        Contains the fields of the current document where each field is a
+        `List` of values.
+
+*Return*
+
+`int`::
+        The minimum number of terms required to match the current document.
+
+*API*
+
+The standard <<painless-api-reference, Painless API>> is available.

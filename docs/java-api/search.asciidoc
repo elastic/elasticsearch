@@ -128,7 +128,7 @@ documentation for details.
 
 The maximum number of documents to collect for each shard, upon reaching which the query execution will terminate early.
 If set, you will be able to check if the operation terminated early by asking for `isTerminatedEarly()` in the
-`SearchResponse` onject:
+`SearchResponse` object:
 
 [source,java]
 --------------------------------------------------

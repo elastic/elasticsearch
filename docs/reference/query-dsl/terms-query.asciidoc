@@ -15,6 +15,10 @@ GET /_search
 --------------------------------------------------
 // CONSOLE
 
+NOTE: Highlighting `terms` queries is best-effort only, so terms of a `terms`
+query might not be highlighted depending on the highlighter implementation that
+is selected and on the number of terms in the `terms` query.
+
 [float]
 [[query-dsl-terms-lookup]]
 ===== Terms lookup mechanism
@@ -89,7 +93,7 @@ GET /tweets/_search
         "terms" : {
             "user" : {
                 "index" : "users",
-                "type" : "user",
+                "type" : "_doc",
                 "id" : "2",
                 "path" : "followers"
             }

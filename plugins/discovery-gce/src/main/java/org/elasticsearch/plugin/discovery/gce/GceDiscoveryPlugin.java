@@ -22,7 +22,7 @@ package org.elasticsearch.plugin.discovery.gce;
 import com.google.api.client.http.HttpHeaders;
 import com.google.api.client.util.ClassInfo;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cloud.gce.GceInstancesService;
 import org.elasticsearch.cloud.gce.GceInstancesServiceImpl;
@@ -53,7 +53,7 @@ public class GceDiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
     private final Settings settings;
     private static final Logger logger = Loggers.getLogger(GceDiscoveryPlugin.class);
     // stashed when created in order to properly close
-    private final SetOnce<GceInstancesServiceImpl> gceInstancesService = new SetOnce<>();
+    private final SetOnce<GceInstancesService> gceInstancesService = new SetOnce<>();
 
     static {
         /*
@@ -72,13 +72,16 @@ public class GceDiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
         logger.trace("starting gce discovery plugin...");
     }
 
-
+    // overrideable for tests
+    protected GceInstancesService createGceInstancesService() {
+        return new GceInstancesServiceImpl(settings);
+    }
 
     @Override
     public Map<String, Supplier<UnicastHostsProvider>> getZenHostsProviders(TransportService transportService,
                                                                             NetworkService networkService) {
         return Collections.singletonMap(GCE, () -> {
-            gceInstancesService.set(new GceInstancesServiceImpl(settings));
+            gceInstancesService.set(createGceInstancesService());
             return new GceUnicastHostsProvider(settings, gceInstancesService.get(), transportService, networkService);
         });
     }

@@ -39,6 +39,15 @@ public final class SocketAccess {
 
     private SocketAccess() {}
 
+    public static <T> T doPrivilegedIOException(PrivilegedExceptionAction<T> operation) throws IOException {
+        SpecialPermission.check();
+        try {
+            return AccessController.doPrivileged(operation);
+        } catch (PrivilegedActionException e) {
+            throw (IOException) e.getCause();
+        }
+    }
+
     public static <T> T doPrivilegedException(PrivilegedExceptionAction<T> operation) throws StorageException, URISyntaxException {
         SpecialPermission.check();
         try {

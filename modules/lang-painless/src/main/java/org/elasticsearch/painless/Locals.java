@@ -19,10 +19,10 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.MethodKey;
-import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.ScriptClassInfo.MethodArgument;
+import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.lookup.PainlessMethod;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -58,9 +58,9 @@ public final class Locals {
      * <p>
      * This is just like {@link #newFunctionScope}, except the captured parameters are made read-only.
      */
-    public static Locals newLambdaScope(Locals programScope, Type returnType, List<Parameter> parameters,
+    public static Locals newLambdaScope(Locals programScope, Class<?> returnType, List<Parameter> parameters,
                                         int captureCount, int maxLoopCounter) {
-        Locals locals = new Locals(programScope, programScope.definition, returnType, KEYWORDS);
+        Locals locals = new Locals(programScope, programScope.painlessLookup, returnType, KEYWORDS);
         for (int i = 0; i < parameters.size(); i++) {
             Parameter parameter = parameters.get(i);
             // TODO: allow non-captures to be r/w:
@@ -68,51 +68,51 @@ public final class Locals {
             // currently, this cannot be allowed, as we swap in real types,
             // but that can prevent a store of a different type...
             boolean isCapture = true;
-            locals.addVariable(parameter.location, parameter.type, parameter.name, isCapture);
+            locals.addVariable(parameter.location, parameter.clazz, parameter.name, isCapture);
         }
         // Loop counter to catch infinite loops.  Internal use only.
         if (maxLoopCounter > 0) {
-            locals.defineVariable(null, locals.getDefinition().intType, LOOP, true);
+            locals.defineVariable(null, int.class, LOOP, true);
         }
         return locals;
     }
 
     /** Creates a new function scope inside the current scope */
-    public static Locals newFunctionScope(Locals programScope, Type returnType, List<Parameter> parameters, int maxLoopCounter) {
-        Locals locals = new Locals(programScope, programScope.definition, returnType, KEYWORDS);
+    public static Locals newFunctionScope(Locals programScope, Class<?> returnType, List<Parameter> parameters, int maxLoopCounter) {
+        Locals locals = new Locals(programScope, programScope.painlessLookup, returnType, KEYWORDS);
         for (Parameter parameter : parameters) {
-            locals.addVariable(parameter.location, parameter.type, parameter.name, false);
+            locals.addVariable(parameter.location, parameter.clazz, parameter.name, false);
         }
         // Loop counter to catch infinite loops.  Internal use only.
         if (maxLoopCounter > 0) {
-            locals.defineVariable(null, locals.getDefinition().intType, LOOP, true);
+            locals.defineVariable(null, int.class, LOOP, true);
         }
         return locals;
     }
 
     /** Creates a new main method scope */
     public static Locals newMainMethodScope(ScriptClassInfo scriptClassInfo, Locals programScope, int maxLoopCounter) {
-        Locals locals = new Locals(programScope, programScope.definition,
-                scriptClassInfo.getExecuteMethodReturnType(), KEYWORDS);
+        Locals locals = new Locals(
+            programScope, programScope.painlessLookup, scriptClassInfo.getExecuteMethodReturnType(), KEYWORDS);
         // This reference. Internal use only.
-        locals.defineVariable(null, programScope.definition.getType("Object"), THIS, true);
+        locals.defineVariable(null, Object.class, THIS, true);
 
         // Method arguments
         for (MethodArgument arg : scriptClassInfo.getExecuteArguments()) {
-            locals.defineVariable(null, arg.getType(), arg.getName(), true);
+            locals.defineVariable(null, arg.getClazz(), arg.getName(), true);
         }
 
         // Loop counter to catch infinite loops.  Internal use only.
         if (maxLoopCounter > 0) {
-            locals.defineVariable(null, locals.getDefinition().intType, LOOP, true);
+            locals.defineVariable(null, int.class, LOOP, true);
         }
         return locals;
     }
 
     /** Creates a new program scope: the list of methods. It is the parent for all methods */
-    public static Locals newProgramScope(Definition definition, Collection<Method> methods) {
-        Locals locals = new Locals(null, definition, null, null);
-        for (Method method : methods) {
+    public static Locals newProgramScope(PainlessLookup painlessLookup, Collection<PainlessMethod> methods) {
+        Locals locals = new Locals(null, painlessLookup, null, null);
+        for (PainlessMethod method : methods) {
             locals.addMethod(method);
         }
         return locals;
@@ -143,8 +143,8 @@ public final class Locals {
     }
 
     /** Looks up a method. Returns null if the method does not exist. */
-    public Method getMethod(MethodKey key) {
-        Method method = lookupMethod(key);
+    public PainlessMethod getMethod(String key) {
+        PainlessMethod method = lookupMethod(key);
         if (method != null) {
             return method;
         }
@@ -155,18 +155,18 @@ public final class Locals {
     }
 
     /** Creates a new variable. Throws IAE if the variable has already been defined (even in a parent) or reserved. */
-    public Variable addVariable(Location location, Type type, String name, boolean readonly) {
+    public Variable addVariable(Location location, Class<?> clazz, String name, boolean readonly) {
         if (hasVariable(name)) {
             throw location.createError(new IllegalArgumentException("Variable [" + name + "] is already defined."));
         }
         if (keywords.contains(name)) {
             throw location.createError(new IllegalArgumentException("Variable [" + name + "] is reserved."));
         }
-        return defineVariable(location, type, name, readonly);
+        return defineVariable(location, clazz, name, readonly);
     }
 
     /** Return type of this scope (e.g. int, if inside a function that returns int) */
-    public Type getReturnType() {
+    public Class<?> getReturnType() {
         return returnType;
     }
 
@@ -180,18 +180,18 @@ public final class Locals {
     }
 
     /** Whitelist against which this script is being compiled. */
-    public Definition getDefinition() {
-        return definition;
+    public PainlessLookup getPainlessLookup() {
+        return painlessLookup;
     }
 
     ///// private impl
 
     /** Whitelist against which this script is being compiled. */
-    private final Definition definition;
+    private final PainlessLookup painlessLookup;
     // parent scope
     private final Locals parent;
     // return type of this scope
-    private final Type returnType;
+    private final Class<?> returnType;
     // keywords for this scope
     private final Set<String> keywords;
     // next slot number to assign
@@ -199,21 +199,21 @@ public final class Locals {
     // variable name -> variable
     private Map<String,Variable> variables;
     // method name+arity -> methods
-    private Map<MethodKey,Method> methods;
+    private Map<String,PainlessMethod> methods;
 
     /**
      * Create a new Locals
      */
     private Locals(Locals parent) {
-        this(parent, parent.definition, parent.returnType, parent.keywords);
+        this(parent, parent.painlessLookup, parent.returnType, parent.keywords);
     }
 
     /**
      * Create a new Locals with specified return type
      */
-    private Locals(Locals parent, Definition definition, Type returnType, Set<String> keywords) {
+    private Locals(Locals parent, PainlessLookup painlessLookup, Class<?> returnType, Set<String> keywords) {
         this.parent = parent;
-        this.definition = definition;
+        this.painlessLookup = painlessLookup;
         this.returnType = returnType;
         this.keywords = keywords;
         if (parent == null) {
@@ -237,7 +237,7 @@ public final class Locals {
     }
 
     /** Looks up a method at this scope only. Returns null if the method does not exist. */
-    private Method lookupMethod(MethodKey key) {
+    private PainlessMethod lookupMethod(String key) {
         if (methods == null) {
             return null;
         }
@@ -246,21 +246,21 @@ public final class Locals {
 
 
     /** Defines a variable at this scope internally. */
-    private Variable defineVariable(Location location, Type type, String name, boolean readonly) {
+    private Variable defineVariable(Location location, Class<?> type, String name, boolean readonly) {
         if (variables == null) {
             variables = new HashMap<>();
         }
         Variable variable = new Variable(location, name, type, getNextSlot(), readonly);
         variables.put(name, variable); // TODO: check result
-        nextSlotNumber += type.type.getSize();
+        nextSlotNumber += MethodWriter.getType(type).getSize();
         return variable;
     }
 
-    private void addMethod(Method method) {
+    private void addMethod(PainlessMethod method) {
         if (methods == null) {
             methods = new HashMap<>();
         }
-        methods.put(new MethodKey(method.name, method.arguments.size()), method);
+        methods.put(PainlessLookupUtility.buildPainlessMethodKey(method.name, method.arguments.size()), method);
         // TODO: check result
     }
 
@@ -272,15 +272,15 @@ public final class Locals {
     public static final class Variable {
         public final Location location;
         public final String name;
-        public final Type type;
+        public final Class<?> clazz;
         public final boolean readonly;
         private final int slot;
         private boolean used;
 
-        public Variable(Location location, String name, Type type, int slot, boolean readonly) {
+        public Variable(Location location, String name, Class<?> clazz, int slot, boolean readonly) {
             this.location = location;
             this.name = name;
-            this.type = type;
+            this.clazz = clazz;
             this.slot = slot;
             this.readonly = readonly;
         }
@@ -292,7 +292,7 @@ public final class Locals {
         @Override
         public String toString() {
             StringBuilder b = new StringBuilder();
-            b.append("Variable[type=").append(type);
+            b.append("Variable[type=").append(PainlessLookupUtility.typeToCanonicalTypeName(clazz));
             b.append(",name=").append(name);
             b.append(",slot=").append(slot);
             if (readonly) {
@@ -306,12 +306,12 @@ public final class Locals {
     public static final class Parameter {
         public final Location location;
         public final String name;
-        public final Type type;
+        public final Class<?> clazz;
 
-        public Parameter(Location location, String name, Type type) {
+        public Parameter(Location location, String name, Class<?> clazz) {
             this.location = location;
             this.name = name;
-            this.type = type;
+            this.clazz = clazz;
         }
     }
 }

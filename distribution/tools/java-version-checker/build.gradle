@@ -1,0 +1,14 @@
+import org.elasticsearch.gradle.precommit.PrecommitTasks
+
+apply plugin: 'elasticsearch.build'
+
+targetCompatibility = JavaVersion.VERSION_1_7
+
+// java_version_checker do not depend on core so only JDK signatures should be checked
+forbiddenApisMain.signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
+
+test.enabled = false
+namingConventions.enabled = false
+javadoc.enabled = false
+loggerUsageCheck.enabled = false
+jarHell.enabled = false

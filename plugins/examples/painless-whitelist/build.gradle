@@ -26,8 +26,12 @@ esplugin {
   extendedPlugins = ['lang-painless']
 }
 
-integTestCluster {
-  distribution = 'zip'
+dependencies {
+  compileOnly project(':modules:lang-painless')
+}
+
+if (System.getProperty('tests.distribution') == null) {
+  integTestCluster.distribution = 'oss-zip'
 }
 
 test.enabled = false

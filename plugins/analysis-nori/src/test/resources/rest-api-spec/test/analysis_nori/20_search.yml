@@ -1,0 +1,32 @@
+# Integration tests for Korean analysis components
+#
+---
+"Index Korean content":
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            type:
+              properties:
+                text:
+                  type:     text
+                  analyzer: nori
+
+  - do:
+      index:
+        index:  test
+        type:   type
+        id:     1
+        body:   { "text": "뿌리가 깊은 나무는" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match:
+              text: 나무
+  - match: { hits.total: 1 }

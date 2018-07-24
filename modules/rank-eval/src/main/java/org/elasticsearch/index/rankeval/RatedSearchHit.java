@@ -19,11 +19,16 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchHit;
 
 import java.io.IOException;
@@ -33,7 +38,7 @@ import java.util.Optional;
 /**
  * Combines a {@link SearchHit} with a document rating.
  */
-public class RatedSearchHit implements Writeable, ToXContent {
+public class RatedSearchHit implements Writeable, ToXContentObject {
 
     private final SearchHit searchHit;
     private final Optional<Integer> rating;
@@ -73,6 +78,23 @@ public class RatedSearchHit implements Writeable, ToXContent {
         builder.field("rating", rating.orElse(null));
         builder.endObject();
         return builder;
+    }
+
+    private static final ParseField HIT_FIELD = new ParseField("hit");
+    private static final ParseField RATING_FIELD = new ParseField("rating");
+    @SuppressWarnings("unchecked")
+    private static final ConstructingObjectParser<RatedSearchHit, Void> PARSER = new ConstructingObjectParser<>("rated_hit", true,
+            a -> new RatedSearchHit((SearchHit) a[0], (Optional<Integer>) a[1]));
+
+    static {
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> SearchHit.fromXContent(p), HIT_FIELD);
+        PARSER.declareField(ConstructingObjectParser.constructorArg(),
+                (p) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? Optional.empty() : Optional.of(p.intValue()), RATING_FIELD,
+                ValueType.INT_OR_NULL);
+    }
+
+    public static RatedSearchHit parse(XContentParser parser) throws IOException {
+        return PARSER.apply(parser, null);
     }
 
     @Override

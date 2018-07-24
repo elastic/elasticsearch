@@ -1,0 +1,46 @@
+{
+  "index_patterns" : ".logstash",
+  "settings": {
+    "index": {
+      "number_of_shards": 1,
+      "number_of_replicas": 1,
+      "codec": "best_compression"
+    }
+  },
+  "mappings" : {
+    "doc" : {
+      "_meta": {
+        "logstash-version": "4.0.0"
+      },
+      "dynamic": "strict",
+      "properties":{
+        "description":{
+          "type":"text"
+        },
+        "last_modified":{
+          "type":"date"
+        },
+        "pipeline_metadata":{
+          "properties":{
+            "version":{
+              "type":"short"
+            },
+            "type":{
+              "type":"keyword"
+            }
+          }
+        },
+        "pipeline":{
+          "type":"text"
+        },
+        "username":{
+          "type":"keyword"
+        },
+        "metadata":{
+          "type":"object",
+          "dynamic":false
+        }
+      }
+    }
+  }
+}

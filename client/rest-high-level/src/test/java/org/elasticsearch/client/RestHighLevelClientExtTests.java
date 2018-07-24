@@ -44,7 +44,7 @@ public class RestHighLevelClientExtTests extends ESTestCase {
     private RestHighLevelClient restHighLevelClient;
 
     @Before
-    public void initClient() throws IOException {
+    public void initClient() {
         RestClient restClient = mock(RestClient.class);
         restHighLevelClient = new RestHighLevelClientExt(restClient);
     }

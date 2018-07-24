@@ -17,8 +17,6 @@
  * under the License.
  */
 
-apply plugin: 'elasticsearch.build'
-
 test.enabled = false
 
 // test depend on ES core...

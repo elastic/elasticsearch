@@ -33,30 +33,30 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public abstract class MultiValuesSourceParser<VS extends ValuesSource> implements Aggregator.Parser {
+public abstract class ArrayValuesSourceParser<VS extends ValuesSource> implements Aggregator.Parser {
 
-    public abstract static class AnyValuesSourceParser extends MultiValuesSourceParser<ValuesSource> {
+    public abstract static class AnyValuesSourceParser extends ArrayValuesSourceParser<ValuesSource> {
 
         protected AnyValuesSourceParser(boolean formattable) {
             super(formattable, ValuesSourceType.ANY, null);
         }
     }
 
-    public abstract static class NumericValuesSourceParser extends MultiValuesSourceParser<ValuesSource.Numeric> {
+    public abstract static class NumericValuesSourceParser extends ArrayValuesSourceParser<ValuesSource.Numeric> {
 
         protected NumericValuesSourceParser(boolean formattable) {
             super(formattable, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
         }
     }
 
-    public abstract static class BytesValuesSourceParser extends MultiValuesSourceParser<ValuesSource.Bytes> {
+    public abstract static class BytesValuesSourceParser extends ArrayValuesSourceParser<ValuesSource.Bytes> {
 
         protected BytesValuesSourceParser(boolean formattable) {
             super(formattable, ValuesSourceType.BYTES, ValueType.STRING);
         }
     }
 
-    public abstract static class GeoPointValuesSourceParser extends MultiValuesSourceParser<ValuesSource.GeoPoint> {
+    public abstract static class GeoPointValuesSourceParser extends ArrayValuesSourceParser<ValuesSource.GeoPoint> {
 
         protected GeoPointValuesSourceParser(boolean formattable) {
             super(formattable, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
@@ -67,15 +67,15 @@ public abstract class MultiValuesSourceParser<VS extends ValuesSource> implement
     private ValuesSourceType valuesSourceType = null;
     private ValueType targetValueType = null;
 
-    private MultiValuesSourceParser(boolean formattable, ValuesSourceType valuesSourceType, ValueType targetValueType) {
+    private ArrayValuesSourceParser(boolean formattable, ValuesSourceType valuesSourceType, ValueType targetValueType) {
         this.valuesSourceType = valuesSourceType;
         this.targetValueType = targetValueType;
         this.formattable = formattable;
     }
 
     @Override
-    public final MultiValuesSourceAggregationBuilder<VS, ?> parse(String aggregationName, XContentParser parser)
-            throws IOException {
+    public final ArrayValuesSourceAggregationBuilder<VS, ?> parse(String aggregationName, XContentParser parser)
+        throws IOException {
 
         List<String> fields = null;
         ValueType valueType = null;
@@ -98,7 +98,7 @@ public abstract class MultiValuesSourceParser<VS extends ValuesSource> implement
                             "Multi-field aggregations do not support scripts.");
                 } else if (!token(aggregationName, currentFieldName, token, parser, otherOptions)) {
                     throw new ParsingException(parser.getTokenLocation(),
-                            "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
+                        "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (CommonFields.MISSING.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -113,7 +113,7 @@ public abstract class MultiValuesSourceParser<VS extends ValuesSource> implement
 
                 } else if (!token(aggregationName, currentFieldName, token, parser, otherOptions)) {
                     throw new ParsingException(parser.getTokenLocation(),
-                            "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
+                        "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (Script.SCRIPT_PARSE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -127,21 +127,21 @@ public abstract class MultiValuesSourceParser<VS extends ValuesSource> implement
                             fields.add(parser.text());
                         } else {
                             throw new ParsingException(parser.getTokenLocation(),
-                                    "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
+                                "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
                         }
                     }
                 } else if (!token(aggregationName, currentFieldName, token, parser, otherOptions)) {
                     throw new ParsingException(parser.getTokenLocation(),
-                            "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
+                        "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
                 }
             } else if (!token(aggregationName, currentFieldName, token, parser, otherOptions)) {
                 throw new ParsingException(parser.getTokenLocation(),
-                        "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
+                    "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
             }
         }
 
-        MultiValuesSourceAggregationBuilder<VS, ?> factory = createFactory(aggregationName, this.valuesSourceType, this.targetValueType,
-                otherOptions);
+        ArrayValuesSourceAggregationBuilder<VS, ?> factory = createFactory(aggregationName, this.valuesSourceType, this.targetValueType,
+            otherOptions);
         if (fields != null) {
             factory.fields(fields);
         }
@@ -182,7 +182,7 @@ public abstract class MultiValuesSourceParser<VS extends ValuesSource> implement
     /**
      * Creates a {@link ValuesSourceAggregationBuilder} from the information
      * gathered by the subclass. Options parsed in
-     * {@link MultiValuesSourceParser} itself will be added to the factory
+     * {@link ArrayValuesSourceParser} itself will be added to the factory
      * after it has been returned by this method.
      *
      * @param aggregationName
@@ -197,11 +197,13 @@ public abstract class MultiValuesSourceParser<VS extends ValuesSource> implement
      *            method
      * @return the created factory
      */
-    protected abstract MultiValuesSourceAggregationBuilder<VS, ?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
-        ValueType targetValueType, Map<ParseField, Object> otherOptions);
+    protected abstract ArrayValuesSourceAggregationBuilder<VS, ?> createFactory(String aggregationName,
+                                                                                ValuesSourceType valuesSourceType,
+                                                                                ValueType targetValueType,
+                                                                                Map<ParseField, Object> otherOptions);
 
     /**
-     * Allows subclasses of {@link MultiValuesSourceParser} to parse extra
+     * Allows subclasses of {@link ArrayValuesSourceParser} to parse extra
      * parameters and store them in a {@link Map} which will later be passed to
      * {@link #createFactory(String, ValuesSourceType, ValueType, Map)}.
      *

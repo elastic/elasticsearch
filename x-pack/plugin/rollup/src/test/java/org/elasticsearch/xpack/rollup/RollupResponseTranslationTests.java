@@ -510,8 +510,10 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         InternalAggregation.ReduceContext reduceContext = new InternalAggregation.ReduceContext(bigArrays, scriptService, true);
         Exception e = expectThrows(RuntimeException.class,
                 () -> RollupResponseTranslator.combineResponses(msearch, reduceContext));
-        assertThat(e.getMessage(), equalTo("org.elasticsearch.search.aggregations.metrics.geobounds.InternalGeoBounds " +
-                "cannot be cast to org.elasticsearch.search.aggregations.InternalMultiBucketAggregation"));
+        assertThat(e.getMessage(),
+            containsString("org.elasticsearch.search.aggregations.metrics.geobounds.InternalGeoBounds"));
+        assertThat(e.getMessage(),
+            containsString("org.elasticsearch.search.aggregations.InternalMultiBucketAggregation"));
     }
 
     public void testDateHisto() throws IOException {

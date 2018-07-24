@@ -1,3 +1,56 @@
+[[release-notes-6.3.2]]
+== {es} version 6.3.2
+
+Also see <<breaking-changes-6.3>>.
+
+[[bug-6.3.2]]
+[float]
+=== Bug fixes
+
+Allocation::
+* A replica can be promoted and started in one cluster state update {pull}32042[#32042]
+
+Authentication::
+* Fix building AD URL from domain name {pull}31849[#31849]
+
+Core::
+* Disable C2 from using AVX-512 on JDK 10 {pull}32138[#32138] (issue: {issue}31425[#31425])
+
+Machine Learning::
+* Fixes calendar and filter updates from non-master nodes {pull}31804[#31804] (issue: {issue}31803[#31803])
+* No longer treats stale FAILED jobs as OPENING in job allocation {pull}31800[#31800] (issue: {issue}31794[#31794])
+* Rate limits established model memory updates {pull}31768[#31768]
+* Fixes SIGSEGV when upgrading a job directly from 5.6.10 to 6.3. It also fixes 
+the upgrade for the trend component model, which caused large prediction errors 
+immediately after upgrading. {ml-pull}143[#143] (issue: {ml-issue}141[#141])
+* Fixes issues upgrading the state, which could cause the autodetect process to 
+crash. {ml-pull}140[#140] (issue: {ml-issue}136[#136])
+
+Recovery::
+* X-pack rolling upgrade failures [ISSUE] {pull}31827[#31827]
+
+Rollup::
+* Histo group config should support scaled_floats {pull}32048[#32048] (issue: {issue}32035[#32035])
+
+SQL::
+* HAVING clause should accept only aggregates {pull}31872[#31872] (issue: {issue}31726[#31726])
+* Fix incorrect HAVING equality {pull}31820[#31820] (issue: {issue}31796[#31796])
+* Fix incorrect message for aliases {pull}31792[#31792] (issue: {issue}31611[#31611])
+* Fix querying an alias having different mappings indices generates an incorrect error message [ISSUE] {pull}31784[#31784]
+* Allow long literals {pull}31777[#31777] (issue: {issue}31750[#31750])
+* Fix stackoverflow on getObject and timestamp conversion {pull}31735[#31735] (issue: {issue}31734[#31734])
+
+Search::
+* Fix multi level nested sort {pull}32204[#32204] (issues: {issue}31554[#31554], {issue}31776[#31776], {issue}31783[#31783], {issue}32130[#32130])
+
+Security::
+* Detect old trial licenses and mimic behaviour {pull}32209[#32209]
+
+Watcher::
+* Add ssl.trust email account setting {pull}31684[#31684]
+* Fix check for currently executed watches {pull}31137[#31137]
+* Increase HttpClient parallel sent requests {pull}31859[#31859] (issue: {issue}30130[#30130])
+
 [[release-notes-6.3.1]]
 == {es} version 6.3.1
 

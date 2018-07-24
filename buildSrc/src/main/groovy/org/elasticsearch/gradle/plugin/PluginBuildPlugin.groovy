@@ -142,23 +142,12 @@ public class PluginBuildPlugin extends BuildPlugin {
             }
             from pluginMetadata // metadata (eg custom security policy)
             /*
-             * We bundle the plugin's jar file and its dependencies. We have
-             * to wait until the project is evaluated before we know if the
-             * project *has* the shadow plugin. If it does we need the shadow
-             * jar and the deps in the shadow configuration because those are
-             * the jars that are not bundled into the plugin's jar. Otherwise
-             * we're fine with the jar an all of the non-provided runtime
-             * dependencies.
+             * If the plugin is using the shadow plugin then we need to bundle
+             * "shadow" things rather than the default jar and dependencies so
+             * we don't hit jar hell.
              */
-            project.afterEvaluate {
-                if (project.plugins.hasPlugin(ShadowPlugin)) {
-                    from project.shadowJar
-                    from project.configurations.shadow
-                } else {
-                    from project.jar
-                    from project.configurations.runtime - project.configurations.compileOnly
-                }
-            }
+            from { project.plugins.hasPlugin(ShadowPlugin) ? project.shadowJar : project.jar }
+            from { project.plugins.hasPlugin(ShadowPlugin) ? project.configurations.shadow : project.configurations.runtime - project.configurations.compileOnly }
             // extra files for the plugin to go into the zip
             from('src/main/packaging') // TODO: move all config/bin/_size/etc into packaging
             from('src/main') {

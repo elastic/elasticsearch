@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.bucket;
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -77,7 +78,6 @@ public class MinDocCountIT extends AbstractTermsTestCase {
     public static class CustomScriptPlugin extends AggregationTestScriptsPlugin {
 
         @Override
-        @SuppressWarnings("unchecked")
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
 

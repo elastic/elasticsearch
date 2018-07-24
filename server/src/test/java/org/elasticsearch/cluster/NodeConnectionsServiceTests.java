@@ -149,7 +149,8 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         super.setUp();
         this.threadPool = new TestThreadPool(getClass().getName());
         this.transport = new MockTransport();
-        transportService = new NoHandshakeTransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+        transportService = new NoHandshakeTransportService(Settings.EMPTY, transport, threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundAddress -> DiscoveryNode.createLocal(Settings.EMPTY, buildNewFakeTransportAddress(), UUIDs.randomBase64UUID()), null,
             Collections.emptySet());
         transportService.start();
@@ -167,13 +168,13 @@ public class NodeConnectionsServiceTests extends ESTestCase {
 
     private final class NoHandshakeTransportService extends TransportService {
 
-        public NoHandshakeTransportService(Settings settings,
-                                           Transport transport,
-                                           ThreadPool threadPool,
-                                           TransportInterceptor transportInterceptor,
-                                           Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
-                                           ClusterSettings clusterSettings,
-                                           Set<String> taskHeaders) {
+        private NoHandshakeTransportService(Settings settings,
+                                            Transport transport,
+                                            ThreadPool threadPool,
+                                            TransportInterceptor transportInterceptor,
+                                            Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
+                                            ClusterSettings clusterSettings,
+                                            Set<String> taskHeaders) {
             super(settings, transport, threadPool, transportInterceptor, localNodeFactory, clusterSettings, taskHeaders);
         }
 

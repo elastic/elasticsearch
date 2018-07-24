@@ -12,7 +12,7 @@ setup:
         body:  >
             {
               "password": "s3krit",
-              "roles" : [ "with_policy" ]
+              "roles" : [ "with_global" ]
             }
 
 ---
@@ -23,7 +23,7 @@ teardown:
         ignore: 404
   - do:
       xpack.security.delete_role:
-        name: "with_policy"
+        name: "with_global"
         ignore: 404
 
 
@@ -31,10 +31,10 @@ teardown:
 "Test put role with conditional security privileges":
   - do:
       xpack.security.put_role:
-        name: "with_policy"
+        name: "with_global"
         body:  >
             {
-              "policy": {
+              "global": {
                 "application": {
                   "manage": {
                     "applications": [ "app1-*" , "app2-*" ]
@@ -46,6 +46,6 @@ teardown:
 
   - do:
       xpack.security.get_role:
-        name: "with_policy"
-  - match: { with_policy.policy.application.manage.applications.0:  "app1-*" }
-  - match: { with_policy.policy.application.manage.applications.1:  "app2-*" }
+        name: "with_global"
+  - match: { with_global.global.application.manage.applications.0:  "app1-*" }
+  - match: { with_global.global.application.manage.applications.1:  "app2-*" }

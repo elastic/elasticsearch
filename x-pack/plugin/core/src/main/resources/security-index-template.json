@@ -108,7 +108,7 @@
         "application" : {
           "type" : "keyword"
         },
-        "policy": {
+        "global": {
           "type": "object",
           "properties": {
             "application": {

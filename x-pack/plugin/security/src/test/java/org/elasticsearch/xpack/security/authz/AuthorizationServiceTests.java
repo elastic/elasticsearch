@@ -287,7 +287,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         verifyNoMoreInteractions(auditTrail);
     }
 
-    public void testAuthorizeUsingPolicyConditionals() {
+    public void testAuthorizeUsingConditionalPrivileges() {
         final DeletePrivilegesRequest request = new DeletePrivilegesRequest();
         final Authentication authentication = createAuthentication(new User("user1", "role1"));
 
@@ -306,7 +306,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         verifyNoMoreInteractions(auditTrail);
     }
 
-    public void testAuthorizationDeniedWhenPolicyConditionalsDoNotMatch() {
+    public void testAuthorizationDeniedWhenConditionalPrivilegesDoNotMatch() {
         final DeletePrivilegesRequest request = new DeletePrivilegesRequest();
         final Authentication authentication = createAuthentication(new User("user1", "role1"));
 

@@ -77,7 +77,7 @@ public class RoleDescriptorTests extends ESTestCase {
             conditionalClusterPrivileges, new String[] { "sudo" }, Collections.emptyMap(), Collections.emptyMap());
 
         assertThat(descriptor.toString(), is("Role[name=test, cluster=[all,none]" +
-                ", policy=[{APPLICATION:manage:applications=app01,app02}]" +
+                ", global=[{APPLICATION:manage:applications=app01,app02}]" +
                 ", indicesPrivileges=[IndicesPrivileges[indices=[i1,i2], privileges=[read]" +
                 ", field_security=[grant=[body,title], except=null], query={\"query\": {\"match_all\": {}}}],]" +
                 ", applicationPrivileges=[ApplicationResourcePrivileges[application=my_app, privileges=[read,write], resources=[*]],]" +
@@ -165,7 +165,7 @@ public class RoleDescriptorTests extends ESTestCase {
                 "     {\"resources\": [\"object-123\",\"object-456\"], \"privileges\":[\"read\", \"delete\"], \"application\":\"app1\"}," +
                 "     {\"resources\": [\"*\"], \"privileges\":[\"admin\"], \"application\":\"app2\" }" +
                 " ]," +
-                " \"policy\": { \"application\": { \"manage\": { \"applications\" : [ \"kibana\", \"logstash\" ] } } }" +
+                " \"global\": { \"application\": { \"manage\": { \"applications\" : [ \"kibana\", \"logstash\" ] } } }" +
                 "}";
         rd = RoleDescriptor.parse("test", new BytesArray(q), false, XContentType.JSON);
         assertThat(rd.getName(), equalTo("test"));

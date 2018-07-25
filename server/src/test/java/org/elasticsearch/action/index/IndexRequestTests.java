@@ -199,4 +199,14 @@ public class IndexRequestTests extends ESTestCase {
         assertEquals("index {[index][type][null], source[n/a, actual length: [" + new ByteSizeValue(actualBytes).toString() +
                 "], max length: " + new ByteSizeValue(IndexRequest.MAX_SOURCE_LENGTH_IN_TOSTRING).toString() + "]}", request.toString());
     }
+
+    public void testRejectsEmptyStringPipeline() {
+        IndexRequest request = new IndexRequest("index", "type");
+        request.source("{}", XContentType.JSON);
+        request.setPipeline("");
+        ActionRequestValidationException validate = request.validate();
+        assertThat(validate, notNullValue());
+        assertThat(validate.getMessage(),
+            containsString("pipeline cannot be an empty string"));
+    }
 }

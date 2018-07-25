@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.security.user;
 
+import org.elasticsearch.protocol.xpack.security.User;
 import org.elasticsearch.xpack.core.security.authz.privilege.SystemPrivilege;
 
 import java.util.function.Predicate;

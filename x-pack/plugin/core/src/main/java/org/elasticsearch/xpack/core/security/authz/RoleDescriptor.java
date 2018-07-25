@@ -163,7 +163,7 @@ public class RoleDescriptor implements ToXContentObject {
         }
         sb.append("], runAs=[").append(Strings.arrayToCommaDelimitedString(runAs));
         sb.append("], metadata=[");
-        MetadataUtils.writeValue(sb, metadata);
+        sb.append(metadata);
         sb.append("]]");
         return sb.toString();
     }

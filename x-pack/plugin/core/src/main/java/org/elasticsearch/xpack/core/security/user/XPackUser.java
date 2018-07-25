@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.security.user;
 
+import org.elasticsearch.protocol.xpack.security.User;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.index.IndexAuditTrailField;

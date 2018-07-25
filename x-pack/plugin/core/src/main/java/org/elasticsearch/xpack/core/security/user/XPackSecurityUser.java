@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.core.security.user;
 
+import org.elasticsearch.protocol.xpack.security.User;
+
 /**
  * internal user that manages xpack security. Has all cluster/indices permissions.
  */

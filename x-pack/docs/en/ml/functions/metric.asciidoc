@@ -15,6 +15,9 @@ The {xpackml} features include the following metric functions:
 * <<ml-metric-metric,`metric`>>
 * xref:ml-metric-varp[`varp`, `high_varp`, `low_varp`]
 
+NOTE: You cannot add rules with conditions to detectors that use the `metric` 
+function. 
+
 [float]
 [[ml-metric-min]]
 ==== Min
@@ -221,7 +224,6 @@ mean `responsetime` for each application over time. It detects when the mean
 The `metric` function combines `min`, `max`, and `mean` functions. You can use
 it as a shorthand for a combined analysis. If you do not specify a function in
 a detector, this is the default function.
-//TBD: Is that default behavior still true?
 
 High- and low-sided functions are not applicable. You cannot use this function
 when a `summary_count_field_name` is specified.

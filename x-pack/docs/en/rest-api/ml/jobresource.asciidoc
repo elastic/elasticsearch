@@ -245,7 +245,7 @@ NOTE: The `field_name` cannot contain double quotes or backslashes.
 --
 
 `function`::
-  (string) The analysis function that is used.
+  (string) The analysis function that is used. 
   For example, `count`, `rare`, `mean`, `min`, `max`, and `sum`. For more
   information, see {xpack-ref}/ml-functions.html[Function Reference].
 
@@ -262,7 +262,12 @@ NOTE: The `field_name` cannot contain double quotes or backslashes.
 
 `use_null`::
   (boolean) Defines whether a new series is used as the null series
-  when there is no value for the by or partition fields. The default value is `false`. +
+  when there is no value for the by or partition fields. The default value is `false`.
+
+`custom_rules`::
+  (array) An array of rule objects, which enable customizing how the detector works.
+  For example, a rule may dictate to the detector conditions under which results should be skipped.
+  For more information see <<ml-detector-custom-rule,detector custom rule objects>>. +
 +
 --
 IMPORTANT: Field names are case sensitive, for example a field named 'Bytes'
@@ -270,9 +275,9 @@ is different from one named 'bytes'.
 
 --
 
-After you create a job, the only property you can change in the detector
-configuration object is the `detector_description`; all other properties are
-informational.
+After you create a job, the only properties you can change in the detector
+configuration object are the `detector_description` and the `custom_rules`;
+all other properties are informational.
 
 [float]
 [[ml-datadescription]]
@@ -407,6 +412,64 @@ the categorization field value came from.
 
 For more information, see
 {xpack-ref}/ml-configuring-categories.html[Categorizing Log Messages].
+
+[float]
+[[ml-detector-custom-rule]]
+==== Detector Custom Rule
+
+{stack-ov}/ml-rules.html[Custom rules] enable you to customize the way detectors 
+operate. 
+
+A rule has the following properties:
+
+`actions`::
+  (array) The set of actions to be triggered when the rule applies.
+  If more than one action is specified the effects of all actions are combined.
+  The available actions include: +
+  `skip_result`::: The result will not be created. This is the default value.
+  Unless you also specify `skip_model_update`, the model will be updated as
+  usual with the corresponding series value.
+  `skip_model_update`::: The value for that series will not be used to update
+  the model. Unless you also specify `skip_result`, the results will be created
+  as usual. This action is suitable when certain values are expected to be
+  consistently anomalous and they affect the model in a way that negatively
+  impacts the rest of the results.
+`scope`::
+  (object) An optional scope of series where the rule applies. By default the scope
+  includes all series. Scoping is allowed for any of the partition/by/over fields.
+  To add a scope for a field add the field name as a key in the scope object and
+  set its value to an object with properties:
+    `filter_id`::
+      (string) The id of the <<ml-filter-resource,filter>> to be used.
+    `filter_type`::
+      (string) Either `include` (the rule applies for values in the filter)
+      or `exclude` (the rule applies for values not in the filter). Defaults
+      to `include`.
+
+`conditions`::
+  (array) An optional array of numeric conditions when the rule applies.
+  Multiple conditions are combined together with a logical `AND`.
++
+--
+NOTE: If your detector uses `lat_long`, `metric`, `rare`, or `freq_rare` 
+functions, you cannot specify `conditions` for your rule.
+
+  
+A condition has the following properties: 
+
+`applies_to`:::
+    (string) Specifies the result property to which the condition applies.
+    The available options are `actual`, `typical`, `diff_from_typical`, `time`.
+`operator`:::
+    (string) Specifies the condition operator. The available options are
+    `gt` (greater than), `gte` (greater than or equals), `lt` (less than) and `lte` (less than or equals).
+`value`:::
+    (double) The value that is compared against the `applied_to` field using the `operator`.
+--
+
+A rule is required to either have a non-empty scope or at least one condition.
+For more examples see 
+{stack-ov}/ml-configuring-detector-custom-rules.html[Configuring Detector Custom Rules].
 
 [float]
 [[ml-apilimits]]

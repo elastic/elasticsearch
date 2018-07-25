@@ -28,7 +28,8 @@ plugins {
 
 dependencies {
   compile "junit:junit:${versions.junit}"
-  compile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
+  compile "org.hamcrest:hamcrest-core:${versions.hamcrest}"
+  compile "org.hamcrest:hamcrest-library:${versions.hamcrest}"
   compile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
 
   compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
@@ -91,13 +92,5 @@ tasks.thirdPartyAudit.excludes = [
         'org.apache.log4j.Priority',
         // commons-logging provided dependencies
         'javax.servlet.ServletContextEvent',
-        'javax.servlet.ServletContextListener',
-        // from randomized testing
-        'org.apache.tools.ant.BuildException',
-        'org.apache.tools.ant.DirectoryScanner',
-        'org.apache.tools.ant.Task',
-        'org.apache.tools.ant.types.FileSet',
-        'org.easymock.EasyMock',
-        'org.easymock.IArgumentMatcher',
-        'org.jmock.core.Constraint'
+        'javax.servlet.ServletContextListener'
 ]

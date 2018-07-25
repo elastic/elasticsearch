@@ -85,6 +85,9 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.SecuritySettings;
+import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheAction;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheAction;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleAction;
@@ -120,8 +123,12 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessCo
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.SecurityIndexSearcherWrapper;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
+import org.elasticsearch.xpack.security.action.privilege.TransportDeletePrivilegesAction;
+import org.elasticsearch.xpack.security.action.privilege.TransportGetPrivilegesAction;
+import org.elasticsearch.xpack.security.action.privilege.TransportPutPrivilegesAction;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.index.IndexAuditTrailField;
+import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
@@ -177,6 +184,7 @@ import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.SecuritySearchOperationListener;
 import org.elasticsearch.xpack.security.authz.accesscontrol.OptOutQueryCache;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
+import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.ingest.SetSecurityUserProcessor;
@@ -184,6 +192,10 @@ import org.elasticsearch.xpack.security.rest.SecurityRestFilter;
 import org.elasticsearch.xpack.security.rest.action.RestAuthenticateAction;
 import org.elasticsearch.xpack.security.rest.action.oauth2.RestGetTokenAction;
 import org.elasticsearch.xpack.security.rest.action.oauth2.RestInvalidateTokenAction;
+import org.elasticsearch.xpack.security.rest.action.privilege.RestDeletePrivilegesAction;
+import org.elasticsearch.xpack.security.rest.action.privilege.RestGetPrivilegesAction;
+import org.elasticsearch.xpack.security.rest.action.privilege.RestPutPrivilegeAction;
+import org.elasticsearch.xpack.security.rest.action.privilege.RestPutPrivilegesAction;
 import org.elasticsearch.xpack.security.rest.action.realm.RestClearRealmCacheAction;
 import org.elasticsearch.xpack.security.rest.action.role.RestClearRolesCacheAction;
 import org.elasticsearch.xpack.security.rest.action.role.RestDeleteRoleAction;
@@ -292,8 +304,6 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         this.enabled = XPackSettings.SECURITY_ENABLED.get(settings);
         if (enabled && transportClientMode == false) {
             validateAutoCreateIndex(settings);
-        }
-        if (enabled) {
             // we load them all here otherwise we can't access secure settings since they are closed once the checks are
             // fetched
             final List<BootstrapCheck> checks = new ArrayList<>();
@@ -309,6 +319,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 new KerberosRealmBootstrapCheck(env)));
             checks.addAll(InternalRealms.getBootstrapChecks(settings, env));
             this.bootstrapChecks = Collections.unmodifiableList(checks);
+            Automatons.updateMaxDeterminizedStates(settings);
         } else {
             this.bootstrapChecks = Collections.emptyList();
         }
@@ -459,6 +470,9 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         authcService.set(new AuthenticationService(settings, realms, auditTrailService, failureHandler, threadPool, anonymousUser, tokenService));
         components.add(authcService.get());
 
+        final NativePrivilegeStore privilegeStore = new NativePrivilegeStore(settings, client, securityIndex.get());
+        components.add(privilegeStore);
+
         final FileRolesStore fileRolesStore = new FileRolesStore(settings, env, resourceWatcherService, getLicenseState());
         final NativeRolesStore nativeRolesStore = new NativeRolesStore(settings, client, getLicenseState(), securityIndex.get());
         final ReservedRolesStore reservedRolesStore = new ReservedRolesStore();
@@ -467,7 +481,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             rolesProviders.addAll(extension.getRolesProviders(settings, resourceWatcherService));
         }
         final CompositeRolesStore allRolesStore = new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore,
-            reservedRolesStore, rolesProviders, threadPool.getThreadContext(), getLicenseState());
+            reservedRolesStore, privilegeStore, rolesProviders, threadPool.getThreadContext(), getLicenseState());
         securityIndex.get().addIndexStateListener(allRolesStore::onSecurityIndexStateChange);
         // to keep things simple, just invalidate all cached entries on license change. this happens so rarely that the impact should be
         // minimal
@@ -614,13 +628,14 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         LoggingAuditTrail.registerSettings(settingsList);
         IndexAuditTrail.registerSettings(settingsList);
 
-        // authentication settings
+        // authentication and authorization settings
         AnonymousUser.addSettings(settingsList);
         RealmSettings.addSettings(settingsList, securityExtensions);
         NativeRolesStore.addSettings(settingsList);
         ReservedRealm.addSettings(settingsList);
         AuthenticationService.addSettings(settingsList);
         AuthorizationService.addSettings(settingsList);
+        settingsList.add(Automatons.MAX_DETERMINIZED_STATES_SETTING);
         settingsList.add(CompositeRolesStore.CACHE_SIZE_SETTING);
         settingsList.add(FieldPermissionsCache.CACHE_SIZE_SETTING);
         settingsList.add(TokenService.TOKEN_EXPIRATION);
@@ -727,7 +742,10 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 new ActionHandler<>(SamlPrepareAuthenticationAction.INSTANCE, TransportSamlPrepareAuthenticationAction.class),
                 new ActionHandler<>(SamlAuthenticateAction.INSTANCE, TransportSamlAuthenticateAction.class),
                 new ActionHandler<>(SamlLogoutAction.INSTANCE, TransportSamlLogoutAction.class),
-                new ActionHandler<>(SamlInvalidateSessionAction.INSTANCE, TransportSamlInvalidateSessionAction.class)
+                new ActionHandler<>(SamlInvalidateSessionAction.INSTANCE, TransportSamlInvalidateSessionAction.class),
+                new ActionHandler<>(GetPrivilegesAction.INSTANCE, TransportGetPrivilegesAction.class),
+                new ActionHandler<>(PutPrivilegesAction.INSTANCE, TransportPutPrivilegesAction.class),
+                new ActionHandler<>(DeletePrivilegesAction.INSTANCE, TransportDeletePrivilegesAction.class)
         );
     }
 
@@ -772,7 +790,11 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 new RestSamlPrepareAuthenticationAction(settings, restController, getLicenseState()),
                 new RestSamlAuthenticateAction(settings, restController, getLicenseState()),
                 new RestSamlLogoutAction(settings, restController, getLicenseState()),
-                new RestSamlInvalidateSessionAction(settings, restController, getLicenseState())
+                new RestSamlInvalidateSessionAction(settings, restController, getLicenseState()),
+                new RestGetPrivilegesAction(settings, restController, getLicenseState()),
+                new RestPutPrivilegesAction(settings, restController, getLicenseState()),
+                new RestPutPrivilegeAction(settings, restController, getLicenseState()),
+                new RestDeletePrivilegesAction(settings, restController, getLicenseState())
         );
     }
 

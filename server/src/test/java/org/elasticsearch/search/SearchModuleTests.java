@@ -64,7 +64,6 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.RescorerBuilder;
-import org.elasticsearch.search.suggest.CustomSuggester;
 import org.elasticsearch.search.suggest.CustomSuggester.CustomSuggestion;
 import org.elasticsearch.search.suggest.CustomSuggesterSearchIT.CustomSuggestionBuilder;
 import org.elasticsearch.search.suggest.SuggestionBuilder;

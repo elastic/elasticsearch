@@ -26,7 +26,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
-import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

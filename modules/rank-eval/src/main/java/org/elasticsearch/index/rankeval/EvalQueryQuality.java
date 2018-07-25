@@ -41,19 +41,19 @@ import java.util.Objects;
 public class EvalQueryQuality implements ToXContentFragment, Writeable {
 
     private final String queryId;
-    private final double evaluationResult;
+    private final double metricScore;
     private MetricDetail optionalMetricDetails;
     private final List<RatedSearchHit> ratedHits;
 
-    public EvalQueryQuality(String id, double evaluationResult) {
+    public EvalQueryQuality(String id, double metricScore) {
         this.queryId = id;
-        this.evaluationResult = evaluationResult;
+        this.metricScore = metricScore;
         this.ratedHits = new ArrayList<>();
     }
 
     public EvalQueryQuality(StreamInput in) throws IOException {
         this.queryId = in.readString();
-        this.evaluationResult = in.readDouble();
+        this.metricScore = in.readDouble();
         this.ratedHits = in.readList(RatedSearchHit::new);
         this.optionalMetricDetails = in.readOptionalNamedWriteable(MetricDetail.class);
     }
@@ -61,7 +61,7 @@ public class EvalQueryQuality implements ToXContentFragment, Writeable {
     // only used for parsing internally
     private EvalQueryQuality(String queryId, ParsedEvalQueryQuality builder) {
         this.queryId = queryId;
-        this.evaluationResult = builder.evaluationResult;
+        this.metricScore = builder.evaluationResult;
         this.optionalMetricDetails = builder.optionalMetricDetails;
         this.ratedHits = builder.ratedHits;
     }
@@ -69,7 +69,7 @@ public class EvalQueryQuality implements ToXContentFragment, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(queryId);
-        out.writeDouble(evaluationResult);
+        out.writeDouble(metricScore);
         out.writeList(ratedHits);
         out.writeOptionalNamedWriteable(this.optionalMetricDetails);
     }
@@ -78,8 +78,8 @@ public class EvalQueryQuality implements ToXContentFragment, Writeable {
         return queryId;
     }
 
-    public double getQualityLevel() {
-        return evaluationResult;
+    public double metricScore() {
+        return metricScore;
     }
 
     public void setMetricDetails(MetricDetail breakdown) {
@@ -101,7 +101,7 @@ public class EvalQueryQuality implements ToXContentFragment, Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(queryId);
-        builder.field(QUALITY_LEVEL_FIELD.getPreferredName(), this.evaluationResult);
+        builder.field(METRIC_SCORE_FIELD.getPreferredName(), this.metricScore);
         builder.startArray(UNRATED_DOCS_FIELD.getPreferredName());
         for (DocumentKey key : EvaluationMetric.filterUnratedDocuments(ratedHits)) {
             builder.startObject();
@@ -122,7 +122,7 @@ public class EvalQueryQuality implements ToXContentFragment, Writeable {
         return builder;
     }
 
-    private static final ParseField QUALITY_LEVEL_FIELD = new ParseField("quality_level");
+    static final ParseField METRIC_SCORE_FIELD = new ParseField("metric_score");
     private static final ParseField UNRATED_DOCS_FIELD = new ParseField("unrated_docs");
     private static final ParseField HITS_FIELD = new ParseField("hits");
     private static final ParseField METRIC_DETAILS_FIELD = new ParseField("metric_details");
@@ -136,7 +136,7 @@ public class EvalQueryQuality implements ToXContentFragment, Writeable {
     }
 
     static {
-        PARSER.declareDouble((obj, value) -> obj.evaluationResult = value, QUALITY_LEVEL_FIELD);
+        PARSER.declareDouble((obj, value) -> obj.evaluationResult = value, METRIC_SCORE_FIELD);
         PARSER.declareObject((obj, value) -> obj.optionalMetricDetails = value, (p, c) -> parseMetricDetail(p),
                 METRIC_DETAILS_FIELD);
         PARSER.declareObjectArray((obj, list) -> obj.ratedHits = list, (p, c) -> RatedSearchHit.parse(p), HITS_FIELD);
@@ -164,13 +164,13 @@ public class EvalQueryQuality implements ToXContentFragment, Writeable {
         }
         EvalQueryQuality other = (EvalQueryQuality) obj;
         return Objects.equals(queryId, other.queryId) &&
-                Objects.equals(evaluationResult, other.evaluationResult) &&
+                Objects.equals(metricScore, other.metricScore) &&
                 Objects.equals(ratedHits, other.ratedHits) &&
                 Objects.equals(optionalMetricDetails, other.optionalMetricDetails);
     }
 
     @Override
     public final int hashCode() {
-        return Objects.hash(queryId, evaluationResult, ratedHits, optionalMetricDetails);
+        return Objects.hash(queryId, metricScore, ratedHits, optionalMetricDetails);
     }
 }

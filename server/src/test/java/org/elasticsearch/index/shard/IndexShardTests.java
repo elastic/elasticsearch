@@ -28,6 +28,8 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
@@ -120,6 +122,7 @@ import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.FieldMaskingReader;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.ElasticsearchException;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
@@ -146,6 +149,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongFunction;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -1172,6 +1176,81 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
+
+    public void testShardStatsWithFailures() throws IOException {
+        allowShardFailures();
+        final ShardId shardId = new ShardId("index", "_na_", 0);
+        final ShardRouting shardRouting = newShardRouting(shardId, "node", true, RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE, ShardRoutingState.INITIALIZING);
+        final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(createTempDir());
+
+
+        ShardPath shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .build();
+        IndexMetaData metaData = IndexMetaData.builder(shardRouting.getIndexName())
+                .settings(settings)
+                .primaryTerm(0, 1)
+                .build();
+
+        // Override two Directory methods to make them fail at our will
+        // We use AtomicReference here to inject failure in the middle of the test not immediately
+        // We use Supplier<IOException> instead of IOException to produce meaningful stacktrace
+        // (remember stack trace is filled when exception is instantiated)
+        AtomicReference<Supplier<IOException>> exceptionToThrow = new AtomicReference<>();
+        AtomicBoolean throwWhenMarkingStoreCorrupted = new AtomicBoolean(false);
+        Directory directory = new FilterDirectory(newFSDirectory(shardPath.resolveIndex())) {
+            //fileLength method is called during storeStats try block
+            //it's not called when store is marked as corrupted
+            @Override
+            public long fileLength(String name) throws IOException {
+                Supplier<IOException> ex = exceptionToThrow.get();
+                if (ex == null) {
+                    return super.fileLength(name);
+                } else {
+                    throw ex.get();
+                }
+            }
+
+            //listAll method is called when marking store as corrupted
+            @Override
+            public String[] listAll() throws IOException {
+                Supplier<IOException> ex = exceptionToThrow.get();
+                if (throwWhenMarkingStoreCorrupted.get() && ex != null) {
+                    throw ex.get();
+                } else {
+                    return super.listAll();
+                }
+            }
+        };
+
+        try (Store store = createStore(shardId, new IndexSettings(metaData, Settings.EMPTY), directory)) {
+            IndexShard shard = newShard(shardRouting, shardPath, metaData, store,
+                    null, new InternalEngineFactory(), () -> {
+                    }, EMPTY_EVENT_LISTENER);
+            AtomicBoolean failureCallbackTriggered = new AtomicBoolean(false);
+            shard.addShardFailureCallback((ig)->failureCallbackTriggered.set(true));
+
+            recoverShardFromStore(shard);
+
+            final boolean corruptIndexException = randomBoolean();
+
+            if (corruptIndexException) {
+                exceptionToThrow.set(() -> new CorruptIndexException("Test CorruptIndexException", "Test resource"));
+                throwWhenMarkingStoreCorrupted.set(randomBoolean());
+            } else {
+                exceptionToThrow.set(() -> new IOException("Test IOException"));
+            }
+            ElasticsearchException e = expectThrows(ElasticsearchException.class, shard::storeStats);
+            assertTrue(failureCallbackTriggered.get());
+
+            if (corruptIndexException && !throwWhenMarkingStoreCorrupted.get()) {
+                assertTrue(store.isMarkedCorrupted());
+            }
+        }
+    }
+
     public void testRefreshMetric() throws IOException {
         IndexShard shard = newStartedShard();
         assertThat(shard.refreshStats().getTotal(), equalTo(2L)); // refresh on: finalize and end of recovery
@@ -1878,6 +1957,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE),
                 shard.shardPath(),
                 shard.indexSettings().getIndexMetaData(),
+                null,
                 wrapper,
                 new InternalEngineFactory(),
                 () -> {},
@@ -2030,6 +2110,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE),
                 shard.shardPath(),
                 shard.indexSettings().getIndexMetaData(),
+                null,
                 wrapper,
                 new InternalEngineFactory(),
                 () -> {},
@@ -2533,7 +2614,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), randomFrom("false", "true", "checksum", "fix")))
             .build();
         final IndexShard newShard = newShard(shardRouting, indexShard.shardPath(), indexMetaData,
-            null, indexShard.engineFactory, indexShard.getGlobalCheckpointSyncer(), EMPTY_EVENT_LISTENER);
+                null, null, indexShard.engineFactory, indexShard.getGlobalCheckpointSyncer(), EMPTY_EVENT_LISTENER);
 
         Store.MetadataSnapshot storeFileMetaDatas = newShard.snapshotStoreMetadata();
         assertTrue("at least 2 files, commit and data: " + storeFileMetaDatas.toString(), storeFileMetaDatas.size() > 1);
@@ -3040,7 +3121,7 @@ public class IndexShardTests extends IndexShardTestCase {
         ShardPath shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
         AtomicBoolean markedInactive = new AtomicBoolean();
         AtomicReference<IndexShard> primaryRef = new AtomicReference<>();
-        IndexShard primary = newShard(shardRouting, shardPath, metaData, null, new InternalEngineFactory(), () -> {
+        IndexShard primary = newShard(shardRouting, shardPath, metaData, null, null, new InternalEngineFactory(), () -> {
         }, new IndexEventListener() {
             @Override
             public void onShardInactive(IndexShard indexShard) {

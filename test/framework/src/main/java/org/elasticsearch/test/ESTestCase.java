@@ -149,6 +149,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -716,6 +717,20 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static String[] generateRandomStringArray(int maxArraySize, int stringSize, boolean allowNull) {
         return generateRandomStringArray(maxArraySize, stringSize, allowNull, true);
     }
+
+    public static <T> T[] randomArray(int maxArraySize, IntFunction<T[]> arrayConstructor, Supplier<T> valueConstructor) {
+        return randomArray(0, maxArraySize, arrayConstructor, valueConstructor);
+    }
+
+    public static <T> T[] randomArray(int minArraySize, int maxArraySize, IntFunction<T[]> arrayConstructor, Supplier<T> valueConstructor) {
+        final int size = randomIntBetween(minArraySize, maxArraySize);
+        final T[] array = arrayConstructor.apply(size);
+        for (int i = 0; i < array.length; i++) {
+            array[i] = valueConstructor.get();
+        }
+        return array;
+    }
+
 
     private static final String[] TIME_SUFFIXES = new String[]{"d", "h", "ms", "s", "m", "micros", "nanos"};
 

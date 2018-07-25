@@ -92,6 +92,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
                     .indices(request.getDatafeed().getIndices().toArray(new String[0]))
                     .privileges(SearchAction.NAME)
                     .build());
+            privRequest.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
 
             client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
         } else {
@@ -107,8 +108,8 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
         } else {
             XContentBuilder builder = JsonXContent.contentBuilder();
             builder.startObject();
-            for (HasPrivilegesResponse.IndexPrivileges index : response.getIndexPrivileges()) {
-                builder.field(index.getIndex());
+            for (HasPrivilegesResponse.ResourcePrivileges index : response.getIndexPrivileges()) {
+                builder.field(index.getResource());
                 builder.map(index.getPrivileges());
             }
             builder.endObject();

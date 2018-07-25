@@ -98,5 +98,4 @@ public class TransportCcrStatsAction extends TransportTasksAction<
 
     }
 
-
 }

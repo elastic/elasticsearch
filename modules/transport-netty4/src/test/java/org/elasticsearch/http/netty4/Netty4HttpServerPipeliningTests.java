@@ -181,27 +181,32 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
 
         @Override
         public void run() {
-            final String uri = fullHttpRequest.uri();
+            try {
+                final String uri = fullHttpRequest.uri();
 
-            final ByteBuf buffer = Unpooled.copiedBuffer(uri, StandardCharsets.UTF_8);
+                final ByteBuf buffer = Unpooled.copiedBuffer(uri, StandardCharsets.UTF_8);
 
-            Netty4HttpRequest httpRequest = new Netty4HttpRequest(fullHttpRequest, pipelinedRequest.getSequence());
-            Netty4HttpResponse response = httpRequest.createResponse(RestStatus.OK, new BytesArray(uri.getBytes(StandardCharsets.UTF_8)));
-            response.headers().add(HttpHeaderNames.CONTENT_LENGTH, buffer.readableBytes());
+                Netty4HttpRequest httpRequest = new Netty4HttpRequest(fullHttpRequest, pipelinedRequest.getSequence());
+                Netty4HttpResponse response =
+                    httpRequest.createResponse(RestStatus.OK, new BytesArray(uri.getBytes(StandardCharsets.UTF_8)));
+                response.headers().add(HttpHeaderNames.CONTENT_LENGTH, buffer.readableBytes());
 
-            final boolean slow = uri.matches("/slow/\\d+");
-            if (slow) {
-                try {
-                    Thread.sleep(scaledRandomIntBetween(500, 1000));
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
+                final boolean slow = uri.matches("/slow/\\d+");
+                if (slow) {
+                    try {
+                        Thread.sleep(scaledRandomIntBetween(500, 1000));
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                } else {
+                    assert uri.matches("/\\d+");
                 }
-            } else {
-                assert uri.matches("/\\d+");
-            }
 
-            final ChannelPromise promise = ctx.newPromise();
-            ctx.writeAndFlush(response, promise);
+                final ChannelPromise promise = ctx.newPromise();
+                ctx.writeAndFlush(response, promise);
+            } finally {
+                fullHttpRequest.release();
+            }
         }
 
     }

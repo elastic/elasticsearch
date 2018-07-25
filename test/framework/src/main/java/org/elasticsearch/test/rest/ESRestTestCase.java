@@ -536,6 +536,11 @@ public abstract class ESRestTestCase extends ESTestCase {
         client().performRequest(request);
     }
 
+    protected static void deleteIndex(String name) throws IOException {
+        Request request = new Request("DELETE", "/" + name);
+        client().performRequest(request);
+    }
+
     protected static void updateIndexSettings(String index, Settings.Builder settings) throws IOException {
         updateIndexSettings(index, settings.build());
     }

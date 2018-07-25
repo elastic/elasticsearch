@@ -210,7 +210,7 @@ public class PainlessDocGenerator {
      */
     private static void emitAnchor(PrintStream stream, Class<?> clazz) {
         stream.print("painless-api-reference-");
-        stream.print(PainlessLookupUtility.anyTypeToPainlessTypeName(clazz).replace('.', '-'));
+        stream.print(PainlessLookupUtility.typeToCanonicalTypeName(clazz).replace('.', '-'));
     }
 
     /**
@@ -234,7 +234,7 @@ public class PainlessDocGenerator {
     }
 
     private static String methodName(PainlessMethod method) {
-        return method.name.equals("<init>") ? PainlessLookupUtility.anyTypeToPainlessTypeName(method.target) : method.name;
+        return method.name.equals("<init>") ? PainlessLookupUtility.typeToCanonicalTypeName(method.target) : method.name;
     }
 
     /**

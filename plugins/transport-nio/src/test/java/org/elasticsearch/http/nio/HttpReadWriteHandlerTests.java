@@ -32,6 +32,7 @@ import io.netty.handler.codec.http.HttpResponseDecoder;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
+
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -89,7 +90,6 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
     private final ResponseDecoder responseDecoder = new ResponseDecoder();
 
     @Before
-    @SuppressWarnings("unchecked")
     public void setMocks() {
         transport = mock(NioHttpServerTransport.class);
         Settings settings = Settings.EMPTY;

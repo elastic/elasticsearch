@@ -48,6 +48,15 @@ The main {ml} resources can be accessed with a variety of endpoints:
 * {ref}/ml-delete-calendar.html[DELETE /calendars/<calendar_id+++>+++]: Delete a calendar
 
 [float]
+[[ml-api-filters]]
+=== /filters/
+
+* {ref}/ml-put-filter.html[PUT /filters/<filter_id+++>+++]: Create a filter
+* {ref}/ml-update-filter.html[POST /filters/<filter_id+++>+++/_update]: Update a filter
+* {ref}/ml-get-filter.html[GET /filters/<filter_id+++>+++]: List filters
+* {ref}/ml-delete-filter.html[DELETE /filter/<filter_id+++>+++]: Delete a filter
+
+[float]
 [[ml-api-datafeeds]]
 === /datafeeds/
 

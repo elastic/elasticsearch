@@ -40,9 +40,6 @@ SQL::
 * Allow long literals {pull}31777[#31777] (issue: {issue}31750[#31750])
 * Fix stackoverflow on getObject and timestamp conversion {pull}31735[#31735] (issue: {issue}31734[#31734])
 
-Search::
-* Fix multi level nested sort {pull}32204[#32204] (issues: {issue}31554[#31554], {issue}31776[#31776], {issue}31783[#31783], {issue}32130[#32130])
-
 Security::
 * Detect old trial licenses and mimic behaviour {pull}32209[#32209]
 

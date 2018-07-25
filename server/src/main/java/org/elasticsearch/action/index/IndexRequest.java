@@ -185,6 +185,10 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             validationException = addValidationError("an id must be provided if version type or value are set", validationException);
         }
 
+        if (pipeline != null && pipeline.isEmpty()) {
+            validationException = addValidationError("pipeline cannot be an empty string", validationException);
+        }
+
         return validationException;
     }
 

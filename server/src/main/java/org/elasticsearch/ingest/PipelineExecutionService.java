@@ -73,12 +73,16 @@ public class PipelineExecutionService implements ClusterStateApplier {
                         UpdateRequest updateRequest = (UpdateRequest) actionRequest;
                         indexRequest = updateRequest.docAsUpsert() ? updateRequest.doc() : updateRequest.upsertRequest();
                     }
-                    if (indexRequest != null && Strings.hasText(indexRequest.getPipeline())) {
+                    if (indexRequest == null) {
+                        continue;
+                    }
+                    String pipeline = indexRequest.getPipeline();
+                    if (Strings.hasText(pipeline) && IngestService.NOOP_PIPELINE_NAME.equals(pipeline) == false) {
                         try {
                             innerExecute(indexRequest, getPipeline(indexRequest.getPipeline()));
                             //this shouldn't be needed here but we do it for consistency with index api
                             // which requires it to prevent double execution
-                            indexRequest.setPipeline("");
+                            indexRequest.setPipeline(IngestService.NOOP_PIPELINE_NAME);
                         } catch (Exception e) {
                             itemFailureHandler.accept(indexRequest, e);
                         }

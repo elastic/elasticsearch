@@ -16,21 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
-import org.apache.tools.ant.taskdefs.condition.Os
-import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionCollection
 import org.elasticsearch.gradle.VersionProperties
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
-
-import org.gradle.api.tasks.wrapper.Wrapper
-import org.gradle.api.tasks.wrapper.Wrapper.DistributionType
 import org.gradle.util.GradleVersion
 import org.gradle.util.DistributionLocator
+import org.apache.tools.ant.taskdefs.condition.Os
+import org.apache.tools.ant.filters.ReplaceTokens
 
 import java.nio.file.Files
 import java.nio.file.Path
@@ -562,7 +558,7 @@ task run(type: Run) {
 }
 
 wrapper {
-    distributionType = DistributionType.ALL
+    distributionType = 'ALL'
     doLast {
         final DistributionLocator locator = new DistributionLocator()
         final GradleVersion version = GradleVersion.version(wrapper.gradleVersion)
@@ -571,6 +567,10 @@ wrapper {
         final String sha256Sum = new String(sha256Uri.toURL().bytes)
         wrapper.getPropertiesFile() << "distributionSha256Sum=${sha256Sum}\n"
         println "Added checksum to wrapper properties"
+        // Update build-tools to reflect the Gradle upgrade
+        // TODO: we can remove this once we have tests to make sure older versions work.
+        project(':build-tools').file('src/main/resources/minimumGradleVersion').text = gradleVersion
+        println "Updated minimum Gradle Version"
     }
 }
 

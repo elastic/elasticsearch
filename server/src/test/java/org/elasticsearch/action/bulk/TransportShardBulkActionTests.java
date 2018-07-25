@@ -855,7 +855,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
     /**
      * Fake IndexResult that has a settable translog location
      */
-    private static class FakeIndexResult extends Engine.IndexResult {
+    static class FakeIndexResult extends Engine.IndexResult {
 
         private final Translog.Location location;
 
@@ -873,7 +873,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
     /**
      * Fake DeleteResult that has a settable translog location
      */
-    private static class FakeDeleteResult extends Engine.DeleteResult {
+    static class FakeDeleteResult extends Engine.DeleteResult {
 
         private final Translog.Location location;
 

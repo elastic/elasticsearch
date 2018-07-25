@@ -118,7 +118,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         extValue = XContentMapValues.extractValue("path1.test", map);
         assertThat(extValue, instanceOf(List.class));
 
-        List<?> extListValue = (List) extValue;
+        List<?> extListValue = (List<?>) extValue;
         assertThat(extListValue, hasSize(2));
 
         builder = XContentFactory.jsonBuilder().startObject()
@@ -137,7 +137,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         extValue = XContentMapValues.extractValue("path1.path2.test", map);
         assertThat(extValue, instanceOf(List.class));
 
-        extListValue = (List) extValue;
+        extListValue = (List<?>) extValue;
         assertThat(extListValue, hasSize(2));
         assertThat(extListValue.get(0).toString(), equalTo("value1"));
         assertThat(extListValue.get(1).toString(), equalTo("value2"));
@@ -225,13 +225,13 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         assertThat(filteredMap.size(), equalTo(1));
 
         assertThat(((List<?>) filteredMap.get("array")), hasSize(1));
-        assertThat(((Map<String, Object>) ((List) filteredMap.get("array")).get(0)).size(), equalTo(1));
-        assertThat((Integer) ((Map<String, Object>) ((List) filteredMap.get("array")).get(0)).get("nested"), equalTo(2));
+        assertThat(((Map<String, Object>) ((List<?>) filteredMap.get("array")).get(0)).size(), equalTo(1));
+        assertThat((Integer) ((Map<String, Object>) ((List<?>) filteredMap.get("array")).get(0)).get("nested"), equalTo(2));
 
         filteredMap = XContentMapValues.filter(map, new String[]{"array.*"}, Strings.EMPTY_ARRAY);
         assertThat(filteredMap.size(), equalTo(1));
         assertThat(((List<?>) filteredMap.get("array")), hasSize(1));
-        assertThat(((Map<String, Object>) ((List) filteredMap.get("array")).get(0)).size(), equalTo(2));
+        assertThat(((Map<String, Object>) ((List<?>) filteredMap.get("array")).get(0)).size(), equalTo(2));
 
         map.clear();
         map.put("field", "value");
@@ -285,16 +285,16 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
 
         filteredMap = XContentMapValues.filter(map, new String[]{"array"}, new String[]{});
         assertThat(filteredMap.size(), equalTo(1));
-        assertThat(((List) filteredMap.get("array")).size(), equalTo(2));
-        assertThat((Integer) ((List) filteredMap.get("array")).get(0), equalTo(1));
-        assertThat(((Map<String, Object>) ((List) filteredMap.get("array")).get(1)).size(), equalTo(2));
+        assertThat(((List<?>) filteredMap.get("array")).size(), equalTo(2));
+        assertThat((Integer) ((List<?>) filteredMap.get("array")).get(0), equalTo(1));
+        assertThat(((Map<String, Object>) ((List<?>) filteredMap.get("array")).get(1)).size(), equalTo(2));
 
         filteredMap = XContentMapValues.filter(map, new String[]{"array"}, new String[]{"*.field2"});
         assertThat(filteredMap.size(), equalTo(1));
         assertThat(((List<?>) filteredMap.get("array")), hasSize(2));
-        assertThat((Integer) ((List) filteredMap.get("array")).get(0), equalTo(1));
-        assertThat(((Map<String, Object>) ((List) filteredMap.get("array")).get(1)).size(), equalTo(1));
-        assertThat(((Map<String, Object>) ((List) filteredMap.get("array")).get(1)).get("field").toString(), equalTo("value"));
+        assertThat((Integer) ((List<?>) filteredMap.get("array")).get(0), equalTo(1));
+        assertThat(((Map<String, Object>) ((List<?>) filteredMap.get("array")).get(1)).size(), equalTo(1));
+        assertThat(((Map<String, Object>) ((List<?>) filteredMap.get("array")).get(1)).get("field").toString(), equalTo("value"));
     }
 
     @SuppressWarnings("unchecked")
@@ -331,7 +331,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         assertThat(filteredMap.size(), equalTo(3));
         assertThat(filteredMap, hasKey("field"));
         assertThat(filteredMap, hasKey("obj"));
-        assertThat(((Map) filteredMap.get("obj")).size(), equalTo(1));
+        assertThat(((Map<String, Object>) filteredMap.get("obj")).size(), equalTo(1));
         assertThat(((Map<String, Object>) filteredMap.get("obj")), hasKey("field"));
         assertThat(filteredMap, hasKey("n_obj"));
         assertThat(((Map<String, Object>) filteredMap.get("n_obj")).size(), equalTo(1));
@@ -371,6 +371,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         assertThat(mapTuple.v2(), equalTo(filteredSource));
     }
 
+    @SuppressWarnings("unchecked")
     public void testNotOmittingObjectsWithExcludedProperties() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
                 .startObject("obj")
@@ -383,7 +384,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
 
         assertThat(filteredSource.size(), equalTo(1));
         assertThat(filteredSource, hasKey("obj"));
-        assertThat(((Map) filteredSource.get("obj")).size(), equalTo(0));
+        assertThat(((Map<String, Object>) filteredSource.get("obj")).size(), equalTo(0));
     }
 
     @SuppressWarnings({"unchecked"})
@@ -403,20 +404,20 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
 
         assertThat(filteredSource.size(), equalTo(1));
         assertThat(filteredSource, hasKey("obj1"));
-        assertThat(((Map) filteredSource.get("obj1")).size(), equalTo(0));
+        assertThat(((Map<String, Object>) filteredSource.get("obj1")).size(), equalTo(0));
 
         // explicit include
         filteredSource = XContentMapValues.filter(mapTuple.v2(), new String[]{"obj1"}, new String[]{"*.obj2"});
         assertThat(filteredSource.size(), equalTo(1));
         assertThat(filteredSource, hasKey("obj1"));
-        assertThat(((Map) filteredSource.get("obj1")).size(), equalTo(0));
+        assertThat(((Map<String, Object>) filteredSource.get("obj1")).size(), equalTo(0));
 
         // wild card include
         filteredSource = XContentMapValues.filter(mapTuple.v2(), new String[]{"*.obj2"}, new String[]{"*.obj3"});
         assertThat(filteredSource.size(), equalTo(1));
         assertThat(filteredSource, hasKey("obj1"));
         assertThat(((Map<String, Object>) filteredSource.get("obj1")), hasKey("obj2"));
-        assertThat(((Map) ((Map) filteredSource.get("obj1")).get("obj2")).size(), equalTo(0));
+        assertThat(((Map<String, Object>) ((Map<String, Object>) filteredSource.get("obj1")).get("obj2")).size(), equalTo(0));
     }
 
     @SuppressWarnings({"unchecked"})
@@ -433,9 +434,9 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
 
         assertThat(filteredSource.size(), equalTo(1));
         assertThat(filteredSource, hasKey("obj1"));
-        assertThat(((Map) filteredSource.get("obj1")).size(), equalTo(1));
+        assertThat(((Map<String, Object>) filteredSource.get("obj1")).size(), equalTo(1));
         assertThat(((Map<String, Object>) filteredSource.get("obj1")), hasKey("obj2"));
-        assertThat(((Map) ((Map) filteredSource.get("obj1")).get("obj2")).size(), equalTo(0));
+        assertThat(((Map<String, Object>) ((Map<String, Object>) filteredSource.get("obj1")).get("obj2")).size(), equalTo(0));
     }
 
 

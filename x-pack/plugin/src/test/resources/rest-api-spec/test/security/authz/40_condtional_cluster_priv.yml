@@ -1,0 +1,132 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      xpack.security.put_user:
+        username: "test_user"
+        body:  >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "app_manage" ]
+          }
+
+  - do:
+      xpack.security.put_role:
+        name: "app_manage"
+        body:  >
+            {
+              "global": {
+                "application": {
+                  "manage": {
+                    "applications": [ "app" , "app-*" ]
+                  }
+                }
+              }
+            }
+
+  - do:
+      xpack.security.put_privilege:
+        application: app-allow
+        name: read
+        body:  >
+            {
+              "actions": [ "data:read/*" ]
+            }
+
+  - do:
+      xpack.security.put_privilege:
+        application: app_deny
+        name: read
+        body:  >
+            {
+              "actions": [ "data:read/*" ]
+            }
+
+---
+teardown:
+  - do:
+      xpack.security.delete_user:
+        username: "test_user"
+        ignore: 404
+  - do:
+      xpack.security.delete_role:
+        name: "app_manage"
+        ignore: 404
+
+  - do:
+      xpack.security.delete_privileges:
+        application: app
+        name: read
+        ignore: 404
+
+  - do:
+      xpack.security.delete_privileges:
+        application: app-allow
+        name: read
+        ignore: 404
+
+  - do:
+      xpack.security.delete_privileges:
+        application: app_deny
+        name: read
+        ignore: 404
+
+---
+"Test put application privileges when allowed":
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      xpack.security.put_privilege:
+        application: app
+        name: read
+        body:  >
+            {
+              "actions": [ "data:read/*" ]
+            }
+  - match: { "app.read" : { created: true } }
+
+---
+"Test get application privileges when allowed":
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      xpack.security.get_privileges:
+        application: app-allow
+        name: read
+
+  - match: {
+      "app-allow.read" : {
+        "application": "app-allow",
+        "name": "read",
+        "actions": [ "data:read/*" ],
+        "metadata": {}
+      }
+    }
+
+---
+"Test put application privileges when not allowed":
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      xpack.security.put_privilege:
+          application: app_deny
+          name: write
+          body:  >
+              {
+                "actions": [ "data:write/*" ]
+              }
+      catch: forbidden
+
+---
+"Test get application privileges when not allowed":
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      xpack.security.get_privileges:
+        application: app_deny
+        name: read
+      catch: forbidden
+

@@ -83,7 +83,7 @@ public class PkiRealmBootstrapCheckTests extends ESTestCase {
     }
 
     private BootstrapCheck.BootstrapCheckResult runCheck(Settings settings, Environment env) throws Exception {
-        return new PkiRealmBootstrapCheck(settings, new SSLService(settings, env)).check(new BootstrapContext(settings, null));
+        return new PkiRealmBootstrapCheck(new SSLService(settings, env)).check(new BootstrapContext(settings, null));
     }
 
     public void testBootstrapCheckWithDisabledRealm() throws Exception {
@@ -100,19 +100,21 @@ public class PkiRealmBootstrapCheckTests extends ESTestCase {
     public void testBootstrapCheckWithClosedSecuredSetting() throws Exception {
         final boolean expectFail = randomBoolean();
         final MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.security.http.ssl.keystore.secure_password", "testnode");
+        secureSettings.setString("xpack.security.http.ssl.secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
-                .put("xpack.security.authc.realms.test_pki.type", PkiRealmSettings.TYPE)
-                .put("xpack.security.http.ssl.enabled", true)
-                .put("xpack.security.http.ssl.client_authentication", expectFail ? "none" : "optional")
-                .put("xpack.security.http.ssl.keystore.path",
-                        getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"))
-                .put("path.home", createTempDir())
-                .setSecureSettings(secureSettings)
-                .build();
+            .put("xpack.security.authc.realms.test_pki.type", PkiRealmSettings.TYPE)
+            .put("xpack.security.http.ssl.enabled", true)
+            .put("xpack.security.http.ssl.client_authentication", expectFail ? "none" : "optional")
+            .put("xpack.security.http.ssl.key",
+                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))
+            .put("xpack.security.http.ssl.certificate",
+                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
+            .put("path.home", createTempDir())
+            .setSecureSettings(secureSettings)
+            .build();
 
         Environment env = TestEnvironment.newEnvironment(settings);
-        final PkiRealmBootstrapCheck check = new PkiRealmBootstrapCheck(settings, new SSLService(settings, env));
+        final PkiRealmBootstrapCheck check = new PkiRealmBootstrapCheck(new SSLService(settings, env));
         secureSettings.close();
         assertThat(check.check(new BootstrapContext(settings, null)).isFailure(), Matchers.equalTo(expectFail));
     }

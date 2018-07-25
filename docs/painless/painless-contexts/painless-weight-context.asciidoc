@@ -2,7 +2,7 @@
 === Weight context
 
 Use a Painless script to create a
-{es_version}/index-modules-similarity.html[weight] for use in a
+{ref}/index-modules-similarity.html[weight] for use in a
 <<painless-similarity-context, similarity script>>.  Weight is used to prevent
 recalculation of constants that remain the same across documents.
 

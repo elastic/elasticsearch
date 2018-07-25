@@ -1557,3 +1557,18 @@
             filter:    [my_bengali_stem]
     - length: { tokens: 1 }
     - match:  { tokens.0.token: কর }
+
+---
+"multiplexer":
+    - do:
+        indices.analyze:
+          body:
+            text: "The quick fox"
+            tokenizer: "standard"
+            filter:
+              - type: multiplexer
+                filters: [ lowercase, uppercase ]
+                preserve_original: false
+    - length: { tokens: 6 }
+    - match: { tokens.0.token: the }
+    - match: { tokens.1.token: THE }

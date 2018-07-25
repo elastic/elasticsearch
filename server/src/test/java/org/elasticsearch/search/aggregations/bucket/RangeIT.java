@@ -75,7 +75,6 @@ public class RangeIT extends ESIntegTestCase {
     public static class CustomScriptPlugin extends AggregationTestScriptsPlugin {
 
         @Override
-        @SuppressWarnings("unchecked")
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             Map<String, Function<Map<String, Object>, Object>> scripts = super.pluginScripts();
 
@@ -116,6 +115,21 @@ public class RangeIT extends ESIntegTestCase {
                     .field(SINGLE_VALUED_FIELD_NAME, i * 2 - 1)
                     .endObject()));
         }
+
+        // Create two indices and add the field 'route_length_miles' as an alias in
+        // one, and a concrete field in the other.
+        prepareCreate("old_index")
+            .addMapping("_doc", "distance", "type=double", "route_length_miles", "type=alias,path=distance")
+            .get();
+        prepareCreate("new_index")
+            .addMapping("_doc", "route_length_miles", "type=double")
+            .get();
+
+        builders.add(client().prepareIndex("old_index", "_doc").setSource("distance", 42.0));
+        builders.add(client().prepareIndex("old_index", "_doc").setSource("distance", 50.5));
+        builders.add(client().prepareIndex("new_index", "_doc").setSource("route_length_miles", 100.2));
+        builders.add(client().prepareIndex("new_index", "_doc").setSource(Collections.emptyMap()));
+
         indexRandom(true, builders);
         ensureSearchable();
     }
@@ -971,5 +985,73 @@ public class RangeIT extends ESIntegTestCase {
                 .getHitCount(), equalTo(0L));
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getMissCount(), equalTo(1L));
+    }
+
+    public void testFieldAlias() {
+        SearchResponse response = client().prepareSearch("old_index", "new_index")
+            .addAggregation(range("range")
+                .field("route_length_miles")
+                .addUnboundedTo(50.0)
+                .addRange(50.0, 150.0)
+                .addUnboundedFrom(150.0))
+            .execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Range range = response.getAggregations().get("range");
+        assertThat(range, notNullValue());
+        assertThat(range.getName(), equalTo("range"));
+        List<? extends Range.Bucket> buckets = range.getBuckets();
+        assertThat(buckets.size(), equalTo(3));
+
+        Range.Bucket bucket = buckets.get(0);
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKey(), equalTo("*-50.0"));
+        assertThat(bucket.getDocCount(), equalTo(1L));
+
+        bucket = buckets.get(1);
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKey(), equalTo("50.0-150.0"));
+        assertThat(bucket.getDocCount(), equalTo(2L));
+
+        bucket = buckets.get(2);
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKey(), equalTo("150.0-*"));
+        assertThat(bucket.getDocCount(), equalTo(0L));
+    }
+
+
+    public void testFieldAliasWithMissingValue() {
+        SearchResponse response = client().prepareSearch("old_index", "new_index")
+            .addAggregation(range("range")
+                .field("route_length_miles")
+                .missing(0.0)
+                .addUnboundedTo(50.0)
+                .addRange(50.0, 150.0)
+                .addUnboundedFrom(150.0))
+            .execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Range range = response.getAggregations().get("range");
+        assertThat(range, notNullValue());
+        assertThat(range.getName(), equalTo("range"));
+        List<? extends Range.Bucket> buckets = range.getBuckets();
+        assertThat(buckets.size(), equalTo(3));
+
+        Range.Bucket bucket = buckets.get(0);
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKey(), equalTo("*-50.0"));
+        assertThat(bucket.getDocCount(), equalTo(2L));
+
+        bucket = buckets.get(1);
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKey(), equalTo("50.0-150.0"));
+        assertThat(bucket.getDocCount(), equalTo(2L));
+
+        bucket = buckets.get(2);
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKey(), equalTo("150.0-*"));
+        assertThat(bucket.getDocCount(), equalTo(0L));
     }
 }

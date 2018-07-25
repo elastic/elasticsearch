@@ -34,6 +34,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Collections;
 import java.util.List;
 
 public class TransportGetAliasesAction extends TransportMasterNodeReadAction<GetAliasesRequest, GetAliasesResponse> {
@@ -63,7 +64,24 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
     @Override
     protected void masterOperation(Task task, GetAliasesRequest request, ClusterState state, ActionListener<GetAliasesResponse> listener) {
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
-        ImmutableOpenMap<String, List<AliasMetaData>> result = state.metaData().findAliases(request.aliases(), concreteIndices);
-        listener.onResponse(new GetAliasesResponse(result));
+        ImmutableOpenMap<String, List<AliasMetaData>> aliases = state.metaData().findAliases(request, concreteIndices);
+        listener.onResponse(new GetAliasesResponse(postProcess(request, concreteIndices, aliases)));
     }
+
+    /**
+     * Fills alias result with empty entries for requested indices when no specific aliases were requested.
+     */
+    static ImmutableOpenMap<String, List<AliasMetaData>> postProcess(GetAliasesRequest request, String[] concreteIndices,
+                                                                     ImmutableOpenMap<String, List<AliasMetaData>> aliases) {
+        boolean noAliasesSpecified = request.getOriginalAliases() == null || request.getOriginalAliases().length == 0;
+        ImmutableOpenMap.Builder<String, List<AliasMetaData>> mapBuilder = ImmutableOpenMap.builder(aliases);
+        for (String index : concreteIndices) {
+            if (aliases.get(index) == null && noAliasesSpecified) {
+                List<AliasMetaData> previous = mapBuilder.put(index, Collections.emptyList());
+                assert previous == null;
+            }
+        }
+        return mapBuilder.build();
+    }
+
 }

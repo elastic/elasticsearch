@@ -60,21 +60,22 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
     }
 
     private static WildcardQueryBuilder randomWildcardQuery() {
-        // mapped or unmapped field
+        String fieldName = randomFrom(STRING_FIELD_NAME,
+            STRING_ALIAS_FIELD_NAME,
+            randomAlphaOfLengthBetween(1, 10));
         String text = randomAlphaOfLengthBetween(1, 10);
-        if (randomBoolean()) {
-            return new WildcardQueryBuilder(STRING_FIELD_NAME, text);
-        } else {
-            return new WildcardQueryBuilder(randomAlphaOfLengthBetween(1, 10), text);
-        }
+
+        return new WildcardQueryBuilder(fieldName, text);
     }
 
     @Override
     protected void doAssertLuceneQuery(WildcardQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         assertThat(query, instanceOf(WildcardQuery.class));
         WildcardQuery wildcardQuery = (WildcardQuery) query;
-        assertThat(wildcardQuery.getField(), equalTo(queryBuilder.fieldName()));
-        assertThat(wildcardQuery.getTerm().field(), equalTo(queryBuilder.fieldName()));
+
+        String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
+        assertThat(wildcardQuery.getField(), equalTo(expectedFieldName));
+        assertThat(wildcardQuery.getTerm().field(), equalTo(expectedFieldName));
         assertThat(wildcardQuery.getTerm().text(), equalTo(queryBuilder.value()));
     }
 
@@ -138,19 +139,19 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
             assertEquals(expected, query);
         }
     }
-    
+
     public void testIndexWildcard() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
 
         QueryShardContext context = createShardContext();
         String index = context.getFullyQualifiedIndexName();
-        
+
         Query query = new WildcardQueryBuilder("_index", index).doToQuery(context);
         assertThat(query instanceof MatchAllDocsQuery, equalTo(true));
-        
+
         query = new WildcardQueryBuilder("_index", index + "*").doToQuery(context);
         assertThat(query instanceof MatchAllDocsQuery, equalTo(true));
-        
+
         query = new WildcardQueryBuilder("_index", "index_" + index + "*").doToQuery(context);
         assertThat(query instanceof MatchNoDocsQuery, equalTo(true));
     }

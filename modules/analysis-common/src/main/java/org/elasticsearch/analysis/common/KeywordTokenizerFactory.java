@@ -31,7 +31,7 @@ public class KeywordTokenizerFactory extends AbstractTokenizerFactory {
     private final int bufferSize;
 
     KeywordTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(indexSettings, settings);
         bufferSize = settings.getAsInt("buffer_size", 256);
     }
 

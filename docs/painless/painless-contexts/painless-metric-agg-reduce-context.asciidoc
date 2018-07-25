@@ -2,7 +2,7 @@
 === Metric aggregation reduce context
 
 Use a Painless script to
-{es_version}/search-aggregations-metrics-scripted-metric-aggregation.html[reduce]
+{ref}/search-aggregations-metrics-scripted-metric-aggregation.html[reduce]
 values to produce the result of a scripted metric aggregation. A reduce script
 is run once on the coordinating node following a
 <<painless-metric-agg-combine-context, combine script>> (or a

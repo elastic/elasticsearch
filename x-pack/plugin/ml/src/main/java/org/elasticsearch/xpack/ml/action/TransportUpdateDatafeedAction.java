@@ -20,7 +20,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction;
@@ -77,7 +76,7 @@ public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<Upd
                                 .updateDatafeed(update, persistentTasks, headers).build();
                         updatedDatafeed = newMetadata.getDatafeed(update.getId());
                         return ClusterState.builder(currentState).metaData(
-                                MetaData.builder(currentState.getMetaData()).putCustom(MLMetadataField.TYPE, newMetadata).build()).build();
+                                MetaData.builder(currentState.getMetaData()).putCustom(MlMetadata.TYPE, newMetadata).build()).build();
                     }
                 });
     }

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-import org.apache.tools.ant.types.Path
+
 
 esplugin {
   description 'An easy, safe and fast scripting language for Elasticsearch'

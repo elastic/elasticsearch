@@ -156,11 +156,6 @@ if (isEclipse) {
 compileJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
 compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
 
-// TODO: remove in 7.0
-additionalTest('testScriptDocValuesJodaBwc') {
-  include '**/ScriptDocValuesJodaBwcTests.class'
-  systemProperty 'es.scripting.use_java_time', 'false'
-}
 // TODO: remove ScriptDocValuesMissingV6BehaviourTests in 7.0
 additionalTest('testScriptDocValuesMissingV6Behaviour'){
   include '**/ScriptDocValuesMissingV6BehaviourTests.class'
@@ -168,7 +163,6 @@ additionalTest('testScriptDocValuesMissingV6Behaviour'){
 }
 test {
   // these are tested explicitly in separate test tasks
-  exclude '**/ScriptDocValuesJodaBwcTests.class'
   exclude '**/*ScriptDocValuesMissingV6BehaviourTests.class'
 }
 

@@ -41,9 +41,6 @@ import java.util.stream.Stream;
  */
 public class ScriptModule {
 
-    /** Whether scripts should expose dates as java time objects instead of joda time. */
-    public static final boolean USE_JAVA_TIME = Booleans.parseBoolean(System.getProperty("es.scripting.use_java_time"), false);
-
     public static final Map<String, ScriptContext<?>> CORE_CONTEXTS;
     static {
         CORE_CONTEXTS = Stream.of(
@@ -92,12 +89,6 @@ public class ScriptModule {
             }
         }
         scriptService = new ScriptService(settings, Collections.unmodifiableMap(engines), Collections.unmodifiableMap(contexts));
-
-        if (USE_JAVA_TIME == false) {
-            DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger(ScriptModule.class));
-            deprecationLogger.deprecated("The joda time api for doc values is deprecated. Use -Des.script.use_java_time=true" +
-                "to use the java time api for date field doc values");
-        }
     }
 
     /**

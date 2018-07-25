@@ -23,15 +23,20 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.script.ScriptModule;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.MutableDateTime;
 
 import java.io.IOException;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -39,7 +44,10 @@ import java.util.AbstractList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
+
+import static org.elasticsearch.common.Booleans.parseBoolean;
 
 
 /**
@@ -145,18 +153,25 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     public static final class Dates extends ScriptDocValues<Object> {
 
+        /** Whether scripts should expose dates as java time objects instead of joda time. */
+        private static final boolean USE_JAVA_TIME = parseBoolean(System.getProperty("es.scripting.use_java_time"), false);
+
+        private static final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger(Dates.class));
+
         private static final ZoneId JAVA_TIME_UTC = ZoneId.of("UTC");
 
-        private static final Object EPOCH;
-        static {
-            if (ScriptModule.USE_JAVA_TIME) {
-                EPOCH = ZonedDateTime.ofInstant(Instant.EPOCH, JAVA_TIME_UTC);
-            } else {
-                EPOCH = new DateTime(0, DateTimeZone.UTC);
-            }
-        }
-
         private final SortedNumericDocValues in;
+
+        /**
+         * Method call to add deprecation message. Normally this is
+         * {@link #deprecationLogger} but tests override.
+         */
+        private final Consumer<String> deprecationCallback;
+
+        /**
+         * Whether java time or joda time should be used. This is normally {@link #USE_JAVA_TIME} but tests override it.
+         */
+        private final boolean useJavaTime;
 
         /**
          * Values wrapped in a date time object. The concrete type depends on the system property {@code es.scripting.use_java_time}.
@@ -170,7 +185,16 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
          * Standard constructor.
          */
         public Dates(SortedNumericDocValues in) {
+            this(in, message -> deprecationLogger.deprecatedAndMaybeLog("scripting_joda_time_deprecation", message), USE_JAVA_TIME);
+        }
+
+        /**
+         * Constructor for testing with a deprecation callback.
+         */
+        Dates(SortedNumericDocValues in, Consumer<String> deprecationCallback, boolean useJavaTime) {
             this.in = in;
+            this.deprecationCallback = deprecationCallback;
+            this.useJavaTime = useJavaTime;
         }
 
         /**
@@ -217,7 +241,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             if (count == 0) {
                 return;
             }
-            if (ScriptModule.USE_JAVA_TIME) {
+            if (useJavaTime) {
                 if (dates == null || count > dates.length) {
                     // Happens for the document. We delay allocating dates so we can allocate it with a reasonable size.
                     dates = new ZonedDateTime[count];
@@ -226,6 +250,8 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
                     dates[i] = ZonedDateTime.ofInstant(Instant.ofEpochMilli(in.nextValue()), JAVA_TIME_UTC);
                 }
             } else {
+                deprecated("The joda time api for doc values is deprecated. Use -Des.scripting.use_java_time=true" +
+                           " to use the java time api for date field doc values");
                 if (dates == null || count > dates.length) {
                     // Happens for the document. We delay allocating dates so we can allocate it with a reasonable size.
                     dates = new MutableDateTime[count];
@@ -234,6 +260,22 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
                     dates[i] = new MutableDateTime(in.nextValue(), DateTimeZone.UTC);
                 }
             }
+        }
+
+        /**
+         * Log a deprecation log, with the server's permissions, not the permissions of the
+         * script calling this method. We need to do this to prevent errors when rolling
+         * the log file.
+         */
+        private void deprecated(String message) {
+            // Intentionally not calling SpecialPermission.check because this is supposed to be called by scripts
+            AccessController.doPrivileged(new PrivilegedAction<Void>() {
+                @Override
+                public Void run() {
+                    deprecationCallback.accept(message);
+                    return null;
+                }
+            });
         }
     }
 

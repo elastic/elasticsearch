@@ -33,7 +33,6 @@ public class PersistentTasksExecutorRegistry extends AbstractComponent {
 
     private final Map<String, PersistentTasksExecutor<?>> taskExecutors;
 
-    @SuppressWarnings("unchecked")
     public PersistentTasksExecutorRegistry(Settings settings, Collection<PersistentTasksExecutor<?>> taskExecutors) {
         super(settings);
         Map<String, PersistentTasksExecutor<?>> map = new HashMap<>();

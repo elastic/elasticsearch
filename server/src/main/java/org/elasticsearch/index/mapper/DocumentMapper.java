@@ -197,7 +197,6 @@ public class DocumentMapper implements ToXContentFragment {
         return mapping.root;
     }
 
-    @SuppressWarnings({"unchecked"})
     public <T extends MetadataFieldMapper> T metadataMapper(Class<T> type) {
         return mapping.metadataMapper(type);
     }

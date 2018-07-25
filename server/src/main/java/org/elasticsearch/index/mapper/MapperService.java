@@ -427,7 +427,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 // the master node restoring mappings from disk or data nodes
                 // deserializing cluster state that was sent by the master node,
                 // this check will be skipped.
-                checkTotalFieldsLimit(objectMappers.size() + fieldMappers.size());
+                checkTotalFieldsLimit(objectMappers.size() + fieldMappers.size() + fieldAliasMappers.size());
             }
 
             results.put(newMapper.type(), newMapper);

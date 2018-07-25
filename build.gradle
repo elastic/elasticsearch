@@ -222,7 +222,7 @@ subprojects {
     "org.elasticsearch.gradle:build-tools:${version}": ':build-tools',
     "org.elasticsearch:rest-api-spec:${version}": ':rest-api-spec',
     "org.elasticsearch:elasticsearch:${version}": ':server',
-    "org.elasticsearch:elasticsearch-cli:${version}": ':libs:cli',
+    "org.elasticsearch:elasticsearch-cli:${version}": ':libs:elasticsearch-cli',
     "org.elasticsearch:elasticsearch-core:${version}": ':libs:core',
     "org.elasticsearch:elasticsearch-nio:${version}": ':libs:nio',
     "org.elasticsearch:elasticsearch-x-content:${version}": ':libs:x-content',
@@ -516,6 +516,31 @@ allprojects {
   tasks.eclipse.dependsOn(cleanEclipse, copyEclipseSettings)
 }
 
+allprojects {
+  /*
+   * IntelliJ and Eclipse don't know about the shadow plugin so when we're
+   * in "IntelliJ mode" or "Eclipse mode" add "runtime" dependencies
+   * eveywhere where we see a "shadow" dependency which will cause them to
+   * reference shadowed projects directly rather than rely on the shadowing
+   * to include them. This is the correct thing for it to do because it
+   * doesn't run the jar shadowing at all. This isn't needed for the project
+   * itself because the IDE configuration is done by SourceSets but it is
+   * *is* needed for projects that depends on the project doing the shadowing.
+   * Without this they won't properly depend on the shadowed project.
+   */
+  if (isEclipse || isIdea) {
+	configurations.all { Configuration configuration ->
+	  dependencies.all { Dependency dep ->
+		if (dep instanceof ProjectDependency) {
+		  if (dep.getTargetConfiguration() == 'shadow') {
+			configuration.dependencies.add(project.dependencies.project(path: dep.dependencyProject.path, configuration: 'runtime'))
+		  }
+		}
+	  }
+	}
+  }
+}
+
 // we need to add the same --debug-jvm option as
 // the real RunTask has, so we can pass it through
 class Run extends DefaultTask {
@@ -620,6 +645,21 @@ gradle.projectsEvaluated {
         project.tasks.remove(dependenciesInfo)
         project.precommit.dependsOn.remove('dependenciesInfo')
       }
+    }
+  }
+  // Having the same group and name for distinct projects causes Gradle to consider them equal when resolving
+  // dependencies leading to hard to debug failures. Run a check across all project to prevent this from happening.
+  // see: https://github.com/gradle/gradle/issues/847
+  Map coordsToProject = [:]
+  project.allprojects.forEach { p ->
+    String coords = "${p.group}:${p.name}"
+    if (false == coordsToProject.putIfAbsent(coords, p)) {
+      throw new GradleException(
+              "Detected that two projects: ${p.path} and ${coordsToProject[coords].path} " +
+                      "have the same name and group: ${coords}. " +
+                      "This doesn't currently work correctly in Gradle, see: " +
+                      "https://github.com/gradle/gradle/issues/847"
+      )
     }
   }
 }

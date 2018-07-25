@@ -118,6 +118,12 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
     }
 
     @Override
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32215")
+    public void testReduceRandom() {
+        super.testReduceRandom();
+    }
+
+    @Override
     protected InternalAutoDateHistogram mutateInstance(InternalAutoDateHistogram instance) {
         String name = instance.getName();
         List<InternalAutoDateHistogram.Bucket> buckets = instance.getBuckets();

@@ -53,7 +53,7 @@ final class PSubField extends AStoreable {
     void analyze(Locals locals) {
          if (write && Modifier.isFinal(field.modifiers)) {
              throw createError(new IllegalArgumentException("Cannot write to read-only field [" + field.name + "] for type " +
-                     "[" + PainlessLookupUtility.anyTypeToPainlessTypeName(field.clazz) + "]."));
+                     "[" + PainlessLookupUtility.typeToCanonicalTypeName(field.clazz) + "]."));
          }
 
         actual = field.clazz;

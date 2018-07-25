@@ -440,7 +440,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                         // no-op
                     }
                 };
-                service.addDelegate(seedNode.getAddress(), new MockTransportService.DelegateTransport(service.getOriginalTransport()) {
+                service.addDelegate(seedNode.getAddress(), new MockTransportService.DelegateTransport(service.original()) {
 //                    @Override
 //                    public Connection getConnection(DiscoveryNode node) {
 //                        if (node == seedNode) {
@@ -664,7 +664,9 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                         AtomicReference<ClusterSearchShardsResponse> reference = new AtomicReference<>();
                         AtomicReference<Exception> failReference = new AtomicReference<>();
                         connection.fetchSearchShards(searchShardsRequest,
-                                new LatchedActionListener<>(ActionListener.wrap(reference::set, failReference::set), responseLatch));
+                                new LatchedActionListener<>(ActionListener.wrap((s) -> {
+                                    reference.set(s);
+                                }, failReference::set), responseLatch));
                         assertTrue(responseLatch.await(1, TimeUnit.SECONDS));
                         assertNotNull(failReference.get());
                         assertNull(reference.get());
@@ -1288,7 +1290,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                         // no-op
                     }
                 };
-                service.addDelegate(connectedNode.getAddress(), new MockTransportService.DelegateTransport(service.getOriginalTransport()) {
+                service.addDelegate(connectedNode.getAddress(), new MockTransportService.DelegateTransport(service.original()) {
 //                    @Override
 //                    public Connection getConnection(DiscoveryNode node) {
 //                        if (node == connectedNode) {

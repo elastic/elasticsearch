@@ -5,7 +5,7 @@ apply plugin: 'elasticsearch.standalone-test'
 apply plugin: 'elasticsearch.vagrantsupport'
 
 dependencies {
-    testCompile project(path: xpackModule('core'), configuration: 'runtime')
+    testCompile project(path: xpackModule('core'), configuration: 'shadow')
     testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
@@ -17,6 +17,7 @@ task openLdapFixture {
 String outputDir = "${project.buildDir}/generated-resources/${project.name}"
 task copyIdpTrust(type: Copy) {
     from idpFixtureProject.file('src/main/resources/certs/idptrust.jks');
+    from idpFixtureProject.file('src/main/resources/certs/ca.crt');
     into outputDir
 }
 if (project.rootProject.vagrantSupported) {
@@ -31,4 +32,3 @@ namingConventions {
     // integ tests use Tests instead of IT
     skipIntegTestInDisguise = true
 }
-

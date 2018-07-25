@@ -20,7 +20,7 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.lookup.PainlessCast;
-import org.elasticsearch.painless.lookup.PainlessLookup.def;
+import org.elasticsearch.painless.lookup.def;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
@@ -225,14 +225,6 @@ public final class MethodWriter extends GeneratorAdapter {
         }
 
         return Type.getType(clazz);
-    }
-
-    public void writeBranch(final Label tru, final Label fals) {
-        if (tru != null) {
-            visitJumpInsn(Opcodes.IFNE, tru);
-        } else if (fals != null) {
-            visitJumpInsn(Opcodes.IFEQ, fals);
-        }
     }
 
     /** Starts a new string concat.

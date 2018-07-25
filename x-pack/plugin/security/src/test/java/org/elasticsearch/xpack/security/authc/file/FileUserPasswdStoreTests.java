@@ -53,9 +53,11 @@ public class FileUserPasswdStoreTests extends ESTestCase {
     @Before
     public void init() {
         settings = Settings.builder()
-                .put("resource.reload.interval.high", "2s")
-                .put("path.home", createTempDir())
-                .build();
+            .put("resource.reload.interval.high", "2s")
+            .put("path.home", createTempDir())
+            .put("xpack.security.authc.password_hashing.algorithm", randomFrom("bcrypt", "bcrypt11", "pbkdf2", "pbkdf2_1000",
+                "pbkdf2_50000"))
+            .build();
         env = TestEnvironment.newEnvironment(settings);
         threadPool = new TestThreadPool("test");
     }
@@ -86,17 +88,18 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         Files.createDirectories(xpackConf);
         Path file = xpackConf.resolve("users");
         Files.copy(users, file, StandardCopyOption.REPLACE_EXISTING);
-
+        final Hasher hasher = Hasher.resolve(settings.get("xpack.security.authc.password_hashing.algorithm"));
         Settings fileSettings = randomBoolean() ? Settings.EMPTY : Settings.builder().put("files.users", file.toAbsolutePath()).build();
         RealmConfig config = new RealmConfig("file-test", fileSettings, settings, env, threadPool.getThreadContext());
         ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
         final CountDownLatch latch = new CountDownLatch(1);
 
         FileUserPasswdStore store = new FileUserPasswdStore(config, watcherService, latch::countDown);
-
-        User user = new User("bcrypt");
-        assertThat(store.userExists("bcrypt"), is(true));
-        AuthenticationResult result = store.verifyPassword("bcrypt", new SecureString("test123"), () -> user);
+        //Test users share the hashing algorithm name for convenience
+        String username = settings.get("xpack.security.authc.password_hashing.algorithm");
+        User user = new User(username);
+        assertThat(store.userExists(username), is(true));
+        AuthenticationResult result = store.verifyPassword(username, new SecureString("test123"), () -> user);
         assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
         assertThat(result.getUser(), is(user));
 
@@ -104,7 +107,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
 
         try (BufferedWriter writer = Files.newBufferedWriter(file, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
             writer.newLine();
-            writer.append("foobar:").append(new String(Hasher.BCRYPT.hash(new SecureString("barfoo"))));
+            writer.append("foobar:").append(new String(hasher.hash(new SecureString("barfoo"))));
         }
 
         if (!latch.await(5, TimeUnit.SECONDS)) {
@@ -133,9 +136,10 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
 
         FileUserPasswdStore store = new FileUserPasswdStore(config, watcherService, latch::countDown);
-
-        User user = new User("bcrypt");
-        final AuthenticationResult result = store.verifyPassword("bcrypt", new SecureString("test123"), () -> user);
+        //Test users share the hashing algorithm name for convenience
+        String username = settings.get("xpack.security.authc.password_hashing.algorithm");
+        User user = new User(username);
+        final AuthenticationResult result = store.verifyPassword(username, new SecureString("test123"), () -> user);
         assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
         assertThat(result.getUser(), is(user));
 
@@ -155,11 +159,11 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         Path path = getDataPath("users");
         Map<String, char[]> users = FileUserPasswdStore.parseFile(path, null, Settings.EMPTY);
         assertThat(users, notNullValue());
-        assertThat(users.size(), is(6));
+        assertThat(users.size(), is(11));
         assertThat(users.get("bcrypt"), notNullValue());
         assertThat(new String(users.get("bcrypt")), equalTo("$2a$05$zxnP0vdREMxnEpkLCDI2OuSaSk/QEKA2.A42iOpI6U2u.RLLOWm1e"));
         assertThat(users.get("bcrypt10"), notNullValue());
-        assertThat(new String(users.get("bcrypt10")), equalTo("$2y$10$FMhmFjwU5.qxQ/BsEciS9OqcJVkFMgXMo4uH5CelOR1j4N9zIv67e"));
+        assertThat(new String(users.get("bcrypt10")), equalTo("$2a$10$cFxpMx6YDrH/PXwLpTlux.KVykN1TG2Pgdl5oJX5/G/KYp3G6jbFG"));
         assertThat(users.get("md5"), notNullValue());
         assertThat(new String(users.get("md5")), equalTo("$apr1$R3DdqiAZ$aljIkaIVPSarmDMlJUBBP."));
         assertThat(users.get("crypt"), notNullValue());
@@ -168,6 +172,15 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         assertThat(new String(users.get("plain")), equalTo("{plain}test123"));
         assertThat(users.get("sha"), notNullValue());
         assertThat(new String(users.get("sha")), equalTo("{SHA}cojt0Pw//L6ToM8G41aOKFIWh7w="));
+        assertThat(users.get("pbkdf2"), notNullValue());
+        assertThat(new String(users.get("pbkdf2")),
+            equalTo("{PBKDF2}10000$ekcItXk4jtK2bBjbVk0rZuWRjT0DoQqQJOIfyMeLIxg=$RA2/Nn1jRi8QskRS5IVotCV0FBO6M8DlNXC37GKa/8c="));
+        assertThat(users.get("pbkdf2_1000"), notNullValue());
+        assertThat(new String(users.get("pbkdf2_1000")),
+            equalTo("{PBKDF2}1000$32yPZSShxuKYAl47ip0g6VwbFrD8tvFJuQCoRPGhXC8=$cXAE1BkBXRmkv7pQA7fw4TZ1+rFWS2/nZGeA3kL1Eu8="));
+        assertThat(users.get("pbkdf2_50000"), notNullValue());
+        assertThat(new String(users.get("pbkdf2_50000")),
+            equalTo("{PBKDF2}50000$z1CLJt0MEFjkIK5iEfgvfnA6xq7lF25uasspsTKSo5Q=$XxCVLbaKDimOdyWgLCLJiyoiWpA/XDMe/xtVgn1r5Sg="));
     }
 
     public void testParseFile_Empty() throws Exception {

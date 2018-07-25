@@ -36,26 +36,35 @@ import java.util.Set;
  */
 class FieldTypeLookup implements Iterable<MappedFieldType> {
 
-    /** Full field name to field type */
+    /**
+     * A mapping from concrete field name to field type.
+     **/
     final CopyOnWriteHashMap<String, MappedFieldType> fullNameToFieldType;
+    private final CopyOnWriteHashMap<String, String> aliasToConcreteName;
 
-    /** Full field name to types containing a mapping for this full name. */
-    final CopyOnWriteHashMap<String, Set<String>> fullNameToTypes;
+    /**
+     * Full field name to types containing a mapping for this full name. Note that
+     * this map contains aliases as well as concrete fields.
+     **/
+    private final CopyOnWriteHashMap<String, Set<String>> fullNameToTypes;
 
-    /** Create a new empty instance. */
     FieldTypeLookup() {
         fullNameToFieldType = new CopyOnWriteHashMap<>();
+        aliasToConcreteName = new CopyOnWriteHashMap<>();
         fullNameToTypes = new CopyOnWriteHashMap<>();
     }
 
-    private FieldTypeLookup(
-            CopyOnWriteHashMap<String, MappedFieldType> fullName,
-            CopyOnWriteHashMap<String, Set<String>> fullNameToTypes) {
-        this.fullNameToFieldType = fullName;
+    private FieldTypeLookup(CopyOnWriteHashMap<String, MappedFieldType> fullNameToFieldType,
+                            CopyOnWriteHashMap<String, String> aliasToConcreteName,
+                            CopyOnWriteHashMap<String, Set<String>> fullNameToTypes) {
+        this.fullNameToFieldType = fullNameToFieldType;
+        this.aliasToConcreteName = aliasToConcreteName;
         this.fullNameToTypes = fullNameToTypes;
     }
 
-    private static CopyOnWriteHashMap<String, Set<String>> addType(CopyOnWriteHashMap<String, Set<String>> map, String key, String type) {
+    private static CopyOnWriteHashMap<String, Set<String>> addType(CopyOnWriteHashMap<String, Set<String>> map,
+                                                                   String key,
+                                                                   String type) {
         Set<String> types = map.get(key);
         if (types == null) {
             return map.copyAndPut(key, Collections.singleton(type));
@@ -74,32 +83,43 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
 
     /**
      * Return a new instance that contains the union of this instance and the field types
-     * from the provided fields. If a field already exists, the field type will be updated
-     * to use the new mappers field type.
+     * from the provided mappers. If a field already exists, its field type will be updated
+     * to use the new type from the given field mapper. Similarly if an alias already
+     * exists, it will be updated to reference the field type from the new mapper.
      */
-    public FieldTypeLookup copyAndAddAll(String type, Collection<FieldMapper> fieldMappers, boolean updateAllTypes) {
+    public FieldTypeLookup copyAndAddAll(String type,
+                                         Collection<FieldMapper> fieldMappers,
+                                         Collection<FieldAliasMapper> fieldAliasMappers,
+                                         boolean updateAllTypes) {
         Objects.requireNonNull(type, "type must not be null");
         if (MapperService.DEFAULT_MAPPING.equals(type)) {
             throw new IllegalArgumentException("Default mappings should not be added to the lookup");
         }
 
         CopyOnWriteHashMap<String, MappedFieldType> fullName = this.fullNameToFieldType;
+        CopyOnWriteHashMap<String, String> aliases = this.aliasToConcreteName;
         CopyOnWriteHashMap<String, Set<String>> fullNameToTypes = this.fullNameToTypes;
 
         for (FieldMapper fieldMapper : fieldMappers) {
             MappedFieldType fieldType = fieldMapper.fieldType();
             MappedFieldType fullNameFieldType = fullName.get(fieldType.name());
 
-            // is the update even legal?
-            checkCompatibility(type, fieldMapper, updateAllTypes);
-
-            if (fieldType.equals(fullNameFieldType) == false) {
-                fullName = fullName.copyAndPut(fieldType.name(), fieldMapper.fieldType());
+            if (!Objects.equals(fieldType, fullNameFieldType)) {
+                validateField(type, fullNameFieldType, fieldType, aliases, updateAllTypes);
+                fullName = fullName.copyAndPut(fieldType.name(), fieldType);
             }
-
             fullNameToTypes = addType(fullNameToTypes, fieldType.name(), type);
         }
-        return new FieldTypeLookup(fullName, fullNameToTypes);
+
+        for (FieldAliasMapper fieldAliasMapper : fieldAliasMappers) {
+            String aliasName = fieldAliasMapper.name();
+            String path = fieldAliasMapper.path();
+
+            validateAlias(aliasName, path, aliases, fullName);
+            aliases = aliases.copyAndPut(aliasName, path);
+        }
+
+        return new FieldTypeLookup(fullName, aliases, fullNameToTypes);
     }
 
     private static boolean beStrict(String type, Set<String> types, boolean updateAllTypes) {
@@ -119,26 +139,71 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
      * An IllegalArgumentException is thrown in case of incompatibility.
      * If updateAllTypes is true, only basic compatibility is checked.
      */
-    private void checkCompatibility(String type, FieldMapper fieldMapper, boolean updateAllTypes) {
-        MappedFieldType fieldType = fullNameToFieldType.get(fieldMapper.fieldType().name());
-        if (fieldType != null) {
+    private void validateField(String type,
+                               MappedFieldType existingFieldType,
+                               MappedFieldType newFieldType,
+                               CopyOnWriteHashMap<String, String> aliasToConcreteName,
+                               boolean updateAllTypes) {
+        String fieldName = newFieldType.name();
+        if (aliasToConcreteName.containsKey(fieldName)) {
+            throw new IllegalArgumentException("The name for field [" + fieldName + "] has already" +
+                " been used to define a field alias.");
+        }
+
+        if (existingFieldType != null) {
             List<String> conflicts = new ArrayList<>();
-            final Set<String> types = fullNameToTypes.get(fieldMapper.fieldType().name());
+            final Set<String> types = fullNameToTypes.get(newFieldType.name());
             boolean strict = beStrict(type, types, updateAllTypes);
-            fieldType.checkCompatibility(fieldMapper.fieldType(), conflicts, strict);
+            existingFieldType.checkCompatibility(newFieldType, conflicts, strict);
             if (conflicts.isEmpty() == false) {
-                throw new IllegalArgumentException("Mapper for [" + fieldMapper.fieldType().name() + "] conflicts with existing mapping in other types:\n" + conflicts.toString());
+                throw new IllegalArgumentException("Mapper for [" + fieldName +
+                    "] conflicts with existing mapping in other types:\n" + conflicts.toString());
             }
+        }
+    }
+
+    /**
+     * Checks that the new field alias is valid.
+     *
+     * Note that this method assumes that new concrete fields have already been processed, so that it
+     * can verify that an alias refers to an existing concrete field.
+     */
+    private void validateAlias(String aliasName,
+                               String path,
+                               CopyOnWriteHashMap<String, String> aliasToConcreteName,
+                               CopyOnWriteHashMap<String, MappedFieldType> fullNameToFieldType) {
+        if (fullNameToFieldType.containsKey(aliasName)) {
+            throw new IllegalArgumentException("The name for field alias [" + aliasName + "] has already" +
+                " been used to define a concrete field.");
+        }
+
+        if (path.equals(aliasName)) {
+            throw new IllegalArgumentException("Invalid [path] value [" + path + "] for field alias [" +
+                aliasName + "]: an alias cannot refer to itself.");
+        }
+
+        if (aliasToConcreteName.containsKey(path)) {
+            throw new IllegalArgumentException("Invalid [path] value [" + path + "] for field alias [" +
+                aliasName + "]: an alias cannot refer to another alias.");
+        }
+
+        if (!fullNameToFieldType.containsKey(path)) {
+            throw new IllegalArgumentException("Invalid [path] value [" + path + "] for field alias [" +
+                aliasName + "]: an alias must refer to an existing field in the mappings.");
         }
     }
 
     /** Returns the field for the given field */
     public MappedFieldType get(String field) {
-        return fullNameToFieldType.get(field);
+        String concreteField = aliasToConcreteName.getOrDefault(field, field);
+        return fullNameToFieldType.get(concreteField);
     }
 
-    /** Get the set of types that have a mapping for the given field. */
-    public Set<String> getTypes(String field) {
+    /**
+     * Get the set of types that have a mapping for the given field.
+     * Note: this method is only visible for testing.
+     **/
+    protected Set<String> getTypes(String field) {
         Set<String> types = fullNameToTypes.get(field);
         if (types == null) {
             types = Collections.emptySet();
@@ -154,6 +219,11 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
         for (MappedFieldType fieldType : this) {
             if (Regex.simpleMatch(pattern, fieldType.name())) {
                 fields.add(fieldType.name());
+            }
+        }
+        for (String aliasName : aliasToConcreteName.keySet()) {
+            if (Regex.simpleMatch(pattern, aliasName)) {
+                fields.add(aliasName);
             }
         }
         return fields;

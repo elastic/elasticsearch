@@ -2,7 +2,7 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testCompile project(path: xpackModule('core'), configuration: 'runtime')
+  testCompile project(path: xpackModule('core'), configuration: 'shadow')
 }
 
 // bring in watcher rest test suite
@@ -26,6 +26,8 @@ integTestCluster {
   extraConfigFile 'roles.yml', 'roles.yml'
   setupCommand 'setupTestAdminUser',
                'bin/elasticsearch-users', 'useradd', 'test_admin', '-p', 'x-pack-test-password', '-r', 'superuser'
+  setupCommand 'setupXpackUserForTests',
+               'bin/elasticsearch-users', 'useradd', 'x_pack_rest_user', '-p', 'x-pack-test-password', '-r', 'watcher_manager'
   setupCommand 'setupWatcherManagerUser',
                'bin/elasticsearch-users', 'useradd', 'watcher_manager', '-p', 'x-pack-test-password', '-r', 'watcher_manager'
   setupCommand 'setupPowerlessUser',

@@ -21,6 +21,7 @@ package org.elasticsearch.test.rest;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 
 import java.io.IOException;
@@ -46,9 +47,11 @@ public class CreatedLocationHeaderIT extends ESRestTestCase {
     }
 
     public void testUpsert() throws IOException {
-        locationTestCase(client().performRequest("POST", "test/test/1/_update", emptyMap(), new StringEntity("{"
-                + "\"doc\": {\"test\": \"test\"},"
-                + "\"doc_as_upsert\": true}", ContentType.APPLICATION_JSON)));
+        Request request = new Request("POST", "test/test/1/_update");
+        request.setJsonEntity("{"
+            + "\"doc\": {\"test\": \"test\"},"
+            + "\"doc_as_upsert\": true}");
+        locationTestCase(client().performRequest(request));
     }
 
     private void locationTestCase(String method, String url) throws IOException {
@@ -62,7 +65,7 @@ public class CreatedLocationHeaderIT extends ESRestTestCase {
         assertEquals(201, response.getStatusLine().getStatusCode());
         String location = response.getHeader("Location");
         assertThat(location, startsWith("/test/test/"));
-        Response getResponse = client().performRequest("GET", location);
+        Response getResponse = client().performRequest(new Request("GET", location));
         assertEquals(singletonMap("test", "test"), entityAsMap(getResponse).get("_source"));
     }
 }

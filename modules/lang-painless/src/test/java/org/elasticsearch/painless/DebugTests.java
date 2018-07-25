@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.script.ScriptException;
 
@@ -36,7 +37,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 
 public class DebugTests extends ScriptTestCase {
-    private final PainlessLookup painlessLookup = new PainlessLookup(Whitelist.BASE_WHITELISTS);
+    private final PainlessLookup painlessLookup = new PainlessLookupBuilder(Whitelist.BASE_WHITELISTS).build();
 
     public void testExplain() {
         // Debug.explain can explain an object

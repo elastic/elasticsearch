@@ -1,6 +1,6 @@
 {
   "index_patterns": [ ".monitoring-beats-${monitoring.template.version}-*" ],
-  "version": 6020099,
+  "version": 6040099,
   "settings": {
     "index.number_of_shards": 1,
     "index.number_of_replicas": 0,
@@ -35,12 +35,75 @@
             },
             "state": {
               "properties": {
+                "beat": {
+                  "properties": {
+                    "name": {
+                      "type": "keyword"
+                    }
+                  }
+                },
+                "host": {
+                  "properties": {
+                    "architecture": {
+                      "type": "keyword"
+                    },
+                    "name": {
+                      "type": "keyword"
+                    },
+                    "os": {
+                      "properties": {
+                        "build": {
+                          "type": "keyword"
+                        },
+                        "family": {
+                          "type": "keyword"
+                        },
+                        "platform": {
+                          "type": "keyword"
+                        },
+                        "version": {
+                          "type": "keyword"
+                        }
+                      }
+                    }
+                  }
+                },
+                "input": {
+                  "properties": {
+                    "count": {
+                      "type": "long"
+                    },
+                    "names": {
+                      "type": "keyword"
+                    }
+                  }
+                },
                 "module": {
                   "properties": {
                     "count": {
                       "type": "long"
                     },
                     "names": {
+                      "type": "keyword"
+                    }
+                  }
+                },
+                "output": {
+                  "properties": {
+                    "name": {
+                      "type": "keyword"
+                    }
+                  }
+                },
+                "service": {
+                  "properties": {
+                    "id": {
+                      "type": "keyword"
+                    },
+                    "name": {
+                      "type": "keyword"
+                    },
+                    "version": {
                       "type": "keyword"
                     }
                   }

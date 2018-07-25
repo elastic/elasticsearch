@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.security.LocalStateSecurity;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
@@ -35,25 +36,33 @@ public class SslHostnameVerificationTests extends SecurityIntegTestCase {
         Settings settings = super.nodeSettings(nodeOrdinal);
         Settings.Builder settingsBuilder = Settings.builder();
         settingsBuilder.put(settings.filter(k -> k.startsWith("xpack.ssl.") == false), false);
-        Path keystore;
+        Path keyPath;
+        Path certPath;
+        Path nodeCertPath;
         try {
             /*
              * This keystore uses a cert without any subject alternative names and a CN of "Elasticsearch Test Node No SAN"
              * that will not resolve to a DNS name and will always cause hostname verification failures
              */
-            keystore = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-no-subjaltname.jks");
-            assert keystore != null;
-            assertThat(Files.exists(keystore), is(true));
+            keyPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-no-subjaltname.pem");
+            certPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-no-subjaltname.crt");
+            nodeCertPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
+            assert keyPath != null;
+            assert certPath != null;
+            assert nodeCertPath != null;
+            assertThat(Files.exists(certPath), is(true));
+            assertThat(Files.exists(nodeCertPath), is(true));
+            assertThat(Files.exists(keyPath), is(true));
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
 
         SecuritySettingsSource.addSecureSettings(settingsBuilder, secureSettings -> {
-            secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode-no-subjaltname");
-            secureSettings.setString("xpack.ssl.truststore.secure_password", "testnode-no-subjaltname");
+            secureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode-no-subjaltname");
         });
-        return settingsBuilder.put("xpack.ssl.keystore.path", keystore.toAbsolutePath())
-                .put("xpack.ssl.truststore.path", keystore.toAbsolutePath())
+        return settingsBuilder.put("xpack.ssl.key", keyPath.toAbsolutePath())
+            .put("xpack.ssl.certificate", certPath.toAbsolutePath())
+            .putList("xpack.ssl.certificate_authorities", Arrays.asList(certPath.toString(), nodeCertPath.toString()))
                 // disable hostname verification as this test uses certs without a valid SAN or DNS in the CN
                 .put("xpack.ssl.verification_mode", "certificate")
                 .build();
@@ -61,22 +70,32 @@ public class SslHostnameVerificationTests extends SecurityIntegTestCase {
 
     @Override
     protected Settings transportClientSettings() {
-        Path keystore = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-no-subjaltname.jks");
-        assert keystore != null;
+        Path keyPath;
+        Path certPath;
+        Path nodeCertPath;
+        try {
+            keyPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-no-subjaltname.pem");
+            certPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-no-subjaltname.crt");
+            nodeCertPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
+            assert keyPath != null;
+            assert certPath != null;
+            assert nodeCertPath != null;
+            assertThat(Files.exists(certPath), is(true));
+            assertThat(Files.exists(nodeCertPath), is(true));
+            assertThat(Files.exists(keyPath), is(true));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
         Settings settings = super.transportClientSettings();
         // remove all ssl settings
         Settings.Builder builder = Settings.builder();
         builder.put(settings.filter( k -> k.startsWith("xpack.ssl.") == false), false);
 
         builder.put("xpack.ssl.verification_mode", "certificate")
-                .put("xpack.ssl.keystore.path", keystore.toAbsolutePath()) // settings for client keystore
-                .put("xpack.ssl.keystore.password", "testnode-no-subjaltname");
-
-        if (randomBoolean()) {
-            // randomly set the truststore, if not set the keystore should be used
-            builder.put("xpack.ssl.truststore.path", keystore.toAbsolutePath())
-                    .put("xpack.ssl.truststore.password", "testnode-no-subjaltname");
-        }
+            .put("xpack.ssl.key", keyPath.toAbsolutePath())
+            .put("xpack.ssl.key_passphrase", "testnode-no-subjaltname")
+            .put("xpack.ssl.certificate", certPath.toAbsolutePath())
+            .putList("xpack.ssl.certificate_authorities", Arrays.asList(certPath.toString(), nodeCertPath.toString()));
         return builder.build();
     }
 

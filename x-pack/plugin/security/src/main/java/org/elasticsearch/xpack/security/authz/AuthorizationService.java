@@ -178,8 +178,8 @@ public class AuthorizationService extends AbstractComponent {
 
         // first, we'll check if the action is a cluster action. If it is, we'll only check it against the cluster permissions
         if (ClusterPrivilege.ACTION_MATCHER.test(action)) {
-            ClusterPermission cluster = permission.cluster();
-            if (cluster.check(action) || checkSameUserPermissions(action, request, authentication)) {
+            final ClusterPermission cluster = permission.cluster();
+            if (cluster.check(action, request) || checkSameUserPermissions(action, request, authentication) ) {
                 putTransientIfNonExisting(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, IndicesAccessControl.ALLOW_ALL);
                 auditTrail.accessGranted(authentication, action, request, permission.names());
                 return;

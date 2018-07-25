@@ -52,8 +52,13 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
         for (int round = 0; round < 10; round++) {
             int d = between(0, values.length - 1);
             longs.setNextDocId(d);
-            assertEquals(values[d].length > 0 ? values[d][0] : 0, longs.getValue());
-
+            if (values[d].length > 0) {
+                assertEquals(values[d][0], longs.getValue());
+            } else {
+                Exception e = expectThrows(IllegalStateException.class, () -> longs.getValue());
+                assertEquals("A document doesn't have a value for a field! " +
+                    "Use doc[<field>].size()==0 to check if a document is missing a field!", e.getMessage());
+            }
             assertEquals(values[d].length, longs.size());
             assertEquals(values[d].length, longs.getValues().size());
             for (int i = 0; i < values[d].length; i++) {
@@ -88,7 +93,13 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
         for (int round = 0; round < 10; round++) {
             int d = between(0, values.length - 1);
             longs.setNextDocId(d);
-            assertEquals(dates[d].length > 0 ? dates[d][0] : new DateTime(0, DateTimeZone.UTC), longs.getDate());
+            if (dates[d].length > 0) {
+                assertEquals(dates[d][0], longs.getDate());
+            } else {
+                Exception e = expectThrows(IllegalStateException.class, () -> longs.getDate());
+                assertEquals("A document doesn't have a value for a field! " +
+                    "Use doc[<field>].size()==0 to check if a document is missing a field!", e.getMessage());
+            }
 
             assertEquals(values[d].length, longs.getDates().size());
             for (int i = 0; i < values[d].length; i++) {

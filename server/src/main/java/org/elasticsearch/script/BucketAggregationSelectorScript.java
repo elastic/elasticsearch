@@ -35,7 +35,7 @@ public abstract class BucketAggregationSelectorScript {
      */
     private final Map<String, Object> params;
 
-    protected BucketAggregationSelectorScript(Map<String, Object> params) {
+    public BucketAggregationSelectorScript(Map<String, Object> params) {
         this.params = params;
     }
 

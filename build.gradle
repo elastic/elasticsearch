@@ -516,6 +516,31 @@ allprojects {
   tasks.eclipse.dependsOn(cleanEclipse, copyEclipseSettings)
 }
 
+allprojects {
+  /*
+   * IntelliJ and Eclipse don't know about the shadow plugin so when we're
+   * in "IntelliJ mode" or "Eclipse mode" add "runtime" dependencies
+   * eveywhere where we see a "shadow" dependency which will cause them to
+   * reference shadowed projects directly rather than rely on the shadowing
+   * to include them. This is the correct thing for it to do because it
+   * doesn't run the jar shadowing at all. This isn't needed for the project
+   * itself because the IDE configuration is done by SourceSets but it is
+   * *is* needed for projects that depends on the project doing the shadowing.
+   * Without this they won't properly depend on the shadowed project.
+   */
+  if (isEclipse || isIdea) {
+	configurations.all { Configuration configuration ->
+	  dependencies.all { Dependency dep ->
+		if (dep instanceof ProjectDependency) {
+		  if (dep.getTargetConfiguration() == 'shadow') {
+			configuration.dependencies.add(project.dependencies.project(path: dep.dependencyProject.path, configuration: 'runtime'))
+		  }
+		}
+	  }
+	}
+  }
+}
+
 // we need to add the same --debug-jvm option as
 // the real RunTask has, so we can pass it through
 class Run extends DefaultTask {

@@ -14,6 +14,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
@@ -35,7 +36,7 @@ public class DatafeedNodeSelector {
         MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
         PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         this.datafeed = mlMetadata.getDatafeed(datafeedId);
-        this.jobTask = MlMetadata.getJobTask(datafeed.getJobId(), tasks);
+        this.jobTask = MlTasks.getJobTask(datafeed.getJobId(), tasks);
         this.clusterState = Objects.requireNonNull(clusterState);
         this.resolver = Objects.requireNonNull(resolver);
     }

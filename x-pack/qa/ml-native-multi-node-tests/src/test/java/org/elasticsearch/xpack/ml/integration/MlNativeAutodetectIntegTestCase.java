@@ -124,9 +124,11 @@ abstract class MlNativeAutodetectIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Settings externalClusterClientSettings() {
-        Path keyStore;
+        Path key;
+        Path certificate;
         try {
-            keyStore = PathUtils.get(getClass().getResource("/test-node.jks").toURI());
+            key = PathUtils.get(getClass().getResource("/testnode.pem").toURI());
+            certificate = PathUtils.get(getClass().getResource("/testnode.crt").toURI());
         } catch (URISyntaxException e) {
             throw new IllegalStateException("error trying to get keystore path", e);
         }
@@ -135,8 +137,9 @@ abstract class MlNativeAutodetectIntegTestCase extends ESIntegTestCase {
         builder.put(SecurityField.USER_SETTING.getKey(), "x_pack_rest_user:" + SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
         builder.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), true);
         builder.put("xpack.security.transport.ssl.enabled", true);
-        builder.put("xpack.security.transport.ssl.keystore.path", keyStore.toAbsolutePath().toString());
-        builder.put("xpack.security.transport.ssl.keystore.password", "keypass");
+        builder.put("xpack.security.transport.ssl.key", key.toAbsolutePath().toString());
+        builder.put("xpack.security.transport.ssl.certificate", certificate.toAbsolutePath().toString());
+        builder.put("xpack.security.transport.ssl.key_passphrase", "testnode");
         builder.put("xpack.security.transport.ssl.verification_mode", "certificate");
         return builder.build();
     }

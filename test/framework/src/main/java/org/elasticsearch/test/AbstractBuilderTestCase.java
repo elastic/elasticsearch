@@ -307,8 +307,11 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         private final Client client;
         private final long nowInMillis = randomNonNegativeLong();
 
-        ServiceHolder(Settings nodeSettings, Settings indexSettings,
-                      Collection<Class<? extends Plugin>> plugins, AbstractBuilderTestCase testCase, boolean registerType) throws IOException {
+        ServiceHolder(Settings nodeSettings,
+                        Settings indexSettings,
+                        Collection<Class<? extends Plugin>> plugins,
+                        AbstractBuilderTestCase testCase,
+                        boolean registerType) throws IOException {
             Environment env = InternalSettingsPreparer.prepareEnvironment(nodeSettings);
             PluginsService pluginsService;
             pluginsService = new PluginsService(nodeSettings, null, env.modulesFile(), env.pluginsFile(), plugins);

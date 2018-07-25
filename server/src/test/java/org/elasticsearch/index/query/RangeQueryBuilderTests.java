@@ -159,7 +159,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             query = ((IndexOrDocValuesQuery) query).getIndexQuery();
             assertThat(query, instanceOf(PointRangeQuery.class));
             MapperService mapperService = context.getQueryShardContext().getMapperService();
-            MappedFieldType mappedFieldType = mapperService.fullName(DATE_FIELD_NAME);
+            MappedFieldType mappedFieldType = mapperService.fullName(expectedFieldName);
             final Long fromInMillis;
             final Long toInMillis;
             // we have to normalize the incoming value into milliseconds since it could be literally anything

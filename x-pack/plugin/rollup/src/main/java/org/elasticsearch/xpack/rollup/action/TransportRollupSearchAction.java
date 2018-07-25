@@ -191,7 +191,9 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
             copiedSource.query(new BoolQueryBuilder()
                     .must(rewritten)
                     .filter(new TermQueryBuilder(RollupField.formatMetaField(RollupField.ID.getPreferredName()), id))
-                    .filter(new TermQueryBuilder(RollupField.formatMetaField(RollupField.VERSION_FIELD), Rollup.ROLLUP_VERSION)));
+                    // Both versions are acceptable right now since they are compatible at search time
+                    .filter(new TermsQueryBuilder(RollupField.formatMetaField(RollupField.VERSION_FIELD),
+                        new long[]{Rollup.ROLLUP_VERSION_V1, Rollup.ROLLUP_VERSION_V2})));
 
             // And add a new msearch per JobID
             msearch.add(new SearchRequest(context.getRollupIndices(), copiedSource).types(request.types()));

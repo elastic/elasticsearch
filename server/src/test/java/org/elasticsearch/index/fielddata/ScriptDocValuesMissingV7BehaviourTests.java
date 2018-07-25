@@ -19,10 +19,10 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.elasticsearch.common.geo.GeoPoint;;
-import org.elasticsearch.index.fielddata.ScriptDocValues.Longs;
-import org.elasticsearch.index.fielddata.ScriptDocValues.Dates;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Booleans;
+import org.elasticsearch.index.fielddata.ScriptDocValues.Dates;
+import org.elasticsearch.index.fielddata.ScriptDocValues.Longs;
 import org.elasticsearch.test.ESTestCase;
 
 import org.joda.time.DateTime;
@@ -30,17 +30,9 @@ import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableDateTime;
 import java.io.IOException;
 
-public class ScriptDocValuesMissingV6BehaviourTests extends ESTestCase {
+public class ScriptDocValuesMissingV7BehaviourTests extends ESTestCase {
 
-    @Override
-    public boolean enableWarningsCheck() {
-        // missing values has some deprecated warnings
-        // that only are output once which is not easy to check
-        // that's why we disable warnings' checking
-        return false;
-    }
-
-    public void testZeroForMissingValueLong() throws IOException {
+    public void testExceptionForMissingValueLong() throws IOException {
         long[][] values = new long[between(3, 10)][];
         for (int d = 0; d < values.length; d++) {
             values[d] = new long[0];
@@ -49,11 +41,13 @@ public class ScriptDocValuesMissingV6BehaviourTests extends ESTestCase {
         for (int round = 0; round < 10; round++) {
             int d = between(0, values.length - 1);
             longs.setNextDocId(d);
-            assertEquals(0, longs.getValue());
+            Exception e = expectThrows(IllegalStateException.class, () -> longs.getValue());
+            assertEquals("A document doesn't have a value for a field! " +
+                "Use doc[<field>].size()==0 to check if a document is missing a field!", e.getMessage());
         }
     }
 
-    public void testEpochForMissingValueDate() throws IOException {
+    public void testExceptionForMissingValueDate() throws IOException {
         final ReadableDateTime EPOCH = new DateTime(0, DateTimeZone.UTC);
         long[][] values = new long[between(3, 10)][];
         for (int d = 0; d < values.length; d++) {
@@ -63,7 +57,9 @@ public class ScriptDocValuesMissingV6BehaviourTests extends ESTestCase {
         for (int round = 0; round < 10; round++) {
             int d = between(0, values.length - 1);
             dates.setNextDocId(d);
-            assertEquals(EPOCH, dates.getValue());
+            Exception e = expectThrows(IllegalStateException.class, () -> dates.getValue());
+            assertEquals("A document doesn't have a value for a field! " +
+                "Use doc[<field>].size()==0 to check if a document is missing a field!", e.getMessage());
         }
     }
 
@@ -76,7 +72,9 @@ public class ScriptDocValuesMissingV6BehaviourTests extends ESTestCase {
         for (int round = 0; round < 10; round++) {
             int d = between(0, values.length - 1);
             bools.setNextDocId(d);
-            assertEquals(false, bools.getValue());
+            Exception e = expectThrows(IllegalStateException.class, () -> bools.getValue());
+            assertEquals("A document doesn't have a value for a field! " +
+                "Use doc[<field>].size()==0 to check if a document is missing a field!", e.getMessage());
         }
     }
 
@@ -84,7 +82,9 @@ public class ScriptDocValuesMissingV6BehaviourTests extends ESTestCase {
         final MultiGeoPointValues values = wrap(new GeoPoint[0]);
         final ScriptDocValues.GeoPoints script = new ScriptDocValues.GeoPoints(values);
         script.setNextDocId(0);
-        assertEquals(null, script.getValue());
+        Exception e = expectThrows(IllegalStateException.class, () -> script.getValue());
+        assertEquals("A document doesn't have a value for a field! " +
+            "Use doc[<field>].size()==0 to check if a document is missing a field!", e.getMessage());
     }
 
 

@@ -50,7 +50,7 @@ public class ScriptDocValuesDatesTests extends ESTestCase {
 
     public void testJodaTimeBwc() throws IOException {
         assertDateDocValues(false, "The joda time api for doc values is deprecated." +
-            " Use -Des.scripting.use_java_time=true to use the java time api for date field doc values",
+                " Use -Des.scripting.use_java_time=true to use the java time api for date field doc values",
             "getDate is no longer necessary on date fields as the value is now a date.",
             "getDates is no longer necessary on date fields as the values are now dates.");
     }
@@ -91,22 +91,17 @@ public class ScriptDocValuesDatesTests extends ESTestCase {
         for (int round = 0; round < 10; round++) {
             int d = between(0, values.length - 1);
             dates.setNextDocId(d);
-            if (expectedDates[d].length > 0) {
-                Object dateValue = AccessController.doPrivileged((PrivilegedAction<Object>) dates::getValue, noPermissionsAcc);
-                assertEquals(expectedDates[d][0] , dateValue);
-                Object bwcDateValue = AccessController.doPrivileged((PrivilegedAction<Object>) dates::getDate, noPermissionsAcc);
-                assertEquals(expectedDates[d][0] , bwcDateValue);
-                AccessController.doPrivileged((PrivilegedAction<Object>) dates::getDates, noPermissionsAcc);
-            } else {
-                Exception e = expectThrows(IllegalStateException.class, () -> dates.getValue());
-                assertEquals("A document doesn't have a value for a field! " +
-                    "Use doc[<field>].size()==0 to check if a document is missing a field!", e.getMessage());
-            }
+            Object dateValue = AccessController.doPrivileged((PrivilegedAction<Object>) dates::getValue, noPermissionsAcc);
+            assertEquals(expectedDates[d].length > 0 ? expectedDates[d][0] : new DateTime(0, DateTimeZone.UTC), dateValue);
+            Object bwcDateValue = AccessController.doPrivileged((PrivilegedAction<Object>) dates::getDate, noPermissionsAcc);
+            assertEquals(expectedDates[d].length > 0 ? expectedDates[d][0] : new DateTime(0, DateTimeZone.UTC), bwcDateValue);
+
+            AccessController.doPrivileged((PrivilegedAction<Object>) dates::getDates, noPermissionsAcc);
             assertEquals(values[d].length, dates.size());
             for (int i = 0; i < values[d].length; i++) {
                 final int ndx = i;
-                Object dateValue = AccessController.doPrivileged((PrivilegedAction<Object>) () -> dates.get(ndx), noPermissionsAcc);
-                assertEquals(expectedDates[d][i], dateValue);
+                Object dateValueI = AccessController.doPrivileged((PrivilegedAction<Object>) () -> dates.get(ndx), noPermissionsAcc);
+                assertEquals(expectedDates[d][i], dateValueI);
             }
         }
 

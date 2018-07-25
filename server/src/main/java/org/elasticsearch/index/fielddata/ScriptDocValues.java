@@ -60,6 +60,7 @@ import static org.elasticsearch.common.Booleans.parseBoolean;
  */
 public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
+    private static volatile boolean warnedAboutMissingValues = false;
     /**
      * Set the current doc ID.
      */
@@ -100,7 +101,6 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     public static final class Longs extends ScriptDocValues<Long> {
         protected static final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger(Longs.class));
-
         private final SortedNumericDocValues in;
         /**
          * Callback for deprecated fields. In production this should always point to
@@ -162,6 +162,12 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
                 if (ScriptModule.EXCEPTION_FOR_MISSING_VALUE) {
                     throw new IllegalStateException("A document doesn't have a value for a field! " +
                         "Use doc[<field>].size()==0 to check if a document is missing a field!");
+                }
+                if (ScriptDocValues.warnedAboutMissingValues == false) {
+                    deprecated("returning default values for missing document values is deprecated. " +
+                        "Set system property '-Des.scripting.exception_for_missing_value=true' "  +
+                        "to make behaviour compatible with future major versions!");
+                    ScriptDocValues.warnedAboutMissingValues = true;
                 }
                 return 0L;
             }
@@ -272,6 +278,12 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
                     throw new IllegalStateException("A document doesn't have a value for a field! " +
                         "Use doc[<field>].size()==0 to check if a document is missing a field!");
                 }
+                if (ScriptDocValues.warnedAboutMissingValues == false) {
+                    deprecated("returning default values for missing document values is deprecated. " +
+                        "Set system property '-Des.scripting.exception_for_missing_value=true' "  +
+                        "to make behaviour compatible with future major versions!");
+                    ScriptDocValues.warnedAboutMissingValues = true;
+                }
                 return EPOCH;
             }
             return get(0);
@@ -371,8 +383,16 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         private double[] values = new double[0];
         private int count;
 
+        protected static final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger(Doubles.class));
+        private final Consumer<String> deprecationCallback;
+
         public Doubles(SortedNumericDoubleValues in) {
+            this(in, deprecationLogger::deprecated);
+        }
+
+        public Doubles(SortedNumericDoubleValues in, Consumer<String> deprecationCallback) {
             this.in = in;
+            this.deprecationCallback = deprecationCallback;
         }
 
         @Override
@@ -406,6 +426,12 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
                     throw new IllegalStateException("A document doesn't have a value for a field! " +
                         "Use doc[<field>].size()==0 to check if a document is missing a field!");
                 }
+                if (ScriptDocValues.warnedAboutMissingValues == false) {
+                    deprecated("returning default values for missing document values is deprecated. " +
+                        "Set system property '-Des.scripting.exception_for_missing_value=true' "  +
+                        "to make behaviour compatible with future major versions!");
+                    ScriptDocValues.warnedAboutMissingValues = true;
+                }
                 return 0d;
             }
             return values[0];
@@ -420,6 +446,22 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         public int size() {
             return count;
         }
+
+        /**
+         * Log a deprecation log, with the server's permissions, not the permissions of the
+         * script calling this method. We need to do this to prevent errors when rolling
+         * the log file.
+         */
+        private void deprecated(String message) {
+            // Intentionally not calling SpecialPermission.check because this is supposed to be called by scripts
+            AccessController.doPrivileged(new PrivilegedAction<Void>() {
+                @Override
+                public Void run() {
+                    deprecationCallback.accept(message);
+                    return null;
+                }
+            });
+        }
     }
 
     public static final class GeoPoints extends ScriptDocValues<GeoPoint> {
@@ -428,8 +470,16 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         private GeoPoint[] values = new GeoPoint[0];
         private int count;
 
+        protected static final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger(GeoPoints.class));
+        private final Consumer<String> deprecationCallback;
+
         public GeoPoints(MultiGeoPointValues in) {
+            this(in, deprecationLogger::deprecated);
+        }
+
+        public GeoPoints(MultiGeoPointValues in, Consumer<String> deprecationCallback) {
             this.in = in;
+            this.deprecationCallback = deprecationCallback;
         }
 
         @Override
@@ -465,6 +515,12 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
                 if (ScriptModule.EXCEPTION_FOR_MISSING_VALUE) {
                     throw new IllegalStateException("A document doesn't have a value for a field! " +
                         "Use doc[<field>].size()==0 to check if a document is missing a field!");
+                }
+                if (ScriptDocValues.warnedAboutMissingValues == false) {
+                    deprecated("returning default values for missing document values is deprecated. " +
+                        "Set system property '-Des.scripting.exception_for_missing_value=true' "  +
+                        "to make behaviour compatible with future major versions!");
+                    ScriptDocValues.warnedAboutMissingValues = true;
                 }
                 return null;
             }
@@ -544,6 +600,22 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             }
             return geohashDistance(geohash);
         }
+
+        /**
+         * Log a deprecation log, with the server's permissions, not the permissions of the
+         * script calling this method. We need to do this to prevent errors when rolling
+         * the log file.
+         */
+        private void deprecated(String message) {
+            // Intentionally not calling SpecialPermission.check because this is supposed to be called by scripts
+            AccessController.doPrivileged(new PrivilegedAction<Void>() {
+                @Override
+                public Void run() {
+                    deprecationCallback.accept(message);
+                    return null;
+                }
+            });
+        }
     }
 
     public static final class Booleans extends ScriptDocValues<Boolean> {
@@ -552,8 +624,16 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         private boolean[] values = new boolean[0];
         private int count;
 
+        protected static final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger(Booleans.class));
+        private final Consumer<String> deprecationCallback;
+
         public Booleans(SortedNumericDocValues in) {
+            this(in, deprecationLogger::deprecated);
+        }
+
+        public Booleans(SortedNumericDocValues in, Consumer<String> deprecationCallback) {
             this.in = in;
+            this.deprecationCallback = deprecationCallback;
         }
 
         @Override
@@ -583,6 +663,12 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
                     throw new IllegalStateException("A document doesn't have a value for a field! " +
                         "Use doc[<field>].size()==0 to check if a document is missing a field!");
                 }
+                if (ScriptDocValues.warnedAboutMissingValues == false) {
+                    deprecated("returning default values for missing document values is deprecated. " +
+                        "Set system property '-Des.scripting.exception_for_missing_value=true' "  +
+                        "to make behaviour compatible with future major versions!");
+                    ScriptDocValues.warnedAboutMissingValues = true;
+                }
                 return false;
             }
             return values[0];
@@ -605,6 +691,22 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
                 return Arrays.copyOf(array, ArrayUtil.oversize(minSize, 1));
             } else
                 return array;
+        }
+
+        /**
+         * Log a deprecation log, with the server's permissions, not the permissions of the
+         * script calling this method. We need to do this to prevent errors when rolling
+         * the log file.
+         */
+        private void deprecated(String message) {
+            // Intentionally not calling SpecialPermission.check because this is supposed to be called by scripts
+            AccessController.doPrivileged(new PrivilegedAction<Void>() {
+                @Override
+                public Void run() {
+                    deprecationCallback.accept(message);
+                    return null;
+                }
+            });
         }
 
     }
@@ -658,8 +760,16 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     public static final class Strings extends BinaryScriptDocValues<String> {
 
+        protected static final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger(Strings.class));
+        private final Consumer<String> deprecationCallback;
+
         public Strings(SortedBinaryDocValues in) {
+            this(in, deprecationLogger::deprecated);
+        }
+
+        public Strings(SortedBinaryDocValues in, Consumer<String> deprecationCallback) {
             super(in);
+            this.deprecationCallback = deprecationCallback;
         }
 
         @Override
@@ -673,16 +783,46 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
                     throw new IllegalStateException("A document doesn't have a value for a field! " +
                         "Use doc[<field>].size()==0 to check if a document is missing a field!");
                 }
+                if (ScriptDocValues.warnedAboutMissingValues == false) {
+                    deprecated("returning default values for missing document values is deprecated. " +
+                        "Set system property '-Des.scripting.exception_for_missing_value=true' "  +
+                        "to make behaviour compatible with future major versions!");
+                    ScriptDocValues.warnedAboutMissingValues = true;
+                }
                 return null;
             }
             return get(0);
+        }
+
+        /**
+         * Log a deprecation log, with the server's permissions, not the permissions of the
+         * script calling this method. We need to do this to prevent errors when rolling
+         * the log file.
+         */
+        private void deprecated(String message) {
+            // Intentionally not calling SpecialPermission.check because this is supposed to be called by scripts
+            AccessController.doPrivileged(new PrivilegedAction<Void>() {
+                @Override
+                public Void run() {
+                    deprecationCallback.accept(message);
+                    return null;
+                }
+            });
         }
     }
 
     public static final class BytesRefs extends BinaryScriptDocValues<BytesRef> {
 
+        protected static final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger(Strings.class));
+        private final Consumer<String> deprecationCallback;
+
         public BytesRefs(SortedBinaryDocValues in) {
+            this(in, deprecationLogger::deprecated);
+        }
+
+        public BytesRefs(SortedBinaryDocValues in, Consumer<String> deprecationCallback) {
             super(in);
+            this.deprecationCallback = deprecationCallback;
         }
 
         @Override
@@ -701,9 +841,31 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
                     throw new IllegalStateException("A document doesn't have a value for a field! " +
                         "Use doc[<field>].size()==0 to check if a document is missing a field!");
                 }
+                if (ScriptDocValues.warnedAboutMissingValues == false) {
+                    deprecated("returning default values for missing document values is deprecated. " +
+                        "Set system property '-Des.scripting.exception_for_missing_value=true' "  +
+                        "to make behaviour compatible with future major versions!");
+                    ScriptDocValues.warnedAboutMissingValues = true;
+                }
                 return new BytesRef();
             }
             return get(0);
+        }
+
+        /**
+         * Log a deprecation log, with the server's permissions, not the permissions of the
+         * script calling this method. We need to do this to prevent errors when rolling
+         * the log file.
+         */
+        private void deprecated(String message) {
+            // Intentionally not calling SpecialPermission.check because this is supposed to be called by scripts
+            AccessController.doPrivileged(new PrivilegedAction<Void>() {
+                @Override
+                public Void run() {
+                    deprecationCallback.accept(message);
+                    return null;
+                }
+            });
         }
 
     }

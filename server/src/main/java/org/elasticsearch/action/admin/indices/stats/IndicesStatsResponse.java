@@ -22,11 +22,11 @@ package org.elasticsearch.action.admin.indices.stats;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.Index;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,7 +38,7 @@ import java.util.Set;
 
 import static java.util.Collections.unmodifiableMap;
 
-public class IndicesStatsResponse extends BroadcastResponse implements ToXContentFragment {
+public class IndicesStatsResponse extends BroadcastResponse {
 
     private ShardStats[] shards;
 
@@ -85,19 +85,22 @@ public class IndicesStatsResponse extends BroadcastResponse implements ToXConten
         }
         Map<String, IndexStats> indicesStats = new HashMap<>();
 
-        Set<String> indices = new HashSet<>();
+        Set<Index> indices = new HashSet<>();
         for (ShardStats shard : shards) {
-            indices.add(shard.getShardRouting().getIndexName());
+            indices.add(shard.getShardRouting().index());
         }
 
-        for (String indexName : indices) {
+        for (Index index : indices) {
             List<ShardStats> shards = new ArrayList<>();
+            String indexName = index.getName();
             for (ShardStats shard : this.shards) {
                 if (shard.getShardRouting().getIndexName().equals(indexName)) {
                     shards.add(shard);
                 }
             }
-            indicesStats.put(indexName, new IndexStats(indexName, shards.toArray(new ShardStats[shards.size()])));
+            indicesStats.put(
+                indexName, new IndexStats(indexName, index.getUUID(), shards.toArray(new ShardStats[shards.size()]))
+            );
         }
         this.indicesStats = indicesStats;
         return indicesStats;
@@ -146,14 +149,13 @@ public class IndicesStatsResponse extends BroadcastResponse implements ToXConten
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    protected void addCustomXContentFields(XContentBuilder builder, Params params) throws IOException {
         final String level = params.param("level", "indices");
         final boolean isLevelValid =
             "cluster".equalsIgnoreCase(level) || "indices".equalsIgnoreCase(level) || "shards".equalsIgnoreCase(level);
         if (!isLevelValid) {
             throw new IllegalArgumentException("level parameter must be one of [cluster] or [indices] or [shards] but was [" + level + "]");
         }
-
 
         builder.startObject("_all");
 
@@ -171,7 +173,7 @@ public class IndicesStatsResponse extends BroadcastResponse implements ToXConten
             builder.startObject(Fields.INDICES);
             for (IndexStats indexStats : getIndices().values()) {
                 builder.startObject(indexStats.getIndex());
-
+                builder.field("uuid", indexStats.getUuid());
                 builder.startObject("primaries");
                 indexStats.getPrimaries().toXContent(builder, params);
                 builder.endObject();
@@ -197,8 +199,6 @@ public class IndicesStatsResponse extends BroadcastResponse implements ToXConten
             }
             builder.endObject();
         }
-
-        return builder;
     }
 
     static final class Fields {
@@ -208,14 +208,6 @@ public class IndicesStatsResponse extends BroadcastResponse implements ToXConten
 
     @Override
     public String toString() {
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
-            builder.startObject();
-            toXContent(builder, EMPTY_PARAMS);
-            builder.endObject();
-            return builder.string();
-        } catch (IOException e) {
-            return "{ \"error\" : \"" + e.getMessage() + "\"}";
-        }
+        return Strings.toString(this, true, false);
     }
 }

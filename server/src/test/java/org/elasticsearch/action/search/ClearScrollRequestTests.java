@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -84,7 +85,7 @@ public class ClearScrollRequestTests extends ESTestCase {
         clearScrollRequest.addScrollId("SCROLL_ID");
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             clearScrollRequest.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            assertEquals("{\"scroll_id\":[\"SCROLL_ID\"]}", builder.string());
+            assertEquals("{\"scroll_id\":[\"SCROLL_ID\"]}", Strings.toString(builder));
         }
     }
 

@@ -1,0 +1,72 @@
+[role="xpack"]
+[testenv="basic"]
+[appendix]
+[[sql-syntax-reserved]]
+= Reserved Keywords
+
+Table with reserved keywords that need to be quoted. Also provide an example to make it more obvious.
+
+The following table lists all of the keywords that are reserved in Presto,
+along with their status in the SQL standard. These reserved keywords must
+be quoted (using double quotes) in order to be used as an identifier, for example:
+
+[source, sql]
+----
+SELECT "AS" FROM index
+----
+
+[cols="^,^,^",options="header"]
+
+|===
+
+|Keyword                      |SQL:2016      |SQL-92
+
+
+|`ALL`                        |reserved      |reserved
+|`AND`                        |reserved      |reserved
+|`ANY`                        |reserved      |reserved
+|`AS`                         |reserved      |reserved
+|`ASC`                        |reserved      |reserved
+|`BETWEEN`                    |reserved      |reserved
+|`BY`                         |reserved      |reserved
+|`CAST`                       |reserved      |reserved
+|`DESC`                       |reserved      |reserved
+|`DESCRIBE`                   |reserved      |reserved
+|`DISTINCT`                   |reserved      |reserved
+|`EXISTS`                     |reserved      |reserved
+|`EXPLAIN`                    |reserved      |reserved
+|`EXTRACT`                    |reserved      |reserved
+|`FALSE`                      |reserved      |reserved
+|`FROM`                       |reserved      |reserved
+|`FULL`                       |reserved      |reserved
+|`GROUP`                      |reserved      |reserved
+|`HAVING`                     |reserved      |reserved
+|`IN`                         |reserved      |reserved
+|`INNER`                      |reserved      |reserved
+|`IS`                         |reserved      |reserved
+|`JOIN`                       |reserved      |reserved
+|`LEFT`                       |reserved      |reserved
+|`LIKE`                       |reserved      |reserved
+|`LIMIT`                      |reserved      |reserved
+|`MATCH`                      |reserved      |reserved
+|`NATURAL`                    |reserved      |reserved
+|`NO`                         |reserved      |reserved
+|`NOT`                        |reserved      |reserved
+|`NULL`                       |reserved      |reserved
+|`ON`                         |reserved      |reserved
+|`OR`                         |reserved      |reserved
+|`ORDER`                      |reserved      |reserved
+|`OUTER`                      |reserved      |reserved
+|`RIGHT`                      |reserved      |reserved
+|`SELECT`                     |reserved      |reserved
+|`SESSION`                    |              |reserved
+|`TABLE`                      |reserved      |reserved
+|`THEN`                       |reserved      |reserved
+|`TO`                         |reserved      |reserved
+|`TRUE`                       |reserved      |reserved
+|`USING`                      |reserved      |reserved
+|`WHEN`                       |reserved      |reserved
+|`WHERE`                      |reserved      |reserved
+|`WITH`                       |reserved      |reserved
+
+|===

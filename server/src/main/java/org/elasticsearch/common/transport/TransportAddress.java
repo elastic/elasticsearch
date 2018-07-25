@@ -23,6 +23,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -32,7 +34,7 @@ import java.net.UnknownHostException;
 /**
  * A transport address used for IP socket address (wraps {@link java.net.InetSocketAddress}).
  */
-public final class TransportAddress implements Writeable {
+public final class TransportAddress implements Writeable, ToXContentFragment {
 
     /**
      * A <a href="https://en.wikipedia.org/wiki/0.0.0.0">non-routeable v4 meta transport address</a> that can be used for
@@ -127,5 +129,10 @@ public final class TransportAddress implements Writeable {
     @Override
     public String toString() {
         return NetworkAddress.format(address);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder.value(toString());
     }
 }

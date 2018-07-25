@@ -40,7 +40,7 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
     }
 
     /**
-     * Sets the type of the document to fetch. If set to <tt>null</tt>, will use just the id to fetch the
+     * Sets the type of the document to fetch. If set to {@code null}, will use just the id to fetch the
      * first document matching it.
      */
     public GetRequestBuilder setType(@Nullable String type) {
@@ -57,15 +57,6 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
     }
 
     /**
-     * Sets the parent id of this document. Will simply set the routing to this value, as it is only
-     * used for routing with delete requests.
-     */
-    public GetRequestBuilder setParent(String parent) {
-        request.parent(parent);
-        return this;
-    }
-
-    /**
      * Controls the shard routing of the request. Using this value to hash the shard
      * and not the id.
      */
@@ -76,7 +67,7 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
 
     /**
      * Sets the preference to execute the search. Defaults to randomize across shards. Can be set to
-     * <tt>_local</tt> to prefer local shards or a custom value, which guarantees that the same order
+     * {@code _local} to prefer local shards or a custom value, which guarantees that the same order
      * will be used across different requests.
      */
     public GetRequestBuilder setPreference(String preference) {
@@ -85,7 +76,7 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
     }
 
     /**
-     * Explicitly specify the fields that will be returned. By default, the <tt>_source</tt>
+     * Explicitly specify the fields that will be returned. By default, the {@code _source}
      * field will be returned.
      */
     public GetRequestBuilder setStoredFields(String... fields) {
@@ -132,8 +123,8 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
 
     /**
      * Should a refresh be executed before this get operation causing the operation to
-     * return the latest value. Note, heavy get should not set this to <tt>true</tt>. Defaults
-     * to <tt>false</tt>.
+     * return the latest value. Note, heavy get should not set this to {@code true}. Defaults
+     * to {@code false}.
      */
     public GetRequestBuilder setRefresh(boolean refresh) {
         request.refresh(refresh);

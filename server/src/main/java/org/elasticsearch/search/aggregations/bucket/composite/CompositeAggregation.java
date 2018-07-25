@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 
@@ -66,11 +65,7 @@ public interface CompositeAggregation extends MultiBucketsAggregation {
     static void buildCompositeMap(String fieldName, Map<String, Object> composite, XContentBuilder builder) throws IOException {
         builder.startObject(fieldName);
         for (Map.Entry<String, Object> entry : composite.entrySet()) {
-            if (entry.getValue().getClass() == BytesRef.class) {
-                builder.field(entry.getKey(), ((BytesRef) entry.getValue()).utf8ToString());
-            } else {
-                builder.field(entry.getKey(), entry.getValue());
-            }
+            builder.field(entry.getKey(), entry.getValue());
         }
         builder.endObject();
     }

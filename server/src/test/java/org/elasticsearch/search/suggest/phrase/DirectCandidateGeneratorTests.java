@@ -24,12 +24,12 @@ import org.apache.lucene.search.spell.JaroWinklerDistance;
 import org.apache.lucene.search.spell.LevensteinDistance;
 import org.apache.lucene.search.spell.LuceneLevenshteinDistance;
 import org.apache.lucene.search.spell.NGramDistance;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -43,6 +43,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
@@ -123,12 +124,13 @@ public class DirectCandidateGeneratorTests extends ESTestCase {
                 builder.prettyPrint();
             }
             generator.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            XContentParser parser = createParser(shuffleXContent(builder));
-            parser.nextToken();
-            DirectCandidateGeneratorBuilder secondGenerator = DirectCandidateGeneratorBuilder.PARSER.apply(parser, null);
-            assertNotSame(generator, secondGenerator);
-            assertEquals(generator, secondGenerator);
-            assertEquals(generator.hashCode(), secondGenerator.hashCode());
+            try (XContentParser parser = createParser(shuffleXContent(builder))) {
+                parser.nextToken();
+                DirectCandidateGeneratorBuilder secondGenerator = DirectCandidateGeneratorBuilder.PARSER.apply(parser, null);
+                assertNotSame(generator, secondGenerator);
+                assertEquals(generator, secondGenerator);
+                assertEquals(generator.hashCode(), secondGenerator.hashCode());
+            }
         }
     }
 
@@ -175,20 +177,21 @@ public class DirectCandidateGeneratorTests extends ESTestCase {
 
         // test bad value for field (e.g. size expects an int)
         directGenerator = "{ \"size\" : \"xxl\" }";
-        assertIllegalXContent(directGenerator, ParsingException.class,
+        assertIllegalXContent(directGenerator, XContentParseException.class,
                 "[direct_generator] failed to parse field [size]");
 
         // test unexpected token
         directGenerator = "{ \"size\" : [ \"xxl\" ] }";
-        assertIllegalXContent(directGenerator, ParsingException.class,
+        assertIllegalXContent(directGenerator, XContentParseException.class,
                 "[direct_generator] size doesn't support values of type: START_ARRAY");
     }
 
     private void assertIllegalXContent(String directGenerator, Class<? extends Exception> exceptionClass, String exceptionMsg)
             throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent, directGenerator);
-        Exception e = expectThrows(exceptionClass, () -> DirectCandidateGeneratorBuilder.PARSER.apply(parser, null));
-        assertEquals(exceptionMsg, e.getMessage());
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, directGenerator)) {
+            Exception e = expectThrows(exceptionClass, () -> DirectCandidateGeneratorBuilder.PARSER.apply(parser, null));
+            assertThat(e.getMessage(), containsString(exceptionMsg));
+        }
     }
 
     /**

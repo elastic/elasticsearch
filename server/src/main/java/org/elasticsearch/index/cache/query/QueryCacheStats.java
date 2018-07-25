@@ -128,7 +128,7 @@ public class QueryCacheStats implements Streamable, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject(Fields.QUERY_CACHE);
-        builder.byteSizeField(Fields.MEMORY_SIZE_IN_BYTES, Fields.MEMORY_SIZE, ramBytesUsed);
+        builder.humanReadableField(Fields.MEMORY_SIZE_IN_BYTES, Fields.MEMORY_SIZE, getMemorySize());
         builder.field(Fields.TOTAL_COUNT, getTotalCount());
         builder.field(Fields.HIT_COUNT, getHitCount());
         builder.field(Fields.MISS_COUNT, getMissCount());

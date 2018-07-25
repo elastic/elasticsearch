@@ -76,7 +76,7 @@ class PrefixLogger extends ExtendedLoggerWrapper {
     PrefixLogger(final ExtendedLogger logger, final String name, final String prefix) {
         super(logger, name, null);
 
-        final String actualPrefix = (prefix == null ? "" : prefix).intern();
+        final String actualPrefix = (prefix == null ? "" : prefix);
         final Marker actualMarker;
         // markers is not thread-safe, so we synchronize access
         synchronized (markers) {
@@ -88,6 +88,7 @@ class PrefixLogger extends ExtendedLoggerWrapper {
                  * those references are held strongly, this would give a strong reference back to the key preventing them from ever being
                  * collected. This also guarantees that no other strong reference can be held to the prefix anywhere.
                  */
+                // noinspection RedundantStringConstructorCall
                 markers.put(new String(actualPrefix), actualMarker);
             } else {
                 actualMarker = maybeMarker;

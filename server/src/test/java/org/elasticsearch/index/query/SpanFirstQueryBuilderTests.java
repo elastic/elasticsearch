@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanFirstQuery;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.internal.SearchContext;
@@ -57,7 +58,7 @@ public class SpanFirstQueryBuilderTests extends AbstractQueryTestCase<SpanFirstQ
             builder.endObject();
             builder.endObject();
 
-            ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(builder.string()));
+            ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(Strings.toString(builder)));
             assertTrue(e.getMessage().contains("spanFirst must have [end] set"));
         }
         {
@@ -68,7 +69,7 @@ public class SpanFirstQueryBuilderTests extends AbstractQueryTestCase<SpanFirstQ
             builder.endObject();
             builder.endObject();
 
-            ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(builder.string()));
+            ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(Strings.toString(builder)));
             assertTrue(e.getMessage().contains("spanFirst must have [match] span query clause"));
         }
     }

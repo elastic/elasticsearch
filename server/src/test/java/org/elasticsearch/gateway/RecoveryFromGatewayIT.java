@@ -23,10 +23,12 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -85,9 +87,9 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
         internalCluster().startNode();
 
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
             .startObject("properties").startObject("appAccountIds").field("type", "text").endObject().endObject()
-            .endObject().endObject().string();
+            .endObject().endObject());
         assertAcked(prepareCreate("test").addMapping("type1", mapping, XContentType.JSON));
 
         client().prepareIndex("test", "type1", "10990239").setSource(jsonBuilder().startObject()
@@ -154,9 +156,9 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
     public void testSingleNodeNoFlush() throws Exception {
         internalCluster().startNode();
 
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
             .startObject("properties").startObject("field").field("type", "text").endObject().startObject("num").field("type", "integer").endObject().endObject()
-            .endObject().endObject().string();
+            .endObject().endObject());
         // note: default replica settings are tied to #data nodes-1 which is 0 here. We can do with 1 in this test.
         int numberOfShards = numberOfShards();
         assertAcked(prepareCreate("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, numberOfShards())
@@ -551,9 +553,8 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         DiscoveryNode node = internalCluster().getInstance(ClusterService.class, nodeName).localNode();
 
         TransportNodesListGatewayStartedShards.NodesGatewayStartedShards response;
-        response = internalCluster().getInstance(TransportNodesListGatewayStartedShards.class)
-            .execute(new TransportNodesListGatewayStartedShards.Request(shardId, new DiscoveryNode[]{node}))
-            .get();
+        response = ActionTestUtils.executeBlocking(internalCluster().getInstance(TransportNodesListGatewayStartedShards.class),
+            new TransportNodesListGatewayStartedShards.Request(shardId, new DiscoveryNode[]{node}));
 
         assertThat(response.getNodes(), hasSize(1));
         assertThat(response.getNodes().get(0).allocationId(), notNullValue());

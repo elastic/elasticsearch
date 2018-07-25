@@ -22,13 +22,13 @@ package org.elasticsearch.node;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -73,8 +73,14 @@ public class AdaptiveSelectionStats implements Writeable, ToXContentFragment {
                 long outgoingSearches = clientOutgoingConnections.getOrDefault(nodeId, 0L);
                 builder.field("outgoing_searches", outgoingSearches);
                 builder.field("avg_queue_size", stats.queueSize);
-                builder.timeValueField("avg_service_time_ns", "avg_service_time", (long) stats.serviceTime, TimeUnit.NANOSECONDS);
-                builder.timeValueField("avg_response_time_ns", "avg_response_time", (long) stats.responseTime, TimeUnit.NANOSECONDS);
+                if (builder.humanReadable()) {
+                    builder.field("avg_service_time", new TimeValue((long) stats.serviceTime, TimeUnit.NANOSECONDS).toString());
+                }
+                builder.field("avg_service_time_ns", (long) stats.serviceTime);
+                if (builder.humanReadable()) {
+                    builder.field("avg_response_time", new TimeValue((long) stats.responseTime, TimeUnit.NANOSECONDS).toString());
+                }
+                builder.field("avg_response_time_ns", (long) stats.responseTime);
                 builder.field("rank", String.format(Locale.ROOT, "%.1f", stats.rank(outgoingSearches)));
             }
             builder.endObject();

@@ -44,6 +44,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchLocalRequest;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.Rescorer;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -67,9 +68,9 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     }
 
     @Override
-    protected void doExecute(ExplainRequest request, ActionListener<ExplainResponse> listener) {
+    protected void doExecute(Task task, ExplainRequest request, ActionListener<ExplainResponse> listener) {
         request.nowInMillis = System.currentTimeMillis();
-        super.doExecute(request, listener);
+        super.doExecute(task, request, listener);
     }
 
     @Override
@@ -112,13 +113,13 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
             if (uidTerm == null) {
                 return new ExplainResponse(shardId.getIndexName(), request.type(), request.id(), false);
             }
-            result = context.indexShard().get(new Engine.Get(false, request.type(), request.id(), uidTerm));
+            result = context.indexShard().get(new Engine.Get(false, false, request.type(), request.id(), uidTerm));
             if (!result.exists()) {
                 return new ExplainResponse(shardId.getIndexName(), request.type(), request.id(), false);
             }
             context.parsedQuery(context.getQueryShardContext().toQuery(request.query()));
             context.preProcess(true);
-            int topLevelDocId = result.docIdAndVersion().docId + result.docIdAndVersion().context.docBase;
+            int topLevelDocId = result.docIdAndVersion().docId + result.docIdAndVersion().docBase;
             Explanation explanation = context.searcher().explain(context.query(), topLevelDocId);
             for (RescoreContext ctx : context.rescore()) {
                 Rescorer rescorer = ctx.rescorer();

@@ -26,17 +26,16 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.ScriptedMetricAggContexts;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
@@ -102,7 +101,7 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     }
 
     /**
-     * Set the <tt>init</tt> script.
+     * Set the {@code init} script.
      */
     public ScriptedMetricAggregationBuilder initScript(Script initScript) {
         if (initScript == null) {
@@ -113,14 +112,14 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     }
 
     /**
-     * Get the <tt>init</tt> script.
+     * Get the {@code init} script.
      */
     public Script initScript() {
         return initScript;
     }
 
     /**
-     * Set the <tt>map</tt> script.
+     * Set the {@code map} script.
      */
     public ScriptedMetricAggregationBuilder mapScript(Script mapScript) {
         if (mapScript == null) {
@@ -131,14 +130,14 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     }
 
     /**
-     * Get the <tt>map</tt> script.
+     * Get the {@code map} script.
      */
     public Script mapScript() {
         return mapScript;
     }
 
     /**
-     * Set the <tt>combine</tt> script.
+     * Set the {@code combine} script.
      */
     public ScriptedMetricAggregationBuilder combineScript(Script combineScript) {
         if (combineScript == null) {
@@ -149,14 +148,14 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     }
 
     /**
-     * Get the <tt>combine</tt> script.
+     * Get the {@code combine} script.
      */
     public Script combineScript() {
         return combineScript;
     }
 
     /**
-     * Set the <tt>reduce</tt> script.
+     * Set the {@code reduce} script.
      */
     public ScriptedMetricAggregationBuilder reduceScript(Script reduceScript) {
         if (reduceScript == null) {
@@ -167,15 +166,15 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     }
 
     /**
-     * Get the <tt>reduce</tt> script.
+     * Get the {@code reduce} script.
      */
     public Script reduceScript() {
         return reduceScript;
     }
 
     /**
-     * Set parameters that will be available in the <tt>init</tt>,
-     * <tt>map</tt> and <tt>combine</tt> phases.
+     * Set parameters that will be available in the {@code init},
+     * {@code map} and {@code combine} phases.
      */
     public ScriptedMetricAggregationBuilder params(Map<String, Object> params) {
         if (params == null) {
@@ -186,8 +185,8 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     }
 
     /**
-     * Get parameters that will be available in the <tt>init</tt>,
-     * <tt>map</tt> and <tt>combine</tt> phases.
+     * Get parameters that will be available in the {@code init},
+     * {@code map} and {@code combine} phases.
      */
     public Map<String, Object> params() {
         return params;
@@ -198,20 +197,36 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
             Builder subfactoriesBuilder) throws IOException {
 
         QueryShardContext queryShardContext = context.getQueryShardContext();
-        ExecutableScript.Factory executableInitScript;
+
+        // Extract params from scripts and pass them along to ScriptedMetricAggregatorFactory, since it won't have
+        // access to them for the scripts it's given precompiled.
+
+        ScriptedMetricAggContexts.InitScript.Factory compiledInitScript;
+        Map<String, Object> initScriptParams;
         if (initScript != null) {
-            executableInitScript = queryShardContext.getScriptService().compile(initScript, ExecutableScript.AGGS_CONTEXT);
+            compiledInitScript = queryShardContext.getScriptService().compile(initScript, ScriptedMetricAggContexts.InitScript.CONTEXT);
+            initScriptParams = initScript.getParams();
         } else {
-            executableInitScript = p -> null;
+            compiledInitScript = (p, a) -> null;
+            initScriptParams = Collections.emptyMap();
         }
-        SearchScript.Factory searchMapScript = queryShardContext.getScriptService().compile(mapScript, SearchScript.AGGS_CONTEXT);
-        ExecutableScript.Factory executableCombineScript;
+
+        ScriptedMetricAggContexts.MapScript.Factory compiledMapScript = queryShardContext.getScriptService().compile(mapScript,
+            ScriptedMetricAggContexts.MapScript.CONTEXT);
+        Map<String, Object> mapScriptParams = mapScript.getParams();
+
+        ScriptedMetricAggContexts.CombineScript.Factory compiledCombineScript;
+        Map<String, Object> combineScriptParams;
         if (combineScript != null) {
-            executableCombineScript =queryShardContext.getScriptService().compile(combineScript, ExecutableScript.AGGS_CONTEXT);
+            compiledCombineScript = queryShardContext.getScriptService().compile(combineScript,
+                ScriptedMetricAggContexts.CombineScript.CONTEXT);
+            combineScriptParams = combineScript.getParams();
         } else {
-            executableCombineScript = p -> null;
+            compiledCombineScript = (p, a) -> null;
+            combineScriptParams = Collections.emptyMap();
         }
-        return new ScriptedMetricAggregatorFactory(name, searchMapScript, executableInitScript, executableCombineScript, reduceScript,
+        return new ScriptedMetricAggregatorFactory(name, compiledMapScript, mapScriptParams, compiledInitScript,
+                initScriptParams, compiledCombineScript, combineScriptParams, reduceScript,
                 params, queryShardContext.lookup(), context, parent, subfactoriesBuilder, metaData);
     }
 

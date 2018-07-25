@@ -23,8 +23,7 @@ include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[indices-exists-req
 <1> Whether to return local information or retrieve the state from master node
 <2> Return result in a format suitable for humans
 <3> Whether to return all default setting for each of the indices
-<4> Return settings in flat format
-<5> Controls how unavailable indices are resolved and how wildcard expressions are expanded
+<4> Controls how unavailable indices are resolved and how wildcard expressions are expanded
 
 [[java-rest-high-indices-sync]]
 ==== Synchronous Execution

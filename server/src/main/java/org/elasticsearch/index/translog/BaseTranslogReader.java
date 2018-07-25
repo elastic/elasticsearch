@@ -35,15 +35,15 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
     protected final long generation;
     protected final FileChannel channel;
     protected final Path path;
-    protected final long firstOperationOffset;
+    protected final TranslogHeader header;
 
-    public BaseTranslogReader(long generation, FileChannel channel, Path path, long firstOperationOffset) {
+    public BaseTranslogReader(long generation, FileChannel channel, Path path, TranslogHeader header) {
         assert Translog.parseIdFromFileName(path) == generation : "generation mismatch. Path: " + Translog.parseIdFromFileName(path) + " but generation: " + generation;
 
         this.generation = generation;
         this.path = path;
         this.channel = channel;
-        this.firstOperationOffset = firstOperationOffset;
+        this.header = header;
     }
 
     public long getGeneration() {
@@ -57,7 +57,14 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
     abstract Checkpoint getCheckpoint();
 
     public final long getFirstOperationOffset() {
-        return firstOperationOffset;
+        return header.sizeInBytes();
+    }
+
+    /**
+     * Returns the primary term associated with this translog reader.
+     */
+    public final long getPrimaryTerm() {
+        return header.getPrimaryTerm();
     }
 
     /** read the size of the op (i.e., number of bytes, including the op size) written at the given position */
@@ -100,13 +107,18 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
     }
 
     protected Translog.Operation read(BufferedChecksumStreamInput inStream) throws IOException {
-        return Translog.readOperation(inStream);
+        final Translog.Operation op = Translog.readOperation(inStream);
+        if (op.primaryTerm() > getPrimaryTerm() && getPrimaryTerm() != TranslogHeader.UNKNOWN_PRIMARY_TERM) {
+            throw new TranslogCorruptedException("Operation's term is newer than translog header term; " +
+                "operation term[" + op.primaryTerm() + "], translog header term [" + getPrimaryTerm() + "]");
+        }
+        return op;
     }
 
     /**
      * reads bytes at position into the given buffer, filling it.
      */
-    protected abstract  void readBytes(ByteBuffer buffer, long position) throws IOException;
+    protected abstract void readBytes(ByteBuffer buffer, long position) throws IOException;
 
     @Override
     public String toString() {
@@ -125,5 +137,14 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
 
     public long getLastModifiedTime() throws IOException {
         return Files.getLastModifiedTime(path).toMillis();
+    }
+
+    /**
+     * Reads a single opertation from the given location.
+     */
+    Translog.Operation read(Translog.Location location) throws IOException {
+        assert location.generation == this.generation : "generation mismatch expected: " + generation + " got: " + location.generation;
+        ByteBuffer buffer = ByteBuffer.allocate(location.size);
+        return read(checksummedStream(buffer, location.translogLocation, location.size, null));
     }
 }

@@ -33,6 +33,8 @@ import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 public final class IndexingSlowLog implements IndexingOperationListener {
@@ -142,7 +144,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
 
     @Override
     public void postIndex(ShardId shardId, Engine.Index indexOperation, Engine.IndexResult result) {
-        if (result.hasFailure() == false) {
+        if (result.getResultType() == Engine.Result.Type.SUCCESS) {
             final ParsedDocument doc = indexOperation.parsedDoc();
             final long tookInNanos = result.getTook();
             if (indexWarnThreshold >= 0 && tookInNanos > indexWarnThreshold) {
@@ -194,6 +196,12 @@ public final class IndexingSlowLog implements IndexingOperationListener {
                 sb.append(", source[").append(Strings.cleanTruncate(source, maxSourceCharsToLog)).append("]");
             } catch (IOException e) {
                 sb.append(", source[_failed_to_convert_[").append(e.getMessage()).append("]]");
+                /*
+                 * We choose to fail to write to the slow log and instead let this percolate up to the post index listener loop where this
+                 * will be logged at the warn level.
+                 */
+                final String message = String.format(Locale.ROOT, "failed to convert source for slow log entry [%s]", sb.toString());
+                throw new UncheckedIOException(message, e);
             }
             return sb.toString();
         }

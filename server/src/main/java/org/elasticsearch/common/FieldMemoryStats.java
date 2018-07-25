@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.cursors.ObjectLongCursor;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -31,7 +32,7 @@ import java.util.Iterator;
 import java.util.Objects;
 
 /**
- * A reusable class to encode <tt>field -&gt; memory size</tt> mappings
+ * A reusable class to encode {@code field -&gt; memory size} mappings
  */
 public final class FieldMemoryStats implements Writeable, Iterable<ObjectLongCursor<String>>{
 
@@ -85,7 +86,7 @@ public final class FieldMemoryStats implements Writeable, Iterable<ObjectLongCur
         builder.startObject(key);
         for (ObjectLongCursor<String> entry : stats) {
             builder.startObject(entry.key);
-            builder.byteSizeField(rawKey, readableKey, entry.value);
+            builder.humanReadableField(rawKey, readableKey, new ByteSizeValue(entry.value));
             builder.endObject();
         }
         builder.endObject();

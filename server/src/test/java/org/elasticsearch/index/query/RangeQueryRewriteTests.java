@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiReader;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
@@ -44,13 +45,13 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
 
     public void testRewriteMissingReader() throws Exception {
         IndexService indexService = createIndex("test");
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
                     .startObject("foo")
                         .field("type", "date")
                     .endObject()
                 .endObject()
-            .endObject().endObject().string();
+            .endObject().endObject());
         indexService.mapperService().merge("type",
                 new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
         QueryRewriteContext context = new QueryShardContext(0, indexService.getIndexSettings(), null, null, indexService.mapperService(),
@@ -62,13 +63,13 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
 
     public void testRewriteEmptyReader() throws Exception {
         IndexService indexService = createIndex("test");
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
                     .startObject("foo")
                         .field("type", "date")
                     .endObject()
                 .endObject()
-            .endObject().endObject().string();
+            .endObject().endObject());
         indexService.mapperService().merge("type",
                 new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
         IndexReader reader = new MultiReader();

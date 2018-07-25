@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
@@ -41,7 +40,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -178,7 +176,7 @@ public class ReplicationOperation<
 
             @Override
             public void onFailure(Exception replicaException) {
-                logger.trace((org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
+                logger.trace(() -> new ParameterizedMessage(
                     "[{}] failure while performing [{}] on replica {}, request [{}]",
                     shard.shardId(), opType, shard, replicaRequest), replicaException);
                 // Only report "critical" exceptions - TODO: Reach out to the master node to get the latest shard state then report.

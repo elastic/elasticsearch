@@ -57,7 +57,6 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     protected UpdateByQueryRequest buildRequest(RestRequest request) throws IOException {
         /*
          * Passing the search request through UpdateByQueryRequest first allows
@@ -86,7 +85,7 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
             Map<String,Object> configMap = (Map<String, Object>) config;
             String script = null;
             ScriptType type = null;
-            String lang = DEFAULT_SCRIPT_LANG;
+            String lang = null;
             Map<String, Object> params = Collections.emptyMap();
             for (Iterator<Map.Entry<String, Object>> itr = configMap.entrySet().iterator(); itr.hasNext();) {
                 Map.Entry<String, Object> entry = itr.next();
@@ -126,7 +125,15 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
             }
             assert type != null : "if script is not null, type should definitely not be null";
 
-            return new Script(type, lang, script, params);
+            if (type == ScriptType.STORED) {
+                if (lang != null) {
+                    throw new IllegalArgumentException("lang cannot be specified for stored scripts");
+                }
+
+                return new Script(type, null, script, null, params);
+            } else {
+                return new Script(type, lang == null ? DEFAULT_SCRIPT_LANG : lang, script, params);
+            }
         } else {
             throw new IllegalArgumentException("Script value should be a String or a Map");
         }

@@ -1,0 +1,33 @@
+[[painless-identifiers]]
+=== Identifiers
+
+Use an identifier as a named token to specify a
+<<painless-variables, variable>>, <<painless-types, type>>,
+<<field-access-operator, field>>, <<method-call-operator, method>>, or
+<<painless-functions, function>>.
+
+*Errors*
+
+If a <<painless-keywords, keyword>> is used as an identifier.
+
+*Grammar*
+[source,ANTLR4]
+----
+ID: [_a-zA-Z] [_a-zA-Z-0-9]*;
+----
+
+*Examples*
+
+* Variations of identifiers.
++
+[source,Painless]
+----
+a
+Z
+id
+list
+list0
+MAP25
+_map25
+Map_25
+----

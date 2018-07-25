@@ -31,6 +31,7 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -76,7 +77,7 @@ public class WildflyIT extends LuceneTestCase {
                     builder.endArray();
                 }
                 builder.endObject();
-                body = builder.string();
+                body = Strings.toString(builder);
             }
             put.setEntity(new StringEntity(body, ContentType.APPLICATION_JSON));
             try (CloseableHttpResponse response = client.execute(put)) {

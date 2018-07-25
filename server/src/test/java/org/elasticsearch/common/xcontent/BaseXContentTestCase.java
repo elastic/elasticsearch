@@ -25,7 +25,6 @@ import com.fasterxml.jackson.core.JsonParseException;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -67,6 +66,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
@@ -85,13 +85,13 @@ public abstract class BaseXContentTestCase extends ESTestCase {
     }
 
     public void testStartEndObject() throws IOException {
-        expectUnclosedException(() -> builder().startObject().bytes());
+        expectUnclosedException(() -> BytesReference.bytes(builder().startObject()));
         expectUnclosedException(() -> builder().startObject().close());
-        expectUnclosedException(() -> builder().startObject().string());
+        expectUnclosedException(() -> Strings.toString(builder().startObject()));
 
-        expectObjectException(() -> builder().endObject().bytes());
+        expectObjectException(() -> BytesReference.bytes(builder().endObject()));
         expectObjectException(() -> builder().endObject().close());
-        expectObjectException(() -> builder().endObject().string());
+        expectObjectException(() -> Strings.toString(builder().endObject()));
 
         expectValueException(() -> builder().startObject("foo").endObject());
         expectNonNullFieldException(() -> builder().startObject().startObject(null));
@@ -109,13 +109,13 @@ public abstract class BaseXContentTestCase extends ESTestCase {
     }
 
     public void testStartEndArray() throws IOException {
-        expectUnclosedException(() -> builder().startArray().bytes());
+        expectUnclosedException(() -> BytesReference.bytes(builder().startArray()));
         expectUnclosedException(() -> builder().startArray().close());
-        expectUnclosedException(() -> builder().startArray().string());
+        expectUnclosedException(() -> Strings.toString(builder().startArray()));
 
-        expectArrayException(() -> builder().endArray().bytes());
+        expectArrayException(() -> BytesReference.bytes(builder().endArray()));
         expectArrayException(() -> builder().endArray().close());
-        expectArrayException(() -> builder().endArray().string());
+        expectArrayException(() -> Strings.toString(builder().endArray()));
 
         expectValueException(() -> builder().startArray("foo").endObject());
         expectFieldException(() -> builder().startObject().startArray().endArray().endObject());
@@ -133,17 +133,17 @@ public abstract class BaseXContentTestCase extends ESTestCase {
     }
 
     public void testField() throws IOException {
-        expectValueException(() -> builder().field("foo").bytes());
-        expectNonNullFieldException(() -> builder().field(null).bytes());
-        expectUnclosedException(() -> builder().startObject().field("foo").bytes());
+        expectValueException(() -> BytesReference.bytes(builder().field("foo")));
+        expectNonNullFieldException(() -> BytesReference.bytes(builder().field(null)));
+        expectUnclosedException(() -> BytesReference.bytes(builder().startObject().field("foo")));
 
         assertResult("{'foo':'bar'}", () -> builder().startObject().field("foo").value("bar").endObject());
     }
 
     public void testNullField() throws IOException {
-        expectValueException(() -> builder().nullField("foo").bytes());
-        expectNonNullFieldException(() -> builder().nullField(null).bytes());
-        expectUnclosedException(() -> builder().startObject().nullField("foo").bytes());
+        expectValueException(() -> BytesReference.bytes(builder().nullField("foo")));
+        expectNonNullFieldException(() -> BytesReference.bytes(builder().nullField(null)));
+        expectUnclosedException(() -> BytesReference.bytes(builder().startObject().nullField("foo")));
 
         assertResult("{'foo':null}", () -> builder().startObject().nullField("foo").endObject());
     }
@@ -272,32 +272,34 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         assertResult("{'binary':null}", () -> builder().startObject().field("binary", (byte[]) null).endObject());
 
         final byte[] randomBytes = randomBytes();
-        BytesReference bytes = builder().startObject().field("binary", randomBytes).endObject().bytes();
+        BytesReference bytes = BytesReference.bytes(builder().startObject().field("binary", randomBytes).endObject());
 
-        XContentParser parser = createParser(xcontentType().xContent(), bytes);
-        assertSame(parser.nextToken(), Token.START_OBJECT);
-        assertSame(parser.nextToken(), Token.FIELD_NAME);
-        assertEquals(parser.currentName(), "binary");
-        assertTrue(parser.nextToken().isValue());
-        assertArrayEquals(randomBytes, parser.binaryValue());
-        assertSame(parser.nextToken(), Token.END_OBJECT);
-        assertNull(parser.nextToken());
+        try (XContentParser parser = createParser(xcontentType().xContent(), bytes)) {
+            assertSame(parser.nextToken(), Token.START_OBJECT);
+            assertSame(parser.nextToken(), Token.FIELD_NAME);
+            assertEquals(parser.currentName(), "binary");
+            assertTrue(parser.nextToken().isValue());
+            assertArrayEquals(randomBytes, parser.binaryValue());
+            assertSame(parser.nextToken(), Token.END_OBJECT);
+            assertNull(parser.nextToken());
+        }
     }
 
     public void testBinaryValue() throws Exception {
         assertResult("{'binary':null}", () -> builder().startObject().field("binary").value((byte[]) null).endObject());
 
         final byte[] randomBytes = randomBytes();
-        BytesReference bytes = builder().startObject().field("binary").value(randomBytes).endObject().bytes();
+        BytesReference bytes = BytesReference.bytes(builder().startObject().field("binary").value(randomBytes).endObject());
 
-        XContentParser parser = createParser(xcontentType().xContent(), bytes);
-        assertSame(parser.nextToken(), Token.START_OBJECT);
-        assertSame(parser.nextToken(), Token.FIELD_NAME);
-        assertEquals(parser.currentName(), "binary");
-        assertTrue(parser.nextToken().isValue());
-        assertArrayEquals(randomBytes, parser.binaryValue());
-        assertSame(parser.nextToken(), Token.END_OBJECT);
-        assertNull(parser.nextToken());
+        try (XContentParser parser = createParser(xcontentType().xContent(), bytes)) {
+            assertSame(parser.nextToken(), Token.START_OBJECT);
+            assertSame(parser.nextToken(), Token.FIELD_NAME);
+            assertEquals(parser.currentName(), "binary");
+            assertTrue(parser.nextToken().isValue());
+            assertArrayEquals(randomBytes, parser.binaryValue());
+            assertSame(parser.nextToken(), Token.END_OBJECT);
+            assertNull(parser.nextToken());
+        }
     }
 
     public void testBinaryValueWithOffsetLength() throws Exception {
@@ -315,36 +317,34 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         }
         builder.endObject();
 
-        XContentParser parser = createParser(xcontentType().xContent(), builder.bytes());
-        assertSame(parser.nextToken(), Token.START_OBJECT);
-        assertSame(parser.nextToken(), Token.FIELD_NAME);
-        assertEquals(parser.currentName(), "bin");
-        assertTrue(parser.nextToken().isValue());
-        assertArrayEquals(Arrays.copyOfRange(randomBytes, offset, offset + length), parser.binaryValue());
-        assertSame(parser.nextToken(), Token.END_OBJECT);
-        assertNull(parser.nextToken());
+        try (XContentParser parser = createParser(xcontentType().xContent(), BytesReference.bytes(builder))) {
+            assertSame(parser.nextToken(), Token.START_OBJECT);
+            assertSame(parser.nextToken(), Token.FIELD_NAME);
+            assertEquals(parser.currentName(), "bin");
+            assertTrue(parser.nextToken().isValue());
+            assertArrayEquals(Arrays.copyOfRange(randomBytes, offset, offset + length), parser.binaryValue());
+            assertSame(parser.nextToken(), Token.END_OBJECT);
+            assertNull(parser.nextToken());
+        }
     }
 
     public void testBinaryUTF8() throws Exception {
-        assertResult("{'utf8':null}", () -> builder().startObject().utf8Field("utf8", null).endObject());
+        assertResult("{'utf8':null}", () -> builder().startObject().nullField("utf8").endObject());
 
         final BytesRef randomBytesRef = new BytesRef(randomBytes());
         XContentBuilder builder = builder().startObject();
-        if (randomBoolean()) {
-            builder.utf8Field("utf8", randomBytesRef);
-        } else {
-            builder.field("utf8").utf8Value(randomBytesRef);
-        }
+        builder.field("utf8").utf8Value(randomBytesRef.bytes, randomBytesRef.offset, randomBytesRef.length);
         builder.endObject();
 
-        XContentParser parser = createParser(xcontentType().xContent(), builder.bytes());
-        assertSame(parser.nextToken(), Token.START_OBJECT);
-        assertSame(parser.nextToken(), Token.FIELD_NAME);
-        assertEquals(parser.currentName(), "utf8");
-        assertTrue(parser.nextToken().isValue());
-        assertThat(new BytesRef(parser.charBuffer()).utf8ToString(), equalTo(randomBytesRef.utf8ToString()));
-        assertSame(parser.nextToken(), Token.END_OBJECT);
-        assertNull(parser.nextToken());
+        try (XContentParser parser = createParser(xcontentType().xContent(), BytesReference.bytes(builder))) {
+            assertSame(parser.nextToken(), Token.START_OBJECT);
+            assertSame(parser.nextToken(), Token.FIELD_NAME);
+            assertEquals(parser.currentName(), "utf8");
+            assertTrue(parser.nextToken().isValue());
+            assertThat(new BytesRef(parser.charBuffer()).utf8ToString(), equalTo(randomBytesRef.utf8ToString()));
+            assertSame(parser.nextToken(), Token.END_OBJECT);
+            assertNull(parser.nextToken());
+        }
     }
 
     public void testText() throws Exception {
@@ -355,92 +355,85 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         final BytesReference random = new BytesArray(randomBytes());
         XContentBuilder builder = builder().startObject().field("text", new Text(random)).endObject();
 
-        XContentParser parser = createParser(xcontentType().xContent(), builder.bytes());
-        assertSame(parser.nextToken(), Token.START_OBJECT);
-        assertSame(parser.nextToken(), Token.FIELD_NAME);
-        assertEquals(parser.currentName(), "text");
-        assertTrue(parser.nextToken().isValue());
-        assertThat(new BytesRef(parser.charBuffer()).utf8ToString(), equalTo(random.utf8ToString()));
-        assertSame(parser.nextToken(), Token.END_OBJECT);
-        assertNull(parser.nextToken());
+        try (XContentParser parser = createParser(xcontentType().xContent(), BytesReference.bytes(builder))) {
+            assertSame(parser.nextToken(), Token.START_OBJECT);
+            assertSame(parser.nextToken(), Token.FIELD_NAME);
+            assertEquals(parser.currentName(), "text");
+            assertTrue(parser.nextToken().isValue());
+            assertThat(new BytesRef(parser.charBuffer()).utf8ToString(), equalTo(random.utf8ToString()));
+            assertSame(parser.nextToken(), Token.END_OBJECT);
+            assertNull(parser.nextToken());
+        }
     }
 
     public void testReadableInstant() throws Exception {
-        assertResult("{'instant':null}", () -> builder().startObject().field("instant", (ReadableInstant) null).endObject());
-        assertResult("{'instant':null}", () -> builder().startObject().field("instant").value((ReadableInstant) null).endObject());
+        assertResult("{'instant':null}", () -> builder().startObject().timeField("instant", (ReadableInstant) null).endObject());
+        assertResult("{'instant':null}", () -> builder().startObject().field("instant").timeValue((ReadableInstant) null).endObject());
 
         final DateTime t1 = new DateTime(2016, 1, 1, 0, 0, DateTimeZone.UTC);
 
         String expected = "{'t1':'2016-01-01T00:00:00.000Z'}";
-        assertResult(expected, () -> builder().startObject().field("t1", t1).endObject());
-        assertResult(expected, () -> builder().startObject().field("t1").value(t1).endObject());
+        assertResult(expected, () -> builder().startObject().timeField("t1", t1).endObject());
+        assertResult(expected, () -> builder().startObject().field("t1").timeValue(t1).endObject());
 
         final DateTime t2 = new DateTime(2016, 12, 25, 7, 59, 42, 213, DateTimeZone.UTC);
 
         expected = "{'t2':'2016-12-25T07:59:42.213Z'}";
-        assertResult(expected, () -> builder().startObject().field("t2", t2).endObject());
-        assertResult(expected, () -> builder().startObject().field("t2").value(t2).endObject());
+        assertResult(expected, () -> builder().startObject().timeField("t2", t2).endObject());
+        assertResult(expected, () -> builder().startObject().field("t2").timeValue(t2).endObject());
 
         final DateTimeFormatter formatter = randomFrom(ISODateTimeFormat.basicDate(), ISODateTimeFormat.dateTimeNoMillis());
         final DateTime t3 = DateTime.now();
 
         expected = "{'t3':'" + formatter.print(t3) + "'}";
-        assertResult(expected, () -> builder().startObject().field("t3", t3, formatter).endObject());
-        assertResult(expected, () -> builder().startObject().field("t3").value(t3, formatter).endObject());
+        assertResult(expected, () -> builder().startObject().timeField("t3", formatter.print(t3)).endObject());
+        assertResult(expected, () -> builder().startObject().field("t3").value(formatter.print(t3)).endObject());
 
         final DateTime t4 = new DateTime(randomDateTimeZone());
 
         expected = "{'t4':'" + formatter.print(t4) + "'}";
-        assertResult(expected, () -> builder().startObject().field("t4", t4, formatter).endObject());
-        assertResult(expected, () -> builder().startObject().field("t4").value(t4, formatter).endObject());
+        assertResult(expected, () -> builder().startObject().timeField("t4", formatter.print(t4)).endObject());
+        assertResult(expected, () -> builder().startObject().field("t4").value(formatter.print(t4)).endObject());
 
         long date = Math.abs(randomLong() % (2 * (long) 10e11)); // 1970-01-01T00:00:00Z - 2033-05-18T05:33:20.000+02:00
         final DateTime t5 = new DateTime(date, randomDateTimeZone());
 
-        expected = "{'t5':'" + XContentBuilder.DEFAULT_DATE_PRINTER.print(t5) + "'}";
-        assertResult(expected, () -> builder().startObject().field("t5", t5).endObject());
-        assertResult(expected, () -> builder().startObject().field("t5").value(t5).endObject());
+        expected = "{'t5':'" + XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(t5) + "'}";
+        assertResult(expected, () -> builder().startObject().timeField("t5", t5).endObject());
+        assertResult(expected, () -> builder().startObject().field("t5").timeValue(t5).endObject());
 
         expected = "{'t5':'" + formatter.print(t5) + "'}";
-        assertResult(expected, () -> builder().startObject().field("t5", t5, formatter).endObject());
-        assertResult(expected, () -> builder().startObject().field("t5").value(t5, formatter).endObject());
+        assertResult(expected, () -> builder().startObject().timeField("t5", formatter.print(t5)).endObject());
+        assertResult(expected, () -> builder().startObject().field("t5").value(formatter.print(t5)).endObject());
 
         Instant i1 = new Instant(1451606400000L); // 2016-01-01T00:00:00.000Z
         expected = "{'i1':'2016-01-01T00:00:00.000Z'}";
-        assertResult(expected, () -> builder().startObject().field("i1", i1).endObject());
-        assertResult(expected, () -> builder().startObject().field("i1").value(i1).endObject());
+        assertResult(expected, () -> builder().startObject().timeField("i1", i1).endObject());
+        assertResult(expected, () -> builder().startObject().field("i1").timeValue(i1).endObject());
 
         Instant i2 = new Instant(1482652782213L); // 2016-12-25T07:59:42.213Z
         expected = "{'i2':'" + formatter.print(i2) + "'}";
-        assertResult(expected, () -> builder().startObject().field("i2", i2, formatter).endObject());
-        assertResult(expected, () -> builder().startObject().field("i2").value(i2, formatter).endObject());
-
-        expectNonNullFormatterException(() -> builder().startObject().field("t3", t3, null).endObject());
-        expectNonNullFormatterException(() -> builder().startObject().field("t3").value(t3, null).endObject());
+        assertResult(expected, () -> builder().startObject().timeField("i2", formatter.print(i2)).endObject());
+        assertResult(expected, () -> builder().startObject().field("i2").value(formatter.print(i2)).endObject());
     }
 
     public void testDate() throws Exception {
-        assertResult("{'date':null}", () -> builder().startObject().field("date", (Date) null).endObject());
-        assertResult("{'date':null}", () -> builder().startObject().field("date").value((Date) null).endObject());
+        assertResult("{'date':null}", () -> builder().startObject().timeField("date", (Date) null).endObject());
+        assertResult("{'date':null}", () -> builder().startObject().field("date").timeValue((Date) null).endObject());
 
         final Date d1 = new DateTime(2016, 1, 1, 0, 0, DateTimeZone.UTC).toDate();
-        assertResult("{'d1':'2016-01-01T00:00:00.000Z'}", () -> builder().startObject().field("d1", d1).endObject());
-        assertResult("{'d1':'2016-01-01T00:00:00.000Z'}", () -> builder().startObject().field("d1").value(d1).endObject());
+        assertResult("{'d1':'2016-01-01T00:00:00.000Z'}", () -> builder().startObject().timeField("d1", d1).endObject());
+        assertResult("{'d1':'2016-01-01T00:00:00.000Z'}", () -> builder().startObject().field("d1").timeValue(d1).endObject());
 
         final Date d2 = new DateTime(2016, 12, 25, 7, 59, 42, 213, DateTimeZone.UTC).toDate();
-        assertResult("{'d2':'2016-12-25T07:59:42.213Z'}", () -> builder().startObject().field("d2", d2).endObject());
-        assertResult("{'d2':'2016-12-25T07:59:42.213Z'}", () -> builder().startObject().field("d2").value(d2).endObject());
+        assertResult("{'d2':'2016-12-25T07:59:42.213Z'}", () -> builder().startObject().timeField("d2", d2).endObject());
+        assertResult("{'d2':'2016-12-25T07:59:42.213Z'}", () -> builder().startObject().field("d2").timeValue(d2).endObject());
 
         final DateTimeFormatter formatter = randomFrom(ISODateTimeFormat.basicDate(), ISODateTimeFormat.dateTimeNoMillis());
         final Date d3 = DateTime.now().toDate();
 
         String expected = "{'d3':'" + formatter.print(d3.getTime()) + "'}";
-        assertResult(expected, () -> builder().startObject().field("d3", d3, formatter).endObject());
-        assertResult(expected, () -> builder().startObject().field("d3").value(d3, formatter).endObject());
-
-        expectNonNullFormatterException(() -> builder().startObject().field("d3", d3, null).endObject());
-        expectNonNullFormatterException(() -> builder().startObject().field("d3").value(d3, null).endObject());
-        expectNonNullFormatterException(() -> builder().value(null, 1L));
+        assertResult(expected, () -> builder().startObject().field("d3").value(formatter.print(d3.getTime())).endObject());
     }
 
     public void testDateField() throws Exception {
@@ -448,12 +441,12 @@ public abstract class BaseXContentTestCase extends ESTestCase {
 
         assertResult("{'date_in_millis':1451606400000}", () -> builder()
                 .startObject()
-                    .dateField("date_in_millis", "date", d.getTime())
+                    .timeField("date_in_millis", "date", d.getTime())
                 .endObject());
         assertResult("{'date':'2016-01-01T00:00:00.000Z','date_in_millis':1451606400000}", () -> builder()
                 .humanReadable(true)
                 .startObject
-                        ().dateField("date_in_millis", "date", d.getTime())
+                        ().timeField("date_in_millis", "date", d.getTime())
                 .endObject());
     }
 
@@ -462,7 +455,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         assertResult("{'calendar':'2016-01-01T00:00:00.000Z'}", () -> builder()
                 .startObject()
                     .field("calendar")
-                    .value(calendar)
+                    .timeValue(calendar)
                 .endObject());
     }
 
@@ -514,7 +507,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         final String paths = Constants.WINDOWS ? "{'objects':['a\\\\b\\\\c','d\\\\e']}" : "{'objects':['a/b/c','d/e']}";
         objects.put(paths, new Object[]{PathUtils.get("a", "b", "c"), PathUtils.get("d", "e")});
 
-        final DateTimeFormatter formatter = XContentBuilder.DEFAULT_DATE_PRINTER;
+        final DateTimeFormatter formatter = XContentElasticsearchExtension.DEFAULT_DATE_PRINTER;
         final Date d1 = new DateTime(2016, 1, 1, 0, 0, DateTimeZone.UTC).toDate();
         final Date d2 = new DateTime(2015, 1, 1, 0, 0, DateTimeZone.UTC).toDate();
         objects.put("{'objects':['" + formatter.print(d1.getTime()) + "','" + formatter.print(d2.getTime()) + "']}", new Object[]{d1, d2});
@@ -562,7 +555,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         final String path = Constants.WINDOWS ? "{'object':'a\\\\b\\\\c'}" : "{'object':'a/b/c'}";
         object.put(path, PathUtils.get("a", "b", "c"));
 
-        final DateTimeFormatter formatter = XContentBuilder.DEFAULT_DATE_PRINTER;
+        final DateTimeFormatter formatter = XContentElasticsearchExtension.DEFAULT_DATE_PRINTER;
         final Date d1 = new DateTime(2016, 1, 1, 0, 0, DateTimeZone.UTC).toDate();
         object.put("{'object':'" + formatter.print(d1.getTime()) + "'}", d1);
 
@@ -636,7 +629,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
 
     public void testMap() throws Exception {
         Map<String, Map<String, ?>> maps = new HashMap<>();
-        maps.put("{'map':null}", (Map) null);
+        maps.put("{'map':null}", (Map<String, ?>) null);
         maps.put("{'map':{}}", Collections.emptyMap());
         maps.put("{'map':{'key':'value'}}", singletonMap("key", "value"));
 
@@ -661,7 +654,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
 
     public void testIterable() throws Exception {
         Map<String, Iterable<?>> iterables = new HashMap<>();
-        iterables.put("{'iter':null}", (Iterable) null);
+        iterables.put("{'iter':null}", (Iterable<?>) null);
         iterables.put("{'iter':[]}", Collections.emptyList());
         iterables.put("{'iter':['a','b']}", Arrays.asList("a", "b"));
 
@@ -753,18 +746,19 @@ public abstract class BaseXContentTestCase extends ESTestCase {
             generator.writeEndObject();
         }
 
-        XContentParser parser = xcontentType().xContent()
-            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, os.toByteArray());
-        assertEquals(Token.START_OBJECT, parser.nextToken());
-        assertEquals(Token.FIELD_NAME, parser.nextToken());
-        assertEquals("bar", parser.currentName());
-        assertEquals(Token.START_OBJECT, parser.nextToken());
-        assertEquals(Token.FIELD_NAME, parser.nextToken());
-        assertEquals("foo", parser.currentName());
-        assertEquals(Token.VALUE_NULL, parser.nextToken());
-        assertEquals(Token.END_OBJECT, parser.nextToken());
-        assertEquals(Token.END_OBJECT, parser.nextToken());
-        assertNull(parser.nextToken());
+        try (XContentParser parser = xcontentType().xContent()
+            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, os.toByteArray())) {
+            assertEquals(Token.START_OBJECT, parser.nextToken());
+            assertEquals(Token.FIELD_NAME, parser.nextToken());
+            assertEquals("bar", parser.currentName());
+            assertEquals(Token.START_OBJECT, parser.nextToken());
+            assertEquals(Token.FIELD_NAME, parser.nextToken());
+            assertEquals("foo", parser.currentName());
+            assertEquals(Token.VALUE_NULL, parser.nextToken());
+            assertEquals(Token.END_OBJECT, parser.nextToken());
+            assertEquals(Token.END_OBJECT, parser.nextToken());
+            assertNull(parser.nextToken());
+        }
     }
 
     public void testRawValue() throws Exception {
@@ -788,14 +782,15 @@ public abstract class BaseXContentTestCase extends ESTestCase {
             generator.writeRawValue(new BytesArray(rawData).streamInput(), source.type());
         }
 
-        XContentParser parser = xcontentType().xContent()
-            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, os.toByteArray());
-        assertEquals(Token.START_OBJECT, parser.nextToken());
-        assertEquals(Token.FIELD_NAME, parser.nextToken());
-        assertEquals("foo", parser.currentName());
-        assertEquals(Token.VALUE_NULL, parser.nextToken());
-        assertEquals(Token.END_OBJECT, parser.nextToken());
-        assertNull(parser.nextToken());
+        try (XContentParser parser = xcontentType().xContent()
+            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, os.toByteArray())) {
+            assertEquals(Token.START_OBJECT, parser.nextToken());
+            assertEquals(Token.FIELD_NAME, parser.nextToken());
+            assertEquals("foo", parser.currentName());
+            assertEquals(Token.VALUE_NULL, parser.nextToken());
+            assertEquals(Token.END_OBJECT, parser.nextToken());
+            assertNull(parser.nextToken());
+        }
 
         os = new ByteArrayOutputStream();
         try (XContentGenerator generator = xcontentType().xContent().createGenerator(os)) {
@@ -805,18 +800,19 @@ public abstract class BaseXContentTestCase extends ESTestCase {
             generator.writeEndObject();
         }
 
-        parser = xcontentType().xContent()
-            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, os.toByteArray());
-        assertEquals(Token.START_OBJECT, parser.nextToken());
-        assertEquals(Token.FIELD_NAME, parser.nextToken());
-        assertEquals("test", parser.currentName());
-        assertEquals(Token.START_OBJECT, parser.nextToken());
-        assertEquals(Token.FIELD_NAME, parser.nextToken());
-        assertEquals("foo", parser.currentName());
-        assertEquals(Token.VALUE_NULL, parser.nextToken());
-        assertEquals(Token.END_OBJECT, parser.nextToken());
-        assertEquals(Token.END_OBJECT, parser.nextToken());
-        assertNull(parser.nextToken());
+        try (XContentParser parser = xcontentType().xContent()
+            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, os.toByteArray())) {
+            assertEquals(Token.START_OBJECT, parser.nextToken());
+            assertEquals(Token.FIELD_NAME, parser.nextToken());
+            assertEquals("test", parser.currentName());
+            assertEquals(Token.START_OBJECT, parser.nextToken());
+            assertEquals(Token.FIELD_NAME, parser.nextToken());
+            assertEquals("foo", parser.currentName());
+            assertEquals(Token.VALUE_NULL, parser.nextToken());
+            assertEquals(Token.END_OBJECT, parser.nextToken());
+            assertEquals(Token.END_OBJECT, parser.nextToken());
+            assertNull(parser.nextToken());
+        }
 
     }
 
@@ -834,21 +830,17 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         generator.flush();
         byte[] serialized = os.toByteArray();
 
-        XContentParser parser = xcontentType().xContent()
-            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, serialized);
-        Map<String, Object> map = parser.map();
-        assertEquals("bar", map.get("foo"));
-        assertEquals(bigInteger, map.get("bigint"));
+        try (XContentParser parser = xcontentType().xContent()
+            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, serialized)) {
+            Map<String, Object> map = parser.map();
+            assertEquals("bar", map.get("foo"));
+            assertEquals(bigInteger, map.get("bigint"));
+        }
     }
 
     public void testEnsureNameNotNull() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> XContentBuilder.ensureNameNotNull(null));
         assertThat(e.getMessage(), containsString("Field name cannot be null"));
-    }
-
-    public void testFormatterNameNotNull() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> XContentBuilder.ensureFormatterNotNull(null));
-        assertThat(e.getMessage(), containsString("DateTimeFormatter cannot be null"));
     }
 
     public void testEnsureNotNull() {
@@ -859,8 +851,8 @@ public abstract class BaseXContentTestCase extends ESTestCase {
     }
 
     public void testEnsureNoSelfReferences() throws IOException {
-        CollectionUtils.ensureNoSelfReferences(emptyMap());
-        CollectionUtils.ensureNoSelfReferences(null);
+        builder().map(emptyMap());
+        builder().map(null);
 
         Map<String, Object> map = new HashMap<>();
         map.put("field", map);
@@ -871,7 +863,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
 
     /**
      * Test that the same map written multiple times do not trigger the self-reference check in
-     * {@link CollectionUtils#ensureNoSelfReferences(Object)}
+     * {@link CollectionUtils#ensureNoSelfReferences(Object, String)} (Object)}
      */
     public void testRepeatedMapsAndNoSelfReferences() throws Exception {
         Map<String, Object> mapB = singletonMap("b", "B");
@@ -952,7 +944,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder()
                 .startObject()
-                .field("field", (Iterable) values)
+                .field("field", values)
                 .endObject());
         assertThat(e.getMessage(), containsString("Iterable object is self-referencing itself"));
     }
@@ -967,7 +959,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder()
                 .startObject()
-                .field("field", (Iterable) values)
+                .field("field", values)
                 .endObject());
         assertThat(e.getMessage(), containsString("Iterable object is self-referencing itself"));
     }
@@ -980,7 +972,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         List<Object> it1 = new ArrayList<>();
 
         map0.put("foo", 0);
-        map0.put("it1", (Iterable<?>) it1); // map 0 -> it1
+        map0.put("it1", it1); // map 0 -> it1
 
         it1.add(map1);
         it1.add(map2); // it 1 -> map 1, map 2
@@ -1001,45 +993,46 @@ public abstract class BaseXContentTestCase extends ESTestCase {
                     .field("key", 1)
                     .field("key", 2)
                 .endObject();
-
-        JsonParseException pex = expectThrows(JsonParseException.class, () -> createParser(builder).map());
-        assertThat(pex.getMessage(), startsWith("Duplicate field 'key'"));
+        try (XContentParser xParser = createParser(builder)) {
+            JsonParseException pex = expectThrows(JsonParseException.class, () -> xParser.map());
+            assertThat(pex.getMessage(), startsWith("Duplicate field 'key'"));
+        }
     }
 
     public void testNamedObject() throws IOException {
         Object test1 = new Object();
         Object test2 = new Object();
         NamedXContentRegistry registry = new NamedXContentRegistry(Arrays.asList(
-                new NamedXContentRegistry.Entry(Object.class, new ParseField("test1"), p -> test1),
-                new NamedXContentRegistry.Entry(Object.class, new ParseField("test2", "deprecated"), p -> test2),
-                new NamedXContentRegistry.Entry(Object.class, new ParseField("str"), p -> p.text())));
+            new NamedXContentRegistry.Entry(Object.class, new ParseField("test1"), p -> test1),
+            new NamedXContentRegistry.Entry(Object.class, new ParseField("test2", "deprecated"), p -> test2),
+            new NamedXContentRegistry.Entry(Object.class, new ParseField("str"), p -> p.text())));
         XContentBuilder b = XContentBuilder.builder(xcontentType().xContent());
         b.value("test");
-        XContentParser p = xcontentType().xContent().createParser(registry, LoggingDeprecationHandler.INSTANCE, b.bytes().streamInput());
-        assertEquals(test1, p.namedObject(Object.class, "test1", null));
-        assertEquals(test2, p.namedObject(Object.class, "test2", null));
-        assertEquals(test2, p.namedObject(Object.class, "deprecated", null));
-        assertWarnings("Deprecated field [deprecated] used, expected [test2] instead");
-        {
+        try (XContentParser p = xcontentType().xContent().createParser(registry, LoggingDeprecationHandler.INSTANCE,
+            BytesReference.bytes(b).streamInput())) {
+            assertEquals(test1, p.namedObject(Object.class, "test1", null));
+            assertEquals(test2, p.namedObject(Object.class, "test2", null));
+            assertEquals(test2, p.namedObject(Object.class, "deprecated", null));
+            assertWarnings("Deprecated field [deprecated] used, expected [test2] instead");
             p.nextToken();
             assertEquals("test", p.namedObject(Object.class, "str", null));
-            NamedXContentRegistry.UnknownNamedObjectException e = expectThrows(NamedXContentRegistry.UnknownNamedObjectException.class,
+            {
+                NamedObjectNotFoundException e = expectThrows(NamedObjectNotFoundException.class,
                     () -> p.namedObject(Object.class, "unknown", null));
-            assertEquals("Unknown Object [unknown]", e.getMessage());
-            assertEquals("java.lang.Object", e.getCategoryClass());
-            assertEquals("unknown", e.getName());
+                assertThat(e.getMessage(), endsWith("unable to parse Object with name [unknown]: parser not found"));
+            }
+            {
+                Exception e = expectThrows(NamedObjectNotFoundException.class, () -> p.namedObject(String.class, "doesn't matter", null));
+                assertEquals("unknown named object category [java.lang.String]", e.getMessage());
+            }
         }
-        {
-            Exception e = expectThrows(ElasticsearchException.class, () -> p.namedObject(String.class, "doesn't matter", null));
-            assertEquals("Unknown namedObject category [java.lang.String]", e.getMessage());
+        try (XContentParser emptyRegistryParser = xcontentType().xContent()
+            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, new byte[] {})) {
+            Exception e = expectThrows(NamedObjectNotFoundException.class,
+                () -> emptyRegistryParser.namedObject(String.class, "doesn't matter", null));
+            assertEquals("named objects are not supported for this parser", e.getMessage());
         }
-        {
-            XContentParser emptyRegistryParser = xcontentType().xContent()
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, new byte[] {});
-            Exception e = expectThrows(ElasticsearchException.class,
-                    () -> emptyRegistryParser.namedObject(String.class, "doesn't matter", null));
-            assertEquals("namedObject is not supported for this parser", e.getMessage());
-        }
+
     }
 
     private static void expectUnclosedException(ThrowingRunnable runnable) {
@@ -1085,7 +1078,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
 
     private static void assertResult(String expected, Builder builder) throws IOException {
         // Build the XContentBuilder, convert its bytes to JSON and check it matches
-        assertThat(XContentHelper.convertToJson(builder.build().bytes(), randomBoolean()), equalToJson(expected));
+        assertThat(XContentHelper.convertToJson(BytesReference.bytes(builder.build()), randomBoolean()), equalToJson(expected));
     }
 
     private static byte[] randomBytes() throws Exception {

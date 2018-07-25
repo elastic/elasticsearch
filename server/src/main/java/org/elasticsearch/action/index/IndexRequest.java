@@ -38,12 +38,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -75,7 +73,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implements DocWriteRequest<IndexRequest>, CompositeIndicesRequest {
 
     /**
-     * Max length of the source document to include into toString()
+     * Max length of the source document to include into string()
      *
      * @see ReplicationRequest#createTask
      */
@@ -85,8 +83,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private String id;
     @Nullable
     private String routing;
-    @Nullable
-    private String parent;
 
     private BytesReference source;
 
@@ -256,19 +252,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     /**
-     * Sets the parent id of this document.
-     */
-    public IndexRequest parent(String parent) {
-        this.parent = parent;
-        return this;
-    }
-
-    @Override
-    public String parent() {
-        return this.parent;
-    }
-
-    /**
      * Sets the ingest pipeline to be executed before indexing the document
      */
     public IndexRequest setPipeline(String pipeline) {
@@ -299,7 +282,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      *
      * @param source The map to index
      */
-    public IndexRequest source(Map source) throws ElasticsearchGenerationException {
+    public IndexRequest source(Map<String, ?> source) throws ElasticsearchGenerationException {
         return source(source, Requests.INDEX_CONTENT_TYPE);
     }
 
@@ -308,7 +291,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      *
      * @param source The map to index
      */
-    public IndexRequest source(Map source, XContentType contentType) throws ElasticsearchGenerationException {
+    public IndexRequest source(Map<String, ?> source, XContentType contentType) throws ElasticsearchGenerationException {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             builder.map(source);
@@ -332,7 +315,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * Sets the content source to index.
      */
     public IndexRequest source(XContentBuilder sourceBuilder) {
-        return source(sourceBuilder.bytes(), sourceBuilder.contentType());
+        return source(BytesReference.bytes(sourceBuilder), sourceBuilder.contentType());
     }
 
     /**
@@ -432,7 +415,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
 
     /**
-     * Set to <tt>true</tt> to force this index to use {@link OpType#CREATE}.
+     * Set to {@code true} to force this index to use {@link OpType#CREATE}.
      */
     public IndexRequest create(boolean create) {
         if (create) {
@@ -491,14 +474,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             if (mappingMd.routing().required() && routing == null) {
                 throw new RoutingMissingException(concreteIndex, type, id);
             }
-
-            if (parent != null && !mappingMd.hasParentField()) {
-                throw new IllegalArgumentException("can't specify parent if no parent field has been configured");
-            }
-        } else {
-            if (parent != null) {
-                throw new IllegalArgumentException("can't specify parent if no parent field has been configured");
-            }
         }
 
         if ("".equals(id)) {
@@ -521,7 +496,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     /* resolve the routing if needed */
     public void resolveRouting(MetaData metaData) {
-        routing(metaData.resolveIndexRouting(parent, routing, index));
+        routing(metaData.resolveWriteIndexRouting(routing, index));
     }
 
     @Override
@@ -530,10 +505,12 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         type = in.readOptionalString();
         id = in.readOptionalString();
         routing = in.readOptionalString();
-        parent = in.readOptionalString();
+        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+            in.readOptionalString(); // _parent
+        }
         if (in.getVersion().before(Version.V_6_0_0_alpha1)) {
             in.readOptionalString(); // timestamp
-            in.readOptionalWriteable(TimeValue::new); // ttl
+            in.readOptionalTimeValue(); // ttl
         }
         source = in.readBytesReference();
         opType = OpType.fromId(in.readByte());
@@ -555,7 +532,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         out.writeOptionalString(type);
         out.writeOptionalString(id);
         out.writeOptionalString(routing);
-        out.writeOptionalString(parent);
+        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+            out.writeOptionalString(null); // _parent
+        }
         if (out.getVersion().before(Version.V_6_0_0_alpha1)) {
             // Serialize a fake timestamp. 5.x expect this value to be set by the #process method so we can't use null.
             // On the other hand, indices created on 5.x do not index the timestamp field.  Therefore passing a 0 (or any value) for

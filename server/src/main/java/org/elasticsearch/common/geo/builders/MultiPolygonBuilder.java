@@ -20,15 +20,14 @@
 package org.elasticsearch.common.geo.builders;
 
 import org.elasticsearch.common.geo.GeoShapeType;
-import org.elasticsearch.common.geo.parsers.ShapeParser;
-import org.elasticsearch.common.geo.parsers.GeoWKTParser;
-import org.locationtech.spatial4j.shape.Shape;
-import com.vividsolutions.jts.geom.Coordinate;
-
 import org.elasticsearch.common.geo.XShapeCollection;
+import org.elasticsearch.common.geo.parsers.GeoWKTParser;
+import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.spatial4j.shape.Shape;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -36,7 +35,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
-public class MultiPolygonBuilder extends ShapeBuilder {
+public class MultiPolygonBuilder extends ShapeBuilder<Shape, MultiPolygonBuilder> {
 
     public static final GeoShapeType TYPE = GeoShapeType.MULTIPOLYGON;
 
@@ -151,6 +150,15 @@ public class MultiPolygonBuilder extends ShapeBuilder {
     @Override
     public GeoShapeType type() {
         return TYPE;
+    }
+
+    @Override
+    public int numDimensions() {
+        if (polygons == null || polygons.isEmpty()) {
+            throw new IllegalStateException("unable to get number of dimensions, " +
+                "Polygons have not yet been initialized");
+        }
+        return polygons.get(0).numDimensions();
     }
 
     @Override

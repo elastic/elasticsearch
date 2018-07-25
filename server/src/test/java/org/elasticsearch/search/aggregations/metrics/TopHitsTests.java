@@ -81,7 +81,7 @@ public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregationBuil
         if (randomBoolean()) {
             int fieldDataFieldsSize = randomInt(25);
             for (int i = 0; i < fieldDataFieldsSize; i++) {
-                factory.fieldDataField(randomAlphaOfLengthBetween(5, 50));
+                factory.docValueField(randomAlphaOfLengthBetween(5, 50));
             }
         }
         if (randomBoolean()) {

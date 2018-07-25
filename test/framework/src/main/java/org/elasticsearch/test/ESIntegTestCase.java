@@ -26,7 +26,6 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.http.HttpHost;
 import org.apache.lucene.search.Sort;
-import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -61,7 +60,6 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.AdminClient;
@@ -69,12 +67,18 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.RestoreInProgress;
+import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -100,12 +104,14 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
@@ -121,7 +127,8 @@ import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.Segment;
-import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MockFieldFilterPlugin;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -131,9 +138,12 @@ import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.store.IndicesStore;
+import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.node.NodeMocksPlugin;
+import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.script.ScriptMetaData;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchHit;
@@ -144,7 +154,10 @@ import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.AssertingTransportInterceptor;
+import org.elasticsearch.transport.TransportInterceptor;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -163,6 +176,7 @@ import java.net.InetSocketAddress;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.Security;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -426,10 +440,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
             randomSettingsBuilder.put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0);
             if (randomBoolean()) {
                 randomSettingsBuilder.put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), randomBoolean());
-            }
-
-            if (randomBoolean()) {
-                randomSettingsBuilder.put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), randomBoolean());
             }
             PutIndexTemplateRequestBuilder putTemplate = client().admin().indices()
                 .preparePutTemplate("random_index_template")
@@ -817,7 +827,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
-     * Waits till a (pattern) field name mappings concretely exists on all nodes. Note, this waits for the current
+     * Waits until mappings for the provided fields exist on all nodes. Note, this waits for the current
      * started shards and checks for concrete mappings.
      */
     public void assertConcreteMappingsOnAll(final String index, final String type, final String... fieldNames) throws Exception {
@@ -827,11 +837,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
             IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
             IndexService indexService = indicesService.indexService(resolveIndex(index));
             assertThat("index service doesn't exists on " + node, indexService, notNullValue());
-            DocumentMapper documentMapper = indexService.mapperService().documentMapper(type);
-            assertThat("document mapper doesn't exists on " + node, documentMapper, notNullValue());
+            MapperService mapperService = indexService.mapperService();
             for (String fieldName : fieldNames) {
-                Collection<String> matches = documentMapper.mappers().simpleMatchToFullName(fieldName);
-                assertThat("field " + fieldName + " doesn't exists on " + node, matches, Matchers.not(emptyIterable()));
+                MappedFieldType fieldType = mapperService.fullName(fieldName);
+                assertNotNull("field " + fieldName + " doesn't exists on " + node, fieldType);
             }
         }
         assertMappingOnMaster(index, type, fieldNames);
@@ -1087,7 +1096,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     public void logSegmentsState(String... indices) throws Exception {
         IndicesSegmentResponse segsRsp = client().admin().indices().prepareSegments(indices).get();
         logger.debug("segments {} state: \n{}", indices.length == 0 ? "[_all]" : indices,
-            segsRsp.toXContent(JsonXContent.contentBuilder().prettyPrint(), ToXContent.EMPTY_PARAMS).string());
+            Strings.toString(segsRsp.toXContent(JsonXContent.contentBuilder().prettyPrint(), ToXContent.EMPTY_PARAMS)));
     }
 
     /**
@@ -1110,7 +1119,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
     protected void ensureClusterStateConsistency() throws IOException {
         if (cluster() != null && cluster().size() > 0) {
             final NamedWriteableRegistry namedWriteableRegistry = cluster().getNamedWriteableRegistry();
-            ClusterState masterClusterState = client().admin().cluster().prepareState().all().get().getState();
+            final Client masterClient = client();
+            ClusterState masterClusterState = masterClient.admin().cluster().prepareState().all().get().getState();
             byte[] masterClusterStateBytes = ClusterState.Builder.toBytes(masterClusterState);
             // remove local node reference
             masterClusterState = ClusterState.Builder.fromBytes(masterClusterStateBytes, null, namedWriteableRegistry);
@@ -1126,22 +1136,89 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 final int localClusterStateSize = ClusterState.Builder.toBytes(localClusterState).length;
                 // Check that the non-master node has the same version of the cluster state as the master and
                 // that the master node matches the master (otherwise there is no requirement for the cluster state to match)
-                if (masterClusterState.version() == localClusterState.version() && masterId.equals(localClusterState.nodes().getMasterNodeId())) {
+                if (masterClusterState.version() == localClusterState.version()
+                        && masterId.equals(localClusterState.nodes().getMasterNodeId())) {
                     try {
-                        assertEquals("clusterstate UUID does not match", masterClusterState.stateUUID(), localClusterState.stateUUID());
-                        // We cannot compare serialization bytes since serialization order of maps is not guaranteed
-                        // but we can compare serialization sizes - they should be the same
-                        assertEquals("clusterstate size does not match", masterClusterStateSize, localClusterStateSize);
-                        // Compare JSON serialization
-                        assertNull("clusterstate JSON serialization does not match", differenceBetweenMapsIgnoringArrayOrder(masterStateMap, localStateMap));
-                    } catch (AssertionError error) {
-                        logger.error("Cluster state from master:\n{}\nLocal cluster state:\n{}", masterClusterState.toString(), localClusterState.toString());
+                        assertEquals("cluster state UUID does not match", masterClusterState.stateUUID(), localClusterState.stateUUID());
+                        /*
+                         * The cluster state received by the transport client can miss customs that the client does not understand. This
+                         * means that we only expect equality in the cluster state including customs if the master client and the local
+                         * client are of the same type (both or neither are transport clients). Otherwise, we can only assert equality
+                         * modulo non-core customs.
+                         */
+                        if (isTransportClient(masterClient) == isTransportClient(client)) {
+                            // We cannot compare serialization bytes since serialization order of maps is not guaranteed
+                            // but we can compare serialization sizes - they should be the same
+                            assertEquals("cluster state size does not match", masterClusterStateSize, localClusterStateSize);
+                            // Compare JSON serialization
+                            assertNull(
+                                    "cluster state JSON serialization does not match",
+                                    differenceBetweenMapsIgnoringArrayOrder(masterStateMap, localStateMap));
+                        } else {
+                            // remove non-core customs and compare the cluster states
+                            assertNull(
+                                    "cluster state JSON serialization does not match (after removing some customs)",
+                                    differenceBetweenMapsIgnoringArrayOrder(
+                                            convertToMap(removePluginCustoms(masterClusterState)),
+                                            convertToMap(removePluginCustoms(localClusterState))));
+                        }
+                    } catch (final AssertionError error) {
+                        logger.error(
+                                "Cluster state from master:\n{}\nLocal cluster state:\n{}",
+                                masterClusterState.toString(),
+                                localClusterState.toString());
                         throw error;
                     }
                 }
             }
         }
 
+    }
+
+    /**
+     * Tests if the client is a transport client or wraps a transport client.
+     *
+     * @param client the client to test
+     * @return true if the client is a transport client or a wrapped transport client
+     */
+    private boolean isTransportClient(final Client client) {
+        if (TransportClient.class.isAssignableFrom(client.getClass())) {
+            return true;
+        } else if (client instanceof RandomizingClient) {
+            return isTransportClient(((RandomizingClient) client).in());
+        }
+        return false;
+    }
+
+    private static final Set<String> SAFE_METADATA_CUSTOMS =
+            Collections.unmodifiableSet(
+                    new HashSet<>(Arrays.asList(IndexGraveyard.TYPE, IngestMetadata.TYPE, RepositoriesMetaData.TYPE, ScriptMetaData.TYPE)));
+
+    private static final Set<String> SAFE_CUSTOMS =
+            Collections.unmodifiableSet(
+                    new HashSet<>(Arrays.asList(RestoreInProgress.TYPE, SnapshotDeletionsInProgress.TYPE, SnapshotsInProgress.TYPE)));
+
+    /**
+     * Remove any customs except for customs that we know all clients understand.
+     *
+     * @param clusterState the cluster state to remove possibly-unknown customs from
+     * @return the cluster state with possibly-unknown customs removed
+     */
+    private ClusterState removePluginCustoms(final ClusterState clusterState) {
+        final ClusterState.Builder builder = ClusterState.builder(clusterState);
+        clusterState.customs().keysIt().forEachRemaining(key -> {
+            if (SAFE_CUSTOMS.contains(key) == false) {
+                builder.removeCustom(key);
+            }
+        });
+        final MetaData.Builder mdBuilder = MetaData.builder(clusterState.metaData());
+        clusterState.metaData().customs().keysIt().forEachRemaining(key -> {
+            if (SAFE_METADATA_CUSTOMS.contains(key) == false) {
+                mdBuilder.removeCustom(key);
+            }
+        });
+        builder.metaData(mdBuilder);
+        return builder.build();
     }
 
     /**
@@ -1354,7 +1431,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * segment or if only one document is in a segment etc. This method prevents issues like this by randomizing the index
      * layout.
      *
-     * @param forceRefresh if <tt>true</tt> all involved indices are refreshed once the documents are indexed. Additionally if <tt>true</tt>
+     * @param forceRefresh if {@code true} all involved indices are refreshed once the documents are indexed. Additionally if {@code true}
      *                     some empty dummy documents are may be randomly inserted into the document list and deleted once all documents are indexed.
      *                     This is useful to produce deleted documents on the server side.
      * @param builders     the documents to index.
@@ -1371,8 +1448,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * segment or if only one document is in a segment etc. This method prevents issues like this by randomizing the index
      * layout.
      *
-     * @param forceRefresh   if <tt>true</tt> all involved indices are refreshed once the documents are indexed.
-     * @param dummyDocuments if <tt>true</tt> some empty dummy documents may be randomly inserted into the document list and deleted once
+     * @param forceRefresh   if {@code true} all involved indices are refreshed once the documents are indexed.
+     * @param dummyDocuments if {@code true} some empty dummy documents may be randomly inserted into the document list and deleted once
      *                       all documents are indexed. This is useful to produce deleted documents on the server side.
      * @param builders       the documents to index.
      */
@@ -1387,10 +1464,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * segment or if only one document is in a segment etc. This method prevents issues like this by randomizing the index
      * layout.
      *
-     * @param forceRefresh   if <tt>true</tt> all involved indices are refreshed once the documents are indexed.
-     * @param dummyDocuments if <tt>true</tt> some empty dummy documents may be randomly inserted into the document list and deleted once
+     * @param forceRefresh   if {@code true} all involved indices are refreshed once the documents are indexed.
+     * @param dummyDocuments if {@code true} some empty dummy documents may be randomly inserted into the document list and deleted once
      *                       all documents are indexed. This is useful to produce deleted documents on the server side.
-     * @param maybeFlush     if <tt>true</tt> this method may randomly execute full flushes after index operations.
+     * @param maybeFlush     if {@code true} this method may randomly execute full flushes after index operations.
      * @param builders       the documents to index.
      */
     public void indexRandom(boolean forceRefresh, boolean dummyDocuments, boolean maybeFlush, List<IndexRequestBuilder> builders) throws InterruptedException, ExecutionException {
@@ -1556,27 +1633,27 @@ public abstract class ESIntegTestCase extends ESTestCase {
         Scope scope() default Scope.SUITE;
 
         /**
-         * Returns the number of nodes in the cluster. Default is <tt>-1</tt> which means
+         * Returns the number of nodes in the cluster. Default is {@code -1} which means
          * a random number of nodes is used, where the minimum and maximum number of nodes
          * are either the specified ones or the default ones if not specified.
          */
         int numDataNodes() default -1;
 
         /**
-         * Returns the minimum number of data nodes in the cluster. Default is <tt>-1</tt>.
+         * Returns the minimum number of data nodes in the cluster. Default is {@code -1}.
          * Ignored when {@link ClusterScope#numDataNodes()} is set.
          */
         int minNumDataNodes() default -1;
 
         /**
-         * Returns the maximum number of data nodes in the cluster.  Default is <tt>-1</tt>.
+         * Returns the maximum number of data nodes in the cluster.  Default is {@code -1}.
          * Ignored when {@link ClusterScope#numDataNodes()} is set.
          */
         int maxNumDataNodes() default -1;
 
         /**
-         * Indicates whether the cluster can have dedicated master nodes. If <tt>false</tt> means data nodes will serve as master nodes
-         * and there will be no dedicated master (and data) nodes. Default is <tt>true</tt> which means
+         * Indicates whether the cluster can have dedicated master nodes. If {@code false} means data nodes will serve as master nodes
+         * and there will be no dedicated master (and data) nodes. Default is {@code false} which means
          * dedicated master nodes will be randomly used.
          */
         boolean supportsDedicatedMasters() default true;
@@ -1705,7 +1782,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
-     * This method is used to obtain settings for the <tt>Nth</tt> node in the cluster.
+     * This method is used to obtain settings for the {@code N}th node in the cluster.
      * Nodes in this cluster are associated with an ordinal number such that nodes can
      * be started with specific configurations. This method might be called multiple
      * times with the same ordinal and is expected to return the same value for each invocation.
@@ -1831,7 +1908,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return new InternalTestCluster(seed, createTempDir(), supportsDedicatedMasters, getAutoMinMasterNodes(),
             minNumDataNodes, maxNumDataNodes,
             InternalTestCluster.clusterName(scope.name(), seed) + "-cluster", nodeConfigurationSource, getNumClientNodes(),
-            InternalTestCluster.DEFAULT_ENABLE_HTTP_PIPELINING, nodePrefix, mockPlugins, getClientWrapper());
+            nodePrefix, mockPlugins, getClientWrapper());
     }
 
     protected NodeConfigurationSource getNodeConfigSource() {
@@ -1844,7 +1921,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
                 return Settings.builder()
-                    .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                     .put(networkSettings.build())
                     .put(ESIntegTestCase.this.nodeSettings(nodeOrdinal)).build();
             }
@@ -1880,7 +1956,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     /**
      * Iff this returns true mock transport implementations are used for the test runs. Otherwise not mock transport impls are used.
-     * The default is <tt>true</tt>
+     * The default is {@code true}.
      */
     protected boolean addMockTransportService() {
         return true;
@@ -1888,9 +1964,14 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     /**
      * Iff this returns true test zen discovery implementations is used for the test runs.
-     * The default is <tt>true</tt>
+     * The default is {@code true}.
      */
     protected boolean addTestZenDiscovery() {
+        return true;
+    }
+
+    /** Returns {@code true} iff this test cluster should use a dummy http transport */
+    protected boolean addMockHttpTransport() {
         return true;
     }
 
@@ -1923,9 +2004,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 mocks.add(MockSearchService.TestPlugin.class);
             }
             if (randomBoolean()) {
-                mocks.add(AssertingTransportInterceptor.TestPlugin.class);
-            }
-            if (randomBoolean()) {
                 mocks.add(MockFieldFilterPlugin.class);
             }
         }
@@ -1933,11 +2011,14 @@ public abstract class ESIntegTestCase extends ESTestCase {
         if (addMockTransportService()) {
             mocks.add(getTestTransportPlugin());
         }
-
         if (addTestZenDiscovery()) {
             mocks.add(TestZenDiscovery.TestPlugin.class);
         }
+        if (addMockHttpTransport()) {
+            mocks.add(MockHttpTransport.TestPlugin.class);
+        }
         mocks.add(TestSeedPlugin.class);
+        mocks.add(AssertActionNamePlugin.class);
         return Collections.unmodifiableList(mocks);
     }
 
@@ -1945,6 +2026,25 @@ public abstract class ESIntegTestCase extends ESTestCase {
         @Override
         public List<Setting<?>> getSettings() {
             return Arrays.asList(INDEX_TEST_SEED_SETTING);
+        }
+    }
+
+    public static final class AssertActionNamePlugin extends Plugin implements NetworkPlugin {
+        @Override
+        public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry,
+                                                                   ThreadContext threadContext) {
+            return Arrays.asList(new TransportInterceptor() {
+                @Override
+                public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,
+                                                                                                boolean forceExecution,
+                                                                                                TransportRequestHandler<T> actualHandler) {
+                    if (TransportService.isValidActionName(action) == false) {
+                        throw new IllegalArgumentException("invalid action name [" + action + "] must start with one of: " +
+                            TransportService.VALID_ACTION_PREFIXES );
+                    }
+                    return actualHandler;
+                }
+            });
         }
     }
 
@@ -1962,7 +2062,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * Returns the transport client ratio from the class level annotation or via
      * {@link System#getProperty(String)} if available. If both are not available this will
-     * return a random ratio in the interval <tt>[0..1]</tt>
+     * return a random ratio in the interval {@code [0..1]}.
      */
     protected double getPerTestTransportClientRatio() {
         final ClusterScope annotation = getAnnotation(this.getClass(), ClusterScope.class);
@@ -2265,4 +2365,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         });
     }
 
+    public static boolean inFipsJvm() {
+        return Security.getProviders()[0].getName().toLowerCase(Locale.ROOT).contains("fips");
+    }
 }

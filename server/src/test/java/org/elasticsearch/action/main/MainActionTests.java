@@ -26,12 +26,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Collections;
@@ -48,9 +48,8 @@ public class MainActionTests extends ESTestCase {
         final ClusterService clusterService = mock(ClusterService.class);
         final ClusterName clusterName = new ClusterName("elasticsearch");
         final Settings settings = Settings.builder().put("node.name", "my-node").build();
-        final boolean available = randomBoolean();
         ClusterBlocks blocks;
-        if (available) {
+        if (randomBoolean()) {
             if (randomBoolean()) {
                 blocks = ClusterBlocks.EMPTY_CLUSTER_BLOCK;
             } else {
@@ -68,12 +67,11 @@ public class MainActionTests extends ESTestCase {
         ClusterState state = ClusterState.builder(clusterName).blocks(blocks).build();
         when(clusterService.state()).thenReturn(state);
 
-        TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            x -> null, null, Collections.emptySet());
-        TransportMainAction action = new TransportMainAction(settings, mock(ThreadPool.class), transportService, mock(ActionFilters.class),
-                mock(IndexNameExpressionResolver.class), clusterService);
+        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null, TransportService
+            .NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
+        TransportMainAction action = new TransportMainAction(settings, transportService, mock(ActionFilters.class), clusterService);
         AtomicReference<MainResponse> responseRef = new AtomicReference<>();
-        action.doExecute(new MainRequest(), new ActionListener<MainResponse>() {
+        action.doExecute(mock(Task.class), new MainRequest(), new ActionListener<MainResponse>() {
             @Override
             public void onResponse(MainResponse mainResponse) {
                 responseRef.set(mainResponse);
@@ -86,7 +84,6 @@ public class MainActionTests extends ESTestCase {
         });
 
         assertNotNull(responseRef.get());
-        assertEquals(available, responseRef.get().isAvailable());
         verify(clusterService, times(1)).state();
     }
 }

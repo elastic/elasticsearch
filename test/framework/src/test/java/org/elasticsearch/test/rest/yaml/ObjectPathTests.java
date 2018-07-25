@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test.rest.yaml;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -50,7 +51,8 @@ public class ObjectPathTests extends ESTestCase {
         xContentBuilder.field("field2.field3", "value2");
         xContentBuilder.endObject();
         xContentBuilder.endObject();
-        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.contentType().xContent(), xContentBuilder.bytes());
+        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.contentType().xContent(),
+                BytesReference.bytes(xContentBuilder));
         Object object = objectPath.evaluate("field1.field2\\.field3");
         assertThat(object, instanceOf(String.class));
         assertThat(object, equalTo("value2"));
@@ -63,7 +65,8 @@ public class ObjectPathTests extends ESTestCase {
         xContentBuilder.field("field2", "value2");
         xContentBuilder.endObject();
         xContentBuilder.endObject();
-        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.contentType().xContent(), xContentBuilder.bytes());
+        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.contentType().xContent(),
+                BytesReference.bytes(xContentBuilder));
         Object object = objectPath.evaluate("field1..field2");
         assertThat(object, instanceOf(String.class));
         assertThat(object, equalTo("value2"));
@@ -82,7 +85,8 @@ public class ObjectPathTests extends ESTestCase {
         xContentBuilder.field("field2", 333);
         xContentBuilder.endObject();
         xContentBuilder.endObject();
-        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.contentType().xContent(), xContentBuilder.bytes());
+        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.contentType().xContent(),
+                BytesReference.bytes(xContentBuilder));
         Object object = objectPath.evaluate("field1.field2");
         assertThat(object, instanceOf(Integer.class));
         assertThat(object, equalTo(333));
@@ -95,7 +99,8 @@ public class ObjectPathTests extends ESTestCase {
         xContentBuilder.field("field2", 3.55);
         xContentBuilder.endObject();
         xContentBuilder.endObject();
-        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.contentType().xContent(), xContentBuilder.bytes());
+        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.contentType().xContent(),
+                BytesReference.bytes(xContentBuilder));
         Object object = objectPath.evaluate("field1.field2");
         assertThat(object, instanceOf(Double.class));
         assertThat(object, equalTo(3.55));
@@ -108,7 +113,8 @@ public class ObjectPathTests extends ESTestCase {
         xContentBuilder.array("array1", "value1", "value2");
         xContentBuilder.endObject();
         xContentBuilder.endObject();
-        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.contentType().xContent(), xContentBuilder.bytes());
+        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.contentType().xContent(),
+                BytesReference.bytes(xContentBuilder));
         Object object = objectPath.evaluate("field1.array1");
         assertThat(object, instanceOf(List.class));
         List list = (List) object;
@@ -137,7 +143,8 @@ public class ObjectPathTests extends ESTestCase {
         xContentBuilder.endArray();
         xContentBuilder.endObject();
         xContentBuilder.endObject();
-        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.contentType().xContent(), xContentBuilder.bytes());
+        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.contentType().xContent(),
+                BytesReference.bytes(xContentBuilder));
         Object object = objectPath.evaluate("field1.array1.1.element");
         assertThat(object, instanceOf(String.class));
         assertThat(object, equalTo("value2"));
@@ -164,7 +171,8 @@ public class ObjectPathTests extends ESTestCase {
         xContentBuilder.endObject();
         xContentBuilder.endObject();
         xContentBuilder.endObject();
-        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.contentType().xContent(), xContentBuilder.bytes());
+        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.contentType().xContent(),
+                BytesReference.bytes(xContentBuilder));
         Object object = objectPath.evaluate("metadata.templates");
         assertThat(object, instanceOf(Map.class));
         Map<String, Object> map = (Map<String, Object>)object;
@@ -182,7 +190,8 @@ public class ObjectPathTests extends ESTestCase {
         xContentBuilder.endObject();
         xContentBuilder.endObject();
         xContentBuilder.endObject();
-        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.contentType().xContent(), xContentBuilder.bytes());
+        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.contentType().xContent(),
+                BytesReference.bytes(xContentBuilder));
         try {
             objectPath.evaluate("field1.$placeholder.element1");
             fail("evaluate should have failed due to unresolved placeholder");
@@ -246,7 +255,7 @@ public class ObjectPathTests extends ESTestCase {
         xContentBuilder.endObject();
         xContentBuilder.endArray();
         ObjectPath objectPath = ObjectPath.createFromXContent(
-                XContentFactory.xContent(xContentBuilder.contentType()), xContentBuilder.bytes());
+                XContentFactory.xContent(xContentBuilder.contentType()), BytesReference.bytes(xContentBuilder));
         Object object = objectPath.evaluate("");
         assertThat(object, notNullValue());
         assertThat(object, instanceOf(List.class));

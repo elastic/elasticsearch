@@ -436,14 +436,14 @@ public class JvmInfo implements Writeable, ToXContentFragment {
         builder.field(Fields.VM_NAME, vmName);
         builder.field(Fields.VM_VERSION, vmVersion);
         builder.field(Fields.VM_VENDOR, vmVendor);
-        builder.dateField(Fields.START_TIME_IN_MILLIS, Fields.START_TIME, startTime);
+        builder.timeField(Fields.START_TIME_IN_MILLIS, Fields.START_TIME, startTime);
 
         builder.startObject(Fields.MEM);
-        builder.byteSizeField(Fields.HEAP_INIT_IN_BYTES, Fields.HEAP_INIT, mem.heapInit);
-        builder.byteSizeField(Fields.HEAP_MAX_IN_BYTES, Fields.HEAP_MAX, mem.heapMax);
-        builder.byteSizeField(Fields.NON_HEAP_INIT_IN_BYTES, Fields.NON_HEAP_INIT, mem.nonHeapInit);
-        builder.byteSizeField(Fields.NON_HEAP_MAX_IN_BYTES, Fields.NON_HEAP_MAX, mem.nonHeapMax);
-        builder.byteSizeField(Fields.DIRECT_MAX_IN_BYTES, Fields.DIRECT_MAX, mem.directMemoryMax);
+        builder.humanReadableField(Fields.HEAP_INIT_IN_BYTES, Fields.HEAP_INIT, new ByteSizeValue(mem.heapInit));
+        builder.humanReadableField(Fields.HEAP_MAX_IN_BYTES, Fields.HEAP_MAX, new ByteSizeValue(mem.heapMax));
+        builder.humanReadableField(Fields.NON_HEAP_INIT_IN_BYTES, Fields.NON_HEAP_INIT, new ByteSizeValue(mem.nonHeapInit));
+        builder.humanReadableField(Fields.NON_HEAP_MAX_IN_BYTES, Fields.NON_HEAP_MAX, new ByteSizeValue(mem.nonHeapMax));
+        builder.humanReadableField(Fields.DIRECT_MAX_IN_BYTES, Fields.DIRECT_MAX, new ByteSizeValue(mem.directMemoryMax));
         builder.endObject();
 
         builder.array(Fields.GC_COLLECTORS, gcCollectors);

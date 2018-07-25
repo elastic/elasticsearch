@@ -563,7 +563,7 @@ to set the index that the document will be indexed into:
 --------------------------------------------------
 // NOTCONSOLE
 
-Dynamic field names are also supported. This example sets the field named after the 
+Dynamic field names are also supported. This example sets the field named after the
 value of `service` to the value of the field `code`:
 
 [source,js]
@@ -768,6 +768,33 @@ Accepts a single value or an array of values.
   "append": {
     "field": "field1",
     "value": ["item2", "item3", "item4"]
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+[[bytes-processor]]
+=== Bytes Processor
+Converts a human readable byte value (e.g. 1kb) to its value in bytes (e.g. 1024).
+
+Supported human readable units are "b", "kb", "mb", "gb", "tb", "pb" case insensitive. An error will occur if
+the field is not a supported format or resultant value exceeds 2^63.
+
+[[bytes-options]]
+.Bytes Options
+[options="header"]
+|======
+| Name             | Required  | Default  | Description
+| `field`          | yes       | -        | The field to convert
+| `target_field`   | no        | `field`  | The field to assign the converted value to, by default `field` is updated in-place
+| `ignore_missing` | no        | `false`  | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
+|======
+
+[source,js]
+--------------------------------------------------
+{
+  "bytes": {
+    "field": "foo"
   }
 }
 --------------------------------------------------
@@ -1075,9 +1102,10 @@ then it aborts the execution and leaves the array unmodified.
 .Foreach Options
 [options="header"]
 |======
-| Name          | Required  | Default  | Description
-| `field`       | yes       | -        | The array field
-| `processor`   | yes       | -        | The processor to execute against each field
+| Name             | Required  | Default  | Description
+| `field`          | yes       | -        | The array field
+| `processor`      | yes       | -        | The processor to execute against each field
+| `ignore_missing` | no        | false    | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
 |======
 
 Assume the following document:
@@ -1216,8 +1244,8 @@ expression that supports aliased expressions that can be reused.
 
 This tool is perfect for syslog logs, apache and other webserver logs, mysql logs, and in general, any log format
 that is generally written for humans and not computer consumption.
-This processor comes packaged with over
-https://github.com/elastic/elasticsearch/tree/master/modules/ingest-common/src/main/resources/patterns[120 reusable patterns].
+This processor comes packaged with many
+https://github.com/elastic/elasticsearch/blob/{branch}/libs/grok/src/main/resources/patterns[reusable patterns].
 
 If you need help building patterns to match your logs, you will find the {kibana-ref}/xpack-grokdebugger.html[Grok Debugger] tool quite useful! The Grok Debugger is an {xpack} feature under the Basic License and is therefore *free to use*. The Grok Constructor at <http://grokconstructor.appspot.com/> is also a useful tool.
 
@@ -1325,7 +1353,7 @@ This pipeline will insert these named captures as new fields within the document
 // NOTCONSOLE
 
 [[custom-patterns]]
-==== Custom Patterns and Pattern Files
+==== Custom Patterns
 
 The Grok processor comes pre-packaged with a base set of pattern. These patterns may not always have
 what you are looking for. Pattern have a very basic format. Each entry describes has a name and the pattern itself.
@@ -1341,7 +1369,7 @@ Here is an example of a pipeline specifying custom pattern definitions:
     {
       "grok": {
         "field": "message",
-        "patterns": ["my %{FAVORITE_DOG:dog} is colored %{RGB:color}"]
+        "patterns": ["my %{FAVORITE_DOG:dog} is colored %{RGB:color}"],
         "pattern_definitions" : {
           "FAVORITE_DOG" : "beagle",
           "RGB" : "RED|GREEN|BLUE"
@@ -1511,6 +1539,24 @@ The above request will return a response body containing a key-value representat
 // NOTCONSOLE
 
 This can be useful to reference as the built-in patterns change across versions.
+
+[[grok-watchdog]]
+==== Grok watchdog
+
+Grok expressions that take too long to execute are interrupted and
+the grok processor then fails with an exception. The grok
+processor has a watchdog thread that determines when evaluation of
+a grok expression takes too long and is controlled by the following
+settings:
+
+[[grok-watchdog-options]]
+.Grok watchdog settings
+[options="header"]
+|======
+| Name                                      | Default | Description
+| `ingest.grok.watchdog.interval`           | 1s      | How often to check whether there are grok evaluations that take longer than the maximum allowed execution time.
+| `ingest.grok.watchdog.max_execution_time` | 1s      | The maximum allowed execution of a grok expression evaluation.
+|======
 
 [[gsub-processor]]
 === Gsub Processor
@@ -1686,6 +1732,10 @@ For example, if you have a log message which contains `ip=1.2.3.4 error=REFUSED`
 | `include_keys`   | no        | `null`   | List of keys to filter and insert into document. Defaults to including all keys
 | `exclude_keys`   | no        | `null`   | List of keys to exclude from document
 | `ignore_missing` | no        | `false`  | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
+| `prefix`         | no        | `null`   | Prefix to be added to extracted keys
+| `trim_key`       | no        | `null`   | String of characters to trim from extracted keys
+| `trim_value`     | no        | `null`   | String of characters to trim from extracted values
+| `strip_brackets` | no        | `false`  | If `true` strip brackets `()`, `<>`, `[]` as well as quotes `'` and `"` from extracted values
 |======
 
 
@@ -1721,8 +1771,9 @@ Removes existing fields. If one field doesn't exist, an exception will be thrown
 .Remove Options
 [options="header"]
 |======
-| Name      | Required  | Default  | Description
-| `field`   | yes       | -        | Fields to be removed
+| Name             | Required  | Default  | Description
+| `field`          | yes       | -        | Fields to be removed
+| `ignore_missing` | no        | `false`  | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
 |======
 
 Here is an example to remove a single field:
@@ -1829,7 +1880,10 @@ PUT _ingest/pipeline/my_index
     "processors": [
       {
         "script": {
-          "source": " ctx._index = 'my_index'; ctx._type = '_doc' "
+          "source": """
+            ctx._index = 'my_index';
+            ctx._type = '_doc';
+          """
         }
       }
     ]

@@ -99,7 +99,7 @@ public class NodesHotThreadsRequest extends BaseNodesRequest<NodesHotThreadsRequ
         threads = in.readInt();
         ignoreIdleThreads = in.readBoolean();
         type = in.readString();
-        interval = new TimeValue(in);
+        interval = in.readTimeValue();
         snapshots = in.readInt();
     }
 
@@ -109,7 +109,7 @@ public class NodesHotThreadsRequest extends BaseNodesRequest<NodesHotThreadsRequ
         out.writeInt(threads);
         out.writeBoolean(ignoreIdleThreads);
         out.writeString(type);
-        interval.writeTo(out);
+        out.writeTimeValue(interval);
         out.writeInt(snapshots);
     }
 }

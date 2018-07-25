@@ -24,7 +24,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -33,18 +32,14 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoverySettings;
-import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -55,13 +50,9 @@ import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
-import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
@@ -91,24 +82,6 @@ public class RareClusterStateIT extends ESIntegTestCase {
     @Override
     protected int numberOfReplicas() {
         return 0;
-    }
-
-    public void testUnassignedShardAndEmptyNodesInRoutingTable() throws Exception {
-        internalCluster().startNode();
-        createIndex("a");
-        ensureSearchable("a");
-        ClusterState current = clusterService().state();
-        GatewayAllocator allocator = internalCluster().getInstance(GatewayAllocator.class);
-
-        AllocationDeciders allocationDeciders = new AllocationDeciders(Settings.EMPTY, Collections.emptyList());
-        RoutingNodes routingNodes = new RoutingNodes(
-                ClusterState.builder(current)
-                        .routingTable(RoutingTable.builder(current.routingTable()).remove("a").addAsRecovery(current.metaData().index("a")).build())
-                        .nodes(DiscoveryNodes.EMPTY_NODES)
-                        .build(), false
-        );
-        RoutingAllocation routingAllocation = new RoutingAllocation(allocationDeciders, routingNodes, current, ClusterInfo.EMPTY, System.nanoTime());
-        allocator.allocateUnassigned(routingAllocation);
     }
 
     public void testAssignmentWithJustAddedNodes() throws Exception {
@@ -199,6 +172,12 @@ public class RareClusterStateIT extends ESIntegTestCase {
         logger.info("--> letting cluster proceed");
         disruption.stopDisrupting();
         ensureGreen(TimeValue.timeValueMinutes(30), "test");
+        // due to publish_timeout of 0, wait for data node to have cluster state fully applied
+        assertBusy(() -> {
+                long masterClusterStateVersion = internalCluster().clusterService(internalCluster().getMasterName()).state().version();
+                long dataClusterStateVersion = internalCluster().clusterService(dataNode).state().version();
+                assertThat(masterClusterStateVersion, equalTo(dataClusterStateVersion));
+            });
         assertHitCount(client().prepareSearch("test").get(), 0);
     }
 

@@ -37,7 +37,7 @@ the `percolator` query before it gets indexed into a temporary index.
 The `query` field is used for indexing the query documents. It will hold a
 json object that represents an actual Elasticsearch query. The `query` field
 has been configured to use the <<percolator,percolator field type>>. This field
-type understands the query dsl and stored the query in such a way that it can be
+type understands the query dsl and stores the query in such a way that it can be
 used later on to match documents defined on the `percolate` query.
 
 Register a query in the percolator:
@@ -83,8 +83,8 @@ The above request will yield the following response:
   "took": 13,
   "timed_out": false,
   "_shards": {
-    "total": 5,
-    "successful": 5,
+    "total": 1,
+    "successful": 1,
     "skipped" : 0,
     "failed": 0
   },
@@ -227,8 +227,8 @@ GET /my-index/_search
   "took": 13,
   "timed_out": false,
   "_shards": {
-    "total": 5,
-    "successful": 5,
+    "total": 1,
+    "successful": 1,
     "skipped" : 0,
     "failed": 0
   },
@@ -299,7 +299,7 @@ Index response:
     "failed": 0
   },
   "result": "created",
-  "_seq_no" : 0,
+  "_seq_no" : 1,
   "_primary_term" : 1
 }
 --------------------------------------------------
@@ -407,8 +407,8 @@ This will yield the following response.
   "took": 7,
   "timed_out": false,
   "_shards": {
-    "total": 5,
-    "successful": 5,
+    "total": 1,
+    "successful": 1,
     "skipped" : 0,
     "failed": 0
   },
@@ -512,8 +512,8 @@ The slightly different response:
   "took": 13,
   "timed_out": false,
   "_shards": {
-    "total": 5,
-    "successful": 5,
+    "total": 1,
+    "successful": 1,
     "skipped" : 0,
     "failed": 0
   },
@@ -608,8 +608,8 @@ The above search request returns a response similar to this:
   "took": 13,
   "timed_out": false,
   "_shards": {
-    "total": 5,
-    "successful": 5,
+    "total": 1,
+    "successful": 1,
     "skipped" : 0,
     "failed": 0
   },

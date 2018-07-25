@@ -20,13 +20,14 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.similarities.BM25Similarity;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.similarity.BM25SimilarityProvider;
+import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -123,17 +124,17 @@ public abstract class FieldTypeTestCase extends ESTestCase {
         new Modifier("similarity", false) {
             @Override
             public void modify(MappedFieldType ft) {
-                ft.setSimilarity(new BM25SimilarityProvider("foo", Settings.EMPTY, INDEX_SETTINGS));
+                ft.setSimilarity(new SimilarityProvider("foo", new BM25Similarity()));
             }
         },
         new Modifier("similarity", false) {
             @Override
             public void modify(MappedFieldType ft) {
-                ft.setSimilarity(new BM25SimilarityProvider("foo", Settings.EMPTY, INDEX_SETTINGS));
+                ft.setSimilarity(new SimilarityProvider("foo", new BM25Similarity()));
             }
             @Override
             public void normalizeOther(MappedFieldType other) {
-                other.setSimilarity(new BM25SimilarityProvider("bar", Settings.EMPTY, INDEX_SETTINGS));
+                other.setSimilarity(new SimilarityProvider("bar", new BM25Similarity()));
             }
         },
         new Modifier("eager_global_ordinals", true) {

@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.MoveDecision;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -1141,7 +1142,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             XContentBuilder builder = JsonXContent.contentBuilder();
             builder.prettyPrint();
             builder.humanReadable(true);
-            logger.debug("--> explain json output: \n{}", explanation.toXContent(builder, ToXContent.EMPTY_PARAMS).string());
+            logger.debug("--> explain json output: \n{}", Strings.toString(explanation.toXContent(builder, ToXContent.EMPTY_PARAMS)));
         }
         return explanation;
     }

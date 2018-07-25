@@ -21,6 +21,7 @@ package org.elasticsearch.action;
 
 import org.elasticsearch.action.DocWriteResponse.Result;
 import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -98,14 +99,14 @@ public class DocWriteResponseTests extends ESTestCase {
         response.setForcedRefresh(false);
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes())) {
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
                 assertThat(parser.map(), not(hasKey("forced_refresh")));
             }
         }
         response.setForcedRefresh(true);
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes())) {
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
                 assertThat(parser.map(), hasEntry("forced_refresh", true));
             }
         }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.common.ParseField;
@@ -34,8 +35,6 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,7 +43,6 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.TimeUnit;
 
 /**
  * A collection of tombstones for explicitly marking indices as deleted in the cluster state.
@@ -95,6 +93,11 @@ public final class IndexGraveyard implements MetaData.Custom {
     @Override
     public String getWriteableName() {
         return TYPE;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.CURRENT.minimumCompatibilityVersion();
     }
 
     @Override
@@ -158,7 +161,6 @@ public final class IndexGraveyard implements MetaData.Custom {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public Diff<MetaData.Custom> diff(final MetaData.Custom previous) {
         return new IndexGraveyardDiff((IndexGraveyard) previous, this);
     }
@@ -318,7 +320,7 @@ public final class IndexGraveyard implements MetaData.Custom {
 
         @Override
         public IndexGraveyard apply(final MetaData.Custom previous) {
-            @SuppressWarnings("unchecked") final IndexGraveyard old = (IndexGraveyard) previous;
+            final IndexGraveyard old = (IndexGraveyard) previous;
             if (removedCount > old.tombstones.size()) {
                 throw new IllegalStateException("IndexGraveyardDiff cannot remove [" + removedCount + "] entries from [" +
                                                 old.tombstones.size() + "] tombstones.");
@@ -413,7 +415,7 @@ public final class IndexGraveyard implements MetaData.Custom {
             if (other == null || getClass() != other.getClass()) {
                 return false;
             }
-            @SuppressWarnings("unchecked") Tombstone that = (Tombstone) other;
+            Tombstone that = (Tombstone) other;
             return index.equals(that.index) && deleteDateInMillis == that.deleteDateInMillis;
         }
 
@@ -434,7 +436,7 @@ public final class IndexGraveyard implements MetaData.Custom {
             builder.startObject();
             builder.field(INDEX_KEY);
             index.toXContent(builder, params);
-            builder.dateField(DELETE_DATE_IN_MILLIS_KEY, DELETE_DATE_KEY, deleteDateInMillis);
+            builder.timeField(DELETE_DATE_IN_MILLIS_KEY, DELETE_DATE_KEY, deleteDateInMillis);
             return builder.endObject();
         }
 

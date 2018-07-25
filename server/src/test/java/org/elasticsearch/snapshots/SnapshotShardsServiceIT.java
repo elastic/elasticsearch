@@ -96,7 +96,7 @@ public class SnapshotShardsServiceIT extends AbstractSnapshotIntegTestCase {
                 .values().stream().map(status -> status.asCopy().getStage()).collect(Collectors.toList());
             assertThat(stages, hasSize(shards));
             assertThat(stages, everyItem(equalTo(IndexShardSnapshotStatus.Stage.DONE)));
-        });
+        }, 30L, TimeUnit.SECONDS);
 
         logger.info("--> stop disrupting cluster");
         networkDisruption.stopDisrupting();
@@ -110,6 +110,6 @@ public class SnapshotShardsServiceIT extends AbstractSnapshotIntegTestCase {
             logger.info("Snapshot status [{}], successfulShards [{}]", snapshotInfo.state(), snapshotInfo.successfulShards());
             assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
             assertThat(snapshotInfo.successfulShards(), equalTo(shards));
-        }, 10, TimeUnit.SECONDS);
+        }, 30L, TimeUnit.SECONDS);
     }
 }

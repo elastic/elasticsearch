@@ -2,7 +2,7 @@ _Painless_ is a simple, secure scripting language designed specifically for use
 with Elasticsearch. It is the default scripting language for Elasticsearch and
 can safely be used for inline and stored scripts. For a detailed description of
 the Painless syntax and language features, see the
-{painless}/painless-specification.html[Painless Language Specification].
+{painless}/painless-lang-spec.html[Painless Language Specification].
 
 [[painless-features]]
 You can use Painless anywhere scripts can be used in Elasticsearch. Painless

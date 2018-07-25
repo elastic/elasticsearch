@@ -173,9 +173,6 @@ public class IndexFieldMapper extends MetadataFieldMapper {
     public void preParse(ParseContext context) throws IOException {}
 
     @Override
-    public void postParse(ParseContext context) throws IOException {}
-
-    @Override
     protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {}
 
     @Override

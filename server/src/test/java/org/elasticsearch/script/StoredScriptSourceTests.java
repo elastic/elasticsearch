@@ -19,6 +19,8 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -38,17 +40,21 @@ public class StoredScriptSourceTests extends AbstractSerializingTestCase<StoredS
         try {
             XContentBuilder template = XContentBuilder.builder(xContentType.xContent());
             template.startObject();
-            template.startObject("query");
-            template.startObject("match");
-            template.field("title", "{{query_string}}");
-            template.endObject();
+            template.startObject("script");
+            {
+                template.field("lang", "mustache");
+                template.startObject("source");
+                template.startObject("query").startObject("match").field("title", "{{query_string}}").endObject();
+                template.endObject();
+                template.endObject();
+            }
             template.endObject();
             template.endObject();
             Map<String, String> options = new HashMap<>();
             if (randomBoolean()) {
                 options.put(Script.CONTENT_TYPE_OPTION, xContentType.mediaType());
             }
-            return StoredScriptSource.parse(template.bytes(), xContentType);
+            return StoredScriptSource.parse(BytesReference.bytes(template), xContentType);
         } catch (IOException e) {
             throw new AssertionError("Failed to create test instance", e);
         }
@@ -56,7 +62,7 @@ public class StoredScriptSourceTests extends AbstractSerializingTestCase<StoredS
 
     @Override
     protected StoredScriptSource doParseInstance(XContentParser parser) {
-        return StoredScriptSource.fromXContent(parser);
+        return StoredScriptSource.fromXContent(parser, false);
     }
 
     @Override
@@ -80,20 +86,17 @@ public class StoredScriptSourceTests extends AbstractSerializingTestCase<StoredS
         newTemplate.endObject();
         newTemplate.endObject();
 
-        switch (between(0, 3)) {
+        switch (between(0, 2)) {
         case 0:
-            source = newTemplate.string();
+            source = Strings.toString(newTemplate);
             break;
         case 1:
             lang = randomAlphaOfLengthBetween(1, 20);
             break;
         case 2:
+        default:
             options = new HashMap<>(options);
             options.put(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-            break;
-        case 3:
-        default:
-            return new StoredScriptSource(newTemplate.string());
         }
         return new StoredScriptSource(lang, source, options);
     }

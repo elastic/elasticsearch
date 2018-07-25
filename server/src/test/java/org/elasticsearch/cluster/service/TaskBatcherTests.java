@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.service;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
@@ -209,7 +208,7 @@ public class TaskBatcherTests extends TaskExecutorTests {
         final TestListener listener = new TestListener() {
             @Override
             public void onFailure(String source, Exception e) {
-                logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected failure: [{}]", source), e);
+                logger.error(() -> new ParameterizedMessage("unexpected failure: [{}]", source), e);
                 failures.add(new Tuple<>(source, e));
                 updateLatch.countDown();
             }

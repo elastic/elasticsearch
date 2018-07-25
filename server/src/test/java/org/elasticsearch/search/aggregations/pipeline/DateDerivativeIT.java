@@ -75,13 +75,13 @@ public class DateDerivativeIT extends ESIntegTestCase {
 
     private static IndexRequestBuilder indexDoc(String idx, DateTime date, int value) throws Exception {
         return client().prepareIndex(idx, "type").setSource(
-                jsonBuilder().startObject().field("date", date).field("value", value).endObject());
+                jsonBuilder().startObject().timeField("date", date).field("value", value).endObject());
     }
 
     private IndexRequestBuilder indexDoc(int month, int day, int value) throws Exception {
         return client().prepareIndex("idx", "type").setSource(
-                jsonBuilder().startObject().field("value", value).field("date", date(month, day)).startArray("dates")
-                        .value(date(month, day)).value(date(month + 1, day + 1)).endArray().endObject());
+                jsonBuilder().startObject().field("value", value).timeField("date", date(month, day)).startArray("dates")
+                        .timeValue(date(month, day)).timeValue(date(month + 1, day + 1)).endArray().endObject());
     }
 
     @Override

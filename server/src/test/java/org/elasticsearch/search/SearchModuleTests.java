@@ -33,7 +33,6 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.functionscore.GaussDecayFunctionBuilder;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
@@ -324,6 +323,7 @@ public class SearchModuleTests extends ModuleTestCase {
             "simple_query_string",
             "span_containing",
             "span_first",
+            "span_gap",
             "span_multi",
             "span_near",
             "span_not",

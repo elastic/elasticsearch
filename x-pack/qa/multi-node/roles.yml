@@ -1,0 +1,14 @@
+test:
+  # this privileges must be kept minimal or the user could inadvertently be
+  # granted permissions that would enable the global checkpoint sync to run
+  # as this user leading to tests that should fail if the global checkpoint
+  # sync does not run as the system user to pass for when they should not
+  cluster:
+    - monitor
+  indices:
+    - names: [ 'test-index' ]
+      privileges:
+        - create_index
+        - monitor
+        - write
+

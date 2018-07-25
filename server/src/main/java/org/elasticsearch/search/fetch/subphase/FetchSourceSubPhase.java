@@ -20,6 +20,7 @@
 package org.elasticsearch.search.fetch.subphase;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.SearchHit;
@@ -71,7 +72,7 @@ public final class FetchSourceSubPhase implements FetchSubPhase {
                 builder.startObject();
                 builder.endObject();
             }
-            hitContext.hit().sourceRef(builder.bytes());
+            hitContext.hit().sourceRef(BytesReference.bytes(builder));
         } catch (IOException e) {
             throw new ElasticsearchException("Error filtering source", e);
         }

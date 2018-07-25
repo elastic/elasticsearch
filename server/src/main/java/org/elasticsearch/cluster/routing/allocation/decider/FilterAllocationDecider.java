@@ -44,8 +44,8 @@ import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
  * This filter is used to make explicit decision on which nodes certain shard
  * can / should be allocated. The decision if a shard can be allocated, must not
  * be allocated or should be allocated is based on either cluster wide dynamic
- * settings (<tt>cluster.routing.allocation.*</tt>) or index specific dynamic
- * settings (<tt>index.routing.allocation.*</tt>). All of those settings can be
+ * settings ({@code cluster.routing.allocation.*}) or index specific dynamic
+ * settings ({@code index.routing.allocation.*}). All of those settings can be
  * changed at runtime via the cluster or the index update settings API.
  * </p>
  * Note: Cluster settings are applied first and will override index specific
@@ -53,14 +53,14 @@ import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
  * settings it wont be allocated on a node if the cluster specific settings
  * would disallow the allocation. Filters are applied in the following order:
  * <ol>
- * <li><tt>required</tt> - filters required allocations.
- * If any <tt>required</tt> filters are set the allocation is denied if the index is <b>not</b> in the set of <tt>required</tt> to allocate
+ * <li>{@code required} - filters required allocations.
+ * If any {@code required} filters are set the allocation is denied if the index is <b>not</b> in the set of {@code required} to allocate
  * on the filtered node</li>
- * <li><tt>include</tt> - filters "allowed" allocations.
- * If any <tt>include</tt> filters are set the allocation is denied if the index is <b>not</b> in the set of <tt>include</tt> filters for
+ * <li>{@code include} - filters "allowed" allocations.
+ * If any {@code include} filters are set the allocation is denied if the index is <b>not</b> in the set of {@code include} filters for
  * the filtered node</li>
- * <li><tt>exclude</tt> - filters "prohibited" allocations.
- * If any <tt>exclude</tt> filters are set the allocation is denied if the index is in the set of <tt>exclude</tt> filters for the
+ * <li>{@code exclude} - filters "prohibited" allocations.
+ * If any {@code exclude} filters are set the allocation is denied if the index is in the set of {@code exclude} filters for the
  * filtered node</li>
  * </ol>
  */

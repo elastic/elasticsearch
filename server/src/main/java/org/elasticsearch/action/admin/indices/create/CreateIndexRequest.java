@@ -31,6 +31,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -48,6 +49,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -56,9 +58,9 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
+import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
  * A request to create an index. Best created with {@link org.elasticsearch.client.Requests#createIndexRequest(String)}.
@@ -180,23 +182,18 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * Allows to set the settings using a json builder.
      */
     public CreateIndexRequest settings(XContentBuilder builder) {
-        try {
-            settings(builder.string(), builder.contentType());
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate json settings from builder", e);
-        }
+        settings(Strings.toString(builder), builder.contentType());
         return this;
     }
 
     /**
      * The settings to create the index with (either json/yaml/properties format)
      */
-    @SuppressWarnings("unchecked")
-    public CreateIndexRequest settings(Map source) {
+    public CreateIndexRequest settings(Map<String, ?> source) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);
-            settings(builder.string(), XContentType.JSON);
+            settings(Strings.toString(builder), XContentType.JSON);
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
@@ -249,7 +246,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * @param source The mapping source
      */
     public CreateIndexRequest mapping(String type, XContentBuilder source) {
-        return mapping(type, source.bytes(), source.contentType());
+        return mapping(type, BytesReference.bytes(source), source.contentType());
     }
 
     /**
@@ -258,8 +255,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * @param type   The mapping type
      * @param source The mapping source
      */
-    @SuppressWarnings("unchecked")
-    public CreateIndexRequest mapping(String type, Map source) {
+    public CreateIndexRequest mapping(String type, Map<String, ?> source) {
         if (mappings.containsKey(type)) {
             throw new IllegalStateException("mappings for type \"" + type + "\" were already defined");
         }
@@ -288,12 +284,11 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     /**
      * Sets the aliases that will be associated with the index when it gets created
      */
-    @SuppressWarnings("unchecked")
-    public CreateIndexRequest aliases(Map source) {
+    public CreateIndexRequest aliases(Map<String, ?> source) {
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.map(source);
-            return aliases(builder.bytes());
+            return aliases(BytesReference.bytes(builder));
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
@@ -303,7 +298,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * Sets the aliases that will be associated with the index when it gets created
      */
     public CreateIndexRequest aliases(XContentBuilder source) {
-        return aliases(source.bytes());
+        return aliases(BytesReference.bytes(source));
     }
 
     /**
@@ -350,7 +345,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * Sets the settings and mappings as a single source.
      */
     public CreateIndexRequest source(XContentBuilder source) {
-        return source(source.bytes(), source.contentType());
+        return source(BytesReference.bytes(source), source.contentType());
     }
 
     /**
@@ -536,7 +531,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
         builder.startObject(MAPPINGS.getPreferredName());
         for (Map.Entry<String, String> entry : mappings.entrySet()) {
-            builder.rawField(entry.getKey(), new BytesArray(entry.getValue()), XContentType.JSON);
+            try (InputStream stream = new BytesArray(entry.getValue()).streamInput()) {
+                builder.rawField(entry.getKey(), stream, XContentType.JSON);
+            }
         }
         builder.endObject();
 

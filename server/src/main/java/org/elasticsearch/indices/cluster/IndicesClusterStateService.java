@@ -21,7 +21,6 @@ package org.elasticsearch.indices.cluster;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
@@ -307,8 +306,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 threadPool.generic().execute(new AbstractRunnable() {
                     @Override
                     public void onFailure(Exception e) {
-                        logger.warn(
-                            (Supplier<?>) () -> new ParameterizedMessage("[{}] failed to complete pending deletion for index", index), e);
+                        logger.warn(() -> new ParameterizedMessage("[{}] failed to complete pending deletion for index", index), e);
                     }
 
                     @Override
@@ -670,8 +668,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             // the node got closed on us, ignore it
         } catch (Exception inner) {
             inner.addSuppressed(failure);
-            logger.warn(
-                (Supplier<?>) () -> new ParameterizedMessage(
+            logger.warn(() -> new ParameterizedMessage(
                     "[{}][{}] failed to remove shard after failure ([{}])",
                     shardRouting.getIndexName(),
                     shardRouting.getId(),
@@ -685,15 +682,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     private void sendFailShard(ShardRouting shardRouting, String message, @Nullable Exception failure, ClusterState state) {
         try {
-            logger.warn(
-                (Supplier<?>) () -> new ParameterizedMessage(
+            logger.warn(() -> new ParameterizedMessage(
                     "[{}] marking and sending shard failed due to [{}]", shardRouting.shardId(), message), failure);
             failedShardsCache.put(shardRouting.shardId(), shardRouting);
             shardStateAction.localShardFailed(shardRouting, message, failure, SHARD_STATE_ACTION_LISTENER, state);
         } catch (Exception inner) {
             if (failure != null) inner.addSuppressed(failure);
-            logger.warn(
-                (Supplier<?>) () -> new ParameterizedMessage(
+            logger.warn(() -> new ParameterizedMessage(
                     "[{}][{}] failed to mark shard as failed (because of [{}])",
                     shardRouting.getIndexName(),
                     shardRouting.getId(),

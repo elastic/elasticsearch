@@ -29,8 +29,8 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
@@ -75,11 +75,11 @@ public final class EngineConfig {
     private final List<ReferenceManager.RefreshListener> internalRefreshListener;
     @Nullable
     private final Sort indexSort;
-    private final boolean forceNewHistoryUUID;
     private final TranslogRecoveryRunner translogRecoveryRunner;
     @Nullable
     private final CircuitBreakerService circuitBreakerService;
     private final LongSupplier globalCheckpointSupplier;
+    private final LongSupplier primaryTermSupplier;
 
     /**
      * Index setting to change the low level lucene codec used for writing new segments.
@@ -113,24 +113,20 @@ public final class EngineConfig {
         Property.IndexScope, Property.Dynamic);
 
     private final TranslogConfig translogConfig;
-    private final OpenMode openMode;
 
     /**
      * Creates a new {@link org.elasticsearch.index.engine.EngineConfig}
      */
-    public EngineConfig(OpenMode openMode, ShardId shardId, String allocationId, ThreadPool threadPool,
+    public EngineConfig(ShardId shardId, String allocationId, ThreadPool threadPool,
                         IndexSettings indexSettings, Engine.Warmer warmer, Store store,
                         MergePolicy mergePolicy, Analyzer analyzer,
                         Similarity similarity, CodecService codecService, Engine.EventListener eventListener,
                         QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
-                        boolean forceNewHistoryUUID, TranslogConfig translogConfig, TimeValue flushMergesAfter,
+                        TranslogConfig translogConfig, TimeValue flushMergesAfter,
                         List<ReferenceManager.RefreshListener> externalRefreshListener,
                         List<ReferenceManager.RefreshListener> internalRefreshListener, Sort indexSort,
                         TranslogRecoveryRunner translogRecoveryRunner, CircuitBreakerService circuitBreakerService,
-                        LongSupplier globalCheckpointSupplier) {
-        if (openMode == null) {
-            throw new IllegalArgumentException("openMode must not be null");
-        }
+                        LongSupplier globalCheckpointSupplier, LongSupplier primaryTermSupplier) {
         this.shardId = shardId;
         this.allocationId = allocationId;
         this.indexSettings = indexSettings;
@@ -143,22 +139,31 @@ public final class EngineConfig {
         this.codecService = codecService;
         this.eventListener = eventListener;
         codecName = indexSettings.getValue(INDEX_CODEC_SETTING);
-        // We give IndexWriter a "huge" (256 MB) buffer, so it won't flush on its own unless the ES indexing buffer is also huge and/or
-        // there are not too many shards allocated to this node.  Instead, IndexingMemoryController periodically checks
-        // and refreshes the most heap-consuming shards when total indexing heap usage across all shards is too high:
-        indexingBufferSize = new ByteSizeValue(256, ByteSizeUnit.MB);
+        // We need to make the indexing buffer for this shard at least as large
+        // as the amount of memory that is available for all engines on the
+        // local node so that decisions to flush segments to disk are made by
+        // IndexingMemoryController rather than Lucene.
+        // Add an escape hatch in case this change proves problematic - it used
+        // to be a fixed amound of RAM: 256 MB.
+        // TODO: Remove this escape hatch in 8.x
+        final String escapeHatchProperty = "es.index.memory.max_index_buffer_size";
+        String maxBufferSize = System.getProperty(escapeHatchProperty);
+        if (maxBufferSize != null) {
+            indexingBufferSize = MemorySizeValue.parseBytesSizeValueOrHeapRatio(maxBufferSize, escapeHatchProperty);
+        } else {
+            indexingBufferSize = IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING.get(indexSettings.getNodeSettings());
+        }
         this.queryCache = queryCache;
         this.queryCachingPolicy = queryCachingPolicy;
         this.translogConfig = translogConfig;
         this.flushMergesAfter = flushMergesAfter;
-        this.openMode = openMode;
-        this.forceNewHistoryUUID = forceNewHistoryUUID;
         this.externalRefreshListener = externalRefreshListener;
         this.internalRefreshListener = internalRefreshListener;
         this.indexSort = indexSort;
         this.translogRecoveryRunner = translogRecoveryRunner;
         this.circuitBreakerService = circuitBreakerService;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
+        this.primaryTermSupplier = primaryTermSupplier;
     }
 
     /**
@@ -315,22 +320,6 @@ public final class EngineConfig {
      */
     public TimeValue getFlushMergesAfter() { return flushMergesAfter; }
 
-    /**
-     * Returns the {@link OpenMode} for this engine config.
-     */
-    public OpenMode getOpenMode() {
-        return openMode;
-    }
-
-
-    /**
-     * Returns true if a new history uuid must be generated. If false, a new uuid will only be generated if no existing
-     * one is found.
-     */
-    public boolean getForceNewHistoryUUID() {
-        return forceNewHistoryUUID;
-    }
-
     @FunctionalInterface
     public interface TranslogRecoveryRunner {
         int run(Engine engine, Translog.Snapshot snapshot) throws IOException;
@@ -341,20 +330,6 @@ public final class EngineConfig {
      */
     public TranslogRecoveryRunner getTranslogRecoveryRunner() {
         return translogRecoveryRunner;
-    }
-
-    /**
-     * Engine open mode defines how the engine should be opened or in other words what the engine should expect
-     * to recover from. We either create a brand new engine with a new index and translog or we recover from an existing index.
-     * If the index exists we also have the ability open only the index and create a new transaction log which happens
-     * during remote recovery since we have already transferred the index files but the translog is replayed from remote. The last
-     * and safest option opens the lucene index as well as it's referenced transaction log for a translog recovery.
-     * See also {@link Engine#recoverFromTranslog()}
-     */
-    public enum OpenMode {
-        CREATE_INDEX_AND_TRANSLOG,
-        OPEN_INDEX_CREATE_TRANSLOG,
-        OPEN_INDEX_AND_TRANSLOG;
     }
 
     /**
@@ -390,5 +365,12 @@ public final class EngineConfig {
     @Nullable
     public CircuitBreakerService getCircuitBreakerService() {
         return this.circuitBreakerService;
+    }
+
+    /**
+     * Returns a supplier that supplies the latest primary term value of the associated shard.
+     */
+    public LongSupplier getPrimaryTermSupplier() {
+        return primaryTermSupplier;
     }
 }

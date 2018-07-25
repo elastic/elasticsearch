@@ -82,10 +82,8 @@ public class JvmStats implements Writeable, ToXContentFragment {
                         peakUsage.getUsed() < 0 ? 0 : peakUsage.getUsed(),
                         peakUsage.getMax() < 0 ? 0 : peakUsage.getMax()
                 ));
-            } catch (Exception ex) {
-                /* ignore some JVMs might barf here with:
-                 * java.lang.InternalError: Memory Pool not found
-                 * we just omit the pool in that case!*/
+            } catch (final Exception ignored) {
+
             }
         }
         Mem mem = new Mem(heapCommitted, heapUsed, heapMax, nonHeapCommitted, nonHeapUsed, Collections.unmodifiableList(pools));
@@ -190,27 +188,27 @@ public class JvmStats implements Writeable, ToXContentFragment {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.JVM);
         builder.field(Fields.TIMESTAMP, timestamp);
-        builder.timeValueField(Fields.UPTIME_IN_MILLIS, Fields.UPTIME, uptime);
+        builder.humanReadableField(Fields.UPTIME_IN_MILLIS, Fields.UPTIME, new TimeValue(uptime));
 
         builder.startObject(Fields.MEM);
 
-        builder.byteSizeField(Fields.HEAP_USED_IN_BYTES, Fields.HEAP_USED, mem.heapUsed);
+        builder.humanReadableField(Fields.HEAP_USED_IN_BYTES, Fields.HEAP_USED, new ByteSizeValue(mem.heapUsed));
         if (mem.getHeapUsedPercent() >= 0) {
             builder.field(Fields.HEAP_USED_PERCENT, mem.getHeapUsedPercent());
         }
-        builder.byteSizeField(Fields.HEAP_COMMITTED_IN_BYTES, Fields.HEAP_COMMITTED, mem.heapCommitted);
-        builder.byteSizeField(Fields.HEAP_MAX_IN_BYTES, Fields.HEAP_MAX, mem.heapMax);
-        builder.byteSizeField(Fields.NON_HEAP_USED_IN_BYTES, Fields.NON_HEAP_USED, mem.nonHeapUsed);
-        builder.byteSizeField(Fields.NON_HEAP_COMMITTED_IN_BYTES, Fields.NON_HEAP_COMMITTED, mem.nonHeapCommitted);
+        builder.humanReadableField(Fields.HEAP_COMMITTED_IN_BYTES, Fields.HEAP_COMMITTED, new ByteSizeValue(mem.heapCommitted));
+        builder.humanReadableField(Fields.HEAP_MAX_IN_BYTES, Fields.HEAP_MAX, new ByteSizeValue(mem.heapMax));
+        builder.humanReadableField(Fields.NON_HEAP_USED_IN_BYTES, Fields.NON_HEAP_USED, new ByteSizeValue(mem.nonHeapUsed));
+        builder.humanReadableField(Fields.NON_HEAP_COMMITTED_IN_BYTES, Fields.NON_HEAP_COMMITTED, new ByteSizeValue(mem.nonHeapCommitted));
 
         builder.startObject(Fields.POOLS);
         for (MemoryPool pool : mem) {
             builder.startObject(pool.getName());
-            builder.byteSizeField(Fields.USED_IN_BYTES, Fields.USED, pool.used);
-            builder.byteSizeField(Fields.MAX_IN_BYTES, Fields.MAX, pool.max);
+            builder.humanReadableField(Fields.USED_IN_BYTES, Fields.USED, new ByteSizeValue(pool.used));
+            builder.humanReadableField(Fields.MAX_IN_BYTES, Fields.MAX, new ByteSizeValue(pool.max));
 
-            builder.byteSizeField(Fields.PEAK_USED_IN_BYTES, Fields.PEAK_USED, pool.peakUsed);
-            builder.byteSizeField(Fields.PEAK_MAX_IN_BYTES, Fields.PEAK_MAX, pool.peakMax);
+            builder.humanReadableField(Fields.PEAK_USED_IN_BYTES, Fields.PEAK_USED, new ByteSizeValue(pool.peakUsed));
+            builder.humanReadableField(Fields.PEAK_MAX_IN_BYTES, Fields.PEAK_MAX, new ByteSizeValue(pool.peakMax));
 
             builder.endObject();
         }
@@ -229,7 +227,7 @@ public class JvmStats implements Writeable, ToXContentFragment {
         for (GarbageCollector collector : gc) {
             builder.startObject(collector.getName());
             builder.field(Fields.COLLECTION_COUNT, collector.getCollectionCount());
-            builder.timeValueField(Fields.COLLECTION_TIME_IN_MILLIS, Fields.COLLECTION_TIME, collector.collectionTime);
+            builder.humanReadableField(Fields.COLLECTION_TIME_IN_MILLIS, Fields.COLLECTION_TIME, new TimeValue(collector.collectionTime));
             builder.endObject();
         }
         builder.endObject();
@@ -241,8 +239,9 @@ public class JvmStats implements Writeable, ToXContentFragment {
             for (BufferPool bufferPool : bufferPools) {
                 builder.startObject(bufferPool.getName());
                 builder.field(Fields.COUNT, bufferPool.getCount());
-                builder.byteSizeField(Fields.USED_IN_BYTES, Fields.USED, bufferPool.used);
-                builder.byteSizeField(Fields.TOTAL_CAPACITY_IN_BYTES, Fields.TOTAL_CAPACITY, bufferPool.totalCapacity);
+                builder.humanReadableField(Fields.USED_IN_BYTES, Fields.USED, new ByteSizeValue(bufferPool.used));
+                builder.humanReadableField(Fields.TOTAL_CAPACITY_IN_BYTES, Fields.TOTAL_CAPACITY,
+                    new ByteSizeValue(bufferPool.totalCapacity));
                 builder.endObject();
             }
             builder.endObject();

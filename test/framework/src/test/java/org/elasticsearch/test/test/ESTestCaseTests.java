@@ -119,7 +119,7 @@ public class ESTestCaseTests extends ESTestCase {
                 }
             }
             builder.endObject();
-            BytesReference bytes = builder.bytes();
+            BytesReference bytes = BytesReference.bytes(builder);
             final LinkedHashMap<String, Object> initialMap;
             try (XContentParser parser = createParser(xContentType.xContent(), bytes)) {
                 initialMap = (LinkedHashMap<String, Object>)parser.mapOrdered();

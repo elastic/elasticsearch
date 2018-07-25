@@ -96,7 +96,7 @@ public class RefreshStats implements Streamable, ToXContentFragment {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("refresh");
         builder.field("total", total);
-        builder.timeValueField("total_time_in_millis", "total_time", totalTimeInMillis);
+        builder.humanReadableField("total_time_in_millis", "total_time", getTotalTime());
         builder.field("listeners", listeners);
         builder.endObject();
         return builder;

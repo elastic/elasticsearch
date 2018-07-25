@@ -23,6 +23,8 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
@@ -71,20 +73,20 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
                 indexService.getIndexAnalyzers(), indexService.xContentRegistry(), indexService.similarityService(), mapperRegistry,
                 queryShardContext);
         DocumentMapper documentMapper = parser.parse("type", new CompressedXContent(
-                XContentFactory.jsonBuilder().startObject().startObject("type")
+                Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject(ExternalMetadataMapper.CONTENT_TYPE)
                 .endObject()
                 .startObject("properties")
                     .startObject("field").field("type", "external").endObject()
                 .endObject()
-            .endObject().endObject().string()
+            .endObject().endObject())
         ));
 
-        ParsedDocument doc = documentMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                    .field("field", "1234")
-                .endObject()
-                .bytes(),
+        ParsedDocument doc = documentMapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                        .startObject()
+                            .field("field", "1234")
+                        .endObject()),
                 XContentType.JSON));
 
         assertThat(doc.rootDoc().getField("field.bool"), notNullValue());
@@ -123,7 +125,8 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
                 queryShardContext);
 
         DocumentMapper documentMapper = parser.parse("type", new CompressedXContent(
-                XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+                Strings
+                .toString(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
                 .startObject("field")
                     .field("type", ExternalMapperPlugin.EXTERNAL)
                     .startObject("fields")
@@ -139,14 +142,13 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
                         .endObject()
                     .endObject()
                 .endObject()
-                .endObject().endObject().endObject()
-                .string()));
+                .endObject().endObject().endObject())));
 
-        ParsedDocument doc = documentMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                    .field("field", "1234")
-                .endObject()
-                .bytes(),
+        ParsedDocument doc = documentMapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                        .startObject()
+                            .field("field", "1234")
+                        .endObject()),
                 XContentType.JSON));
 
         assertThat(doc.rootDoc().getField("field.bool"), notNullValue());
@@ -189,7 +191,8 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
                 queryShardContext);
 
         DocumentMapper documentMapper = parser.parse("type", new CompressedXContent(
-                XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+                Strings
+                .toString(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
                 .startObject("field")
                     .field("type", ExternalMapperPlugin.EXTERNAL)
                     .startObject("fields")
@@ -209,14 +212,13 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
                         .endObject()
                     .endObject()
                 .endObject()
-                .endObject().endObject().endObject()
-                .string()));
+                .endObject().endObject().endObject())));
 
-        ParsedDocument doc = documentMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .field("field", "1234")
-                .endObject()
-                .bytes(),
+        ParsedDocument doc = documentMapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                        .startObject()
+                        .field("field", "1234")
+                        .endObject()),
                 XContentType.JSON));
 
         assertThat(doc.rootDoc().getField("field.bool"), notNullValue());

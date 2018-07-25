@@ -85,7 +85,7 @@ public class MockFSIndexStore extends IndexStore {
     }
 
     private static final EnumSet<IndexShardState> validCheckIndexStates = EnumSet.of(
-            IndexShardState.STARTED, IndexShardState.RELOCATED, IndexShardState.POST_RECOVERY
+            IndexShardState.STARTED, IndexShardState.POST_RECOVERY
     );
     private static final class Listener implements IndexEventListener {
 

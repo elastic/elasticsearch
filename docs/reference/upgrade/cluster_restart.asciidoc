@@ -26,6 +26,9 @@ recovery.
 include::synced-flush.asciidoc[]
 --
 
+. *Stop any machine learning jobs that are running.* See
+{xpack-ref}/stopping-ml.html[Stopping Machine Learning].
+
 . *Shutdown all nodes.*
 +
 --
@@ -44,6 +47,8 @@ include::set-paths-tip.asciidoc[]
 Use the `elasticsearch-plugin` script to install the upgraded version of each
 installed Elasticsearch plugin. All plugins must be upgraded when you upgrade
 a node.
++
+include::remove-xpack.asciidoc[]
 
 . *Start each upgraded node.*
 +
@@ -88,24 +93,19 @@ already have local shard copies.
 +
 --
 When all nodes have joined the cluster and recovered their primary shards,
-reenable allocation.
+reenable allocation by restoring `cluster.routing.allocation.enable` to its
+default:
 
 [source,js]
 ------------------------------------------------------
 PUT _cluster/settings
 {
-  "transient": {
-    "cluster.routing.allocation.enable": "all"
+  "persistent": {
+    "cluster.routing.allocation.enable": null
   }
 }
 ------------------------------------------------------
 // CONSOLE
-
-NOTE: Because <<_precedence_of_settings, transient
-settings take precedence over persistent settings>>, this overrides the
-persistent setting used to disable shard allocation in the first step. If you
-don't explicitly reenable shard allocation after a full cluster restart, the
-persistent setting is used and shard allocation remains disabled.
 
 Once allocation is reenabled, the cluster starts allocating replica shards to
 the data nodes. At this point it is safe to resume indexing and searching,
@@ -124,3 +124,5 @@ GET _cat/recovery
 --------------------------------------------------
 // CONSOLE
 --
+
+. *Restart machine learning jobs.*

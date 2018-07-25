@@ -27,6 +27,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -307,8 +308,8 @@ public class BulkProcessorIT extends ESIntegTestCase {
                     .source(Requests.INDEX_CONTENT_TYPE, "field", randomRealisticUnicodeOfLengthBetween(1, 30)));
             } else {
                 final String source = "{ \"index\":{\"_index\":\"test\",\"_type\":\"test\",\"_id\":\"" + Integer.toString(i) + "\"} }\n"
-                    + JsonXContent.contentBuilder()
-                        .startObject().field("field", randomRealisticUnicodeOfLengthBetween(1, 30)).endObject().string() + "\n";
+                    + Strings.toString(JsonXContent.contentBuilder()
+                        .startObject().field("field", randomRealisticUnicodeOfLengthBetween(1, 30)).endObject()) + "\n";
                 processor.add(new BytesArray(source), null, null, XContentType.JSON);
             }
             multiGetRequestBuilder.add("test", "test", Integer.toString(i));

@@ -20,7 +20,6 @@ package org.elasticsearch.discovery;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 
@@ -70,7 +69,7 @@ public class AckClusterStatePublishResponseHandler extends BlockingClusterStateP
             ackListener.onNodeAck(node, e);
         } catch (Exception inner) {
             inner.addSuppressed(e);
-            logger.debug((Supplier<?>) () -> new ParameterizedMessage("error while processing ack for node [{}]", node), inner);
+            logger.debug(() -> new ParameterizedMessage("error while processing ack for node [{}]", node), inner);
         }
     }
 }

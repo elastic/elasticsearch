@@ -42,4 +42,8 @@ public class SettingsException extends ElasticsearchException {
     public SettingsException(StreamInput in) throws IOException {
         super(in);
     }
+
+    public SettingsException(String msg, Object... args) {
+        super(msg, args);
+    }
 }

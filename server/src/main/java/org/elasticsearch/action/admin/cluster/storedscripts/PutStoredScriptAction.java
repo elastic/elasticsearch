@@ -20,11 +20,9 @@
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
 
-public class PutStoredScriptAction extends Action<PutStoredScriptRequest, PutStoredScriptResponse,
-        PutStoredScriptRequestBuilder> {
+public class PutStoredScriptAction extends Action<PutStoredScriptResponse> {
 
     public static final PutStoredScriptAction INSTANCE = new PutStoredScriptAction();
     public static final String NAME = "cluster:admin/script/put";
@@ -38,10 +36,5 @@ public class PutStoredScriptAction extends Action<PutStoredScriptRequest, PutSto
     @Override
     public PutStoredScriptResponse newResponse() {
         return new PutStoredScriptResponse();
-    }
-
-    @Override
-    public PutStoredScriptRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new PutStoredScriptRequestBuilder(client, this);
     }
 }

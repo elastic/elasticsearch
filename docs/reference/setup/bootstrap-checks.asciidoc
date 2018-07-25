@@ -114,7 +114,7 @@ that the Elasticsearch process has the rights to create enough threads
 under normal use. This check is enforced only on Linux. If you are on
 Linux, to pass the maximum number of threads check, you must configure
 your system to allow the Elasticsearch process the ability to create at
-least 2048 threads. This can be done via `/etc/security/limits.conf`
+least 4096 threads. This can be done via `/etc/security/limits.conf`
 using the `nproc` setting (note that you might have to increase the
 limits for the `root` user too).
 

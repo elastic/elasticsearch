@@ -1,0 +1,27 @@
+[[painless-score-context]]
+=== Score context
+
+Use a Painless script in a
+{es_version}/query-dsl-function-score-query.html[function score] to apply a new
+score to documents returned from a query.
+
+*Variables*
+
+`params` (`Map`, read-only)::
+        User-defined parameters passed in as part of the query.
+
+`doc` (`Map`, read-only)::
+        Contains the fields of the current document where each field is a
+        `List` of values.
+
+`_score` (`double` read-only)::
+        The similarity score of the current document.
+
+*Return*
+
+`double`::
+        The score for the current document.
+
+*API*
+
+The standard <<painless-api-reference, Painless API>> is available.

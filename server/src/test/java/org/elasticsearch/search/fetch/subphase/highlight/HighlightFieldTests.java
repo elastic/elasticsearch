@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.fetch.subphase.highlight;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.text.Text;
@@ -61,16 +62,17 @@ public class HighlightFieldTests extends ESTestCase {
         builder.startObject(); // we need to wrap xContent output in proper object to create a parser for it
         builder = highlightField.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        XContentParser parser = createParser(builder);
-        parser.nextToken(); // skip to the opening object token, fromXContent advances from here and starts with the field name
-        parser.nextToken();
-        HighlightField parsedField = HighlightField.fromXContent(parser);
-        assertEquals(highlightField, parsedField);
-        if (highlightField.fragments() != null) {
-            assertEquals(XContentParser.Token.END_ARRAY, parser.currentToken());
+        try (XContentParser parser = createParser(builder)) {
+            parser.nextToken(); // skip to the opening object token, fromXContent advances from here and starts with the field name
+            parser.nextToken();
+            HighlightField parsedField = HighlightField.fromXContent(parser);
+            assertEquals(highlightField, parsedField);
+            if (highlightField.fragments() != null) {
+                assertEquals(XContentParser.Token.END_ARRAY, parser.currentToken());
+            }
+            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+            assertNull(parser.nextToken());
         }
-        assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
-        assertNull(parser.nextToken());
     }
 
     public void testToXContent() throws IOException {
@@ -86,7 +88,7 @@ public class HighlightFieldTests extends ESTestCase {
           "    \"bar\",\n" +
           "    \"baz\"\n" +
           "  ]\n" +
-          "}", builder.string());
+          "}", Strings.toString(builder));
 
         field = new HighlightField("foo", null);
         builder = JsonXContent.contentBuilder();
@@ -97,7 +99,7 @@ public class HighlightFieldTests extends ESTestCase {
         assertEquals(
           "{\n" +
           "  \"foo\" : null\n" +
-          "}", builder.string());
+          "}", Strings.toString(builder));
     }
 
     /**

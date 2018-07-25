@@ -25,18 +25,19 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.format.DateTimeFormat;
 
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -44,6 +45,10 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.collection.IsEmptyCollection.empty;
+import static org.hamcrest.core.CombinableMatcher.both;
+import static org.hamcrest.number.OrderingComparison.greaterThanOrEqualTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class RolloverIT extends ESIntegTestCase {
@@ -70,6 +75,7 @@ public class RolloverIT extends ESIntegTestCase {
     }
 
     public void testRollover() throws Exception {
+        long beforeTime = client().threadPool().absoluteTimeInMillis() - 1000L;
         assertAcked(prepareCreate("test_index-2").addAlias(new Alias("test_alias")).get());
         index("test_index-2", "type1", "1", "field", "value");
         flush("test_index-2");
@@ -84,6 +90,11 @@ public class RolloverIT extends ESIntegTestCase {
         assertFalse(oldIndex.getAliases().containsKey("test_alias"));
         final IndexMetaData newIndex = state.metaData().index("test_index-000003");
         assertTrue(newIndex.getAliases().containsKey("test_alias"));
+        assertThat(oldIndex.getRolloverInfos().size(), equalTo(1));
+        assertThat(oldIndex.getRolloverInfos().get("test_alias").getAlias(), equalTo("test_alias"));
+        assertThat(oldIndex.getRolloverInfos().get("test_alias").getMetConditions(), is(empty()));
+        assertThat(oldIndex.getRolloverInfos().get("test_alias").getTime(),
+            is(both(greaterThanOrEqualTo(beforeTime)).and(lessThanOrEqualTo(client().threadPool().absoluteTimeInMillis() + 1000L))));
     }
 
     public void testRolloverWithIndexSettings() throws Exception {
@@ -186,8 +197,8 @@ public class RolloverIT extends ESIntegTestCase {
     }
 
     public void testRolloverWithDateMath() {
-        DateTime now = new DateTime(DateTimeZone.UTC);
-        String index = "test-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(now) + "-1";
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
+        String index = "test-" + DateFormatters.forPattern("YYYY.MM.dd").format(now) + "-1";
         String dateMathExp = "<test-{now/d}-1>";
         assertAcked(prepareCreate(dateMathExp).addAlias(new Alias("test_alias")).get());
         ensureGreen(index);
@@ -201,14 +212,14 @@ public class RolloverIT extends ESIntegTestCase {
         ensureGreen(index);
         RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias").get();
         assertThat(response.getOldIndex(), equalTo(index));
-        assertThat(response.getNewIndex(), equalTo("test-" + DateTimeFormat.forPattern("YYYY.MM").print(now) + "-000002"));
+        assertThat(response.getNewIndex(), equalTo("test-" + DateFormatters.forPattern("YYYY.MM").format(now) + "-000002"));
         assertThat(response.isDryRun(), equalTo(false));
         assertThat(response.isRolledOver(), equalTo(true));
         assertThat(response.getConditionStatus().size(), equalTo(0));
 
         response = client().admin().indices().prepareRolloverIndex("test_alias").get();
-        assertThat(response.getOldIndex(), equalTo("test-" + DateTimeFormat.forPattern("YYYY.MM").print(now) + "-000002"));
-        assertThat(response.getNewIndex(), equalTo("test-" + DateTimeFormat.forPattern("YYYY.MM").print(now) + "-000003"));
+        assertThat(response.getOldIndex(), equalTo("test-" + DateFormatters.forPattern("YYYY.MM").format(now) + "-000002"));
+        assertThat(response.getNewIndex(), equalTo("test-" + DateFormatters.forPattern("YYYY.MM").format(now) + "-000003"));
         assertThat(response.isDryRun(), equalTo(false));
         assertThat(response.isRolledOver(), equalTo(true));
         assertThat(response.getConditionStatus().size(), equalTo(0));
@@ -221,8 +232,8 @@ public class RolloverIT extends ESIntegTestCase {
             IndexMetaData.SETTING_INDEX_PROVIDED_NAME));
 
         response = client().admin().indices().prepareRolloverIndex("test_alias").setNewIndexName("<test-{now/d}-000004>").get();
-        assertThat(response.getOldIndex(), equalTo("test-" + DateTimeFormat.forPattern("YYYY.MM").print(now) + "-000003"));
-        assertThat(response.getNewIndex(), equalTo("test-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(now) + "-000004"));
+        assertThat(response.getOldIndex(), equalTo("test-" + DateFormatters.forPattern("YYYY.MM").format(now) + "-000003"));
+        assertThat(response.getNewIndex(), equalTo("test-" + DateFormatters.forPattern("YYYY.MM.dd").format(now) + "-000004"));
         assertThat(response.isDryRun(), equalTo(false));
         assertThat(response.isRolledOver(), equalTo(true));
         assertThat(response.getConditionStatus().size(), equalTo(0));
@@ -246,17 +257,27 @@ public class RolloverIT extends ESIntegTestCase {
             assertThat(response.getOldIndex(), equalTo("test-1"));
             assertThat(response.getNewIndex(), equalTo("test-000002"));
             assertThat("No rollover with a large max_size condition", response.isRolledOver(), equalTo(false));
+            final IndexMetaData oldIndex = client().admin().cluster().prepareState().get().getState().metaData().index("test-1");
+            assertThat(oldIndex.getRolloverInfos().size(), equalTo(0));
         }
 
         // A small max_size
         {
+            ByteSizeValue maxSizeValue = new ByteSizeValue(randomIntBetween(1, 20), ByteSizeUnit.BYTES);
+            long beforeTime = client().threadPool().absoluteTimeInMillis() - 1000L;
             final RolloverResponse response = client().admin().indices()
                 .prepareRolloverIndex("test_alias")
-                .addMaxIndexSizeCondition(new ByteSizeValue(randomIntBetween(1, 20), ByteSizeUnit.BYTES))
+                .addMaxIndexSizeCondition(maxSizeValue)
                 .get();
             assertThat(response.getOldIndex(), equalTo("test-1"));
             assertThat(response.getNewIndex(), equalTo("test-000002"));
             assertThat("Should rollover with a small max_size condition", response.isRolledOver(), equalTo(true));
+            final IndexMetaData oldIndex = client().admin().cluster().prepareState().get().getState().metaData().index("test-1");
+            List<Condition<?>> metConditions = oldIndex.getRolloverInfos().get("test_alias").getMetConditions();
+            assertThat(metConditions.size(), equalTo(1));
+            assertThat(metConditions.get(0).toString(), equalTo(new MaxSizeCondition(maxSizeValue).toString()));
+            assertThat(oldIndex.getRolloverInfos().get("test_alias").getTime(),
+                is(both(greaterThanOrEqualTo(beforeTime)).and(lessThanOrEqualTo(client().threadPool().absoluteTimeInMillis() + 1000L))));
         }
 
         // An empty index
@@ -268,6 +289,8 @@ public class RolloverIT extends ESIntegTestCase {
             assertThat(response.getOldIndex(), equalTo("test-000002"));
             assertThat(response.getNewIndex(), equalTo("test-000003"));
             assertThat("No rollover with an empty index", response.isRolledOver(), equalTo(false));
+            final IndexMetaData oldIndex = client().admin().cluster().prepareState().get().getState().metaData().index("test-000002");
+            assertThat(oldIndex.getRolloverInfos().size(), equalTo(0));
         }
     }
 

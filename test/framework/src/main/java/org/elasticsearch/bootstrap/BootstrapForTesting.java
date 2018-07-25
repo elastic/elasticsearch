@@ -20,6 +20,7 @@
 package org.elasticsearch.bootstrap;
 
 import com.carrotsearch.randomizedtesting.RandomizedRunner;
+
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.Booleans;
@@ -78,7 +79,8 @@ public class BootstrapForTesting {
         }
 
         // just like bootstrap, initialize natives, then SM
-        Bootstrap.initializeNatives(javaTmpDir, true, true, true);
+        final boolean systemCallFilter = Booleans.parseBoolean(System.getProperty("tests.system_call_filter", "true"));
+        Bootstrap.initializeNatives(javaTmpDir, true, systemCallFilter, true);
 
         // initialize probes
         Bootstrap.initializeProbes();
@@ -139,6 +141,7 @@ public class BootstrapForTesting {
                     addClassCodebase(codebases,"plugin-classloader", "org.elasticsearch.plugins.ExtendedPluginsClassLoader");
                     addClassCodebase(codebases,"elasticsearch-nio", "org.elasticsearch.nio.ChannelFactory");
                     addClassCodebase(codebases, "elasticsearch-secure-sm", "org.elasticsearch.secure_sm.SecureSM");
+                    addClassCodebase(codebases, "elasticsearch-rest-client", "org.elasticsearch.client.RestClient");
                 }
                 final Policy testFramework = Security.readPolicy(Bootstrap.class.getResource("test-framework.policy"), codebases);
                 final Policy esPolicy = new ESPolicy(codebases, perms, getPluginPermissions(), true);
@@ -173,7 +176,7 @@ public class BootstrapForTesting {
     /** Add the codebase url of the given classname to the codebases map, if the class exists. */
     private static void addClassCodebase(Map<String, URL> codebases, String name, String classname) {
         try {
-            Class clazz = BootstrapForTesting.class.getClassLoader().loadClass(classname);
+            Class<?> clazz = BootstrapForTesting.class.getClassLoader().loadClass(classname);
             if (codebases.put(name, clazz.getProtectionDomain().getCodeSource().getLocation()) != null) {
                 throw new IllegalStateException("Already added " + name + " codebase for testing");
             }

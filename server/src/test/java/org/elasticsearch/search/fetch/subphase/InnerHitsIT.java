@@ -21,14 +21,12 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.ArrayUtil;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
@@ -476,7 +474,7 @@ public class InnerHitsIT extends ESIntegTestCase {
                         .innerHit(new InnerHitBuilder().setFetchSourceContext(new FetchSourceContext(false)))).get();
         assertNoFailures(response);
         assertHitCount(response, 1);
-        hit = response.getHits().getAt(0);;
+        hit = response.getHits().getAt(0);
         assertThat(hit.getId(), equalTo("1"));
         messages = hit.getInnerHits().get("comments.messages");
         assertThat(messages.getTotalHits(), equalTo(1L));
@@ -650,13 +648,10 @@ public class InnerHitsIT extends ESIntegTestCase {
 
     public void testInnerHitsWithIgnoreUnmapped() throws Exception {
         assertAcked(prepareCreate("index1")
-            .setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id))
-            .addMapping("parent_type", "nested_type", "type=nested")
-            .addMapping("child_type", "_parent", "type=parent_type")
+            .addMapping("_doc", "nested_type", "type=nested")
         );
         createIndex("index2");
-        client().prepareIndex("index1", "parent_type", "1").setSource("nested_type", Collections.singletonMap("key", "value")).get();
-        client().prepareIndex("index1", "child_type", "2").setParent("1").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex("index1", "_doc", "1").setSource("nested_type", Collections.singletonMap("key", "value")).get();
         client().prepareIndex("index2", "type", "3").setSource("key", "value").get();
         refresh();
 

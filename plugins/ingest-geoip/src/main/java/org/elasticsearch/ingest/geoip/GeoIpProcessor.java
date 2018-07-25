@@ -37,7 +37,6 @@ import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 
-import java.io.IOException;
 import java.net.InetAddress;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -68,8 +67,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
     private final Set<Property> properties;
     private final boolean ignoreMissing;
 
-    GeoIpProcessor(String tag, String field, DatabaseReader dbReader, String targetField, Set<Property> properties,
-                   boolean ignoreMissing) throws IOException {
+    GeoIpProcessor(String tag, String field, DatabaseReader dbReader, String targetField, Set<Property> properties, boolean ignoreMissing) {
         super(tag);
         this.field = field;
         this.targetField = targetField;
@@ -187,6 +185,16 @@ public final class GeoIpProcessor extends AbstractProcessor {
                         geoData.put("continent_name", continentName);
                     }
                     break;
+                case REGION_ISO_CODE:
+                    // ISO 3166-2 code for country subdivisions.
+                    // See iso.org/iso-3166-country-codes.html
+                    String countryIso = country.getIsoCode();
+                    String subdivisionIso = subdivision.getIsoCode();
+                    if (countryIso != null && subdivisionIso != null) {
+                        String regionIsoCode = countryIso + "-" + subdivisionIso;
+                        geoData.put("region_iso_code", regionIsoCode);
+                    }
+                    break;
                 case REGION_NAME:
                     String subdivisionName = subdivision.getName();
                     if (subdivisionName != null) {
@@ -302,8 +310,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
     public static final class Factory implements Processor.Factory {
         static final Set<Property> DEFAULT_CITY_PROPERTIES = EnumSet.of(
-            Property.CONTINENT_NAME, Property.COUNTRY_ISO_CODE, Property.REGION_NAME,
-            Property.CITY_NAME, Property.LOCATION
+            Property.CONTINENT_NAME, Property.COUNTRY_ISO_CODE, Property.REGION_ISO_CODE,
+            Property.REGION_NAME, Property.CITY_NAME, Property.LOCATION
         );
         static final Set<Property> DEFAULT_COUNTRY_PROPERTIES = EnumSet.of(
             Property.CONTINENT_NAME, Property.COUNTRY_ISO_CODE
@@ -323,7 +331,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
                                        Map<String, Object> config) throws Exception {
             String ipField = readStringProperty(TYPE, processorTag, config, "field");
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "geoip");
-            String databaseFile = readStringProperty(TYPE, processorTag, config, "database_file", "GeoLite2-City.mmdb.gz");
+            String databaseFile = readStringProperty(TYPE, processorTag, config, "database_file", "GeoLite2-City.mmdb");
             List<String> propertyNames = readOptionalList(TYPE, processorTag, config, "properties");
             boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
 
@@ -379,6 +387,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         COUNTRY_ISO_CODE,
         COUNTRY_NAME,
         CONTINENT_NAME,
+        REGION_ISO_CODE,
         REGION_NAME,
         CITY_NAME,
         TIMEZONE,
@@ -388,7 +397,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
         static final EnumSet<Property> ALL_CITY_PROPERTIES = EnumSet.of(
             Property.IP, Property.COUNTRY_ISO_CODE, Property.COUNTRY_NAME, Property.CONTINENT_NAME,
-            Property.REGION_NAME, Property.CITY_NAME, Property.TIMEZONE, Property.LOCATION
+            Property.REGION_ISO_CODE, Property.REGION_NAME, Property.CITY_NAME, Property.TIMEZONE,
+            Property.LOCATION
         );
         static final EnumSet<Property> ALL_COUNTRY_PROPERTIES = EnumSet.of(
             Property.IP, Property.CONTINENT_NAME, Property.COUNTRY_NAME, Property.COUNTRY_ISO_CODE

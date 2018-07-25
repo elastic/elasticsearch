@@ -33,7 +33,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -41,6 +40,7 @@ import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.hamcrest.Matchers;
@@ -86,7 +86,6 @@ import static org.hamcrest.Matchers.nullValue;
 public class FieldSortIT extends ESIntegTestCase {
     public static class CustomScriptPlugin extends MockScriptPlugin {
         @Override
-        @SuppressWarnings("unchecked")
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
             scripts.put("doc['number'].value", vars -> sortDoubleScript(vars));
@@ -94,14 +93,12 @@ public class FieldSortIT extends ESIntegTestCase {
             return scripts;
         }
 
-        @SuppressWarnings("unchecked")
         static Double sortDoubleScript(Map<String, Object> vars) {
             Map<?, ?> doc = (Map) vars.get("doc");
             Double index = ((Number) ((ScriptDocValues<?>) doc.get("number")).getValues().get(0)).doubleValue();
             return index;
         }
 
-        @SuppressWarnings("unchecked")
         static String sortStringScript(Map<String, Object> vars) {
             Map<?, ?> doc = (Map) vars.get("doc");
             String value = ((String) ((ScriptDocValues<?>) doc.get("keyword")).getValues().get(0));
@@ -1382,17 +1379,17 @@ public class FieldSortIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(randomIntBetween(1, numDocs + 5))
-                .addSort("_uid", order)
+                .addSort("_id", order)
                 .execute().actionGet();
         assertNoFailures(searchResponse);
         SearchHit[] hits = searchResponse.getHits().getHits();
         BytesRef previous = order == SortOrder.ASC ? new BytesRef() : UnicodeUtil.BIG_TERM;
         for (int i = 0; i < hits.length; ++i) {
-            String uidString = Uid.createUid(hits[i].getType(), hits[i].getId());
-            final BytesRef uid = new BytesRef(uidString);
-            assertEquals(uidString, hits[i].getSortValues()[0]);
-            assertThat(previous, order == SortOrder.ASC ? lessThan(uid) : greaterThan(uid));
-            previous = uid;
+            String idString = hits[i].getId();
+            final BytesRef id = new BytesRef(idString);
+            assertEquals(idString, hits[i].getSortValues()[0]);
+            assertThat(previous, order == SortOrder.ASC ? lessThan(id) : greaterThan(id));
+            previous = id;
         }
     }
 
@@ -1572,5 +1569,61 @@ public class FieldSortIT extends ESIntegTestCase {
                 assertThat(hit.getSortValues()[1], equalTo(1f));
             }
         }
+    }
+
+    public void testFieldAlias() throws Exception {
+        // Create two indices and add the field 'route_length_miles' as an alias in
+        // one, and a concrete field in the other.
+        assertAcked(prepareCreate("old_index")
+            .addMapping("_doc", "distance", "type=double", "route_length_miles", "type=alias,path=distance"));
+        assertAcked(prepareCreate("new_index")
+            .addMapping("_doc", "route_length_miles", "type=double"));
+        ensureGreen("old_index", "new_index");
+
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        builders.add(client().prepareIndex("old_index", "_doc").setSource("distance", 42.0));
+        builders.add(client().prepareIndex("old_index", "_doc").setSource("distance", 50.5));
+        builders.add(client().prepareIndex("new_index", "_doc").setSource("route_length_miles", 100.2));
+        indexRandom(true, true, builders);
+
+        SearchResponse response = client().prepareSearch()
+            .setQuery(matchAllQuery())
+            .setSize(builders.size())
+            .addSort(SortBuilders.fieldSort("route_length_miles"))
+            .execute().actionGet();
+        SearchHits hits = response.getHits();
+
+        assertEquals(3, hits.getHits().length);
+        assertEquals(42.0, hits.getAt(0).getSortValues()[0]);
+        assertEquals(50.5, hits.getAt(1).getSortValues()[0]);
+        assertEquals(100.2, hits.getAt(2).getSortValues()[0]);
+    }
+
+    public void testFieldAliasesWithMissingValues() throws Exception {
+        // Create two indices and add the field 'route_length_miles' as an alias in
+        // one, and a concrete field in the other.
+        assertAcked(prepareCreate("old_index")
+            .addMapping("_doc", "distance", "type=double", "route_length_miles", "type=alias,path=distance"));
+        assertAcked(prepareCreate("new_index")
+            .addMapping("_doc", "route_length_miles", "type=double"));
+        ensureGreen("old_index", "new_index");
+
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        builders.add(client().prepareIndex("old_index", "_doc").setSource("distance", 42.0));
+        builders.add(client().prepareIndex("old_index", "_doc").setSource(Collections.emptyMap()));
+        builders.add(client().prepareIndex("new_index", "_doc").setSource("route_length_miles", 100.2));
+        indexRandom(true, true, builders);
+
+        SearchResponse response = client().prepareSearch()
+            .setQuery(matchAllQuery())
+            .setSize(builders.size())
+            .addSort(SortBuilders.fieldSort("route_length_miles").missing(120.3))
+            .execute().actionGet();
+        SearchHits hits = response.getHits();
+
+        assertEquals(3, hits.getHits().length);
+        assertEquals(42.0, hits.getAt(0).getSortValues()[0]);
+        assertEquals(100.2, hits.getAt(1).getSortValues()[0]);
+        assertEquals(120.3, hits.getAt(2).getSortValues()[0]);
     }
 }

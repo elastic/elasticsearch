@@ -39,10 +39,10 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -149,7 +149,7 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
 
     private Document document(String id, String... stringValues) {
         Document document = new Document();
-        document.add(new Field(UidFieldMapper.NAME, Uid.createUid("type", id), UidFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), IdFieldMapper.Defaults.FIELD_TYPE));
         for (String stringValue : stringValues) {
             document.add(new Field("string", stringValue, STRING_FIELD_TYPE));
             document.add(new SortedSetDocValuesField("string", new BytesRef(stringValue)));

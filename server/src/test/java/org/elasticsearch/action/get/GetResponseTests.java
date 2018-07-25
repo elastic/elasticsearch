@@ -81,7 +81,7 @@ public class GetResponseTests extends ESTestCase {
             parsedGetResponse = GetResponse.fromXContent(parser);
             assertNull(parser.nextToken());
         }
-        assertEquals(expectedGetResponse, parsedGetResponse);
+        assertEquals(expectedGetResponse.getSourceAsMap(), parsedGetResponse.getSourceAsMap());
         //print the parsed object out and test that the output is the same as the original output
         BytesReference finalBytes = toXContent(parsedGetResponse, xContentType, humanReadable);
         assertToXContentEquivalent(originalBytes, finalBytes, xContentType);

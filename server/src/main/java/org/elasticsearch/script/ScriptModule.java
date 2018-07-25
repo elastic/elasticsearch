@@ -30,6 +30,8 @@ import java.util.stream.Stream;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.search.aggregations.pipeline.movfn.MovingFunctionScript;
+
 
 /**
  * Manages building {@link ScriptService}.
@@ -41,14 +43,22 @@ public class ScriptModule {
         CORE_CONTEXTS = Stream.of(
             SearchScript.CONTEXT,
             SearchScript.AGGS_CONTEXT,
+            ScoreScript.CONTEXT,
+            SearchScript.SCRIPT_SORT_CONTEXT,
+            SearchScript.TERMS_SET_QUERY_CONTEXT,
             ExecutableScript.CONTEXT,
             ExecutableScript.AGGS_CONTEXT,
             ExecutableScript.UPDATE_CONTEXT,
-            ExecutableScript.INGEST_CONTEXT,
+            IngestScript.CONTEXT,
             FilterScript.CONTEXT,
             SimilarityScript.CONTEXT,
             SimilarityWeightScript.CONTEXT,
-            TemplateScript.CONTEXT
+            TemplateScript.CONTEXT,
+            MovingFunctionScript.CONTEXT,
+            ScriptedMetricAggContexts.InitScript.CONTEXT,
+            ScriptedMetricAggContexts.MapScript.CONTEXT,
+            ScriptedMetricAggContexts.CombineScript.CONTEXT,
+            ScriptedMetricAggContexts.ReduceScript.CONTEXT
         ).collect(Collectors.toMap(c -> c.name, Function.identity()));
     }
 

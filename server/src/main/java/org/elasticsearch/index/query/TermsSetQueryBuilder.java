@@ -18,9 +18,7 @@
  */
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanQuery;
@@ -86,6 +84,11 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
         out.writeOptionalWriteable(minimumShouldMatchScript);
     }
 
+    // package protected for testing purpose
+    String getFieldName() {
+        return fieldName;
+    }
+
     public List<?> getValues() {
         return values;
     }
@@ -116,9 +119,10 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
 
     @Override
     protected boolean doEquals(TermsSetQueryBuilder other) {
-        return Objects.equals(fieldName, this.fieldName) && Objects.equals(values, this.values) &&
-                Objects.equals(minimumShouldMatchField, this.minimumShouldMatchField) &&
-                Objects.equals(minimumShouldMatchScript, this.minimumShouldMatchScript);
+        return Objects.equals(fieldName, other.fieldName)
+            && Objects.equals(values, other.values)
+            && Objects.equals(minimumShouldMatchField, other.minimumShouldMatchField)
+            && Objects.equals(minimumShouldMatchScript, other.minimumShouldMatchScript);
     }
 
     @Override
@@ -217,7 +221,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
+    protected Query doToQuery(QueryShardContext context) {
         if (values.isEmpty()) {
             return Queries.newMatchNoDocsQuery("No terms supplied for \"" + getName() + "\" query.");
         }
@@ -226,6 +230,15 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
             throw new BooleanQuery.TooManyClauses();
         }
 
+        List<Query> queries = createTermQueries(context);
+        LongValuesSource longValuesSource = createValuesSource(context);
+        return new CoveringQuery(queries, longValuesSource);
+    }
+
+    /**
+     * Visible only for testing purposes.
+     */
+    List<Query> createTermQueries(QueryShardContext context) {
         final MappedFieldType fieldType = context.fieldMapper(fieldName);
         final List<Query> queries = new ArrayList<>(values.size());
         for (Object value : values) {
@@ -235,7 +248,11 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
                 queries.add(new TermQuery(new Term(fieldName, BytesRefs.toBytesRef(value))));
             }
         }
-        final LongValuesSource longValuesSource;
+        return queries;
+    }
+
+    private LongValuesSource createValuesSource(QueryShardContext context) {
+        LongValuesSource longValuesSource;
         if (minimumShouldMatchField != null) {
             MappedFieldType msmFieldType = context.fieldMapper(minimumShouldMatchField);
             if (msmFieldType == null) {
@@ -245,16 +262,17 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
             IndexNumericFieldData fieldData = context.getForField(msmFieldType);
             longValuesSource = new FieldValuesSource(fieldData);
         } else if (minimumShouldMatchScript != null) {
-            SearchScript.Factory factory = context.getScriptService().compile(minimumShouldMatchScript, SearchScript.CONTEXT);
+            SearchScript.Factory factory = context.getScriptService().compile(minimumShouldMatchScript,
+                SearchScript.TERMS_SET_QUERY_CONTEXT);
             Map<String, Object> params = new HashMap<>();
             params.putAll(minimumShouldMatchScript.getParams());
-            params.put("num_terms", queries.size());
+            params.put("num_terms", values.size());
             SearchScript.LeafFactory leafFactory = factory.newFactory(params, context.lookup());
             longValuesSource = new ScriptLongValueSource(minimumShouldMatchScript, leafFactory);
         } else {
             throw new IllegalStateException("No minimum should match has been specified");
         }
-        return new CoveringQuery(queries, longValuesSource);
+        return longValuesSource;
     }
 
     static final class ScriptLongValueSource extends LongValuesSource {

@@ -27,10 +27,10 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.CharsRefBuilder;
-import org.elasticsearch.common.io.FastCharArrayReader;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.Candidate;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.CandidateSet;
 
+import java.io.CharArrayReader;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -139,7 +139,7 @@ public final class NoisyChannelSpellChecker {
 
     public TokenStream tokenStream(Analyzer analyzer, BytesRef query, CharsRefBuilder spare, String field) throws IOException {
         spare.copyUTF8Bytes(query);
-        return analyzer.tokenStream(field, new FastCharArrayReader(spare.chars(), 0, spare.length()));
+        return analyzer.tokenStream(field, new CharArrayReader(spare.chars(), 0, spare.length()));
     }
 
     public static class Result {

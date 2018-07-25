@@ -57,7 +57,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -99,7 +98,8 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         Map<String, Float> fields = new HashMap<>();
         for (int i = 0; i < fieldCount; i++) {
             if (randomBoolean()) {
-                fields.put(STRING_FIELD_NAME, AbstractQueryBuilder.DEFAULT_BOOST);
+                String fieldName = randomFrom(STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME);
+                fields.put(fieldName, AbstractQueryBuilder.DEFAULT_BOOST);
             } else {
                 fields.put(STRING_FIELD_NAME_2, 2.0f / randomIntBetween(1, 20));
             }
@@ -611,7 +611,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     public void testWithStopWords() throws Exception {
         Query query = new SimpleQueryStringBuilder("the quick fox")
             .field(STRING_FIELD_NAME)
-            .analyzer("english")
+            .analyzer("stop")
             .toQuery(createShardContext());
         BooleanQuery expected = new BooleanQuery.Builder()
             .add(new TermQuery(new Term(STRING_FIELD_NAME, "quick")), BooleanClause.Occur.SHOULD)
@@ -623,7 +623,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     public void testWithPrefixStopWords() throws Exception {
         Query query = new SimpleQueryStringBuilder("the* quick fox")
             .field(STRING_FIELD_NAME)
-            .analyzer("english")
+            .analyzer("stop")
             .toQuery(createShardContext());
         BooleanQuery expected = new BooleanQuery.Builder()
             .add(new PrefixQuery(new Term(STRING_FIELD_NAME, "the")), BooleanClause.Occur.SHOULD)

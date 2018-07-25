@@ -92,7 +92,7 @@ public class WarmerStats implements Streamable, ToXContentFragment {
         builder.startObject(Fields.WARMER);
         builder.field(Fields.CURRENT, current);
         builder.field(Fields.TOTAL, total);
-        builder.timeValueField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, totalTimeInMillis);
+        builder.humanReadableField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, totalTime());
         builder.endObject();
         return builder;
     }

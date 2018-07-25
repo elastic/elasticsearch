@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -236,7 +237,7 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
                 "  \"sum_as_string\" : \"" + format.format(internalStats.getSum()) + "\"";
         }
         expected += "\n}";
-        assertEquals(expected, builder.string());
+        assertEquals(expected, Strings.toString(builder));
 
         // count is zero
         format = randomNumericDocValueFormat();
@@ -256,7 +257,7 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
             "  \"max\" : null,\n" +
             "  \"avg\" : null,\n" +
             "  \"sum\" : 0.0\n" +
-            "}", builder.string());
+            "}", Strings.toString(builder));
     }
 }
 

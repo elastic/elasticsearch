@@ -31,7 +31,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 /**
  * An extension to thread pool executor, which automatically adjusts the queue size of the
@@ -197,7 +196,7 @@ public final class QueueResizingEsThreadPoolExecutor extends EsThreadPoolExecuto
                 }
             } catch (ArithmeticException e) {
                 // There was an integer overflow, so just log about it, rather than adjust the queue size
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage(
+                logger.warn(() -> new ParameterizedMessage(
                                 "failed to calculate optimal queue size for [{}] thread pool, " +
                                 "total frame time [{}ns], tasks [{}], task execution time [{}ns]",
                                 getName(), totalRuntime, tasksPerFrame, totalNanos),

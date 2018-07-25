@@ -23,19 +23,20 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-public class SearchStats implements Streamable, ToXContentFragment {
+public class SearchStats implements Writeable, ToXContentFragment {
 
-    public static class Stats implements Streamable, ToXContentFragment {
+    public static class Stats implements Writeable, ToXContentFragment {
 
         private long queryCount;
         private long queryTimeInMillis;
@@ -53,8 +54,8 @@ public class SearchStats implements Streamable, ToXContentFragment {
         private long suggestTimeInMillis;
         private long suggestCurrent;
 
-        Stats() {
-
+        private Stats() {
+            // for internal use, initializes all counts to 0
         }
 
         public Stats(
@@ -78,16 +79,24 @@ public class SearchStats implements Streamable, ToXContentFragment {
             this.suggestCount = suggestCount;
             this.suggestTimeInMillis = suggestTimeInMillis;
             this.suggestCurrent = suggestCurrent;
-
         }
 
-        public Stats(Stats stats) {
-            this(
-                    stats.queryCount, stats.queryTimeInMillis, stats.queryCurrent,
-                    stats.fetchCount, stats.fetchTimeInMillis, stats.fetchCurrent,
-                    stats.scrollCount, stats.scrollTimeInMillis, stats.scrollCurrent,
-                    stats.suggestCount, stats.suggestTimeInMillis, stats.suggestCurrent
-            );
+        private Stats(StreamInput in) throws IOException {
+            queryCount = in.readVLong();
+            queryTimeInMillis = in.readVLong();
+            queryCurrent = in.readVLong();
+
+            fetchCount = in.readVLong();
+            fetchTimeInMillis = in.readVLong();
+            fetchCurrent = in.readVLong();
+
+            scrollCount = in.readVLong();
+            scrollTimeInMillis = in.readVLong();
+            scrollCurrent = in.readVLong();
+
+            suggestCount = in.readVLong();
+            suggestTimeInMillis = in.readVLong();
+            suggestCurrent = in.readVLong();
         }
 
         public void add(Stats stats) {
@@ -173,28 +182,7 @@ public class SearchStats implements Streamable, ToXContentFragment {
         }
 
         public static Stats readStats(StreamInput in) throws IOException {
-            Stats stats = new Stats();
-            stats.readFrom(in);
-            return stats;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            queryCount = in.readVLong();
-            queryTimeInMillis = in.readVLong();
-            queryCurrent = in.readVLong();
-
-            fetchCount = in.readVLong();
-            fetchTimeInMillis = in.readVLong();
-            fetchCurrent = in.readVLong();
-
-            scrollCount = in.readVLong();
-            scrollTimeInMillis = in.readVLong();
-            scrollCurrent = in.readVLong();
-
-            suggestCount = in.readVLong();
-            suggestTimeInMillis = in.readVLong();
-            suggestCurrent = in.readVLong();
+            return new Stats(in);
         }
 
         @Override
@@ -219,30 +207,30 @@ public class SearchStats implements Streamable, ToXContentFragment {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(Fields.QUERY_TOTAL, queryCount);
-            builder.timeValueField(Fields.QUERY_TIME_IN_MILLIS, Fields.QUERY_TIME, queryTimeInMillis);
+            builder.humanReadableField(Fields.QUERY_TIME_IN_MILLIS, Fields.QUERY_TIME, getQueryTime());
             builder.field(Fields.QUERY_CURRENT, queryCurrent);
 
             builder.field(Fields.FETCH_TOTAL, fetchCount);
-            builder.timeValueField(Fields.FETCH_TIME_IN_MILLIS, Fields.FETCH_TIME, fetchTimeInMillis);
+            builder.humanReadableField(Fields.FETCH_TIME_IN_MILLIS, Fields.FETCH_TIME, getFetchTime());
             builder.field(Fields.FETCH_CURRENT, fetchCurrent);
 
             builder.field(Fields.SCROLL_TOTAL, scrollCount);
-            builder.timeValueField(Fields.SCROLL_TIME_IN_MILLIS, Fields.SCROLL_TIME, scrollTimeInMillis);
+            builder.humanReadableField(Fields.SCROLL_TIME_IN_MILLIS, Fields.SCROLL_TIME, getScrollTime());
             builder.field(Fields.SCROLL_CURRENT, scrollCurrent);
 
             builder.field(Fields.SUGGEST_TOTAL, suggestCount);
-            builder.timeValueField(Fields.SUGGEST_TIME_IN_MILLIS, Fields.SUGGEST_TIME, suggestTimeInMillis);
+            builder.humanReadableField(Fields.SUGGEST_TIME_IN_MILLIS, Fields.SUGGEST_TIME, getSuggestTime());
             builder.field(Fields.SUGGEST_CURRENT, suggestCurrent);
 
             return builder;
         }
     }
 
-    Stats totalStats;
-    long openContexts;
+    private final Stats totalStats;
+    private long openContexts;
 
     @Nullable
-    Map<String, Stats> groupStats;
+    private Map<String, Stats> groupStats;
 
     public SearchStats() {
         totalStats = new Stats();
@@ -254,27 +242,27 @@ public class SearchStats implements Streamable, ToXContentFragment {
         this.groupStats = groupStats;
     }
 
-    public void add(SearchStats searchStats) {
-        add(searchStats, true);
+    public SearchStats(StreamInput in) throws IOException {
+        totalStats = Stats.readStats(in);
+        openContexts = in.readVLong();
+        if (in.readBoolean()) {
+            groupStats = in.readMap(StreamInput::readString, Stats::readStats);
+        }
     }
 
-    public void add(SearchStats searchStats, boolean includeTypes) {
+    public void add(SearchStats searchStats) {
         if (searchStats == null) {
             return;
         }
         addTotals(searchStats);
         openContexts += searchStats.openContexts;
-        if (includeTypes && searchStats.groupStats != null && !searchStats.groupStats.isEmpty()) {
+        if (searchStats.groupStats != null && !searchStats.groupStats.isEmpty()) {
             if (groupStats == null) {
                 groupStats = new HashMap<>(searchStats.groupStats.size());
             }
             for (Map.Entry<String, Stats> entry : searchStats.groupStats.entrySet()) {
-                Stats stats = groupStats.get(entry.getKey());
-                if (stats == null) {
-                    groupStats.put(entry.getKey(), new Stats(entry.getValue()));
-                } else {
-                    stats.add(entry.getValue());
-                }
+                groupStats.putIfAbsent(entry.getKey(), new Stats());
+                groupStats.get(entry.getKey()).add(entry.getValue());
             }
         }
     }
@@ -296,7 +284,7 @@ public class SearchStats implements Streamable, ToXContentFragment {
 
     @Nullable
     public Map<String, Stats> getGroupStats() {
-        return this.groupStats;
+        return this.groupStats != null ? Collections.unmodifiableMap(this.groupStats) : null;
     }
 
     @Override
@@ -342,15 +330,6 @@ public class SearchStats implements Streamable, ToXContentFragment {
         static final String SUGGEST_TIME = "suggest_time";
         static final String SUGGEST_TIME_IN_MILLIS = "suggest_time_in_millis";
         static final String SUGGEST_CURRENT = "suggest_current";
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        totalStats = Stats.readStats(in);
-        openContexts = in.readVLong();
-        if (in.readBoolean()) {
-            groupStats = in.readMap(StreamInput::readString, Stats::readStats);
-        }
     }
 
     @Override

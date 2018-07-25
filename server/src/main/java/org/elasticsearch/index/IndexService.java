@@ -24,7 +24,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -40,6 +39,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
@@ -139,7 +139,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             SimilarityService similarityService,
             ShardStoreDeleter shardStoreDeleter,
             AnalysisRegistry registry,
-            @Nullable EngineFactory engineFactory,
+            EngineFactory engineFactory,
             CircuitBreakerService circuitBreakerService,
             BigArrays bigArrays,
             ThreadPool threadPool,
@@ -188,7 +188,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.warmer = new IndexWarmer(indexSettings.getSettings(), threadPool, indexFieldData,
             bitsetFilterCache.createListener(threadPool));
         this.indexCache = new IndexCache(indexSettings, queryCache, bitsetFilterCache);
-        this.engineFactory = engineFactory;
+        this.engineFactory = Objects.requireNonNull(engineFactory);
         // initialize this last -- otherwise if the wrapper requires any other member to be non-null we fail with an NPE
         this.searcherWrapper = wrapperFactory.newWrapper(this);
         this.searchOperationListeners = Collections.unmodifiableList(searchOperationListeners);
@@ -431,8 +431,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                         final boolean flushEngine = deleted.get() == false && closed.get();
                         indexShard.close(reason, flushEngine);
                     } catch (Exception e) {
-                        logger.debug((org.apache.logging.log4j.util.Supplier<?>)
-                            () -> new ParameterizedMessage("[{}] failed to close index shard", shardId), e);
+                        logger.debug(() -> new ParameterizedMessage("[{}] failed to close index shard", shardId), e);
                         // ignore
                     }
                 }
@@ -448,7 +447,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 }
             } catch (Exception e) {
                 logger.warn(
-                    (Supplier<?>) () -> new ParameterizedMessage(
+                    () -> new ParameterizedMessage(
                         "[{}] failed to close store on shard removal (reason: [{}])", shardId, reason), e);
             }
         }
@@ -467,7 +466,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             } catch (IOException e) {
                 shardStoreDeleter.addPendingDelete(lock.getShardId(), indexSettings);
                 logger.debug(
-                    (Supplier<?>) () -> new ParameterizedMessage(
+                    () -> new ParameterizedMessage(
                         "[{}] failed to delete shard content - scheduled a retry", lock.getShardId().id()), e);
             }
         }
@@ -623,7 +622,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     shard.onSettingsChanged();
                 } catch (Exception e) {
                     logger.warn(
-                        (Supplier<?>) () -> new ParameterizedMessage(
+                        () -> new ParameterizedMessage(
                             "[{}] failed to notify shard about setting change", shard.shardId().id()), e);
                 }
             }
@@ -682,9 +681,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         void addPendingDelete(ShardId shardId, IndexSettings indexSettings);
     }
 
-    final EngineFactory getEngineFactory() {
+    public final EngineFactory getEngineFactory() {
         return engineFactory;
-    } // pkg private for testing
+    }
 
     final IndexSearcherWrapper getSearcherWrapper() {
         return searcherWrapper;
@@ -698,8 +697,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         if (indexSettings.getTranslogDurability() == Translog.Durability.ASYNC) {
             for (IndexShard shard : this.shards.values()) {
                 try {
-                    Translog translog = shard.getTranslog();
-                    if (translog.syncNeeded()) {
+                    if (shard.isSyncNeeded()) {
                         shard.sync();
                     }
                 } catch (AlreadyClosedException ex) {
@@ -732,7 +730,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     continue;
                 case POST_RECOVERY:
                 case STARTED:
-                case RELOCATED:
                     try {
                         shard.trimTranslog();
                     } catch (IndexShardClosedException | AlreadyClosedException ex) {
@@ -752,7 +749,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     case CLOSED:
                     case CREATED:
                     case RECOVERING:
-                    case RELOCATED:
                         continue;
                     case POST_RECOVERY:
                         assert false : "shard " + shard.shardId() + " is in post-recovery but marked as active";
@@ -832,7 +828,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 if (lastThrownException == null || sameException(lastThrownException, ex) == false) {
                     // prevent the annoying fact of logging the same stuff all the time with an interval of 1 sec will spam all your logs
                     indexService.logger.warn(
-                        (Supplier<?>) () -> new ParameterizedMessage(
+                        () -> new ParameterizedMessage(
                             "failed to run task {} - suppressing re-occurring exceptions unless the exception changes",
                             toString()),
                         ex);

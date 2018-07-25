@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.IntSupplier;
+import java.util.function.Supplier;
 
 import static java.util.Objects.requireNonNull;
 
@@ -153,21 +154,20 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
     /**
      * Setup the translog used to find the last refreshed location.
      */
-    public void setTranslog(Translog translog) {
-        this.translog = translog;
+    public void setCurrentRefreshLocationSupplier(Supplier<Translog.Location> currentRefreshLocationSupplier) {
+        this.currentRefreshLocationSupplier = currentRefreshLocationSupplier;
     }
 
-    // Implementation of ReferenceManager.RefreshListener that adapts Lucene's RefreshListener into Elasticsearch's refresh listeners.
-    private Translog translog;
     /**
      * Snapshot of the translog location before the current refresh if there is a refresh going on or null. Doesn't have to be volatile
      * because when it is used by the refreshing thread.
      */
     private Translog.Location currentRefreshLocation;
+    private Supplier<Translog.Location> currentRefreshLocationSupplier;
 
     @Override
     public void beforeRefresh() throws IOException {
-        currentRefreshLocation = translog.getLastWriteLocation();
+        currentRefreshLocation = currentRefreshLocationSupplier.get();
     }
 
     @Override

@@ -28,10 +28,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 
@@ -49,8 +47,8 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
         PARSER.declareString(Builder::setId, new ParseField("id"));
         PARSER.declareField((parser, builder, aVoid) -> {
             XContentBuilder contentBuilder = XContentBuilder.builder(parser.contentType().xContent());
-            XContentHelper.copyCurrentStructure(contentBuilder.generator(), parser);
-            builder.setConfig(contentBuilder.bytes(), contentBuilder.contentType());
+            contentBuilder.generator().copyCurrentStructure(parser);
+            builder.setConfig(BytesReference.bytes(contentBuilder), contentBuilder.contentType());
         }, new ParseField("config"), ObjectParser.ValueType.OBJECT);
 
     }
@@ -124,7 +122,7 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
         } else {
             final String id = in.readString();
             final BytesReference config = in.readBytesReference();
-            return new PipelineConfiguration(id, config, XContentFactory.xContentType(config));
+            return new PipelineConfiguration(id, config, XContentHelper.xContentType(config));
         }
     }
 
@@ -149,14 +147,14 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
         PipelineConfiguration that = (PipelineConfiguration) o;
 
         if (!id.equals(that.id)) return false;
-        return config.equals(that.config);
+        return getConfigAsMap().equals(that.getConfigAsMap());
 
     }
 
     @Override
     public int hashCode() {
         int result = id.hashCode();
-        result = 31 * result + config.hashCode();
+        result = 31 * result + getConfigAsMap().hashCode();
         return result;
     }
 }

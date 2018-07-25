@@ -25,7 +25,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
@@ -115,6 +114,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -330,7 +330,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         ScrollableHitSource.Response response = new ScrollableHitSource.Response(false, emptyList(), 0, emptyList(), null);
         simulateScrollResponse(new DummyAsyncBulkByScrollAction(), timeValueNanos(System.nanoTime()), 10, response);
         ExecutionException e = expectThrows(ExecutionException.class, () -> listener.get());
-        assertThat(e.getMessage(), equalTo("EsRejectedExecutionException[test]"));
+        assertThat(e.getCause(), instanceOf(EsRejectedExecutionException.class));
+        assertThat(e.getCause(), hasToString(containsString("test")));
         assertThat(client.scrollsCleared, contains(scrollId));
 
         // When the task is rejected we don't increment the throttled timer
@@ -741,9 +742,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
 
         @Override
         @SuppressWarnings("unchecked")
-        protected <Request extends ActionRequest, Response extends ActionResponse,
-                RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(
-                Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
+        protected <Request extends ActionRequest, Response extends ActionResponse>
+        void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
             if (false == expectedHeaders.equals(threadPool().getThreadContext().getHeaders())) {
                 listener.onFailure(
                         new RuntimeException("Expected " + expectedHeaders + " but got " + threadPool().getThreadContext().getHeaders()));

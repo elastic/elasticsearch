@@ -27,7 +27,6 @@ Elasticsearch is a distributed RESTful search engine built for the cloud. Featur
 ** All the power of Lucene easily exposed through simple configuration / plugins.
 * Per operation consistency
 ** Single document level operations are atomic, consistent, isolated and durable.
-* Open Source under the Apache License, version 2 ("ALv2")
 
 h2. Getting Started
 
@@ -217,23 +216,3 @@ Elasticsearch (1.x), it is required to perform a full cluster restart. Please
 see the "setup reference":
 https://www.elastic.co/guide/en/elasticsearch/reference/current/setup-upgrade.html
 for more details on the upgrade process.
-
-h1. License
-
-<pre>
-This software is licensed under the Apache License, version 2 ("ALv2"), quoted below.
-
-Copyright 2009-2016 Elasticsearch <https://www.elastic.co>
-
-Licensed under the Apache License, Version 2.0 (the "License"); you may not
-use this file except in compliance with the License. You may obtain a copy of
-the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
-WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
-License for the specific language governing permissions and limitations under
-the License.
-</pre>

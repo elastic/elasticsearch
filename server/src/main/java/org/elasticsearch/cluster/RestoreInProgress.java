@@ -20,14 +20,16 @@
 package org.elasticsearch.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState.Custom;
-import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.snapshots.Snapshot;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -164,7 +166,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             if (o == null || getClass() != o.getClass()) {
                 return false;
             }
-            @SuppressWarnings("unchecked") Entry entry = (Entry) o;
+            Entry entry = (Entry) o;
             return snapshot.equals(entry.snapshot) &&
                        state == entry.state &&
                        indices.equals(entry.indices) &&
@@ -290,7 +292,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
                 return false;
             }
 
-            @SuppressWarnings("unchecked") ShardRestoreStatus status = (ShardRestoreStatus) o;
+            ShardRestoreStatus status = (ShardRestoreStatus) o;
             return state == status.state &&
                        Objects.equals(nodeId, status.nodeId) &&
                        Objects.equals(reason, status.reason);
@@ -380,6 +382,11 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
     @Override
     public String getWriteableName() {
         return TYPE;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.CURRENT.minimumCompatibilityVersion();
     }
 
     public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws IOException {

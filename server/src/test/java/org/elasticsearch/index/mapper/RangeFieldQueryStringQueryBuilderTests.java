@@ -29,6 +29,7 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.network.InetAddresses;
@@ -54,14 +55,14 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
-        mapperService.merge("_doc", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("_doc",
+        mapperService.merge("_doc", new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef("_doc",
             INTEGER_RANGE_FIELD_NAME, "type=integer_range",
             LONG_RANGE_FIELD_NAME, "type=long_range",
             FLOAT_RANGE_FIELD_NAME, "type=float_range",
             DOUBLE_RANGE_FIELD_NAME, "type=double_range",
             DATE_RANGE_FIELD_NAME, "type=date_range",
             IP_RANGE_FIELD_NAME, "type=ip_range"
-        ).string()), MapperService.MergeReason.MAPPING_UPDATE);
+        ))), MapperService.MergeReason.MAPPING_UPDATE);
 
     }
 

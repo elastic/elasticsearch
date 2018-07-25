@@ -184,10 +184,13 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     }
 
     /**
-     * @param type the mapping type
-     * @param source consisting of field/properties pairs (e.g. "field1",
-     *            "type=string,store=true"). If the number of arguments is not
-     *            divisible by two an {@link IllegalArgumentException} is thrown
+     * @param type
+     *            the mapping type
+     * @param source
+     *            consisting of field/properties pairs (e.g. "field1",
+     *            "type=string,store=true")
+     * @throws IllegalArgumentException
+     *             if the number of the source arguments is not divisible by two
      * @return the mappings definition
      */
     public static XContentBuilder buildFromSimplifiedDef(String type, Object... source) {
@@ -250,22 +253,17 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
      * The mapping source definition.
      */
     public PutMappingRequest source(XContentBuilder mappingBuilder) {
-        try {
-            return source(mappingBuilder.string(), mappingBuilder.contentType());
-        } catch (IOException e) {
-            throw new IllegalArgumentException("Failed to build json for mapping request", e);
-        }
+        return source(Strings.toString(mappingBuilder), mappingBuilder.contentType());
     }
 
     /**
      * The mapping source definition.
      */
-    @SuppressWarnings("unchecked")
-    public PutMappingRequest source(Map mappingSource) {
+    public PutMappingRequest source(Map<String, ?> mappingSource) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(mappingSource);
-            return source(builder.string(), XContentType.JSON);
+            return source(Strings.toString(builder), XContentType.JSON);
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + mappingSource + "]", e);
         }

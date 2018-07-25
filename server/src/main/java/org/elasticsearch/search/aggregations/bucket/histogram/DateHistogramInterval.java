@@ -22,6 +22,8 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -29,7 +31,7 @@ import java.util.Objects;
 /**
  * The interval the date histogram is based on.
  */
-public class DateHistogramInterval implements Writeable {
+public class DateHistogramInterval implements Writeable, ToXContentFragment {
 
     public static final DateHistogramInterval SECOND = new DateHistogramInterval("1s");
     public static final DateHistogramInterval MINUTE = new DateHistogramInterval("1m");
@@ -99,5 +101,10 @@ public class DateHistogramInterval implements Writeable {
         }
         DateHistogramInterval other = (DateHistogramInterval) obj;
         return Objects.equals(expression, other.expression);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder.value(toString());
     }
 }

@@ -156,3 +156,31 @@ setup:
   - is_true: routing_table.indices.index1
   - is_true: metadata.indices.index2
   - is_true: routing_table.indices.index2
+
+---
+"Filtering the cluster state returns cluster_uuid at the top level regardless of metric filters":
+  - skip:
+      version:  " - 6.3.99"
+      reason:   "cluster state including cluster_uuid at the top level is new in v6.4.0 and higher"
+
+  # Get the current cluster_uuid
+  - do:
+      cluster.state: {}
+  - set: { metadata.cluster_uuid : cluster_uuid }
+
+  - do:
+      cluster.state:
+        metric: [ master_node, version ]
+
+  - match: { cluster_uuid: $cluster_uuid }
+  - is_true: master_node
+  - is_true: version
+  - is_true: state_uuid
+
+  - do:
+      cluster.state:
+        metric: [ routing_table ]
+        index: testidx
+
+  - match: { cluster_uuid: $cluster_uuid }
+  - is_true: routing_table

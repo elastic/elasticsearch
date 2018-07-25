@@ -110,11 +110,11 @@ public class GetStats implements Streamable, ToXContentFragment {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.GET);
         builder.field(Fields.TOTAL, getCount());
-        builder.timeValueField(Fields.TIME_IN_MILLIS, Fields.TIME, getTimeInMillis());
+        builder.humanReadableField(Fields.TIME_IN_MILLIS, Fields.TIME, getTime());
         builder.field(Fields.EXISTS_TOTAL, existsCount);
-        builder.timeValueField(Fields.EXISTS_TIME_IN_MILLIS, Fields.EXISTS_TIME, existsTimeInMillis);
+        builder.humanReadableField(Fields.EXISTS_TIME_IN_MILLIS, Fields.EXISTS_TIME, getExistsTime());
         builder.field(Fields.MISSING_TOTAL, missingCount);
-        builder.timeValueField(Fields.MISSING_TIME_IN_MILLIS, Fields.MISSING_TIME, missingTimeInMillis);
+        builder.humanReadableField(Fields.MISSING_TIME_IN_MILLIS, Fields.MISSING_TIME, getMissingTime());
         builder.field(Fields.CURRENT, current);
         builder.endObject();
         return builder;

@@ -84,7 +84,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      *   to replica mode (using {@link #completeRelocationHandoff}), as the relocation target will be in charge of the global checkpoint
      *   computation from that point on.
      */
-    boolean primaryMode;
+    volatile boolean primaryMode;
     /**
      * Boolean flag that indicates if a relocation handoff is in progress. A handoff is started by calling {@link #startRelocationHandoff}
      * and is finished by either calling {@link #completeRelocationHandoff} or {@link #abortRelocationHandoff}, depending on whether the
@@ -253,6 +253,14 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     }
 
     /**
+     * Returns whether the replication tracker is in primary mode, i.e., whether the current shard is acting as primary from the point of
+     * view of replication.
+     */
+    public boolean isPrimaryMode() {
+        return primaryMode;
+    }
+
+    /**
      * Class invariant that should hold before and after every invocation of public methods on this class. As Java lacks implication
      * as a logical operator, many of the invariants are written under the form (!A || B), they should be read as (A implies B) however.
      */
@@ -329,6 +337,11 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             // in-sync shard copies are tracked
             assert !entry.getValue().inSync || entry.getValue().tracked :
                 "shard copy " + entry.getKey() + " is in-sync but not tracked";
+        }
+
+        // all pending in sync shards are tracked
+        for (String aId : pendingInSync) {
+            assert checkpoints.get(aId) != null : "aId [" + aId + "] is pending in sync but isn't tracked";
         }
 
         return true;
@@ -513,6 +526,9 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                         checkpoints.put(initializingId, new CheckpointState(localCheckpoint, globalCheckpoint, inSync, inSync));
                     }
                 }
+                if (removedEntries) {
+                    pendingInSync.removeIf(aId -> checkpoints.containsKey(aId) == false);
+                }
             } else {
                 for (String initializingId : initializingAllocationIds) {
                     if (shardAllocationId.equals(initializingId) == false) {
@@ -541,6 +557,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             replicationGroup = calculateReplicationGroup();
             if (primaryMode && removedEntries) {
                 updateGlobalCheckpointOnPrimary();
+                // notify any waiter for local checkpoint advancement to recheck that their shard is still being tracked.
+                notifyAllWaiters();
             }
         }
         assert invariant();

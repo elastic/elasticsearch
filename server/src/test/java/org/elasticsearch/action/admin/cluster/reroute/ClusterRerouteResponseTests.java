@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateReplicaAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -68,6 +69,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
             assertEquals("{\n" +
                     "  \"acknowledged\" : true,\n" +
                     "  \"state\" : {\n" +
+                    "    \"cluster_uuid\" : \"_na_\",\n" +
                     "    \"version\" : 0,\n" +
                     "    \"state_uuid\" : \"" + clusterState.stateUUID() + "\",\n" +
                     "    \"master_node\" : \"node0\",\n" +
@@ -123,7 +125,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                     "      }\n" +
                     "    }\n" +
                     "  }\n" +
-                    "}", builder.string());
+                    "}", Strings.toString(builder));
 
         }
         {
@@ -135,6 +137,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
             assertEquals("{\n" +
                     "  \"acknowledged\" : true,\n" +
                     "  \"state\" : {\n" +
+                    "    \"cluster_uuid\" : \"_na_\",\n" +
                     "    \"version\" : 0,\n" +
                     "    \"state_uuid\" : \"" + clusterState.stateUUID() + "\",\n" +
                     "    \"master_node\" : \"node0\"\n" +
@@ -156,7 +159,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                     "      ]\n" +
                     "    }\n" +
                     "  ]\n" +
-                    "}", builder.string());
+                    "}", Strings.toString(builder));
         }
         {
             XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
@@ -167,6 +170,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
             assertEquals("{\n" +
                     "  \"acknowledged\" : true,\n" +
                     "  \"state\" : {\n" +
+                    "    \"cluster_uuid\" : \"_na_\",\n" +
                     "    \"metadata\" : {\n" +
                     "      \"cluster_uuid\" : \"_na_\",\n" +
                     "      \"templates\" : { },\n" +
@@ -196,7 +200,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                     "      }\n" +
                     "    }\n" +
                     "  }\n" +
-                    "}", builder.string());
+                    "}", Strings.toString(builder));
         }
     }
 }

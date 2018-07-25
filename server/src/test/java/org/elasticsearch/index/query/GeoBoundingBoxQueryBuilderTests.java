@@ -24,6 +24,7 @@ import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -38,6 +39,7 @@ import java.io.IOException;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBoundingBoxQueryBuilder> {
     /** Randomly generate either NaN or one of the two infinity values. */
@@ -45,7 +47,8 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
 
     @Override
     protected GeoBoundingBoxQueryBuilder doCreateTestQueryBuilder() {
-        GeoBoundingBoxQueryBuilder builder = new GeoBoundingBoxQueryBuilder(GEO_POINT_FIELD_NAME);
+        String fieldName = randomFrom(GEO_POINT_FIELD_NAME, GEO_POINT_ALIAS_FIELD_NAME);
+        GeoBoundingBoxQueryBuilder builder = new GeoBoundingBoxQueryBuilder(fieldName);
         Rectangle box = RandomShapeGenerator.xRandomRectangle(random(), RandomShapeGenerator.xRandomPoint(random()));
 
         if (randomBoolean()) {
@@ -108,11 +111,17 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
     }
 
     public void testExceptionOnMissingTypes() throws IOException {
+<<<<<<< HEAD
         QueryShardContext context = createShardContextWithNoType();
         GeoBoundingBoxQueryBuilder qb = createTestQueryBuilder();
         qb.ignoreUnmapped(false);
         QueryShardException e = expectThrows(QueryShardException.class, () -> qb.toQuery(context));
         assertEquals("failed to find geo_point field [mapped_geo_point]", e.getMessage());
+=======
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length == 0);
+        QueryShardException e = expectThrows(QueryShardException.class, super::testToQuery);
+        assertThat(e.getMessage(), startsWith("failed to find geo_point field [mapped_geo_point"));
+>>>>>>> master
     }
 
     public void testBrokenCoordinateCannotBeSet() {
@@ -211,13 +220,14 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
             assertTrue("Found no indexed geo query.", query instanceof MatchNoDocsQuery);
         } else if (query instanceof IndexOrDocValuesQuery) { // TODO: remove the if statement once we always use LatLonPoint
             Query indexQuery = ((IndexOrDocValuesQuery) query).getIndexQuery();
-            assertEquals(LatLonPoint.newBoxQuery(queryBuilder.fieldName(),
+            String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
+            assertEquals(LatLonPoint.newBoxQuery(expectedFieldName,
                     queryBuilder.bottomRight().lat(),
                     queryBuilder.topLeft().lat(),
                     queryBuilder.topLeft().lon(),
                     queryBuilder.bottomRight().lon()), indexQuery);
             Query dvQuery = ((IndexOrDocValuesQuery) query).getRandomAccessQuery();
-            assertEquals(LatLonDocValuesField.newSlowBoxQuery(queryBuilder.fieldName(),
+            assertEquals(LatLonDocValuesField.newSlowBoxQuery(expectedFieldName,
                     queryBuilder.bottomRight().lat(),
                     queryBuilder.topLeft().lat(),
                     queryBuilder.topLeft().lon(),
@@ -440,6 +450,93 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         assertEquals(expectedJson, GeoExecType.MEMORY, parsed.type());
     }
 
+<<<<<<< HEAD
+=======
+    public void testFromGeohash() throws IOException {
+        String json =
+            "{\n" +
+                "  \"geo_bounding_box\" : {\n" +
+                "    \"pin.location\" : {\n" +
+                "      \"top_left\" : \"dr\",\n" +
+                "      \"bottom_right\" : \"dq\"\n" +
+                "    },\n" +
+                "    \"validation_method\" : \"STRICT\",\n" +
+                "    \"type\" : \"MEMORY\",\n" +
+                "    \"ignore_unmapped\" : false,\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
+                "}";
+
+        String expectedJson =
+            "{\n" +
+                "  \"geo_bounding_box\" : {\n" +
+                "    \"pin.location\" : {\n" +
+                "      \"top_left\" : [ -78.75, 45.0 ],\n" +
+                "      \"bottom_right\" : [ -67.5, 33.75 ]\n" +
+                "    },\n" +
+                "    \"validation_method\" : \"STRICT\",\n" +
+                "    \"type\" : \"MEMORY\",\n" +
+                "    \"ignore_unmapped\" : false,\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
+                "}";
+        GeoBoundingBoxQueryBuilder parsed = (GeoBoundingBoxQueryBuilder) parseQuery(json);
+        checkGeneratedJson(expectedJson, parsed);
+        assertEquals(json, "pin.location", parsed.fieldName());
+        assertEquals(json, -78.75, parsed.topLeft().getLon(), 0.0001);
+        assertEquals(json, 45.0, parsed.topLeft().getLat(), 0.0001);
+        assertEquals(json, -67.5, parsed.bottomRight().getLon(), 0.0001);
+        assertEquals(json, 33.75, parsed.bottomRight().getLat(), 0.0001);
+        assertEquals(json, 1.0, parsed.boost(), 0.0001);
+        assertEquals(json, GeoExecType.MEMORY, parsed.type());
+    }
+
+    public void testMalformedGeohashes() {
+        String jsonGeohashAndWkt =
+            "{\n" +
+                "  \"geo_bounding_box\" : {\n" +
+                "    \"pin.location\" : {\n" +
+                "      \"top_left\" : [ -78.75, 45.0 ],\n" +
+                "      \"wkt\" : \"BBOX (-74.1, -71.12, 40.73, 40.01)\"\n" +
+                "    },\n" +
+                "    \"validation_method\" : \"STRICT\",\n" +
+                "    \"type\" : \"MEMORY\",\n" +
+                "    \"ignore_unmapped\" : false,\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
+                "}";
+
+        ElasticsearchParseException e1 = expectThrows(ElasticsearchParseException.class, () -> parseQuery(jsonGeohashAndWkt));
+        assertThat(e1.getMessage(), containsString("Conflicting definition found using well-known text and explicit corners."));
+    }
+
+    public void testHonorsCoercion() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        String query = "{\n" +
+            "  \"geo_bounding_box\": {\n" +
+            "    \"validation_method\": \"COERCE\",\n" +
+            "    \"" + GEO_POINT_FIELD_NAME + "\": {\n" +
+            "      \"top_left\": {\n" +
+            "        \"lat\": -15.5,\n" +
+            "        \"lon\": 176.5\n" +
+            "      },\n" +
+            "      \"bottom_right\": {\n" +
+            "        \"lat\": -19.6,\n" +
+            "        \"lon\": 181\n" +
+            "      }\n" +
+            "    }\n" +
+            "  }\n" +
+            "}\n";
+        assertGeoBoundingBoxQuery(query);
+    }
+
+    @Override
+    public void testMustRewrite() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        super.testMustRewrite();
+    }
+
+>>>>>>> master
     public void testIgnoreUnmapped() throws IOException {
         final GeoBoundingBoxQueryBuilder queryBuilder = new GeoBoundingBoxQueryBuilder("unmapped").setCorners(1.0, 0.0, 0.0, 1.0);
         queryBuilder.ignoreUnmapped(true);

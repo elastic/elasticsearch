@@ -25,13 +25,15 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> {
+public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> implements ToXContentObject {
 
     private String id;
     private BytesReference source;
@@ -43,7 +45,7 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
      */
     @Deprecated
     public PutPipelineRequest(String id, BytesReference source) {
-        this(id, source, XContentFactory.xContentType(source));
+        this(id, source, XContentHelper.xContentType(source));
     }
 
     /**
@@ -83,7 +85,7 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
         if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
             xContentType = in.readEnum(XContentType.class);
         } else {
-            xContentType = XContentFactory.xContentType(source);
+            xContentType = XContentHelper.xContentType(source);
         }
     }
 
@@ -95,5 +97,15 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
         if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
             out.writeEnum(xContentType);
         }
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (source != null) {
+            builder.rawValue(source.streamInput(), xContentType);
+        } else {
+            builder.startObject().endObject();
+        }
+        return builder;
     }
 }

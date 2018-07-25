@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.stats;
 
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -34,7 +35,8 @@ public class IndicesStatsResponseTests extends ESTestCase {
         final IndicesStatsResponse response = new IndicesStatsResponse();
         final String level = randomAlphaOfLength(16);
         final ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap("level", level));
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> response.toXContent(null, params));
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> response.toXContent(JsonXContent.contentBuilder(), params));
         assertThat(
             e,
             hasToString(containsString("level parameter must be one of [cluster] or [indices] or [shards] but was [" + level + "]")));

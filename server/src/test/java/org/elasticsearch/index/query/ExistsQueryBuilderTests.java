@@ -72,7 +72,7 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
             if (fields.size() == 1) {
                 assertThat(query, instanceOf(ConstantScoreQuery.class));
                 ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) query;
-                String field = fields.iterator().next();
+                String field = expectedFieldName(fields.iterator().next());
                 assertThat(constantScoreQuery.getQuery(), instanceOf(TermQuery.class));
                 TermQuery termQuery = (TermQuery) constantScoreQuery.getQuery();
                 assertEquals(field, termQuery.getTerm().text());
@@ -95,7 +95,7 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
         } else if (fields.size() == 1) {
             assertThat(query, instanceOf(ConstantScoreQuery.class));
             ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) query;
-            String field = fields.iterator().next();
+            String field = expectedFieldName(fields.iterator().next());
             if (context.getQueryShardContext().getObjectMapper(field) != null) {
                 assertThat(constantScoreQuery.getQuery(), instanceOf(BooleanQuery.class));
                 BooleanQuery booleanQuery = (BooleanQuery) constantScoreQuery.getQuery();

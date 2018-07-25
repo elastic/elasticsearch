@@ -247,7 +247,6 @@ public class InternalComposite
             this.formats = formats;
         }
 
-        @SuppressWarnings("unchecked")
         InternalBucket(StreamInput in, List<String> sourceNames, List<DocValueFormat> formats, int[] reverseMuls) throws IOException {
             this.key = new CompositeKey(in);
             this.docCount = in.readVLong();
@@ -332,6 +331,14 @@ public class InternalComposite
         @Override
         public int compareKey(InternalBucket other) {
             for (int i = 0; i < key.size(); i++) {
+                if (key.get(i) == null) {
+                    if (other.key.get(i) == null) {
+                        continue;
+                    }
+                    return -1 * reverseMuls[i];
+                } else if (other.key.get(i) == null) {
+                    return reverseMuls[i];
+                }
                 assert key.get(i).getClass() == other.key.get(i).getClass();
                 @SuppressWarnings("unchecked")
                 int cmp = ((Comparable) key.get(i)).compareTo(other.key.get(i)) * reverseMuls[i];
@@ -357,26 +364,29 @@ public class InternalComposite
      * for numbers and a string for {@link BytesRef}s.
      */
     static Object formatObject(Object obj, DocValueFormat format) {
+        if (obj == null) {
+            return null;
+        }
         if (obj.getClass() == BytesRef.class) {
             BytesRef value = (BytesRef) obj;
             if (format == DocValueFormat.RAW) {
                 return value.utf8ToString();
             } else {
-                return format.format((BytesRef) obj);
+                return format.format(value);
             }
         } else if (obj.getClass() == Long.class) {
-            Long value = (Long) obj;
+            long value = (long) obj;
             if (format == DocValueFormat.RAW) {
                 return value;
             } else {
                 return format.format(value);
             }
         } else if (obj.getClass() == Double.class) {
-            Double value = (Double) obj;
+            double value = (double) obj;
             if (format == DocValueFormat.RAW) {
                 return value;
             } else {
-                return format.format((Double) obj);
+                return format.format(value);
             }
         }
         return obj;

@@ -18,10 +18,12 @@
  */
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptEngine;
@@ -33,6 +35,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -55,13 +58,71 @@ public class IngestRestartIT extends ESIntegTestCase {
     public static class CustomScriptPlugin extends MockScriptPlugin {
         @Override
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
-            return Collections.singletonMap("my_script", script -> {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> ctx = (Map) script.get("ctx");
+            return Collections.singletonMap("my_script", ctx -> {
                 ctx.put("z", 0);
                 return null;
             });
         }
+    }
+
+    public void testScriptDisabled() throws Exception {
+        String pipelineIdWithoutScript = randomAlphaOfLengthBetween(5, 10);
+        String pipelineIdWithScript = pipelineIdWithoutScript + "_script";
+        internalCluster().startNode();
+
+        BytesReference pipelineWithScript = new BytesArray("{\n" +
+            "  \"processors\" : [\n" +
+            "      {\"script\" : {\"lang\": \"" + MockScriptEngine.NAME + "\", \"source\": \"my_script\"}}\n" +
+            "  ]\n" +
+            "}");
+        BytesReference pipelineWithoutScript = new BytesArray("{\n" +
+            "  \"processors\" : [\n" +
+            "      {\"set\" : {\"field\": \"y\", \"value\": 0}}\n" +
+            "  ]\n" +
+            "}");
+
+        Consumer<String> checkPipelineExists = (id) -> assertThat(client().admin().cluster().prepareGetPipeline(id)
+                .get().pipelines().get(0).getId(), equalTo(id));
+
+        client().admin().cluster().preparePutPipeline(pipelineIdWithScript, pipelineWithScript, XContentType.JSON).get();
+        client().admin().cluster().preparePutPipeline(pipelineIdWithoutScript, pipelineWithoutScript, XContentType.JSON).get();
+
+        checkPipelineExists.accept(pipelineIdWithScript);
+        checkPipelineExists.accept(pipelineIdWithoutScript);
+
+
+        internalCluster().stopCurrentMasterNode();
+        internalCluster().startNode(Settings.builder().put("script.allowed_types", "none"));
+
+        checkPipelineExists.accept(pipelineIdWithoutScript);
+        checkPipelineExists.accept(pipelineIdWithScript);
+
+        client().prepareIndex("index", "doc", "1")
+            .setSource("x", 0)
+            .setPipeline(pipelineIdWithoutScript)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+            () -> client().prepareIndex("index", "doc", "2")
+                .setSource("x", 0)
+                .setPipeline(pipelineIdWithScript)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .get());
+        assertThat(exception.getHeaderKeys(), equalTo(Sets.newHashSet("processor_type")));
+        assertThat(exception.getHeader("processor_type"), equalTo(Arrays.asList("unknown")));
+        assertThat(exception.getRootCause().getMessage(),
+            equalTo("pipeline with id [" + pipelineIdWithScript + "] could not be loaded, caused by " +
+                "[ElasticsearchParseException[Error updating pipeline with id [" + pipelineIdWithScript + "]]; " +
+                "nested: ElasticsearchException[java.lang.IllegalArgumentException: cannot execute [inline] scripts]; " +
+                "nested: IllegalArgumentException[cannot execute [inline] scripts];; " +
+                "ElasticsearchException[java.lang.IllegalArgumentException: cannot execute [inline] scripts]; " +
+                "nested: IllegalArgumentException[cannot execute [inline] scripts];; java.lang.IllegalArgumentException: " +
+                "cannot execute [inline] scripts]"));
+
+        Map<String, Object> source = client().prepareGet("index", "doc", "1").get().getSource();
+        assertThat(source.get("x"), equalTo(0));
+        assertThat(source.get("y"), equalTo(0));
     }
 
     public void testPipelineWithScriptProcessorThatHasStoredScript() throws Exception {

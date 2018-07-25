@@ -25,7 +25,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
@@ -40,7 +40,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 /**
  * Base class for all broadcast operation based responses.
  */
-public class BroadcastResponse extends ActionResponse implements ToXContentFragment {
+public class BroadcastResponse extends ActionResponse implements ToXContentObject {
 
     public static final DefaultShardOperationFailedException[] EMPTY = new DefaultShardOperationFailedException[0];
 
@@ -149,7 +149,16 @@ public class BroadcastResponse extends ActionResponse implements ToXContentFragm
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         RestActions.buildBroadcastShardsHeader(builder, params, this);
+        addCustomXContentFields(builder, params);
+        builder.endObject();
         return builder;
+    }
+
+    /**
+     * Override in subclass to add custom fields following the common `_shards` field
+     */
+    protected void addCustomXContentFields(XContentBuilder builder, Params params) throws IOException {
     }
 }

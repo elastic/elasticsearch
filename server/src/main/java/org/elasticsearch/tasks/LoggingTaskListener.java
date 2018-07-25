@@ -21,7 +21,6 @@ package org.elasticsearch.tasks;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.logging.Loggers;
 
 /**
@@ -51,6 +50,6 @@ public final class LoggingTaskListener<Response> implements TaskListener<Respons
 
     @Override
     public void onFailure(Task task, Throwable e) {
-        logger.warn((Supplier<?>) () -> new ParameterizedMessage("{} failed with exception", task.getId()), e);
+        logger.warn(() -> new ParameterizedMessage("{} failed with exception", task.getId()), e);
     }
 }

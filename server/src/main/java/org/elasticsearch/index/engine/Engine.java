@@ -21,7 +21,6 @@ package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
@@ -59,14 +58,16 @@ import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.merge.MergeStats;
-import org.elasticsearch.index.seqno.LocalCheckpointTracker;
+import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogStats;
 
 import java.io.Closeable;
 import java.io.FileNotFoundException;
@@ -111,7 +112,7 @@ public abstract class Engine implements Closeable {
     protected final ReleasableLock writeLock = new ReleasableLock(rwl.writeLock());
     protected final SetOnce<Exception> failedEngine = new SetOnce<>();
     /*
-     * on <tt>lastWriteNanos</tt> we use System.nanoTime() to initialize this since:
+     * on {@code lastWriteNanos} we use System.nanoTime() to initialize this since:
      *  - we use the value for figuring out if the shard / engine is active so if we startup and no write has happened yet we still consider it active
      *    for the duration of the configured active to inactive period. If we initialize to 0 or Long.MAX_VALUE we either immediately or never mark it
      *    inactive if no writes at all happen to the shard.
@@ -235,6 +236,12 @@ public abstract class Engine implements Closeable {
      */
     public abstract boolean isThrottled();
 
+    /**
+     * Trims translog for terms below <code>belowTerm</code> and seq# above <code>aboveSeqNo</code>
+     * @see Translog#trimOperations(long, long)
+     */
+    public abstract void trimOperationsFromTranslog(long belowTerm, long aboveSeqNo) throws EngineException;
+
     /** A Lock implementation that always allows the lock to be acquired */
     protected static final class NoOpLock implements Lock {
 
@@ -295,27 +302,45 @@ public abstract class Engine implements Closeable {
      **/
     public abstract static class Result {
         private final Operation.TYPE operationType;
+        private final Result.Type resultType;
         private final long version;
         private final long seqNo;
         private final Exception failure;
         private final SetOnce<Boolean> freeze = new SetOnce<>();
+        private final Mapping requiredMappingUpdate;
         private Translog.Location translogLocation;
         private long took;
 
         protected Result(Operation.TYPE operationType, Exception failure, long version, long seqNo) {
             this.operationType = operationType;
-            this.failure = failure;
+            this.failure = Objects.requireNonNull(failure);
             this.version = version;
             this.seqNo = seqNo;
+            this.requiredMappingUpdate = null;
+            this.resultType = Type.FAILURE;
         }
 
         protected Result(Operation.TYPE operationType, long version, long seqNo) {
-            this(operationType, null, version, seqNo);
+            this.operationType = operationType;
+            this.version = version;
+            this.seqNo = seqNo;
+            this.failure = null;
+            this.requiredMappingUpdate = null;
+            this.resultType = Type.SUCCESS;
         }
 
-        /** whether the operation had failure */
-        public boolean hasFailure() {
-            return failure != null;
+        protected Result(Operation.TYPE operationType, Mapping requiredMappingUpdate) {
+            this.operationType = operationType;
+            this.version = Versions.NOT_FOUND;
+            this.seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+            this.failure = null;
+            this.requiredMappingUpdate = requiredMappingUpdate;
+            this.resultType = Type.MAPPING_UPDATE_REQUIRED;
+        }
+
+        /** whether the operation was successful, has failed or was aborted due to a mapping update */
+        public Type getResultType() {
+            return resultType;
         }
 
         /** get the updated document version */
@@ -330,6 +355,14 @@ public abstract class Engine implements Closeable {
          */
         public long getSeqNo() {
             return seqNo;
+        }
+
+        /**
+         * If the operation was aborted due to missing mappings, this method will return the mappings
+         * that are required to complete the operation.
+         */
+        public Mapping getRequiredMappingUpdate() {
+            return requiredMappingUpdate;
         }
 
         /** get the translog location after executing the operation */
@@ -371,6 +404,11 @@ public abstract class Engine implements Closeable {
             freeze.set(true);
         }
 
+        public enum Type {
+            SUCCESS,
+            FAILURE,
+            MAPPING_UPDATE_REQUIRED
+        }
     }
 
     public static class IndexResult extends Result {
@@ -383,15 +421,19 @@ public abstract class Engine implements Closeable {
         }
 
         /**
-         * use in case of index operation failed before getting to internal engine
-         * (e.g while preparing operation or updating mappings)
-         * */
+         * use in case of the index operation failed before getting to internal engine
+         **/
         public IndexResult(Exception failure, long version) {
             this(failure, version, SequenceNumbers.UNASSIGNED_SEQ_NO);
         }
 
         public IndexResult(Exception failure, long version, long seqNo) {
             super(Operation.TYPE.INDEX, failure, version, seqNo);
+            this.created = false;
+        }
+
+        public IndexResult(Mapping requiredMappingUpdate) {
+            super(Operation.TYPE.INDEX, requiredMappingUpdate);
             this.created = false;
         }
 
@@ -410,9 +452,21 @@ public abstract class Engine implements Closeable {
             this.found = found;
         }
 
+        /**
+         * use in case of the delete operation failed before getting to internal engine
+         **/
+        public DeleteResult(Exception failure, long version) {
+            this(failure, version, SequenceNumbers.UNASSIGNED_SEQ_NO, false);
+        }
+
         public DeleteResult(Exception failure, long version, long seqNo, boolean found) {
             super(Operation.TYPE.DELETE, failure, version, seqNo);
             this.found = found;
+        }
+
+        public DeleteResult(Mapping requiredMappingUpdate) {
+            super(Operation.TYPE.DELETE, requiredMappingUpdate);
+            this.found = false;
         }
 
         public boolean isFound() {
@@ -511,8 +565,10 @@ public abstract class Engine implements Closeable {
         EXTERNAL, INTERNAL
     }
 
-    /** returns the translog for this engine */
-    public abstract Translog getTranslog();
+    /**
+     * Checks if the underlying storage sync is required.
+     */
+    public abstract boolean isTranslogSyncNeeded();
 
     /**
      * Ensures that all locations in the given stream have been written to the underlying storage.
@@ -520,6 +576,26 @@ public abstract class Engine implements Closeable {
     public abstract boolean ensureTranslogSynced(Stream<Translog.Location> locations) throws IOException;
 
     public abstract void syncTranslog() throws IOException;
+
+    public abstract Closeable acquireTranslogRetentionLock();
+
+    /**
+     * Creates a new translog snapshot from this engine for reading translog operations whose seq# at least the provided seq#.
+     * The caller has to close the returned snapshot after finishing the reading.
+     */
+    public abstract Translog.Snapshot newTranslogSnapshotFromMinSeqNo(long minSeqNo) throws IOException;
+
+    /**
+     * Returns the estimated number of translog operations in this engine whose seq# at least the provided seq#.
+     */
+    public abstract int estimateTranslogOperationsFromMinSeq(long minSeqNo);
+
+    public abstract TranslogStats getTranslogStats();
+
+    /**
+     * Returns the last location that the translog of this engine has written into.
+     */
+    public abstract Translog.Location getTranslogLastWriteLocation();
 
     protected final void ensureOpen(Exception suppressed) {
         if (isClosed.get()) {
@@ -541,11 +617,33 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * The sequence number service for this engine.
-     *
-     * @return the sequence number service
+     * @return the local checkpoint for this Engine
      */
-    public abstract LocalCheckpointTracker getLocalCheckpointTracker();
+    public abstract long getLocalCheckpoint();
+
+    /**
+     * Waits for all operations up to the provided sequence number to complete.
+     *
+     * @param seqNo the sequence number that the checkpoint must advance to before this method returns
+     * @throws InterruptedException if the thread was interrupted while blocking on the condition
+     */
+    public abstract void waitForOpsToComplete(long seqNo) throws InterruptedException;
+
+    /**
+     * Reset the local checkpoint in the tracker to the given local checkpoint
+     * @param localCheckpoint the new checkpoint to be set
+     */
+    public abstract void resetLocalCheckpoint(long localCheckpoint);
+
+    /**
+     * @return a {@link SeqNoStats} object, using local state and the supplied global checkpoint
+     */
+    public abstract SeqNoStats getSeqNoStats(long globalCheckpoint);
+
+    /**
+     * Returns the latest global checkpoint value that has been persisted in the underlying storage (i.e. translog's checkpoint)
+     */
+    public abstract long getLastSyncedGlobalCheckpoint();
 
     /**
      * Global stats on segments.
@@ -597,7 +695,7 @@ public abstract class Engine implements Closeable {
             try {
                 directory = engineConfig.getCodec().compoundFormat().getCompoundReader(segmentReader.directory(), segmentCommitInfo.info, IOContext.READ);
             } catch (IOException e) {
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage("Error when opening compound reader for Directory [{}] and SegmentCommitInfo [{}]", segmentReader.directory(), segmentCommitInfo), e);
+                logger.warn(() -> new ParameterizedMessage("Error when opening compound reader for Directory [{}] and SegmentCommitInfo [{}]", segmentReader.directory(), segmentCommitInfo), e);
 
                 return ImmutableOpenMap.of();
             }
@@ -613,15 +711,14 @@ public abstract class Engine implements Closeable {
                 files = directory.listAll();
             } catch (IOException e) {
                 final Directory finalDirectory = directory;
-                logger.warn(
-                    (Supplier<?>) () -> new ParameterizedMessage("Couldn't list Compound Reader Directory [{}]", finalDirectory), e);
+                logger.warn(() -> new ParameterizedMessage("Couldn't list Compound Reader Directory [{}]", finalDirectory), e);
                 return ImmutableOpenMap.of();
             }
         } else {
             try {
                 files = segmentReader.getSegmentInfo().files().toArray(new String[]{});
             } catch (IOException e) {
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage("Couldn't list Directory from SegmentReader [{}] and SegmentInfo [{}]", segmentReader, segmentReader.getSegmentInfo()), e);
+                logger.warn(() -> new ParameterizedMessage("Couldn't list Directory from SegmentReader [{}] and SegmentInfo [{}]", segmentReader, segmentReader.getSegmentInfo()), e);
                 return ImmutableOpenMap.of();
             }
         }
@@ -634,13 +731,10 @@ public abstract class Engine implements Closeable {
                 length = directory.fileLength(file);
             } catch (NoSuchFileException | FileNotFoundException e) {
                 final Directory finalDirectory = directory;
-                logger.warn((Supplier<?>)
-                    () -> new ParameterizedMessage("Tried to query fileLength but file is gone [{}] [{}]", finalDirectory, file), e);
+                logger.warn(() -> new ParameterizedMessage("Tried to query fileLength but file is gone [{}] [{}]", finalDirectory, file), e);
             } catch (IOException e) {
                 final Directory finalDirectory = directory;
-                logger.warn(
-                    (Supplier<?>)
-                        () -> new ParameterizedMessage("Error when trying to query fileLength [{}] [{}]", finalDirectory, file), e);
+                logger.warn(() -> new ParameterizedMessage("Error when trying to query fileLength [{}] [{}]", finalDirectory, file), e);
             }
             if (length == 0L) {
                 continue;
@@ -653,9 +747,7 @@ public abstract class Engine implements Closeable {
                 directory.close();
             } catch (IOException e) {
                 final Directory finalDirectory = directory;
-                logger.warn(
-                    (Supplier<?>)
-                        () -> new ParameterizedMessage("Error when closing compound reader on Directory [{}]", finalDirectory), e);
+                logger.warn(() -> new ParameterizedMessage("Error when closing compound reader on Directory [{}]", finalDirectory), e);
             }
         }
 
@@ -706,7 +798,7 @@ public abstract class Engine implements Closeable {
                     try {
                         segment.sizeInBytes = info.sizeInBytes();
                     } catch (IOException e) {
-                        logger.trace((Supplier<?>) () -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
+                        logger.trace(() -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
                     }
                     segments.put(info.info.name, segment);
                 } else {
@@ -732,7 +824,7 @@ public abstract class Engine implements Closeable {
         try {
             segment.sizeInBytes = info.sizeInBytes();
         } catch (IOException e) {
-            logger.trace((Supplier<?>) () -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
+            logger.trace(() -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
         }
         segment.memoryInBytes = segmentReader.ramBytesUsed();
         segment.segmentSort = info.info.getIndexSort();
@@ -815,7 +907,15 @@ public abstract class Engine implements Closeable {
      * checks and removes translog files that no longer need to be retained. See
      * {@link org.elasticsearch.index.translog.TranslogDeletionPolicy} for details
      */
-    public abstract void trimTranslog() throws EngineException;
+    public abstract void trimUnreferencedTranslogFiles() throws EngineException;
+
+    /**
+     * Tests whether or not the translog generation should be rolled to a new generation.
+     * This test is based on the size of the current generation compared to the configured generation threshold size.
+     *
+     * @return {@code true} if the current generation should be rolled to a new generation
+     */
+    public abstract boolean shouldRollTranslogGeneration();
 
     /**
      * Rolls the translog generation and cleans unneeded.
@@ -848,15 +948,39 @@ public abstract class Engine implements Closeable {
     public abstract IndexCommitRef acquireSafeIndexCommit() throws EngineException;
 
     /**
+     * If the specified throwable contains a fatal error in the throwable graph, such a fatal error will be thrown. Callers should ensure
+     * that there are no catch statements that would catch an error in the stack as the fatal error here should go uncaught and be handled
+     * by the uncaught exception handler that we install during bootstrap. If the specified throwable does indeed contain a fatal error, the
+     * specified message will attempt to be logged before throwing the fatal error. If the specified throwable does not contain a fatal
+     * error, this method is a no-op.
+     *
+     * @param maybeMessage the message to maybe log
+     * @param maybeFatal   the throwable that maybe contains a fatal error
+     */
+    @SuppressWarnings("finally")
+    private void maybeDie(final String maybeMessage, final Throwable maybeFatal) {
+        ExceptionsHelper.maybeError(maybeFatal, logger).ifPresent(error -> {
+            try {
+                logger.error(maybeMessage, error);
+            } finally {
+                throw error;
+            }
+        });
+    }
+
+    /**
      * fail engine due to some error. the engine will also be closed.
      * The underlying store is marked corrupted iff failure is caused by index corruption
      */
     public void failEngine(String reason, @Nullable Exception failure) {
+        if (failure != null) {
+            maybeDie(reason, failure);
+        }
         if (failEngineLock.tryLock()) {
             store.incRef();
             try {
                 if (failedEngine.get() != null) {
-                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("tried to fail engine but engine is already failed. ignoring. [{}]", reason), failure);
+                    logger.warn(() -> new ParameterizedMessage("tried to fail engine but engine is already failed. ignoring. [{}]", reason), failure);
                     return;
                 }
                 // this must happen before we close IW or Translog such that we can check this state to opt out of failing the engine
@@ -866,7 +990,7 @@ public abstract class Engine implements Closeable {
                     // we just go and close this engine - no way to recover
                     closeNoLock("engine failed on: [" + reason + "]", closedLatch);
                 } finally {
-                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed engine [{}]", reason), failure);
+                    logger.warn(() -> new ParameterizedMessage("failed engine [{}]", reason), failure);
                     // we must set a failure exception, generate one if not supplied
                     // we first mark the store as corrupted before we notify any listeners
                     // this must happen first otherwise we might try to reallocate so quickly
@@ -889,7 +1013,7 @@ public abstract class Engine implements Closeable {
                 store.decRef();
             }
         } else {
-            logger.debug((Supplier<?>) () -> new ParameterizedMessage("tried to fail engine but could not acquire lock - engine should be failed by now [{}]", reason), failure);
+            logger.debug(() -> new ParameterizedMessage("tried to fail engine but could not acquire lock - engine should be failed by now [{}]", reason), failure);
         }
     }
 
@@ -1044,19 +1168,19 @@ public abstract class Engine implements Closeable {
         public Index(Term uid, ParsedDocument doc, long seqNo, long primaryTerm, long version, VersionType versionType, Origin origin,
                      long startTime, long autoGeneratedIdTimestamp, boolean isRetry) {
             super(uid, seqNo, primaryTerm, version, versionType, origin, startTime);
+            assert (origin == Origin.PRIMARY) == (versionType != null) : "invalid version_type=" + versionType + " for origin=" + origin;
             this.doc = doc;
             this.isRetry = isRetry;
             this.autoGeneratedIdTimestamp = autoGeneratedIdTimestamp;
         }
 
-        public Index(Term uid, ParsedDocument doc) {
-            this(uid, doc, Versions.MATCH_ANY);
+        public Index(Term uid, long primaryTerm, ParsedDocument doc) {
+            this(uid, primaryTerm, doc, Versions.MATCH_ANY);
         } // TEST ONLY
 
-        Index(Term uid, ParsedDocument doc, long version) {
-            // use a primary term of 2 to allow tests to reduce it to a valid >0 term
-            this(uid, doc, SequenceNumbers.UNASSIGNED_SEQ_NO, 2, version, VersionType.INTERNAL,
-                    Origin.PRIMARY, System.nanoTime(), -1, false);
+        Index(Term uid, long primaryTerm, ParsedDocument doc, long version) {
+            this(uid, doc, SequenceNumbers.UNASSIGNED_SEQ_NO, primaryTerm, version, VersionType.INTERNAL,
+                Origin.PRIMARY, System.nanoTime(), -1, false);
         } // TEST ONLY
 
         public ParsedDocument parsedDoc() {
@@ -1080,10 +1204,6 @@ public abstract class Engine implements Closeable {
 
         public String routing() {
             return this.doc.routing();
-        }
-
-        public String parent() {
-            return this.doc.parent();
         }
 
         public List<Document> docs() {
@@ -1126,12 +1246,13 @@ public abstract class Engine implements Closeable {
         public Delete(String type, String id, Term uid, long seqNo, long primaryTerm, long version, VersionType versionType,
                       Origin origin, long startTime) {
             super(uid, seqNo, primaryTerm, version, versionType, origin, startTime);
+            assert (origin == Origin.PRIMARY) == (versionType != null) : "invalid version_type=" + versionType + " for origin=" + origin;
             this.type = Objects.requireNonNull(type);
             this.id = Objects.requireNonNull(id);
         }
 
-        public Delete(String type, String id, Term uid) {
-            this(type, id, uid, SequenceNumbers.UNASSIGNED_SEQ_NO, 0, Versions.MATCH_ANY, VersionType.INTERNAL, Origin.PRIMARY, System.nanoTime());
+        public Delete(String type, String id, Term uid, long primaryTerm) {
+            this(type, id, uid, SequenceNumbers.UNASSIGNED_SEQ_NO, primaryTerm, Versions.MATCH_ANY, VersionType.INTERNAL, Origin.PRIMARY, System.nanoTime());
         }
 
         public Delete(Delete template, VersionType versionType) {
@@ -1215,14 +1336,16 @@ public abstract class Engine implements Closeable {
         private final boolean realtime;
         private final Term uid;
         private final String type, id;
+        private final boolean readFromTranslog;
         private long version = Versions.MATCH_ANY;
         private VersionType versionType = VersionType.INTERNAL;
 
-        public Get(boolean realtime, String type, String id, Term uid) {
+        public Get(boolean realtime, boolean readFromTranslog, String type, String id, Term uid) {
             this.realtime = realtime;
             this.type = type;
             this.id = id;
             this.uid = uid;
+            this.readFromTranslog = readFromTranslog;
         }
 
         public boolean realtime() {
@@ -1257,6 +1380,10 @@ public abstract class Engine implements Closeable {
         public Get versionType(VersionType versionType) {
             this.versionType = versionType;
             return this;
+        }
+
+        public boolean isReadFromTranslog() {
+            return readFromTranslog;
         }
     }
 
@@ -1300,10 +1427,6 @@ public abstract class Engine implements Closeable {
 
         @Override
         public void close() {
-            release();
-        }
-
-        public void release() {
             Releasables.close(searcher);
         }
     }

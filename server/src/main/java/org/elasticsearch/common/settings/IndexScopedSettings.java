@@ -58,7 +58,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
 
     public static final Set<Setting<?>> BUILT_IN_INDEX_SETTINGS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
         MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY,
-        IndexSettings.INDEX_TTL_DISABLE_PURGE_SETTING,
         MergeSchedulerConfig.AUTO_THROTTLE_SETTING,
         MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING,
         MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING,
@@ -152,7 +151,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexModule.INDEX_STORE_TYPE_SETTING,
         IndexModule.INDEX_STORE_PRE_LOAD_SETTING,
         IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING,
-        IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING,
         FsDirectoryService.INDEX_LOCK_FACTOR_SETTING,
         EngineConfig.INDEX_CODEC_SETTING,
         EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS,
@@ -207,9 +205,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             case IndexMetaData.INDEX_SHRINK_SOURCE_NAME_KEY:
             case IndexMetaData.INDEX_RESIZE_SOURCE_UUID_KEY:
             case IndexMetaData.INDEX_RESIZE_SOURCE_NAME_KEY:
-            case IndexSettings.INDEX_MAPPING_SINGLE_TYPE_SETTING_KEY:
-                // this was settable in 5.x but not anymore in 6.x so we have to preserve the value ie. make it read-only
-                // this can be removed in later versions
                 return true;
             default:
                 return IndexMetaData.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getRawKey().match(key);

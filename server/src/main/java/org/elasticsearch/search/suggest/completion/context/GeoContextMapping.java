@@ -29,8 +29,8 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 
@@ -133,13 +133,13 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
      *     <li>String/Object/Array: <pre>&quot;GEO POINT&quot;</pre></li>
      *  </ul>
      *
-     * see {@link GeoUtils#parseGeoPoint(String, GeoPoint)} for GEO POINT
+     * see {@code GeoPoint(String)} for GEO POINT
      */
     @Override
     public Set<CharSequence> parseContext(ParseContext parseContext, XContentParser parser) throws IOException, ElasticsearchParseException {
         if (fieldName != null) {
-            FieldMapper mapper = parseContext.docMapper().mappers().getMapper(fieldName);
-            if (!(mapper instanceof GeoPointFieldMapper)) {
+            MappedFieldType fieldType = parseContext.mapperService().fullName(fieldName);
+            if (!(fieldType instanceof GeoPointFieldMapper.GeoPointFieldType)) {
                 throw new ElasticsearchParseException("referenced field must be mapped to geo_point");
             }
         }
@@ -249,7 +249,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
      *     </ul>
      *     <li>String: <pre>GEO POINT</pre></li>
      *  </ul>
-     * see {@link GeoUtils#parseGeoPoint(String, GeoPoint)} for GEO POINT
+     * see {@code GeoPoint(String)} for GEO POINT
      */
     @Override
     public List<InternalQueryContext> toInternalQueryContexts(List<GeoQueryContext> queryContexts) {

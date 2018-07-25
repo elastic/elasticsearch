@@ -20,19 +20,6 @@ GET twitter/_field_caps?fields=rating
 // CONSOLE
 // TEST[setup:twitter]
 
-Alternatively the `fields` option can also be defined in the request body:
-
-[source,js]
---------------------------------------------------
-POST _field_caps
-{
-   "fields" : ["rating"]
-}
---------------------------------------------------
-// CONSOLE
-
-This is equivalent to the previous request.
-
 Supported request options:
 
 [horizontal]

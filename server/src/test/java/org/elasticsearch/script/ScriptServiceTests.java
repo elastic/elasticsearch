@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.script;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.cluster.ClusterName;
@@ -116,8 +115,8 @@ public class ScriptServiceTests extends ESTestCase {
     public void testMaxCompilationRateSetting() throws Exception {
         assertThat(MAX_COMPILATION_RATE_FUNCTION.apply("10/1m"), is(Tuple.tuple(10, TimeValue.timeValueMinutes(1))));
         assertThat(MAX_COMPILATION_RATE_FUNCTION.apply("10/60s"), is(Tuple.tuple(10, TimeValue.timeValueMinutes(1))));
-        assertException("10/m", ElasticsearchParseException.class, "failed to parse [m]");
-        assertException("6/1.6m", ElasticsearchParseException.class, "failed to parse [1.6m], fractional time values are not supported");
+        assertException("10/m", IllegalArgumentException.class, "failed to parse [m]");
+        assertException("6/1.6m", IllegalArgumentException.class, "failed to parse [1.6m], fractional time values are not supported");
         assertException("foo/bar", IllegalArgumentException.class, "could not parse [foo] as integer in value [foo/bar]");
         assertException("6.0/1m", IllegalArgumentException.class, "could not parse [6.0] as integer in value [6.0/1m]");
         assertException("6/-1m", IllegalArgumentException.class, "time value [-1m] must be positive");
@@ -169,7 +168,7 @@ public class ScriptServiceTests extends ESTestCase {
         assertCompileAccepted("painless", "script", ScriptType.INLINE, SearchScript.CONTEXT);
         assertCompileAccepted("painless", "script", ScriptType.INLINE, SearchScript.AGGS_CONTEXT);
         assertCompileAccepted("painless", "script", ScriptType.INLINE, ExecutableScript.UPDATE_CONTEXT);
-        assertCompileAccepted("painless", "script", ScriptType.INLINE, ExecutableScript.INGEST_CONTEXT);
+        assertCompileAccepted("painless", "script", ScriptType.INLINE, IngestScript.CONTEXT);
     }
 
     public void testAllowSomeScriptTypeSettings() throws IOException {
@@ -210,13 +209,13 @@ public class ScriptServiceTests extends ESTestCase {
     }
 
     public void testCompileNonRegisteredContext() throws IOException {
-        contexts.remove(ExecutableScript.INGEST_CONTEXT.name);
+        contexts.remove(IngestScript.CONTEXT.name);
         buildScriptService(Settings.EMPTY);
 
         String type = scriptEngine.getType();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            scriptService.compile(new Script(ScriptType.INLINE, type, "test", Collections.emptyMap()), ExecutableScript.INGEST_CONTEXT));
-        assertThat(e.getMessage(), containsString("script context [" + ExecutableScript.INGEST_CONTEXT.name + "] not supported"));
+            scriptService.compile(new Script(ScriptType.INLINE, type, "test", Collections.emptyMap()), IngestScript.CONTEXT));
+        assertThat(e.getMessage(), containsString("script context [" + IngestScript.CONTEXT.name + "] not supported"));
     }
 
     public void testCompileCountedInCompilationStats() throws IOException {
@@ -263,14 +262,14 @@ public class ScriptServiceTests extends ESTestCase {
     }
 
     public void testStoreScript() throws Exception {
-        BytesReference script = XContentFactory.jsonBuilder()
+        BytesReference script = BytesReference.bytes(XContentFactory.jsonBuilder()
             .startObject()
             .field("script")
             .startObject()
             .field("lang", "_lang")
             .field("source", "abc")
             .endObject()
-            .endObject().bytes();
+            .endObject());
         ScriptMetaData scriptMetaData = ScriptMetaData.putStoredScript(null, "_id", StoredScriptSource.parse(script, XContentType.JSON));
         assertNotNull(scriptMetaData);
         assertEquals("abc", scriptMetaData.getStoredScript("_id").getSource());

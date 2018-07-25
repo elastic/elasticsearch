@@ -126,7 +126,7 @@ public class PainlessLookupBuilder {
     private static final Pattern METHOD_NAME_PATTERN = Pattern.compile("^[_a-zA-Z][_a-zA-Z0-9]*$");
     private static final Pattern FIELD_NAME_PATTERN  = Pattern.compile("^[_a-zA-Z][_a-zA-Z0-9]*$");
 
-    public static PainlessLookup whitelistsToPainlessLookup(List<Whitelist> whitelists) {
+    public static PainlessLookup buildFromWhitelists(List<Whitelist> whitelists) {
         PainlessLookupBuilder painlessLookupBuilder = new PainlessLookupBuilder();
         String origin = "internal error";
 

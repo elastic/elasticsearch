@@ -33,7 +33,7 @@ import java.util.Collections;
 import java.util.HashMap;
 
 public class DefBootstrapTests extends ESTestCase {
-    private final PainlessLookup painlessLookup = PainlessLookupBuilder.whitelistsToPainlessLookup(Whitelist.BASE_WHITELISTS);
+    private final PainlessLookup painlessLookup = PainlessLookupBuilder.buildFromWhitelists(Whitelist.BASE_WHITELISTS);
 
     /** calls toString() on integers, twice */
     public void testOneType() throws Throwable {

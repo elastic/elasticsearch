@@ -40,7 +40,7 @@ final class Debugger {
         PrintWriter outputWriter = new PrintWriter(output);
         Textifier textifier = new Textifier();
         try {
-            new Compiler(iface, PainlessLookupBuilder.whitelistsToPainlessLookup(Whitelist.BASE_WHITELISTS))
+            new Compiler(iface, PainlessLookupBuilder.buildFromWhitelists(Whitelist.BASE_WHITELISTS))
                     .compile("<debugging>", source, settings, textifier);
         } catch (RuntimeException e) {
             textifier.print(outputWriter);

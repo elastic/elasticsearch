@@ -250,7 +250,7 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
 
                 final ByteBuf buffer = Unpooled.copiedBuffer(uri, StandardCharsets.UTF_8);
 
-                final DefaultFullHttpResponse httpResponse = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK, buffer);
+                final FullHttpResponse httpResponse = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK, buffer);
                 httpResponse.headers().add(HttpHeaderNames.CONTENT_LENGTH, buffer.readableBytes());
 
                 final boolean slow = uri.matches("/slow/\\d+");

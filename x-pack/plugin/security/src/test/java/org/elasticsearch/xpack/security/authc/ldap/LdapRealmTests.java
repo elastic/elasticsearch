@@ -84,7 +84,7 @@ public class LdapRealmTests extends LdapTestCase {
         defaultGlobalSettings = Settings.builder().put("path.home", createTempDir()).build();
         sslService = new SSLService(defaultGlobalSettings, TestEnvironment.newEnvironment(defaultGlobalSettings));
         licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isAuthorizingRealmAllowed()).thenReturn(true);
+        when(licenseState.isLookupRealmAllowed()).thenReturn(true);
     }
 
     @After
@@ -238,7 +238,7 @@ public class LdapRealmTests extends LdapTestCase {
         String userTemplate = VALID_USER_TEMPLATE;
         final Settings.Builder builder = Settings.builder()
             .put(buildLdapSettings(ldapUrls(), userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE))
-            .putList(DelegatedAuthorizationSettings.AUTHZ_REALMS.getKey(), "mock_lookup");
+            .putList(DelegatedAuthorizationSettings.LOOKUP_REALMS.getKey(), "mock_lookup");
 
         if (randomBoolean()) {
             // maybe disable caching

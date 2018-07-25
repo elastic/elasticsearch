@@ -25,9 +25,9 @@ import java.util.List;
 import static org.elasticsearch.common.Strings.collectionToDelimitedString;
 
 /**
- * Utility class for supporting "delegated authorization" (aka "authorizing_realms", aka "lookup realms").
+ * Utility class for supporting "delegated authorization" (aka "user_lookup", aka "lookup realms").
  * A {@link Realm} may support delegating authorization to another realm. It does this by registering a
- * setting for {@link DelegatedAuthorizationSettings#AUTHZ_REALMS}, and constructing an instance of this
+ * setting for {@link DelegatedAuthorizationSettings#LOOKUP_REALMS}, and constructing an instance of this
  * class. Then, after the realm has performed any authentication steps, if {@link #hasDelegation()} is
  * {@code true}, it delegates the construction of the {@link User} object and {@link AuthenticationResult}
  * to {@link #resolve(String, ActionListener)}.
@@ -39,11 +39,11 @@ public class DelegatedAuthorizationSupport {
     private final XPackLicenseState licenseState;
 
     /**
-     * Resolves the {@link DelegatedAuthorizationSettings#AUTHZ_REALMS} setting from {@code config} and calls
+     * Resolves the {@link DelegatedAuthorizationSettings#LOOKUP_REALMS} setting from {@code config} and calls
      * {@link #DelegatedAuthorizationSupport(Iterable, List, ThreadContext, XPackLicenseState)}
      */
     public DelegatedAuthorizationSupport(Iterable<? extends Realm> allRealms, RealmConfig config, XPackLicenseState licenseState) {
-        this(allRealms, DelegatedAuthorizationSettings.AUTHZ_REALMS.get(config.settings()), config.threadContext(), licenseState);
+        this(allRealms, DelegatedAuthorizationSettings.LOOKUP_REALMS.get(config.settings()), config.threadContext(), licenseState);
     }
 
     /**
@@ -74,16 +74,16 @@ public class DelegatedAuthorizationSupport {
      * with a meaningful diagnostic message.
      */
     public void resolve(String username, ActionListener<AuthenticationResult> resultListener) {
-        if (licenseState.isAuthorizingRealmAllowed() == false) {
+        if (licenseState.isLookupRealmAllowed() == false) {
             resultListener.onResponse(AuthenticationResult.unsuccessful(
-                DelegatedAuthorizationSettings.AUTHZ_REALMS.getKey() + " are not permitted",
-                LicenseUtils.newComplianceException(DelegatedAuthorizationSettings.AUTHZ_REALMS.getKey())
+                DelegatedAuthorizationSettings.LOOKUP_REALMS.getKey() + " are not permitted",
+                LicenseUtils.newComplianceException(DelegatedAuthorizationSettings.LOOKUP_REALMS.getKey())
             ));
             return;
         }
         if (hasDelegation() == false) {
             resultListener.onResponse(AuthenticationResult.unsuccessful(
-                "No [" + DelegatedAuthorizationSettings.AUTHZ_REALMS.getKey() + "] have been configured", null));
+                "No [" + DelegatedAuthorizationSettings.LOOKUP_REALMS.getKey() + "] have been configured", null));
             return;
         }
         ActionListener<Tuple<User, Realm>> userListener = ActionListener.wrap(tuple -> {

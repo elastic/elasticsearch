@@ -75,13 +75,13 @@ public class DelegatedAuthorizationSupportTests extends ESTestCase {
         final AuthenticationResult result = future.get();
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.CONTINUE));
         assertThat(result.getUser(), nullValue());
-        assertThat(result.getMessage(), equalTo("No [authorizing_realms] have been configured"));
+        assertThat(result.getMessage(), equalTo("No [user_lookup.realms] have been configured"));
     }
 
     public void testMissingRealmInDelegationList() {
         final XPackLicenseState license = getLicenseState(true);
         final Settings settings = Settings.builder()
-            .putList("authorizing_realms", "no-such-realm")
+            .putList("user_lookup.realms", "no-such-realm")
             .build();
         final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () ->
             new DelegatedAuthorizationSupport(realms, buildRealmConfig("r", settings), license)
@@ -93,7 +93,7 @@ public class DelegatedAuthorizationSupportTests extends ESTestCase {
         final XPackLicenseState license = getLicenseState(true);
         final List<MockLookupRealm> useRealms = shuffle(randomSubsetOf(randomIntBetween(1, realms.size()), realms));
         final Settings settings = Settings.builder()
-            .putList("authorizing_realms", useRealms.stream().map(Realm::name).collect(Collectors.toList()))
+            .putList("user_lookup.realms", useRealms.stream().map(Realm::name).collect(Collectors.toList()))
             .build();
         final User user = new User("my_user");
         randomFrom(useRealms).registerUser(user);
@@ -111,7 +111,7 @@ public class DelegatedAuthorizationSupportTests extends ESTestCase {
         final List<MockLookupRealm> useRealms = shuffle(randomSubsetOf(randomIntBetween(3, realms.size()), realms));
         final List<String> names = useRealms.stream().map(Realm::name).collect(Collectors.toList());
         final Settings settings = Settings.builder()
-            .putList("authorizing_realms", names)
+            .putList("user_lookup.realms", names)
             .build();
         final List<User> users = new ArrayList<>(names.size());
         final String username = randomAlphaOfLength(8);
@@ -135,7 +135,7 @@ public class DelegatedAuthorizationSupportTests extends ESTestCase {
         final XPackLicenseState license = getLicenseState(true);
         final List<MockLookupRealm> useRealms = shuffle(randomSubsetOf(randomIntBetween(1, realms.size()), realms));
         final Settings settings = Settings.builder()
-            .putList("authorizing_realms", useRealms.stream().map(Realm::name).collect(Collectors.toList()))
+            .putList("user_lookup.realms", useRealms.stream().map(Realm::name).collect(Collectors.toList()))
             .build();
         final DelegatedAuthorizationSupport das = new DelegatedAuthorizationSupport(realms, buildRealmConfig("r", settings), license);
         assertThat(das.hasDelegation(), equalTo(true));
@@ -151,7 +151,7 @@ public class DelegatedAuthorizationSupportTests extends ESTestCase {
     public void testLicenseRejection() throws Exception {
         final XPackLicenseState license = getLicenseState(false);
         final Settings settings = Settings.builder()
-            .putList("authorizing_realms", realms.get(0).name())
+            .putList("user_lookup.realms", realms.get(0).name())
             .build();
         final DelegatedAuthorizationSupport das = new DelegatedAuthorizationSupport(realms, buildRealmConfig("r", settings), license);
         assertThat(das.hasDelegation(), equalTo(true));
@@ -160,14 +160,14 @@ public class DelegatedAuthorizationSupportTests extends ESTestCase {
         final AuthenticationResult result = future.get();
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.CONTINUE));
         assertThat(result.getUser(), nullValue());
-        assertThat(result.getMessage(), equalTo("authorizing_realms are not permitted"));
+        assertThat(result.getMessage(), equalTo("user_lookup.realms are not permitted"));
         assertThat(result.getException(), instanceOf(ElasticsearchSecurityException.class));
-        assertThat(result.getException().getMessage(), equalTo("current license is non-compliant for [authorizing_realms]"));
+        assertThat(result.getException().getMessage(), equalTo("current license is non-compliant for [user_lookup.realms]"));
     }
 
     private XPackLicenseState getLicenseState(boolean authzRealmsAllowed) {
         final XPackLicenseState license = mock(XPackLicenseState.class);
-        when(license.isAuthorizingRealmAllowed()).thenReturn(authzRealmsAllowed);
+        when(license.isLookupRealmAllowed()).thenReturn(authzRealmsAllowed);
         return license;
     }
 }

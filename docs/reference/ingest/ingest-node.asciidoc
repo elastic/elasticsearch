@@ -1732,6 +1732,10 @@ For example, if you have a log message which contains `ip=1.2.3.4 error=REFUSED`
 | `include_keys`   | no        | `null`   | List of keys to filter and insert into document. Defaults to including all keys
 | `exclude_keys`   | no        | `null`   | List of keys to exclude from document
 | `ignore_missing` | no        | `false`  | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
+| `prefix`         | no        | `null`   | Prefix to be added to extracted keys
+| `trim_key`       | no        | `null`   | String of characters to trim from extracted keys
+| `trim_value`     | no        | `null`   | String of characters to trim from extracted values
+| `strip_brackets` | no        | `false`  | If `true` strip brackets `()`, `<>`, `[]` as well as quotes `'` and `"` from extracted values
 |======
 
 

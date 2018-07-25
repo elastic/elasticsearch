@@ -19,9 +19,6 @@
 
 package org.elasticsearch.upgrades;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
@@ -34,7 +31,6 @@ import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.NotEqualMessageBuilder;
@@ -45,7 +41,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Base64;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -142,8 +137,9 @@ public class FullClusterRestartIT extends ESRestTestCase {
                 mappingsAndSettings.endObject();
             }
             mappingsAndSettings.endObject();
-            client().performRequest("PUT", "/" + index, Collections.emptyMap(),
-                new StringEntity(Strings.toString(mappingsAndSettings), ContentType.APPLICATION_JSON));
+            Request createIndex = new Request("PUT", "/" + index);
+            createIndex.setJsonEntity(Strings.toString(mappingsAndSettings));
+            client().performRequest(createIndex);
 
             count = randomIntBetween(2000, 3000);
             byte[] randomByteArray = new byte[16];
@@ -164,16 +160,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
             count = countOfIndexedRandomDocuments();
         }
 
-        Map<String, String> params = new HashMap<>();
-        params.put("timeout", "2m");
-        params.put("wait_for_status", "green");
-        params.put("wait_for_no_relocating_shards", "true");
-        params.put("wait_for_events", "languid");
-        Map<String, Object> healthRsp = toMap(client().performRequest("GET", "/_cluster/health/" + index, params));
-        logger.info("health api response: {}", healthRsp);
-        assertEquals("green", healthRsp.get("status"));
-        assertFalse((Boolean) healthRsp.get("timed_out"));
-
+        ensureGreenLongWait(index);
         assertBasicSearchWorks(count);
         assertAllSearchWorks(count);
         assertBasicAggregationWorks();
@@ -205,8 +192,9 @@ public class FullClusterRestartIT extends ESRestTestCase {
                 mappingsAndSettings.endObject();
             }
             mappingsAndSettings.endObject();
-            client().performRequest("PUT", "/" + index, Collections.emptyMap(),
-                new StringEntity(Strings.toString(mappingsAndSettings), ContentType.APPLICATION_JSON));
+            Request createIndex = new Request("PUT", "/" + index);
+            createIndex.setJsonEntity(Strings.toString(mappingsAndSettings));
+            client().performRequest(createIndex);
 
             int numDocs = randomIntBetween(2000, 3000);
             indexRandomDocuments(numDocs, true, false, i -> {
@@ -215,33 +203,26 @@ public class FullClusterRestartIT extends ESRestTestCase {
                     .endObject();
             });
             logger.info("Refreshing [{}]", index);
-            client().performRequest("POST", "/" + index + "/_refresh");
+            client().performRequest(new Request("POST", "/" + index + "/_refresh"));
         } else {
             final int numReplicas = 1;
             final long startTime = System.currentTimeMillis();
             logger.debug("--> creating [{}] replicas for index [{}]", numReplicas, index);
-            String requestBody = "{ \"index\": { \"number_of_replicas\" : " + numReplicas + " }}";
-            Response response = client().performRequest("PUT", "/" + index + "/_settings", Collections.emptyMap(),
-                new StringEntity(requestBody, ContentType.APPLICATION_JSON));
-            assertEquals(200, response.getStatusLine().getStatusCode());
+            Request setNumberOfReplicas = new Request("PUT", "/" + index + "/_settings");
+            setNumberOfReplicas.setJsonEntity("{ \"index\": { \"number_of_replicas\" : " + numReplicas + " }}");
+            Response response = client().performRequest(setNumberOfReplicas);
 
-            Map<String, String> params = new HashMap<>();
-            params.put("timeout", "2m");
-            params.put("wait_for_status", "green");
-            params.put("wait_for_no_relocating_shards", "true");
-            params.put("wait_for_events", "languid");
-            Map<String, Object> healthRsp = toMap(client().performRequest("GET", "/_cluster/health/" + index, params));
-            assertEquals("green", healthRsp.get("status"));
-            assertFalse((Boolean) healthRsp.get("timed_out"));
+            ensureGreenLongWait(index);
 
             logger.debug("--> index [{}] is green, took [{}] ms", index, (System.currentTimeMillis() - startTime));
-            Map<String, Object> recoverRsp = toMap(client().performRequest("GET", "/" + index + "/_recovery"));
+            Map<String, Object> recoverRsp = entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_recovery")));
             logger.debug("--> recovery status:\n{}", recoverRsp);
 
             Set<Integer> counts = new HashSet<>();
             for (String node : dataNodes(index, client())) {
-                Map<String, Object> responseBody = toMap(client().performRequest("GET", "/" + index + "/_search",
-                    Collections.singletonMap("preference", "_only_nodes:" + node)));
+                Request search = new Request("GET", "/" + index + "/_search");
+                search.addParameter("preference", "_only_nodes:" + node);
+                Map<String, Object> responseBody = entityAsMap(client().performRequest(search));
                 assertNoFailures(responseBody);
                 int hits = (int) XContentMapValues.extractValue("hits.total", responseBody);
                 counts.add(hits);
@@ -282,12 +263,13 @@ public class FullClusterRestartIT extends ESRestTestCase {
                 mappingsAndSettings.endObject();
             }
             mappingsAndSettings.endObject();
-            client().performRequest("PUT", "/" + index, Collections.emptyMap(),
-                new StringEntity(Strings.toString(mappingsAndSettings), ContentType.APPLICATION_JSON));
+            Request createIndex = new Request("PUT", "/" + index);
+            createIndex.setJsonEntity(Strings.toString(mappingsAndSettings));
+            client().performRequest(createIndex);
 
             String aliasName = "%23" + index; // %23 == #
-            client().performRequest("PUT", "/" + index + "/_alias/" + aliasName);
-            Response response = client().performRequest("HEAD", "/" + index + "/_alias/" + aliasName);
+            client().performRequest(new Request("PUT", "/" + index + "/_alias/" + aliasName));
+            Response response = client().performRequest(new Request("HEAD", "/" + index + "/_alias/" + aliasName));
             assertEquals(200, response.getStatusLine().getStatusCode());
 
             count = randomIntBetween(32, 128);
@@ -301,19 +283,20 @@ public class FullClusterRestartIT extends ESRestTestCase {
             count = countOfIndexedRandomDocuments();
         }
 
-        logger.error("clusterState=" + toMap(client().performRequest("GET", "/_cluster/state",
-            Collections.singletonMap("metric", "metadata"))));
+        Request request = new Request("GET", "/_cluster/state");
+        request.addParameter("metric", "metadata");
+        logger.error("clusterState=" + entityAsMap(client().performRequest(request)));
         // We can read from the alias just like we can read from the index.
         String aliasName = "%23" + index; // %23 == #
-        Map<String, Object> searchRsp = toMap(client().performRequest("GET", "/" + aliasName + "/_search"));
+        Map<String, Object> searchRsp = entityAsMap(client().performRequest(new Request("GET", "/" + aliasName + "/_search")));
         int totalHits = (int) XContentMapValues.extractValue("hits.total", searchRsp);
         assertEquals(count, totalHits);
         if (runningAgainstOldCluster == false) {
             // We can remove the alias.
-            Response response = client().performRequest("DELETE", "/" + index + "/_alias/" + aliasName);
+            Response response = client().performRequest(new Request("DELETE", "/" + index + "/_alias/" + aliasName));
             assertEquals(200, response.getStatusLine().getStatusCode());
             // and check that it is gone:
-            response = client().performRequest("HEAD", "/" + index + "/_alias/" + aliasName);
+            response = client().performRequest(new Request("HEAD", "/" + index + "/_alias/" + aliasName));
             assertEquals(404, response.getStatusLine().getStatusCode());
         }
     }
@@ -330,13 +313,14 @@ public class FullClusterRestartIT extends ESRestTestCase {
                 mappingsAndSettings.endObject();
             }
             mappingsAndSettings.endObject();
-            client().performRequest("PUT", "/_template/template_1", Collections.emptyMap(),
-                new StringEntity(Strings.toString(mappingsAndSettings), ContentType.APPLICATION_JSON));
-            client().performRequest("PUT", "/" + index);
+            Request createTemplate = new Request("PUT", "/_template/template_1");
+            createTemplate.setJsonEntity(Strings.toString(mappingsAndSettings));
+            client().performRequest(createTemplate);
+            client().performRequest(new Request("PUT", "/" + index));
         }
 
         // verifying if we can still read some properties from cluster state api:
-        Map<String, Object> clusterState = toMap(client().performRequest("GET", "/_cluster/state"));
+        Map<String, Object> clusterState = entityAsMap(client().performRequest(new Request("GET", "/_cluster/state")));
 
         // Check some global properties:
         String clusterName = (String) clusterState.get("cluster_name");
@@ -381,8 +365,9 @@ public class FullClusterRestartIT extends ESRestTestCase {
                 mappingsAndSettings.endObject();
             }
             mappingsAndSettings.endObject();
-            client().performRequest("PUT", "/" + index, Collections.emptyMap(),
-                new StringEntity(Strings.toString(mappingsAndSettings), ContentType.APPLICATION_JSON));
+            Request createIndex = new Request("PUT", "/" + index);
+            createIndex.setJsonEntity(Strings.toString(mappingsAndSettings));
+            client().performRequest(createIndex);
 
             numDocs = randomIntBetween(512, 1024);
             indexRandomDocuments(numDocs, true, true, i -> {
@@ -393,23 +378,20 @@ public class FullClusterRestartIT extends ESRestTestCase {
 
             ensureGreen(index); // wait for source index to be available on both nodes before starting shrink
 
-            String updateSettingsRequestBody = "{\"settings\": {\"index.blocks.write\": true}}";
-            Response rsp = client().performRequest("PUT", "/" + index + "/_settings", Collections.emptyMap(),
-                new StringEntity(updateSettingsRequestBody, ContentType.APPLICATION_JSON));
-            assertEquals(200, rsp.getStatusLine().getStatusCode());
+            Request updateSettingsRequest = new Request("PUT", "/" + index + "/_settings");
+            updateSettingsRequest.setJsonEntity("{\"settings\": {\"index.blocks.write\": true}}");
+            client().performRequest(updateSettingsRequest);
 
-            String shrinkIndexRequestBody = "{\"settings\": {\"index.number_of_shards\": 1}}";
-            rsp = client().performRequest("PUT", "/" + index + "/_shrink/" + shrunkenIndex, Collections.emptyMap(),
-                new StringEntity(shrinkIndexRequestBody, ContentType.APPLICATION_JSON));
-            assertEquals(200, rsp.getStatusLine().getStatusCode());
+            Request shrinkIndexRequest = new Request("PUT", "/" + index + "/_shrink/" + shrunkenIndex);
+            shrinkIndexRequest.setJsonEntity("{\"settings\": {\"index.number_of_shards\": 1}}");
+            client().performRequest(shrinkIndexRequest);
 
-            rsp = client().performRequest("POST", "/_refresh");
-            assertEquals(200, rsp.getStatusLine().getStatusCode());
+            client().performRequest(new Request("POST", "/_refresh"));
         } else {
             numDocs = countOfIndexedRandomDocuments();
         }
 
-        Map<?, ?> response = toMap(client().performRequest("GET", "/" + index + "/_search"));
+        Map<?, ?> response = entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search")));
         assertNoFailures(response);
         int totalShards = (int) XContentMapValues.extractValue("_shards.total", response);
         assertThat(totalShards, greaterThan(1));
@@ -418,7 +400,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
         int totalHits = (int) XContentMapValues.extractValue("hits.total", response);
         assertEquals(numDocs, totalHits);
 
-        response = toMap(client().performRequest("GET", "/" + shrunkenIndex+ "/_search"));
+        response = entityAsMap(client().performRequest(new Request("GET", "/" + shrunkenIndex+ "/_search")));
         assertNoFailures(response);
         totalShards = (int) XContentMapValues.extractValue("_shards.total", response);
         assertEquals(1, totalShards);
@@ -448,8 +430,9 @@ public class FullClusterRestartIT extends ESRestTestCase {
                 mappingsAndSettings.endObject();
             }
             mappingsAndSettings.endObject();
-            client().performRequest("PUT", "/" + index, Collections.emptyMap(),
-                new StringEntity(Strings.toString(mappingsAndSettings), ContentType.APPLICATION_JSON));
+            Request createIndex = new Request("PUT", "/" + index);
+            createIndex.setJsonEntity(Strings.toString(mappingsAndSettings));
+            client().performRequest(createIndex);
 
             numDocs = randomIntBetween(512, 1024);
             indexRandomDocuments(numDocs, true, true, i -> {
@@ -460,23 +443,20 @@ public class FullClusterRestartIT extends ESRestTestCase {
         } else {
             ensureGreen(index); // wait for source index to be available on both nodes before starting shrink
 
-            String updateSettingsRequestBody = "{\"settings\": {\"index.blocks.write\": true}}";
-            Response rsp = client().performRequest("PUT", "/" + index + "/_settings", Collections.emptyMap(),
-                new StringEntity(updateSettingsRequestBody, ContentType.APPLICATION_JSON));
-            assertEquals(200, rsp.getStatusLine().getStatusCode());
+            Request updateSettingsRequest = new Request("PUT", "/" + index + "/_settings");
+            updateSettingsRequest.setJsonEntity("{\"settings\": {\"index.blocks.write\": true}}");
+            client().performRequest(updateSettingsRequest);
 
-            String shrinkIndexRequestBody = "{\"settings\": {\"index.number_of_shards\": 1}}";
-            rsp = client().performRequest("PUT", "/" + index + "/_shrink/" + shrunkenIndex, Collections.emptyMap(),
-                new StringEntity(shrinkIndexRequestBody, ContentType.APPLICATION_JSON));
-            assertEquals(200, rsp.getStatusLine().getStatusCode());
+            Request shrinkIndexRequest = new Request("PUT", "/" + index + "/_shrink/" + shrunkenIndex);
+            shrinkIndexRequest.setJsonEntity("{\"settings\": {\"index.number_of_shards\": 1}}");
+            client().performRequest(shrinkIndexRequest);
 
             numDocs = countOfIndexedRandomDocuments();
         }
 
-        Response rsp = client().performRequest("POST", "/_refresh");
-        assertEquals(200, rsp.getStatusLine().getStatusCode());
+        client().performRequest(new Request("POST", "/_refresh"));
 
-        Map<?, ?> response = toMap(client().performRequest("GET", "/" + index + "/_search"));
+        Map<?, ?> response = entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search")));
         assertNoFailures(response);
         int totalShards = (int) XContentMapValues.extractValue("_shards.total", response);
         assertThat(totalShards, greaterThan(1));
@@ -486,7 +466,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
         assertEquals(numDocs, totalHits);
 
         if (runningAgainstOldCluster == false) {
-            response = toMap(client().performRequest("GET", "/" + shrunkenIndex + "/_search"));
+            response = entityAsMap(client().performRequest(new Request("GET", "/" + shrunkenIndex + "/_search")));
             assertNoFailures(response);
             totalShards = (int) XContentMapValues.extractValue("_shards.total", response);
             assertEquals(1, totalShards);
@@ -499,43 +479,48 @@ public class FullClusterRestartIT extends ESRestTestCase {
 
     void assertBasicSearchWorks(int count) throws IOException {
         logger.info("--> testing basic search");
-        Map<String, Object> response = toMap(client().performRequest("GET", "/" + index + "/_search"));
-        assertNoFailures(response);
-        int numDocs = (int) XContentMapValues.extractValue("hits.total", response);
-        logger.info("Found {} in old index", numDocs);
-        assertEquals(count, numDocs);
+        {
+            Map<String, Object> response = entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search")));
+            assertNoFailures(response);
+            int numDocs = (int) XContentMapValues.extractValue("hits.total", response);
+            logger.info("Found {} in old index", numDocs);
+            assertEquals(count, numDocs);
+        }
 
         logger.info("--> testing basic search with sort");
-        String searchRequestBody = "{ \"sort\": [{ \"int\" : \"asc\" }]}";
-        response = toMap(client().performRequest("GET", "/" + index + "/_search", Collections.emptyMap(),
-            new StringEntity(searchRequestBody, ContentType.APPLICATION_JSON)));
-        assertNoFailures(response);
-        numDocs = (int) XContentMapValues.extractValue("hits.total", response);
-        assertEquals(count, numDocs);
+        {
+            Request searchRequest = new Request("GET", "/" + index + "/_search");
+            searchRequest.setJsonEntity("{ \"sort\": [{ \"int\" : \"asc\" }]}");
+            Map<String, Object> response = entityAsMap(client().performRequest(searchRequest));
+            assertNoFailures(response);
+            assertTotalHits(count, response);
+        }
 
         logger.info("--> testing exists filter");
-        searchRequestBody = "{ \"query\": { \"exists\" : {\"field\": \"string\"} }}";
-        response = toMap(client().performRequest("GET", "/" + index + "/_search", Collections.emptyMap(),
-            new StringEntity(searchRequestBody, ContentType.APPLICATION_JSON)));
-        assertNoFailures(response);
-        numDocs = (int) XContentMapValues.extractValue("hits.total", response);
-        assertEquals(count, numDocs);
+        {
+            Request searchRequest = new Request("GET", "/" + index + "/_search");
+            searchRequest.setJsonEntity("{ \"query\": { \"exists\" : {\"field\": \"string\"} }}");
+            Map<String, Object> response = entityAsMap(client().performRequest(searchRequest));
+            assertNoFailures(response);
+            assertTotalHits(count, response);
+        }
 
-        searchRequestBody = "{ \"query\": { \"exists\" : {\"field\": \"field.with.dots\"} }}";
-        response = toMap(client().performRequest("GET", "/" + index + "/_search", Collections.emptyMap(),
-            new StringEntity(searchRequestBody, ContentType.APPLICATION_JSON)));
-        assertNoFailures(response);
-        numDocs = (int) XContentMapValues.extractValue("hits.total", response);
-        assertEquals(count, numDocs);
+        logger.info("--> testing field with dots in the name");
+        {
+            Request searchRequest = new Request("GET", "/" + index + "/_search");
+            searchRequest.setJsonEntity("{ \"query\": { \"exists\" : {\"field\": \"field.with.dots\"} }}");
+            Map<String, Object> response = entityAsMap(client().performRequest(searchRequest));
+            assertNoFailures(response);
+            assertTotalHits(count, response);
+        }
     }
 
     void assertAllSearchWorks(int count) throws IOException {
         logger.info("--> testing _all search");
-        Map<String, Object>  searchRsp = toMap(client().performRequest("GET", "/" + index + "/_search"));
-        assertNoFailures(searchRsp);
-        int totalHits = (int) XContentMapValues.extractValue("hits.total", searchRsp);
-        assertEquals(count, totalHits);
-        Map<?, ?> bestHit = (Map<?, ?>) ((List<?>)(XContentMapValues.extractValue("hits.hits", searchRsp))).get(0);
+        Map<String, Object> response = entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search")));
+        assertNoFailures(response);
+        assertTotalHits(count, response);
+        Map<?, ?> bestHit = (Map<?, ?>) ((List<?>) (XContentMapValues.extractValue("hits.hits", response))).get(0);
 
         // Make sure there are payloads and they are taken into account for the score
         // the 'string' field has a boost of 4 in the mappings so it should get a payload boost
@@ -543,82 +528,77 @@ public class FullClusterRestartIT extends ESRestTestCase {
         assertNotNull(stringValue);
         String type = (String) bestHit.get("_type");
         String id = (String) bestHit.get("_id");
-        String requestBody = "{ \"query\": { \"match_all\" : {} }}";
-        String explanation = toStr(client().performRequest("GET", "/" + index + "/" + type + "/" + id,
-                Collections.emptyMap(), new StringEntity(requestBody, ContentType.APPLICATION_JSON)));
+        Request explanationRequest = new Request("GET", "/" + index + "/" + type + "/" + id + "/_explain");
+        explanationRequest.setJsonEntity("{ \"query\": { \"match_all\" : {} }}");
+        String explanation = toStr(client().performRequest(explanationRequest));
         assertFalse("Could not find payload boost in explanation\n" + explanation, explanation.contains("payloadBoost"));
 
         // Make sure the query can run on the whole index
-        searchRsp = toMap(client().performRequest("GET", "/" + index + "/_search",
-                Collections.singletonMap("explain", "true"), new StringEntity(requestBody, ContentType.APPLICATION_JSON)));
-        assertNoFailures(searchRsp);
-        totalHits = (int) XContentMapValues.extractValue("hits.total", searchRsp);
-        assertEquals(count, totalHits);
+        Request searchRequest = new Request("GET", "/" + index + "/_search");
+        searchRequest.setEntity(explanationRequest.getEntity());
+        searchRequest.addParameter("explain", "true");
+        Map<?, ?> matchAllResponse = entityAsMap(client().performRequest(searchRequest));
+        assertNoFailures(matchAllResponse);
+        assertTotalHits(count, matchAllResponse);
     }
 
     void assertBasicAggregationWorks() throws IOException {
         // histogram on a long
-        String requestBody = "{ \"aggs\": { \"histo\" : {\"histogram\" : {\"field\": \"int\", \"interval\": 10}} }}";
-        Map<?, ?> searchRsp = toMap(client().performRequest("GET", "/" + index + "/_search", Collections.emptyMap(),
-                new StringEntity(requestBody, ContentType.APPLICATION_JSON)));
-        assertNoFailures(searchRsp);
-        List<?> histoBuckets = (List<?>) XContentMapValues.extractValue("aggregations.histo.buckets", searchRsp);
-        long totalCount = 0;
+        Request longHistogramRequest = new Request("GET", "/" + index + "/_search");
+        longHistogramRequest.setJsonEntity("{ \"aggs\": { \"histo\" : {\"histogram\" : {\"field\": \"int\", \"interval\": 10}} }}");
+        Map<?, ?> longHistogram = entityAsMap(client().performRequest(longHistogramRequest));
+        assertNoFailures(longHistogram);
+        List<?> histoBuckets = (List<?>) XContentMapValues.extractValue("aggregations.histo.buckets", longHistogram);
+        int histoCount = 0;
         for (Object entry : histoBuckets) {
             Map<?, ?> bucket = (Map<?, ?>) entry;
-            totalCount += (Integer) bucket.get("doc_count");
+            histoCount += (Integer) bucket.get("doc_count");
         }
-        int totalHits = (int) XContentMapValues.extractValue("hits.total", searchRsp);
-        assertEquals(totalHits, totalCount);
+        assertTotalHits(histoCount, longHistogram);
 
         // terms on a boolean
-        requestBody = "{ \"aggs\": { \"bool_terms\" : {\"terms\" : {\"field\": \"bool\"}} }}";
-        searchRsp = toMap(client().performRequest("GET", "/" + index + "/_search", Collections.emptyMap(),
-                new StringEntity(requestBody, ContentType.APPLICATION_JSON)));
-        List<?> termsBuckets = (List<?>) XContentMapValues.extractValue("aggregations.bool_terms.buckets", searchRsp);
-        totalCount = 0;
+        Request boolTermsRequest = new Request("GET", "/" + index + "/_search");
+        boolTermsRequest.setJsonEntity("{ \"aggs\": { \"bool_terms\" : {\"terms\" : {\"field\": \"bool\"}} }}");
+        Map<?, ?> boolTerms = entityAsMap(client().performRequest(boolTermsRequest));
+        List<?> termsBuckets = (List<?>) XContentMapValues.extractValue("aggregations.bool_terms.buckets", boolTerms);
+        int termsCount = 0;
         for (Object entry : termsBuckets) {
             Map<?, ?> bucket = (Map<?, ?>) entry;
-            totalCount += (Integer) bucket.get("doc_count");
+            termsCount += (Integer) bucket.get("doc_count");
         }
-        totalHits = (int) XContentMapValues.extractValue("hits.total", searchRsp);
-        assertEquals(totalHits, totalCount);
+        assertTotalHits(termsCount, boolTerms);
     }
 
     void assertRealtimeGetWorks() throws IOException {
-        String requestBody = "{ \"index\": { \"refresh_interval\" : -1 }}";
-        Response response = client().performRequest("PUT", "/" + index + "/_settings", Collections.emptyMap(),
-                new StringEntity(requestBody, ContentType.APPLICATION_JSON));
-        assertEquals(200, response.getStatusLine().getStatusCode());
+        Request disableAutoRefresh = new Request("PUT", "/" + index + "/_settings");
+        disableAutoRefresh.setJsonEntity("{ \"index\": { \"refresh_interval\" : -1 }}");
+        client().performRequest(disableAutoRefresh);
 
-        requestBody = "{ \"query\": { \"match_all\" : {} }}";
-        Map<String, Object> searchRsp = toMap(client().performRequest("GET", "/" + index + "/_search", Collections.emptyMap(),
-                new StringEntity(requestBody, ContentType.APPLICATION_JSON)));
-        Map<?, ?> hit = (Map<?, ?>) ((List<?>)(XContentMapValues.extractValue("hits.hits", searchRsp))).get(0);
+        Request searchRequest = new Request("GET", "/" + index + "/_search");
+        searchRequest.setJsonEntity("{ \"query\": { \"match_all\" : {} }}");
+        Map<?, ?> searchResponse = entityAsMap(client().performRequest(searchRequest));
+        Map<?, ?> hit = (Map<?, ?>) ((List<?>)(XContentMapValues.extractValue("hits.hits", searchResponse))).get(0);
         String docId = (String) hit.get("_id");
 
-        requestBody = "{ \"doc\" : { \"foo\": \"bar\"}}";
-        response = client().performRequest("POST", "/" + index + "/doc/" + docId + "/_update", Collections.emptyMap(),
-                new StringEntity(requestBody, ContentType.APPLICATION_JSON));
-        assertEquals(200, response.getStatusLine().getStatusCode());
+        Request updateRequest = new Request("POST", "/" + index + "/doc/" + docId + "/_update");
+        updateRequest.setJsonEntity("{ \"doc\" : { \"foo\": \"bar\"}}");
+        client().performRequest(updateRequest);
 
-        Map<String, Object> getRsp = toMap(client().performRequest("GET", "/" + index + "/doc/" + docId));
+        Map<String, Object> getRsp = entityAsMap(client().performRequest(new Request("GET", "/" + index + "/doc/" + docId)));
         Map<?, ?> source = (Map<?, ?>) getRsp.get("_source");
         assertTrue("doc does not contain 'foo' key: " + source, source.containsKey("foo"));
 
-        requestBody = "{ \"index\": { \"refresh_interval\" : \"1s\" }}";
-        response = client().performRequest("PUT", "/" + index + "/_settings", Collections.emptyMap(),
-                new StringEntity(requestBody, ContentType.APPLICATION_JSON));
-        assertEquals(200, response.getStatusLine().getStatusCode());
+        Request enableAutoRefresh = new Request("PUT", "/" + index + "/_settings");
+        enableAutoRefresh.setJsonEntity("{ \"index\": { \"refresh_interval\" : \"1s\" }}");
+        client().performRequest(enableAutoRefresh);
     }
 
     void assertStoredBinaryFields(int count) throws Exception {
-        String requestBody = "{ \"query\": { \"match_all\" : {} }, \"size\": 100, \"stored_fields\": \"binary\"}";
-        Map<String, Object> rsp = toMap(client().performRequest("GET", "/" + index + "/_search",
-            Collections.emptyMap(), new StringEntity(requestBody, ContentType.APPLICATION_JSON)));
+        Request request = new Request("GET", "/" + index + "/_search");
+        request.setJsonEntity("{ \"query\": { \"match_all\" : {} }, \"size\": 100, \"stored_fields\": \"binary\"}");
+        Map<String, Object> rsp = entityAsMap(client().performRequest(request));
 
-        int totalCount = (Integer) XContentMapValues.extractValue("hits.total", rsp);
-        assertEquals(count, totalCount);
+        assertTotalHits(count, rsp);
         List<?> hits = (List<?>) XContentMapValues.extractValue("hits.hits", rsp);
         assertEquals(100, hits.size());
         for (Object hit : hits) {
@@ -631,14 +611,6 @@ public class FullClusterRestartIT extends ESRestTestCase {
         }
     }
 
-    static Map<String, Object> toMap(Response response) throws IOException {
-        return toMap(EntityUtils.toString(response.getEntity()));
-    }
-
-    static Map<String, Object> toMap(String response) throws IOException {
-        return XContentHelper.convertToMap(JsonXContent.jsonXContent, response, false);
-    }
-
     static String toStr(Response response) throws IOException {
         return EntityUtils.toString(response.getEntity());
     }
@@ -646,6 +618,11 @@ public class FullClusterRestartIT extends ESRestTestCase {
     static void assertNoFailures(Map<?, ?> response) {
         int failed = (int) XContentMapValues.extractValue("_shards.failed", response);
         assertEquals(0, failed);
+    }
+
+    static void assertTotalHits(int expectedTotalHits, Map<?, ?> response) {
+        int actualTotalHits = (Integer) XContentMapValues.extractValue("hits.total", response);
+        assertEquals(expectedTotalHits, actualTotalHits);
     }
 
     /**
@@ -656,11 +633,12 @@ public class FullClusterRestartIT extends ESRestTestCase {
         String doc = "{\"test\": \"test\"}";
 
         if (runningAgainstOldCluster) {
-            client().performRequest("PUT", docLocation, singletonMap("refresh", "true"),
-                    new StringEntity(doc, ContentType.APPLICATION_JSON));
+            Request createDoc = new Request("PUT", docLocation);
+            createDoc.setJsonEntity(doc);
+            client().performRequest(createDoc);
         }
 
-        assertThat(toStr(client().performRequest("GET", docLocation)), containsString(doc));
+        assertThat(toStr(client().performRequest(new Request("GET", docLocation))), containsString(doc));
     }
 
     /**
@@ -733,16 +711,18 @@ public class FullClusterRestartIT extends ESRestTestCase {
         }
 
         // Count the documents in the index to make sure we have as many as we put there
-        String countResponse = toStr(client().performRequest("GET", "/" + index + "/_search", singletonMap("size", "0")));
+        Request countRequest = new Request("GET", "/" + index + "/_search");
+        countRequest.addParameter("size", "0");
+        String countResponse = toStr(client().performRequest(countRequest));
         assertThat(countResponse, containsString("\"total\":" + count));
 
         if (false == runningAgainstOldCluster) {
             boolean restoredFromTranslog = false;
             boolean foundPrimary = false;
-            Map<String, String> params = new HashMap<>();
-            params.put("h", "index,shard,type,stage,translog_ops_recovered");
-            params.put("s", "index,shard,type");
-            String recoveryResponse = toStr(client().performRequest("GET", "/_cat/recovery/" + index, params));
+            Request recoveryRequest = new Request("GET", "/_cat/recovery/" + index);
+            recoveryRequest.addParameter("h", "index,shard,type,stage,translog_ops_recovered");
+            recoveryRequest.addParameter("s", "index,shard,type");
+            String recoveryResponse = toStr(client().performRequest(recoveryRequest));
             for (String line : recoveryResponse.split("\n")) {
                 // Find the primaries
                 foundPrimary = true;
@@ -768,11 +748,10 @@ public class FullClusterRestartIT extends ESRestTestCase {
         if (shouldHaveTranslog && false == currentLuceneVersion.equals(bwcLuceneVersion)) {
             int numCurrentVersion = 0;
             int numBwcVersion = 0;
-            params.clear();
-            params.put("h", "prirep,shard,index,version");
-            params.put("s", "prirep,shard,index");
-            String segmentsResponse = toStr(
-                    client().performRequest("GET", "/_cat/segments/" + index, params));
+            Request segmentsRequest = new Request("GET", "/_cat/segments/" + index);
+            segmentsRequest.addParameter("h", "prirep,shard,index,version");
+            segmentsRequest.addParameter("s", "prirep,shard,index");
+            String segmentsResponse = toStr(client().performRequest(segmentsRequest));
             for (String line : segmentsResponse.split("\n")) {
                 if (false == line.startsWith("p")) {
                     continue;
@@ -817,14 +796,16 @@ public class FullClusterRestartIT extends ESRestTestCase {
         refresh();
 
         // Count the documents in the index to make sure we have as many as we put there
-        String countResponse = toStr(client().performRequest("GET", "/" + index + "/_search", singletonMap("size", "0")));
+        Request countRequest = new Request("GET", "/" + index + "/_search");
+        countRequest.addParameter("size", "0");
+        String countResponse = toStr(client().performRequest(countRequest));
         assertThat(countResponse, containsString("\"total\":" + count));
 
         // Stick a routing attribute into to cluster settings so we can see it after the restore
-        HttpEntity routingSetting = new StringEntity(
-                "{\"persistent\": {\"cluster.routing.allocation.exclude.test_attr\": \"" + oldClusterVersion + "\"}}",
-                ContentType.APPLICATION_JSON);
-        client().performRequest("PUT", "/_cluster/settings", emptyMap(), routingSetting);
+        Request addRoutingSettings = new Request("PUT", "/_cluster/settings");
+        addRoutingSettings.setJsonEntity(
+                    "{\"persistent\": {\"cluster.routing.allocation.exclude.test_attr\": \"" + oldClusterVersion + "\"}}");
+        client().performRequest(addRoutingSettings);
 
         // Stick a template into the cluster so we can see it after the restore
         XContentBuilder templateBuilder = JsonXContent.contentBuilder().startObject();
@@ -857,8 +838,9 @@ public class FullClusterRestartIT extends ESRestTestCase {
             templateBuilder.endObject();
         }
         templateBuilder.endObject().endObject();
-        client().performRequest("PUT", "/_template/test_template", emptyMap(),
-                new StringEntity(Strings.toString(templateBuilder), ContentType.APPLICATION_JSON));
+        Request createTemplateRequest = new Request("PUT", "/_template/test_template");
+        createTemplateRequest.setJsonEntity(Strings.toString(templateBuilder));
+        client().performRequest(createTemplateRequest);
 
         if (runningAgainstOldCluster) {
             // Create the repo
@@ -871,13 +853,15 @@ public class FullClusterRestartIT extends ESRestTestCase {
                 repoConfig.endObject();
             }
             repoConfig.endObject();
-            client().performRequest("PUT", "/_snapshot/repo", emptyMap(),
-                    new StringEntity(Strings.toString(repoConfig), ContentType.APPLICATION_JSON));
+            Request createRepoRequest = new Request("PUT", "/_snapshot/repo");
+            createRepoRequest.setJsonEntity(Strings.toString(repoConfig));
+            client().performRequest(createRepoRequest);
         }
 
-        client().performRequest("PUT", "/_snapshot/repo/" + (runningAgainstOldCluster ? "old_snap" : "new_snap"),
-                singletonMap("wait_for_completion", "true"),
-                new StringEntity("{\"indices\": \"" + index + "\"}", ContentType.APPLICATION_JSON));
+        Request createSnapshot = new Request("PUT", "/_snapshot/repo/" + (runningAgainstOldCluster ? "old_snap" : "new_snap"));
+        createSnapshot.addParameter("wait_for_completion", "true");
+        createSnapshot.setJsonEntity("{\"indices\": \"" + index + "\"}");
+        client().performRequest(createSnapshot);
 
         checkSnapshot("old_snap", count, oldClusterVersion);
         if (false == runningAgainstOldCluster) {
@@ -896,10 +880,13 @@ public class FullClusterRestartIT extends ESRestTestCase {
                 mappingsAndSettings.endObject();
             }
             mappingsAndSettings.endObject();
-            client().performRequest("PUT", "/" + index, Collections.emptyMap(),
-                new StringEntity(Strings.toString(mappingsAndSettings), ContentType.APPLICATION_JSON));
+            Request createIndex = new Request("PUT", "/" + index);
+            createIndex.setJsonEntity(Strings.toString(mappingsAndSettings));
+            client().performRequest(createIndex);
         } else {
-            Response response = client().performRequest("GET", index + "/_stats", singletonMap("level", "shards"));
+            Request statsRequest = new Request("GET", index + "/_stats");
+            statsRequest.addParameter("level", "shards");
+            Response response = client().performRequest(statsRequest);
             List<Object> shardStats = ObjectPath.createFromResponse(response).evaluate("indices." + index + ".shards.0");
             String globalHistoryUUID = null;
             for (Object shard : shardStats) {
@@ -920,18 +907,20 @@ public class FullClusterRestartIT extends ESRestTestCase {
 
     private void checkSnapshot(String snapshotName, int count, Version tookOnVersion) throws IOException {
         // Check the snapshot metadata, especially the version
-        String response = toStr(client().performRequest("GET", "/_snapshot/repo/" + snapshotName, listSnapshotVerboseParams()));
-        Map<String, Object> map = toMap(response);
-        assertEquals(response, singletonList(snapshotName), XContentMapValues.extractValue("snapshots.snapshot", map));
-        assertEquals(response, singletonList("SUCCESS"), XContentMapValues.extractValue("snapshots.state", map));
-        assertEquals(response, singletonList(tookOnVersion.toString()), XContentMapValues.extractValue("snapshots.version", map));
+        Request listSnapshotRequest = new Request("GET", "/_snapshot/repo/" + snapshotName);
+        if (false == (runningAgainstOldCluster && oldClusterVersion.before(Version.V_5_5_0))) {
+            listSnapshotRequest.addParameter("verbose", "true");
+        }
+        Map<String, Object> listSnapshotResponse = entityAsMap(client().performRequest(listSnapshotRequest));
+        assertEquals(singletonList(snapshotName), XContentMapValues.extractValue("snapshots.snapshot", listSnapshotResponse));
+        assertEquals(singletonList("SUCCESS"), XContentMapValues.extractValue("snapshots.state", listSnapshotResponse));
+        assertEquals(singletonList(tookOnVersion.toString()), XContentMapValues.extractValue("snapshots.version", listSnapshotResponse));
 
         // Remove the routing setting and template so we can test restoring them.
-        HttpEntity clearRoutingSetting = new StringEntity(
-                "{\"persistent\":{\"cluster.routing.allocation.exclude.test_attr\": null}}",
-                ContentType.APPLICATION_JSON);
-        client().performRequest("PUT", "/_cluster/settings", emptyMap(), clearRoutingSetting);
-        client().performRequest("DELETE", "/_template/test_template", emptyMap(), clearRoutingSetting);
+        Request clearRoutingFromSettings = new Request("PUT", "/_cluster/settings");
+        clearRoutingFromSettings.setJsonEntity("{\"persistent\":{\"cluster.routing.allocation.exclude.test_attr\": null}}");
+        client().performRequest(clearRoutingFromSettings);
+        client().performRequest(new Request("DELETE", "/_template/test_template"));
 
         // Restore
         XContentBuilder restoreCommand = JsonXContent.contentBuilder().startObject();
@@ -940,11 +929,15 @@ public class FullClusterRestartIT extends ESRestTestCase {
         restoreCommand.field("rename_pattern", index);
         restoreCommand.field("rename_replacement", "restored_" + index);
         restoreCommand.endObject();
-        client().performRequest("POST", "/_snapshot/repo/" + snapshotName + "/_restore", singletonMap("wait_for_completion", "true"),
-                new StringEntity(Strings.toString(restoreCommand), ContentType.APPLICATION_JSON));
+        Request restoreRequest = new Request("POST", "/_snapshot/repo/" + snapshotName + "/_restore");
+        restoreRequest.addParameter("wait_for_completion", "true");
+        restoreRequest.setJsonEntity(Strings.toString(restoreCommand));
+        client().performRequest(restoreRequest);
 
         // Make sure search finds all documents
-        String countResponse = toStr(client().performRequest("GET", "/restored_" + index + "/_search", singletonMap("size", "0")));
+        Request countRequest = new Request("GET", "/restored_" + index + "/_search");
+        countRequest.addParameter("size", "0");
+        String countResponse = toStr(client().performRequest(countRequest));
         assertThat(countResponse, containsString("\"total\":" + count));
 
         // Add some extra documents to the index to be sure we can still write to it after restoring it
@@ -954,61 +947,56 @@ public class FullClusterRestartIT extends ESRestTestCase {
             bulk.append("{\"index\":{\"_id\":\"").append(count + i).append("\"}}\n");
             bulk.append("{\"test\":\"test\"}\n");
         }
-        client().performRequest("POST", "/restored_" + index + "/doc/_bulk", singletonMap("refresh", "true"),
-                new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
+        Request writeToRestoredRequest = new Request("POST", "/restored_" + index + "/doc/_bulk");
+        writeToRestoredRequest.addParameter("refresh", "true");
+        writeToRestoredRequest.setJsonEntity(bulk.toString());
+        client().performRequest(writeToRestoredRequest);
 
         // And count to make sure the add worked
         // Make sure search finds all documents
-        countResponse = toStr(client().performRequest("GET", "/restored_" + index + "/_search", singletonMap("size", "0")));
-        assertThat(countResponse, containsString("\"total\":" + (count + extras)));
+        Request countAfterWriteRequest = new Request("GET", "/restored_" + index + "/_search");
+        countAfterWriteRequest.addParameter("size", "0");
+        String countAfterWriteResponse = toStr(client().performRequest(countAfterWriteRequest));
+        assertThat(countAfterWriteResponse, containsString("\"total\":" + (count + extras)));
 
         // Clean up the index for the next iteration
-        client().performRequest("DELETE", "/restored_*");
+        client().performRequest(new Request("DELETE", "/restored_*"));
 
         // Check settings added by the restore process
-        map = toMap(client().performRequest("GET", "/_cluster/settings", singletonMap("flat_settings", "true")));
-        Map<String, Object> expected = new HashMap<>();
-        expected.put("transient", emptyMap());
-        expected.put("persistent", singletonMap("cluster.routing.allocation.exclude.test_attr", oldClusterVersion.toString()));
-        if (expected.equals(map) == false) {
+        Request clusterSettingsRequest = new Request("GET", "/_cluster/settings");
+        clusterSettingsRequest.addParameter("flat_settings", "true");
+        Map<String, Object> clusterSettingsResponse = entityAsMap(client().performRequest(clusterSettingsRequest));
+        Map<String, Object> expectedClusterSettings = new HashMap<>();
+        expectedClusterSettings.put("transient", emptyMap());
+        expectedClusterSettings.put("persistent",
+                singletonMap("cluster.routing.allocation.exclude.test_attr", oldClusterVersion.toString()));
+        if (expectedClusterSettings.equals(clusterSettingsResponse) == false) {
             NotEqualMessageBuilder builder = new NotEqualMessageBuilder();
-            builder.compareMaps(map, expected);
+            builder.compareMaps(clusterSettingsResponse, expectedClusterSettings);
             fail("settings don't match:\n" + builder.toString());
         }
 
         // Check that the template was restored successfully
-        map = toMap(client().performRequest("GET", "/_template/test_template"));
-        expected = new HashMap<>();
+        Map<String, Object> getTemplateResponse = entityAsMap(client().performRequest(new Request("GET", "/_template/test_template")));
+        Map<String, Object> expectedTemplate = new HashMap<>();
         if (runningAgainstOldCluster && oldClusterVersion.before(Version.V_6_0_0_beta1)) {
-            expected.put("template", "evil_*");
+            expectedTemplate.put("template", "evil_*");
         } else {
-            expected.put("index_patterns", singletonList("evil_*"));
+            expectedTemplate.put("index_patterns", singletonList("evil_*"));
         }
-        expected.put("settings", singletonMap("index", singletonMap("number_of_shards", "1")));
-        expected.put("mappings", singletonMap("doc", singletonMap("_source", singletonMap("enabled", true))));
-        expected.put("order", 0);
+        expectedTemplate.put("settings", singletonMap("index", singletonMap("number_of_shards", "1")));
+        expectedTemplate.put("mappings", singletonMap("doc", singletonMap("_source", singletonMap("enabled", true))));
+        expectedTemplate.put("order", 0);
         Map<String, Object> aliases = new HashMap<>();
         aliases.put("alias1", emptyMap());
         aliases.put("alias2", singletonMap("filter", singletonMap("term", singletonMap("version", tookOnVersion.toString()))));
-        expected.put("aliases", aliases);
-        expected = singletonMap("test_template", expected);
-        if (false == expected.equals(map)) {
+        expectedTemplate.put("aliases", aliases);
+        expectedTemplate = singletonMap("test_template", expectedTemplate);
+        if (false == expectedTemplate.equals(getTemplateResponse)) {
             NotEqualMessageBuilder builder = new NotEqualMessageBuilder();
-            builder.compareMaps(map, expected);
+            builder.compareMaps(getTemplateResponse, expectedTemplate);
             fail("template doesn't match:\n" + builder.toString());
         }
-
-    }
-
-    /**
-     * Parameters required to get the version of Elasticsearch that took the snapshot.
-     * On versions after 5.5 we need a {@code verbose} parameter.
-     */
-    private Map<String, String> listSnapshotVerboseParams() {
-        if (runningAgainstOldCluster && oldClusterVersion.before(Version.V_5_5_0)) {
-            return emptyMap();
-        }
-        return singletonMap("verbose", "true");
     }
 
     // TODO tests for upgrades after shrink. We've had trouble with shrink in the past.
@@ -1018,14 +1006,15 @@ public class FullClusterRestartIT extends ESRestTestCase {
         logger.info("Indexing {} random documents", count);
         for (int i = 0; i < count; i++) {
             logger.debug("Indexing document [{}]", i);
-            client().performRequest("POST", "/" + index + "/doc/" + i, emptyMap(),
-                    new StringEntity(Strings.toString(docSupplier.apply(i)), ContentType.APPLICATION_JSON));
+            Request createDocument = new Request("POST", "/" + index + "/doc/" + i);
+            createDocument.setJsonEntity(Strings.toString(docSupplier.apply(i)));
+            client().performRequest(createDocument);
             if (rarely()) {
                 refresh();
             }
             if (flushAllowed && rarely()) {
                 logger.debug("Flushing [{}]", index);
-                client().performRequest("POST", "/" + index + "/_flush");
+                client().performRequest(new Request("POST", "/" + index + "/_flush"));
             }
         }
         if (saveInfo) {
@@ -1042,13 +1031,16 @@ public class FullClusterRestartIT extends ESRestTestCase {
         infoDoc.field("value", value);
         infoDoc.endObject();
         // Only create the first version so we know how many documents are created when the index is first created
-        Map<String, String> params = singletonMap("op_type", "create");
-        client().performRequest("PUT", "/info/doc/" + index + "_" + type, params,
-                new StringEntity(Strings.toString(infoDoc), ContentType.APPLICATION_JSON));
+        Request request = new Request("PUT", "/info/doc/" + index + "_" + type);
+        request.addParameter("op_type", "create");
+        request.setJsonEntity(Strings.toString(infoDoc));
+        client().performRequest(request);
     }
 
     private String loadInfoDocument(String type) throws IOException {
-        String doc = toStr(client().performRequest("GET", "/info/doc/" + index + "_" + type, singletonMap("filter_path", "_source")));
+        Request request = new Request("GET", "/info/doc/" + index + "_" + type);
+        request.addParameter("filter_path", "_source");
+        String doc = toStr(client().performRequest(request));
         Matcher m = Pattern.compile("\"value\":\"(.+)\"").matcher(doc);
         assertTrue(doc, m.find());
         return m.group(1);
@@ -1060,11 +1052,13 @@ public class FullClusterRestartIT extends ESRestTestCase {
 
     private void refresh() throws IOException {
         logger.debug("Refreshing [{}]", index);
-        client().performRequest("POST", "/" + index + "/_refresh");
+        client().performRequest(new Request("POST", "/" + index + "/_refresh"));
     }
 
     private List<String> dataNodes(String index, RestClient client) throws IOException {
-        Response response = client.performRequest("GET", index + "/_stats", singletonMap("level", "shards"));
+        Request request = new Request("GET", index + "/_stats");
+        request.addParameter("level", "shards");
+        Response response = client.performRequest(request);
         List<String> nodes = new ArrayList<>();
         List<Object> shardStats = ObjectPath.createFromResponse(response).evaluate("indices." + index + ".shards.0");
         for (Object shard : shardStats) {
@@ -1072,5 +1066,22 @@ public class FullClusterRestartIT extends ESRestTestCase {
             nodes.add(nodeId);
         }
         return nodes;
+    }
+
+    /**
+     * Wait for an index to have green health, waiting longer than
+     * {@link ESRestTestCase#ensureGreen}.
+     */
+    protected void ensureGreenLongWait(String index) throws IOException {
+        Request request = new Request("GET", "/_cluster/health/" + index);
+        request.addParameter("timeout", "2m");
+        request.addParameter("wait_for_status", "green");
+        request.addParameter("wait_for_no_relocating_shards", "true");
+        request.addParameter("wait_for_events", "languid");
+        request.addParameter("level", "shards");
+        Map<String, Object> healthRsp = entityAsMap(client().performRequest(request));
+        logger.info("health api response: {}", healthRsp);
+        assertEquals("green", healthRsp.get("status"));
+        assertFalse((Boolean) healthRsp.get("timed_out"));
     }
 }

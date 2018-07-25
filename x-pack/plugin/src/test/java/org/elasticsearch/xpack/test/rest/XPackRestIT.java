@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.test.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.http.HttpStatus;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.Response;
@@ -219,7 +220,6 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
                     @SuppressWarnings("unchecked")
                     final Map<String, Object> node = (Map<String, Object>) nodes.values().iterator().next();
 
-                    @SuppressWarnings("unchecked")
                     final Number activeWrites = (Number) extractValue("thread_pool.write.active", node);
                     return activeWrites != null && activeWrites.longValue() == 0L;
                 } catch (Exception e) {

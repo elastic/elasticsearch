@@ -84,7 +84,7 @@ setup:
           "metric" : { "precision": { }}
         }
 
-  - match: {quality_level: 0.9}
+  - match: {metric_score: 0.9}
   - match: {details.amsterdam_query.unrated_docs.0._id:  "6"}
 
 ---

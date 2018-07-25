@@ -119,14 +119,11 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
             return context.factoryClazz.cast(newBucketAggregationScriptFactory(expr));
         } else if (context.instanceClazz.equals(BucketAggregationSelectorScript.class)) {
             BucketAggregationScript.Factory factory = newBucketAggregationScriptFactory(expr);
-            BucketAggregationSelectorScript.Factory wrappedFactory = parameters -> {
-                BucketAggregationScript script = factory.newInstance();
-                return new BucketAggregationSelectorScript(parameters) {
-                    @Override
-                    public boolean execute() {
-                        return script.execute(getParams()) == 1.0;
-                    }
-                };
+            BucketAggregationSelectorScript.Factory wrappedFactory = parameters -> new BucketAggregationSelectorScript(parameters) {
+                @Override
+                public boolean execute() {
+                    return factory.newInstance(getParams()).execute() == 1.0;
+                }
             };
             return context.factoryClazz.cast(wrappedFactory);
         } else if (context.instanceClazz.equals(FilterScript.class)) {
@@ -140,7 +137,7 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
     }
 
     private static BucketAggregationScript.Factory newBucketAggregationScriptFactory(Expression expr) {
-        return () -> {
+        return parameters -> {
             ReplaceableConstDoubleValues[] functionValuesArray =
                 new ReplaceableConstDoubleValues[expr.variables.length];
             Map<String, ReplaceableConstDoubleValues> functionValuesMap = new HashMap<>();
@@ -148,10 +145,10 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
                 functionValuesArray[i] = new ReplaceableConstDoubleValues();
                 functionValuesMap.put(expr.variables[i], functionValuesArray[i]);
             }
-            return new BucketAggregationScript() {
+            return new BucketAggregationScript(parameters) {
                 @Override
-                public double execute(Map<String, Object> params) {
-                    params.forEach((name, value) -> {
+                public double execute() {
+                    getParams().forEach((name, value) -> {
                         ReplaceableConstDoubleValues placeholder = functionValuesMap.get(name);
                         if (placeholder == null) {
                             throw new IllegalArgumentException("Error using " + expr + ". " +

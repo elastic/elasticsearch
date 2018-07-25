@@ -97,10 +97,10 @@ public class MockScriptEngine implements ScriptEngine {
             };
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(BucketAggregationScript.class)) {
-            BucketAggregationScript.Factory factory = () -> new BucketAggregationScript() {
+            BucketAggregationScript.Factory factory = parameters -> new BucketAggregationScript(parameters) {
                 @Override
-                public double execute(Map<String, Object> vars) {
-                    return ((Number) script.apply(vars)).doubleValue();
+                public double execute() {
+                    return ((Number) script.apply(getParams())).doubleValue();
                 }
             };
             return context.factoryClazz.cast(factory);

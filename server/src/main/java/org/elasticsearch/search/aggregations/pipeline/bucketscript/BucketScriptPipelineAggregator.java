@@ -90,7 +90,6 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
 
         BucketAggregationScript.Factory factory =
             reduceContext.scriptService().compile(script, BucketAggregationScript.CONTEXT);
-        BucketAggregationScript executableScript = factory.newInstance();
         List<InternalMultiBucketAggregation.InternalBucket> newBuckets = new ArrayList<>();
         for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
             Map<String, Object> vars = new HashMap<>();
@@ -111,7 +110,7 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
             if (skipBucket) {
                 newBuckets.add(bucket);
             } else {
-                double returned = executableScript.execute(vars);
+                double returned = factory.newInstance(vars).execute();
                 final List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false).map(
                         (p) -> (InternalAggregation) p).collect(Collectors.toList());
                 aggs.add(new InternalSimpleValue(name(), returned, formatter, new ArrayList<>(), metaData()));

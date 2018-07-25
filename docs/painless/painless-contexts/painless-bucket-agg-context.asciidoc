@@ -2,7 +2,7 @@
 === Bucket aggregation context
 
 Use a Painless script in an
-{es_version}/search-aggregations-pipeline-bucket-script-aggregation.html[bucket aggregation]
+{ref}/search-aggregations-pipeline-bucket-script-aggregation.html[bucket aggregation]
 to calculate a value as a result in a bucket.
 
 *Variables*

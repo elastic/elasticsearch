@@ -10,6 +10,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheAction;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheRequest;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheRequestBuilder;
@@ -167,7 +173,9 @@ public class SecurityClient {
         client.execute(HasPrivilegesAction.INSTANCE, request, listener);
     }
 
-    /** User Management */
+    /**
+     * User Management
+     */
 
     public GetUsersRequestBuilder prepareGetUsers(String... usernames) {
         return new GetUsersRequestBuilder(client).usernames(usernames);
@@ -223,7 +231,9 @@ public class SecurityClient {
         client.execute(SetEnabledAction.INSTANCE, request, listener);
     }
 
-    /** Role Management */
+    /**
+     * Role Management
+     */
 
     public GetRolesRequestBuilder prepareGetRoles(String... names) {
         return new GetRolesRequestBuilder(client).names(names);
@@ -253,7 +263,9 @@ public class SecurityClient {
         client.execute(PutRoleAction.INSTANCE, request, listener);
     }
 
-    /** Role Mappings */
+    /**
+     * Role Mappings
+     */
 
     public GetRoleMappingsRequestBuilder prepareGetRoleMappings(String... names) {
         return new GetRoleMappingsRequestBuilder(client, GetRoleMappingsAction.INSTANCE)
@@ -273,6 +285,27 @@ public class SecurityClient {
     public DeleteRoleMappingRequestBuilder prepareDeleteRoleMapping(String name) {
         return new DeleteRoleMappingRequestBuilder(client, DeleteRoleMappingAction.INSTANCE)
                 .name(name);
+    }
+
+    /* -- Application Privileges -- */
+    public GetPrivilegesRequestBuilder prepareGetPrivileges(String applicationName, String[] privileges) {
+        return new GetPrivilegesRequestBuilder(client, GetPrivilegesAction.INSTANCE).application(applicationName).privileges(privileges);
+    }
+
+    public PutPrivilegesRequestBuilder preparePutPrivilege(String applicationName, String privilegeName,
+                                                           BytesReference bytesReference, XContentType xContentType) throws IOException {
+        return new PutPrivilegesRequestBuilder(client, PutPrivilegesAction.INSTANCE)
+            .source(applicationName, privilegeName, bytesReference, xContentType);
+    }
+
+    public PutPrivilegesRequestBuilder preparePutPrivileges(BytesReference bytesReference, XContentType xContentType) throws IOException {
+        return new PutPrivilegesRequestBuilder(client, PutPrivilegesAction.INSTANCE).source(bytesReference, xContentType);
+    }
+
+    public DeletePrivilegesRequestBuilder prepareDeletePrivileges(String applicationName, String[] privileges) {
+        return new DeletePrivilegesRequestBuilder(client, DeletePrivilegesAction.INSTANCE)
+            .application(applicationName)
+            .privileges(privileges);
     }
 
     public CreateTokenRequestBuilder prepareCreateToken() {
@@ -298,7 +331,7 @@ public class SecurityClient {
         return builder;
     }
 
-    public void samlAuthenticate(SamlAuthenticateRequest request, ActionListener< SamlAuthenticateResponse> listener) {
+    public void samlAuthenticate(SamlAuthenticateRequest request, ActionListener<SamlAuthenticateResponse> listener) {
         client.execute(SamlAuthenticateAction.INSTANCE, request, listener);
     }
 

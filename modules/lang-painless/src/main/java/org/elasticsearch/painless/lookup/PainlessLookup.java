@@ -30,30 +30,30 @@ import java.util.Map;
 public final class PainlessLookup {
 
     public Collection<PainlessClass> getStructs() {
-        return javaClassesToPainlessStructs.values();
+        return classesToPainlessClasses.values();
     }
 
-    private final Map<String, Class<?>> painlessTypesToJavaClasses;
-    private final Map<Class<?>, PainlessClass> javaClassesToPainlessStructs;
+    private final Map<String, Class<?>> canonicalClassNamesToClasses;
+    private final Map<Class<?>, PainlessClass> classesToPainlessClasses;
 
-    PainlessLookup(Map<String, Class<?>> painlessTypesToJavaClasses, Map<Class<?>, PainlessClass> javaClassesToPainlessStructs) {
-        this.painlessTypesToJavaClasses = Collections.unmodifiableMap(painlessTypesToJavaClasses);
-        this.javaClassesToPainlessStructs = Collections.unmodifiableMap(javaClassesToPainlessStructs);
+    PainlessLookup(Map<String, Class<?>> canonicalClassNamesToClasses, Map<Class<?>, PainlessClass> classesToPainlessClasses) {
+        this.canonicalClassNamesToClasses = Collections.unmodifiableMap(canonicalClassNamesToClasses);
+        this.classesToPainlessClasses = Collections.unmodifiableMap(classesToPainlessClasses);
     }
 
     public Class<?> getClassFromBinaryName(String painlessType) {
-        return painlessTypesToJavaClasses.get(painlessType.replace('$', '.'));
+        return canonicalClassNamesToClasses.get(painlessType.replace('$', '.'));
     }
 
     public boolean isSimplePainlessType(String painlessType) {
-        return painlessTypesToJavaClasses.containsKey(painlessType);
+        return canonicalClassNamesToClasses.containsKey(painlessType);
     }
 
     public PainlessClass getPainlessStructFromJavaClass(Class<?> clazz) {
-        return javaClassesToPainlessStructs.get(clazz);
+        return classesToPainlessClasses.get(clazz);
     }
 
     public Class<?> getJavaClassFromPainlessType(String painlessType) {
-        return PainlessLookupUtility.canonicalTypeNameToType(painlessType, painlessTypesToJavaClasses);
+        return PainlessLookupUtility.canonicalTypeNameToType(painlessType, canonicalClassNamesToClasses);
     }
 }

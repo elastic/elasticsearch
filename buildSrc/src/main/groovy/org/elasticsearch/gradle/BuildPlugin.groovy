@@ -390,8 +390,11 @@ class BuildPlugin implements Plugin<Project> {
         project.configurations.compile.dependencies.all(disableTransitiveDeps)
         project.configurations.testCompile.dependencies.all(disableTransitiveDeps)
         project.configurations.compileOnly.dependencies.all(disableTransitiveDeps)
+
         project.plugins.withType(ShadowPlugin).whenPluginAdded {
             project.configurations.shadow.dependencies.all(disableTransitiveDeps)
+
+            project.configurations.default.setExtendsFrom([project.configurations.shadow])
         }
     }
 

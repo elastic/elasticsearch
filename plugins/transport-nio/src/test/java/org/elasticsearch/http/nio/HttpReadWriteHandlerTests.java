@@ -34,7 +34,6 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
 
-import io.netty.util.ReferenceCountUtil;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -352,9 +351,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         response.addHeader("Content-Length", Integer.toString(content.length()));
 
         SocketChannelContext context = mock(SocketChannelContext.class);
-        List<FlushOperation> flushOperations = handler.writeToBytes(handler.createWriteOperation(context, response, (v, e) -> {
-            ReferenceCountUtil.release(v);
-        }));
+        List<FlushOperation> flushOperations = handler.writeToBytes(handler.createWriteOperation(context, response, (v, e) -> {}));
         handler.close();
         FlushOperation flushOperation = flushOperations.get(0);
         ((ChannelPromise) flushOperation.getListener()).setSuccess();

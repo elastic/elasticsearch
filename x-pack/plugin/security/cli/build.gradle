@@ -4,7 +4,7 @@ archivesBaseName = 'elasticsearch-security-cli'
 
 dependencies {
     compileOnly "org.elasticsearch:elasticsearch:${version}"
-    compileOnly xpackProject('plugin:core')
+    compileOnly project(path: xpackModule('core'), configuration: 'shadow')
     compile 'org.bouncycastle:bcprov-jdk15on:1.59'
     compile 'org.bouncycastle:bcpkix-jdk15on:1.59'
     testImplementation 'com.google.jimfs:jimfs:1.1'

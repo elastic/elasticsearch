@@ -174,8 +174,9 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 if (roleDescriptors.isEmpty()) {
                     callback.onResponse(Role.EMPTY);
                 } else {
-                    callback.onResponse(
-                            CompositeRolesStore.buildRoleFromDescriptors(roleDescriptors, fieldPermissionsCache));
+                    CompositeRolesStore.buildRoleFromDescriptors(roleDescriptors, fieldPermissionsCache, null,
+                            ActionListener.wrap(r -> callback.onResponse(r), callback::onFailure)
+                    );
                 }
                 return Void.TYPE;
             }).when(rolesStore).roles(any(Set.class), any(FieldPermissionsCache.class), any(ActionListener.class));

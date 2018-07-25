@@ -8,9 +8,12 @@ package org.elasticsearch.xpack.core.security.authc;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.security.user.User;
 
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -54,6 +57,18 @@ public abstract class Realm implements Comparable<Realm> {
      */
     public int order() {
         return config.order;
+    }
+
+    /**
+     * Each realm can define response headers to be sent on failure.
+     * <p>
+     * By default it adds 'WWW-Authenticate' header with auth scheme 'Basic'.
+     *
+     * @return Map of authentication failure response headers.
+     */
+    public Map<String, List<String>> getAuthenticationFailureHeaders() {
+        return Collections.singletonMap("WWW-Authenticate",
+                Collections.singletonList("Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\""));
     }
 
     @Override

@@ -25,7 +25,7 @@ include-tagged::{doc-tests}/WatcherDocumentationIT.java[x-pack-put-watch-respons
 <2> `found` is a boolean indicating whether the watch was found
 <3> `_version` returns the version of the deleted watch
 
-[[java-rest-high-x-pack-watcher-put-watch-async]]
+[[java-rest-high-x-pack-watcher-delete-watch-async]]
 ==== Asynchronous Execution
 
 This request can be executed asynchronously:

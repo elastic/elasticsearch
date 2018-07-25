@@ -84,7 +84,7 @@ public class XPackIT extends AbstractRollingTestCase {
         List<String> expectedTemplates = new ArrayList<>();
         // Watcher creates its templates as soon as the first watcher node connects
         expectedTemplates.add(".triggered_watches");
-        expectedTemplates.add(".watch-history-8");
+        expectedTemplates.add(".watch-history-9");
         expectedTemplates.add(".watches");
         if (masterIsNewVersion()) {
             // Everything else waits until the master is upgraded to create its templates

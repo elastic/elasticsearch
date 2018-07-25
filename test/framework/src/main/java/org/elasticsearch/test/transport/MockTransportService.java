@@ -528,7 +528,7 @@ public final class MockTransportService extends TransportService {
 
             @Override
             public Version getVersion() {
-                return getNode().getVersion();
+                return connection.getVersion();
             }
 
             @Override

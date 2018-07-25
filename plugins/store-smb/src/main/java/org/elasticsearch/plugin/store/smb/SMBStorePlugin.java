@@ -19,16 +19,26 @@
 
 package org.elasticsearch.plugin.store.smb;
 
-import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.smbmmapfs.SmbMmapFsIndexStore;
 import org.elasticsearch.index.store.smbsimplefs.SmbSimpleFsIndexStore;
+import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.Plugin;
 
-public class SMBStorePlugin extends Plugin {
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Function;
+
+public class SMBStorePlugin extends Plugin implements IndexStorePlugin {
 
     @Override
-    public void onIndexModule(IndexModule indexModule) {
-        indexModule.addIndexStore("smb_mmap_fs", SmbMmapFsIndexStore::new);
-        indexModule.addIndexStore("smb_simple_fs", SmbSimpleFsIndexStore::new);
+    public Map<String, Function<IndexSettings, IndexStore>> getIndexStoreProviders() {
+        final Map<String, Function<IndexSettings, IndexStore>> indexStoreProviders = new HashMap<>(2);
+        indexStoreProviders.put("smb_mmap_fs", SmbMmapFsIndexStore::new);
+        indexStoreProviders.put("smb_simple_fs", SmbSimpleFsIndexStore::new);
+        return Collections.unmodifiableMap(indexStoreProviders);
     }
+
 }

@@ -23,14 +23,11 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.elasticsearch.script.ScriptModule;
-import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.MutableDateTime;
 

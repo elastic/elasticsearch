@@ -19,10 +19,6 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ScriptPlugin;

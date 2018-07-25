@@ -115,7 +115,7 @@ if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3P
   useFixture = true
 
 } else if (!s3PermanentAccessKey || !s3PermanentSecretKey || !s3PermanentBucket || !s3PermanentBasePath) {
-  throw new IllegalArgumentException("not all options specified to run against external S3 service")
+  throw new IllegalArgumentException("not all options specified to run against external S3 service as permanent credentials are present")
 }
 
 if (!s3TemporaryAccessKey && !s3TemporarySecretKey && !s3TemporaryBucket && !s3TemporaryBasePath && !s3TemporarySessionToken) {
@@ -126,7 +126,7 @@ if (!s3TemporaryAccessKey && !s3TemporarySecretKey && !s3TemporaryBucket && !s3T
   s3TemporarySessionToken = 's3_integration_test_temporary_session_token'
 
 } else if (!s3TemporaryAccessKey || !s3TemporarySecretKey || !s3TemporaryBucket || !s3TemporaryBasePath || !s3TemporarySessionToken) {
-  throw new IllegalArgumentException("not all options specified to run against external S3 service")
+  throw new IllegalArgumentException("not all options specified to run against external S3 service as temporary credentials are present")
 }
 
 final String minioVersion = 'RELEASE.2018-06-22T23-48-46Z'
@@ -381,31 +381,31 @@ integTestCluster {
 
 integTestRunner.systemProperty 'tests.rest.blacklist', 'repository_s3/50_repository_ecs_credentials/*'
 
-///
-RestIntegTestTask integTestECS = project.tasks.create('integTestECS', RestIntegTestTask.class) {
-  description = "Runs tests using the ECS repository."
-}
+if (useFixture) {
+  RestIntegTestTask integTestECS = project.tasks.create('integTestECS', RestIntegTestTask.class) {
+    description = "Runs tests using the ECS repository."
+  }
 
 // The following closure must execute before the afterEvaluate block in the constructor of the following integrationTest tasks:
-project.afterEvaluate {
-  ClusterConfiguration cluster = project.extensions.getByName('integTestECSCluster') as ClusterConfiguration
-  cluster.dependsOn(project.s3Fixture)
+  project.afterEvaluate {
+    ClusterConfiguration cluster = project.extensions.getByName('integTestECSCluster') as ClusterConfiguration
+    cluster.dependsOn(project.s3Fixture)
 
-  cluster.setting 's3.client.integration_test_ecs.endpoint', "http://${-> s3Fixture.addressAndPort}"
+    cluster.setting 's3.client.integration_test_ecs.endpoint', "http://${-> s3Fixture.addressAndPort}"
 
-  Task integTestECSTask = project.tasks.getByName('integTestECS')
-  integTestECSTask.clusterConfig.plugin(project.path)
-  integTestECSTask.clusterConfig.environment 'AWS_CONTAINER_CREDENTIALS_FULL_URI',
-          "http://${-> s3Fixture.addressAndPort}/ecs_credentials_endpoint"
-  integTestECSRunner.systemProperty 'tests.rest.blacklist', [
-          'repository_s3/10_basic/*',
-          'repository_s3/20_repository_permanent_credentials/*',
-          'repository_s3/30_repository_temporary_credentials/*',
-          'repository_s3/40_repository_ec2_credentials/*'
-  ].join(",")
+    Task integTestECSTask = project.tasks.getByName('integTestECS')
+    integTestECSTask.clusterConfig.plugin(project.path)
+    integTestECSTask.clusterConfig.environment 'AWS_CONTAINER_CREDENTIALS_FULL_URI',
+            "http://${-> s3Fixture.addressAndPort}/ecs_credentials_endpoint"
+    integTestECSRunner.systemProperty 'tests.rest.blacklist', [
+            'repository_s3/10_basic/*',
+            'repository_s3/20_repository_permanent_credentials/*',
+            'repository_s3/30_repository_temporary_credentials/*',
+            'repository_s3/40_repository_ec2_credentials/*'
+    ].join(",")
+  }
+  project.check.dependsOn(integTestECS)
 }
-project.check.dependsOn(integTestECS)
-///
 
 thirdPartyAudit.excludes = [
   // classes are missing

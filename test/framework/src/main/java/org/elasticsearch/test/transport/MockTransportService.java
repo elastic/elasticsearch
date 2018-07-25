@@ -47,7 +47,6 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.ConnectionManager;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.MockTcpTransport;
 import org.elasticsearch.transport.RequestHandlerRegistry;
@@ -405,7 +404,7 @@ public final class MockTransportService extends TransportService {
     /**
      * Adds a new delegate transport that is used for communication with the given transport service.
      *
-     * @return {@code true} iff no other delegate was registered for any of the addresses bound by transport service.
+     * @return {@code true} if no other send behavior was registered for any of the addresses bound by transport service.
      */
     public boolean addDelegate(TransportService transportService, DelegateTransport transport) {
         boolean noRegistered = true;
@@ -416,12 +415,34 @@ public final class MockTransportService extends TransportService {
     }
 
     /**
+     * Adds a new send behavior that is used for communication with the given transport service.
+     *
+     * @return {@code true} if no other delegate was registered for any of the addresses bound by transport service.
+     */
+    public boolean addSendBehavior(TransportService transportService, SendRequestBehavior sendBehavior) {
+        boolean noRegistered = true;
+        for (TransportAddress transportAddress : extractTransportAddresses(transportService)) {
+            noRegistered &= addSendBehavior(transportAddress, sendBehavior);
+        }
+        return noRegistered;
+    }
+
+    /**
      * Adds a new delegate transport that is used for communication with the given transport address.
      *
-     * @return {@code true} iff no other delegate was registered for this address before.
+     * @return {@code true} if no other delegate was registered for this address before.
      */
     public boolean addDelegate(TransportAddress transportAddress, DelegateTransport transport) {
         return transport().transports.put(transportAddress, transport) == null;
+    }
+
+    /**
+     * Adds a new send behavior that is used for communication with the given transport address.
+     *
+     * @return {@code true} if no other send behavior was registered for this address before.
+     */
+    public boolean addSendBehavior(TransportAddress transportAddress, SendRequestBehavior sendBehavior) {
+        return transport().addSendBehavior(transportAddress, sendBehavior);
     }
 
     private LookupTestTransport transport() {
@@ -448,8 +469,8 @@ public final class MockTransportService extends TransportService {
             return new WrappedConnection(transportToUse.openConnection(node, profile));
         }
 
-        void addSendBehavior(TransportAddress transportAddress, MockTransportService.SendRequestBehavior sendBehavior) {
-            sendBehaviors.put(transportAddress, sendBehavior);
+        boolean addSendBehavior(TransportAddress transportAddress, MockTransportService.SendRequestBehavior sendBehavior) {
+            return sendBehaviors.put(transportAddress, sendBehavior) == null;
         }
 
         void clearSendBehaviors() {
@@ -628,11 +649,6 @@ public final class MockTransportService extends TransportService {
         @Override
         public Map<String, BoundTransportAddress> profileBoundAddresses() {
             return transport.profileBoundAddresses();
-        }
-
-        protected void sendRequest(Transport.Connection connection, long requestId, String action, TransportRequest request,
-                                   TransportRequestOptions options) throws IOException {
-            connection.sendRequest(requestId, action, request, options);
         }
     }
 

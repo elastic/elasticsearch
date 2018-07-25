@@ -46,12 +46,9 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matchers;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -116,23 +113,23 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
-                // manual collection or upon cluster forming.
-                .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), 2)
-                .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey(), "1s")
-                .build();
+            // manual collection or upon cluster forming.
+            .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), 2)
+            .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey(), "1s")
+            .build();
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(TestPlugin.class,
-                MockTransportService.TestPlugin.class);
+            MockTransportService.TestPlugin.class);
     }
 
     public void testClusterInfoServiceCollectsInformation() throws Exception {
         internalCluster().startNodes(2);
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
-                .put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), 0)
-                .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE).build()));
+            .put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), 0)
+            .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE).build()));
         ensureGreen("test");
         InternalTestCluster internalTestCluster = internalCluster();
         // Get the cluster info service on the master node
@@ -177,8 +174,8 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
 
     public void testClusterInfoServiceInformationClearOnError() throws InterruptedException, ExecutionException {
         internalCluster().startNodes(2,
-                // manually control publishing
-                Settings.builder().put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.getKey(), "60m").build());
+            // manually control publishing
+            Settings.builder().put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.getKey(), "60m").build());
         prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)).get();
         ensureGreen("test");
         InternalTestCluster internalTestCluster = internalCluster();
@@ -196,19 +193,16 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         final Set<String> blockedActions = newHashSet(NodesStatsAction.NAME, NodesStatsAction.NAME + "[n]", IndicesStatsAction.NAME, IndicesStatsAction.NAME + "[n]");
         // drop all outgoing stats requests to force a timeout.
         for (DiscoveryNode node : internalTestCluster.clusterService().state().getNodes()) {
-            mockTransportService.addDelegate(internalTestCluster.getInstance(TransportService.class, node.getName()), new MockTransportService.DelegateTransport(mockTransportService.original()) {
-                @Override
-                protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
-                                           TransportRequestOptions options) throws IOException {
+            mockTransportService.addSendBehavior(internalTestCluster.getInstance(TransportService.class, node.getName()),
+                (connection, requestId, action, request, options) -> {
                     if (blockedActions.contains(action)) {
                         if (timeout.get()) {
                             logger.info("dropping [{}] to [{}]", action, node);
                             return;
                         }
                     }
-                    super.sendRequest(connection, requestId, action, request, options);
-                }
-            });
+                    connection.sendRequest(requestId, action, request, options);
+                });
         }
 
         // timeouts shouldn't clear the info

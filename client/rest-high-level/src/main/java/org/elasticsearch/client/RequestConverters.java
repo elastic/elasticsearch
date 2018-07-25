@@ -1129,7 +1129,7 @@ final class RequestConverters {
         }
         ContentType contentType = createContentType(putWatchRequest.xContentType());
         BytesReference source = putWatchRequest.getSource();
-        request.setEntity(new ByteArrayEntity(source.toBytesRef().bytes, 0, source.length(), contentType));
+        request.setEntity(new NByteArrayEntity(source.toBytesRef().bytes, 0, source.length(), contentType));
         return request;
     }
 

@@ -28,12 +28,12 @@ import org.apache.http.ProtocolVersion;
 import org.apache.http.RequestLine;
 import org.apache.http.StatusLine;
 import org.apache.http.client.methods.HttpGet;
-import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.message.BasicHttpResponse;
 import org.apache.http.message.BasicRequestLine;
 import org.apache.http.message.BasicStatusLine;
+import org.apache.http.nio.entity.NByteArrayEntity;
 import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
@@ -249,7 +249,7 @@ public class RestHighLevelClientTests extends ESTestCase {
             builder.startObject();
             builder.field("field", "value");
             builder.endObject();
-            return new ByteArrayEntity(BytesReference.bytes(builder).toBytesRef().bytes, contentType);
+            return new NByteArrayEntity(BytesReference.bytes(builder).toBytesRef().bytes, contentType);
         }
     }
 

@@ -1,5 +1,5 @@
+import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.LoggedExec
-import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.test.NodeInfo
 
 import javax.net.ssl.HttpsURLConnection
@@ -22,7 +22,7 @@ Object san = new SanEvaluator()
 File keystoreDir = new File(project.buildDir, 'keystore')
 
 // Generate the node's keystore
-File nodeKeystore = new File(keystoreDir, 'test-node.jks')
+File nodeKeystore = file("$keystoreDir/test-node.jks")
 task createNodeKeyStore(type: LoggedExec) {
   doFirst {
     if (nodeKeystore.parentFile.exists() == false) {
@@ -47,7 +47,7 @@ task createNodeKeyStore(type: LoggedExec) {
 }
 
 // Generate the client's keystore
-File clientKeyStore = new File(keystoreDir, 'test-client.jks')
+File clientKeyStore = file("$keystoreDir/test-client.jks")
 task createClientKeyStore(type: LoggedExec) {
   doFirst {
     if (clientKeyStore.parentFile.exists() == false) {
@@ -72,7 +72,7 @@ task createClientKeyStore(type: LoggedExec) {
 }
 
 // Export the node's certificate
-File nodeCertificate = new File(keystoreDir, 'test-node.cert')
+File nodeCertificate = file("$keystoreDir/test-node.cert")
 task exportNodeCertificate(type: LoggedExec) {
   dependsOn createNodeKeyStore
   doFirst {
@@ -104,7 +104,7 @@ task importNodeCertificateInClientKeyStore(type: LoggedExec) {
 }
 
 // Export the client's certificate
-File clientCertificate = new File(keystoreDir, 'test-client.cert')
+File clientCertificate = file("$keystoreDir/test-client.cert")
 task exportClientCertificate(type: LoggedExec) {
   dependsOn createClientKeyStore
   doFirst {
@@ -144,7 +144,6 @@ sourceSets.test.resources.srcDir(keystoreDir)
 processTestResources.dependsOn(importNodeCertificateInClientKeyStore, importClientCertificateInNodeKeyStore)
 
 integTestCluster.dependsOn(importClientCertificateInNodeKeyStore)
-
 
 integTestCluster {
   // The setup that we actually want
@@ -206,9 +205,18 @@ integTestCluster {
     return tmpFile.exists()
   }
 }
+Closure notRunningFips = {
+  Boolean.parseBoolean(BuildPlugin.runJavascript(project, project.runtimeJavaHome,
+          'print(java.security.Security.getProviders()[0].name.toLowerCase().contains("fips"));')) == false
+}
 
-
-
+// Do not attempt to form a cluster in a FIPS JVM, as doing so with a JKS keystore will fail.
+// TODO Revisit this when SQL CLI client can handle key/certificate instead of only Keystores.
+// https://github.com/elastic/elasticsearch/issues/32306
+tasks.matching({ it.name == "integTestCluster#init" }).all { onlyIf notRunningFips }
+tasks.matching({ it.name == "integTestCluster#start" }).all { onlyIf notRunningFips }
+tasks.matching({ it.name == "integTestCluster#wait" }).all { onlyIf notRunningFips }
+tasks.matching({ it.name == "integTestRunner" }).all { onlyIf notRunningFips }
 
 /** A lazy evaluator to find the san to use for certificate generation. */
 class SanEvaluator {
@@ -293,7 +301,7 @@ class SanEvaluator {
     byte[] bytes = inet6Address.getAddress();
     int[] hextets = new int[8];
     for (int i = 0; i < hextets.length; i++) {
-      hextets[i] =  (bytes[2 * i] & 255) << 8 | bytes[2 * i + 1] & 255;
+      hextets[i] = (bytes[2 * i] & 255) << 8 | bytes[2 * i + 1] & 255;
     }
     compressLongestRunOfZeroes(hextets);
     return hextetsToIPv6String(hextets);

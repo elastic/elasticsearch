@@ -29,6 +29,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.carrotsearch.randomizedtesting.rules.TestRuleAdapter;
+
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -148,6 +149,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -716,6 +718,20 @@ public abstract class ESTestCase extends LuceneTestCase {
         return generateRandomStringArray(maxArraySize, stringSize, allowNull, true);
     }
 
+    public static <T> T[] randomArray(int maxArraySize, IntFunction<T[]> arrayConstructor, Supplier<T> valueConstructor) {
+        return randomArray(0, maxArraySize, arrayConstructor, valueConstructor);
+    }
+
+    public static <T> T[] randomArray(int minArraySize, int maxArraySize, IntFunction<T[]> arrayConstructor, Supplier<T> valueConstructor) {
+        final int size = randomIntBetween(minArraySize, maxArraySize);
+        final T[] array = arrayConstructor.apply(size);
+        for (int i = 0; i < array.length; i++) {
+            array[i] = valueConstructor.get();
+        }
+        return array;
+    }
+
+
     private static final String[] TIME_SUFFIXES = new String[]{"d", "h", "ms", "s", "m", "micros", "nanos"};
 
     public static String randomTimeValue(int lower, int upper, String... suffixes) {
@@ -1070,7 +1086,6 @@ public abstract class ESTestCase extends LuceneTestCase {
         List<Object> targetList = new ArrayList<>();
         for(Object value : list) {
             if (value instanceof Map) {
-                @SuppressWarnings("unchecked")
                 LinkedHashMap<String, Object> valueMap = (LinkedHashMap<String, Object>) value;
                 targetList.add(shuffleMap(valueMap, exceptFields));
             } else if(value instanceof List) {
@@ -1090,7 +1105,6 @@ public abstract class ESTestCase extends LuceneTestCase {
         for (String key : keys) {
             Object value = map.get(key);
             if (value instanceof Map && exceptFields.contains(key) == false) {
-                @SuppressWarnings("unchecked")
                 LinkedHashMap<String, Object> valueMap = (LinkedHashMap<String, Object>) value;
                 targetMap.put(key, shuffleMap(valueMap, exceptFields));
             } else if(value instanceof List && exceptFields.contains(key) == false) {

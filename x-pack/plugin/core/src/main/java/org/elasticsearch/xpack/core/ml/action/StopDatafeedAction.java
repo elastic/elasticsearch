@@ -22,7 +22,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -125,7 +125,7 @@ public class StopDatafeedAction extends Action<StopDatafeedAction.Response> {
         @Override
         public boolean match(Task task) {
             for (String id : resolvedStartedDatafeedIds) {
-                String expectedDescription = MLMetadataField.datafeedTaskId(id);
+                String expectedDescription = MlTasks.datafeedTaskId(id);
                 if (task instanceof StartDatafeedAction.DatafeedTaskMatcher && expectedDescription.equals(task.getDescription())){
                     return true;
                 }

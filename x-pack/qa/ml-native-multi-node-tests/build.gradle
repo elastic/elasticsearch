@@ -18,59 +18,45 @@ integTestRunner {
     systemProperty 'es.set.netty.runtime.available.processors', 'false'
 }
 
-// location of generated keystores and certificates
+// location for keys and certificates
 File keystoreDir = new File(project.buildDir, 'keystore')
-
-// Generate the node's keystore
-File nodeKeystore = new File(keystoreDir, 'test-node.jks')
-task createNodeKeyStore(type: LoggedExec) {
-    doFirst {
-        if (nodeKeystore.parentFile.exists() == false) {
-            nodeKeystore.parentFile.mkdirs()
-        }
-        if (nodeKeystore.exists()) {
-            delete nodeKeystore
-        }
+File nodeKey = file("$keystoreDir/testnode.pem")
+File nodeCert = file("$keystoreDir/testnode.crt")
+// Add key and certs to test classpath: it expects it there
+task copyKeyCerts(type: Copy) {
+    from(project(':x-pack:plugin:core').file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/')) {
+        include 'testnode.crt', 'testnode.pem'
     }
-    executable = new File(project.runtimeJavaHome, 'bin/keytool')
-    standardInput = new ByteArrayInputStream('FirstName LastName\nUnit\nOrganization\nCity\nState\nNL\nyes\n\n'.getBytes('UTF-8'))
-    args '-genkey',
-            '-alias', 'test-node',
-            '-keystore', nodeKeystore,
-            '-keyalg', 'RSA',
-            '-keysize', '2048',
-            '-validity', '712',
-            '-dname', 'CN=smoke-test-plugins-ssl',
-            '-keypass', 'keypass',
-            '-storepass', 'keypass'
+    into keystoreDir
 }
-
-// Add keystores to test classpath: it expects it there
+// Add keys and cets to test classpath: it expects it there
 sourceSets.test.resources.srcDir(keystoreDir)
-processTestResources.dependsOn(createNodeKeyStore)
+processTestResources.dependsOn(copyKeyCerts)
 
 integTestCluster {
-    dependsOn createNodeKeyStore
+    dependsOn copyKeyCerts
     setting 'xpack.security.enabled', 'true'
     setting 'xpack.ml.enabled', 'true'
     setting 'logger.org.elasticsearch.xpack.ml.datafeed', 'TRACE'
     setting 'xpack.monitoring.enabled', 'false'
     setting 'xpack.security.authc.token.enabled', 'true'
     setting 'xpack.security.transport.ssl.enabled', 'true'
-    setting 'xpack.security.transport.ssl.keystore.path', nodeKeystore.name
+    setting 'xpack.security.transport.ssl.key', nodeKey.name
+    setting 'xpack.security.transport.ssl.certificate', nodeCert.name
     setting 'xpack.security.transport.ssl.verification_mode', 'certificate'
     setting 'xpack.security.audit.enabled', 'true'
     setting 'xpack.license.self_generated.type', 'trial'
 
     keystoreSetting 'bootstrap.password', 'x-pack-test-password'
-    keystoreSetting 'xpack.security.transport.ssl.keystore.secure_password', 'keypass'
+    keystoreSetting 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
 
     numNodes = 3
 
     setupCommand 'setupDummyUser',
             'bin/elasticsearch-users', 'useradd', 'x_pack_rest_user', '-p', 'x-pack-test-password', '-r', 'superuser'
 
-    extraConfigFile nodeKeystore.name, nodeKeystore
+    extraConfigFile nodeKey.name, nodeKey
+    extraConfigFile nodeCert.name, nodeCert
 
     waitCondition = { node, ant ->
         File tmpFile = new File(node.cwd, 'wait.success')

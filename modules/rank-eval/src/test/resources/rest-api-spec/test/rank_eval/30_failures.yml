@@ -34,8 +34,8 @@
           "metric" : { "precision": { "ignore_unlabeled" : true }}
         }
 
-  - match: { quality_level: 1}
-  - match: { details.amsterdam_query.quality_level: 1.0}
+  - match: { metric_score: 1}
+  - match: { details.amsterdam_query.metric_score: 1.0}
   - match: { details.amsterdam_query.unrated_docs:  [ ]}
   - match: { details.amsterdam_query.metric_details.precision: {"relevant_docs_retrieved": 1, "docs_retrieved": 1}}
 

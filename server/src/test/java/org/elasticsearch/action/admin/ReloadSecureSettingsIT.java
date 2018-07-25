@@ -205,7 +205,14 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
                             assertThat(nodesMap.size(), equalTo(cluster().size()));
                             for (final NodesReloadSecureSettingsResponse.NodeResponse nodeResponse : nodesReloadResponse.getNodes()) {
                                 assertThat(nodeResponse.reloadException(), notNullValue());
-                                assertThat(nodeResponse.reloadException(), instanceOf(IOException.class));
+                                // Running in a JVM with a BouncyCastle FIPS Security Provider, decrypting the Keystore with the wrong
+                                // password returns a SecurityException if the DataInputStream can't be fully consumed
+                                if (inFipsJvm()) {
+                                    assertThat(nodeResponse.reloadException(), instanceOf(SecurityException.class));
+                                } else {
+                                    assertThat(nodeResponse.reloadException(), instanceOf(IOException.class));
+                                }
+
                             }
                         } catch (final AssertionError e) {
                             reloadSettingsError.set(e);

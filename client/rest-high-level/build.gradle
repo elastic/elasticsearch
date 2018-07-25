@@ -52,6 +52,8 @@ dependencies {
   testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testCompile "junit:junit:${versions.junit}"
   testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
+  //this is needed to make RestHighLevelClientTests#testApiNamingConventions work from IDEs
+  testCompile "org.elasticsearch:rest-api-spec:${version}"
 }
 
 dependencyLicenses {
@@ -67,4 +69,8 @@ forbiddenApisMain {
   // specified
   signaturesURLs += [PrecommitTasks.getResource('/forbidden/http-signatures.txt')]
   signaturesURLs += [file('src/main/resources/forbidden/rest-high-level-signatures.txt').toURI().toURL()]
+}
+
+integTestCluster {
+  setting 'xpack.license.self_generated.type', 'trial'
 }

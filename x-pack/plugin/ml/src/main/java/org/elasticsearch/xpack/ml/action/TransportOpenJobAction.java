@@ -51,6 +51,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
@@ -474,7 +475,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
             // Step 4. Start job task
             ActionListener<PutJobAction.Response> jobUpateListener = ActionListener.wrap(
-                    response -> persistentTasksService.sendStartRequest(MlMetadata.jobTaskId(jobParams.getJobId()),
+                    response -> persistentTasksService.sendStartRequest(MlTasks.jobTaskId(jobParams.getJobId()),
                             OpenJobAction.TASK_NAME, jobParams, finalListener),
                     listener::onFailure
             );

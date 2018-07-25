@@ -33,7 +33,6 @@ import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.util.ReferenceCounted;
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -122,7 +121,6 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
         assertSettingDeprecationsAndWarnings(new Setting<?>[] {HttpTransportSettings.SETTING_PIPELINING});
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/32900")
     public void testThatHttpPipeliningCanBeDisabled() throws Exception {
         final Settings settings = Settings.builder()
             .put("http.pipelining", false)
@@ -261,8 +259,7 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
 
                 final ByteBuf buffer = Unpooled.copiedBuffer(uri, StandardCharsets.UTF_8);
 
-                final DefaultFullHttpResponse httpResponse =
-                    new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK, buffer);
+                final FullHttpResponse httpResponse = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK, buffer);
                 httpResponse.headers().add(HttpHeaderNames.CONTENT_LENGTH, buffer.readableBytes());
 
                 final boolean slow = uri.matches("/slow/\\d+");
@@ -284,10 +281,7 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
                     msg = httpResponse;
                 }
                 ctx.writeAndFlush(msg, promise);
-            }  finally {
-                if (fullHttpRequest != null) {
-                    fullHttpRequest.release();
-                }
+            } finally {
                 if (pipelinedRequest != null) {
                     pipelinedRequest.release();
                 }

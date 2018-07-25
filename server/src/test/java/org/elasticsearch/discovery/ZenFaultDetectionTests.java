@@ -107,8 +107,8 @@ public class ZenFaultDetectionTests extends ESTestCase {
                 fail("disconnect should not be called " + node);
             }
         };
-        serviceA.addNodeConnectionListener(waitForConnection);
-        serviceB.addNodeConnectionListener(waitForConnection);
+        serviceA.addConnectionListener(waitForConnection);
+        serviceB.addConnectionListener(waitForConnection);
 
         serviceA.connectToNode(nodeB);
         serviceA.connectToNode(nodeA);
@@ -116,8 +116,8 @@ public class ZenFaultDetectionTests extends ESTestCase {
         serviceB.connectToNode(nodeB);
 
         assertThat("failed to wait for all nodes to connect", latch.await(5, TimeUnit.SECONDS), equalTo(true));
-        serviceA.removeNodeConnectionListener(waitForConnection);
-        serviceB.removeNodeConnectionListener(waitForConnection);
+        serviceA.removeConnectionListener(waitForConnection);
+        serviceB.removeConnectionListener(waitForConnection);
     }
 
     @Override

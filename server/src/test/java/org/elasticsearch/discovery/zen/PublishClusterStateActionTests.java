@@ -201,17 +201,17 @@ public class PublishClusterStateActionTests extends ESTestCase {
                 fail("disconnect should not be called " + node);
             }
         };
-        node.service.addNodeConnectionListener(waitForConnection);
+        node.service.addConnectionListener(waitForConnection);
         for (MockNode curNode : nodes.values()) {
-            curNode.service.addNodeConnectionListener(waitForConnection);
+            curNode.service.addConnectionListener(waitForConnection);
             curNode.connectTo(node.discoveryNode);
             node.connectTo(curNode.discoveryNode);
         }
         assertThat("failed to wait for all nodes to connect", latch.await(5, TimeUnit.SECONDS), equalTo(true));
         for (MockNode curNode : nodes.values()) {
-            curNode.service.removeNodeConnectionListener(waitForConnection);
+            curNode.service.removeConnectionListener(waitForConnection);
         }
-        node.service.removeNodeConnectionListener(waitForConnection);
+        node.service.removeConnectionListener(waitForConnection);
         if (nodes.put(name, node) != null) {
             fail("Node with the name " + name + " already exist");
         }

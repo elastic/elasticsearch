@@ -482,20 +482,14 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         connectionManager.disconnectFromNode(node);
     }
 
-    public void addNodeConnectionListener(TransportConnectionListener listener) {
-        connectionManager.addListener(listener);
-    }
-
-    public void removeNodeConnectionListener(TransportConnectionListener listener) {
-        connectionManager.removeListener(listener);
-    }
-
     public void addConnectionListener(TransportConnectionListener listener) {
         transport.addConnectionListener(listener);
+        connectionManager.addListener(listener);
     }
 
     public void removeConnectionListener(TransportConnectionListener listener) {
         transport.removeConnectionListener(listener);
+        connectionManager.removeListener(listener);
     }
 
     public <T extends TransportResponse> TransportFuture<T> submitRequest(DiscoveryNode node, String action, TransportRequest request,

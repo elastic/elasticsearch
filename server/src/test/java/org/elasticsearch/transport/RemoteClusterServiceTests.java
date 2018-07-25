@@ -584,7 +584,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     }
 
                     CountDownLatch disconnectedLatch = new CountDownLatch(numDisconnectedClusters);
-                    service.addNodeConnectionListener(new TransportConnectionListener() {
+                    service.addConnectionListener(new TransportConnectionListener() {
                         @Override
                         public void onNodeDisconnected(DiscoveryNode node) {
                             if (disconnectedNodes.remove(node)) {

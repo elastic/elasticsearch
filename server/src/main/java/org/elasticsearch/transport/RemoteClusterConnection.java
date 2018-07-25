@@ -122,7 +122,6 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
                 .getConcreteSettingForNamespace(clusterAlias).get(settings);
         this.connectHandler = new ConnectHandler();
         transportService.addConnectionListener(this);
-        transportService.addNodeConnectionListener(this);
     }
 
     /**

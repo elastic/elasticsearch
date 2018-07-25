@@ -10,7 +10,7 @@ esplugin {
 archivesBaseName = 'x-pack-deprecation'
 
 dependencies {
-    compileOnly project(path: xpackModule('core'), configuration: 'shadow')
+    compileOnly project(xpackModule('core'))
 }
 
 run {

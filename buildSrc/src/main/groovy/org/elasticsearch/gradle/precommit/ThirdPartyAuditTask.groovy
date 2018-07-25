@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gradle.precommit;
 
+import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
 import org.apache.tools.ant.BuildEvent;
 import org.apache.tools.ant.BuildException;
 import org.apache.tools.ant.BuildListener;
@@ -82,6 +83,11 @@ public class ThirdPartyAuditTask extends AntTask {
                 configuration = project.configurations.findByName('testCompile')
             }
             assert configuration != null
+            if (project.plugins.hasPlugin(ShadowPlugin)) {
+                Configuration original = configuration
+                configuration = project.configurations.create('thirdPartyAudit')
+                configuration.extendsFrom(original, project.configurations.bundle)
+            }
             if (compileOnly == null) {
                 classpath = configuration
             } else {

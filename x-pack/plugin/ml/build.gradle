@@ -40,7 +40,7 @@ compileJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,
 compileTestJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
 
 dependencies {
-    compileOnly project(path: xpackModule('core'), configuration: 'shadow')
+    compileOnly project(xpackModule('core'))
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
     // This should not be here
     testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')

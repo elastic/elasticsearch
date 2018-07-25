@@ -2,7 +2,7 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testCompile project(path: xpackModule('core'), configuration: 'shadow')
+  testCompile project(xpackModule('core'))
 }
 
 // bring in graph rest test suite

@@ -36,7 +36,6 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 
 import static java.lang.invoke.MethodHandles.Lookup;
-import static org.elasticsearch.painless.Compiler.Loader;
 import static org.elasticsearch.painless.WriterConstants.CLASS_VERSION;
 import static org.elasticsearch.painless.WriterConstants.CTOR_METHOD_NAME;
 import static org.elasticsearch.painless.WriterConstants.DELEGATE_BOOTSTRAP_HANDLE;
@@ -207,7 +206,7 @@ public final class LambdaBootstrap {
             MethodType delegateMethodType,
             int isDelegateInterface)
             throws LambdaConversionException {
-        Loader loader = (Loader)lookup.lookupClass().getClassLoader();
+        Compiler.Loader loader = (Compiler.Loader)lookup.lookupClass().getClassLoader();
         String lambdaClassName = Type.getInternalName(lookup.lookupClass()) + "$$Lambda" + loader.newLambdaIdentifier();
         Type lambdaClassType = Type.getObjectType(lambdaClassName);
         Type delegateClassType = Type.getObjectType(delegateClassName.replace('.', '/'));
@@ -457,11 +456,11 @@ public final class LambdaBootstrap {
     }
 
     /**
-     * Defines the {@link Class} for the lambda class using the same {@link Loader}
+     * Defines the {@link Class} for the lambda class using the same {@link Compiler.Loader}
      * that originally defined the class for the Painless script.
      */
     private static Class<?> createLambdaClass(
-            Loader loader,
+            Compiler.Loader loader,
             ClassWriter cw,
             Type lambdaClassType) {
 

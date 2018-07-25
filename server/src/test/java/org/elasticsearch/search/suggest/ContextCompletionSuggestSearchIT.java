@@ -595,6 +595,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
             XContentBuilder source1 = jsonBuilder()
                 .startObject()
                 .startObject("pin")
+                .field("type", "shape")
                 .endObject()
                 .startObject(FIELD)
                 .array("input", "Hotel Amsterdam in Berlin")

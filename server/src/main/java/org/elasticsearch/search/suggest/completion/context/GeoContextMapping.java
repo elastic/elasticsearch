@@ -202,8 +202,13 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
                         }
                     }
                 } else {
-                    throw new ElasticsearchParseException(
-                        "cannot parse geo context field [{}], expected object with lat/lon fields or geo_point", fieldName);
+                    // Does this object exist? If it does and we didn't find what we need - we need to warn user
+                    for (IndexableField field : document.getFields()) {
+                        if (field.name().startsWith(fieldName + ".")) {
+                            throw new ElasticsearchParseException(
+                                "cannot parse geo context field [{}], expected object with lat/lon fields or geo_point", fieldName);
+                        }
+                    }
                 }
             } else {
                 for (IndexableField field : fields) {

@@ -169,8 +169,8 @@ public class IndexModuleTests extends ESTestCase {
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), "foo_store")
             .build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings);
-        final Map<String, Function<IndexSettings, IndexStore>> indexStoreProviders = Collections.singletonMap("foo_store", FooStore::new);
-        final IndexModule module = new IndexModule(indexSettings, emptyAnalysisRegistry, new InternalEngineFactory(), indexStoreProviders);
+        final Map<String, Function<IndexSettings, IndexStore>> indexStoreFactories = Collections.singletonMap("foo_store", FooStore::new);
+        final IndexModule module = new IndexModule(indexSettings, emptyAnalysisRegistry, new InternalEngineFactory(), indexStoreFactories);
 
         final IndexService indexService = newIndexService(module);
         assertThat(indexService.getIndexStore(), instanceOf(FooStore.class));

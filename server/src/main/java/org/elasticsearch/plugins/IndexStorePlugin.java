@@ -31,12 +31,12 @@ import java.util.function.Function;
 public interface IndexStorePlugin {
 
     /**
-     * The index store providers for this plugin. When an index is created the store type setting
+     * The index store factories for this plugin. When an index is created the store type setting
      * {@link org.elasticsearch.index.IndexModule#INDEX_STORE_TYPE_SETTING} on the index will be examined and either use the default or a
-     * built-in type, or looked up among all the index store providers from {@link IndexStore} plugins.
+     * built-in type, or looked up among all the index store factories from {@link IndexStore} plugins.
      *
-     * @return a map from store type to an index store provider
+     * @return a map from store type to an index store factory
      */
-    Map<String, Function<IndexSettings, IndexStore>> getIndexStoreProviders();
+    Map<String, Function<IndexSettings, IndexStore>> getIndexStoreFactories();
 
 }

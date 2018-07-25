@@ -110,7 +110,7 @@ public final class IndexModule {
     private SetOnce<IndexSearcherWrapperFactory> indexSearcherWrapper = new SetOnce<>();
     private final Set<IndexEventListener> indexEventListeners = new HashSet<>();
     private final Map<String, TriFunction<Settings, Version, ScriptService, Similarity>> similarities = new HashMap<>();
-    private final Map<String, Function<IndexSettings, IndexStore>> indexStoreProviders;
+    private final Map<String, Function<IndexSettings, IndexStore>> indexStoreFactories;
     private final SetOnce<BiFunction<IndexSettings, IndicesQueryCache, QueryCache>> forceQueryCacheProvider = new SetOnce<>();
     private final List<SearchOperationListener> searchOperationListeners = new ArrayList<>();
     private final List<IndexingOperationListener> indexOperationListeners = new ArrayList<>();
@@ -123,19 +123,19 @@ public final class IndexModule {
      * @param indexSettings       the index settings
      * @param analysisRegistry    the analysis registry
      * @param engineFactory       the engine factory
-     * @param indexStoreProviders the available store types
+     * @param indexStoreFactories the available store types
      */
     public IndexModule(
             final IndexSettings indexSettings,
             final AnalysisRegistry analysisRegistry,
             final EngineFactory engineFactory,
-            final Map<String, Function<IndexSettings, IndexStore>> indexStoreProviders) {
+            final Map<String, Function<IndexSettings, IndexStore>> indexStoreFactories) {
         this.indexSettings = indexSettings;
         this.analysisRegistry = analysisRegistry;
         this.engineFactory = Objects.requireNonNull(engineFactory);
         this.searchOperationListeners.add(new SearchSlowLog(indexSettings));
         this.indexOperationListeners.add(new IndexingSlowLog(indexSettings));
-        this.indexStoreProviders = Collections.unmodifiableMap(indexStoreProviders);
+        this.indexStoreFactories = Collections.unmodifiableMap(indexStoreFactories);
     }
 
     /**
@@ -348,7 +348,7 @@ public final class IndexModule {
         if (Strings.isEmpty(storeType) || isBuiltinType(storeType)) {
             store = new IndexStore(indexSettings);
         } else {
-            Function<IndexSettings, IndexStore> factory = indexStoreProviders.get(storeType);
+            Function<IndexSettings, IndexStore> factory = indexStoreFactories.get(storeType);
             if (factory == null) {
                 throw new IllegalArgumentException("Unknown store type [" + storeType + "]");
             }

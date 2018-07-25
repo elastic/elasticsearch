@@ -38,7 +38,7 @@ public class IndexStorePluginTests extends ESTestCase {
     public static class BarStorePlugin extends Plugin implements IndexStorePlugin {
 
         @Override
-        public Map<String, Function<IndexSettings, IndexStore>> getIndexStoreProviders() {
+        public Map<String, Function<IndexSettings, IndexStore>> getIndexStoreFactories() {
             return Collections.singletonMap("store", IndexStore::new);
         }
 
@@ -47,7 +47,7 @@ public class IndexStorePluginTests extends ESTestCase {
     public static class FooStorePlugin extends Plugin implements IndexStorePlugin {
 
         @Override
-        public Map<String, Function<IndexSettings, IndexStore>> getIndexStoreProviders() {
+        public Map<String, Function<IndexSettings, IndexStore>> getIndexStoreFactories() {
             return Collections.singletonMap("store", IndexStore::new);
         }
 

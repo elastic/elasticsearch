@@ -410,10 +410,10 @@ public class Node implements Closeable {
                     .collect(Collectors.toList());
 
 
-            final Map<String, Function<IndexSettings, IndexStore>> indexStoreProviders =
+            final Map<String, Function<IndexSettings, IndexStore>> indexStoreFactories =
                     pluginsService.filterPlugins(IndexStorePlugin.class)
                             .stream()
-                            .map(IndexStorePlugin::getIndexStoreProviders)
+                            .map(IndexStorePlugin::getIndexStoreFactories)
                             .flatMap(m -> m.entrySet().stream())
                             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
@@ -421,7 +421,7 @@ public class Node implements Closeable {
                     new IndicesService(settings, pluginsService, nodeEnvironment, xContentRegistry, analysisModule.getAnalysisRegistry(),
                             clusterModule.getIndexNameExpressionResolver(), indicesModule.getMapperRegistry(), namedWriteableRegistry,
                             threadPool, settingsModule.getIndexScopedSettings(), circuitBreakerService, bigArrays,
-                            scriptModule.getScriptService(), client, metaStateService, engineFactoryProviders, indexStoreProviders);
+                            scriptModule.getScriptService(), client, metaStateService, engineFactoryProviders, indexStoreFactories);
 
 
             Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class).stream()

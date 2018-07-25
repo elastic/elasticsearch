@@ -67,7 +67,7 @@ public class MockFSIndexStore extends IndexStore {
         }
 
         @Override
-        public Map<String, Function<IndexSettings, IndexStore>> getIndexStoreProviders() {
+        public Map<String, Function<IndexSettings, IndexStore>> getIndexStoreFactories() {
             return Collections.singletonMap("mock", MockFSIndexStore::new);
         }
 

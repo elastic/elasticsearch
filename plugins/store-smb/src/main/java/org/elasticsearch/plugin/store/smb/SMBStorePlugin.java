@@ -34,11 +34,11 @@ import java.util.function.Function;
 public class SMBStorePlugin extends Plugin implements IndexStorePlugin {
 
     @Override
-    public Map<String, Function<IndexSettings, IndexStore>> getIndexStoreProviders() {
-        final Map<String, Function<IndexSettings, IndexStore>> indexStoreProviders = new HashMap<>(2);
-        indexStoreProviders.put("smb_mmap_fs", SmbMmapFsIndexStore::new);
-        indexStoreProviders.put("smb_simple_fs", SmbSimpleFsIndexStore::new);
-        return Collections.unmodifiableMap(indexStoreProviders);
+    public Map<String, Function<IndexSettings, IndexStore>> getIndexStoreFactories() {
+        final Map<String, Function<IndexSettings, IndexStore>> indexStoreFactories = new HashMap<>(2);
+        indexStoreFactories.put("smb_mmap_fs", SmbMmapFsIndexStore::new);
+        indexStoreFactories.put("smb_simple_fs", SmbSimpleFsIndexStore::new);
+        return Collections.unmodifiableMap(indexStoreFactories);
     }
 
 }

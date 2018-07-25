@@ -114,7 +114,7 @@ public class IncidentEvent implements ToXContentObject {
                         {
                             builder.field("summary", description);
 
-                            if (attachPayload) {
+                            if (attachPayload && payload != null) {
                                 builder.startObject("custom_details");
                                 builder.field(Fields.PAYLOAD.getPreferredName());
                                 payload.toXContent(builder, params);

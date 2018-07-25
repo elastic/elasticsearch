@@ -13,7 +13,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
@@ -57,7 +57,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         assertEquals(1, tasks.taskMap().size());
         // now just double check that the first job is still opened:
-        PersistentTasksCustomMetaData.PersistentTask task = tasks.getTask(MlMetadata.jobTaskId("close-failed-job-1"));
+        PersistentTasksCustomMetaData.PersistentTask task = tasks.getTask(MlTasks.jobTaskId("close-failed-job-1"));
         assertEquals(JobState.OPENED, ((JobTaskState) task.getState()).getState());
     }
 
@@ -121,7 +121,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
                     for (Client client : clients()) {
                         PersistentTasksCustomMetaData tasks = client.admin().cluster().prepareState().get().getState()
                                 .getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-                        assertEquals(MlMetadata.getJobState(job.getId(), tasks), JobState.OPENED);
+                        assertEquals(MlTasks.getJobState(job.getId(), tasks), JobState.OPENED);
                     }
                 });
                 return;

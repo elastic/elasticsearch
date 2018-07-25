@@ -54,3 +54,9 @@ dependencies {
 // No licenses for our benchmark deps (we don't ship benchmarks)
 dependencyLicenses.enabled = false
 dependenciesInfo.enabled = false
+
+/*
+ * Javadocs are a waste of time because we try to make them produce
+ * nice output with shading.
+ */
+javadoc.enabled = false

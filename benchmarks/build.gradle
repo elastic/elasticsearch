@@ -59,6 +59,12 @@ forbiddenApis {
 dependencyLicenses.enabled = false
 dependenciesInfo.enabled = false
 
+/*
+ * Javadocs are a waste of time because we try to make them produce
+ * nice output with shading.
+ */
+javadoc.enabled = false
+
 thirdPartyAudit.excludes = [
         // these classes intentionally use JDK internal API (and this is ok since the project is maintained by Oracle employees)
         'org.openjdk.jmh.profile.AbstractHotspotProfiler',

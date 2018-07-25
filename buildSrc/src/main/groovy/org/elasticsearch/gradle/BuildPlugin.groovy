@@ -91,6 +91,7 @@ class BuildPlugin implements Plugin<Project> {
         globalBuildInfo(project)
         configureRepositories(project)
         project.ext.versions = VersionProperties.versions
+        configureSourceSets(project)
         configureCompile(project)
         configureJavadoc(project)
         configureSourcesJar(project)
@@ -521,6 +522,20 @@ class BuildPlugin implements Plugin<Project> {
 
     }
 
+    static void configureSourceSets(Project project) {
+        project.plugins.withType(ShadowPlugin).whenPluginAdded {
+            /*
+             *
+             */
+            ['main', 'test'].each {name ->
+                SourceSet sourceSet = project.sourceSets.findByName(name)
+                if (sourceSet != null) {
+                    sourceSet.compileClasspath += project.configurations.bundle
+                }
+            }
+        }
+    }
+
     /** Adds compiler settings to the project */
     static void configureCompile(Project project) {
         if (project.compilerJavaVersion < JavaVersion.VERSION_1_10) {
@@ -825,18 +840,6 @@ class BuildPlugin implements Plugin<Project> {
             additionalTest.dependsOn(project.tasks.testClasses)
             project.check.dependsOn(additionalTest)
         });
-
-        project.plugins.withType(ShadowPlugin).whenPluginAdded {
-            /*
-             *
-             */
-            ['main', 'test'].each {name ->
-                SourceSet sourceSet = project.sourceSets.findByName(name)
-                if (sourceSet != null) {
-                    sourceSet.compileClasspath += project.configurations.bundle
-                }
-            }
-        }
     }
 
     private static configurePrecommit(Project project) {

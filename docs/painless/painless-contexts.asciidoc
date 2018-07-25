@@ -15,7 +15,7 @@ specialized code may define new ways to use a Painless script.
 | Name                              | Painless Documentation
                                     | Elasticsearch Documentation
 | Ingest processor                  | <<painless-ingest-processor-context, Painless Documentation>>
-                                    | {es_version}/script-processor.html[Elasticsearch Documentation]
+                                    | {ref}/script-processor.html[Elasticsearch Documentation]
 | Update                            | <<painless-update-context, Painless Documentation>>
                                     | {ref}/docs-update.html[Elasticsearch Documentation]
 | Update by query                   | <<painless-update-by-query-context, Painless Documentation>>
@@ -25,9 +25,9 @@ specialized code may define new ways to use a Painless script.
 | Sort                              | <<painless-sort-context, Painless Documentation>>
                                     | {ref}/search-request-sort.html[Elasticsearch Documentation]
 | Similarity                        | <<painless-similarity-context, Painless Documentation>>
-                                    | {es_version}/index-modules-similarity.html[Elasticsearch Documentation]
+                                    | {ref}/index-modules-similarity.html[Elasticsearch Documentation]
 | Weight                            | <<painless-weight-context, Painless Documentation>>
-                                    | {es_version}/index-modules-similarity.html[Elasticsearch Documentation]
+                                    | {ref}/index-modules-similarity.html[Elasticsearch Documentation]
 | Score                             | <<painless-score-context, Painless Documentation>>
                                     | {ref}/query-dsl-function-score-query.html[Elasticsearch Documentation]
 | Field                             | <<painless-field-context, Painless Documentation>>
@@ -45,7 +45,7 @@ specialized code may define new ways to use a Painless script.
 | Metric aggregation reduce         | <<painless-metric-agg-reduce-context, Painless Documentation>>
                                     | {ref}/search-aggregations-metrics-scripted-metric-aggregation.html[Elasticsearch Documentation]
 | Bucket aggregation                | <<painless-bucket-agg-context, Painless Documentation>>
-                                    | {es_version}/search-aggregations-pipeline-bucket-script-aggregation.html[Elasticsearch Documentation]
+                                    | {ref}/search-aggregations-pipeline-bucket-script-aggregation.html[Elasticsearch Documentation]
 | Watcher condition                 | <<painless-watcher-condition-context, Painless Documentation>>
                                     | {xpack-ref}/condition-script.html[Elasticsearch Documentation]
 | Watcher transform                 | <<painless-watcher-transform-context, Painless Documentation>>

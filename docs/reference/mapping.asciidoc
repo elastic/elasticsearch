@@ -124,8 +124,10 @@ fields to an existing index with the <<indices-put-mapping,PUT mapping API>>.
 
 Other than where documented, *existing field mappings cannot be
 updated*. Changing the mapping would mean invalidating already indexed
-documents.  Instead, you should create a new index with the correct mappings
-and <<docs-reindex,reindex>> your data into that index.
+documents. Instead, you should create a new index with the correct mappings
+and <<docs-reindex,reindex>> your data into that index. If you only wish
+to rename a field and not change its mappings, it may make sense to introduce
+an <<alias, `alias`>> field.
 
 [float]
 == Example mapping

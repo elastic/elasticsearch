@@ -117,11 +117,12 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo(address));
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
-        assertThat(geoData.size(), equalTo(8));
+        assertThat(geoData.size(), equalTo(9));
         assertThat(geoData.get("ip"), equalTo(address));
         assertThat(geoData.get("country_iso_code"), equalTo("US"));
         assertThat(geoData.get("country_name"), equalTo("United States"));
         assertThat(geoData.get("continent_name"), equalTo("North America"));
+        assertThat(geoData.get("region_iso_code"), equalTo("US-FL"));
         assertThat(geoData.get("region_name"), equalTo("Florida"));
         assertThat(geoData.get("city_name"), equalTo("Hollywood"));
         assertThat(geoData.get("timezone"), equalTo("America/New_York"));

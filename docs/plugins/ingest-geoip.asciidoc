@@ -26,14 +26,14 @@ include::install_remove.asciidoc[]
 | `field`                | yes       | -                                                                                  | The field to get the ip address from for the geographical lookup.
 | `target_field`         | no        | geoip                                                                              | The field that will hold the geographical information looked up from the Maxmind database.
 | `database_file`        | no        | GeoLite2-City.mmdb                                                                 | The database filename in the geoip config directory. The ingest-geoip plugin ships with the GeoLite2-City.mmdb, GeoLite2-Country.mmdb and GeoLite2-ASN.mmdb files.
-| `properties`           | no        | [`continent_name`, `country_iso_code`, `region_name`, `city_name`, `location`] *   | Controls what properties are added to the `target_field` based on the geoip lookup.
+| `properties`           | no        | [`continent_name`, `country_iso_code`, `region_iso_code`, `region_name`, `city_name`, `location`] *   | Controls what properties are added to the `target_field` based on the geoip lookup.
 | `ignore_missing`       | no        | `false`                                                                            | If `true` and `field` does not exist, the processor quietly exits without modifying the document
 |======
 
 *Depends on what is available in `database_field`:
 
 * If the GeoLite2 City database is used, then the following fields may be added under the `target_field`: `ip`,
-`country_iso_code`, `country_name`, `continent_name`, `region_name`, `city_name`, `timezone`, `latitude`, `longitude`
+`country_iso_code`, `country_name`, `continent_name`, `region_iso_code`, `region_name`, `city_name`, `timezone`, `latitude`, `longitude`
 and `location`. The fields actually added depend on what has been found and which properties were configured in `properties`.
 * If the GeoLite2 Country database is used, then the following fields may be added under the `target_field`: `ip`,
 `country_iso_code`, `country_name` and `continent_name`. The fields actually added depend on what has been found and which properties

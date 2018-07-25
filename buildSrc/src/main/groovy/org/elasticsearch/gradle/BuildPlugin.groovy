@@ -19,6 +19,8 @@
 package org.elasticsearch.gradle
 
 import com.carrotsearch.gradle.junit4.RandomizedTestingTask
+import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
+import org.apache.commons.io.IOUtils
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.eclipse.jgit.lib.Constants
 import org.eclipse.jgit.lib.RepositoryBuilder
@@ -36,12 +38,14 @@ import org.gradle.api.artifacts.ModuleDependency
 import org.gradle.api.artifacts.ModuleVersionIdentifier
 import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.artifacts.ResolvedArtifact
+import org.gradle.api.artifacts.SelfResolvingDependency
 import org.gradle.api.artifacts.dsl.RepositoryHandler
 import org.gradle.api.execution.TaskExecutionGraph
 import org.gradle.api.plugins.JavaPlugin
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
 import org.gradle.api.publish.maven.tasks.GenerateMavenPom
+import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.bundling.Jar
 import org.gradle.api.tasks.compile.GroovyCompile
 import org.gradle.api.tasks.compile.JavaCompile
@@ -50,6 +54,7 @@ import org.gradle.internal.jvm.Jvm
 import org.gradle.process.ExecResult
 import org.gradle.util.GradleVersion
 
+import java.nio.charset.StandardCharsets
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
 /**
@@ -63,6 +68,14 @@ class BuildPlugin implements Plugin<Project> {
               throw new InvalidUserDataException('elasticsearch.standalone-test, '
                 + 'elasticearch.standalone-rest-test, and elasticsearch.build '
                 + 'are mutually exclusive')
+        }
+        final String minimumGradleVersion
+        InputStream is = getClass().getResourceAsStream("/minimumGradleVersion")
+        try { minimumGradleVersion = IOUtils.toString(is, StandardCharsets.UTF_8.toString()) } finally { is.close() }
+        if (GradleVersion.current() < GradleVersion.version(minimumGradleVersion.trim())) {
+            throw new GradleException(
+                    "Gradle ${minimumGradleVersion}+ is required to use elasticsearch.build plugin"
+            )
         }
         project.pluginManager.apply('java')
         project.pluginManager.apply('carrotsearch.randomized-testing')
@@ -125,6 +138,9 @@ class BuildPlugin implements Plugin<Project> {
                 runtimeJavaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(project, runtimeJavaHome))
             }
 
+            String inFipsJvmScript = 'print(java.security.Security.getProviders()[0].name.toLowerCase().contains("fips"));'
+            boolean inFipsJvm = Boolean.parseBoolean(runJavascript(project, runtimeJavaHome, inFipsJvmScript))
+
             // Build debugging info
             println '======================================='
             println 'Elasticsearch Build Hamster says Hello!'
@@ -143,14 +159,6 @@ class BuildPlugin implements Plugin<Project> {
                 println "  JAVA_HOME             : ${gradleJavaHome}"
             }
             println "  Random Testing Seed   : ${project.testSeed}"
-
-            // enforce Gradle version
-            final GradleVersion currentGradleVersion = GradleVersion.current();
-
-            final GradleVersion minGradle = GradleVersion.version('4.3')
-            if (currentGradleVersion < minGradle) {
-                throw new GradleException("${minGradle} or above is required to build Elasticsearch")
-            }
 
             // enforce Java version
             if (compilerJavaVersionEnum < minimumCompilerVersion) {
@@ -196,6 +204,7 @@ class BuildPlugin implements Plugin<Project> {
             project.rootProject.ext.buildChecksDone = true
             project.rootProject.ext.minimumCompilerVersion = minimumCompilerVersion
             project.rootProject.ext.minimumRuntimeVersion = minimumRuntimeVersion
+            project.rootProject.ext.inFipsJvm = inFipsJvm
         }
 
         project.targetCompatibility = project.rootProject.ext.minimumRuntimeVersion
@@ -207,6 +216,7 @@ class BuildPlugin implements Plugin<Project> {
         project.ext.compilerJavaVersion = project.rootProject.ext.compilerJavaVersion
         project.ext.runtimeJavaVersion = project.rootProject.ext.runtimeJavaVersion
         project.ext.javaVersions = project.rootProject.ext.javaVersions
+        project.ext.inFipsJvm = project.rootProject.ext.inFipsJvm
     }
 
     private static String findCompilerJavaHome() {
@@ -216,7 +226,11 @@ class BuildPlugin implements Plugin<Project> {
                 // IntelliJ does not set JAVA_HOME, so we use the JDK that Gradle was run with
                 return Jvm.current().javaHome
             } else {
-                throw new GradleException("JAVA_HOME must be set to build Elasticsearch")
+                throw new GradleException(
+                        "JAVA_HOME must be set to build Elasticsearch. " +
+                                "Note that if the variable was just set you might have to run `./gradlew --stop` for " +
+                                "it to be picked up. See https://github.com/elastic/elasticsearch/issues/31399 details."
+                )
             }
         }
         return javaHome
@@ -376,6 +390,9 @@ class BuildPlugin implements Plugin<Project> {
         project.configurations.compile.dependencies.all(disableTransitiveDeps)
         project.configurations.testCompile.dependencies.all(disableTransitiveDeps)
         project.configurations.compileOnly.dependencies.all(disableTransitiveDeps)
+        project.plugins.withType(ShadowPlugin).whenPluginAdded {
+            project.configurations.shadow.dependencies.all(disableTransitiveDeps)
+        }
     }
 
     /** Adds repositories used by ES dependencies */
@@ -498,7 +515,41 @@ class BuildPlugin implements Plugin<Project> {
                     }
                 }
             }
+            project.plugins.withType(ShadowPlugin).whenPluginAdded {
+                project.publishing {
+                    publications {
+                        nebula(MavenPublication) {
+                            artifact project.tasks.shadowJar
+                            artifactId = project.archivesBaseName
+                            /*
+                            * Configure the pom to include the "shadow" as compile dependencies
+                            * because that is how we're using them but remove all other dependencies
+                            * because they've been shaded into the jar.
+                            */
+                            pom.withXml { XmlProvider xml ->
+                                Node root = xml.asNode()
+                                root.remove(root.dependencies)
+                                Node dependenciesNode = root.appendNode('dependencies')
+                                project.configurations.shadow.allDependencies.each {
+                                    if (false == it instanceof SelfResolvingDependency) {
+                                        Node dependencyNode = dependenciesNode.appendNode('dependency')
+                                        dependencyNode.appendNode('groupId', it.group)
+                                        dependencyNode.appendNode('artifactId', it.name)
+                                        dependencyNode.appendNode('version', it.version)
+                                        dependencyNode.appendNode('scope', 'compile')
+                                    }
+                                }
+                                // Be tidy and remove the element if it is empty
+                                if (dependenciesNode.children.empty) {
+                                    root.remove(dependenciesNode)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
+
     }
 
     /** Adds compiler settings to the project */
@@ -660,6 +711,28 @@ class BuildPlugin implements Plugin<Project> {
                 }
             }
         }
+        project.plugins.withType(ShadowPlugin).whenPluginAdded {
+            /*
+             * When we use the shadow plugin we entirely replace the
+             * normal jar with the shadow jar so we no longer want to run
+             * the jar task.
+             */
+            project.tasks.jar.enabled = false
+            project.tasks.shadowJar {
+                /*
+                 * Replace the default "shadow" classifier with null
+                 * which will leave the classifier off of the file name.
+                 */
+                classifier = null
+                /*
+                 * Not all cases need service files merged but it is
+                 * better to be safe
+                 */
+                mergeServiceFiles()
+            }
+            // Make sure we assemble the shadow jar
+            project.tasks.assemble.dependsOn project.tasks.shadowJar
+        }
     }
 
     /** Returns a closure of common configuration shared by unit and integration tests. */
@@ -691,7 +764,6 @@ class BuildPlugin implements Plugin<Project> {
             systemProperty 'tests.task', path
             systemProperty 'tests.security.manager', 'true'
             systemProperty 'jna.nosys', 'true'
-            systemProperty 'es.scripting.exception_for_missing_value', 'true'
             // TODO: remove setting logging level via system property
             systemProperty 'tests.logger.level', 'WARN'
             for (Map.Entry<String, String> property : System.properties.entrySet()) {
@@ -705,7 +777,11 @@ class BuildPlugin implements Plugin<Project> {
                     systemProperty property.getKey(), property.getValue()
                 }
             }
-
+            // Set the system keystore/truststore password if we're running tests in a FIPS-140 JVM
+            if (project.inFipsJvm) {
+                systemProperty 'javax.net.ssl.trustStorePassword', 'password'
+                systemProperty 'javax.net.ssl.keyStorePassword', 'password'
+            }
             boolean assertionsEnabled = Boolean.parseBoolean(System.getProperty('tests.asserts', 'true'))
             enableSystemAssertions assertionsEnabled
             enableAssertions assertionsEnabled
@@ -744,6 +820,18 @@ class BuildPlugin implements Plugin<Project> {
             }
 
             exclude '**/*$*.class'
+
+            project.plugins.withType(ShadowPlugin).whenPluginAdded {
+                /*
+                 * If we make a shaded jar we test against it.
+                 */
+                classpath -= project.tasks.compileJava.outputs.files
+                classpath -= project.configurations.compile
+                classpath -= project.configurations.runtime
+                classpath += project.configurations.shadow
+                classpath += project.tasks.shadowJar.outputs.files
+                dependsOn project.tasks.shadowJar
+            }
         }
     }
 
@@ -764,9 +852,28 @@ class BuildPlugin implements Plugin<Project> {
             additionalTest.configure(commonTestConfig(project))
             additionalTest.configure(config)
             additionalTest.dependsOn(project.tasks.testClasses)
-            test.dependsOn(additionalTest)
+            project.check.dependsOn(additionalTest)
         });
-        return test
+
+        project.plugins.withType(ShadowPlugin).whenPluginAdded {
+            /*
+             * We need somewhere to configure dependencies that we don't wish
+             * to shade into the jar. The shadow plugin creates a "shadow"
+             * configuration which  is *almost* exactly that. It is never
+             * bundled into the shaded jar but is used for main source
+             * compilation. Unfortunately, by default it is not used for
+             * *test* source compilation and isn't used in tests at all. This
+             * change makes it available for test compilation.
+             *
+             * Note that this isn't going to work properly with qa projects
+             * but they have no business applying the shadow plugin in the
+             * firstplace.
+             */
+            SourceSet testSourceSet = project.sourceSets.findByName('test')
+            if (testSourceSet != null) {
+                testSourceSet.compileClasspath += project.configurations.shadow
+            }
+        }
     }
 
     private static configurePrecommit(Project project) {
@@ -777,11 +884,20 @@ class BuildPlugin implements Plugin<Project> {
         project.dependencyLicenses.dependencies = project.configurations.runtime.fileCollection {
             it.group.startsWith('org.elasticsearch') == false
         } - project.configurations.compileOnly
+        project.plugins.withType(ShadowPlugin).whenPluginAdded {
+            project.dependencyLicenses.dependencies += project.configurations.shadow.fileCollection {
+                it.group.startsWith('org.elasticsearch') == false
+            }
+        }
     }
 
     private static configureDependenciesInfo(Project project) {
         Task deps = project.tasks.create("dependenciesInfo", DependenciesInfoTask.class)
         deps.runtimeConfiguration = project.configurations.runtime
+        project.plugins.withType(ShadowPlugin).whenPluginAdded {
+            deps.runtimeConfiguration = project.configurations.create('infoDeps')
+            deps.runtimeConfiguration.extendsFrom(project.configurations.runtime, project.configurations.shadow)
+        }
         deps.compileOnlyConfiguration = project.configurations.compileOnly
         project.afterEvaluate {
             deps.mappings = project.dependencyLicenses.mappings

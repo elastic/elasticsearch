@@ -51,6 +51,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
@@ -489,7 +490,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
             // Step 4. Start job task
             ActionListener<PutJobAction.Response> establishedMemoryUpdateListener = ActionListener.wrap(
-                    response -> persistentTasksService.sendStartRequest(MlMetadata.jobTaskId(jobParams.getJobId()),
+                    response -> persistentTasksService.sendStartRequest(MlTasks.jobTaskId(jobParams.getJobId()),
                             OpenJobAction.TASK_NAME, jobParams, finalListener),
                     listener::onFailure
             );
@@ -678,10 +679,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             PersistentTasksCustomMetaData.Assignment assignment = selectLeastLoadedMlNode(params.getJobId(), clusterState,
                     maxConcurrentJobAllocations, fallbackMaxNumberOfOpenJobs, maxMachineMemoryPercent, logger);
             if (assignment.getExecutorNode() == null) {
-                String msg = "Could not open job because no suitable nodes were found, allocation explanation ["
-                        + assignment.getExplanation() + "]";
-                logger.warn("[{}] {}", params.getJobId(), msg);
-                throw new ElasticsearchStatusException(msg, RestStatus.TOO_MANY_REQUESTS);
+                throw makeNoSuitableNodesException(logger, params.getJobId(), assignment.getExplanation());
             }
         }
 
@@ -785,9 +783,9 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 // and this is why this class must only be used when opening a job
                 if (assignment != null && assignment.equals(PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT) == false &&
                         assignment.isAssigned() == false) {
+                    OpenJobAction.JobParams params = (OpenJobAction.JobParams) persistentTask.getParams();
                     // Assignment has failed on the master node despite passing our "fast fail" validation
-                    exception = new ElasticsearchStatusException("Could not open job because no suitable nodes were found, " +
-                            "allocation explanation [" + assignment.getExplanation() + "]", RestStatus.TOO_MANY_REQUESTS);
+                    exception = makeNoSuitableNodesException(logger, params.getJobId(), assignment.getExplanation());
                     // The persistent task should be cancelled so that the observed outcome is the
                     // same as if the "fast fail" validation on the coordinating node had failed
                     shouldCancel = true;
@@ -812,5 +810,13 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                     return true;
             }
         }
+    }
+
+    static ElasticsearchException makeNoSuitableNodesException(Logger logger, String jobId, String explanation) {
+        String msg = "Could not open job because no suitable nodes were found, allocation explanation [" + explanation + "]";
+        logger.warn("[{}] {}", jobId, msg);
+        Exception detail = new IllegalStateException(msg);
+        return new ElasticsearchStatusException("Could not open job because no ML nodes with sufficient capacity were found",
+            RestStatus.TOO_MANY_REQUESTS, detail);
     }
 }

@@ -420,6 +420,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     // state may result in a new shard being initialized while having the same allocation id as the currently started shard.
                     logger.debug("{} removing shard (not active, current {}, new {})", shardId, currentRoutingEntry, newShardRouting);
                     indexService.removeShard(shardId.id(), "removing shard (stale copy)");
+                } else if (newShardRouting.primary() && currentRoutingEntry.primary() == false && newShardRouting.initializing()) {
+                    assert currentRoutingEntry.initializing() : currentRoutingEntry; // see above if clause
+                    // this can happen when cluster state batching batches activation of the shard, closing an index, reopening it
+                    // and assigning an initializing primary to this node
+                    logger.debug("{} removing shard (not active, current {}, new {})", shardId, currentRoutingEntry, newShardRouting);
+                    indexService.removeShard(shardId.id(), "removing shard (stale copy)");
                 }
             }
         }

@@ -300,43 +300,43 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                                                   BulkItemResponse operationResponse,
                                                   final UpdateHelper.Result translate) {
 
+        final BulkItemResponse response;
         DocWriteResponse.Result translatedResult = translate.getResponseResult();
         if (operationResponse.isFailed()) {
-            return operationResponse;
-        }
-
-        final UpdateResponse updateResponse;
-        final DocWriteRequest.OpType opType;
-        if (translatedResult == DocWriteResponse.Result.CREATED || translatedResult == DocWriteResponse.Result.UPDATED) {
-            final IndexRequest updateIndexRequest = translate.action();
-            final IndexResponse indexResponse = operationResponse.getResponse();
-            opType = updateIndexRequest.opType();
-            updateResponse = new UpdateResponse(indexResponse.getShardInfo(), indexResponse.getShardId(),
-                indexResponse.getType(), indexResponse.getId(), indexResponse.getSeqNo(), indexResponse.getPrimaryTerm(),
-                indexResponse.getVersion(), indexResponse.getResult());
-
-            if (updateRequest.fetchSource() != null && updateRequest.fetchSource().fetchSource()) {
-                final BytesReference indexSourceAsBytes = updateIndexRequest.source();
-                final Tuple<XContentType, Map<String, Object>> sourceAndContent =
-                    XContentHelper.convertToMap(indexSourceAsBytes, true, updateIndexRequest.getContentType());
-                updateResponse.setGetResult(UpdateHelper.extractGetResult(updateRequest, concreteIndex,
-                    indexResponse.getVersion(), sourceAndContent.v2(), sourceAndContent.v1(), indexSourceAsBytes));
-            }
-        } else if (translatedResult == DocWriteResponse.Result.DELETED) {
-            final DeleteResponse deleteResponse = operationResponse.getResponse();
-            opType = DocWriteRequest.OpType.DELETE;
-            updateResponse = new UpdateResponse(deleteResponse.getShardInfo(), deleteResponse.getShardId(),
-                deleteResponse.getType(), deleteResponse.getId(), deleteResponse.getSeqNo(), deleteResponse.getPrimaryTerm(),
-                deleteResponse.getVersion(), deleteResponse.getResult());
-
-            final GetResult getResult = UpdateHelper.extractGetResult(updateRequest, concreteIndex, deleteResponse.getVersion(),
-                translate.updatedSourceAsMap(), translate.updateSourceContentType(), null);
-
-            updateResponse.setGetResult(getResult);
+            response = new BulkItemResponse(operationResponse.getItemId(), DocWriteRequest.OpType.UPDATE, operationResponse.getFailure());
         } else {
-            throw new IllegalArgumentException("unknown operation type: " + translatedResult);
+
+            final UpdateResponse updateResponse;
+            if (translatedResult == DocWriteResponse.Result.CREATED || translatedResult == DocWriteResponse.Result.UPDATED) {
+                final IndexRequest updateIndexRequest = translate.action();
+                final IndexResponse indexResponse = operationResponse.getResponse();
+                updateResponse = new UpdateResponse(indexResponse.getShardInfo(), indexResponse.getShardId(),
+                    indexResponse.getType(), indexResponse.getId(), indexResponse.getSeqNo(), indexResponse.getPrimaryTerm(),
+                    indexResponse.getVersion(), indexResponse.getResult());
+
+                if (updateRequest.fetchSource() != null && updateRequest.fetchSource().fetchSource()) {
+                    final BytesReference indexSourceAsBytes = updateIndexRequest.source();
+                    final Tuple<XContentType, Map<String, Object>> sourceAndContent =
+                        XContentHelper.convertToMap(indexSourceAsBytes, true, updateIndexRequest.getContentType());
+                    updateResponse.setGetResult(UpdateHelper.extractGetResult(updateRequest, concreteIndex,
+                        indexResponse.getVersion(), sourceAndContent.v2(), sourceAndContent.v1(), indexSourceAsBytes));
+                }
+            } else if (translatedResult == DocWriteResponse.Result.DELETED) {
+                final DeleteResponse deleteResponse = operationResponse.getResponse();
+                updateResponse = new UpdateResponse(deleteResponse.getShardInfo(), deleteResponse.getShardId(),
+                    deleteResponse.getType(), deleteResponse.getId(), deleteResponse.getSeqNo(), deleteResponse.getPrimaryTerm(),
+                    deleteResponse.getVersion(), deleteResponse.getResult());
+
+                final GetResult getResult = UpdateHelper.extractGetResult(updateRequest, concreteIndex, deleteResponse.getVersion(),
+                    translate.updatedSourceAsMap(), translate.updateSourceContentType(), null);
+
+                updateResponse.setGetResult(getResult);
+            } else {
+                throw new IllegalArgumentException("unknown operation type: " + translatedResult);
+            }
+            response = new BulkItemResponse(operationResponse.getItemId(), DocWriteRequest.OpType.UPDATE, updateResponse);
         }
-        return new BulkItemResponse(operationResponse.getItemId(), opType, updateResponse);
+        return response;
     }
 
 

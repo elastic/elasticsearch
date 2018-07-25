@@ -532,7 +532,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkItemResponse primaryResponse = bulkShardRequest.items()[0].getPrimaryResponse();
         assertThat(primaryResponse.getItemId(), equalTo(0));
         assertThat(primaryResponse.getId(), equalTo("id"));
-        assertThat(primaryResponse.getOpType(), equalTo(DocWriteRequest.OpType.INDEX));
+        assertThat(primaryResponse.getOpType(), equalTo(DocWriteRequest.OpType.UPDATE));
         assertTrue(primaryResponse.isFailed());
         assertThat(primaryResponse.getFailureMessage(), containsString("I'm dead <(x.x)>"));
         BulkItemResponse.Failure failure = primaryResponse.getFailure();
@@ -578,7 +578,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkItemResponse primaryResponse = bulkShardRequest.items()[0].getPrimaryResponse();
         assertThat(primaryResponse.getItemId(), equalTo(0));
         assertThat(primaryResponse.getId(), equalTo("id"));
-        assertThat(primaryResponse.getOpType(), equalTo(DocWriteRequest.OpType.INDEX));
+        assertThat(primaryResponse.getOpType(), equalTo(DocWriteRequest.OpType.UPDATE));
         assertTrue(primaryResponse.isFailed());
         assertThat(primaryResponse.getFailureMessage(), containsString("I'm conflicted <(;_;)>"));
         BulkItemResponse.Failure failure = primaryResponse.getFailure();
@@ -627,7 +627,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkItemResponse primaryResponse = bulkShardRequest.items()[0].getPrimaryResponse();
         assertThat(primaryResponse.getItemId(), equalTo(0));
         assertThat(primaryResponse.getId(), equalTo("id"));
-        assertThat(primaryResponse.getOpType(), equalTo(DocWriteRequest.OpType.INDEX));
+        assertThat(primaryResponse.getOpType(), equalTo(DocWriteRequest.OpType.UPDATE));
         DocWriteResponse response = primaryResponse.getResponse();
         assertThat(response.status(), equalTo(created ? RestStatus.CREATED : RestStatus.OK));
         assertThat(response.getSeqNo(), equalTo(13L));
@@ -670,7 +670,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkItemResponse primaryResponse = bulkShardRequest.items()[0].getPrimaryResponse();
         assertThat(primaryResponse.getItemId(), equalTo(0));
         assertThat(primaryResponse.getId(), equalTo("id"));
-        assertThat(primaryResponse.getOpType(), equalTo(DocWriteRequest.OpType.DELETE));
+        assertThat(primaryResponse.getOpType(), equalTo(DocWriteRequest.OpType.UPDATE));
         DocWriteResponse response = primaryResponse.getResponse();
         assertThat(response.status(), equalTo(RestStatus.OK));
         assertThat(response.getSeqNo(), equalTo(resultSeqNo));
@@ -846,7 +846,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkItemResponse primaryResponse = result.replicaRequest().items()[0].getPrimaryResponse();
         assertThat(primaryResponse.getItemId(), equalTo(0));
         assertThat(primaryResponse.getId(), equalTo("id"));
-        assertThat(primaryResponse.getOpType(), equalTo(DocWriteRequest.OpType.INDEX));
+        assertThat(primaryResponse.getOpType(), equalTo(DocWriteRequest.OpType.UPDATE));
         DocWriteResponse response = primaryResponse.getResponse();
         assertThat(response.status(), equalTo(RestStatus.CREATED));
         assertThat(response.getSeqNo(), equalTo(13L));

@@ -52,9 +52,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
-import static org.elasticsearch.test.AbstractBuilderTestCase.DATE_ALIAS_FIELD_NAME;
-import static org.elasticsearch.test.AbstractBuilderTestCase.INT_ALIAS_FIELD_NAME;
-import static org.elasticsearch.test.AbstractBuilderTestCase.STRING_ALIAS_FIELD_NAME;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -138,18 +135,18 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             final Query expectedQuery;
             if (context.mapperService().getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_1_0)
                     && context.mapperService().fullName(queryBuilder.fieldName()).hasDocValues()) {
-                expectedQuery = new ConstantScoreQuery(new DocValuesFieldExistsQuery(queryBuilder.fieldName()));
+                expectedQuery = new ConstantScoreQuery(new DocValuesFieldExistsQuery(expectedFieldName));
             } else if (context.mapperService().getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_1_0) &&
                             context.mapperService().fullName(queryBuilder.fieldName()).omitNorms() == false) {
-                expectedQuery = new ConstantScoreQuery(new NormsFieldExistsQuery(queryBuilder.fieldName()));
+                expectedQuery = new ConstantScoreQuery(new NormsFieldExistsQuery(expectedFieldName));
             } else {
-                expectedQuery = new ConstantScoreQuery(new TermQuery(new Term(FieldNamesFieldMapper.NAME, queryBuilder.fieldName())));
+                expectedQuery = new ConstantScoreQuery(new TermQuery(new Term(FieldNamesFieldMapper.NAME, expectedFieldName)));
             }
             assertThat(query, equalTo(expectedQuery));
-        } else if (queryBuilder.fieldName().equals(DATE_FIELD_NAME) == false &&
-                        queryBuilder.fieldName().equals(INT_FIELD_NAME) == false &&
-                        queryBuilder.fieldName().equals(DATE_RANGE_FIELD_NAME) == false &&
-                        queryBuilder.fieldName().equals(INT_RANGE_FIELD_NAME) == false) {
+        } else if (expectedFieldName.equals(DATE_FIELD_NAME) == false &&
+                        expectedFieldName.equals(INT_FIELD_NAME) == false &&
+                        expectedFieldName.equals(DATE_RANGE_FIELD_NAME) == false &&
+                        expectedFieldName.equals(INT_RANGE_FIELD_NAME) == false) {
             assertThat(query, instanceOf(TermRangeQuery.class));
             TermRangeQuery termRangeQuery = (TermRangeQuery) query;
             assertThat(termRangeQuery.getField(), equalTo(expectedFieldName));

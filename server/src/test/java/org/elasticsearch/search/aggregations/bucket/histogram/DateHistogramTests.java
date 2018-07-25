@@ -141,7 +141,6 @@ public class DateHistogramTests extends BaseAggregationTestCase<DateHistogramAgg
     }
 
     public void testRewriteTimeZone() throws IOException {
-        Assume.assumeTrue(getCurrentTypes().length > 0); // we need mappings
         FormatDateTimeFormatter format = Joda.forPattern("strict_date_optional_time");
 
         try (Directory dir = newDirectory();

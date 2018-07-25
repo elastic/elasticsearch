@@ -476,7 +476,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     public void testWeight1fStillProducesWeightFunction() throws IOException {
-        String queryString = jsonBuilder().startObject()
+        String queryString = Strings.toString(jsonBuilder().startObject()
             .startObject("function_score")
             .startArray("functions")
             .startObject()
@@ -487,7 +487,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             .endObject()
             .endArray()
             .endObject()
-            .endObject().string();
+            .endObject());
         QueryBuilder query = parseQuery(queryString);
         assertThat(query, instanceOf(FunctionScoreQueryBuilder.class));
         FunctionScoreQueryBuilder functionScoreQueryBuilder = (FunctionScoreQueryBuilder) query;

@@ -110,18 +110,12 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         assertEquals("cannot parse type from null string", e.getMessage());
     }
 
-    public void testExceptionOnMissingTypes() throws IOException {
-<<<<<<< HEAD
+    public void testExceptionOnMissingTypes() {
         QueryShardContext context = createShardContextWithNoType();
         GeoBoundingBoxQueryBuilder qb = createTestQueryBuilder();
         qb.ignoreUnmapped(false);
         QueryShardException e = expectThrows(QueryShardException.class, () -> qb.toQuery(context));
-        assertEquals("failed to find geo_point field [mapped_geo_point]", e.getMessage());
-=======
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length == 0);
-        QueryShardException e = expectThrows(QueryShardException.class, super::testToQuery);
-        assertThat(e.getMessage(), startsWith("failed to find geo_point field [mapped_geo_point"));
->>>>>>> master
+        assertEquals("failed to find geo_point field [" + qb.fieldName() + "]", e.getMessage());
     }
 
     public void testBrokenCoordinateCannotBeSet() {
@@ -450,8 +444,6 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         assertEquals(expectedJson, GeoExecType.MEMORY, parsed.type());
     }
 
-<<<<<<< HEAD
-=======
     public void testFromGeohash() throws IOException {
         String json =
             "{\n" +
@@ -511,7 +503,6 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
     }
 
     public void testHonorsCoercion() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
             "  \"geo_bounding_box\": {\n" +
             "    \"validation_method\": \"COERCE\",\n" +
@@ -532,11 +523,9 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
 
     @Override
     public void testMustRewrite() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         super.testMustRewrite();
     }
 
->>>>>>> master
     public void testIgnoreUnmapped() throws IOException {
         final GeoBoundingBoxQueryBuilder queryBuilder = new GeoBoundingBoxQueryBuilder("unmapped").setCorners(1.0, 0.0, 0.0, 1.0);
         queryBuilder.ignoreUnmapped(true);

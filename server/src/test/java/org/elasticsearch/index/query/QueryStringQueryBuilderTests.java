@@ -1221,7 +1221,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     public void testQuoteFieldSuffix() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         QueryShardContext context = createShardContext();
         assertEquals(new TermQuery(new Term(STRING_FIELD_NAME, "bar")),
             new QueryStringQueryBuilder("bar")

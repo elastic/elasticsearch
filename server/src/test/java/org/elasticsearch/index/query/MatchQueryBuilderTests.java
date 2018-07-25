@@ -52,8 +52,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.test.AbstractBuilderTestCase.STRING_ALIAS_FIELD_NAME;
-import static org.elasticsearch.test.AbstractBuilderTestCase.expectedFieldName;
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.containsString;

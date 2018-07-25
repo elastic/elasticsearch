@@ -25,29 +25,17 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.spans.SpanBoostQuery;
-import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.settings.IndexScopedSettings;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -60,53 +48,18 @@ import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.support.QueryParsers;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.indices.analysis.AnalysisModule;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
-import org.elasticsearch.indices.mapper.MapperRegistry;
-import org.elasticsearch.node.InternalSettingsPreparer;
-import org.elasticsearch.plugins.MapperPlugin;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.plugins.SearchPlugin;
-import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.internal.SearchContext;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
 
-import java.io.Closeable;
 import java.io.IOException;
-import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.Proxy;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.HashSet;
@@ -115,13 +68,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
-import java.util.stream.Stream;
 
-import static java.util.Collections.emptyList;
-import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
-import static org.elasticsearch.test.AbstractBuilderTestCase.STRING_ALIAS_FIELD_NAME;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
@@ -129,109 +77,10 @@ import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 
-public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>> extends ESTestCase {
 
-    public static final String STRING_FIELD_NAME = "mapped_string";
-    protected static final String STRING_FIELD_NAME_2 = "mapped_string_2";
-    protected static final String INT_FIELD_NAME = "mapped_int";
-    protected static final String INT_RANGE_FIELD_NAME = "mapped_int_range";
-    protected static final String DOUBLE_FIELD_NAME = "mapped_double";
-    protected static final String BOOLEAN_FIELD_NAME = "mapped_boolean";
-    protected static final String DATE_FIELD_NAME = "mapped_date";
-    protected static final String DATE_RANGE_FIELD_NAME = "mapped_date_range";
-    protected static final String OBJECT_FIELD_NAME = "mapped_object";
-    protected static final String GEO_POINT_FIELD_NAME = "mapped_geo_point";
-    protected static final String GEO_SHAPE_FIELD_NAME = "mapped_geo_shape";
-    protected static final String[] MAPPED_FIELD_NAMES = new String[]{STRING_FIELD_NAME, INT_FIELD_NAME, INT_RANGE_FIELD_NAME,
-            DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_FIELD_NAME, DATE_RANGE_FIELD_NAME, OBJECT_FIELD_NAME, GEO_POINT_FIELD_NAME,
-            GEO_SHAPE_FIELD_NAME};
-    private static final String[] MAPPED_LEAF_FIELD_NAMES = new String[]{STRING_FIELD_NAME, INT_FIELD_NAME, INT_RANGE_FIELD_NAME,
-            DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_FIELD_NAME, DATE_RANGE_FIELD_NAME,  GEO_POINT_FIELD_NAME, };
+public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>> extends AbstractBuilderTestCase {
+
     private static final int NUMBER_OF_TESTQUERIES = 20;
-
-    protected static Version indexVersionCreated;
-
-    private static ServiceHolder serviceHolder;
-    private static ServiceHolder serviceHolderWithNoType;
-    private static int queryNameId = 0;
-    private static Settings nodeSettings;
-    private static Index index;
-    private static Index indexWithNoType;
-
-    protected static Index getIndex() {
-        return index;
-    }
-    protected static Index getIndexWithNoType() {
-        return indexWithNoType;
-    }
-
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return emptyList();
-    }
-
-    protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
-    }
-
-    @BeforeClass
-    public static void beforeClass() {
-        nodeSettings = Settings.builder()
-                .put("node.name", AbstractQueryTestCase.class.toString())
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                .build();
-
-        index = new Index(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLength(10));
-        indexWithNoType = new Index(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLength(10));
-    }
-
-    protected Settings indexSettings() {
-        // we have to prefer CURRENT since with the range of versions we support it's rather unlikely to get the current actually.
-        indexVersionCreated = randomBoolean() ? Version.CURRENT
-                : VersionUtils.randomVersionBetween(random(), null, Version.CURRENT);
-        return Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, indexVersionCreated)
-            .build();
-    }
-
-    @AfterClass
-    public static void afterClass() throws Exception {
-        IOUtils.close(serviceHolder);
-        IOUtils.close(serviceHolderWithNoType);
-        serviceHolder = null;
-        serviceHolderWithNoType = null;
-    }
-
-    @Before
-    public void beforeTest() throws IOException {
-        if (serviceHolder == null) {
-            serviceHolder = new ServiceHolder(nodeSettings, indexSettings(), getPlugins(), true, this::initializeAdditionalMappings);
-        }
-        serviceHolder.clientInvocationHandler.delegate = this;
-        if (serviceHolderWithNoType == null) {
-            serviceHolderWithNoType = new ServiceHolder(nodeSettings, indexSettings(), getPlugins(), false, null);
-        }
-        serviceHolderWithNoType.clientInvocationHandler.delegate = this;
-    }
-
-    private static SearchContext getSearchContext(QueryShardContext context) {
-        TestSearchContext testSearchContext = new TestSearchContext(context) {
-            @Override
-            public MapperService mapperService() {
-                return serviceHolder.mapperService; // need to build / parse inner hits sort fields
-            }
-
-            @Override
-            public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
-                return serviceHolder.indexFieldDataService.getForField(fieldType); // need to build / parse inner hits sort fields
-            }
-
-        };
-        return testSearchContext;
-    }
-
-    @After
-    public void afterTest() {
-        serviceHolder.clientInvocationHandler.delegate = null;
-    }
 
     public final QB createTestQueryBuilder() {
         QB query = doCreateTestQueryBuilder();
@@ -765,24 +614,8 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     //we use the streaming infra to create a copy of the query provided as argument
     @SuppressWarnings("unchecked")
     private QB copyQuery(QB query) throws IOException {
-        Reader<QB> reader = (Reader<QB>) serviceHolder.namedWriteableRegistry.getReader(QueryBuilder.class, query.getWriteableName());
-        return copyWriteable(query, serviceHolder.namedWriteableRegistry, reader);
-    }
-
-    /**
-     * @return a new {@link QueryShardContext} based on the base test index and queryParserService
-     */
-    protected static QueryShardContext createShardContext() {
-        QueryShardContext context = serviceHolder.createShardContext();
-        context.setTypes("_doc");
-        return context;
-    }
-
-    /**
-     * @return a new {@link QueryShardContext} based on an index with no type registered
-     */
-    protected static QueryShardContext createShardContextWithNoType() {
-        return serviceHolderWithNoType.createShardContext();
+        Reader<QB> reader = (Reader<QB>) namedWriteableRegistry().getReader(QueryBuilder.class, query.getWriteableName());
+        return copyWriteable(query, namedWriteableRegistry(), reader);
     }
 
     /**
@@ -947,113 +780,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
     protected Query rewrite(Query query) throws IOException {
         return query;
-    }
-
-    @Override
-    protected NamedXContentRegistry xContentRegistry() {
-        return serviceHolder.xContentRegistry;
-    }
-
-    private static class ServiceHolder implements Closeable {
-        private final IndexFieldDataService indexFieldDataService;
-        private final SearchModule searchModule;
-        private final NamedWriteableRegistry namedWriteableRegistry;
-        private final NamedXContentRegistry xContentRegistry;
-        private final ClientInvocationHandler clientInvocationHandler = new ClientInvocationHandler();
-        private final IndexSettings idxSettings;
-        private final SimilarityService similarityService;
-        private final MapperService mapperService;
-        private final BitsetFilterCache bitsetFilterCache;
-        private final ScriptService scriptService;
-        private final Client client;
-        private final long nowInMillis = randomNonNegativeLong();
-
-        ServiceHolder(Settings nodeSettings, Settings indexSettings, Collection<Class<? extends Plugin>> plugins, boolean registerType,
-                            CheckedConsumer<MapperService, IOException> mapperServiceConsumer) throws IOException {
-            Environment env = InternalSettingsPreparer.prepareEnvironment(nodeSettings);
-            PluginsService pluginsService;
-            pluginsService = new PluginsService(nodeSettings, null, env.modulesFile(), env.pluginsFile(), plugins);
-
-            client = (Client) Proxy.newProxyInstance(
-                    Client.class.getClassLoader(),
-                    new Class[]{Client.class},
-                    clientInvocationHandler);
-            ScriptModule scriptModule = createScriptModule(pluginsService.filterPlugins(ScriptPlugin.class));
-            List<Setting<?>> additionalSettings = pluginsService.getPluginSettings();
-            additionalSettings.add(InternalSettingsPlugin.VERSION_CREATED);
-            SettingsModule settingsModule = new SettingsModule(nodeSettings, additionalSettings, pluginsService.getPluginSettingsFilter());
-            searchModule = new SearchModule(nodeSettings, false, pluginsService.filterPlugins(SearchPlugin.class));
-            IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
-            List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-            entries.addAll(indicesModule.getNamedWriteables());
-            entries.addAll(searchModule.getNamedWriteables());
-            namedWriteableRegistry = new NamedWriteableRegistry(entries);
-            xContentRegistry = new NamedXContentRegistry(Stream.of(
-                    searchModule.getNamedXContents().stream()
-                    ).flatMap(Function.identity()).collect(toList()));
-            IndexScopedSettings indexScopedSettings = settingsModule.getIndexScopedSettings();
-            idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings, indexScopedSettings);
-            AnalysisModule analysisModule = new AnalysisModule(TestEnvironment.newEnvironment(nodeSettings), emptyList());
-            IndexAnalyzers indexAnalyzers = analysisModule.getAnalysisRegistry().build(idxSettings);
-            scriptService = scriptModule.getScriptService();
-            similarityService = new SimilarityService(idxSettings, null, Collections.emptyMap());
-            MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
-            mapperService = new MapperService(idxSettings, indexAnalyzers, xContentRegistry, similarityService, mapperRegistry,
-                    this::createShardContext);
-            IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(nodeSettings, new IndexFieldDataCache.Listener() {
-            });
-            indexFieldDataService = new IndexFieldDataService(idxSettings, indicesFieldDataCache,
-                    new NoneCircuitBreakerService(), mapperService);
-            bitsetFilterCache = new BitsetFilterCache(idxSettings, new BitsetFilterCache.Listener() {
-                @Override
-                public void onCache(ShardId shardId, Accountable accountable) {
-
-                }
-
-                @Override
-                public void onRemoval(ShardId shardId, Accountable accountable) {
-
-                }
-            });
-
-            if (registerType) {
-                mapperService.merge("_doc", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("_doc",
-                    STRING_FIELD_NAME, "type=text",
-                    STRING_FIELD_NAME_2, "type=keyword",
-                    INT_FIELD_NAME, "type=integer",
-                    INT_RANGE_FIELD_NAME, "type=integer_range",
-                    DOUBLE_FIELD_NAME, "type=double",
-                    BOOLEAN_FIELD_NAME, "type=boolean",
-                    DATE_FIELD_NAME, "type=date",
-                    DATE_RANGE_FIELD_NAME, "type=date_range",
-                    OBJECT_FIELD_NAME, "type=object",
-                    GEO_POINT_FIELD_NAME, "type=geo_point",
-                    GEO_SHAPE_FIELD_NAME, "type=geo_shape"
-                ).string()), MapperService.MergeReason.MAPPING_UPDATE);
-
-                // also add mappings for two inner field in the object field
-                mapperService.merge("_doc", new CompressedXContent("{\"properties\":{\"" + OBJECT_FIELD_NAME + "\":{\"type\":\"object\","
-                    + "\"properties\":{\"" + DATE_FIELD_NAME + "\":{\"type\":\"date\"},\"" +
-                    INT_FIELD_NAME + "\":{\"type\":\"integer\"}}}}}"), MapperService.MergeReason.MAPPING_UPDATE);
-                mapperServiceConsumer.accept(mapperService);
-            }
-        }
-
-        @Override
-        public void close() throws IOException {
-        }
-
-        QueryShardContext createShardContext() {
-            return new QueryShardContext(0, idxSettings, bitsetFilterCache, indexFieldDataService::getForField, mapperService,
-                similarityService, scriptService, xContentRegistry, namedWriteableRegistry, this.client, null, () -> nowInMillis, null);
-        }
-
-        ScriptModule createScriptModule(List<ScriptPlugin> scriptPlugins) {
-            if (scriptPlugins == null || scriptPlugins.isEmpty()) {
-                return newTestScriptModule();
-            }
-            return new ScriptModule(Settings.EMPTY, scriptPlugins);
-        }
     }
 
     protected QueryBuilder rewriteAndFetch(QueryBuilder builder, QueryRewriteContext context) throws IOException {

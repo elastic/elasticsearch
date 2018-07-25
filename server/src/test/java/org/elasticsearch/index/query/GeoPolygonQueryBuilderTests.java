@@ -234,7 +234,6 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
     }
 
     public void testPointValidation() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         QueryShardContext context = createShardContext();
         String queryInvalidLat = "{\n" +
             "    \"geo_polygon\":{\n" +

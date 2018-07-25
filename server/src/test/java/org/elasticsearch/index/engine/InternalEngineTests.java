@@ -181,7 +181,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
@@ -4975,9 +4974,9 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testRecordUpdatedBySeqNo() throws Exception {
-        CheckedFunction<InternalEngine, Map<Long, Long>, IOException> readUpdatedBySeqNos = (engine) -> {
+        CheckedFunction<InternalEngine, List<Tuple<Long, Long>>, IOException> readUpdatedBySeqNos = (engine) -> {
             engine.refresh("test");
-            Map<Long, Long> updates = new HashMap<>();
+            List<Tuple<Long, Long>> updates = new ArrayList<>();
             try (Searcher engineSearcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
                 DirectoryReader reader = Lucene.wrapAllDocsLive(engineSearcher.getDirectoryReader());
                 for (LeafReaderContext leaf : reader.leaves()) {
@@ -4990,7 +4989,9 @@ public class InternalEngineTests extends EngineTestCase {
                         assertThat(seqNoDV.advanceExact(doc), equalTo(true));
                         if (updatedByDV.advanceExact(doc)) {
                             assertThat(updatedByDV.longValue(), greaterThanOrEqualTo(0L));
-                            updates.put(seqNoDV.longValue(), updatedByDV.longValue());
+                            updates.add(Tuple.tuple(seqNoDV.longValue(), updatedByDV.longValue()));
+                        }else {
+                            updates.add(Tuple.tuple(seqNoDV.longValue(), null));
                         }
                     }
                 }
@@ -5015,14 +5016,17 @@ public class InternalEngineTests extends EngineTestCase {
             engine.index(replicaIndexForDoc(createParsedDoc("1", null), 3, 2, false));
             engine.index(replicaIndexForDoc(createParsedDoc("1", null), 6, 5, false));
             engine.delete(replicaDeleteForDoc("1", 5, 4, threadPool.relativeTimeInMillis()));
-            Map<Long, Long> seqNos = readUpdatedBySeqNos.apply(engine);
-            assertThat(seqNos, hasEntry(0L, 1L)); // 0 -> 1
-            assertThat(seqNos, hasEntry(1L, 5L)); // 1 -> 3 -> 5
-            assertThat(seqNos, hasEntry(2L, 3L)); // 2 -> 3 (stale)
-            assertThat(seqNos, not(hasKey(3L)));  // regular delete tombstone does not have updated_by_seqno
-            assertThat(seqNos, hasEntry(4L, 5L)); // stale delete tombstone has updated_by_seqno
-            assertThat(seqNos, not(hasKey(5L)));  // a live index
-            assertThat(seqNos.keySet(), hasSize(4));
+            List<Tuple<Long, Long>> seqNos = readUpdatedBySeqNos.apply(engine);
+            // index#0 -> index#1 -> delete#3 -> index#2 -> index#5 -> delete#4
+            assertThat(seqNos, containsInAnyOrder(
+                Tuple.tuple(0L, 1L),   // 0 -> 1 - seq#0 should be updated once because of refresh
+                Tuple.tuple(1L, 3L),   // 1 -> 5 (deleted by #3, then updated by #5)
+                Tuple.tuple(2L, 3L),   // index#2 is stale by delete#3, thus should never be updated again.
+                Tuple.tuple(3L, null), // the first delete tombstone without updated_by_seqno
+                Tuple.tuple(3L, 5L),   // the second delete tombstone without updated_by_seqno
+                Tuple.tuple(4L, 5L),   // delete#4 is stale, thus having updated_by_seqno=5
+                Tuple.tuple(5L, null)  // still alive
+            ));
         }
         // On primary
         try (Store store = createStore();
@@ -5030,14 +5034,21 @@ public class InternalEngineTests extends EngineTestCase {
                  newMergePolicy(), null, null, globalCheckpoint::get))) {
             engine.index(indexForDoc(createParsedDoc("1", null)));
             engine.index(indexForDoc(createParsedDoc("1", null)));
+            engine.refresh("test");
             engine.delete(new Engine.Delete("test", "1", newUid("1"), primaryTerm.get()));
             engine.index(indexForDoc(createParsedDoc("1", null)));
+            engine.delete(new Engine.Delete("test", "1", newUid("1"), primaryTerm.get()));
             engine.refresh("test");
-            Map<Long, Long> seqNos = readUpdatedBySeqNos.apply(engine);
-            assertThat(seqNos, hasEntry(0L, 2L)); // 0 -> 1 -> 2
-            assertThat(seqNos, hasEntry(1L, 2L)); // 1 -> 2
-            assertThat(seqNos, not(hasKey(2L)));  // delete does not have updated_by_seqno
-            assertThat(seqNos.keySet(), hasSize(2));
+            List<Tuple<Long, Long>> seqNos = readUpdatedBySeqNos.apply(engine);
+            // index#0 -> index#1 -> delete#2 -> index#3 -> delete#4
+            assertThat(seqNos, containsInAnyOrder(
+                Tuple.tuple(0L, 1L),   // index#0 -> index#1 -> refresh
+                Tuple.tuple(1L, 4L),   // index#1 -> delete#2 -> index#3 -> delete#4
+                Tuple.tuple(2L, null), // the first delete tombstone without updated_by_seqno
+                Tuple.tuple(2L, 3L),   // the second delete tombstone with updated_by_seqno
+                Tuple.tuple(3L, 4L),   // index#3 -> delete#4
+                Tuple.tuple(4L, null)  // still alive
+            ));
         }
     }
 

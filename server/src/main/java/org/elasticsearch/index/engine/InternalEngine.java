@@ -87,6 +87,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -94,7 +95,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -649,22 +649,35 @@ public class InternalEngine extends Engine {
         }
     }
 
-    /** resolves the last seqno of the document, returning empty if not found */
-    private OptionalLong resolveDocSeqNo(final Operation op) throws IOException {
+    private static final class SeqNoAndVersionValue {
+        final long seqNo;
+        final VersionValue versionValue;
+        SeqNoAndVersionValue(long seqNo, VersionValue versionValue) {
+            assert versionValue == null || versionValue.seqNo == seqNo : "version_value=" + versionValue + ", seqno=" + seqNo;
+            this.seqNo = seqNo;
+            this.versionValue = versionValue;
+        }
+        boolean isDelete() {
+            return versionValue != null && versionValue.isDelete();
+        }
+    }
+
+    /** resolves the last seqno and version on the version map (if exists) of the document, returning empty if not found */
+    private SeqNoAndVersionValue resolveDocSeqNo(final Operation op) throws IOException {
         //TODO: Assert that if prev_seqno equals to op's seqno, they should have the same term after rollback is implemented.
         assert op.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO : "resolving ops based on seq# but no seqNo is found";
         final VersionValue versionValue = getVersionFromMap(op.uid().bytes());
         assert incrementVersionLookup();
         if (versionValue != null) {
-            return OptionalLong.of(versionValue.seqNo);
+            return new SeqNoAndVersionValue(versionValue.seqNo, versionValue);
         } else {
             assert incrementIndexVersionLookup();
             try (Searcher searcher = acquireSearcher("load_seq_no", SearcherScope.INTERNAL)) {
                 final DocIdAndSeqNo docAndSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.reader(), op.uid());
                 if (docAndSeqNo == null) {
-                    return OptionalLong.empty();
+                    return null;
                 } else {
-                    return OptionalLong.of(docAndSeqNo.seqNo);
+                    return new SeqNoAndVersionValue(docAndSeqNo.seqNo, null);
                 }
             }
         }
@@ -881,13 +894,13 @@ public class InternalEngine extends Engine {
                 // See testRecoveryWithOutOfOrderDelete for an example of peer recovery
                 plan = IndexingStrategy.processButSkipLucene(false, index.seqNo(), index.version());
             } else {
-                final OptionalLong prevSeqNo = resolveDocSeqNo(index);
-                if (prevSeqNo.isPresent() == false || prevSeqNo.getAsLong() < index.seqNo()) {
-                    plan = IndexingStrategy.processNormally(prevSeqNo.isPresent() == false, index.seqNo(), index.version());
+                final SeqNoAndVersionValue currentVersion = resolveDocSeqNo(index);
+                if (currentVersion == null || currentVersion.seqNo < index.seqNo()) {
+                    plan = IndexingStrategy.processNormally(currentVersion == null, index.seqNo(), index.version(), currentVersion);
                 } else {
                     final boolean addStaleOpToLucene = this.softDeleteEnabled;
                     plan = IndexingStrategy.processAsStaleOp(addStaleOpToLucene, index.seqNo(), index.version(),
-                        addStaleOpToLucene ? prevSeqNo.getAsLong() : -1);
+                        addStaleOpToLucene ? currentVersion : null);
                 }
             }
         }
@@ -935,8 +948,8 @@ public class InternalEngine extends Engine {
             } else {
                 plan = IndexingStrategy.processNormally(currentNotFoundOrDeleted,
                     generateSeqNoForOperation(index),
-                    index.versionType().updateVersion(currentVersion, index.version())
-                );
+                    index.versionType().updateVersion(currentVersion, index.version()),
+                    versionValue == null ? null : new SeqNoAndVersionValue(versionValue.seqNo, versionValue));
             }
         }
         return plan;
@@ -955,13 +968,28 @@ public class InternalEngine extends Engine {
         index.parsedDoc().version().setLongValue(plan.versionForIndexing);
         try {
             if (plan.addStaleOpToLucene) {
-                addStaleDocs(index.docs(), plan.seqNoOfNewerDocIfStale);
+                addStaleDocs(index.docs(), plan.currentVersionValue.seqNo);
             } else if (plan.useLuceneUpdateDocument) {
                 updateDocs(index.uid(), plan, index.docs());
             } else {
                 // document does not exists, we can optimize for create, but double check if assertions are running
                 assert assertDocDoesNotExist(index, canOptimizeAddDocument(index) == false);
-                addDocs(index.docs(), indexWriter);
+                final List<ParseContext.Document> docs;
+                if (softDeleteEnabled && plan.currentVersionValue != null && plan.currentVersionValue.isDelete()) {
+                    docs = new ArrayList<>(index.docs().size() + 1);
+                    docs.addAll(index.docs());
+                    // Since the updated_by_seqno of a delete tombstone is never updated, we need to reindex another tombstone for the
+                    // previous delete operation with updated_by_seqno equalling to seqno of this index op. This new tombstone ensures
+                    // that we will always have a tombstone of the previous delete operation if we have to roll back this index operation.
+                    final VersionValue currentVersion = plan.currentVersionValue.versionValue;
+                    ParseContext.Document tombstone = createDeleteTombstone(
+                        index.id(), index.type(), currentVersion.seqNo, currentVersion.term, currentVersion.version).docs().get(0);
+                    tombstone.add(new NumericDocValuesField(SeqNoFieldMapper.UPDATED_BY_SEQNO_NAME, plan.seqNoForIndexing));
+                    docs.add(tombstone);
+                } else {
+                    docs = index.docs();
+                }
+                addDocs(docs, indexWriter);
             }
             return new IndexResult(plan.versionForIndexing, plan.seqNoForIndexing, plan.currentNotFoundOrDeleted);
         } catch (Exception ex) {
@@ -1042,12 +1070,12 @@ public class InternalEngine extends Engine {
         final long versionForIndexing;
         final boolean indexIntoLucene;
         final boolean addStaleOpToLucene;
-        final long seqNoOfNewerDocIfStale; // the seqno of the newer copy of this _uid if exists; otherwise -1
+        final SeqNoAndVersionValue currentVersionValue;
         final Optional<IndexResult> earlyResultOnPreFlightError;
 
         private IndexingStrategy(boolean currentNotFoundOrDeleted, boolean useLuceneUpdateDocument,
-                                 boolean indexIntoLucene, boolean addStaleOpToLucene, long seqNoForIndexing,
-                                 long versionForIndexing, long seqNoOfNewerDocIfStale, IndexResult earlyResultOnPreFlightError) {
+                                 boolean indexIntoLucene, boolean addStaleOpToLucene, long seqNoForIndexing, long versionForIndexing,
+                                 SeqNoAndVersionValue currentVersionValue, IndexResult earlyResultOnPreFlightError) {
             assert useLuceneUpdateDocument == false || indexIntoLucene :
                 "use lucene update is set to true, but we're not indexing into lucene";
             assert (indexIntoLucene && earlyResultOnPreFlightError != null) == false :
@@ -1055,48 +1083,49 @@ public class InternalEngine extends Engine {
                     "indexIntoLucene: " + indexIntoLucene
                     + "  earlyResultOnPreFlightError:" + earlyResultOnPreFlightError;
             // TODO: assert greater (i.e. remove or equals) after rollback is implemented
-            assert addStaleOpToLucene == false || seqNoOfNewerDocIfStale >= seqNoForIndexing :
-                "stale=" + addStaleOpToLucene + " seqno_for_indexing=" + seqNoForIndexing + " seqno_of_newer_doc=" + seqNoOfNewerDocIfStale;
+            assert addStaleOpToLucene == false || currentVersionValue.seqNo >= seqNoForIndexing :
+                "stale=" + addStaleOpToLucene + " seqno_for_indexing=" + seqNoForIndexing + " current_seqno=" + currentVersionValue.seqNo;
             this.currentNotFoundOrDeleted = currentNotFoundOrDeleted;
             this.useLuceneUpdateDocument = useLuceneUpdateDocument;
             this.seqNoForIndexing = seqNoForIndexing;
             this.versionForIndexing = versionForIndexing;
             this.indexIntoLucene = indexIntoLucene;
             this.addStaleOpToLucene = addStaleOpToLucene;
-            this.seqNoOfNewerDocIfStale = seqNoOfNewerDocIfStale;
+            this.currentVersionValue = currentVersionValue;
             this.earlyResultOnPreFlightError =
                 earlyResultOnPreFlightError == null ? Optional.empty() :
                     Optional.of(earlyResultOnPreFlightError);
         }
 
         static IndexingStrategy optimizedAppendOnly(long seqNoForIndexing) {
-            return new IndexingStrategy(true, false, true, false, seqNoForIndexing, 1, -1, null);
+            return new IndexingStrategy(true, false, true, false, seqNoForIndexing, 1, null, null);
         }
 
         static IndexingStrategy skipDueToVersionConflict(
                 VersionConflictEngineException e, boolean currentNotFoundOrDeleted, long currentVersion) {
             final IndexResult result = new IndexResult(e, currentVersion);
             return new IndexingStrategy(
-                    currentNotFoundOrDeleted, false, false, false, SequenceNumbers.UNASSIGNED_SEQ_NO, Versions.NOT_FOUND, -1, result);
+                    currentNotFoundOrDeleted, false, false, false, SequenceNumbers.UNASSIGNED_SEQ_NO, Versions.NOT_FOUND, null, result);
         }
 
-        static IndexingStrategy processNormally(boolean currentNotFoundOrDeleted,
-                                                long seqNoForIndexing, long versionForIndexing) {
-            return new IndexingStrategy(currentNotFoundOrDeleted, currentNotFoundOrDeleted == false,
-                true, false, seqNoForIndexing, versionForIndexing, -1, null);
+        static IndexingStrategy processNormally(boolean currentNotFoundOrDeleted, long seqNoForIndexing,
+                                                long versionForIndexing, SeqNoAndVersionValue currentVersionValue) {
+            return new IndexingStrategy(currentNotFoundOrDeleted, currentVersionValue != null && currentVersionValue.isDelete() == false,
+                true, false, seqNoForIndexing, versionForIndexing, currentVersionValue, null);
         }
 
         static IndexingStrategy overrideExistingAsIfNotThere(
             long seqNoForIndexing, long versionForIndexing) {
-            return new IndexingStrategy(true, true, true, false, seqNoForIndexing, versionForIndexing, -1, null);
+            return new IndexingStrategy(true, true, true, false, seqNoForIndexing, versionForIndexing, null, null);
         }
 
         static IndexingStrategy processButSkipLucene(boolean currentNotFoundOrDeleted, long seqNoForIndexing, long versionForIndexing) {
-            return new IndexingStrategy(currentNotFoundOrDeleted, false, false, false, seqNoForIndexing, versionForIndexing, -1, null);
+            return new IndexingStrategy(currentNotFoundOrDeleted, false, false, false, seqNoForIndexing, versionForIndexing, null, null);
         }
 
-        static IndexingStrategy processAsStaleOp(boolean addStaleOpToLucene, long seqNoForIndexing, long versionForIndexing, long seqNoOfNewerVersion) {
-            return new IndexingStrategy(false, false, false, addStaleOpToLucene, seqNoForIndexing, versionForIndexing, seqNoOfNewerVersion, null);
+        static IndexingStrategy processAsStaleOp(boolean addStaleOpToLucene, long seqNoForIndexing,
+                                                 long versionForIndexing, SeqNoAndVersionValue currentVersionValue) {
+            return new IndexingStrategy(false, false, false, addStaleOpToLucene, seqNoForIndexing, versionForIndexing, currentVersionValue, null);
         }
     }
 
@@ -1217,13 +1246,13 @@ public class InternalEngine extends Engine {
             // See testRecoveryWithOutOfOrderDelete for an example of peer recovery
             plan = DeletionStrategy.processButSkipLucene(false, delete.seqNo(), delete.version());
         } else {
-            final OptionalLong prevSeqNo = resolveDocSeqNo(delete);
-            if (prevSeqNo.isPresent() == false || prevSeqNo.getAsLong() < delete.seqNo()) {
-                plan = DeletionStrategy.processNormally(prevSeqNo.isPresent() == false, delete.seqNo(), delete.version());
+            final SeqNoAndVersionValue currentVersion = resolveDocSeqNo(delete);
+            if (currentVersion == null || currentVersion.seqNo < delete.seqNo()) {
+                plan = DeletionStrategy.processNormally(currentVersion == null, delete.seqNo(), delete.version());
             } else {
                 boolean addStaleOpToLucene = this.softDeleteEnabled;
                 plan = DeletionStrategy.processAsStaleOp(addStaleOpToLucene, false, delete.seqNo(), delete.version(),
-                    addStaleOpToLucene ? prevSeqNo.getAsLong() : -1);
+                    addStaleOpToLucene ? currentVersion.seqNo : -1);
             }
         }
         return plan;
@@ -1261,26 +1290,32 @@ public class InternalEngine extends Engine {
         return plan;
     }
 
+    private ParsedDocument createDeleteTombstone(String id, String type, long seqNo, long primaryTerm, long version) {
+        final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newDeleteTombstoneDoc(type, id);
+        assert tombstone.docs().size() == 1 : "Tombstone doc should have single doc [" + tombstone + "]";
+        tombstone.updateSeqID(seqNo, primaryTerm);
+        tombstone.version().setLongValue(version);
+        final ParseContext.Document doc = tombstone.docs().get(0);
+        assert doc.getField(SeqNoFieldMapper.TOMBSTONE_NAME) != null :
+            "Delete tombstone document but _tombstone field is not set [" + doc + " ]";
+        doc.add(softDeleteField);
+        return tombstone;
+    }
+
     private DeleteResult deleteInLucene(Delete delete, DeletionStrategy plan)
         throws IOException {
         try {
             if (softDeleteEnabled) {
-                final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newDeleteTombstoneDoc(delete.type(), delete.id());
-                assert tombstone.docs().size() == 1 : "Tombstone doc should have single doc [" + tombstone + "]";
-                tombstone.updateSeqID(plan.seqNoOfDeletion, delete.primaryTerm());
-                tombstone.version().setLongValue(plan.versionOfDeletion);
-                final ParseContext.Document doc = tombstone.docs().get(0);
-                assert doc.getField(SeqNoFieldMapper.TOMBSTONE_NAME) != null :
-                    "Delete tombstone document but _tombstone field is not set [" + doc + " ]";
-                doc.add(softDeleteField);
+                final ParseContext.Document tombstone = createDeleteTombstone(
+                    delete.id(), delete.type(), plan.seqNoOfDeletion, delete.primaryTerm(), plan.versionOfDeletion).docs().get(0);
                 if (plan.addStaleOpToLucene) {
-                    doc.add(new NumericDocValuesField(SeqNoFieldMapper.UPDATED_BY_SEQNO_NAME, plan.seqNoOfNewerDocIfStale));
+                    tombstone.add(new NumericDocValuesField(SeqNoFieldMapper.UPDATED_BY_SEQNO_NAME, plan.seqNoOfNewerDocIfStale));
                 }
                 if (plan.addStaleOpToLucene || plan.currentlyDeleted) {
-                    indexWriter.addDocument(doc);
+                    indexWriter.addDocument(tombstone);
                 } else {
                     NumericDocValuesField updatedBySeqNoField = new NumericDocValuesField(SeqNoFieldMapper.UPDATED_BY_SEQNO_NAME, plan.seqNoOfDeletion);
-                    indexWriter.softUpdateDocument(delete.uid(), doc, softDeleteField, updatedBySeqNoField);
+                    indexWriter.softUpdateDocument(delete.uid(), tombstone, softDeleteField, updatedBySeqNoField);
                 }
             } else if (plan.currentlyDeleted == false) {
                 // any exception that comes from this is a either an ACE or a fatal exception there

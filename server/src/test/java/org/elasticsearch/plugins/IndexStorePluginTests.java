@@ -19,6 +19,7 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.store.IndexStore;
@@ -57,10 +58,15 @@ public class IndexStorePluginTests extends ESTestCase {
         final Settings settings = Settings.builder().put("path.home", createTempDir()).build();
         final IllegalStateException e = expectThrows(
                 IllegalStateException.class, () -> new MockNode(settings, Arrays.asList(BarStorePlugin.class, FooStorePlugin.class)));
-        assertThat(e, hasToString(matches(
-                "java.lang.IllegalStateException: Duplicate key store \\(attempted merging values " +
-                        "org.elasticsearch.plugins.IndexStorePluginTests\\$BarStorePlugin.* " +
-                        "and org.elasticsearch.plugins.IndexStorePluginTests\\$FooStorePlugin.*\\)")));
+        if (JavaVersion.current().compareTo(JavaVersion.parse("9")) >= 0) {
+            assertThat(e, hasToString(matches(
+                    "java.lang.IllegalStateException: Duplicate key store \\(attempted merging values " +
+                            "org.elasticsearch.plugins.IndexStorePluginTests\\$BarStorePlugin.* " +
+                            "and org.elasticsearch.plugins.IndexStorePluginTests\\$FooStorePlugin.*\\)")));
+        } else {
+            assertThat(e, hasToString(matches(
+                    "java.lang.IllegalStateException: Duplicate key org.elasticsearch.plugins.IndexStorePluginTests\\$BarStorePlugin.*")));
+        }
     }
 
 }

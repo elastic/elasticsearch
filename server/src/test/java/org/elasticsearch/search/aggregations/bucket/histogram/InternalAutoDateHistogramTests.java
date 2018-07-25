@@ -56,9 +56,8 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
                                                        List<PipelineAggregator> pipelineAggregators,
                                                        Map<String, Object> metaData,
                                                        InternalAggregations aggregations) {
-        AutoDateHistogramAggregationBuilder aggregationBuilder = new AutoDateHistogramAggregationBuilder("_name");
-        roundingInfos = AutoDateHistogramAggregationBuilder.buildRoundings(aggregationBuilder.timeZone());
         
+        roundingInfos = AutoDateHistogramAggregationBuilder.buildRoundings(null);
         int nbBuckets = randomNumberOfBuckets();
         int targetBuckets = randomIntBetween(1, nbBuckets * 2 + 1);
         List<InternalAutoDateHistogram.Bucket> buckets = new ArrayList<>(nbBuckets);

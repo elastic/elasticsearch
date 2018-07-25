@@ -69,6 +69,9 @@ public class CustomSuggestion extends Suggest.Suggestion<CustomSuggestion.Entry>
 
     /**
      * A meaningless value used to test that plugin suggesters can add fields to their Suggestion types
+     *
+     * This can't be serialized to xcontent because Suggestions appear in xcontent as an array of entries, so there is no place
+     * to add a custom field. But we can still use a custom field internally and use it to define a Suggestion's behavior
      */
     public String getDummy() {
         return dummy;
@@ -96,7 +99,7 @@ public class CustomSuggestion extends Suggest.Suggestion<CustomSuggestion.Entry>
 
         static {
             declareCommonFields(PARSER);
-            PARSER.declareString((entry, dummy) -> entry.dummy = dummy, new ParseField("dummy"));
+            PARSER.declareString((entry, dummy) -> entry.dummy = dummy, DUMMY);
             PARSER.declareObjectArray(Entry::addOptions, (p, c) -> Option.fromXContent(p), new ParseField(OPTIONS));
         }
 
@@ -130,11 +133,26 @@ public class CustomSuggestion extends Suggest.Suggestion<CustomSuggestion.Entry>
             return new Option(in);
         }
 
+        /*
+         * the value of dummy will always be the same, so this just tests that we can merge entries with custom fields
+         */
+        @Override
+        protected void merge(Suggest.Suggestion.Entry<Option> otherEntry) {
+            dummy = ((Entry) otherEntry).getDummy();
+        }
+
         /**
          * Meaningless field used to test that plugin suggesters can add fields to their entries
          */
         public String getDummy() {
             return dummy;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder = super.toXContent(builder, params);
+            builder.field(DUMMY.getPreferredName(), getDummy());
+            return builder;
         }
 
         public static Entry fromXContent(XContentParser parser) {
@@ -185,15 +203,18 @@ public class CustomSuggestion extends Suggest.Suggestion<CustomSuggestion.Entry>
                 return dummy;
             }
 
+            /*
+             * the value of dummy will always be the same, so this just tests that we can merge options with custom fields
+             */
             @Override
             protected void mergeInto(Suggest.Suggestion.Entry.Option otherOption) {
                 super.mergeInto(otherOption);
-                dummy = ((Option) otherOption).getDummy(); // we just choose the other one because this field doesn't matter
+                dummy = ((Option) otherOption).getDummy();
             }
 
             @Override
-            protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
-                builder = super.innerToXContent(builder, params);
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                builder = super.toXContent(builder, params);
                 builder.field(DUMMY.getPreferredName(), dummy);
                 return builder;
             }

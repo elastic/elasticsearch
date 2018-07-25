@@ -32,7 +32,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -385,7 +384,9 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 builder.startArray(getName());
             }
             for (Entry<?> entry : entries) {
+                builder.startObject();
                 entry.toXContent(builder, params);
+                builder.endObject();
             }
             builder.endArray();
             return builder;
@@ -411,7 +412,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         /**
          * Represents a part from the suggest text with suggested options.
          */
-        public abstract static class Entry<O extends Option> implements Iterable<O>, Writeable, ToXContentObject {
+        public abstract static class Entry<O extends Option> implements Iterable<O>, Writeable, ToXContentFragment {
 
             private static final String TEXT = "text";
             private static final String OFFSET = "offset";
@@ -575,16 +576,16 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                builder.startObject();
                 builder.field(TEXT, text);
                 builder.field(OFFSET, offset);
                 builder.field(LENGTH, length);
                 builder.startArray(OPTIONS);
                 for (Option option : options) {
+                    builder.startObject();
                     option.toXContent(builder, params);
+                    builder.endObject();
                 }
                 builder.endArray();
-                builder.endObject();
                 return builder;
             }
 
@@ -597,7 +598,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             /**
              * Contains the suggested text with its document frequency and score.
              */
-            public abstract static class Option implements Writeable, ToXContentObject {
+            public abstract static class Option implements Writeable, ToXContentFragment {
 
                 public static final ParseField TEXT = new ParseField("text");
                 public static final ParseField HIGHLIGHTED = new ParseField("highlighted");
@@ -677,21 +678,16 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
                 @Override
                 public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                    builder.startObject();
-                    innerToXContent(builder, params);
-                    builder.endObject();
-                    return builder;
-                }
-
-                protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
                     builder.field(TEXT.getPreferredName(), text);
                     if (highlighted != null) {
                         builder.field(HIGHLIGHTED.getPreferredName(), highlighted);
                     }
+
                     builder.field(SCORE.getPreferredName(), score);
                     if (collateMatch != null) {
                         builder.field(COLLATE_MATCH.getPreferredName(), collateMatch.booleanValue());
                     }
+
                     return builder;
                 }
 

@@ -19,7 +19,7 @@
         body:
           settings:
             number_of_shards: 2
-            number_of_replicas: 1
+            number_of_replicas: 0
 
   - do:
       bulk:
@@ -48,6 +48,7 @@
                 field: arbitraryField
                 suffix: arbitrarySuffix
 
+  - match: { suggest.test.0.dummy: entry-dummy-value }
   - match: { suggest.test.0.options.0.text: my suggestion text-arbitraryField-arbitrarySuffix-12 }
   - match: { suggest.test.0.options.0.dummy: option-dummy-value-1 }
   - match: { suggest.test.0.options.1.text: my suggestion text-arbitraryField-arbitrarySuffix-123 }

@@ -231,8 +231,8 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
             }
 
             @Override
-            protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
-                builder = super.innerToXContent(builder, params);
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                builder = super.toXContent(builder, params);
                 builder.field(FREQ.getPreferredName(), freq);
                 return builder;
             }

@@ -232,11 +232,11 @@ public class CustomSuggester extends Suggester<CustomSuggester.CustomSuggestions
                 }
 
                 @Override
-                protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
-                    builder = super.innerToXContent(builder, params);
+                public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                    builder = super.toXContent(builder, params);
                     builder.field(DUMMY.getPreferredName(), dummy);
-                        return builder;
-                    }
+                    return builder;
+                }
 
                     public static Option fromXContent(XContentParser parser) {
                         return PARSER.apply(parser, null);

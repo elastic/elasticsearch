@@ -116,17 +116,18 @@ public class IncidentEvent implements ToXContentObject {
 
                             if (attachPayload && payload != null) {
                                 builder.startObject("custom_details");
-                                builder.field(Fields.PAYLOAD.getPreferredName());
-                                payload.toXContent(builder, params);
+                                {
+                                    builder.field(Fields.PAYLOAD.getPreferredName(), payload, params);
+                                }
                                 builder.endObject();
                             }
 
-                            // TODO externalize this into something user editable
                             if (watchId != null) {
                                 builder.field("source", watchId);
                             } else {
                                 builder.field("source", "watcher");
                             }
+                            // TODO externalize this into something user editable
                             builder.field("severity", "critical");
                         }
                         builder.endObject();

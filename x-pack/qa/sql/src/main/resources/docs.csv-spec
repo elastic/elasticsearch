@@ -232,6 +232,15 @@ LTRIM           |SCALAR
 RTRIM           |SCALAR         
 SPACE           |SCALAR         
 UCASE           |SCALAR         
+CONCAT          |SCALAR         
+INSERT          |SCALAR         
+LEFT            |SCALAR         
+LOCATE          |SCALAR         
+POSITION        |SCALAR         
+REPEAT          |SCALAR         
+REPLACE         |SCALAR         
+RIGHT           |SCALAR         
+SUBSTRING       |SCALAR         
 SCORE           |SCORE   
 
 // end::showFunctions

@@ -6,7 +6,14 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.whitelist;
 
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFunction;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.BinaryStringNumericProcessor.BinaryStringNumericOperation;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.BinaryStringStringProcessor.BinaryStringStringOperation;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.ConcatFunctionProcessor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.InsertFunctionProcessor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.LocateFunctionProcessor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.ReplaceFunctionProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.StringOperation;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.SubstringFunctionProcessor;
 
 /**
  * Whitelisted class for SQL scripts.
@@ -59,5 +66,45 @@ public final class InternalSqlScriptUtils {
     
     public static String space(Number n) {
         return (String) StringOperation.SPACE.apply(n);
+    }
+
+    public static String left(String s, int count) {
+        return BinaryStringNumericOperation.LEFT.apply(s, count);
+    }
+    
+    public static String right(String s, int count) {
+        return BinaryStringNumericOperation.RIGHT.apply(s, count);
+    }
+    
+    public static String concat(String s1, String s2) {
+        return ConcatFunctionProcessor.doProcessInScripts(s1, s2).toString();
+    }
+    
+    public static String repeat(String s, int count) {
+        return BinaryStringNumericOperation.REPEAT.apply(s, count);
+    }
+    
+    public static Integer position(String s1, String s2) {
+        return (Integer) BinaryStringStringOperation.POSITION.apply(s1, s2);
+    }
+    
+    public static String insert(String s, int start, int length, String r) {
+        return InsertFunctionProcessor.doProcess(s, start, length, r).toString();
+    }
+    
+    public static String substring(String s, int start, int length) {
+        return SubstringFunctionProcessor.doProcess(s, start, length).toString();
+    }
+    
+    public static String replace(String s1, String s2, String s3) {
+        return ReplaceFunctionProcessor.doProcess(s1, s2, s3).toString();
+    }
+    
+    public static Integer locate(String s1, String s2, Integer pos) {
+        return (Integer) LocateFunctionProcessor.doProcess(s1, s2, pos);
+    }
+    
+    public static Integer locate(String s1, String s2) {
+        return locate(s1, s2, null);
     }
 }

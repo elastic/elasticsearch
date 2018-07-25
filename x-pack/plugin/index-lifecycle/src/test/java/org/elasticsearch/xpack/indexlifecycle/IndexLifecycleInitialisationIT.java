@@ -97,7 +97,7 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
             .put(SETTING_NUMBER_OF_REPLICAS, 0).put(LifecycleSettings.LIFECYCLE_NAME, "test").build();
         Map<String, Phase> phases = new HashMap<>();
 
-        Map<String, LifecycleAction> warmPhaseActions = Collections.singletonMap(ForceMergeAction.NAME, new ForceMergeAction(10000, false));
+        Map<String, LifecycleAction> warmPhaseActions = Collections.singletonMap(ForceMergeAction.NAME, new ForceMergeAction(10000));
         phases.put("warm", new Phase("warm", TimeValue.timeValueSeconds(2), warmPhaseActions));
 
         Map<String, LifecycleAction> deletePhaseActions = Collections.singletonMap(DeleteAction.NAME, new DeleteAction());

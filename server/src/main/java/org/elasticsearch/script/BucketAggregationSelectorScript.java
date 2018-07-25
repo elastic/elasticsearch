@@ -26,13 +26,29 @@ import java.util.Map;
  */
 public abstract class BucketAggregationSelectorScript {
 
-    public static final String[] PARAMETERS = { "params" };
+    public static final String[] PARAMETERS = {};
 
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("aggregation_selector", Factory.class);
 
-    public abstract boolean execute(Map<String, Object> params);
+    /**
+     * The generic runtime parameters for the script.
+     */
+    private final Map<String, Object> params;
+
+    protected BucketAggregationSelectorScript(Map<String, Object> params) {
+        this.params = params;
+    }
+
+    /**
+     * Return the parameters for this script.
+     */
+    public Map<String, Object> getParams() {
+        return params;
+    }
+
+    public abstract boolean execute();
 
     public interface Factory {
-        BucketAggregationSelectorScript newInstance();
+        BucketAggregationSelectorScript newInstance(Map<String, Object> params);
     }
 }

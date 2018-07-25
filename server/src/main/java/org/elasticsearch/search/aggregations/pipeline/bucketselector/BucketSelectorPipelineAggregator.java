@@ -82,30 +82,26 @@ public class BucketSelectorPipelineAggregator extends PipelineAggregator {
                 (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket>) aggregation;
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = originalAgg.getBuckets();
 
-        List<InternalMultiBucketAggregation.InternalBucket> newBuckets = new ArrayList<>();
         BucketAggregationSelectorScript.Factory factory =
             reduceContext.scriptService().compile(script, BucketAggregationSelectorScript.CONTEXT);
-        BucketAggregationSelectorScript executableScript = factory.newInstance();
+        List<InternalMultiBucketAggregation.InternalBucket> newBuckets = new ArrayList<>();
         for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
-            if (executableScript.execute(scriptArgs(originalAgg, bucket))) {
+            Map<String, Object> vars = new HashMap<>();
+            if (script.getParams() != null) {
+                vars.putAll(script.getParams());
+            }
+            for (Map.Entry<String, String> entry : bucketsPathsMap.entrySet()) {
+                String varName = entry.getKey();
+                String bucketsPath = entry.getValue();
+                Double value = resolveBucketValue(originalAgg, bucket, bucketsPath, gapPolicy);
+                vars.put(varName, value);
+            }
+            // TODO: can we use one instance of the script for all buckets? it should be stateless?
+            BucketAggregationSelectorScript executableScript = factory.newInstance(vars);
+            if (executableScript.execute()) {
                 newBuckets.add(bucket);
             }
         }
         return originalAgg.create(newBuckets);
-    }
-
-    private Map<String, Object> scriptArgs(InternalMultiBucketAggregation<InternalMultiBucketAggregation,
-        InternalMultiBucketAggregation.InternalBucket> originalAgg, InternalMultiBucketAggregation.InternalBucket bucket) {
-        Map<String, Object> vars = new HashMap<>();
-        if (script.getParams() != null) {
-            vars.putAll(script.getParams());
-        }
-        for (Map.Entry<String, String> entry : bucketsPathsMap.entrySet()) {
-            String varName = entry.getKey();
-            String bucketsPath = entry.getValue();
-            Double value = resolveBucketValue(originalAgg, bucket, bucketsPath, gapPolicy);
-            vars.put(varName, value);
-        }
-        return vars;
     }
 }

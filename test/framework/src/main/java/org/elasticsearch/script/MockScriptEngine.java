@@ -105,10 +105,10 @@ public class MockScriptEngine implements ScriptEngine {
             };
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(BucketAggregationSelectorScript.class)) {
-            BucketAggregationSelectorScript.Factory factory = () -> new BucketAggregationSelectorScript() {
+            BucketAggregationSelectorScript.Factory factory = parameters -> new BucketAggregationSelectorScript(parameters) {
                 @Override
-                public boolean execute(Map<String, Object> vars) {
-                    return (boolean) script.apply(vars);
+                public boolean execute() {
+                    return (boolean) script.apply(getParams());
                 }
             };
             return context.factoryClazz.cast(factory);

@@ -119,12 +119,12 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
             return context.factoryClazz.cast(newBucketAggregationScriptFactory(expr));
         } else if (context.instanceClazz.equals(BucketAggregationSelectorScript.class)) {
             BucketAggregationScript.Factory factory = newBucketAggregationScriptFactory(expr);
-            BucketAggregationSelectorScript.Factory wrappedFactory = () -> {
+            BucketAggregationSelectorScript.Factory wrappedFactory = parameters -> {
                 BucketAggregationScript script = factory.newInstance();
-                return new BucketAggregationSelectorScript() {
+                return new BucketAggregationSelectorScript(parameters) {
                     @Override
-                    public boolean execute(Map<String, Object> params) {
-                        return script.execute(params) == 1.0;
+                    public boolean execute() {
+                        return script.execute(getParams()) == 1.0;
                     }
                 };
             };

@@ -15,6 +15,8 @@ number of times (frequency) rare values occur.
 `exclude_frequent`.
 * You cannot create forecasts for jobs that contain `rare` or `freq_rare`
 functions. 
+* You cannot add rules with conditions to detectors that use `rare` or 
+`freq_rare` functions. 
 * Shorter bucket spans (less than 1 hour, for example) are recommended when
 looking for rare events. The functions model whether something happens in a
 bucket at least once. With longer bucket spans, it is more likely that

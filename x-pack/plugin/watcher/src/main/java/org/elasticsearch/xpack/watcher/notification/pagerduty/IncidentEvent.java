@@ -94,7 +94,7 @@ public class IncidentEvent implements ToXContentObject {
         return result;
     }
 
-    public HttpRequest createRequest(final String serviceKey, final Payload payload) throws IOException {
+    public HttpRequest createRequest(final String serviceKey, final Payload payload, final String watchId) throws IOException {
         return HttpRequest.builder(HOST, -1)
                 .method(HttpMethod.POST)
                 .scheme(Scheme.HTTPS)
@@ -122,7 +122,11 @@ public class IncidentEvent implements ToXContentObject {
                             }
 
                             // TODO externalize this into something user editable
-                            builder.field("source", "watcher");
+                            if (watchId != null) {
+                                builder.field("source", watchId);
+                            } else {
+                                builder.field("source", "watcher");
+                            }
                             builder.field("severity", "critical");
                         }
                         builder.endObject();

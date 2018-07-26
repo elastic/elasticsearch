@@ -245,12 +245,18 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         }
     }
 
+    /**
+     * Finds the next valid {@link StepKey} on or after the provided
+     * {@link StepKey}. If the provided {@link StepKey} is valid in this policy
+     * it will be returned. If its not valid the next available {@link StepKey}
+     * will be returned.
+     */
     public StepKey getNextValidStep(StepKey stepKey) {
         Phase phase = phases.get(stepKey.getPhase());
         if (phase == null) {
             // Phase doesn't exist so find the after step for the previous
             // available phase
-            return getStepBeforePhase(stepKey.getPhase());
+            return getAfterStepBeforePhase(stepKey.getPhase());
         } else {
             // Phase exists so check if the action exists
             LifecycleAction action = phase.getActions().get(stepKey.getAction());
@@ -276,14 +282,16 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
     private StepKey getNextAfterStep(String currentPhaseName) {
         String nextPhaseName = type.getNextPhaseName(currentPhaseName, phases);
         if (nextPhaseName == null) {
-            // We don't have a next phase after this one so the next step is the TerminalPolicyStep
+            // We don't have a next phase after this one so there is no after
+            // step to move to. Instead we need to go to the terminal step as
+            // there are no more steps we should execute
             return TerminalPolicyStep.KEY;
         } else {
             return new StepKey(currentPhaseName, PhaseAfterStep.NAME, PhaseAfterStep.NAME);
         }
     }
 
-    private StepKey getStepBeforePhase(String currentPhaseName) {
+    private StepKey getAfterStepBeforePhase(String currentPhaseName) {
         String nextPhaseName = type.getNextPhaseName(currentPhaseName, phases);
         if (nextPhaseName == null) {
             // We don't have a next phase after this one so the next step is the

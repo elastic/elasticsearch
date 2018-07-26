@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.BuildPlugin
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -82,6 +84,15 @@ dependencies {
 // TODO: stop using LanguageIdentifier...
 compileJava.options.compilerArgs << "-Xlint:-deprecation"
 
+// Do not attempt to run any of this project's tasks in a BC FIPS JVM as
+// ingest-attachment plugin depends on (non FIPS) BC
+if (inFipsJvm) {
+  tasks.all { task ->
+    if (task.hasProperty('enabled')) {
+      task.enabled = false
+    }
+  }
+}
 
 dependencyLicenses {
   mapping from: /apache-mime4j-.*/, to: 'apache-mime4j'

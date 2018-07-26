@@ -432,7 +432,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             case DeleteAction.NAME:
                 return new DeleteAction();
             case ForceMergeAction.NAME:
-                return new ForceMergeAction(1, false);
+                return new ForceMergeAction(1);
             case ReadOnlyAction.NAME:
                 return new ReadOnlyAction();
             case ReplicasAction.NAME:

@@ -2,7 +2,7 @@
 === Metric aggregation initialization context
 
 Use a Painless script to
-{es_version}/search-aggregations-metrics-scripted-metric-aggregation.html[initialize]
+{ref}/search-aggregations-metrics-scripted-metric-aggregation.html[initialize]
 values for use in a scripted metric aggregation. An initialization script is
 run prior to document collection once per shard and is optional as part of the
 full metric aggregation.

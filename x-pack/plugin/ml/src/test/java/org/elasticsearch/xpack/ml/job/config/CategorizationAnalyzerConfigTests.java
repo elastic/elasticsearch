@@ -9,7 +9,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
-import org.elasticsearch.xpack.core.ml.MlParserType;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -72,7 +71,7 @@ public class CategorizationAnalyzerConfigTests extends AbstractSerializingTestCa
 
     @Override
     protected CategorizationAnalyzerConfig doParseInstance(XContentParser parser) throws IOException {
-        return CategorizationAnalyzerConfig.buildFromXContentObject(parser, MlParserType.CONFIG);
+        return CategorizationAnalyzerConfig.buildFromXContentObject(parser, false);
     }
 
     @Override

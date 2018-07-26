@@ -133,6 +133,8 @@ import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExceptExpression;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.RoleMapperExpression;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
 import org.elasticsearch.xpack.core.security.transport.netty4.SecurityNetty4Transport;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.action.GetCertificateInfoAction;
@@ -342,6 +344,11 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 new NamedWriteableRegistry.Entry(ClusterState.Custom.class, TokenMetaData.TYPE, TokenMetaData::new),
                 new NamedWriteableRegistry.Entry(NamedDiff.class, TokenMetaData.TYPE, TokenMetaData::readDiffFrom),
                 new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.SECURITY, SecurityFeatureSetUsage::new),
+                // security : conditional privileges
+                new NamedWriteableRegistry.Entry(ConditionalClusterPrivilege.class,
+                    ConditionalClusterPrivileges.ManageApplicationPrivileges.WRITEABLE_NAME,
+                    ConditionalClusterPrivileges.ManageApplicationPrivileges::createFrom),
+                // security : role-mappings
                 new NamedWriteableRegistry.Entry(RoleMapperExpression.class, AllExpression.NAME, AllExpression::new),
                 new NamedWriteableRegistry.Entry(RoleMapperExpression.class, AnyExpression.NAME, AnyExpression::new),
                 new NamedWriteableRegistry.Entry(RoleMapperExpression.class, FieldExpression.NAME, FieldExpression::new),
@@ -366,7 +373,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
         return Arrays.asList(
                 // ML - Custom metadata
                 new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField("ml"),
-                        parser -> MlMetadata.METADATA_PARSER.parse(parser, null).build()),
+                        parser -> MlMetadata.LENIENT_PARSER.parse(parser, null).build()),
                 // ML - Persistent action requests
                 new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(StartDatafeedAction.TASK_NAME),
                         StartDatafeedAction.DatafeedParams::fromXContent),

@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.restart;
 
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
@@ -15,9 +13,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.StreamsUtils;
@@ -37,16 +33,12 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -110,11 +102,13 @@ public class FullClusterRestartIT extends ESRestTestCase {
         String doc = "{\"test\": \"test\"}";
 
         if (runningAgainstOldCluster) {
-            client().performRequest("PUT", docLocation, singletonMap("refresh", "true"),
-                    new StringEntity(doc, ContentType.APPLICATION_JSON));
+            Request createDoc = new Request("PUT", docLocation);
+            createDoc.addParameter("refresh", "true");
+            createDoc.setJsonEntity(doc);
+            client().performRequest(createDoc);
         }
 
-        assertThat(toStr(client().performRequest("GET", docLocation)), containsString(doc));
+        assertThat(toStr(client().performRequest(new Request("GET", docLocation))), containsString(doc));
     }
 
     @SuppressWarnings("unchecked")
@@ -124,8 +118,8 @@ public class FullClusterRestartIT extends ESRestTestCase {
             createRole("preupgrade_role");
         } else {
             waitForYellow(".security");
-            Response settingsResponse = client().performRequest("GET", "/.security/_settings/index.format");
-            Map<String, Object> settingsResponseMap = toMap(settingsResponse);
+            Response settingsResponse = client().performRequest(new Request("GET", "/.security/_settings/index.format"));
+            Map<String, Object> settingsResponseMap = entityAsMap(settingsResponse);
             logger.info("settings response map {}", settingsResponseMap);
             final boolean needsUpgrade;
             final String concreteSecurityIndex;
@@ -157,7 +151,8 @@ public class FullClusterRestartIT extends ESRestTestCase {
                             "the native realm will not be operational until the upgrade API is run on the security index"));
                 }
                 // run upgrade API
-                Response upgradeResponse = client().performRequest("POST", "_xpack/migration/upgrade/" + concreteSecurityIndex);
+                Response upgradeResponse = client().performRequest(
+                        new Request("POST", "_xpack/migration/upgrade/" + concreteSecurityIndex));
                 logger.info("upgrade response:\n{}", toStr(upgradeResponse));
             }
 
@@ -177,16 +172,19 @@ public class FullClusterRestartIT extends ESRestTestCase {
     public void testWatcher() throws Exception {
         if (runningAgainstOldCluster) {
             logger.info("Adding a watch on old cluster {}", oldClusterVersion);
-            client().performRequest("PUT", "_xpack/watcher/watch/bwc_watch", emptyMap(),
-                    new StringEntity(loadWatch("simple-watch.json"), ContentType.APPLICATION_JSON));
+            Request createBwcWatch = new Request("PUT", "_xpack/watcher/watch/bwc_watch");
+            createBwcWatch.setJsonEntity(loadWatch("simple-watch.json"));
+            client().performRequest(createBwcWatch);
 
             logger.info("Adding a watch with \"fun\" throttle periods on old cluster");
-            client().performRequest("PUT", "_xpack/watcher/watch/bwc_throttle_period", emptyMap(),
-                    new StringEntity(loadWatch("throttle-period-watch.json"), ContentType.APPLICATION_JSON));
+            Request createBwcThrottlePeriod = new Request("PUT", "_xpack/watcher/watch/bwc_throttle_period");
+            createBwcThrottlePeriod.setJsonEntity(loadWatch("throttle-period-watch.json"));
+            client().performRequest(createBwcThrottlePeriod);
 
             logger.info("Adding a watch with \"fun\" read timeout on old cluster");
-            client().performRequest("PUT", "_xpack/watcher/watch/bwc_funny_timeout", emptyMap(),
-                    new StringEntity(loadWatch("funny-timeout-watch.json"), ContentType.APPLICATION_JSON));
+            Request createFunnyTimeout = new Request("PUT", "_xpack/watcher/watch/bwc_funny_timeout");
+            createFunnyTimeout.setJsonEntity(loadWatch("funny-timeout-watch.json"));
+            client().performRequest(createFunnyTimeout);
 
             logger.info("Waiting for watch results index to fill up...");
             waitForYellow(".watches,bwc_watch_index,.watcher-history*");
@@ -198,7 +196,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
             waitForYellow(".watches,bwc_watch_index,.watcher-history*");
 
             logger.info("checking if the upgrade procedure on the new cluster is required");
-            Map<String, Object> response = toMap(client().performRequest("GET", "/_xpack/migration/assistance"));
+            Map<String, Object> response = entityAsMap(client().performRequest(new Request("GET", "/_xpack/migration/assistance")));
             logger.info(response);
 
             @SuppressWarnings("unchecked") Map<String, Object> indices = (Map<String, Object>) response.get("indices");
@@ -211,14 +209,16 @@ public class FullClusterRestartIT extends ESRestTestCase {
 
                 logger.info("starting upgrade procedure on the new cluster");
 
-                Map<String, String> params = Collections.singletonMap("error_trace", "true");
-                Map<String, Object> upgradeResponse = toMap(client().performRequest("POST", "_xpack/migration/upgrade/.watches", params));
+                Request migrationAssistantRequest = new Request("POST", "_xpack/migration/upgrade/.watches");
+                migrationAssistantRequest.addParameter("error_trace", "true");
+                Map<String, Object> upgradeResponse = entityAsMap(client().performRequest(migrationAssistantRequest));
                 assertThat(upgradeResponse.get("timed_out"), equalTo(Boolean.FALSE));
                 // we posted 3 watches, but monitoring can post a few more
                 assertThat((int) upgradeResponse.get("total"), greaterThanOrEqualTo(3));
 
                 logger.info("checking that upgrade procedure on the new cluster is no longer required");
-                Map<String, Object> responseAfter = toMap(client().performRequest("GET", "/_xpack/migration/assistance"));
+                Map<String, Object> responseAfter = entityAsMap(client().performRequest(
+                        new Request("GET", "/_xpack/migration/assistance")));
                 @SuppressWarnings("unchecked") Map<String, Object> indicesAfter = (Map<String, Object>) responseAfter.get("indices");
                 assertNull(indicesAfter.get(".watches"));
             } else {
@@ -226,10 +226,10 @@ public class FullClusterRestartIT extends ESRestTestCase {
             }
 
             // Wait for watcher to actually start....
-            Map<String, Object> startWatchResponse = toMap(client().performRequest("POST", "_xpack/watcher/_start"));
+            Map<String, Object> startWatchResponse = entityAsMap(client().performRequest(new Request("POST", "_xpack/watcher/_start")));
             assertThat(startWatchResponse.get("acknowledged"), equalTo(Boolean.TRUE));
             assertBusy(() -> {
-                Map<String, Object> statsWatchResponse = toMap(client().performRequest("GET", "_xpack/watcher/stats"));
+                Map<String, Object> statsWatchResponse = entityAsMap(client().performRequest(new Request("GET", "_xpack/watcher/stats")));
                 @SuppressWarnings("unchecked")
                 List<Object> states = ((List<Object>) statsWatchResponse.get("stats"))
                         .stream().map(o -> ((Map<String, Object>) o).get("watcher_state")).collect(Collectors.toList());
@@ -244,10 +244,11 @@ public class FullClusterRestartIT extends ESRestTestCase {
                 /* Shut down watcher after every test because watcher can be a bit finicky about shutting down when the node shuts
                  * down. This makes super sure it shuts down *and* causes the test to fail in a sensible spot if it doesn't shut down.
                  */
-                Map<String, Object> stopWatchResponse = toMap(client().performRequest("POST", "_xpack/watcher/_stop"));
+                Map<String, Object> stopWatchResponse = entityAsMap(client().performRequest(new Request("POST", "_xpack/watcher/_stop")));
                 assertThat(stopWatchResponse.get("acknowledged"), equalTo(Boolean.TRUE));
                 assertBusy(() -> {
-                    Map<String, Object> statsStoppedWatchResponse = toMap(client().performRequest("GET", "_xpack/watcher/stats"));
+                    Map<String, Object> statsStoppedWatchResponse = entityAsMap(client().performRequest(
+                            new Request("GET", "_xpack/watcher/stats")));
                     @SuppressWarnings("unchecked")
                     List<Object> states = ((List<Object>) statsStoppedWatchResponse.get("stats"))
                             .stream().map(o -> ((Map<String, Object>) o).get("watcher_state")).collect(Collectors.toList());
@@ -297,12 +298,12 @@ public class FullClusterRestartIT extends ESRestTestCase {
                     + "]"
                     + "}");
 
-            Map<String, Object> createRollupJobResponse = toMap(client().performRequest(createRollupJobRequest));
+            Map<String, Object> createRollupJobResponse = entityAsMap(client().performRequest(createRollupJobRequest));
             assertThat(createRollupJobResponse.get("acknowledged"), equalTo(Boolean.TRUE));
 
             // start the rollup job
             final Request startRollupJobRequest = new Request("POST", "_xpack/rollup/job/rollup-job-test/_start");
-            Map<String, Object> startRollupJobResponse = toMap(client().performRequest(startRollupJobRequest));
+            Map<String, Object> startRollupJobResponse = entityAsMap(client().performRequest(startRollupJobRequest));
             assertThat(startRollupJobResponse.get("started"), equalTo(Boolean.TRUE));
 
             assertRollUpJob("rollup-job-test");
@@ -315,7 +316,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
             if (oldClusterVersion.onOrAfter(Version.V_6_2_0)) {
                 clusterHealthRequest.addParameter("wait_for_no_initializing_shards", "true");
             }
-            Map<String, Object> clusterHealthResponse = toMap(client().performRequest(clusterHealthRequest));
+            Map<String, Object> clusterHealthResponse = entityAsMap(client().performRequest(clusterHealthRequest));
             assertThat(clusterHealthResponse.get("timed_out"), equalTo(Boolean.FALSE));
 
             assertRollUpJob("rollup-job-test");
@@ -327,14 +328,17 @@ public class FullClusterRestartIT extends ESRestTestCase {
         assumeTrue("It is only possible to build an index that sql doesn't like before 6.0.0",
                 oldClusterVersion.before(Version.V_6_0_0_alpha1));
         if (runningAgainstOldCluster) {
-            client().performRequest("POST", "/testsqlfailsonindexwithtwotypes/type1", emptyMap(),
-                    new StringEntity("{}", ContentType.APPLICATION_JSON));
-            client().performRequest("POST", "/testsqlfailsonindexwithtwotypes/type2", emptyMap(),
-                    new StringEntity("{}", ContentType.APPLICATION_JSON));
+            Request doc1 = new Request("POST", "/testsqlfailsonindexwithtwotypes/type1");
+            doc1.setJsonEntity("{}");
+            client().performRequest(doc1);
+            Request doc2 = new Request("POST", "/testsqlfailsonindexwithtwotypes/type2");
+            doc2.setJsonEntity("{}");
+            client().performRequest(doc2);
             return;
         }
-        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest("POST", "/_xpack/sql", emptyMap(),
-                new StringEntity("{\"query\":\"SELECT * FROM testsqlfailsonindexwithtwotypes\"}", ContentType.APPLICATION_JSON)));
+        Request sqlRequest = new Request("POST", "/_xpack/sql");
+        sqlRequest.setJsonEntity("{\"query\":\"SELECT * FROM testsqlfailsonindexwithtwotypes\"}");
+        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(sqlRequest));
         assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
         assertThat(e.getMessage(), containsString(
             "[testsqlfailsonindexwithtwotypes] contains more than one type [type1, type2] so it is incompatible with sql"));
@@ -346,14 +350,14 @@ public class FullClusterRestartIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     private void assertOldTemplatesAreDeleted() throws IOException {
-        Map<String, Object> templates = toMap(client().performRequest("GET", "/_template"));
+        Map<String, Object> templates = entityAsMap(client().performRequest(new Request("GET", "/_template")));
         assertThat(templates.keySet(), not(hasItems(is("watches"), startsWith("watch-history"), is("triggered_watches"))));
     }
 
     @SuppressWarnings("unchecked")
     private void assertWatchIndexContentsWork() throws Exception {
         // Fetch a basic watch
-        Map<String, Object> bwcWatch = toMap(client().performRequest("GET", "_xpack/watcher/watch/bwc_watch"));
+        Map<String, Object> bwcWatch = entityAsMap(client().performRequest(new Request("GET", "_xpack/watcher/watch/bwc_watch")));
 
         logger.error("-----> {}", bwcWatch);
 
@@ -368,7 +372,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
         assertThat(ObjectPath.eval("actions.index_payload.index.timeout_in_millis", source), equalTo(timeout));
 
         // Fetch a watch with "fun" throttle periods
-        bwcWatch = toMap(client().performRequest("GET", "_xpack/watcher/watch/bwc_throttle_period"));
+        bwcWatch = entityAsMap(client().performRequest(new Request("GET", "_xpack/watcher/watch/bwc_throttle_period")));
         assertThat(bwcWatch.get("found"), equalTo(true));
         source = (Map<String, Object>) bwcWatch.get("watch");
         assertEquals(timeout, source.get("throttle_period_in_millis"));
@@ -378,7 +382,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
          * Fetch a watch with a funny timeout to verify loading fractional time
          * values.
          */
-        bwcWatch = toMap(client().performRequest("GET", "_xpack/watcher/watch/bwc_funny_timeout"));
+        bwcWatch = entityAsMap(client().performRequest(new Request("GET", "_xpack/watcher/watch/bwc_funny_timeout")));
         assertThat(bwcWatch.get("found"), equalTo(true));
         source = (Map<String, Object>) bwcWatch.get("watch");
 
@@ -396,7 +400,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
         // password doesn't come back because it is hidden
         assertThat(basic, hasEntry(is("password"), anyOf(startsWith("::es_encrypted::"), is("::es_redacted::"))));
 
-        Map<String, Object> history = toMap(client().performRequest("GET", ".watcher-history*/_search"));
+        Map<String, Object> history = entityAsMap(client().performRequest(new Request("GET", ".watcher-history*/_search")));
         Map<String, Object> hits = (Map<String, Object>) history.get("hits");
         assertThat((int) (hits.get("total")), greaterThanOrEqualTo(2));
     }
@@ -407,20 +411,20 @@ public class FullClusterRestartIT extends ESRestTestCase {
                 .condition(InternalAlwaysCondition.INSTANCE)
                 .trigger(ScheduleTrigger.builder(new IntervalSchedule(IntervalSchedule.Interval.seconds(1))))
                 .addAction("awesome", LoggingAction.builder(new TextTemplate("test"))).buildAsBytes(XContentType.JSON).utf8ToString();
-        Map<String, Object> put = toMap(client().performRequest("PUT", "_xpack/watcher/watch/new_watch", emptyMap(),
-                new StringEntity(watch, ContentType.APPLICATION_JSON)));
+        Request createWatchRequest = new Request("PUT", "_xpack/watcher/watch/new_watch");
+        createWatchRequest.setJsonEntity(watch);
+        Map<String, Object> createWatch = entityAsMap(client().performRequest(createWatchRequest));
 
-        logger.info(put);
+        logger.info("create watch {}", createWatch);
 
-        assertThat(put.get("created"), equalTo(true));
-        assertThat(put.get("_version"), equalTo(1));
+        assertThat(createWatch.get("created"), equalTo(true));
+        assertThat(createWatch.get("_version"), equalTo(1));
 
-        put = toMap(client().performRequest("PUT", "_xpack/watcher/watch/new_watch", emptyMap(),
-                new StringEntity(watch, ContentType.APPLICATION_JSON)));
-        assertThat(put.get("created"), equalTo(false));
-        assertThat(put.get("_version"), equalTo(2));
+        Map<String, Object> updateWatch = entityAsMap(client().performRequest(createWatchRequest));
+        assertThat(updateWatch.get("created"), equalTo(false));
+        assertThat(updateWatch.get("_version"), equalTo(2));
 
-        Map<String, Object> get = toMap(client().performRequest("GET", "_xpack/watcher/watch/new_watch"));
+        Map<String, Object> get = entityAsMap(client().performRequest(new Request("GET", "_xpack/watcher/watch/new_watch")));
         assertThat(get.get("found"), equalTo(true));
         @SuppressWarnings("unchecked") Map<?, ?> source = (Map<String, Object>) get.get("watch");
         Map<String, Object>  logging = ObjectPath.eval("actions.awesome.logging", source);
@@ -429,23 +433,24 @@ public class FullClusterRestartIT extends ESRestTestCase {
     }
 
     private void waitForYellow(String indexName) throws IOException {
-        Map<String, String> params = new HashMap<>();
-        params.put("wait_for_status", "yellow");
-        params.put("timeout", "30s");
-        params.put("wait_for_no_relocating_shards", "true");
+        Request request = new Request("GET", "/_cluster/health/" + indexName);
+        request.addParameter("wait_for_status", "yellow");
+        request.addParameter("timeout", "30s");
+        request.addParameter("wait_for_no_relocating_shards", "true");
         if (oldClusterVersion.onOrAfter(Version.V_6_2_0)) {
-            params.put("wait_for_no_initializing_shards", "true");
+            request.addParameter("wait_for_no_initializing_shards", "true");
         }
-        Map<String, Object> response = toMap(client().performRequest("GET", "/_cluster/health/" + indexName, params));
+        Map<String, Object> response = entityAsMap(client().performRequest(request));
         assertThat(response.get("timed_out"), equalTo(Boolean.FALSE));
     }
 
     @SuppressWarnings("unchecked")
     private void waitForHits(String indexName, int expectedHits) throws Exception {
-        Map<String, String> params = singletonMap("size", "0");
+        Request request = new Request("GET", "/" + indexName + "/_search");
+        request.addParameter("size", "0");
         assertBusy(() -> {
             try {
-                Map<String, Object> response = toMap(client().performRequest("GET", "/" + indexName + "/_search", params));
+                Map<String, Object> response = entityAsMap(client().performRequest(request));
                 Map<String, Object> hits = (Map<String, Object>) response.get("hits");
                 int total = (int) hits.get("total");
                 assertThat(total, greaterThanOrEqualTo(expectedHits));
@@ -461,34 +466,26 @@ public class FullClusterRestartIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
-    static Map<String, Object> toMap(Response response) throws IOException {
-        return toMap(EntityUtils.toString(response.getEntity()));
-    }
-
-    static Map<String, Object> toMap(String response) throws IOException {
-        return XContentHelper.convertToMap(JsonXContent.jsonXContent, response, false);
-    }
-
     static String toStr(Response response) throws IOException {
         return EntityUtils.toString(response.getEntity());
     }
 
     private void createUser(final String id) throws Exception {
-        final String userJson =
+        Request request = new Request("PUT", "/_xpack/security/user/" + id);
+        request.setJsonEntity(
             "{\n" +
             "   \"password\" : \"j@rV1s\",\n" +
             "   \"roles\" : [ \"admin\", \"other_role1\" ],\n" +
             "   \"full_name\" : \"" + randomAlphaOfLength(5) + "\",\n" +
             "   \"email\" : \"" + id + "@example.com\",\n" +
             "   \"enabled\": true\n" +
-            "}";
-
-        client().performRequest("PUT", "/_xpack/security/user/" + id, emptyMap(),
-            new StringEntity(userJson, ContentType.APPLICATION_JSON));
+            "}");
+        client().performRequest(request);
     }
 
     private void createRole(final String id) throws Exception {
-        final String roleJson =
+        Request request = new Request("PUT", "/_xpack/security/role/" + id);
+        request.setJsonEntity(
             "{\n" +
             "  \"run_as\": [ \"abc\" ],\n" +
             "  \"cluster\": [ \"monitor\" ],\n" +
@@ -502,14 +499,12 @@ public class FullClusterRestartIT extends ESRestTestCase {
             "      \"query\": \"{\\\"match\\\": {\\\"category\\\": \\\"click\\\"}}\"\n" +
             "    }\n" +
             "  ]\n" +
-            "}";
-
-        client().performRequest("PUT", "/_xpack/security/role/" + id, emptyMap(),
-            new StringEntity(roleJson, ContentType.APPLICATION_JSON));
+            "}");
+        client().performRequest(request);
     }
 
     private void assertUserInfo(final String user) throws Exception {
-        Map<String, Object> response = toMap(client().performRequest("GET", "/_xpack/security/user/" + user));
+        Map<String, Object> response = entityAsMap(client().performRequest(new Request("GET", "/_xpack/security/user/" + user)));
         @SuppressWarnings("unchecked") Map<String, Object> userInfo = (Map<String, Object>) response.get(user);
         assertEquals(user + "@example.com", userInfo.get("email"));
         assertNotNull(userInfo.get("full_name"));
@@ -518,7 +513,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
 
     private void assertRoleInfo(final String role) throws Exception {
         @SuppressWarnings("unchecked") Map<String, Object> response = (Map<String, Object>)
-                toMap(client().performRequest("GET", "/_xpack/security/role/" + role)).get(role);
+                entityAsMap(client().performRequest(new Request("GET", "/_xpack/security/role/" + role))).get(role);
         assertNotNull(response.get("run_as"));
         assertNotNull(response.get("cluster"));
         assertNotNull(response.get("indices"));
@@ -531,7 +526,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
 
         // check that the rollup job is started using the RollUp API
         final Request getRollupJobRequest = new Request("GET", "_xpack/rollup/job/" + rollupJob);
-        Map<String, Object> getRollupJobResponse = toMap(client().performRequest(getRollupJobRequest));
+        Map<String, Object> getRollupJobResponse = entityAsMap(client().performRequest(getRollupJobRequest));
         Map<String, Object> job = getJob(getRollupJobResponse, rollupJob);
         if (job != null) {
             assertThat(ObjectPath.eval("status.job_state", job), expectedStates);
@@ -541,7 +536,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
         final Request taskRequest = new Request("GET", "_tasks");
         taskRequest.addParameter("detailed", "true");
         taskRequest.addParameter("actions", "xpack/rollup/*");
-        Map<String, Object> taskResponse = toMap(client().performRequest(taskRequest));
+        Map<String, Object> taskResponse = entityAsMap(client().performRequest(taskRequest));
         Map<String, Object> taskResponseNodes = (Map<String, Object>) taskResponse.get("nodes");
         Map<String, Object> taskResponseNode = (Map<String, Object>) taskResponseNodes.values().iterator().next();
         Map<String, Object> taskResponseTasks = (Map<String, Object>) taskResponseNode.get("tasks");
@@ -550,7 +545,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
 
         // check that the rollup job is started using the Cluster State API
         final Request clusterStateRequest = new Request("GET", "_cluster/state/metadata");
-        Map<String, Object> clusterStateResponse = toMap(client().performRequest(clusterStateRequest));
+        Map<String, Object> clusterStateResponse = entityAsMap(client().performRequest(clusterStateRequest));
         List<Map<String, Object>> rollupJobTasks = ObjectPath.eval("metadata.persistent_tasks.tasks", clusterStateResponse);
 
         boolean hasRollupTask = false;

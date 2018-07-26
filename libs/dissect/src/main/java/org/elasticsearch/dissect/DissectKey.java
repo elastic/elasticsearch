@@ -36,7 +36,7 @@ import java.util.regex.Pattern;
  * @see DissectParser
  */
 public final class DissectKey {
-    private static final Pattern LEFT_MODIFIER_PATTERN = Pattern.compile("([+?&])(.*?)(->)?$", Pattern.DOTALL);
+    private static final Pattern LEFT_MODIFIER_PATTERN = Pattern.compile("([+*&])(.*?)(->)?$", Pattern.DOTALL);
     private static final Pattern RIGHT_PADDING_PATTERN = Pattern.compile("^(.*?)(->)?$", Pattern.DOTALL);
     private static final Pattern APPEND_WITH_ORDER_PATTERN = Pattern.compile("[+](.*?)(/)([0-9]+)(->)?$", Pattern.DOTALL);
     private final Modifier modifier;
@@ -143,9 +143,9 @@ public final class DissectKey {
     }
 
     public enum Modifier {
-        NONE(""), APPEND_WITH_ORDER("/"), APPEND("+"), FIELD_NAME("?"), FIELD_VALUE("&");
+        NONE(""), APPEND_WITH_ORDER("/"), APPEND("+"), FIELD_NAME("*"), FIELD_VALUE("&");
 
-        private static final Pattern MODIFIER_PATTERN = Pattern.compile("[/+?&]");
+        private static final Pattern MODIFIER_PATTERN = Pattern.compile("[/+*&]");
 
         private final String modifier;
 

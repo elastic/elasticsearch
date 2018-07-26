@@ -77,7 +77,7 @@ public class DissectKeyTests extends ESTestCase {
 
     public void testFieldNameModifier() {
         String keyName = randomAlphaOfLengthBetween(1, 10);
-        DissectKey dissectKey = new DissectKey("?" + keyName);
+        DissectKey dissectKey = new DissectKey("*" + keyName);
         assertThat(dissectKey.getModifier(), equalTo(DissectKey.Modifier.FIELD_NAME));
         assertThat(dissectKey.skip(), is(false));
         assertThat(dissectKey.skipRightPadding(), is(false));
@@ -104,7 +104,7 @@ public class DissectKeyTests extends ESTestCase {
         assertThat(dissectKey.getAppendPosition(), equalTo(0));
         assertThat(dissectKey.getName(), equalTo(keyName));
 
-        dissectKey = new DissectKey("?" + keyName + "->");
+        dissectKey = new DissectKey("*" + keyName + "->");
         assertThat(dissectKey.skipRightPadding(), is(true));
 
         dissectKey = new DissectKey("&" + keyName + "->");

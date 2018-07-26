@@ -84,7 +84,7 @@ public class DissectMatchTests extends ESTestCase {
     public void testReference(){
         DissectMatch dissectMatch = new DissectMatch("-", 2, 1, 0, 1);
         dissectMatch.add(new DissectKey("&a"), "x");
-        dissectMatch.add(new DissectKey("?a"), "y");
+        dissectMatch.add(new DissectKey("*a"), "y");
         Map<String, String> results = dissectMatch.getResults();
         assertThat(dissectMatch.isValid(results), equalTo(true));
         assertThat(results, equalTo(MapBuilder.newMapBuilder().put("y", "x").map()));

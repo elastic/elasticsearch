@@ -61,16 +61,16 @@ import java.util.stream.Collectors;
  * result: {@code a=foobazbar}
  * </pre>
  * </li>
- * <li>{@code ?} Instructs the parser to ignore the name of this key, instead use the value of key as the key name.
+ * <li>{@code *} Instructs the parser to ignore the name of this key, instead use the value of key as the key name.
  * Requires another key with the same name and the {@code &} modifier to be the value. Example: <pre>
- * pattern: {@code %{?a} %{b} %{&a}}
+ * pattern: {@code %{*a} %{b} %{&a}}
  * string: {@code foo bar baz}
  * result: {@code foo=baz, b=bar}
  * </pre></li>
- * <li>{@code &} Instructs the parser to ignore this key and place the matched value to a key of the same name with the {@code ?} modifier.
- * Requires another key with the same name and the {@code ?} modifier.
+ * <li>{@code &} Instructs the parser to ignore this key and place the matched value to a key of the same name with the {@code *} modifier.
+ * Requires another key with the same name and the {@code *} modifier.
  * Example: <pre>
- * pattern: {@code %{?a} %{b} %{&a}}
+ * pattern: {@code %{*a} %{b} %{&a}}
  * string: {@code foo bar baz}
  * result: {@code foo=baz, b=bar}
  * </pre></li>
@@ -142,7 +142,7 @@ public final class DissectParser {
         }
         appendCount = appendKeyNames.size();
 
-        //reference validation - ensure that '?' and '&' come in pairs
+        //reference validation - ensure that '*' and '&' come in pairs
         Map<String, List<DissectPair>> referenceGroupings = matchPairs.stream()
             .filter(dissectPair -> ASSOCIATE_MODIFIERS.contains(dissectPair.getKey().getModifier()))
             .collect(Collectors.groupingBy(KEY_NAME));
@@ -150,7 +150,7 @@ public final class DissectParser {
             if (entry.getValue().size() != 2) {
                 throw new DissectException.PatternParse(pattern, "Found invalid key/reference associations: '"
                     + entry.getValue().stream().map(KEY_NAME).collect(Collectors.joining(",")) +
-                    "' Please ensure each '?<key>' is matched with a matching '&<key>");
+                    "' Please ensure each '*<key>' is matched with a matching '&<key>");
             }
         }
 

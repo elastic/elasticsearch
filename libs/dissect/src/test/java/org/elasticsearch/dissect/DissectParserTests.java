@@ -39,7 +39,7 @@ public class DissectParserTests extends ESTestCase {
         assertMatch("%{a->} %{b} %{c}", "foo         bar baz", Arrays.asList("a", "b", "c"), Arrays.asList("foo", "bar", "baz"));
         assertMatch("%{a} %{+a} %{+a}", "foo bar baz", Arrays.asList("a"), Arrays.asList("foobarbaz"));
         assertMatch("%{a} %{+a/2} %{+a/1}", "foo bar baz", Arrays.asList("a"), Arrays.asList("foobazbar"));
-        assertMatch("%{?a} %{b} %{&a}", "foo bar baz", Arrays.asList("foo", "b"), Arrays.asList("baz", "bar"));
+        assertMatch("%{*a} %{b} %{&a}", "foo bar baz", Arrays.asList("foo", "b"), Arrays.asList("baz", "bar"));
         assertMatch("%{a} %{} %{c}", "foo bar baz", Arrays.asList("a", "c"), Arrays.asList("foo", "baz"));
         assertMatch("%{a},%{b},%{c},%{d}", "foo,,,", Arrays.asList("a", "b", "c", "d"), Arrays.asList("foo", "", "", ""));
         assertMatch("%{a->},%{b}", "foo,,,,,,bar", Arrays.asList("a", "b"), Arrays.asList("foo", "bar"));
@@ -75,14 +75,6 @@ public class DissectParserTests extends ESTestCase {
         assertMatch("%{+a} %{b}", "foo bar", Arrays.asList("a", "b"), Arrays.asList("foo", "bar"));
         assertMatch("%{+a} %{b} %{+a} %{c}", "foo bar baz quux",
             Arrays.asList("a", "b", "c"), Arrays.asList("foo baz", "bar", "quux"), " ");
-        //Logstash allows implicit '?' for association, which allows this dissect patterns without matching '?' and '&' to work.
-        //For example, "%{k1}=%{&k1}, %{k2}=%{&k2}" will match in Logstash but not here due to the requirement of matching '?' and '&'
-        //begin: The following tests match in Logstash, but are considered bad patterns here:
-        assertBadPattern("%{k1}=%{&k1}, %{k2}=%{&k2}");
-        assertBadPattern("%{k1}=%{&k3}, %{k2}=%{&k4}");
-        assertBadPattern("%{?k1}=%{&k3}, %{?k2}=%{&k4}");
-        assertBadPattern("%{&k1}, %{&k2}, %{&k3}");
-        //end
         assertMatch("%{} %{syslog_timestamp} %{hostname} %{rt}: %{reason} %{+reason} %{src_ip}/%{src_port}->%{dst_ip}/%{dst_port} " +
                 "%{polrt} %{+polrt} %{+polrt} %{from_zone} %{to_zone} %{rest}",
             "42 2016-05-25T14:47:23Z host.name.com RT_FLOW - RT_FLOW_SESSION_DENY: session denied 2.2.2.20/60000->1.1.1.10/8090 None " +
@@ -95,10 +87,11 @@ public class DissectParserTests extends ESTestCase {
         assertBadKey("%{&+a_field}");
         assertMatch("%{a->}   %{b->}---%{c}", "foo            bar------------baz",
             Arrays.asList("a", "b", "c"), Arrays.asList("foo", "bar", "baz"));
+        //TODO: support '?' as a named skip key
         //Logstash will match "%{?->}-%{a}" to "-----666", however '?' without a corresponding '&' is not allowed here, so the syntax is
         //the same minus the '?' as tested below
-        assertBadKey("%{?->}-%{a}", "?->");
-        assertMatch("%{->}-%{a}", "-----666", Arrays.asList("a"), Arrays.asList("666"));
+//        assertBadKey("%{?->}-%{a}", "?->");
+//        assertMatch("%{->}-%{a}", "-----666", Arrays.asList("a"), Arrays.asList("666"));
         assertMatch("%{a},%{b},%{c},%{d},%{e},%{f}", "111,,333,,555,666",
             Arrays.asList("a", "b", "c", "d", "e", "f"), Arrays.asList("111", "", "333", "", "555", "666"));
         assertMatch("%{a}.࿏.%{b}", "⟳༒.࿏.༒⟲", Arrays.asList("a", "b"), Arrays.asList("⟳༒", "༒⟲"));
@@ -162,7 +155,7 @@ public class DissectParserTests extends ESTestCase {
         assertMatch("%{a}࿏%{+a} %{+a}", "⟳༒࿏༒⟲ 子", Arrays.asList("a"), Arrays.asList("⟳༒༒⟲子"));
         assertMatch("%{a}࿏%{+a/2} %{+a/1}", "⟳༒࿏༒⟲ 子", Arrays.asList("a"), Arrays.asList("⟳༒子༒⟲"));
         assertMatch("%{a->}࿏%{b}", "⟳༒࿏࿏࿏࿏࿏༒⟲", Arrays.asList("a", "b"), Arrays.asList("⟳༒", "༒⟲"));
-        assertMatch("%{?a}࿏%{&a}", "⟳༒࿏༒⟲", Arrays.asList("⟳༒"), Arrays.asList("༒⟲"));
+        assertMatch("%{*a}࿏%{&a}", "⟳༒࿏༒⟲", Arrays.asList("⟳༒"), Arrays.asList("༒⟲"));
         assertMatch("%{}࿏%{a}", "⟳༒࿏༒⟲", Arrays.asList("a"), Arrays.asList("༒⟲"));
     }
 
@@ -171,7 +164,7 @@ public class DissectParserTests extends ESTestCase {
         assertMatch("%{a} %{b}", "foo bar the rest", Arrays.asList("a", "b"), Arrays.asList("foo", "bar the rest"));
         assertMatch("%{} %{b}", "foo bar the rest", Arrays.asList("b"), Arrays.asList("bar the rest"));
         assertMatch("%{a} %{b->}", "foo bar the rest", Arrays.asList("a", "b"), Arrays.asList("foo", "bar the rest"));
-        assertMatch("%{?a} %{&a}", "foo bar the rest", Arrays.asList("foo"), Arrays.asList("bar the rest"));
+        assertMatch("%{*a} %{&a}", "foo bar the rest", Arrays.asList("foo"), Arrays.asList("bar the rest"));
         assertMatch("%{a} %{+a}", "foo bar the rest", Arrays.asList("a"), Arrays.asList("foo bar the rest"), " ");
     }
 
@@ -183,19 +176,19 @@ public class DissectParserTests extends ESTestCase {
     }
 
     public void testAssociate() {
-        assertMatch("%{?a} %{&a}", "foo bar", Arrays.asList("foo"), Arrays.asList("bar"));
-        assertMatch("%{&a} %{?a}", "foo bar", Arrays.asList("bar"), Arrays.asList("foo"));
-        assertMatch("%{?a} %{&a} %{?b} %{&b}", "foo bar baz lol", Arrays.asList("foo", "baz"), Arrays.asList("bar", "lol"));
-        assertMatch("%{?a} %{&a} %{c} %{?b} %{&b}", "foo bar x baz lol",
+        assertMatch("%{*a} %{&a}", "foo bar", Arrays.asList("foo"), Arrays.asList("bar"));
+        assertMatch("%{&a} %{*a}", "foo bar", Arrays.asList("bar"), Arrays.asList("foo"));
+        assertMatch("%{*a} %{&a} %{*b} %{&b}", "foo bar baz lol", Arrays.asList("foo", "baz"), Arrays.asList("bar", "lol"));
+        assertMatch("%{*a} %{&a} %{c} %{*b} %{&b}", "foo bar x baz lol",
             Arrays.asList("foo", "baz", "c"), Arrays.asList("bar", "lol", "x"));
-        assertBadPattern("%{?a} %{a}");
+        assertBadPattern("%{*a} %{a}");
         assertBadPattern("%{a} %{&a}");
-        assertMiss("%{?a} %{&a} {a} %{?b} %{&b}", "foo bar x baz lol");
+        assertMiss("%{*a} %{&a} {a} %{*b} %{&b}", "foo bar x baz lol");
     }
 
     public void testAppendAndAssociate() {
-        assertMatch("%{a} %{+a} %{?b} %{&b}", "foo bar baz lol", Arrays.asList("a", "baz"), Arrays.asList("foobar", "lol"));
-        assertMatch("%{a->} %{+a/2} %{+a/1} %{?b} %{&b}", "foo      bar baz lol x",
+        assertMatch("%{a} %{+a} %{*b} %{&b}", "foo bar baz lol", Arrays.asList("a", "baz"), Arrays.asList("foobar", "lol"));
+        assertMatch("%{a->} %{+a/2} %{+a/1} %{*b} %{&b}", "foo      bar baz lol x",
             Arrays.asList("a", "lol"), Arrays.asList("foobazbar", "x"));
     }
 
@@ -237,7 +230,7 @@ public class DissectParserTests extends ESTestCase {
         assertMatch("%{a->} %{b}", "foo bar", Arrays.asList("a", "b"), Arrays.asList("foo", "bar"));
         assertMatch("%{a->} %{b}", "foo            bar", Arrays.asList("a", "b"), Arrays.asList("foo", "bar"));
         assertMatch("%{->} %{a}", "foo            bar", Arrays.asList("a"), Arrays.asList("bar"));
-        assertMatch("%{a->} %{+a->} %{?b->} %{&b->} %{c}", "foo       bar    baz  lol    x",
+        assertMatch("%{a->} %{+a->} %{*b->} %{&b->} %{c}", "foo       bar    baz  lol    x",
             Arrays.asList("a", "baz", "c"), Arrays.asList("foobar", "lol", "x"));
     }
 
@@ -272,8 +265,8 @@ public class DissectParserTests extends ESTestCase {
     public void testBadPatternOrKey(){
         assertBadPattern("");
         assertBadPattern("{}");
-        assertBadPattern("%{?a} %{&b}");
-        assertBadKey("%{?}");
+        assertBadPattern("%{*a} %{&b}");
+        assertBadKey("%{*}");
         assertBadKey("%{++}");
     }
 
@@ -285,11 +278,13 @@ public class DissectParserTests extends ESTestCase {
     }
 
     public void testApacheLog(){
-        assertMatch("%{clientip} %{ident} %{auth} [%{timestamp}] \"%{verb} %{request} HTTP/%{httpversion}\" %{response} %{bytes} \"%{referrer}\" \"%{agent}\" %{->}",
+        assertMatch("%{clientip} %{ident} %{auth} [%{timestamp}] \"%{verb} %{request} HTTP/%{httpversion}\" %{response} %{bytes}" +
+                " \"%{referrer}\" \"%{agent}\" %{->}",
             "31.184.238.164 - - [24/Jul/2014:05:35:37 +0530] \"GET /logs/access.log HTTP/1.0\" 200 69849 " +
                 "\"http://8rursodiol.enjin.com\" \"Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) " +
                 "Chrome/30.0.1599.12785 YaBrowser/13.12.1599.12785 Safari/537.36\" \"www.dlwindianrailways.com\"",
-            Arrays.asList("clientip", "ident", "auth", "timestamp", "verb", "request", "httpversion", "response", "bytes", "referrer", "agent"),
+            Arrays.asList("clientip", "ident", "auth", "timestamp", "verb", "request", "httpversion", "response", "bytes",
+                "referrer", "agent"),
             Arrays.asList("31.184.238.164", "-", "-", "24/Jul/2014:05:35:37 +0530", "GET", "/logs/access.log", "1.0", "200", "69849",
                 "http://8rursodiol.enjin.com", "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36" +
                     " (KHTML, like Gecko) Chrome/30.0.1599.12785 YaBrowser/13.12.1599.12785 Safari/537.36"));

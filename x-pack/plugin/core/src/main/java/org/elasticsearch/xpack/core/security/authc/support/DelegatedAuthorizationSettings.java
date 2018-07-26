@@ -18,7 +18,7 @@ import java.util.function.Function;
  */
 public class DelegatedAuthorizationSettings {
 
-    public static final Setting<List<String>> AUTHZ_REALMS = Setting.listSetting("authorizing_realms",
+    public static final Setting<List<String>> AUTHZ_REALMS = Setting.listSetting("authorization_realms",
         Collections.emptyList(), Function.identity(), Setting.Property.NodeScope);
 
     public static Collection<Setting<?>> getSettings() {

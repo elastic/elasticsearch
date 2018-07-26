@@ -415,9 +415,10 @@ public class XPackLicenseState {
     }
 
     /**
-     * @return whether "authorizing_realms" are allowed based on the license {@link OperationMode}
+     * @return whether "authorization_realms" are allowed based on the license {@link OperationMode}
+     * @see org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings
      */
-    public boolean isAuthorizingRealmAllowed() {
+    public boolean isAuthorizationRealmAllowed() {
         final Status localStatus = status;
         return (localStatus.mode == OperationMode.PLATINUM || localStatus.mode == OperationMode.TRIAL)
             && localStatus.active;

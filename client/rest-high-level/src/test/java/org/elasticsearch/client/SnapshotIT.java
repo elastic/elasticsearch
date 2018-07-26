@@ -28,6 +28,8 @@ import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequ
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.common.settings.Settings;
@@ -40,12 +42,15 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.snapshots.RestoreInfo;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
 public class SnapshotIT extends ESRestHighLevelClientTestCase {
@@ -203,6 +208,42 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         assertThat(response.getSnapshots().get(0).getSnapshot().getRepository(), equalTo(testRepository));
         assertThat(response.getSnapshots().get(0).getSnapshot().getSnapshotId().getName(), equalTo(testSnapshot));
         assertThat(response.getSnapshots().get(0).getIndices().containsKey(testIndex), is(true));
+    }
+
+    public void testRestoreSnapshot() throws IOException {
+        String testRepository = "test";
+        String testSnapshot = "snapshot_1";
+        String testIndex = "test_index";
+        String restoredIndex = testIndex + "_restored";
+
+        PutRepositoryResponse putRepositoryResponse = createTestRepository(testRepository, FsRepository.TYPE, "{\"location\": \".\"}");
+        assertTrue(putRepositoryResponse.isAcknowledged());
+
+        createIndex(testIndex, Settings.EMPTY);
+        assertTrue("index [" + testIndex + "] should have been created", indexExists(testIndex));
+
+        CreateSnapshotRequest createSnapshotRequest = new CreateSnapshotRequest(testRepository, testSnapshot);
+        createSnapshotRequest.indices(testIndex);
+        createSnapshotRequest.waitForCompletion(true);
+        CreateSnapshotResponse createSnapshotResponse = createTestSnapshot(createSnapshotRequest);
+        assertEquals(RestStatus.OK, createSnapshotResponse.status());
+
+        deleteIndex(testIndex);
+        assertFalse("index [" + testIndex + "] should have been deleted", indexExists(testIndex));
+
+        RestoreSnapshotRequest request = new RestoreSnapshotRequest(testRepository, testSnapshot);
+        request.waitForCompletion(true);
+        request.renamePattern(testIndex);
+        request.renameReplacement(restoredIndex);
+
+        RestoreSnapshotResponse response = execute(request, highLevelClient().snapshot()::restore,
+            highLevelClient().snapshot()::restoreAsync);
+
+        RestoreInfo restoreInfo = response.getRestoreInfo();
+        assertThat(restoreInfo.name(), equalTo(testSnapshot));
+        assertThat(restoreInfo.indices(), equalTo(Collections.singletonList(restoredIndex)));
+        assertThat(restoreInfo.successfulShards(), greaterThan(0));
+        assertThat(restoreInfo.failedShards(), equalTo(0));
     }
 
     public void testDeleteSnapshot() throws IOException {

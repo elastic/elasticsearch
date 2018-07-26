@@ -84,7 +84,8 @@ The following example output indicates which privileges the "rdeniro" user has:
       "read" : true,
       "write" : false
     }
-  }
+  },
+  "application" : {}
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"rdeniro"/"$body.username"/]

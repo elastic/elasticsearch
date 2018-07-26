@@ -279,6 +279,8 @@ public class FlushIT extends ESIntegTestCase {
             }
         }
 
+        logger.error("--------------------------- recommit -------------------------");
+
         final ShardsSyncedFlushResult fullResult = SyncedFlushUtil.attemptSyncedFlush(logger, internalCluster(), shardId);
         assertBusy(() -> {
             for (IndexShard shard : indexShards) {

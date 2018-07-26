@@ -207,6 +207,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
             final ActionListener<Map<String, PreSyncedFlushResponse>> presyncListener = new ActionListener<Map<String, PreSyncedFlushResponse>>() {
                 @Override
                 public void onResponse(final Map<String, PreSyncedFlushResponse> presyncResponses) {
+                    logger.error("presyncResponses {}", presyncResponses.size());
                     if (presyncResponses.isEmpty()) {
                         actionListener.onResponse(new ShardsSyncedFlushResult(shardId, totalShards, "all shards failed to commit on pre-sync"));
                         return;
@@ -222,6 +223,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
                                 // 3. now send the sync request to all the shards;
                                 final String sharedSyncId = sharedExistingSyncId(presyncResponses);
                                 if (sharedSyncId != null) {
+                                    logger.error("reusing sharedSyncId {}", shardId);
                                     assert presyncResponses.values().stream().allMatch(r -> r.existingSyncId.equals(sharedSyncId)) :
                                         "Not all shards have the same existing sync id [" + sharedSyncId + "], responses [" + presyncResponses + "]";
                                     reportSuccessWithExistingSyncId(shardId, sharedSyncId, activeShards, totalShards, presyncResponses, actionListener);
@@ -309,7 +311,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
                 listener.onResponse(new InFlightOpsResponse(-1));
                 return;
             }
-            logger.trace("{} retrieving in flight operation count", shardId);
+            logger.error("{} retrieving in flight operation count", shardId);
             transportService.sendRequest(primaryNode, IN_FLIGHT_OPS_ACTION_NAME, new InFlightOpsRequest(shardId),
                     new TransportResponseHandler<InFlightOpsResponse>() {
                         @Override
@@ -319,12 +321,13 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
 
                         @Override
                         public void handleResponse(InFlightOpsResponse response) {
+                            logger.error("{} receive in-flight count {}", shardId, response.opCount);
                             listener.onResponse(response);
                         }
 
                         @Override
                         public void handleException(TransportException exp) {
-                            logger.debug("{} unexpected error while retrieving in flight op count", shardId);
+                            logger.error("{} unexpected error while retrieving in flight op count", shardId);
                             listener.onFailure(exp);
                         }
 
@@ -358,14 +361,14 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
         for (final ShardRouting shard : shards) {
             final DiscoveryNode node = state.nodes().get(shard.currentNodeId());
             if (node == null) {
-                logger.trace("{} is assigned to an unknown node. skipping for sync id [{}]. shard routing {}", shardId, syncId, shard);
+                logger.error("{} is assigned to an unknown node. skipping for sync id [{}]. shard routing {}", shardId, syncId, shard);
                 results.put(shard, new ShardSyncedFlushResponse("unknown node"));
                 countDownAndSendResponseIfDone(syncId, shards, shardId, totalShards, listener, countDown, results);
                 continue;
             }
             final PreSyncedFlushResponse preSyncedResponse = preSyncResponses.get(shard.currentNodeId());
             if (preSyncedResponse == null) {
-                logger.trace("{} can't resolve expected commit id for current node, skipping for sync id [{}]. shard routing {}", shardId, syncId, shard);
+                logger.error("{} can't resolve expected commit id for current node, skipping for sync id [{}]. shard routing {}", shardId, syncId, shard);
                 results.put(shard, new ShardSyncedFlushResponse("no commit id from pre-sync flush"));
                 countDownAndSendResponseIfDone(syncId, shards, shardId, totalShards, listener, countDown, results);
                 continue;
@@ -379,7 +382,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
                 countDownAndSendResponseIfDone(syncId, shards, shardId, totalShards, listener, countDown, results);
                 continue;
             }
-            logger.trace("{} sending synced flush request to {}. sync id [{}].", shardId, shard, syncId);
+            logger.error("{} sending synced flush request to {}. sync id [{}].", shardId, shard, syncId);
             transportService.sendRequest(node, SYNCED_FLUSH_ACTION_NAME, new ShardSyncedFlushRequest(shard.shardId(), syncId, preSyncedResponse.commitId),
                     new TransportResponseHandler<ShardSyncedFlushResponse>() {
                         @Override
@@ -389,6 +392,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
 
                         @Override
                         public void handleResponse(ShardSyncedFlushResponse response) {
+                            logger.error("Receive ShardSyncedFlushResponse {} /{} ", response.success(), response.failureReason);
                             ShardSyncedFlushResponse existing = results.put(shard, response);
                             assert existing == null : "got two answers for node [" + node + "]";
                             // count after the assert so we won't decrement twice in handleException
@@ -481,9 +485,9 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
     private ShardSyncedFlushResponse performSyncedFlush(ShardSyncedFlushRequest request) {
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard indexShard = indexService.getShard(request.shardId().id());
-        logger.trace("{} performing sync flush. sync id [{}], expected commit id {}", request.shardId(), request.syncId(), request.expectedCommitId());
+        logger.error("{} performing sync flush. sync id [{}], expected commit id {}", request.shardId(), request.syncId(), request.expectedCommitId());
         Engine.SyncedFlushResult result = indexShard.syncFlush(request.syncId(), request.expectedCommitId());
-        logger.trace("{} sync flush done. sync id [{}], result [{}]", request.shardId(), request.syncId(), result);
+        logger.error("{} sync flush done. sync id [{}], result [{}]", request.shardId(), request.syncId(), result);
         switch (result) {
             case SUCCESS:
                 return new ShardSyncedFlushResponse();

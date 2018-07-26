@@ -961,7 +961,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public Engine.SyncedFlushResult syncFlush(String syncId, Engine.CommitId expectedCommitId) {
         verifyNotClosed();
-        logger.trace("trying to sync flush. sync id [{}]. expected commit id [{}]]", syncId, expectedCommitId);
+        logger.error("trying to sync flush. sync id [{}]. expected commit id [{}]]", syncId, expectedCommitId);
         Engine engine = getEngine();
         if (engine.isRecovering()) {
             throw new IllegalIndexShardStateException(shardId(), state, "syncFlush is only allowed if the engine is not recovery" +

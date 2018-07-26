@@ -8,6 +8,7 @@ job configuration options.
 * <<ml-calendar-resource,Calendars>>
 * <<ml-datafeed-resource,{dfeeds-cap}>>
 * <<ml-datafeed-counts,{dfeed-cap} counts>>
+* <<ml-filter-resource,Filters>>
 * <<ml-job-resource,Jobs>>
 * <<ml-jobstats,Job statistics>>
 * <<ml-snapshot-resource,Model snapshots>>
@@ -18,6 +19,8 @@ job configuration options.
 include::ml/calendarresource.asciidoc[]
 [role="xpack"]
 include::ml/datafeedresource.asciidoc[]
+[role="xpack"]
+include::ml/filterresource.asciidoc[]
 [role="xpack"]
 include::ml/jobresource.asciidoc[]
 [role="xpack"]

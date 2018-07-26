@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.core.indexlifecycle.action;
 
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexPolicyResponse;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.xpack.core.indexlifecycle.action.SetPolicyForIndexAction.Response;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -16,29 +16,29 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-public class SetIndexPolicyResponseTests extends AbstractStreamableXContentTestCase<SetIndexPolicyResponse> {
+public class SetPolicyForIndexResponseTests extends AbstractStreamableXContentTestCase<SetPolicyForIndexAction.Response> {
 
     @Override
-    protected SetIndexPolicyResponse createBlankInstance() {
-        return new SetIndexPolicyResponse();
+    protected Response createBlankInstance() {
+        return new Response();
     }
 
     @Override
-    protected SetIndexPolicyResponse createTestInstance() {
+    protected Response createTestInstance() {
         List<String> failedIndexes = Arrays.asList(generateRandomStringArray(20, 20, false));
-        return new SetIndexPolicyResponse(failedIndexes);
+        return new Response(failedIndexes);
     }
 
     @Override
-    protected SetIndexPolicyResponse mutateInstance(SetIndexPolicyResponse instance) throws IOException {
+    protected Response mutateInstance(Response instance) throws IOException {
         List<String> failedIndices = randomValueOtherThan(instance.getFailedIndexes(),
                 () -> Arrays.asList(generateRandomStringArray(20, 20, false)));
-        return new SetIndexPolicyResponse(failedIndices);
+        return new Response(failedIndices);
     }
 
     @Override
-    protected SetIndexPolicyResponse doParseInstance(XContentParser parser) throws IOException {
-        return SetIndexPolicyResponse.PARSER.apply(parser, null);
+    protected Response doParseInstance(XContentParser parser) throws IOException {
+        return Response.PARSER.apply(parser, null);
     }
 
     @Override
@@ -47,12 +47,12 @@ public class SetIndexPolicyResponseTests extends AbstractStreamableXContentTestC
     }
 
     public void testNullFailedIndices() {
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new SetIndexPolicyResponse(null));
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new Response((List<String>) null));
         assertEquals("failed_indexes cannot be null", exception.getMessage());
     }
 
     public void testHasFailures() {
-        SetIndexPolicyResponse response = new SetIndexPolicyResponse(new ArrayList<>());
+        Response response = new Response(new ArrayList<>());
         assertFalse(response.hasFailures());
         assertEquals(Collections.emptyList(), response.getFailedIndexes());
 
@@ -61,7 +61,7 @@ public class SetIndexPolicyResponseTests extends AbstractStreamableXContentTestC
         for (int i = 0; i < size; i++) {
             failedIndexes.add(randomAlphaOfLength(20));
         }
-        response = new SetIndexPolicyResponse(failedIndexes);
+        response = new Response(failedIndexes);
         assertTrue(response.hasFailures());
         assertEquals(failedIndexes, response.getFailedIndexes());
     }

@@ -12,14 +12,13 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.indexlifecycle.action.SetIndexPolicyAction;
-import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexPolicyRequest;
+import org.elasticsearch.xpack.core.indexlifecycle.action.SetPolicyForIndexAction;
 
 import java.io.IOException;
 
-public class RestSetIndexPolicyAction extends BaseRestHandler {
+public class RestSetPolicyForIndexAction extends BaseRestHandler {
 
-    public RestSetIndexPolicyAction(Settings settings, RestController controller) {
+    public RestSetPolicyForIndexAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.PUT, "_lifecycle/{new_policy}", this);
         controller.registerHandler(RestRequest.Method.PUT, "{index}/_lifecycle/{new_policy}", this);
@@ -27,16 +26,16 @@ public class RestSetIndexPolicyAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "xpack_set_index_policy_action";
+        return "xpack_set_policy_for_index_action";
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String[] indexes = Strings.splitStringByCommaToArray(restRequest.param("index"));
         String newPolicyName = restRequest.param("new_policy");
-        SetIndexPolicyRequest changePolicyRequest = new SetIndexPolicyRequest(newPolicyName, indexes);
+        SetPolicyForIndexAction.Request changePolicyRequest = new SetPolicyForIndexAction.Request(newPolicyName, indexes);
         changePolicyRequest.masterNodeTimeout(restRequest.paramAsTime("master_timeout", changePolicyRequest.masterNodeTimeout()));
 
-        return channel -> client.execute(SetIndexPolicyAction.INSTANCE, changePolicyRequest, new RestToXContentListener<>(channel));
+        return channel -> client.execute(SetPolicyForIndexAction.INSTANCE, changePolicyRequest, new RestToXContentListener<>(channel));
     }
 }

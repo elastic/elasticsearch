@@ -123,7 +123,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
 
         logger.info("--> make sure the node's repository can resolve the snapshots");
         final RepositoriesService repositoriesService = getInstanceFromNode(RepositoriesService.class);
-        @SuppressWarnings("unchecked") final BlobStoreRepository repository =
+        final BlobStoreRepository repository =
             (BlobStoreRepository) repositoriesService.repository(repositoryName);
         final List<SnapshotId> originalSnapshots = Arrays.asList(snapshotId1, snapshotId2);
 
@@ -245,7 +245,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
         final RepositoriesService repositoriesService = getInstanceFromNode(RepositoriesService.class);
-        @SuppressWarnings("unchecked") final BlobStoreRepository repository =
+        final BlobStoreRepository repository =
             (BlobStoreRepository) repositoriesService.repository(repositoryName);
         assertThat("getBlobContainer has to be lazy initialized", repository.getBlobContainer(), nullValue());
         return repository;

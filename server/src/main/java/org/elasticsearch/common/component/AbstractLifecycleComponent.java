@@ -54,7 +54,6 @@ public abstract class AbstractLifecycleComponent extends AbstractComponent imple
         listeners.remove(listener);
     }
 
-    @SuppressWarnings({"unchecked"})
     @Override
     public void start() {
         if (!lifecycle.canMoveToStarted()) {
@@ -72,7 +71,6 @@ public abstract class AbstractLifecycleComponent extends AbstractComponent imple
 
     protected abstract void doStart();
 
-    @SuppressWarnings({"unchecked"})
     @Override
     public void stop() {
         if (!lifecycle.canMoveToStopped()) {

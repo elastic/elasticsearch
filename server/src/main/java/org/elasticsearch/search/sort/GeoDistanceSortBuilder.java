@@ -90,7 +90,6 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     private DistanceUnit unit = DistanceUnit.DEFAULT;
 
     private SortMode sortMode = null;
-    @SuppressWarnings("rawtypes")
     private QueryBuilder nestedFilter;
     private String nestedPath;
 

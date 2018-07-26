@@ -52,7 +52,7 @@ import static java.util.stream.Collectors.toList;
  */
 public class PainlessDocGenerator {
 
-    private static final PainlessLookup PAINLESS_LOOKUP = new PainlessLookupBuilder(Whitelist.BASE_WHITELISTS).build();
+    private static final PainlessLookup PAINLESS_LOOKUP = PainlessLookupBuilder.buildFromWhitelists(Whitelist.BASE_WHITELISTS);
     private static final Logger logger = ESLoggerFactory.getLogger(PainlessDocGenerator.class);
     private static final Comparator<PainlessField> FIELD_NAME = comparing(f -> f.name);
     private static final Comparator<PainlessMethod> METHOD_NAME = comparing(m -> m.name);

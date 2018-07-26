@@ -79,6 +79,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
 
     private final CountDownLatch blockIncomingRequestsLatch = new CountDownLatch(1);
     protected final Transport transport;
+    protected final ConnectionManager connectionManager;
     protected final ThreadPool threadPool;
     protected final ClusterName clusterName;
     protected final TaskManager taskManager;
@@ -87,7 +88,6 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
     private final boolean connectToRemoteCluster;
     private final Transport.ResponseHandlers responseHandlers;
     private final TransportInterceptor interceptor;
-    private final ConnectionManager connectionManager;
 
     // An LRU (don't really care about concurrency here) that holds the latest timed out requests so if they
     // do show up, we can print more descriptive information about them

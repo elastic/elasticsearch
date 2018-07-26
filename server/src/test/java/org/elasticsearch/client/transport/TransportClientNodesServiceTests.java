@@ -41,6 +41,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectionManager;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
@@ -359,20 +360,16 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                 final List<MockConnection> establishedConnections = new CopyOnWriteArrayList<>();
                 final List<MockConnection> reusedConnections = new CopyOnWriteArrayList<>();
 
-                clientService.addDelegate(remoteService,  new MockTransportService.DelegateTransport(clientService.original()) {
-                    @Override
-                    public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) {
-                        MockConnection connection = new MockConnection(super.openConnection(node, profile));
-                        establishedConnections.add(connection);
-                        return connection;
-                    }
+                clientService.addGetConnectionBehavior(remoteService, (connectionManager, discoveryNode) -> {
+                    MockConnection connection = new MockConnection(connectionManager.getConnection(discoveryNode));
+                    reusedConnections.add(connection);
+                    return connection;
+                });
 
-//                    @Override
-//                    public Connection getConnection(DiscoveryNode node) {
-//                        MockConnection connection = new MockConnection(super.getConnection(node));
-//                        reusedConnections.add(connection);
-//                        return connection;
-//                    }
+                clientService.addConnectBehavior(remoteService, (transport, discoveryNode, profile) -> {
+                    MockConnection connection = new MockConnection(transport.openConnection(discoveryNode, profile));
+                    establishedConnections.add(connection);
+                    return connection;
                 });
 
                 clientService.start();

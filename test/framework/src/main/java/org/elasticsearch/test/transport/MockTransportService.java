@@ -24,6 +24,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.Lifecycle;
@@ -47,6 +48,7 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.ConnectionManager;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.MockTcpTransport;
 import org.elasticsearch.transport.RequestHandlerRegistry;
@@ -148,8 +150,15 @@ public final class MockTransportService extends TransportService {
     public MockTransportService(Settings settings, Transport transport, ThreadPool threadPool, TransportInterceptor interceptor,
                                 Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
                                 @Nullable ClusterSettings clusterSettings, Set<String> taskHeaders) {
-        super(settings, new LookupTestTransport(transport), threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders);
-        this.original = transport;
+        this(settings, new LookupTestTransport(transport), threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders);
+    }
+
+    private MockTransportService(Settings settings, LookupTestTransport transport, ThreadPool threadPool, TransportInterceptor interceptor,
+                                 Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
+                                 @Nullable ClusterSettings clusterSettings, Set<String> taskHeaders) {
+        super(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders,
+            new MockConnectionManager(new ConnectionManager(settings, transport, threadPool), settings, transport, threadPool));
+        this.original = transport.transport;
     }
 
     public static TransportAddress[] extractTransportAddresses(TransportService transportService) {
@@ -173,7 +182,8 @@ public final class MockTransportService extends TransportService {
      * Clears all the registered rules.
      */
     public void clearAllRules() {
-        transport().clearSendBehaviors();
+        transport().clearBehaviors();
+        connectionManager().clearBehaviors();
         transport().transports.clear();
     }
 
@@ -190,8 +200,9 @@ public final class MockTransportService extends TransportService {
      * Clears the rule associated with the provided transport address.
      */
     public void clearRule(TransportAddress transportAddress) {
+        transport().clearBehavior(transportAddress);
+        connectionManager().clearBehavior(transportAddress);
         transport().transports.remove(transportAddress);
-        transport().clearSendBehavior(transportAddress);
     }
 
     /**
@@ -216,12 +227,8 @@ public final class MockTransportService extends TransportService {
      * is added to fail as well.
      */
     public void addFailToSendNoConnectRule(TransportAddress transportAddress) {
-        addDelegate(transportAddress, new DelegateTransport(original) {
-
-            @Override
-            public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) {
-                throw new ConnectTransportException(node, "DISCONNECT: simulated");
-            }
+        transport().addConnectBehavior(transportAddress, (transport, discoveryNode, profile) -> {
+            throw new ConnectTransportException(discoveryNode, "DISCONNECT: simulated");
         });
 
         transport().addSendBehavior(transportAddress, (connection, requestId, action, request, options) -> {
@@ -282,12 +289,8 @@ public final class MockTransportService extends TransportService {
      * and failing to connect once the rule was added.
      */
     public void addUnresponsiveRule(TransportAddress transportAddress) {
-        addDelegate(transportAddress, new DelegateTransport(original) {
-
-            @Override
-            public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) {
-                throw new ConnectTransportException(node, "UNRESPONSIVE: simulated");
-            }
+        transport().addConnectBehavior(transportAddress, (transport, discoveryNode, profile) -> {
+            throw new ConnectTransportException(discoveryNode, "UNRESPONSIVE: simulated");
         });
 
         transport().addSendBehavior(transportAddress, (connection, requestId, action, request, options) -> {
@@ -318,28 +321,24 @@ public final class MockTransportService extends TransportService {
 
         Supplier<TimeValue> delaySupplier = () -> new TimeValue(duration.millis() - (System.currentTimeMillis() - startTime));
 
-        addDelegate(transportAddress, new DelegateTransport(original) {
+        transport().addConnectBehavior(transportAddress, (transport, discoveryNode, profile) -> {
+            TimeValue delay = delaySupplier.get();
+            if (delay.millis() <= 0) {
+                return original.openConnection(discoveryNode, profile);
+            }
 
-            @Override
-            public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) {
-                TimeValue delay = delaySupplier.get();
-                if (delay.millis() <= 0) {
-                    return original.openConnection(node, profile);
+            // TODO: Replace with proper setting
+            TimeValue connectingTimeout = TcpTransport.TCP_CONNECT_TIMEOUT.getDefault(Settings.EMPTY);
+            try {
+                if (delay.millis() < connectingTimeout.millis()) {
+                    Thread.sleep(delay.millis());
+                    return original.openConnection(discoveryNode, profile);
+                } else {
+                    Thread.sleep(connectingTimeout.millis());
+                    throw new ConnectTransportException(discoveryNode, "UNRESPONSIVE: simulated");
                 }
-
-                // TODO: Replace with proper setting
-                TimeValue connectingTimeout = TcpTransport.TCP_CONNECT_TIMEOUT.getDefault(Settings.EMPTY);
-                try {
-                    if (delay.millis() < connectingTimeout.millis()) {
-                        Thread.sleep(delay.millis());
-                        return original.openConnection(node, profile);
-                    } else {
-                        Thread.sleep(connectingTimeout.millis());
-                        throw new ConnectTransportException(node, "UNRESPONSIVE: simulated");
-                    }
-                } catch (InterruptedException e) {
-                    throw new ConnectTransportException(node, "UNRESPONSIVE: simulated");
-                }
+            } catch (InterruptedException e) {
+                throw new ConnectTransportException(discoveryNode, "UNRESPONSIVE: simulated");
             }
         });
 
@@ -402,22 +401,9 @@ public final class MockTransportService extends TransportService {
     }
 
     /**
-     * Adds a new delegate transport that is used for communication with the given transport service.
-     *
-     * @return {@code true} if no other send behavior was registered for any of the addresses bound by transport service.
-     */
-    public boolean addDelegate(TransportService transportService, DelegateTransport transport) {
-        boolean noRegistered = true;
-        for (TransportAddress transportAddress : extractTransportAddresses(transportService)) {
-            noRegistered &= addDelegate(transportAddress, transport);
-        }
-        return noRegistered;
-    }
-
-    /**
      * Adds a new send behavior that is used for communication with the given transport service.
      *
-     * @return {@code true} if no other delegate was registered for any of the addresses bound by transport service.
+     * @return {@code true} if no other send behavior was registered for any of the addresses bound by transport service.
      */
     public boolean addSendBehavior(TransportService transportService, SendRequestBehavior sendBehavior) {
         boolean noRegistered = true;
@@ -425,15 +411,6 @@ public final class MockTransportService extends TransportService {
             noRegistered &= addSendBehavior(transportAddress, sendBehavior);
         }
         return noRegistered;
-    }
-
-    /**
-     * Adds a new delegate transport that is used for communication with the given transport address.
-     *
-     * @return {@code true} if no other delegate was registered for this address before.
-     */
-    public boolean addDelegate(TransportAddress transportAddress, DelegateTransport transport) {
-        return transport().transports.put(transportAddress, transport) == null;
     }
 
     /**
@@ -445,8 +422,169 @@ public final class MockTransportService extends TransportService {
         return transport().addSendBehavior(transportAddress, sendBehavior);
     }
 
-    private LookupTestTransport transport() {
+
+    /**
+     * Adds a new connect behavior that is used for creating connections with the given transport service.
+     *
+     * @return {@code true} if no other send behavior was registered for any of the addresses bound by transport service.
+     */
+    public boolean addConnectBehavior(TransportService transportService, ConnectBehavior connectBehavior) {
+        boolean noRegistered = true;
+        for (TransportAddress transportAddress : extractTransportAddresses(transportService)) {
+            noRegistered &= addConnectBehavior(transportAddress, connectBehavior);
+        }
+        return noRegistered;
+    }
+
+    /**
+     * Adds a new connect behavior that is used for creating connections with the given transport address.
+     *
+     * @return {@code true} if no other send behavior was registered for this address before.
+     */
+    public boolean addConnectBehavior(TransportAddress transportAddress, ConnectBehavior connectBehavior) {
+        return transport().addConnectBehavior(transportAddress, connectBehavior);
+    }
+
+    /**
+     * Adds a new get connection behavior that is used for communication with the given transport service.
+     *
+     * @return {@code true} if no other get connection behavior was registered for any of the addresses bound by transport service.
+     */
+    public boolean addGetConnectionBehavior(TransportService transportService, GetConnectionBehavior behavior) {
+        boolean noRegistered = true;
+        for (TransportAddress transportAddress : extractTransportAddresses(transportService)) {
+            noRegistered &= addGetConnectionBehavior(transportAddress, behavior);
+        }
+        return noRegistered;
+    }
+
+    /**
+     * Adds a get connection behavior that is used for communication with the given transport address.
+     *
+     * @return {@code true} if no other get connection behavior was registered for this address before.
+     */
+    public boolean addGetConnectionBehavior(TransportAddress transportAddress, GetConnectionBehavior behavior) {
+        return connectionManager().addConnectBehavior(transportAddress, behavior);
+    }
+
+    /**
+     * Adds a new get connection behavior that is used for communication with the given transport service.
+     *
+     * @return {@code true} if no other node connected behavior was registered for any of the addresses bound by transport service.
+     */
+    public boolean addNodeConnectedBehavior(TransportService transportService, NodeConnectedBehavior behavior) {
+        boolean noRegistered = true;
+        for (TransportAddress transportAddress : extractTransportAddresses(transportService)) {
+            noRegistered &= addNodeConnectedBehavior(transportAddress, behavior);
+        }
+        return noRegistered;
+    }
+
+    /**
+     * Adds a get connection behavior that is used for communication with the given transport address.
+     *
+     * @return {@code true} if no other node connected behavior was registered for this address before.
+     */
+    public boolean addNodeConnectedBehavior(TransportAddress transportAddress, NodeConnectedBehavior behavior) {
+        return connectionManager().addNodeConnectedBehavior(transportAddress, behavior);
+    }
+
+    /**
+     * Adds a new delegate transport that is used for communication with the given transport address.
+     *
+     * @return {@code true} if no other delegate was registered for this address before.
+     */
+    public boolean addDelegate(TransportAddress transportAddress, DelegateTransport transport) {
+        return transport().transports.put(transportAddress, transport) == null;
+    }
+
+    public LookupTestTransport transport() {
         return (LookupTestTransport) transport;
+    }
+
+    public MockConnectionManager connectionManager() {
+        return (MockConnectionManager) connectionManager;
+    }
+
+    private static class MockConnectionManager extends ConnectionManager {
+
+        private final ConnectionManager delegate;
+        private final ConcurrentHashMap<TransportAddress, GetConnectionBehavior> getConnectionBehaviors = new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<TransportAddress, NodeConnectedBehavior> nodeConnectedBehaviors = new ConcurrentHashMap<>();
+        private volatile GetConnectionBehavior defaultGetConnectionBehavior = null;
+
+        private MockConnectionManager(ConnectionManager delegate, Settings settings, Transport transport, ThreadPool threadPool) {
+            super(settings, transport, threadPool);
+            this.delegate = delegate;
+        }
+
+        boolean addConnectBehavior(TransportAddress transportAddress, GetConnectionBehavior connectBehavior) {
+            return getConnectionBehaviors.put(transportAddress, connectBehavior) == null;
+        }
+
+        boolean addNodeConnectedBehavior(TransportAddress transportAddress, NodeConnectedBehavior behavior) {
+            return nodeConnectedBehaviors.put(transportAddress, behavior) == null;
+        }
+
+        void clearBehaviors() {
+            getConnectionBehaviors.clear();
+            nodeConnectedBehaviors.clear();
+        }
+
+        void clearBehavior(TransportAddress transportAddress) {
+            getConnectionBehaviors.remove(transportAddress);
+            nodeConnectedBehaviors.remove(transportAddress);
+        }
+
+        @Override
+        public Transport.Connection getConnection(DiscoveryNode node) {
+            TransportAddress address = node.getAddress();
+            GetConnectionBehavior behavior = getConnectionBehaviors.getOrDefault(address, defaultGetConnectionBehavior);
+            if (behavior == null) {
+                return delegate.getConnection(node);
+            } else {
+                return behavior.getConnection(delegate, node);
+            }
+        }
+
+        public boolean nodeConnected(DiscoveryNode node) {
+            TransportAddress address = node.getAddress();
+            NodeConnectedBehavior behavior = nodeConnectedBehaviors.get(address);
+            if (behavior == null) {
+                return delegate.nodeConnected(node);
+            } else {
+                return behavior.nodeConnected(delegate, node);
+            }
+        }
+
+        @Override
+        public void addListener(TransportConnectionListener listener) {
+            delegate.addListener(listener);
+        }
+
+        @Override
+        public void removeListener(TransportConnectionListener listener) {
+            delegate.removeListener(listener);
+        }
+
+        public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
+                                  CheckedBiConsumer<Transport.Connection, ConnectionProfile, IOException> connectionValidator)
+            throws ConnectTransportException {
+            delegate.connectToNode(node, connectionProfile, connectionValidator);
+        }
+
+        public void disconnectFromNode(DiscoveryNode node) {
+            delegate.disconnectFromNode(node);
+        }
+
+        public int connectedNodeCount() {
+            return delegate.connectedNodeCount();
+        }
+
+        @Override
+        public void close() {
+            delegate.close();
+        }
     }
 
     /**
@@ -457,7 +595,9 @@ public final class MockTransportService extends TransportService {
 
         private final ConcurrentMap<TransportAddress, Transport> transports = ConcurrentCollections.newConcurrentMap();
         private final ConcurrentHashMap<TransportAddress, SendRequestBehavior> sendBehaviors = new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<TransportAddress, ConnectBehavior> connectBehaviors = new ConcurrentHashMap<>();
         private volatile MockTransportService.SendRequestBehavior defaultSendRequest = null;
+        private volatile MockTransportService.ConnectBehavior defaultConnectBehavior = null;
 
         private LookupTestTransport(Transport transport) {
             super(transport);
@@ -465,23 +605,37 @@ public final class MockTransportService extends TransportService {
 
         @Override
         public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) {
-            Transport transportToUse = transports.getOrDefault(node.getAddress(), transport);
-            return new WrappedConnection(transportToUse.openConnection(node, profile));
+            TransportAddress address = node.getAddress();
+            MockTransportService.ConnectBehavior behavior = connectBehaviors.getOrDefault(address, defaultConnectBehavior);
+            Connection connection;
+            if (behavior == null) {
+                connection = transport.openConnection(node, profile);
+            } else {
+                connection = behavior.openConnection(transport, node, profile);
+            }
+
+            return new WrappedConnection(connection);
         }
 
         boolean addSendBehavior(TransportAddress transportAddress, MockTransportService.SendRequestBehavior sendBehavior) {
             return sendBehaviors.put(transportAddress, sendBehavior) == null;
         }
 
-        void clearSendBehaviors() {
-            sendBehaviors.clear();
+        boolean addConnectBehavior(TransportAddress transportAddress, MockTransportService.ConnectBehavior connectBehavior) {
+            return connectBehaviors.put(transportAddress, connectBehavior) == null;
         }
 
-        void clearSendBehavior(TransportAddress transportAddress) {
+        void clearBehaviors() {
+            sendBehaviors.clear();
+            connectBehaviors.clear();
+        }
+
+        void clearBehavior(TransportAddress transportAddress) {
             MockTransportService.SendRequestBehavior behavior = sendBehaviors.remove(transportAddress);
             if (behavior != null) {
                 behavior.clearCallback();
             }
+            connectBehaviors.remove(transportAddress);
         }
 
         private class WrappedConnection implements Transport.Connection {
@@ -819,6 +973,21 @@ public final class MockTransportService extends TransportService {
         void sendRequest(Transport.Connection connection, long requestId, String action, TransportRequest request,
                          TransportRequestOptions options) throws IOException;
 
-        default void clearCallback() {};
+        default void clearCallback() {}
+    }
+
+    @FunctionalInterface
+    public interface ConnectBehavior {
+        Transport.Connection openConnection(Transport transport, DiscoveryNode discoveryNode, ConnectionProfile profile);
+    }
+
+    @FunctionalInterface
+    public interface GetConnectionBehavior {
+        Transport.Connection getConnection(ConnectionManager connectionManager, DiscoveryNode discoveryNode);
+    }
+
+    @FunctionalInterface
+    public interface NodeConnectedBehavior {
+        boolean nodeConnected(ConnectionManager connectionManager, DiscoveryNode discoveryNode);
     }
 }

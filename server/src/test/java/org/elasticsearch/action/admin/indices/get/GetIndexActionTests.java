@@ -36,6 +36,8 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
@@ -81,12 +83,10 @@ public class GetIndexActionTests extends ESSingleNodeTestCase {
     public void testIncludeDefaults() {
         GetIndexRequest defaultsRequest = new GetIndexRequest().indices(indexName).includeDefaults(true);
         getIndexAction.execute(null, defaultsRequest, ActionListener.wrap(
-            defaultsResponse -> {
-                assertNotNull(
-                    "index.refresh_interval should be set as we are including defaults",
-                    defaultsResponse.getSetting(indexName, "index.refresh_interval")
-                );
-            }, exception -> {
+            defaultsResponse -> assertNotNull(
+                "index.refresh_interval should be set as we are including defaults",
+                defaultsResponse.getSetting(indexName, "index.refresh_interval")
+            ), exception -> {
                 throw new AssertionError(exception);
             })
         );
@@ -95,12 +95,10 @@ public class GetIndexActionTests extends ESSingleNodeTestCase {
     public void testDoNotIncludeDefaults() {
         GetIndexRequest noDefaultsRequest = new GetIndexRequest().indices(indexName);
         getIndexAction.execute(null, noDefaultsRequest, ActionListener.wrap(
-            noDefaultsResponse -> {
-                assertNull(
-                    "index.refresh_interval should be null as it was never set",
-                    noDefaultsResponse.getSetting(indexName, "index.refresh_interval")
-                );
-            }, exception -> {
+            noDefaultsResponse -> assertNull(
+                "index.refresh_interval should be null as it was never set",
+                noDefaultsResponse.getSetting(indexName, "index.refresh_interval")
+            ), exception -> {
                 throw new AssertionError(exception);
             })
         );

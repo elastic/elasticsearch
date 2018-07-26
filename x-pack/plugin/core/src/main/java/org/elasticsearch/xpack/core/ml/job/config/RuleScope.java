@@ -17,7 +17,6 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.MlParserType;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -32,13 +31,14 @@ import java.util.stream.Collectors;
 
 public class RuleScope implements ToXContentObject, Writeable {
 
-    public static ContextParser<Void, RuleScope> parser(MlParserType parserType) {
+    public static ContextParser<Void, RuleScope> parser(boolean ignoreUnknownFields) {
         return (p, c) -> {
             Map<String, Object> unparsedScope = p.map();
             if (unparsedScope.isEmpty()) {
                 return new RuleScope();
             }
-            ConstructingObjectParser<FilterRef, Void> filterRefParser = FilterRef.PARSERS.get(parserType);
+            ConstructingObjectParser<FilterRef, Void> filterRefParser =
+                ignoreUnknownFields ? FilterRef.LENIENT_PARSER : FilterRef.STRICT_PARSER;
             Map<String, FilterRef> scope = new HashMap<>();
             for (Map.Entry<String, Object> entry : unparsedScope.entrySet()) {
                 try (XContentBuilder builder = XContentFactory.jsonBuilder()) {

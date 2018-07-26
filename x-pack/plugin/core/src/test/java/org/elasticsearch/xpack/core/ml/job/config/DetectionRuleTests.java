@@ -90,7 +90,7 @@ public class DetectionRuleTests extends AbstractSerializingTestCase<DetectionRul
 
     @Override
     protected DetectionRule doParseInstance(XContentParser parser) {
-        return DetectionRule.CONFIG_PARSER.apply(parser, null).build();
+        return DetectionRule.STRICT_PARSER.apply(parser, null).build();
     }
 
     @Override

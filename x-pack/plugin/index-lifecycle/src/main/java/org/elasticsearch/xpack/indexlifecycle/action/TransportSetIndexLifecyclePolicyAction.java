@@ -23,21 +23,23 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
-import org.elasticsearch.xpack.core.indexlifecycle.action.SetPolicyForIndexAction;
-import org.elasticsearch.xpack.core.indexlifecycle.action.SetPolicyForIndexAction.Request;
-import org.elasticsearch.xpack.core.indexlifecycle.action.SetPolicyForIndexAction.Response;
+import org.elasticsearch.xpack.core.indexlifecycle.action.SetIndexLifecyclePolicyAction;
+import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyRequest;
+import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyResponse;
 import org.elasticsearch.xpack.indexlifecycle.IndexLifecycleRunner;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class TransportSetPolicyForIndexAction extends TransportMasterNodeAction<Request, Response> {
+public class TransportSetIndexLifecyclePolicyAction
+    extends TransportMasterNodeAction<SetIndexLifecyclePolicyRequest, SetIndexLifecyclePolicyResponse> {
 
     @Inject
-    public TransportSetPolicyForIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
-            ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, SetPolicyForIndexAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, Request::new);
+    public TransportSetIndexLifecyclePolicyAction(Settings settings, TransportService transportService, ClusterService clusterService,
+                                                  ThreadPool threadPool, ActionFilters actionFilters,
+                                                  IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, SetIndexLifecyclePolicyAction.NAME, transportService, clusterService, threadPool, actionFilters,
+            indexNameExpressionResolver, SetIndexLifecyclePolicyRequest::new);
     }
 
     @Override
@@ -46,21 +48,22 @@ public class TransportSetPolicyForIndexAction extends TransportMasterNodeAction<
     }
 
     @Override
-    protected Response newResponse() {
-        return new Response();
+    protected SetIndexLifecyclePolicyResponse newResponse() {
+        return new SetIndexLifecyclePolicyResponse();
     }
 
     @Override
-    protected ClusterBlockException checkBlock(Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(SetIndexLifecyclePolicyRequest request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override
-    protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+    protected void masterOperation(SetIndexLifecyclePolicyRequest request, ClusterState state,
+                                   ActionListener<SetIndexLifecyclePolicyResponse> listener) throws Exception {
         final String newPolicyName = request.policy();
         final Index[] indices = indexNameExpressionResolver.concreteIndices(state, request.indicesOptions(), request.indices());
         clusterService.submitStateUpdateTask("change-lifecycle-for-index-" + newPolicyName,
-                new AckedClusterStateUpdateTask<Response>(request, listener) {
+                new AckedClusterStateUpdateTask<SetIndexLifecyclePolicyResponse>(request, listener) {
 
                     private final List<String> failedIndexes = new ArrayList<>();
 
@@ -89,8 +92,8 @@ public class TransportSetPolicyForIndexAction extends TransportMasterNodeAction<
                     }
 
                     @Override
-                    protected Response newResponse(boolean acknowledged) {
-                        return new Response(failedIndexes);
+                    protected SetIndexLifecyclePolicyResponse newResponse(boolean acknowledged) {
+                        return new SetIndexLifecyclePolicyResponse(failedIndexes);
                     }
                 });
     }

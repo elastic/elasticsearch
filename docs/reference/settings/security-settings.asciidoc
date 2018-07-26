@@ -27,10 +27,16 @@ For more information about creating and updating the {es} keystore, see
 `xpack.security.enabled`::
 Set to `true` to enable {security} on the node. +
 +
+--
 If set to `false`, which is the default value for basic and trial licenses,
 {security} is disabled. It also affects all {kib} instances that connect to this
 {es} instance; you do not need to disable {security} in those `kibana.yml` files.
 For more information about disabling {security} in specific {kib} instances, see  {kibana-ref}/security-settings-kb.html[{kib} security settings].
+
+TIP: If you have gold or higher licenses, the default value is `true`; we 
+recommend that you explicitly add this setting to avoid confusion.  
+
+--
 
 `xpack.security.hide_settings`::
 A comma-separated list of settings that are omitted from the results of the

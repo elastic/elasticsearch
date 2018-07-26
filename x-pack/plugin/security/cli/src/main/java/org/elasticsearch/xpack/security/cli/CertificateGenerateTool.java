@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.ssl;
+package org.elasticsearch.xpack.security.cli;
 
 import joptsimple.ArgumentAcceptingOptionSpec;
 import joptsimple.OptionSet;
@@ -34,6 +34,8 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
+import org.elasticsearch.xpack.core.ssl.PemUtils;
 
 import javax.security.auth.x500.X500Principal;
 
@@ -68,6 +70,7 @@ import java.util.zip.ZipOutputStream;
 
 /**
  * CLI tool to make generation of certificates or certificate requests easier for users
+ *
  * @deprecated Replaced by {@link CertificateTool}
  */
 @Deprecated
@@ -81,7 +84,7 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
     private static final int FILE_EXTENSION_LENGTH = 4;
     static final int MAX_FILENAME_LENGTH = 255 - FILE_EXTENSION_LENGTH;
     private static final Pattern ALLOWED_FILENAME_CHAR_PATTERN =
-            Pattern.compile("[a-zA-Z0-9!@#$%^&{}\\[\\]()_+\\-=,.~'` ]{1," + MAX_FILENAME_LENGTH + "}");
+        Pattern.compile("[a-zA-Z0-9!@#$%^&{}\\[\\]()_+\\-=,.~'` ]{1," + MAX_FILENAME_LENGTH + "}");
     private static final int DEFAULT_KEY_SIZE = 2048;
     private static final BouncyCastleProvider BC_PROV = new BouncyCastleProvider();
 
@@ -96,11 +99,11 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
         // of the parser in this class so that we can defer initialization until after logging has been initialized
         static {
             @SuppressWarnings("unchecked") final ConstructingObjectParser<CertificateInformation, Void> instanceParser =
-                    new ConstructingObjectParser<>(
-                            "instances",
-                            a -> new CertificateInformation(
-                                    (String) a[0], (String) (a[1] == null ? a[0] : a[1]),
-                                    (List<String>) a[2], (List<String>) a[3], (List<String>) a[4]));
+                new ConstructingObjectParser<>(
+                    "instances",
+                    a -> new CertificateInformation(
+                        (String) a[0], (String) (a[1] == null ? a[0] : a[1]),
+                        (List<String>) a[2], (List<String>) a[3], (List<String>) a[4]));
             instanceParser.declareString(ConstructingObjectParser.constructorArg(), new ParseField("name"));
             instanceParser.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("filename"));
             instanceParser.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), new ParseField("ip"));
@@ -125,29 +128,29 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
     CertificateGenerateTool() {
         super(DESCRIPTION);
         outputPathSpec = parser.accepts("out", "path of the zip file that the output should be written to")
-                .withRequiredArg();
+            .withRequiredArg();
         csrSpec = parser.accepts("csr", "only generate certificate signing requests");
         caCertPathSpec = parser.accepts("cert", "path to an existing ca certificate").availableUnless(csrSpec).withRequiredArg();
         caKeyPathSpec = parser.accepts("key", "path to an existing ca private key")
-                .availableIf(caCertPathSpec)
-                .requiredIf(caCertPathSpec)
-                .withRequiredArg();
+            .availableIf(caCertPathSpec)
+            .requiredIf(caCertPathSpec)
+            .withRequiredArg();
         caPasswordSpec = parser.accepts("pass", "password for an existing ca private key or the generated ca private key")
-                .availableUnless(csrSpec)
-                .withOptionalArg();
+            .availableUnless(csrSpec)
+            .withOptionalArg();
         caDnSpec = parser.accepts("dn", "distinguished name to use for the generated ca. defaults to " + AUTO_GEN_CA_DN)
-                .availableUnless(caCertPathSpec)
-                .availableUnless(csrSpec)
-                .withRequiredArg();
+            .availableUnless(caCertPathSpec)
+            .availableUnless(csrSpec)
+            .withRequiredArg();
         keysizeSpec = parser.accepts("keysize", "size in bits of RSA keys").withRequiredArg().ofType(Integer.class);
         inputFileSpec = parser.accepts("in", "file containing details of the instances in yaml format").withRequiredArg();
         daysSpec = parser.accepts("days", "number of days that the generated certificates are valid")
-                .availableUnless(csrSpec)
-                .withRequiredArg()
-                .ofType(Integer.class);
+            .availableUnless(csrSpec)
+            .withRequiredArg()
+            .ofType(Integer.class);
         p12Spec = parser.accepts("p12", "output a p12 (PKCS#12) version for each certificate/key pair, with optional password")
-                .availableUnless(csrSpec)
-                .withOptionalArg();
+            .availableUnless(csrSpec)
+            .withOptionalArg();
     }
 
     public static void main(String[] args) throws Exception {
@@ -178,7 +181,7 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
                 p12Password = null;
             }
             CAInfo caInfo = getCAInfo(terminal, dn, caCertPathSpec.value(options), caKeyPathSpec.value(options), keyPass, prompt, env,
-                    keysize, days);
+                keysize, days);
             Collection<CertificateInformation> certificateInformations = getCertificateInformationList(terminal, inputFile);
             generateAndWriteSignedCertificates(outputFile, certificateInformations, caInfo, keysize, days, p12Password);
         }
@@ -197,7 +200,7 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
     /**
      * Checks for output file in the user specified options or prompts the user for the output file
      *
-     * @param terminal terminal to communicate with a user
+     * @param terminal   terminal to communicate with a user
      * @param outputPath user specified output file, may be {@code null}
      * @return a {@link Path} to the output file
      */
@@ -223,12 +226,13 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
     /**
      * This method handles the collection of information about each instance that is necessary to generate a certificate. The user may
      * be prompted or the information can be gathered from a file
-     * @param terminal the terminal to use for user interaction
+     *
+     * @param terminal  the terminal to use for user interaction
      * @param inputFile an optional file that will be used to load the instance information
      * @return a {@link Collection} of {@link CertificateInformation} that represents each instance
      */
     static Collection<CertificateInformation> getCertificateInformationList(Terminal terminal, String inputFile)
-            throws Exception {
+        throws Exception {
         if (inputFile != null) {
             return parseAndValidateFile(terminal, resolvePath(inputFile).toAbsolutePath());
         }
@@ -239,7 +243,7 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
             if (name.isEmpty() == false) {
                 final boolean isNameValidFilename = Name.isValidFilename(name);
                 String filename = terminal.readText("Enter name for directories and files " + (isNameValidFilename ? "[" + name + "]" : "")
-                        + ": " );
+                    + ": ");
                 if (filename.isEmpty() && isNameValidFilename) {
                     filename = name;
                 }
@@ -267,7 +271,7 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
             }
 
             String exit = terminal.readText("Would you like to specify another instance? Press 'y' to continue entering instance " +
-                    "information: ");
+                "information: ");
             if ("y".equals(exit) == false) {
                 done = true;
             }
@@ -283,7 +287,7 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
             if (errors.size() > 0) {
                 hasError = true;
                 terminal.println(Terminal.Verbosity.SILENT, "Configuration for instance " + certInfo.name.originalName
-                        + " has invalid details");
+                    + " has invalid details");
                 for (String message : errors) {
                     terminal.println(Terminal.Verbosity.SILENT, " * " + message);
                 }
@@ -298,6 +302,7 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
 
     /**
      * Parses the input file to retrieve the certificate information
+     *
      * @param file the file to parse
      * @return a collection of certificate information
      */
@@ -305,22 +310,23 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
         try (Reader reader = Files.newBufferedReader(file)) {
             // EMPTY is safe here because we never use namedObject
             XContentParser xContentParser = XContentType.YAML.xContent()
-                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, reader);
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, reader);
             return InputFileParser.PARSER.parse(xContentParser, new ArrayList<>(), null);
         }
     }
 
     /**
      * Generates certificate signing requests and writes them out to the specified file in zip format
+     *
      * @param outputFile the file to write the output to. This file must not already exist
-     * @param certInfo the details to use in the certificate signing requests
+     * @param certInfo   the details to use in the certificate signing requests
      */
     static void generateAndWriteCsrs(Path outputFile, Collection<CertificateInformation> certInfo, int keysize) throws Exception {
         fullyWriteFile(outputFile, (outputStream, pemWriter) -> {
             for (CertificateInformation certificateInformation : certInfo) {
                 KeyPair keyPair = CertGenUtils.generateKeyPair(keysize);
                 GeneralNames sanList = getSubjectAlternativeNamesValue(certificateInformation.ipAddresses, certificateInformation.dnsNames,
-                        certificateInformation.commonNames);
+                    certificateInformation.commonNames);
                 PKCS10CertificationRequest csr = CertGenUtils.generateCSR(keyPair, certificateInformation.name.x500Principal, sanList);
 
                 final String dirName = certificateInformation.name.filename + "/";
@@ -347,15 +353,15 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
      * Returns the CA certificate and private key that will be used to sign certificates. These may be specified by the user or
      * automatically generated
      *
-     * @param terminal the terminal to use for prompting the user
-     * @param dn the distinguished name to use for the CA
+     * @param terminal   the terminal to use for prompting the user
+     * @param dn         the distinguished name to use for the CA
      * @param caCertPath the path to the CA certificate or {@code null} if not provided
-     * @param caKeyPath the path to the CA private key or {@code null} if not provided
-     * @param prompt whether we should prompt the user for a password
-     * @param keyPass the password to the private key. If not present and the key is encrypted the user will be prompted
-     * @param env the environment for this tool to resolve files with
-     * @param keysize the size of the key in bits
-     * @param days the number of days that the certificate should be valid for
+     * @param caKeyPath  the path to the CA private key or {@code null} if not provided
+     * @param prompt     whether we should prompt the user for a password
+     * @param keyPass    the password to the private key. If not present and the key is encrypted the user will be prompted
+     * @param env        the environment for this tool to resolve files with
+     * @param keysize    the size of the key in bits
+     * @param days       the number of days that the certificate should be valid for
      * @return CA cert and private key
      */
     static CAInfo getCAInfo(Terminal terminal, String dn, String caCertPath, String caKeyPath, char[] keyPass, boolean prompt,
@@ -366,7 +372,7 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
             Certificate[] certificates = CertParsingUtils.readCertificates(Collections.singletonList(resolvedCaCertPath), env);
             if (certificates.length != 1) {
                 throw new IllegalArgumentException("expected a single certificate in file [" + caCertPath + "] but found [" +
-                        certificates.length + "]");
+                    certificates.length + "]");
             }
             Certificate caCert = certificates[0];
             PrivateKey privateKey = readPrivateKey(caKeyPath, keyPass, terminal, prompt);
@@ -388,11 +394,12 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
 
     /**
      * Generates signed certificates in PEM format stored in a zip file
-     * @param outputFile the file that the certificates will be written to. This file must not exist
+     *
+     * @param outputFile              the file that the certificates will be written to. This file must not exist
      * @param certificateInformations details for creation of the certificates
-     * @param caInfo the CA information to sign the certificates with
-     * @param keysize the size of the key in bits
-     * @param days the number of days that the certificate should be valid for
+     * @param caInfo                  the CA information to sign the certificates with
+     * @param keysize                 the size of the key in bits
+     * @param days                    the number of days that the certificate should be valid for
      */
     static void generateAndWriteSignedCertificates(Path outputFile, Collection<CertificateInformation> certificateInformations,
                                                    CAInfo caInfo, int keysize, int days, char[] pkcs12Password) throws Exception {
@@ -403,9 +410,9 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
             for (CertificateInformation certificateInformation : certificateInformations) {
                 KeyPair keyPair = CertGenUtils.generateKeyPair(keysize);
                 Certificate certificate = CertGenUtils.generateSignedCertificate(certificateInformation.name.x500Principal,
-                        getSubjectAlternativeNamesValue(certificateInformation.ipAddresses, certificateInformation.dnsNames,
-                                certificateInformation.commonNames),
-                        keyPair, caInfo.caCert, caInfo.privateKey, days);
+                    getSubjectAlternativeNamesValue(certificateInformation.ipAddresses, certificateInformation.dnsNames,
+                        certificateInformation.commonNames),
+                    keyPair, caInfo.caCert, caInfo.privateKey, days);
 
                 final String dirName = certificateInformation.name.filename + "/";
                 ZipEntry zipEntry = new ZipEntry(dirName);
@@ -429,7 +436,7 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
                     final KeyStore pkcs12 = KeyStore.getInstance("PKCS12");
                     pkcs12.load(null);
                     pkcs12.setKeyEntry(certificateInformation.name.originalName, keyPair.getPrivate(), pkcs12Password,
-                            new Certificate[]{certificate});
+                        new Certificate[]{certificate});
 
                     outputStream.putNextEntry(new ZipEntry(entryBase + ".p12"));
                     pkcs12.store(outputStream, pkcs12Password);
@@ -441,7 +448,8 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
 
     /**
      * This method handles the deletion of a file in the case of a partial write
-     * @param file the file that is being written to
+     *
+     * @param file   the file that is being written to
      * @param writer writes the contents of the file
      */
     private static void fullyWriteFile(Path file, Writer writer) throws Exception {
@@ -468,9 +476,10 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
     /**
      * This method handles writing out the certificate authority cert and private key if the certificate authority was generated by
      * this invocation of the tool
+     *
      * @param outputStream the output stream to write to
-     * @param pemWriter the writer for PEM objects
-     * @param info the certificate authority information
+     * @param pemWriter    the writer for PEM objects
+     * @param info         the certificate authority information
      */
     private static void writeCAInfoIfGenerated(ZipOutputStream outputStream, JcaPEMWriter pemWriter, CAInfo info) throws Exception {
         if (info.generated) {
@@ -577,14 +586,15 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
     /**
      * Helper method to read a private key and support prompting of user for a key. To avoid passwords being placed as an argument we
      * can prompt the user for their password if we encounter an encrypted key.
-     * @param path the path to the private key
+     *
+     * @param path     the path to the private key
      * @param password the password provided by the user or {@code null}
      * @param terminal the terminal to use for user interaction
-     * @param prompt whether to prompt the user or not
+     * @param prompt   whether to prompt the user or not
      * @return the {@link PrivateKey} that was read from the file
      */
     private static PrivateKey readPrivateKey(String path, char[] password, Terminal terminal, boolean prompt)
-                                            throws Exception {
+        throws Exception {
         AtomicReference<char[]> passwordReference = new AtomicReference<>(password);
         try {
             return PemUtils.readPrivateKey(resolvePath(path), () -> {
@@ -682,7 +692,7 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
                 }
             } catch (IllegalArgumentException e) {
                 String error = "[" + name + "] could not be converted to a valid DN\n" + e.getMessage() + "\n"
-                        + ExceptionsHelper.stackTrace(e);
+                    + ExceptionsHelper.stackTrace(e);
                 return new Name(name, null, null, error);
             }
 
@@ -695,15 +705,15 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
 
         static boolean isValidFilename(String name) {
             return ALLOWED_FILENAME_CHAR_PATTERN.matcher(name).matches()
-                    && ALLOWED_FILENAME_CHAR_PATTERN.matcher(resolvePath(name).toString()).matches()
-                    && name.startsWith(".") == false;
+                && ALLOWED_FILENAME_CHAR_PATTERN.matcher(resolvePath(name).toString()).matches()
+                && name.startsWith(".") == false;
         }
 
         @Override
         public String toString() {
             return getClass().getSimpleName()
-                    + "{original=[" + originalName + "] principal=[" + x500Principal
-                    + "] file=[" + filename + "] err=[" + error + "]}";
+                + "{original=[" + originalName + "] principal=[" + x500Principal
+                + "] file=[" + filename + "] err=[" + error + "]}";
         }
     }
 

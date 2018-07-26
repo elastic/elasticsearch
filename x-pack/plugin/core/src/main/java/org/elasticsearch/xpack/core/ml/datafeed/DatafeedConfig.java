@@ -25,7 +25,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.xpack.core.ml.MlParserType;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -38,7 +37,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -87,44 +85,46 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
     public static final ParseField HEADERS = new ParseField("headers");
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
-    public static final ObjectParser<Builder, Void> METADATA_PARSER = new ObjectParser<>("datafeed_config", true, Builder::new);
-    public static final ObjectParser<Builder, Void> CONFIG_PARSER = new ObjectParser<>("datafeed_config", false, Builder::new);
-    public static final Map<MlParserType, ObjectParser<Builder, Void>> PARSERS = new EnumMap<>(MlParserType.class);
+    public static final ObjectParser<Builder, Void> LENIENT_PARSER = createParser(true);
+    public static final ObjectParser<Builder, Void> STRICT_PARSER = createParser(false);
 
-    static {
-        PARSERS.put(MlParserType.METADATA, METADATA_PARSER);
-        PARSERS.put(MlParserType.CONFIG, CONFIG_PARSER);
-        for (MlParserType parserType : MlParserType.values()) {
-            ObjectParser<Builder, Void> parser = PARSERS.get(parserType);
-            assert parser != null;
-            parser.declareString(Builder::setId, ID);
-            parser.declareString(Builder::setJobId, Job.ID);
-            parser.declareStringArray(Builder::setIndices, INDEXES);
-            parser.declareStringArray(Builder::setIndices, INDICES);
-            parser.declareStringArray(Builder::setTypes, TYPES);
-            parser.declareString((builder, val) ->
-                    builder.setQueryDelay(TimeValue.parseTimeValue(val, QUERY_DELAY.getPreferredName())), QUERY_DELAY);
-            parser.declareString((builder, val) ->
-                    builder.setFrequency(TimeValue.parseTimeValue(val, FREQUENCY.getPreferredName())), FREQUENCY);
-            parser.declareObject(Builder::setQuery, (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p), QUERY);
-            parser.declareObject(Builder::setAggregations, (p, c) -> AggregatorFactories.parseAggregators(p), AGGREGATIONS);
-            parser.declareObject(Builder::setAggregations, (p, c) -> AggregatorFactories.parseAggregators(p), AGGS);
-            parser.declareObject(Builder::setScriptFields, (p, c) -> {
-                List<SearchSourceBuilder.ScriptField> parsedScriptFields = new ArrayList<>();
-                while (p.nextToken() != XContentParser.Token.END_OBJECT) {
-                    parsedScriptFields.add(new SearchSourceBuilder.ScriptField(p));
-                }
-                parsedScriptFields.sort(Comparator.comparing(SearchSourceBuilder.ScriptField::fieldName));
-                return parsedScriptFields;
-            }, SCRIPT_FIELDS);
-            parser.declareInt(Builder::setScrollSize, SCROLL_SIZE);
-            // TODO this is to read former _source field. Remove in v7.0.0
-            parser.declareBoolean((builder, value) -> {}, SOURCE);
-            parser.declareObject(Builder::setChunkingConfig, ChunkingConfig.PARSERS.get(parserType), CHUNKING_CONFIG);
+    private static ObjectParser<Builder, Void> createParser(boolean ignoreUnknownFields) {
+        ObjectParser<Builder, Void> parser = new ObjectParser<>("datafeed_config", ignoreUnknownFields, Builder::new);
+
+        parser.declareString(Builder::setId, ID);
+        parser.declareString(Builder::setJobId, Job.ID);
+        parser.declareStringArray(Builder::setIndices, INDEXES);
+        parser.declareStringArray(Builder::setIndices, INDICES);
+        parser.declareStringArray(Builder::setTypes, TYPES);
+        parser.declareString((builder, val) ->
+            builder.setQueryDelay(TimeValue.parseTimeValue(val, QUERY_DELAY.getPreferredName())), QUERY_DELAY);
+        parser.declareString((builder, val) ->
+            builder.setFrequency(TimeValue.parseTimeValue(val, FREQUENCY.getPreferredName())), FREQUENCY);
+        parser.declareObject(Builder::setQuery, (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p), QUERY);
+        parser.declareObject(Builder::setAggregations, (p, c) -> AggregatorFactories.parseAggregators(p), AGGREGATIONS);
+        parser.declareObject(Builder::setAggregations, (p, c) -> AggregatorFactories.parseAggregators(p), AGGS);
+        parser.declareObject(Builder::setScriptFields, (p, c) -> {
+            List<SearchSourceBuilder.ScriptField> parsedScriptFields = new ArrayList<>();
+            while (p.nextToken() != XContentParser.Token.END_OBJECT) {
+                parsedScriptFields.add(new SearchSourceBuilder.ScriptField(p));
+            }
+            parsedScriptFields.sort(Comparator.comparing(SearchSourceBuilder.ScriptField::fieldName));
+            return parsedScriptFields;
+        }, SCRIPT_FIELDS);
+        parser.declareInt(Builder::setScrollSize, SCROLL_SIZE);
+        // TODO this is to read former _source field. Remove in v7.0.0
+        parser.declareBoolean((builder, value) -> {
+        }, SOURCE);
+        parser.declareObject(Builder::setChunkingConfig, ignoreUnknownFields ? ChunkingConfig.LENIENT_PARSER : ChunkingConfig.STRICT_PARSER,
+            CHUNKING_CONFIG);
+
+        if (ignoreUnknownFields) {
+            // Headers are not parsed by the strict (config) parser, so headers supplied in the _body_ of a REST request will be rejected.
+            // (For config, headers are explicitly transferred from the auth headers by code in the put/update datafeed actions.)
+            parser.declareObject(Builder::setHeaders, (p, c) -> p.mapStrings(), HEADERS);
         }
-        // Headers are only parsed by the metadata parser, so headers supplied in the _body_ of a REST request will be rejected.
-        // (For config headers are explicitly transferred from the auth headers by code in the put/update datafeed actions.)
-        METADATA_PARSER.declareObject(Builder::setHeaders, (p, c) -> p.mapStrings(), HEADERS);
+
+        return parser;
     }
 
     private final String id;

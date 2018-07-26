@@ -397,7 +397,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
 
                         @Override
                         public void handleException(TransportException exp) {
-                            logger.trace(() -> new ParameterizedMessage("{} error while performing synced flush on [{}], skipping", shardId, shard), exp);
+                            logger.error(() -> new ParameterizedMessage("{} error while performing synced flush on [{}], skipping", shardId, shard), exp);
                             results.put(shard, new ShardSyncedFlushResponse(exp.getMessage()));
                             countDownAndSendResponseIfDone(syncId, shards, shardId, totalShards, listener, countDown, results);
                         }
@@ -474,7 +474,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
         indexShard.flush(flushRequest);
         final CommitStats commitStats = indexShard.commitStats();
         final Engine.CommitId commitId = commitStats.getRawCommitId();
-        logger.trace("{} pre sync flush done. commit id {}, num docs {}", request.shardId(), commitId, commitStats.getNumDocs());
+        logger.error("{} pre sync flush done. commit id {}, num docs {}", request.shardId(), commitId, commitStats.getNumDocs());
         return new PreSyncedFlushResponse(commitId, commitStats.getNumDocs(), commitStats.syncId());
     }
 

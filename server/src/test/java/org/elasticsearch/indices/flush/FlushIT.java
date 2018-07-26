@@ -278,8 +278,16 @@ public class FlushIT extends ESIntegTestCase {
                 indexDoc(IndexShardTestCase.getEngine(indexShard), "extra_" + i);
             }
         }
+
         final ShardsSyncedFlushResult fullResult = SyncedFlushUtil.attemptSyncedFlush(logger, internalCluster(), shardId);
+        assertBusy(() -> {
+            for (IndexShard shard : indexShards) {
+                assertThat(shard.routingEntry().toString(),
+                    shard.commitStats().getNumDocs(), equalTo(numDocs + extraDocs));
+            }
+        });
         assertThat(fullResult.totalShards(), equalTo(numberOfReplicas + 1));
+        assertThat(fullResult.failureReason(), nullValue());
         assertThat(fullResult.successfulShards(), equalTo(numberOfReplicas + 1));
     }
 

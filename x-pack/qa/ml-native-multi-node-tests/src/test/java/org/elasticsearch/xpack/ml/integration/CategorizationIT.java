@@ -11,13 +11,13 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.protocol.xpack.ml.job.config.AnalysisConfig;
+import org.elasticsearch.protocol.xpack.ml.job.config.DataDescription;
+import org.elasticsearch.protocol.xpack.ml.job.config.Detector;
+import org.elasticsearch.protocol.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
-import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
-import org.elasticsearch.xpack.core.ml.job.config.Detector;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.junit.After;
 import org.junit.Before;
 

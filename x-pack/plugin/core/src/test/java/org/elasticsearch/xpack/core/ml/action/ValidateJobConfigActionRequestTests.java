@@ -13,15 +13,15 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.protocol.xpack.ml.job.config.Job;
 import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.xpack.core.ml.action.ValidateJobConfigAction.Request;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.io.IOException;
 import java.util.Date;
 
-import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
-import static org.elasticsearch.xpack.core.ml.job.config.JobTests.randomValidJobId;
+import static org.elasticsearch.protocol.xpack.ml.job.config.JobTests.buildJobBuilder;
+import static org.elasticsearch.protocol.xpack.ml.job.config.JobTests.randomValidJobId;
 
 public class ValidateJobConfigActionRequestTests extends AbstractStreamableTestCase<Request> {
 

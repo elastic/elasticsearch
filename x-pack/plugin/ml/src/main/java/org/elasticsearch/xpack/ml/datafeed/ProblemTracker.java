@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
-import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.protocol.xpack.ml.messages.Messages;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 
 import java.util.Objects;

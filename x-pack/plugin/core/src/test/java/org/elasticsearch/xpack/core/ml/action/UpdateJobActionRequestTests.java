@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.protocol.xpack.ml.job.config.AnalysisLimits;
+import org.elasticsearch.protocol.xpack.ml.job.config.JobUpdate;
 import org.elasticsearch.test.AbstractStreamableTestCase;
-import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
-import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 
 public class UpdateJobActionRequestTests
         extends AbstractStreamableTestCase<UpdateJobAction.Request> {

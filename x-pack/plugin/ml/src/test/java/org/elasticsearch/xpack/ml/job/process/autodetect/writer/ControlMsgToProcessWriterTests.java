@@ -6,13 +6,13 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.protocol.xpack.ml.job.config.DetectionRule;
+import org.elasticsearch.protocol.xpack.ml.job.config.MlFilter;
+import org.elasticsearch.protocol.xpack.ml.job.config.ModelPlotConfig;
+import org.elasticsearch.protocol.xpack.ml.job.config.Operator;
+import org.elasticsearch.protocol.xpack.ml.job.config.RuleCondition;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
-import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
-import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
-import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
-import org.elasticsearch.xpack.core.ml.job.config.Operator;
-import org.elasticsearch.xpack.core.ml.job.config.RuleCondition;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;

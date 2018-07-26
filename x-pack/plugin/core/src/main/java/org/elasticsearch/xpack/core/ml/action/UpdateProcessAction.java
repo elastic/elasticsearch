@@ -15,10 +15,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.protocol.xpack.ml.job.config.JobUpdate;
+import org.elasticsearch.protocol.xpack.ml.job.config.MlFilter;
+import org.elasticsearch.protocol.xpack.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
-import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
-import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
 
 import java.io.IOException;
 import java.util.List;

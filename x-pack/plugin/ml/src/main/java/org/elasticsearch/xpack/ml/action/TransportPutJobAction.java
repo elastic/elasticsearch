@@ -18,6 +18,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.protocol.xpack.ml.PutJobRequest;
+import org.elasticsearch.protocol.xpack.ml.PutJobResponse;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -25,7 +27,7 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.ml.job.JobManager;
 
-public class TransportPutJobAction extends TransportMasterNodeAction<PutJobAction.Request, PutJobAction.Response> {
+public class TransportPutJobAction extends TransportMasterNodeAction<PutJobRequest, PutJobResponse> {
 
     private final JobManager jobManager;
     private final XPackLicenseState licenseState;
@@ -37,7 +39,7 @@ public class TransportPutJobAction extends TransportMasterNodeAction<PutJobActio
                                  IndexNameExpressionResolver indexNameExpressionResolver, JobManager jobManager,
                                  AnalysisRegistry analysisRegistry) {
         super(settings, PutJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, PutJobAction.Request::new);
+                indexNameExpressionResolver, PutJobRequest::new);
         this.licenseState = licenseState;
         this.jobManager = jobManager;
         this.analysisRegistry = analysisRegistry;
@@ -49,23 +51,23 @@ public class TransportPutJobAction extends TransportMasterNodeAction<PutJobActio
     }
 
     @Override
-    protected PutJobAction.Response newResponse() {
-        return new PutJobAction.Response();
+    protected PutJobResponse newResponse() {
+        return new PutJobResponse();
     }
 
     @Override
-    protected void masterOperation(PutJobAction.Request request, ClusterState state,
-                                   ActionListener<PutJobAction.Response> listener) throws Exception {
+    protected void masterOperation(PutJobRequest request, ClusterState state,
+                                   ActionListener<PutJobResponse> listener) throws Exception {
         jobManager.putJob(request, analysisRegistry, state, listener);
     }
 
     @Override
-    protected ClusterBlockException checkBlock(PutJobAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(PutJobRequest request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override
-    protected void doExecute(Task task, PutJobAction.Request request, ActionListener<PutJobAction.Response> listener) {
+    protected void doExecute(Task task, PutJobRequest request, ActionListener<PutJobResponse> listener) {
         if (licenseState.isMachineLearningAllowed()) {
             super.doExecute(task, request, listener);
         } else {

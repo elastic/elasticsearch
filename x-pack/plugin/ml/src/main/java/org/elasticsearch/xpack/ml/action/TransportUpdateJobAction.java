@@ -15,13 +15,13 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.protocol.xpack.ml.PutJobResponse;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.ml.job.JobManager;
 
-public class TransportUpdateJobAction extends TransportMasterNodeAction<UpdateJobAction.Request, PutJobAction.Response> {
+public class TransportUpdateJobAction extends TransportMasterNodeAction<UpdateJobAction.Request, PutJobResponse> {
 
     private final JobManager jobManager;
 
@@ -40,12 +40,12 @@ public class TransportUpdateJobAction extends TransportMasterNodeAction<UpdateJo
     }
 
     @Override
-    protected PutJobAction.Response newResponse() {
-        return new PutJobAction.Response();
+    protected PutJobResponse newResponse() {
+        return new PutJobResponse();
     }
 
     @Override
-    protected void masterOperation(UpdateJobAction.Request request, ClusterState state, ActionListener<PutJobAction.Response> listener) {
+    protected void masterOperation(UpdateJobAction.Request request, ClusterState state, ActionListener<PutJobResponse> listener) {
         jobManager.updateJob(request, listener);
     }
 

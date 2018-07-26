@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
-import org.elasticsearch.xpack.core.ml.utils.time.DateTimeFormatterTimestampConverter;
-import org.elasticsearch.xpack.core.ml.utils.time.TimestampConverter;
+import org.elasticsearch.protocol.xpack.ml.utils.DateTimeFormatterTimestampConverter;
+import org.elasticsearch.protocol.xpack.ml.utils.TimestampConverter;
 
 import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;

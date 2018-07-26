@@ -20,9 +20,9 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.protocol.xpack.ml.job.config.Job;
+import org.elasticsearch.protocol.xpack.ml.utils.MachineLearningConstants;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xpack.core.ml.MachineLearningField;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -69,7 +69,7 @@ public class CloseJobAction extends Action<CloseJobAction.Response> {
         private boolean allowNoJobs = true;
         // A big state can take a while to persist.  For symmetry with the _open endpoint any
         // changes here should be reflected there too.
-        private TimeValue timeout = MachineLearningField.STATE_PERSIST_RESTORE_TIMEOUT;
+        private TimeValue timeout = MachineLearningConstants.STATE_PERSIST_RESTORE_TIMEOUT;
 
         private String[] openJobIds;
 

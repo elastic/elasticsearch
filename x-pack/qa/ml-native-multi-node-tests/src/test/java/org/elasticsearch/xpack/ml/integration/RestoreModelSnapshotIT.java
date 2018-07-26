@@ -7,11 +7,11 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.protocol.xpack.ml.job.config.AnalysisConfig;
+import org.elasticsearch.protocol.xpack.ml.job.config.DataDescription;
+import org.elasticsearch.protocol.xpack.ml.job.config.Detector;
+import org.elasticsearch.protocol.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
-import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
-import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
-import org.elasticsearch.xpack.core.ml.job.config.Detector;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.junit.After;

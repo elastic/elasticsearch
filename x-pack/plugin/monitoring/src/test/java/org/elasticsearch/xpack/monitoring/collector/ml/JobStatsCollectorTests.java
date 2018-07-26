@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction.Response;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction.Response.JobStats;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.client.MachineLearningClient;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.protocol.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.BaseCollectorTestCase;

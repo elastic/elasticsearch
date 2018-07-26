@@ -9,11 +9,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.protocol.xpack.ml.PutJobRequest;
+import org.elasticsearch.protocol.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 
 import java.util.concurrent.CountDownLatch;
@@ -27,7 +28,7 @@ public class DeleteJobIT extends BaseMlIntegTestCase {
     public void testWaitForDelete() throws ExecutionException, InterruptedException {
         final String jobId = "wait-for-delete-job";
         Job.Builder job = createJob(jobId);
-        PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
+        PutJobRequest putJobRequest = new PutJobRequest(job);
         client().execute(PutJobAction.INSTANCE, putJobRequest).get();
 
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();

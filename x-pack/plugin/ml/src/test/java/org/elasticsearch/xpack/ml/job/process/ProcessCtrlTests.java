@@ -10,18 +10,18 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.protocol.xpack.ml.job.config.AnalysisConfig;
+import org.elasticsearch.protocol.xpack.ml.job.config.DataDescription;
+import org.elasticsearch.protocol.xpack.ml.job.config.Detector;
+import org.elasticsearch.protocol.xpack.ml.job.config.Job;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
-import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
-import org.elasticsearch.xpack.core.ml.job.config.Detector;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
+import static org.elasticsearch.protocol.xpack.ml.job.config.JobTests.buildJobBuilder;
 
 public class ProcessCtrlTests extends ESTestCase {
 

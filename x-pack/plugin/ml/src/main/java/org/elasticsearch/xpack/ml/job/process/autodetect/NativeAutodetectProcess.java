@@ -9,11 +9,13 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.core.ml.MachineLearningField;
+import org.elasticsearch.protocol.xpack.ml.job.config.DetectionRule;
+import org.elasticsearch.protocol.xpack.ml.job.config.MlFilter;
+import org.elasticsearch.protocol.xpack.ml.job.config.ModelPlotConfig;
+import org.elasticsearch.protocol.xpack.ml.utils.ExceptionsHelper;
+import org.elasticsearch.protocol.xpack.ml.utils.MachineLearningConstants;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
-import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
-import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
-import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
 import org.elasticsearch.xpack.ml.job.process.NativeControllerHolder;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutodetectResultsParser;
@@ -21,12 +23,10 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.output.StateProcessor;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.ForecastParams;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.ControlMsgToProcessWriter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.LengthEncodedWriter;
 import org.elasticsearch.xpack.ml.job.process.logging.CppLogMessageHandler;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.BufferedOutputStream;
 import java.io.IOException;
@@ -208,7 +208,7 @@ class NativeAutodetectProcess implements AutodetectProcess {
             // to the state processor - it may take a long time for all the model state to be
             // indexed
             if (stateProcessorFuture != null) {
-                stateProcessorFuture.get(MachineLearningField.STATE_PERSIST_RESTORE_TIMEOUT.getMinutes(), TimeUnit.MINUTES);
+                stateProcessorFuture.get(MachineLearningConstants.STATE_PERSIST_RESTORE_TIMEOUT.getMinutes(), TimeUnit.MINUTES);
             }
             // the log processor should have stopped by now too - assume processing the logs will
             // take no more than 5 seconds longer than processing the state (usually it should

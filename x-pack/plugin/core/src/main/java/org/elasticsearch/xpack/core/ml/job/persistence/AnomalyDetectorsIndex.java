@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ml.job.persistence;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.protocol.xpack.ml.utils.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 
 /**

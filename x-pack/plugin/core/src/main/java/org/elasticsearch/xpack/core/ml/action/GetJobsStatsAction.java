@@ -25,14 +25,14 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.protocol.xpack.ml.job.config.Job;
+import org.elasticsearch.protocol.xpack.ml.job.stats.DataCounts;
+import org.elasticsearch.protocol.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -202,7 +202,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Response> {
             public ModelSizeStats getModelSizeStats() {
                 return modelSizeStats;
             }
-            
+
             public ForecastStats getForecastStats() {
                 return forecastStats;
             }
@@ -242,7 +242,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Response> {
                 if (forecastStats != null) {
                     builder.field(FORECASTS_STATS, forecastStats);
                 }
-                
+
                 builder.field(STATE, state.toString());
                 if (node != null) {
                     builder.startObject(NODE);

@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.protocol.xpack.ml.job.config.JobUpdate;
+import org.elasticsearch.protocol.xpack.ml.job.config.MlFilter;
+import org.elasticsearch.protocol.xpack.ml.job.config.MlFilterTests;
+import org.elasticsearch.protocol.xpack.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.test.AbstractStreamableTestCase;
-import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
-import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
-import org.elasticsearch.xpack.core.ml.job.config.MlFilterTests;
-import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
 
 import java.util.ArrayList;
 import java.util.List;

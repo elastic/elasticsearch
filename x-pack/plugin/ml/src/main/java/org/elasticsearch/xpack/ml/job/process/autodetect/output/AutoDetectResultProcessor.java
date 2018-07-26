@@ -17,11 +17,11 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
-import org.elasticsearch.xpack.core.ml.MachineLearningField;
-import org.elasticsearch.xpack.core.ml.action.PutJobAction;
+import org.elasticsearch.protocol.xpack.ml.PutJobResponse;
+import org.elasticsearch.protocol.xpack.ml.job.config.JobUpdate;
+import org.elasticsearch.protocol.xpack.ml.messages.Messages;
+import org.elasticsearch.protocol.xpack.ml.utils.MachineLearningConstants;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
-import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
-import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
@@ -349,9 +349,9 @@ public class AutoDetectResultProcessor {
             return;
         }
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, UpdateJobAction.INSTANCE, updateRequest, new ActionListener<PutJobAction.Response>() {
+        executeAsyncWithOrigin(client, ML_ORIGIN, UpdateJobAction.INSTANCE, updateRequest, new ActionListener<PutJobResponse>() {
             @Override
-            public void onResponse(PutJobAction.Response response) {
+            public void onResponse(PutJobResponse response) {
                 updateModelSnapshotSemaphore.release();
                 LOGGER.debug("[{}] Updated job with model snapshot id [{}]", jobId, modelSnapshot.getSnapshotId());
             }
@@ -436,9 +436,9 @@ public class AutoDetectResultProcessor {
                 updateRequest.setWaitForAck(false);
 
                 executeAsyncWithOrigin(client, ML_ORIGIN, UpdateJobAction.INSTANCE, updateRequest,
-                    new ActionListener<PutJobAction.Response>() {
+                    new ActionListener<PutJobResponse>() {
                     @Override
-                    public void onResponse(PutJobAction.Response response) {
+                    public void onResponse(PutJobResponse response) {
                         latestEstablishedModelMemory = establishedModelMemory;
                         LOGGER.debug("[{}] Updated job with established model memory [{}]", jobId, establishedModelMemory);
                     }
@@ -457,7 +457,7 @@ public class AutoDetectResultProcessor {
         try {
             // Although the results won't take 30 minutes to finish, the pipe won't be closed
             // until the state is persisted, and that can take a while
-            if (completionLatch.await(MachineLearningField.STATE_PERSIST_RESTORE_TIMEOUT.getMinutes(),
+            if (completionLatch.await(MachineLearningConstants.STATE_PERSIST_RESTORE_TIMEOUT.getMinutes(),
                     TimeUnit.MINUTES) == false) {
                 throw new TimeoutException("Timed out waiting for results processor to complete for job " + jobId);
             }

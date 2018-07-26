@@ -29,27 +29,27 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.protocol.xpack.ml.PutJobRequest;
+import org.elasticsearch.protocol.xpack.ml.PutJobResponse;
+import org.elasticsearch.protocol.xpack.ml.job.config.AnalysisLimits;
+import org.elasticsearch.protocol.xpack.ml.job.config.CategorizationAnalyzerConfig;
+import org.elasticsearch.protocol.xpack.ml.job.config.DataDescription;
+import org.elasticsearch.protocol.xpack.ml.job.config.Job;
+import org.elasticsearch.protocol.xpack.ml.job.config.JobUpdate;
+import org.elasticsearch.protocol.xpack.ml.job.config.MlFilter;
+import org.elasticsearch.protocol.xpack.ml.messages.Messages;
+import org.elasticsearch.protocol.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
-import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
-import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
-import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
-import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
-import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
-import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
-import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.JobStorageDeletionTask;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
@@ -107,9 +107,9 @@ public class JobManager extends AbstractComponent {
         this.client = Objects.requireNonNull(client);
         this.updateJobProcessNotifier = updateJobProcessNotifier;
 
-        maxModelMemoryLimit = MachineLearningField.MAX_MODEL_MEMORY_LIMIT.get(settings);
+        maxModelMemoryLimit = MachineLearning.MAX_MODEL_MEMORY_LIMIT.get(settings);
         clusterService.getClusterSettings()
-                .addSettingsUpdateConsumer(MachineLearningField.MAX_MODEL_MEMORY_LIMIT, this::setMaxModelMemoryLimit);
+                .addSettingsUpdateConsumer(MachineLearning.MAX_MODEL_MEMORY_LIMIT, this::setMaxModelMemoryLimit);
     }
 
     private void setMaxModelMemoryLimit(ByteSizeValue maxModelMemoryLimit) {
@@ -191,8 +191,8 @@ public class JobManager extends AbstractComponent {
     /**
      * Stores a job in the cluster state
      */
-    public void putJob(PutJobAction.Request request, AnalysisRegistry analysisRegistry, ClusterState state,
-                       ActionListener<PutJobAction.Response> actionListener) throws IOException {
+    public void putJob(PutJobRequest request, AnalysisRegistry analysisRegistry, ClusterState state,
+                       ActionListener<PutJobResponse> actionListener) throws IOException {
 
         request.getJobBuilder().validateAnalysisLimitsAndSetDefaults(maxModelMemoryLimit);
         validateCategorizationAnalyzer(request.getJobBuilder(), analysisRegistry, environment);
@@ -217,11 +217,11 @@ public class JobManager extends AbstractComponent {
             public void onResponse(Boolean indicesCreated) {
 
                 clusterService.submitStateUpdateTask("put-job-" + job.getId(),
-                        new AckedClusterStateUpdateTask<PutJobAction.Response>(request, actionListener) {
+                        new AckedClusterStateUpdateTask<PutJobResponse>(request, actionListener) {
                             @Override
-                            protected PutJobAction.Response newResponse(boolean acknowledged) {
+                            protected PutJobResponse newResponse(boolean acknowledged) {
                                 auditor.info(job.getId(), Messages.getMessage(Messages.JOB_AUDIT_CREATED));
-                                return new PutJobAction.Response(job);
+                                return new PutJobResponse(job);
                             }
 
                             @Override
@@ -257,7 +257,7 @@ public class JobManager extends AbstractComponent {
         jobProvider.checkForLeftOverDocuments(job, checkForLeftOverDocs);
     }
 
-    public void updateJob(UpdateJobAction.Request request, ActionListener<PutJobAction.Response> actionListener) {
+    public void updateJob(UpdateJobAction.Request request, ActionListener<PutJobResponse> actionListener) {
         Job job = getJobOrThrowIfUnknown(request.getJobId());
         validate(request.getJobUpdate(), job, ActionListener.wrap(
                 nullValue -> internalJobUpdate(request, actionListener),
@@ -323,16 +323,16 @@ public class JobManager extends AbstractComponent {
         });
     }
 
-    private void internalJobUpdate(UpdateJobAction.Request request, ActionListener<PutJobAction.Response> actionListener) {
+    private void internalJobUpdate(UpdateJobAction.Request request, ActionListener<PutJobResponse> actionListener) {
         if (request.isWaitForAck()) {
             // Use the ack cluster state update
             clusterService.submitStateUpdateTask("update-job-" + request.getJobId(),
-                    new AckedClusterStateUpdateTask<PutJobAction.Response>(request, actionListener) {
+                    new AckedClusterStateUpdateTask<PutJobResponse>(request, actionListener) {
                         private AtomicReference<Job> updatedJob = new AtomicReference<>();
 
                         @Override
-                        protected PutJobAction.Response newResponse(boolean acknowledged) {
-                            return new PutJobAction.Response(updatedJob.get());
+                        protected PutJobResponse newResponse(boolean acknowledged) {
+                            return new PutJobResponse(updatedJob.get());
                         }
 
                         @Override
@@ -366,7 +366,7 @@ public class JobManager extends AbstractComponent {
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     afterClusterStateUpdate(newState, request);
-                    actionListener.onResponse(new PutJobAction.Response(updatedJob.get()));
+                    actionListener.onResponse(new PutJobResponse(updatedJob.get()));
                 }
             });
         }

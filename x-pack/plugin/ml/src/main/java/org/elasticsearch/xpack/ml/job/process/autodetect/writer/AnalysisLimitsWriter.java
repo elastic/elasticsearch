@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
-import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
+import org.elasticsearch.protocol.xpack.ml.job.config.AnalysisLimits;
 
 import java.io.IOException;
 import java.io.OutputStreamWriter;

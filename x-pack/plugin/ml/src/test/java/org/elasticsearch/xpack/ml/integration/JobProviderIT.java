@@ -19,6 +19,18 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.protocol.xpack.ml.PutJobRequest;
+import org.elasticsearch.protocol.xpack.ml.job.config.AnalysisConfig;
+import org.elasticsearch.protocol.xpack.ml.job.config.DataDescription;
+import org.elasticsearch.protocol.xpack.ml.job.config.DetectionRule;
+import org.elasticsearch.protocol.xpack.ml.job.config.Detector;
+import org.elasticsearch.protocol.xpack.ml.job.config.Job;
+import org.elasticsearch.protocol.xpack.ml.job.config.MlFilter;
+import org.elasticsearch.protocol.xpack.ml.job.config.RuleAction;
+import org.elasticsearch.protocol.xpack.ml.job.config.RuleScope;
+import org.elasticsearch.protocol.xpack.ml.job.stats.DataCounts;
+import org.elasticsearch.protocol.xpack.ml.job.stats.DataCountsTests;
+import org.elasticsearch.protocol.xpack.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
@@ -26,17 +38,7 @@ import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
-import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
-import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
-import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
-import org.elasticsearch.xpack.core.ml.job.config.Detector;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
-import org.elasticsearch.xpack.core.ml.job.config.RuleAction;
-import org.elasticsearch.xpack.core.ml.job.config.RuleScope;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCountsTests;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
@@ -70,7 +72,6 @@ import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.collection.IsEmptyCollection.empty;
 import static org.hamcrest.core.Is.is;
-
 
 public class JobProviderIT extends MlSingleNodeTestCase {
 
@@ -502,7 +503,7 @@ public class JobProviderIT extends MlSingleNodeTestCase {
         builder.setAnalysisConfig(ac);
         builder.setDataDescription(dc);
 
-        PutJobAction.Request request = new PutJobAction.Request(builder);
+        PutJobRequest request = new PutJobRequest(builder);
         client().execute(PutJobAction.INSTANCE, request).actionGet();
         return builder;
     }
@@ -530,7 +531,7 @@ public class JobProviderIT extends MlSingleNodeTestCase {
         for (ScheduledEvent event : events) {
             IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE);
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(MlMetaIndex.INCLUDE_TYPE_KEY, "true"));
+                ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.INCLUDE_TYPE_KEY, "true"));
                 indexRequest.source(event.toXContent(builder, params));
                 bulkRequest.add(indexRequest);
             }
@@ -573,7 +574,7 @@ public class JobProviderIT extends MlSingleNodeTestCase {
         for (MlFilter filter : filters) {
             IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, filter.documentId());
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(MlMetaIndex.INCLUDE_TYPE_KEY, "true"));
+                ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.INCLUDE_TYPE_KEY, "true"));
                 indexRequest.source(filter.toXContent(builder, params));
                 bulkRequest.add(indexRequest);
             }
@@ -603,7 +604,7 @@ public class JobProviderIT extends MlSingleNodeTestCase {
         for (Calendar calendar: calendars) {
             IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, calendar.documentId());
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(MlMetaIndex.INCLUDE_TYPE_KEY, "true"));
+                ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.INCLUDE_TYPE_KEY, "true"));
                 indexRequest.source(calendar.toXContent(builder, params));
                 bulkRequest.add(indexRequest);
             }

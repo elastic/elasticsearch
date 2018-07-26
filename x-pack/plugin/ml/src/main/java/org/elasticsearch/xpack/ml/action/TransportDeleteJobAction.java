@@ -23,17 +23,17 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksService;
+import org.elasticsearch.protocol.xpack.ml.utils.MachineLearningConstants;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.KillProcessAction;
 import org.elasticsearch.xpack.core.ml.job.persistence.JobStorageDeletionTask;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.xpack.ml.job.JobManager;
 
 import java.util.concurrent.TimeoutException;
@@ -89,7 +89,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                         // recreated after the delete returns.  However, if a force
                         // delete times out then eventually kick off a parallel delete
                         // in case the original completely failed for some reason.
-                        waitForDeletingJob(request.getJobId(), MachineLearningField.STATE_PERSIST_RESTORE_TIMEOUT,
+                        waitForDeletingJob(request.getJobId(), MachineLearningConstants.STATE_PERSIST_RESTORE_TIMEOUT,
                                 ActionListener.wrap(
                                 listener::onResponse,
                                 e2 -> {

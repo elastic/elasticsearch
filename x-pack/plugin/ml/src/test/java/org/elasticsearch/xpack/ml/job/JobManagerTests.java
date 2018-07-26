@@ -20,19 +20,20 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.protocol.xpack.ml.PutJobRequest;
+import org.elasticsearch.protocol.xpack.ml.PutJobResponse;
+import org.elasticsearch.protocol.xpack.ml.job.config.AnalysisConfig;
+import org.elasticsearch.protocol.xpack.ml.job.config.DataDescription;
+import org.elasticsearch.protocol.xpack.ml.job.config.DetectionRule;
+import org.elasticsearch.protocol.xpack.ml.job.config.Detector;
+import org.elasticsearch.protocol.xpack.ml.job.config.Job;
+import org.elasticsearch.protocol.xpack.ml.job.config.MlFilter;
+import org.elasticsearch.protocol.xpack.ml.job.config.RuleScope;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
-import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
-import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
-import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
-import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
-import org.elasticsearch.xpack.core.ml.job.config.Detector;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
-import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
-import org.elasticsearch.xpack.core.ml.job.config.RuleScope;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzerTests;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.UpdateParams;
@@ -49,7 +50,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.TreeSet;
 
-import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
+import static org.elasticsearch.protocol.xpack.ml.job.config.JobTests.buildJobBuilder;
 import static org.elasticsearch.xpack.ml.action.TransportOpenJobActionTests.addJobTask;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -118,7 +119,7 @@ public class JobManagerTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testPutJob_AddsCreateTime() throws IOException {
         JobManager jobManager = createJobManager();
-        PutJobAction.Request putJobRequest = new PutJobAction.Request(createJob());
+        PutJobRequest putJobRequest = new PutJobRequest(createJob());
 
         doAnswer(invocation -> {
             AckedClusterStateUpdateTask<Boolean> task = (AckedClusterStateUpdateTask<Boolean>) invocation.getArguments()[1];
@@ -135,9 +136,9 @@ public class JobManagerTests extends ESTestCase {
 
         ClusterState clusterState = createClusterState();
 
-        jobManager.putJob(putJobRequest, analysisRegistry, clusterState, new ActionListener<PutJobAction.Response>() {
+        jobManager.putJob(putJobRequest, analysisRegistry, clusterState, new ActionListener<PutJobResponse>() {
             @Override
-            public void onResponse(PutJobAction.Response response) {
+            public void onResponse(PutJobResponse response) {
                 Job job = requestCaptor.getValue();
                 assertNotNull(job.getCreateTime());
                 Date now = new Date();
@@ -155,16 +156,16 @@ public class JobManagerTests extends ESTestCase {
 
     public void testPutJob_ThrowsIfJobExists() throws IOException {
         JobManager jobManager = createJobManager();
-        PutJobAction.Request putJobRequest = new PutJobAction.Request(createJob());
+        PutJobRequest putJobRequest = new PutJobRequest(createJob());
 
         MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
         mlMetadata.putJob(buildJobBuilder("foo").build(), false);
         ClusterState clusterState = ClusterState.builder(new ClusterName("name"))
                 .metaData(MetaData.builder().putCustom(MlMetadata.TYPE, mlMetadata.build())).build();
 
-        jobManager.putJob(putJobRequest, analysisRegistry, clusterState, new ActionListener<PutJobAction.Response>() {
+        jobManager.putJob(putJobRequest, analysisRegistry, clusterState, new ActionListener<PutJobResponse>() {
             @Override
-            public void onResponse(PutJobAction.Response response) {
+            public void onResponse(PutJobResponse response) {
                 fail("should have got an error");
             }
 
@@ -402,7 +403,7 @@ public class JobManagerTests extends ESTestCase {
 
     private JobManager createJobManager() {
         ClusterSettings clusterSettings = new ClusterSettings(environment.settings(),
-                Collections.singleton(MachineLearningField.MAX_MODEL_MEMORY_LIMIT));
+                Collections.singleton(MachineLearning.MAX_MODEL_MEMORY_LIMIT));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         return new JobManager(environment, environment.settings(), jobProvider, clusterService, auditor, client, updateJobProcessNotifier);
     }

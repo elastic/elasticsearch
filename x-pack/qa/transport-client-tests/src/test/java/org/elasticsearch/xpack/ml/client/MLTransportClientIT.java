@@ -9,6 +9,12 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.protocol.xpack.ml.PutJobRequest;
+import org.elasticsearch.protocol.xpack.ml.PutJobResponse;
+import org.elasticsearch.protocol.xpack.ml.job.config.AnalysisConfig;
+import org.elasticsearch.protocol.xpack.ml.job.config.DataDescription;
+import org.elasticsearch.protocol.xpack.ml.job.config.Detector;
+import org.elasticsearch.protocol.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.core.XPackClient;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
@@ -20,7 +26,6 @@ import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.PostDataAction;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
-import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
@@ -28,10 +33,6 @@ import org.elasticsearch.xpack.core.ml.action.ValidateDetectorAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateJobConfigAction;
 import org.elasticsearch.xpack.core.ml.client.MachineLearningClient;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
-import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
-import org.elasticsearch.xpack.core.ml.job.config.Detector;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -53,7 +54,7 @@ public class MLTransportClientIT extends ESXPackSmokeClientTestCase {
         String jobId = "ml-transport-client-it-job";
         Job.Builder job = createJob(jobId);
 
-        PutJobAction.Response putJobResponse = mlClient.putJob(new PutJobAction.Request(job)).actionGet();
+        PutJobResponse putJobResponse = mlClient.putJob(new PutJobRequest(job)).actionGet();
         assertThat(putJobResponse, notNullValue());
 
         GetJobsAction.Response getJobResponse = mlClient.getJobs(new GetJobsAction.Request(jobId)).actionGet();
@@ -128,7 +129,7 @@ public class MLTransportClientIT extends ESXPackSmokeClientTestCase {
         String jobId = "ml-transport-client-it-datafeed-job";
         Job.Builder job = createJob(jobId);
 
-        PutJobAction.Response putJobResponse = mlClient.putJob(new PutJobAction.Request(job)).actionGet();
+        PutJobResponse putJobResponse = mlClient.putJob(new PutJobRequest(job)).actionGet();
         assertThat(putJobResponse, notNullValue());
 
         String datafeedId = "ml-transport-client-it-datafeed";

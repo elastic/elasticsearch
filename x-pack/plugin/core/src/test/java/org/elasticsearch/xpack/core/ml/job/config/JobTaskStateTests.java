@@ -1,0 +1,28 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+package org.elasticsearch.xpack.core.ml.job.config;
+
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractSerializingTestCase;
+
+public class JobTaskStateTests extends AbstractSerializingTestCase<JobTaskState> {
+
+    @Override
+    protected JobTaskState createTestInstance() {
+        return new JobTaskState(randomFrom(JobState.values()), randomLong());
+    }
+
+    @Override
+    protected Writeable.Reader<JobTaskState> instanceReader() {
+        return JobTaskState::new;
+    }
+
+    @Override
+    protected JobTaskState doParseInstance(XContentParser parser) {
+        return JobTaskState.fromXContent(parser);
+    }
+}

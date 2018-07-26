@@ -19,13 +19,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.protocol.xpack.ml.utils.ExceptionsHelper;
+import org.elasticsearch.protocol.xpack.ml.utils.ToXContentParams;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.action.PostCalendarEventsAction;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 
@@ -66,7 +67,7 @@ public class TransportPostCalendarEventsAction extends HandledTransportAction<Po
                         IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE);
                         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                             indexRequest.source(event.toXContent(builder,
-                                    new ToXContent.MapParams(Collections.singletonMap(MlMetaIndex.INCLUDE_TYPE_KEY,
+                                    new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.INCLUDE_TYPE_KEY,
                                             "true"))));
                         } catch (IOException e) {
                             throw new IllegalStateException("Failed to serialise event", e);

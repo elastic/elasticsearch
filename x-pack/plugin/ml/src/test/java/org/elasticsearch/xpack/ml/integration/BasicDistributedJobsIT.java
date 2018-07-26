@@ -18,6 +18,11 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
+import org.elasticsearch.protocol.xpack.ml.PutJobRequest;
+import org.elasticsearch.protocol.xpack.ml.job.config.AnalysisConfig;
+import org.elasticsearch.protocol.xpack.ml.job.config.DataDescription;
+import org.elasticsearch.protocol.xpack.ml.job.config.Detector;
+import org.elasticsearch.protocol.xpack.ml.job.config.Job;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
@@ -34,10 +39,6 @@ import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
-import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
-import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
-import org.elasticsearch.xpack.core.ml.job.config.Detector;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -60,7 +61,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         ensureStableCluster(4);
 
         Job.Builder job = createJob("fail-over-basics-job", new ByteSizeValue(2, ByteSizeUnit.MB));
-        PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
+        PutJobRequest putJobRequest = new PutJobRequest(job);
         client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
         ensureGreen();
         OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());
@@ -90,7 +91,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         job.setAnalysisConfig(analysisConfig);
         job.setDataDescription(new DataDescription.Builder());
 
-        PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
+        PutJobRequest putJobRequest = new PutJobRequest(job);
         client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
         DatafeedConfig.Builder configBuilder = createDatafeedBuilder("data_feed_id", job.getId(), Collections.singletonList("*"));
 
@@ -162,7 +163,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         refresh();
 
         Job.Builder job = createScheduledJob("job_id");
-        PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
+        PutJobRequest putJobRequest = new PutJobRequest(job);
         client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
 
         DatafeedConfig config = createDatafeed("data_feed_id", job.getId(), Collections.singletonList("data"));
@@ -198,7 +199,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
         String jobId = "dedicated-ml-node-job";
         Job.Builder job = createJob(jobId, new ByteSizeValue(2, ByteSizeUnit.MB));
-        PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
+        PutJobRequest putJobRequest = new PutJobRequest(job);
         client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
 
         OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());
@@ -279,7 +280,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         int numJobs = numMlNodes * 10;
         for (int i = 0; i < numJobs; i++) {
             Job.Builder job = createJob(Integer.toString(i), new ByteSizeValue(2, ByteSizeUnit.MB));
-            PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
+            PutJobRequest putJobRequest = new PutJobRequest(job);
             client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
 
             OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());
@@ -339,7 +340,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
         String jobId = "ml-indices-not-available-job";
         Job.Builder job = createFareQuoteJob(jobId);
-        PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
+        PutJobRequest putJobRequest = new PutJobRequest(job);
         client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
 
         OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());

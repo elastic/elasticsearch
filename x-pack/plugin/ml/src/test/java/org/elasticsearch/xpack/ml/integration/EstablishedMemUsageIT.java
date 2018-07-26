@@ -6,9 +6,10 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.protocol.xpack.ml.PutJobRequest;
+import org.elasticsearch.protocol.xpack.ml.job.config.AnalysisConfig;
+import org.elasticsearch.protocol.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
-import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
@@ -217,7 +218,7 @@ public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
         ensureStableCluster(1);
 
         Job.Builder job = createJob(jobId);
-        PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
+        PutJobRequest putJobRequest = new PutJobRequest(job);
         client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
     }
 

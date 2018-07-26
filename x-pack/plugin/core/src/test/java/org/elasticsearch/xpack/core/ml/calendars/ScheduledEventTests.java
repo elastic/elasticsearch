@@ -10,11 +10,11 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.protocol.xpack.ml.job.config.DetectionRule;
+import org.elasticsearch.protocol.xpack.ml.job.config.Operator;
+import org.elasticsearch.protocol.xpack.ml.job.config.RuleAction;
+import org.elasticsearch.protocol.xpack.ml.job.config.RuleCondition;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
-import org.elasticsearch.xpack.core.ml.job.config.Operator;
-import org.elasticsearch.xpack.core.ml.job.config.RuleAction;
-import org.elasticsearch.xpack.core.ml.job.config.RuleCondition;
 import org.joda.time.DateTime;
 
 import java.io.IOException;

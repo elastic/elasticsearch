@@ -18,13 +18,14 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.protocol.xpack.ml.PutJobResponse;
+import org.elasticsearch.protocol.xpack.ml.job.config.JobUpdate;
+import org.elasticsearch.protocol.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class UpdateJobAction extends Action<PutJobAction.Response> {
+public class UpdateJobAction extends Action<PutJobResponse> {
     public static final UpdateJobAction INSTANCE = new UpdateJobAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/update";
 
@@ -33,8 +34,8 @@ public class UpdateJobAction extends Action<PutJobAction.Response> {
     }
 
     @Override
-    public PutJobAction.Response newResponse() {
-        return new PutJobAction.Response();
+    public PutJobResponse newResponse() {
+        return new PutJobResponse();
     }
 
     public static class Request extends AcknowledgedRequest<UpdateJobAction.Request> implements ToXContentObject {
@@ -154,7 +155,7 @@ public class UpdateJobAction extends Action<PutJobAction.Response> {
         }
     }
 
-    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, PutJobAction.Response, RequestBuilder> {
+    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, PutJobResponse, RequestBuilder> {
 
         public RequestBuilder(ElasticsearchClient client, UpdateJobAction action) {
             super(client, action, new Request());

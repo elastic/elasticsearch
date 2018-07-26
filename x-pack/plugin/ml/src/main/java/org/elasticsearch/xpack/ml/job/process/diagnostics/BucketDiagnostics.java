@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.job.process.diagnostics;
 
-import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.protocol.xpack.ml.job.config.Job;
+import org.elasticsearch.protocol.xpack.ml.job.stats.DataCounts;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
 
 import java.util.Date;

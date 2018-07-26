@@ -12,7 +12,7 @@ Assuming the following index mapping:
 PUT /my_index
 {
     "mappings": {
-        "my_type": {
+        "_doc": {
             "properties": {
                 "post_date": { "type": "date" },
                 "user": {
@@ -31,7 +31,7 @@ PUT /my_index
 
 [source,js]
 --------------------------------------------------
-GET /my_index/my_type/_search
+GET /my_index/_search
 {
     "sort" : [
         { "post_date" : {"order" : "asc"}},
@@ -92,7 +92,7 @@ the average price per document.
 
 [source,js]
 --------------------------------------------------
-PUT /my_index/my_type/1?refresh
+PUT /my_index/_doc/1?refresh
 {
    "product": "chocolate",
    "price": [20, 4]
@@ -132,7 +132,7 @@ field support has a `nested` sort option with the following properties:
     current nested object.
 
 [WARNING]
-.Nested sort options before Elasticseach 6.1
+.Nested sort options before Elasticsearch 6.1
 ============================================
 
 The `nested_path` and `nested_filter` options have been deprecated in
@@ -143,7 +143,7 @@ favor of the options documented above.
 ===== Nested sorting examples
 
 In the below example `offer` is a field of type `nested`.
-The nested `path` needs to be specified; otherwise, elasticsearch doesn't know on what nested level sort values need to be captured.
+The nested `path` needs to be specified; otherwise, Elasticsearch doesn't know on what nested level sort values need to be captured.
 
 [source,js]
 --------------------------------------------------
@@ -171,7 +171,7 @@ POST /_search
 // CONSOLE
 
 In the below example `parent` and `child` fields are of type `nested`.
-The `nested_path` needs to be specified at each level; otherwise, elasticsearch doesn't know on what nested level sort values need to be captured.
+The `nested_path` needs to be specified at each level; otherwise, Elasticsearch doesn't know on what nested level sort values need to be captured.
 
 [source,js]
 --------------------------------------------------
@@ -288,8 +288,9 @@ GET /_search
                 "pin.location" : [-70, 40],
                 "order" : "asc",
                 "unit" : "km",
-		"mode" : "min",
-		"distance_type" : "arc"
+                "mode" : "min",
+                "distance_type" : "arc",
+                "ignore_unmapped": true
             }
         }
     ],
@@ -316,6 +317,12 @@ GET /_search
 `unit`::
 
     The unit to use when computing sort values. The default is `m` (meters).
+
+
+`ignore_unmapped`::
+
+    Indicates if the unmapped field should be treated as a missing value. Setting it to `true` is equivalent to specifying
+    an `unmapped_type` in the field sort. The default is `false` (unmapped field are causing the search to fail).
 
 NOTE: geo distance sorting does not support configurable missing values: the
 distance will always be considered equal to +Infinity+ when a document does not

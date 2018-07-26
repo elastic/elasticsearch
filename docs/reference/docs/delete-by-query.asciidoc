@@ -71,12 +71,11 @@ these documents. In case a search or bulk request got rejected, `_delete_by_quer
 If you'd like to count version conflicts rather than cause them to abort then
 set `conflicts=proceed` on the url or `"conflicts": "proceed"` in the request body.
 
-Back to the API format, you can limit `_delete_by_query` to a single type. This
-will only delete `tweet` documents from the `twitter` index:
+Back to the API format, this will delete tweets from the `twitter` index:
 
 [source,js]
 --------------------------------------------------
-POST twitter/tweet/_delete_by_query?conflicts=proceed
+POST twitter/_delete_by_query?conflicts=proceed
 {
   "query": {
     "match_all": {}
@@ -86,12 +85,12 @@ POST twitter/tweet/_delete_by_query?conflicts=proceed
 // CONSOLE
 // TEST[setup:twitter]
 
-It's also possible to delete documents of multiple indexes and multiple
-types at once, just like the search API:
+It's also possible to delete documents of multiple indexes at once, just like
+the search API:
 
 [source,js]
 --------------------------------------------------
-POST twitter,blog/tweet,post/_delete_by_query
+POST twitter,blog/_delete_by_query
 {
   "query": {
     "match_all": {}
@@ -142,7 +141,8 @@ POST twitter/_delete_by_query?scroll_size=5000
 === URL Parameters
 
 In addition to the standard parameters like `pretty`, the Delete By Query API
-also supports `refresh`, `wait_for_completion`, `wait_for_active_shards`, and `timeout`.
+also supports `refresh`, `wait_for_completion`, `wait_for_active_shards`, `timeout`
+and `scroll`.
 
 Sending the `refresh` will refresh all shards involved in the delete by query
 once the request completes. This is different than the Delete API's `refresh`
@@ -161,7 +161,9 @@ Elasticsearch can reclaim the space it uses.
 before proceeding with the request. See <<index-wait-for-active-shards,here>>
 for details. `timeout` controls how long each write request waits for unavailable
 shards to become available. Both work exactly how they work in the
-<<docs-bulk,Bulk API>>.
+<<docs-bulk,Bulk API>>. As `_delete_by_query` uses scroll search, you can also specify
+the `scroll` parameter to control how long it keeps the "search context" alive,
+eg `?scroll=10m`, by default it's 5 minutes.
 
 `requests_per_second` can be set to any positive decimal number (`1.4`, `6`,
 `1000`, etc) and throttles rate at which `_delete_by_query` issues batches of
@@ -282,9 +284,12 @@ executed again in order to conform to `requests_per_second`.
 
 `failures`::
 
-Array of all indexing failures. If this is non-empty then the request aborted
-because of those failures. See `conflicts` for how to prevent version conflicts
-from aborting the operation.
+Array of failures if there were any unrecoverable errors during the process. If
+this is non-empty then the request aborted because of those failures.
+Delete-by-query is implemented using batches and any failure causes the entire
+process to abort but all failures in the current batch are collected into the
+array. You can use the `conflicts` option to prevent reindex from aborting on
+version conflicts.
 
 
 [float]
@@ -352,9 +357,10 @@ With the task id you can look up the task directly:
 
 [source,js]
 --------------------------------------------------
-GET /_tasks/taskId:1
+GET /_tasks/task_id
 --------------------------------------------------
 // CONSOLE
+// TEST[s/task_id/node_id:1/]
 // TEST[catch:missing]
 
 The advantage of this API is that it integrates with `wait_for_completion=false`
@@ -373,8 +379,9 @@ Any Delete By Query can be canceled using the <<tasks,Task Cancel API>>:
 
 [source,js]
 --------------------------------------------------
-POST _tasks/task_id:1/_cancel
+POST _tasks/task_id/_cancel
 --------------------------------------------------
+// TEST[s/task_id/node_id:1/]
 // CONSOLE
 
 The `task_id` can be found using the tasks API above.
@@ -392,8 +399,9 @@ using the `_rethrottle` API:
 
 [source,js]
 --------------------------------------------------
-POST _delete_by_query/task_id:1/_rethrottle?requests_per_second=-1
+POST _delete_by_query/task_id/_rethrottle?requests_per_second=-1
 --------------------------------------------------
+// TEST[s/task_id/node_id:1/]
 // CONSOLE
 
 The `task_id` can be found using the tasks API above.
@@ -490,7 +498,7 @@ Which results in a sensible `total` like this one:
 ==== Automatic slicing
 
 You can also let delete-by-query automatically parallelize using
-<<sliced-scroll>> to slice on `_uid`. Use `slices` to specify the number of
+<<sliced-scroll>> to slice on `_id`. Use `slices` to specify the number of
 slices to use:
 
 [source,js]

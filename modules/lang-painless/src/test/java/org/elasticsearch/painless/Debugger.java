@@ -19,7 +19,8 @@
 
 package org.elasticsearch.painless;
 
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
+import org.elasticsearch.painless.spi.Whitelist;
 import org.objectweb.asm.util.Textifier;
 
 import java.io.PrintWriter;
@@ -39,12 +40,12 @@ final class Debugger {
         PrintWriter outputWriter = new PrintWriter(output);
         Textifier textifier = new Textifier();
         try {
-            new Compiler(iface, Definition.DEFINITION).compile("<debugging>", source, settings, textifier);
-        } catch (Exception e) {
+            new Compiler(iface, PainlessLookupBuilder.buildFromWhitelists(Whitelist.BASE_WHITELISTS))
+                    .compile("<debugging>", source, settings, textifier);
+        } catch (RuntimeException e) {
             textifier.print(outputWriter);
             e.addSuppressed(new Exception("current bytecode: \n" + output));
-            IOUtils.reThrowUnchecked(e);
-            throw new AssertionError();
+            throw e;
         }
 
         textifier.print(outputWriter);

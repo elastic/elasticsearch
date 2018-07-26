@@ -38,7 +38,7 @@ should keep the ``search context'' alive (see <<scroll-search-context>>), eg `?s
 
 [source,js]
 --------------------------------------------------
-POST /twitter/tweet/_search?scroll=1m
+POST /twitter/_search?scroll=1m
 {
     "size": 100,
     "query": {
@@ -78,9 +78,9 @@ returned with each batch of results.  Each call to the `scroll` API returns the
 next batch of results until there are no more results left to return, ie the 
 `hits` array is empty.
 
-IMPORTANT: The initial search request and each subsequent scroll request
-returns a new `_scroll_id` -- only the most recent `_scroll_id` should be
-used.
+IMPORTANT: The initial search request and each subsequent scroll request each 
+return a `_scroll_id`, which may change with each request -- only the most 
+recent `_scroll_id` should be used.
 
 NOTE: If the request specifies aggregations, only the initial search response
 will contain the aggregations results.
@@ -191,7 +191,7 @@ can be consumed independently:
 
 [source,js]
 --------------------------------------------------
-GET /twitter/tweet/_search?scroll=1m
+GET /twitter/_search?scroll=1m
 {
     "slice": {
         "id": 0, <1>
@@ -203,7 +203,7 @@ GET /twitter/tweet/_search?scroll=1m
         }
     }
 }
-GET /twitter/tweet/_search?scroll=1m
+GET /twitter/_search?scroll=1m
 {
     "slice": {
         "id": 1,
@@ -225,9 +225,9 @@ GET /twitter/tweet/_search?scroll=1m
 The result from the first request returned documents that belong to the first slice (id: 0) and the result from the
 second request returned documents that belong to the second slice. Since the maximum number of slices is set to 2
  the union of the results of the two requests is equivalent to the results of a scroll query without slicing.
-By default the splitting is done on the shards first and then locally on each shard using the _uid field
+By default the splitting is done on the shards first and then locally on each shard using the _id field
 with the following formula:
-`slice(doc) = floorMod(hashCode(doc._uid), max)`
+`slice(doc) = floorMod(hashCode(doc._id), max)`
 For instance if the number of shards is equal to 2 and the user requested 4 slices then the slices 0 and 2 are assigned
 to the first shard and the slices 1 and 3 are assigned to the second shard.
 
@@ -254,7 +254,7 @@ slice gets deterministic results.
 
 [source,js]
 --------------------------------------------------
-GET /twitter/tweet/_search?scroll=1m
+GET /twitter/_search?scroll=1m
 {
     "slice": {
         "field": "date",

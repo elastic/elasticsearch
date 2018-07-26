@@ -25,7 +25,6 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -37,7 +36,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.transport.MockTransportClient;
-import org.elasticsearch.transport.nio.NioTransportPlugin;
+import org.elasticsearch.transport.nio.MockNioTransportPlugin;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -86,10 +85,10 @@ public final class ExternalTestCluster extends TestCluster {
             String transport = getTestTransportType();
             clientSettingsBuilder.put(NetworkModule.TRANSPORT_TYPE_KEY, transport);
             if (pluginClasses.contains(MockTcpTransportPlugin.class) == false &&
-                pluginClasses.contains(NioTransportPlugin.class) == false) {
+                pluginClasses.contains(MockNioTransportPlugin.class) == false) {
                 pluginClasses = new ArrayList<>(pluginClasses);
-                if (transport.equals(NioTransportPlugin.NIO_TRANSPORT_NAME)) {
-                    pluginClasses.add(NioTransportPlugin.class);
+                if (transport.equals(MockNioTransportPlugin.MOCK_NIO_TRANSPORT_NAME)) {
+                    pluginClasses.add(MockNioTransportPlugin.class);
                 } else {
                     pluginClasses.add(MockTcpTransportPlugin.class);
                 }
@@ -168,6 +167,10 @@ public final class ExternalTestCluster extends TestCluster {
             for (NodeStats stats : nodeStats.getNodes()) {
                 assertThat("Fielddata breaker not reset to 0 on node: " + stats.getNode(),
                         stats.getBreaker().getStats(CircuitBreaker.FIELDDATA).getEstimated(), equalTo(0L));
+                assertThat("Accounting breaker not reset to " + stats.getIndices().getSegments().getMemoryInBytes() +
+                                " on node: " + stats.getNode(),
+                        stats.getBreaker().getStats(CircuitBreaker.ACCOUNTING).getEstimated(),
+                        equalTo(stats.getIndices().getSegments().getMemoryInBytes()));
                 // ExternalTestCluster does not check the request breaker,
                 // because checking it requires a network request, which in
                 // turn increments the breaker, making it non-0

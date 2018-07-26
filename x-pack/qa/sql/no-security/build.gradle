@@ -1,0 +1,9 @@
+integTestCluster {
+  setting 'xpack.security.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
+}
+
+runqa {
+  setting 'xpack.security.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
+}

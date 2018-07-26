@@ -87,7 +87,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
                 .fetchSource(false)
                 .query(QueryBuilders.termQuery("collate", randomBoolean() ? equilavent[0] : equilavent[1]))
                 .sort("collate")
-                .sort("_uid", SortOrder.DESC) // secondary sort should kick in because both will collate to same value
+                .sort("_id", SortOrder.DESC) // secondary sort should kick in because both will collate to same value
             );
 
         SearchResponse response = client().search(request).actionGet();
@@ -128,7 +128,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
                 .query(QueryBuilders.termQuery("collate", "a"))
                 // if mode max we use c and b as sort values, if max we use "a" for both
                 .sort(SortBuilders.fieldSort("collate").sortMode(SortMode.MAX).order(SortOrder.DESC))
-                .sort("_uid", SortOrder.DESC) // will be ignored
+                .sort("_id", SortOrder.DESC) // will be ignored
             );
 
         SearchResponse response = client().search(request).actionGet();
@@ -145,7 +145,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
                 .query(QueryBuilders.termQuery("collate", "a"))
                 // if mode max we use c and b as sort values, if max we use "a" for both
                 .sort(SortBuilders.fieldSort("collate").sortMode(SortMode.MIN).order(SortOrder.DESC))
-                .sort("_uid", SortOrder.DESC) // will NOT be ignored and will determine order
+                .sort("_id", SortOrder.DESC) // will NOT be ignored and will determine order
             );
 
         response = client().search(request).actionGet();
@@ -188,7 +188,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
                 .fetchSource(false)
                 .query(QueryBuilders.termQuery("collate", randomBoolean() ? equilavent[0] : equilavent[1]))
                 .sort("collate")
-                .sort("_uid", SortOrder.DESC) // secondary sort should kick in because both will collate to same value
+                .sort("_id", SortOrder.DESC) // secondary sort should kick in because both will collate to same value
             );
 
         SearchResponse response = client().search(request).actionGet();
@@ -230,7 +230,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
                 .fetchSource(false)
                 .query(QueryBuilders.termQuery("collate", randomBoolean() ? equilavent[0] : equilavent[1]))
                 .sort("collate")
-                .sort("_uid", SortOrder.DESC) // secondary sort should kick in because both will collate to same value
+                .sort("_id", SortOrder.DESC) // secondary sort should kick in because both will collate to same value
             );
 
         SearchResponse response = client().search(request).actionGet();
@@ -273,7 +273,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
                 .fetchSource(false)
                 .query(QueryBuilders.termQuery("collate", randomBoolean() ? equilavent[0] : equilavent[1]))
                 .sort("collate")
-                .sort("_uid", SortOrder.DESC) // secondary sort should kick in because both will collate to same value
+                .sort("_id", SortOrder.DESC) // secondary sort should kick in because both will collate to same value
             );
 
         SearchResponse response = client().search(request).actionGet();
@@ -316,7 +316,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .source(new SearchSourceBuilder()
                 .fetchSource(false)
                 .sort("collate", SortOrder.ASC)
-                .sort("_uid", SortOrder.ASC) // secondary sort should kick in on docs 1 and 3 because same value collate value
+                .sort("_id", SortOrder.ASC) // secondary sort should kick in on docs 1 and 3 because same value collate value
             );
 
         SearchResponse response = client().search(request).actionGet();
@@ -398,7 +398,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .source(new SearchSourceBuilder()
                 .fetchSource(false)
                 .sort("collate", SortOrder.ASC)
-                .sort("_uid", SortOrder.DESC)
+                .sort("_id", SortOrder.DESC)
             );
 
         SearchResponse response = client().search(request).actionGet();
@@ -492,7 +492,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
                 .fetchSource(false)
                 .query(QueryBuilders.termQuery("collate", randomBoolean() ? equilavent[0] : equilavent[1]))
                 .sort("collate", SortOrder.ASC)
-                .sort("_uid", SortOrder.DESC) // secondary sort should kick in because both will collate to same value
+                .sort("_id", SortOrder.DESC) // secondary sort should kick in because both will collate to same value
             );
 
         SearchResponse response = client().search(request).actionGet();

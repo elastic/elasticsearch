@@ -64,7 +64,7 @@ A type used to be a logical category/partition of your index to allow you to sto
 [float]
 === Document
 
-A document is a basic unit of information that can be indexed. For example, you can have a document for a single customer, another document for a single product, and yet another for a single order. This document is expressed in http://json.org/[JSON] (JavaScript Object Notation) which is an ubiquitous internet data interchange format.
+A document is a basic unit of information that can be indexed. For example, you can have a document for a single customer, another document for a single product, and yet another for a single order. This document is expressed in http://json.org/[JSON] (JavaScript Object Notation) which is a ubiquitous internet data interchange format.
 
 Within an index/type, you can store as many documents as you want. Note that although a document physically resides in an index, a document actually must be indexed/assigned to a type inside an index.
 
@@ -95,7 +95,7 @@ Replication is important for two primary reasons:
 To summarize, each index can be split into multiple shards. An index can also be replicated zero (meaning no replicas) or more times. Once replicated, each index will have primary shards (the original shards that were replicated from) and replica shards (the copies of the primary shards).
 The number of shards and replicas can be defined per index at the time the index is created. After the index is created, you may change the number of replicas dynamically anytime but you cannot change the number of shards after-the-fact.
 
-By default, each index in Elasticsearch is allocated 5 primary shards and 1 replica which means that if you have at least two nodes in your cluster, your index will have 5 primary shards and another 5 replica shards (1 complete replica) for a total of 10 shards per index.
+By default, each index in Elasticsearch is allocated one primary shard and one replica which means that if you have at least two nodes in your cluster, your index will have one primary shard and another replica shard (one complete replica) for a total of two shards per index.
 
 NOTE: Each Elasticsearch shard is a Lucene index.  There is a maximum number of documents you can have in a single Lucene index.  As of https://issues.apache.org/jira/browse/LUCENE-5843[`LUCENE-5843`], the limit is `2,147,483,519` (= Integer.MAX_VALUE - 128) documents.
 You can monitor shard sizes using the {ref}/cat-shards.html[`_cat/shards`] API.
@@ -103,6 +103,15 @@ You can monitor shard sizes using the {ref}/cat-shards.html[`_cat/shards`] API.
 With that out of the way, let's get started with the fun part...
 
 == Installation
+
+[TIP]
+==============
+You can skip having to install Elasticsearch by using our
+https://www.elastic.co/cloud/elasticsearch-service[hosted Elasticsearch Service]
+on Elastic Cloud. The Elasticsearch Service is available on both AWS and GCP.
+https://www.elastic.co/cloud/elasticsearch-service/signup[Try out the
+Elasticsearch Service for free].
+==============
 
 Elasticsearch requires at least Java 8. Specifically as of this writing, it is recommended that you use the Oracle JDK version {jdk}. Java installation varies from platform to platform so we won't go into those details here. Oracle's recommended installation documentation can be found on http://docs.oracle.com/javase/8/docs/technotes/guides/install/install_overview.html[Oracle's website]. Suffice to say, before you install Elasticsearch, please check your Java version first by running (and then install/upgrade accordingly if needed):
 
@@ -157,6 +166,9 @@ On macOS, Elasticsearch can also be installed via https://brew.sh[Homebrew]:
 --------------------------------------------------
 brew install elasticsearch
 --------------------------------------------------
+
+If installation succeeds, Homebrew will finish by saying that you can start Elasticsearch by entering
+`elasticsearch`. Do that now. The expected response is described below, under <<successfully-running-node>>.
 
 [float]
 === Installation example with MSI Windows Installer
@@ -216,6 +228,7 @@ And now we are ready to start our node and single cluster:
 --------------------------------------------------
 
 [float]
+[[successfully-running-node]]
 === Successfully running node
 
 If everything goes well with installation, you should see a bunch of messages that look like below:
@@ -366,11 +379,11 @@ And the response:
 [source,txt]
 --------------------------------------------------
 health status index    uuid                   pri rep docs.count docs.deleted store.size pri.store.size
-yellow open   customer 95SQ4TSUT7mWBT7VNHH67A   5   1          0            0       260b           260b
+yellow open   customer 95SQ4TSUT7mWBT7VNHH67A   1   1          0            0       260b           260b
 --------------------------------------------------
 // TESTRESPONSE[s/95SQ4TSUT7mWBT7VNHH67A/.+/ s/260b/\\d+\\.?\\d?k?b/ _cat]
 
-The results of the second command tells us that we now have 1 index named customer and it has 5 primary shards and 1 replica (the defaults) and it contains 0 documents in it.
+The results of the second command tells us that we now have one index named customer and it has one primary shard and one replica (the defaults) and it contains zero documents in it.
 
 You might also notice that the customer index has a yellow health tagged to it. Recall from our previous discussion that yellow means that some replicas are not (yet) allocated. The reason this happens for this index is because Elasticsearch by default created one replica for this index. Since we only have one node running at the moment, that one replica cannot yet be allocated (for high availability) until a later point in time when another node joins the cluster. Once that replica gets allocated onto a second node, the health status for this index will turn to green.
 
@@ -380,7 +393,7 @@ Let's now put something into our customer index. We'll index a simple customer d
 
 [source,js]
 --------------------------------------------------
-PUT /customer/doc/1?pretty
+PUT /customer/_doc/1?pretty
 {
   "name": "John Doe"
 }
@@ -393,7 +406,7 @@ And the response:
 --------------------------------------------------
 {
   "_index" : "customer",
-  "_type" : "doc",
+  "_type" : "_doc",
   "_id" : "1",
   "_version" : 1,
   "result" : "created",
@@ -416,7 +429,7 @@ Let's now retrieve that document that we just indexed:
 
 [source,js]
 --------------------------------------------------
-GET /customer/doc/1?pretty
+GET /customer/_doc/1?pretty
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -427,7 +440,7 @@ And the response:
 --------------------------------------------------
 {
   "_index" : "customer",
-  "_type" : "doc",
+  "_type" : "_doc",
   "_id" : "1",
   "_version" : 1,
   "found" : true,
@@ -465,11 +478,11 @@ Before we move on, let's take a closer look again at some of the API commands th
 [source,js]
 --------------------------------------------------
 PUT /customer
-PUT /customer/doc/1
+PUT /customer/_doc/1
 {
   "name": "John Doe"
 }
-GET /customer/doc/1
+GET /customer/_doc/1
 DELETE /customer
 --------------------------------------------------
 // CONSOLE
@@ -495,7 +508,7 @@ We've previously seen how we can index a single document. Let's recall that comm
 
 [source,js]
 --------------------------------------------------
-PUT /customer/doc/1?pretty
+PUT /customer/_doc/1?pretty
 {
   "name": "John Doe"
 }
@@ -506,7 +519,7 @@ Again, the above will index the specified document into the customer index, with
 
 [source,js]
 --------------------------------------------------
-PUT /customer/doc/1?pretty
+PUT /customer/_doc/1?pretty
 {
   "name": "Jane Doe"
 }
@@ -518,7 +531,7 @@ The above changes the name of the document with the ID of 1 from "John Doe" to "
 
 [source,js]
 --------------------------------------------------
-PUT /customer/doc/2?pretty
+PUT /customer/_doc/2?pretty
 {
   "name": "Jane Doe"
 }
@@ -534,7 +547,7 @@ This example shows how to index a document without an explicit ID:
 
 [source,js]
 --------------------------------------------------
-POST /customer/doc?pretty
+POST /customer/_doc?pretty
 {
   "name": "Jane Doe"
 }
@@ -552,7 +565,7 @@ This example shows how to update our previous document (ID of 1) by changing the
 
 [source,js]
 --------------------------------------------------
-POST /customer/doc/1/_update?pretty
+POST /customer/_doc/1/_update?pretty
 {
   "doc": { "name": "Jane Doe" }
 }
@@ -564,7 +577,7 @@ This example shows how to update our previous document (ID of 1) by changing the
 
 [source,js]
 --------------------------------------------------
-POST /customer/doc/1/_update?pretty
+POST /customer/_doc/1/_update?pretty
 {
   "doc": { "name": "Jane Doe", "age": 20 }
 }
@@ -576,7 +589,7 @@ Updates can also be performed by using simple scripts. This example uses a scrip
 
 [source,js]
 --------------------------------------------------
-POST /customer/doc/1/_update?pretty
+POST /customer/_doc/1/_update?pretty
 {
   "script" : "ctx._source.age += 5"
 }
@@ -594,7 +607,7 @@ Deleting a document is fairly straightforward. This example shows how to delete 
 
 [source,js]
 --------------------------------------------------
-DELETE /customer/doc/2?pretty
+DELETE /customer/_doc/2?pretty
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -611,7 +624,7 @@ As a quick example, the following call indexes two documents (ID 1 - John Doe an
 
 [source,js]
 --------------------------------------------------
-POST /customer/doc/_bulk?pretty
+POST /customer/_doc/_bulk?pretty
 {"index":{"_id":"1"}}
 {"name": "John Doe" }
 {"index":{"_id":"2"}}
@@ -623,7 +636,7 @@ This example updates the first document (ID of 1) and then deletes the second do
 
 [source,sh]
 --------------------------------------------------
-POST /customer/doc/_bulk?pretty
+POST /customer/_doc/_bulk?pretty
 {"update":{"_id":"1"}}
 {"doc": { "name": "John Doe becomes Jane Doe" } }
 {"delete":{"_id":"2"}}
@@ -669,8 +682,8 @@ You can download the sample dataset (accounts.json) from https://github.com/elas
 
 [source,sh]
 --------------------------------------------------
-curl -H "Content-Type: application/json" -XPOST 'localhost:9200/bank/account/_bulk?pretty&refresh' --data-binary "@accounts.json"
-curl 'localhost:9200/_cat/indices?v'
+curl -H "Content-Type: application/json" -XPOST "localhost:9200/bank/_doc/_bulk?pretty&refresh" --data-binary "@accounts.json"
+curl "localhost:9200/_cat/indices?v"
 --------------------------------------------------
 // NOTCONSOLE
 
@@ -696,7 +709,7 @@ yellow open   bank  l7sSYV2cQXmu6_4rJWVIww   5   1       1000            0    12
 // TESTRESPONSE[s/128.6kb/\\d+(\\.\\d+)?[mk]?b/]
 // TESTRESPONSE[s/l7sSYV2cQXmu6_4rJWVIww/.+/ _cat]
 
-Which means that we just successfully bulk indexed 1000 documents into the bank index (under the account type).
+Which means that we just successfully bulk indexed 1000 documents into the bank index (under the `_doc` type).
 
 === The Search API
 
@@ -731,14 +744,14 @@ And the response (partially shown):
     "max_score" : null,
     "hits" : [ {
       "_index" : "bank",
-      "_type" : "account",
+      "_type" : "_doc",
       "_id" : "0",
       "sort": [0],
       "_score" : null,
       "_source" : {"account_number":0,"balance":16623,"firstname":"Bradshaw","lastname":"Mckenzie","age":29,"gender":"F","address":"244 Columbus Place","employer":"Euron","email":"bradshawmckenzie@euron.com","city":"Hobucken","state":"CO"}
     }, {
       "_index" : "bank",
-      "_type" : "account",
+      "_type" : "_doc",
       "_id" : "1",
       "sort": [1],
       "_score" : null,
@@ -777,7 +790,7 @@ GET /bank/_search
 // CONSOLE
 // TEST[continued]
 
-The difference here is that instead of passing `q=*` in the URI, we POST a JSON-style query request body to the `_search` API. We'll discuss this JSON query in the next section.
+The difference here is that instead of passing `q=*` in the URI, we provide a JSON-style query request body to the `_search` API. We'll discuss this JSON query in the next section.
 
 ////
 Hidden response just so we can assert that it is indeed the same but don't have
@@ -799,14 +812,14 @@ to clutter the docs with it:
     "max_score": null,
     "hits" : [ {
       "_index" : "bank",
-      "_type" : "account",
+      "_type" : "_doc",
       "_id" : "0",
       "sort": [0],
       "_score": null,
       "_source" : {"account_number":0,"balance":16623,"firstname":"Bradshaw","lastname":"Mckenzie","age":29,"gender":"F","address":"244 Columbus Place","employer":"Euron","email":"bradshawmckenzie@euron.com","city":"Hobucken","state":"CO"}
     }, {
       "_index" : "bank",
-      "_type" : "account",
+      "_type" : "_doc",
       "_id" : "1",
       "sort": [1],
       "_score": null,
@@ -858,7 +871,7 @@ GET /bank/_search
 
 Note that if `size` is not specified, it defaults to 10.
 
-This example does a `match_all` and returns documents 11 through 20:
+This example does a `match_all` and returns documents 10 through 19:
 
 [source,js]
 --------------------------------------------------
@@ -1109,7 +1122,7 @@ In SQL, the above aggregation is similar in concept to:
 
 [source,sh]
 --------------------------------------------------
-SELECT state, COUNT(*) FROM bank GROUP BY state ORDER BY COUNT(*) DESC
+SELECT state, COUNT(*) FROM bank GROUP BY state ORDER BY COUNT(*) DESC LIMIT 10;
 --------------------------------------------------
 
 And the response (partially shown):

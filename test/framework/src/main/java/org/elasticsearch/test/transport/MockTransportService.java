@@ -53,6 +53,7 @@ import org.elasticsearch.transport.MockTcpTransport;
 import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
@@ -72,7 +73,6 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
@@ -111,16 +111,16 @@ public final class MockTransportService extends TransportService {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
         final Transport transport = new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
             new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(Collections.emptyList()), version);
-        return createNewService(settings, transport, version, threadPool, clusterSettings);
+        return createNewService(settings, transport, version, threadPool, clusterSettings, Collections.emptySet());
     }
 
     public static MockTransportService createNewService(Settings settings, Transport transport, Version version, ThreadPool threadPool,
-                                                        @Nullable ClusterSettings clusterSettings) {
+                                                        @Nullable ClusterSettings clusterSettings, Set<String> taskHeaders) {
         return new MockTransportService(settings, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundAddress ->
                 new DiscoveryNode(Node.NODE_NAME_SETTING.get(settings), UUIDs.randomBase64UUID(), boundAddress.publishAddress(),
                     Node.NODE_ATTRIBUTES.getAsMap(settings), DiscoveryNode.getRolesFromSettings(settings), version),
-            clusterSettings);
+            clusterSettings, taskHeaders);
     }
 
     private final Transport original;
@@ -135,7 +135,7 @@ public final class MockTransportService extends TransportService {
                                 @Nullable ClusterSettings clusterSettings) {
         this(settings, transport, threadPool, interceptor, (boundAddress) ->
             DiscoveryNode.createLocal(settings, boundAddress.publishAddress(), settings.get(Node.NODE_NAME_SETTING.getKey(),
-                UUIDs.randomBase64UUID())), clusterSettings);
+                UUIDs.randomBase64UUID())), clusterSettings, Collections.emptySet());
     }
 
     /**
@@ -146,8 +146,9 @@ public final class MockTransportService extends TransportService {
      */
     public MockTransportService(Settings settings, Transport transport, ThreadPool threadPool, TransportInterceptor interceptor,
                                 Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
-                                @Nullable ClusterSettings clusterSettings) {
-        super(settings, new LookupTestTransport(transport), threadPool, interceptor, localNodeFactory, clusterSettings);
+                                @Nullable ClusterSettings clusterSettings, Set<String> taskHeaders) {
+        super(settings, new LookupTestTransport(transport), threadPool, interceptor, localNodeFactory, clusterSettings,
+            taskHeaders);
         this.original = transport;
     }
 
@@ -160,23 +161,12 @@ public final class MockTransportService extends TransportService {
     }
 
     @Override
-    protected TaskManager createTaskManager() {
+    protected TaskManager createTaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
         if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {
-            return new MockTaskManager(settings);
+            return new MockTaskManager(settings, threadPool, taskHeaders);
         } else {
-            return super.createTaskManager();
+            return super.createTaskManager(settings, threadPool, taskHeaders);
         }
-    }
-
-    private volatile String executorName;
-
-    public void setExecutorName(final String executorName) {
-        this.executorName = executorName;
-    }
-
-    @Override
-    protected ExecutorService getExecutorService() {
-        return executorName == null ? super.getExecutorService() : getThreadPool().executor(executorName);
     }
 
     /**
@@ -473,7 +463,7 @@ public final class MockTransportService extends TransportService {
     /**
      * Adds a new delegate transport that is used for communication with the given transport service.
      *
-     * @return <tt>true</tt> iff no other delegate was registered for any of the addresses bound by transport service.
+     * @return {@code true} iff no other delegate was registered for any of the addresses bound by transport service.
      */
     public boolean addDelegate(TransportService transportService, DelegateTransport transport) {
         boolean noRegistered = true;
@@ -486,7 +476,7 @@ public final class MockTransportService extends TransportService {
     /**
      * Adds a new delegate transport that is used for communication with the given transport address.
      *
-     * @return <tt>true</tt> iff no other delegate was registered for this address before.
+     * @return {@code true} iff no other delegate was registered for this address before.
      */
     public boolean addDelegate(TransportAddress transportAddress, DelegateTransport transport) {
         return transport().transports.put(transportAddress, transport) == null;
@@ -558,8 +548,23 @@ public final class MockTransportService extends TransportService {
         }
 
         @Override
-        public void setTransportService(TransportService service) {
-            transport.setTransportService(service);
+        public void addConnectionListener(TransportConnectionListener listener) {
+            transport.addConnectionListener(listener);
+        }
+
+        @Override
+        public boolean removeConnectionListener(TransportConnectionListener listener) {
+            return transport.removeConnectionListener(listener);
+        }
+
+        @Override
+        public <Request extends TransportRequest> void registerRequestHandler(RequestHandlerRegistry<Request> reg) {
+            transport.registerRequestHandler(reg);
+        }
+
+        @Override
+        public RequestHandlerRegistry getRequestHandler(String action) {
+            return transport.getRequestHandler(action);
         }
 
         @Override
@@ -595,11 +600,6 @@ public final class MockTransportService extends TransportService {
         }
 
         @Override
-        public long newRequestId() {
-            return transport.newRequestId();
-        }
-
-        @Override
         public Connection getConnection(DiscoveryNode node) {
             return new FilteredConnection(transport.getConnection(node)) {
                 @Override
@@ -624,6 +624,11 @@ public final class MockTransportService extends TransportService {
         @Override
         public TransportStats getStats() {
             return transport.getStats();
+        }
+
+        @Override
+        public ResponseHandlers getResponseHandlers() {
+            return transport.getResponseHandlers();
         }
 
         @Override

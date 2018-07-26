@@ -23,16 +23,8 @@ import org.apache.lucene.analysis.util.CharFilterFactory;
 import org.apache.lucene.analysis.util.TokenFilterFactory;
 import org.apache.lucene.analysis.util.TokenizerFactory;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.index.analysis.ClassicTokenizerFactory;
-import org.elasticsearch.index.analysis.EdgeNGramTokenizerFactory;
 import org.elasticsearch.index.analysis.HunspellTokenFilterFactory;
-import org.elasticsearch.index.analysis.KeywordTokenizerFactory;
-import org.elasticsearch.index.analysis.LetterTokenizerFactory;
-import org.elasticsearch.index.analysis.LowerCaseTokenizerFactory;
 import org.elasticsearch.index.analysis.MultiTermAwareComponent;
-import org.elasticsearch.index.analysis.NGramTokenizerFactory;
-import org.elasticsearch.index.analysis.PathHierarchyTokenizerFactory;
-import org.elasticsearch.index.analysis.PatternTokenizerFactory;
 import org.elasticsearch.index.analysis.PreConfiguredCharFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
@@ -42,9 +34,6 @@ import org.elasticsearch.index.analysis.StandardTokenizerFactory;
 import org.elasticsearch.index.analysis.StopTokenFilterFactory;
 import org.elasticsearch.index.analysis.SynonymGraphTokenFilterFactory;
 import org.elasticsearch.index.analysis.SynonymTokenFilterFactory;
-import org.elasticsearch.index.analysis.ThaiTokenizerFactory;
-import org.elasticsearch.index.analysis.UAX29URLEmailTokenizerFactory;
-import org.elasticsearch.index.analysis.WhitespaceTokenizerFactory;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.test.ESTestCase;
 
@@ -87,20 +76,20 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
 
     static final Map<String,Class<?>> KNOWN_TOKENIZERS = new MapBuilder<String,Class<?>>()
         // exposed in ES
-        .put("classic", ClassicTokenizerFactory.class)
-        .put("edgengram", EdgeNGramTokenizerFactory.class)
-        .put("keyword", KeywordTokenizerFactory.class)
-        .put("letter", LetterTokenizerFactory.class)
-        .put("lowercase", LowerCaseTokenizerFactory.class)
-        .put("ngram", NGramTokenizerFactory.class)
-        .put("pathhierarchy", PathHierarchyTokenizerFactory.class)
-        .put("pattern", PatternTokenizerFactory.class)
+        .put("classic", MovedToAnalysisCommon.class)
+        .put("edgengram", MovedToAnalysisCommon.class)
+        .put("keyword", MovedToAnalysisCommon.class)
+        .put("letter", MovedToAnalysisCommon.class)
+        .put("lowercase", MovedToAnalysisCommon.class)
+        .put("ngram", MovedToAnalysisCommon.class)
+        .put("pathhierarchy", MovedToAnalysisCommon.class)
+        .put("pattern", MovedToAnalysisCommon.class)
         .put("simplepattern", MovedToAnalysisCommon.class)
         .put("simplepatternsplit", MovedToAnalysisCommon.class)
         .put("standard", StandardTokenizerFactory.class)
-        .put("thai", ThaiTokenizerFactory.class)
-        .put("uax29urlemail", UAX29URLEmailTokenizerFactory.class)
-        .put("whitespace", WhitespaceTokenizerFactory.class)
+        .put("thai", MovedToAnalysisCommon.class)
+        .put("uax29urlemail", MovedToAnalysisCommon.class)
+        .put("whitespace", MovedToAnalysisCommon.class)
 
         // this one "seems to mess up offsets". probably shouldn't be a tokenizer...
         .put("wikipedia", Void.class)
@@ -130,6 +119,7 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         .put("englishminimalstem",        MovedToAnalysisCommon.class)
         .put("englishpossessive",         MovedToAnalysisCommon.class)
         .put("finnishlightstem",          MovedToAnalysisCommon.class)
+        .put("fixedshingle",              MovedToAnalysisCommon.class)
         .put("frenchlightstem",           MovedToAnalysisCommon.class)
         .put("frenchminimalstem",         MovedToAnalysisCommon.class)
         .put("galicianminimalstem",       MovedToAnalysisCommon.class)
@@ -215,6 +205,8 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         .put("tokenoffsetpayload",        Void.class)
         // puts the type into the payload
         .put("typeaspayload",             Void.class)
+        // puts the type as a synonym
+        .put("typeassynonym",             Void.class)
         // fingerprint
         .put("fingerprint",               Void.class)
         // for tee-sinks
@@ -224,6 +216,11 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         // should we expose it, or maybe think about higher level integration of the
         // fake term frequency feature (LUCENE-7854)
         .put("delimitedtermfrequency",    Void.class)
+        // LUCENE-8273: ProtectedTermFilterFactory allows analysis chains to skip
+        // particular token filters based on the attributes of the current token.
+        .put("protectedterm", Void.class)
+        // LUCENE-8332
+        .put("concatenategraph", Void.class)
 
         .immutableMap();
 
@@ -288,23 +285,8 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         Map<String, Class<?>> tokenizers = new HashMap<>();
         // TODO drop this temporary shim when all the old style tokenizers have been migrated to new style
         for (PreBuiltTokenizers tokenizer : PreBuiltTokenizers.values()) {
-            final Class<?> luceneFactoryClazz;
-            switch (tokenizer) {
-            case UAX_URL_EMAIL:
-                luceneFactoryClazz = org.apache.lucene.analysis.standard.UAX29URLEmailTokenizerFactory.class;
-                break;
-            case PATH_HIERARCHY:
-                luceneFactoryClazz = Void.class;
-                break;
-            default:
-                luceneFactoryClazz = null;
-            }
-            tokenizers.put(tokenizer.name().toLowerCase(Locale.ROOT), luceneFactoryClazz);
+            tokenizers.put(tokenizer.name().toLowerCase(Locale.ROOT), null);
         }
-        // TODO drop aliases once they are moved to module
-        tokenizers.put("nGram", tokenizers.get("ngram"));
-        tokenizers.put("edgeNGram", tokenizers.get("edge_ngram"));
-        tokenizers.put("PathHierarchy", tokenizers.get("path_hierarchy"));
         return tokenizers;
     }
 

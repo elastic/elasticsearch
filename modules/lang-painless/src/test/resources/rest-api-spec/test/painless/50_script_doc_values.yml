@@ -3,6 +3,8 @@ setup:
         indices.create:
             index: test
             body:
+                settings:
+                    number_of_shards: 1
                 mappings:
                     test:
                         properties:
@@ -83,6 +85,9 @@ setup:
 
 ---
 "date":
+    - skip:
+        features: "warnings"
+
     - do:
         search:
             body:
@@ -165,6 +170,9 @@ setup:
 
 ---
 "long":
+    - skip:
+        features: "warnings"
+
     - do:
         search:
             body:

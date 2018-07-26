@@ -8,6 +8,7 @@ Besides the link:/guide[officially supported Elasticsearch clients], there are
 a number of clients that have been contributed by the community for various languages:
 
 * <<b4j>>
+* <<cpp>>
 * <<clojure>>
 * <<coldfusion>>
 * <<erlang>>
@@ -34,6 +35,10 @@ a number of clients that have been contributed by the community for various lang
 == B4J
 * https://www.b4x.com/android/forum/threads/server-jelasticsearch-search-and-text-analytics.73335/
   B4J client based on the official Java REST client.
+
+[[cpp]]
+== C++
+* https://github.com/seznam/elasticlient[elasticlient]: simple library for simplified work with Elasticsearch in C++
 
 [[clojure]]
 == Clojure
@@ -78,6 +83,9 @@ The following project appears to be abandoned:
 
 * https://github.com/olivere/elastic[elastic]:
   Elasticsearch client for Google Go.
+  
+* https://github.com/softctrl/elk[elk]
+  Golang lib for Elasticsearch client.
 
 
 [[groovy]]
@@ -129,7 +137,7 @@ The following project appears to be abandoned:
 == Lua
 
 * https://github.com/DhavalKapil/elasticsearch-lua[elasticsearch-lua]:
-  Lua client for elasticsearch
+  Lua client for Elasticsearch
 
 [[dotnet]]
 == .NET
@@ -200,6 +208,9 @@ The following projects appear to be abandoned:
 
 * https://github.com/ropensci/elasticdsl[elasticdsl]:
   A high-level R DSL for Elasticsearch, wrapping the elastic R client.
+  
+* https://github.com/UptakeOpenSource/uptasticsearch[uptasticsearch]:
+  An R client tailored to data science workflows.
 
 The following projects appear to be abandoned:
 
@@ -218,7 +229,7 @@ Also see the {client}/ruby-api/current/index.html[official Elasticsearch Ruby cl
   Tiny client with built-in zero-downtime migrations and ActiveRecord integration.
 
 * https://github.com/toptal/chewy[chewy]:
-  Chewy is ODM and wrapper for official elasticsearch client
+  Chewy is an ODM and wrapper for the official Elasticsearch client
 
 * https://github.com/ankane/searchkick[Searchkick]:
   Intelligent search made easy

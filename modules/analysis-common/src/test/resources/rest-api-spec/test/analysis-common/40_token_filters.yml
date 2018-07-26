@@ -1026,8 +1026,13 @@
     - match:  { tokens.10.token: ちた }
 
 ---
-"delimited_payload_filter":
+"delimited_payload_filter_error":
+    - skip:
+        version: " - 6.99.99"
+        reason:  using delimited_payload_filter throws error from 7.0 on
+
     - do:
+        catch: /\[delimited_payload_filter\] is not supported for new indices, use \[delimited_payload\] instead/
         indices.create:
           index: test
           body:
@@ -1038,13 +1043,36 @@
                     type: delimited_payload_filter
                     delimiter: ^
                     encoding: identity
+
+    # Test pre-configured token filter too:
+    - do:
+        catch: /\[delimited_payload_filter\] is not supported for new indices, use \[delimited_payload\] instead/
+        indices.analyze:
+          body:
+            text:      foo|5
+            tokenizer: keyword
+            filter:    [delimited_payload_filter]
+
+---
+"delimited_payload":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_delimited_payload:
+                    type: delimited_payload
+                    delimiter: ^
+                    encoding: identity
     - do:
         indices.analyze:
           index: test
           body:
             text:      foo^bar
             tokenizer: keyword
-            filter:    [my_delimited_payload_filter]
+            filter:    [my_delimited_payload]
     - length: { tokens: 1 }
     - match:  { tokens.0.token: foo }
 
@@ -1054,7 +1082,7 @@
           body:
             text:      foo|5
             tokenizer: keyword
-            filter:    [delimited_payload_filter]
+            filter:    [delimited_payload]
     - length: { tokens: 1 }
     - match:  { tokens.0.token: foo }
 
@@ -1529,3 +1557,18 @@
             filter:    [my_bengali_stem]
     - length: { tokens: 1 }
     - match:  { tokens.0.token: কর }
+
+---
+"multiplexer":
+    - do:
+        indices.analyze:
+          body:
+            text: "The quick fox"
+            tokenizer: "standard"
+            filter:
+              - type: multiplexer
+                filters: [ lowercase, uppercase ]
+                preserve_original: false
+    - length: { tokens: 6 }
+    - match: { tokens.0.token: the }
+    - match: { tokens.1.token: THE }

@@ -22,9 +22,6 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Constant;
 import org.elasticsearch.painless.Def;
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Parameter;
@@ -32,6 +29,9 @@ import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.WriterConstants;
+import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.node.SSource.Reserved;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.Handle;
@@ -41,11 +41,13 @@ import java.lang.invoke.MethodType;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
 
 /**
@@ -53,11 +55,22 @@ import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
  */
 public final class SFunction extends AStatement {
     public static final class FunctionReserved implements Reserved {
+        private final Set<String> usedVariables = new HashSet<>();
         private int maxLoopCounter = 0;
 
         @Override
         public void markUsedVariable(String name) {
-            // Do nothing.
+            usedVariables.add(name);
+        }
+
+        @Override
+        public Set<String> getUsedVariables() {
+            return unmodifiableSet(usedVariables);
+        }
+
+        @Override
+        public void addUsedVariables(FunctionReserved reserved) {
+            usedVariables.addAll(reserved.getUsedVariables());
         }
 
         @Override
@@ -79,9 +92,9 @@ public final class SFunction extends AStatement {
     private final List<AStatement> statements;
     public final boolean synthetic;
 
-    Type rtnType = null;
+    Class<?> rtnType = null;
     List<Parameter> parameters = new ArrayList<>();
-    Method method = null;
+    PainlessMethod method = null;
 
     private Variable loop = null;
 
@@ -105,9 +118,9 @@ public final class SFunction extends AStatement {
         throw new IllegalStateException("Illegal tree structure");
     }
 
-    void generateSignature(Definition definition) {
+    void generateSignature(PainlessLookup painlessLookup) {
         try {
-            rtnType = definition.getType(rtnTypeStr);
+            rtnType = painlessLookup.getJavaClassFromPainlessType(rtnTypeStr);
         } catch (IllegalArgumentException exception) {
             throw createError(new IllegalArgumentException("Illegal return type [" + rtnTypeStr + "] for function [" + name + "]."));
         }
@@ -117,13 +130,13 @@ public final class SFunction extends AStatement {
         }
 
         Class<?>[] paramClasses = new Class<?>[this.paramTypeStrs.size()];
-        List<Type> paramTypes = new ArrayList<>();
+        List<Class<?>> paramTypes = new ArrayList<>();
 
         for (int param = 0; param < this.paramTypeStrs.size(); ++param) {
             try {
-                Type paramType = definition.getType(this.paramTypeStrs.get(param));
+                Class<?> paramType = painlessLookup.getJavaClassFromPainlessType(this.paramTypeStrs.get(param));
 
-                paramClasses[param] = paramType.clazz;
+                paramClasses[param] = PainlessLookupUtility.typeToJavaType(paramType);
                 paramTypes.add(paramType);
                 parameters.add(new Parameter(location, paramNameStrs.get(param), paramType));
             } catch (IllegalArgumentException exception) {
@@ -132,9 +145,9 @@ public final class SFunction extends AStatement {
             }
         }
 
-        org.objectweb.asm.commons.Method method =
-            new org.objectweb.asm.commons.Method(name, MethodType.methodType(rtnType.clazz, paramClasses).toMethodDescriptorString());
-        this.method = new Method(name, null, null, rtnType, paramTypes, method, Modifier.STATIC | Modifier.PRIVATE, null);
+        org.objectweb.asm.commons.Method method = new org.objectweb.asm.commons.Method(name, MethodType.methodType(
+                PainlessLookupUtility.typeToJavaType(rtnType), paramClasses).toMethodDescriptorString());
+        this.method = new PainlessMethod(name, null, null, rtnType, paramTypes, method, Modifier.STATIC | Modifier.PRIVATE, null);
     }
 
     @Override
@@ -162,7 +175,7 @@ public final class SFunction extends AStatement {
             allEscape = statement.allEscape;
         }
 
-        if (!methodEscape && rtnType.clazz != void.class) {
+        if (!methodEscape && rtnType != void.class) {
             throw createError(new IllegalArgumentException("Not all paths provide a return value for method [" + name + "]."));
         }
 
@@ -197,7 +210,7 @@ public final class SFunction extends AStatement {
         }
 
         if (!methodEscape) {
-            if (rtnType.clazz == void.class) {
+            if (rtnType == void.class) {
                 function.returnValue();
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));

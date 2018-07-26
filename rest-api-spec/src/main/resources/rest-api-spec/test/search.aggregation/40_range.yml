@@ -112,9 +112,6 @@ setup:
 
 ---
 "IP range":
-  - skip:
-      version: " - 5.1.1"
-      reason: IP range queries had an exclusive range bug prior to 5.1.2
   - do:
       index:
         index: test
@@ -147,24 +144,17 @@ setup:
 
   - length: { aggregations.ip_range.buckets: 3 }
 
-# ip_range does not automatically add keys to buckets, see #21045
-#  - match: { aggregations.ip_range.buckets.0.key: "*-192.168.0.0" }
-
   - is_false: aggregations.ip_range.buckets.0.from
 
   - match: { aggregations.ip_range.buckets.0.to: "192.168.0.0" }
 
   - match: { aggregations.ip_range.buckets.0.doc_count: 1 }
 
-#  - match: { aggregations.ip_range.buckets.1.key: "192.168.0.0-192.169.0.0" }
-
   - match: { aggregations.ip_range.buckets.1.from: "192.168.0.0" }
 
   - match: { aggregations.ip_range.buckets.1.to: "192.169.0.0" }
 
   - match: { aggregations.ip_range.buckets.1.doc_count: 2 }
-
-#  - match: { aggregations.ip_range.buckets.2.key: "192.169.0.0-*" }
 
   - match: { aggregations.ip_range.buckets.2.from: "192.169.0.0" }
 
@@ -180,23 +170,17 @@ setup:
 
   - length: { aggregations.ip_range.buckets: 3 }
 
-#  - match: { aggregations.ip_range.buckets.0.key: "*-192.168.0.0" }
-
   - is_false: aggregations.ip_range.buckets.0.from
 
   - match: { aggregations.ip_range.buckets.0.to: "192.168.0.0" }
 
   - match: { aggregations.ip_range.buckets.0.doc_count: 1 }
 
-#  - match: { aggregations.ip_range.buckets.1.key: "192.168.0.0-192.169.0.0" }
-
   - match: { aggregations.ip_range.buckets.1.from: "192.168.0.0" }
 
   - match: { aggregations.ip_range.buckets.1.to: "192.169.0.0" }
 
   - match: { aggregations.ip_range.buckets.1.doc_count: 2 }
-
-#  - match: { aggregations.ip_range.buckets.2.key: "192.169.0.0-*" }
 
   - match: { aggregations.ip_range.buckets.2.from: "192.169.0.0" }
 
@@ -227,10 +211,22 @@ setup:
   - match: { aggregations.ip_range.buckets.1.doc_count: 2 } 
 
 ---
-"Date range":
+"IP Range Key Generation":
   - skip:
-      version: " - 5.99.99"
-      reason: before 6.0, numeric date_range to/from parameters were always parsed as if they are epoch_millis (#17920)
+     version: " - 6.3.99"
+     reason: "Before 6.4.0, ip_range did not always generate bucket keys (see #21045)."
+
+  - do:
+      search:
+        body: { "size" : 0, "aggs" : { "ip_range" : { "ip_range" : { "field" : "ip", "ranges": [ { "to": "192.168.0.0" }, { "from": "192.168.0.0", "to": "192.169.0.0" }, { "from": "192.169.0.0" } ] } } } }
+
+  - length: { aggregations.ip_range.buckets: 3 }
+  - match: { aggregations.ip_range.buckets.0.key: "*-192.168.0.0" }
+  - match: { aggregations.ip_range.buckets.1.key: "192.168.0.0-192.169.0.0" }
+  - match: { aggregations.ip_range.buckets.2.key: "192.169.0.0-*" }
+
+---
+"Date range":
   - do:
       index:
         index: test
@@ -272,4 +268,78 @@ setup:
   - match: { aggregations.date_range.buckets.1.key: "3000-4000" }
   - match: { aggregations.date_range.buckets.1.from: 3000000 }
   - match: { aggregations.date_range.buckets.1.to: 4000000 }
+
+---
+"Date Range Missing":
+  - do:
+      index:
+        index: test
+        type: test
+        id: 1
+        body: { "date" : "28800000000" }
+
+  - do:
+      index:
+        index: test
+        type: test
+        id: 2
+        body: { "date" : "315561600000" }
+
+  - do:
+      index:
+        index: test
+        type: test
+        id: 3
+        body: { "date" : "631180800000" }
+
+  - do:
+      index:
+        index: test
+        type: test
+        id: 4
+        body: { "date" : "-2524492800000" }
+
+  - do:
+        index:
+          index: test
+          type: test
+          id: 5
+          body: { "ip" : "192.168.0.1" }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        body:
+          aggs:
+            age_groups:
+              date_range:
+                field: date
+                missing: "-2240496000000"
+                ranges:
+                - key: Generation Y
+                  from: '315561600000'
+                  to: '946713600000'
+                - key: Generation X
+                  from: "-157737600000"
+                  to: '315561600000'
+                - key: Other
+                  to: "-2208960000000"
+                  
+  - match: { hits.total: 5 }
+
+  - length: { aggregations.age_groups.buckets: 3 }
+
+  - match: { aggregations.age_groups.buckets.0.key: "Other" }
+
+  - match: { aggregations.age_groups.buckets.0.doc_count: 2 }
+
+  - match: { aggregations.age_groups.buckets.1.key: "Generation X" }
+
+  - match: { aggregations.age_groups.buckets.1.doc_count: 1 }
+
+  - match: { aggregations.age_groups.buckets.2.key: "Generation Y" }
+
+  - match: { aggregations.age_groups.buckets.2.doc_count: 2 }
 

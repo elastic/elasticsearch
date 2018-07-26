@@ -16,11 +16,13 @@ The javadoc for the REST client sniffer can be found at {rest-client-sniffer-jav
 === Maven Repository
 
 The REST client sniffer is subject to the same release cycle as
-elasticsearch. Replace the version with the desired sniffer version, first
+Elasticsearch. Replace the version with the desired sniffer version, first
 released with `5.0.0-alpha4`. There is no relation between the sniffer version
-and the elasticsearch version that the client can communicate with. Sniffer
-supports fetching the nodes list from elasticsearch 2.x and onwards.
+and the Elasticsearch version that the client can communicate with. Sniffer
+supports fetching the nodes list from Elasticsearch 2.x and onwards.
 
+If you are looking for a SNAPSHOT version, the Elastic Maven Snapshot repository is available
+at https://snapshots.elastic.co/maven/.
 
 ==== Maven configuration
 
@@ -53,7 +55,7 @@ dependencies {
 Once a `RestClient` instance has been created as shown in <<java-rest-low-usage-initialization>>,
 a `Sniffer` can be associated to it. The `Sniffer` will make use of the provided `RestClient`
 to periodically (every 5 minutes by default) fetch the list of current nodes from the cluster
-and update them by calling `RestClient#setHosts`.
+and update them by calling `RestClient#setNodes`.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -103,7 +105,7 @@ on failure is not enabled like explained above.
 The Elasticsearch Nodes Info api doesn't return the protocol to use when
 connecting to the nodes but only their `host:port` key-pair, hence `http`
 is used by default. In case `https` should be used instead, the
-`ElasticsearchHostsSniffer` instance has to be manually created and provided
+`ElasticsearchNodesSniffer` instance has to be manually created and provided
 as follows:
 
 ["source","java",subs="attributes,callouts,macros"]
@@ -123,12 +125,12 @@ cluster, the ones that have responded until then.
 include-tagged::{doc-tests}/SnifferDocumentation.java[sniff-request-timeout]
 --------------------------------------------------
 
-Also, a custom `HostsSniffer` implementation can be provided for advanced
-use-cases that may require fetching the hosts from external sources rather
+Also, a custom `NodesSniffer` implementation can be provided for advanced
+use-cases that may require fetching the `Node`s from external sources rather
 than from Elasticsearch:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SnifferDocumentation.java[custom-hosts-sniffer]
+include-tagged::{doc-tests}/SnifferDocumentation.java[custom-nodes-sniffer]
 --------------------------------------------------
 <1> Fetch the hosts from the external source

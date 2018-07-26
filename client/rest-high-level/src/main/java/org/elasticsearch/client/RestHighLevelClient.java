@@ -26,18 +26,30 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptResponse;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.explain.ExplainRequest;
+import org.elasticsearch.action.explain.ExplainResponse;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.MultiGetRequest;
+import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.main.MainRequest;
 import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
+import org.elasticsearch.action.search.MultiSearchRequest;
+import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
@@ -47,15 +59,24 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ContextParser;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.rankeval.RankEvalRequest;
+import org.elasticsearch.index.rankeval.RankEvalResponse;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
+import org.elasticsearch.script.mustache.MultiSearchTemplateResponse;
+import org.elasticsearch.script.mustache.SearchTemplateRequest;
+import org.elasticsearch.script.mustache.SearchTemplateResponse;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrixAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.adjacency.ParsedAdjacencyMatrix;
+import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.composite.ParsedComposite;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.ParsedFilter;
@@ -64,8 +85,10 @@ import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBu
 import org.elasticsearch.search.aggregations.bucket.geogrid.ParsedGeoHashGrid;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.ParsedGlobal;
+import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.ParsedAutoDateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.ParsedDateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.ParsedHistogram;
 import org.elasticsearch.search.aggregations.bucket.missing.MissingAggregationBuilder;
@@ -177,6 +200,11 @@ public class RestHighLevelClient implements Closeable {
     private final CheckedConsumer<RestClient, IOException> doClose;
 
     private final IndicesClient indicesClient = new IndicesClient(this);
+    private final ClusterClient clusterClient = new ClusterClient(this);
+    private final IngestClient ingestClient = new IngestClient(this);
+    private final SnapshotClient snapshotClient = new SnapshotClient(this);
+    private final TasksClient tasksClient = new TasksClient(this);
+    private final XPackClient xPackClient = new XPackClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -213,7 +241,7 @@ public class RestHighLevelClient implements Closeable {
     /**
      * Returns the low-level client that the current high-level client instance is using to perform requests
      */
-    public RestClient getLowLevelClient() {
+    public final RestClient getLowLevelClient() {
         return client;
     }
 
@@ -232,222 +260,674 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Executes a bulk request using the Bulk API
+     * Provides a {@link ClusterClient} which can be used to access the Cluster API.
      *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html">Bulk API on elastic.co</a>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster.html">Cluster API on elastic.co</a>
      */
-    public final BulkResponse bulk(BulkRequest bulkRequest, Header... headers) throws IOException {
-        return performRequestAndParseEntity(bulkRequest, Request::bulk, BulkResponse::fromXContent, emptySet(), headers);
+    public final ClusterClient cluster() {
+        return clusterClient;
     }
 
     /**
-     * Asynchronously executes a bulk request using the Bulk API
+     * Provides a {@link IngestClient} which can be used to access the Ingest API.
      *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html">Bulk API on elastic.co</a>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ingest.html">Ingest API on elastic.co</a>
      */
-    public final void bulkAsync(BulkRequest bulkRequest, ActionListener<BulkResponse> listener, Header... headers) {
-        performRequestAsyncAndParseEntity(bulkRequest, Request::bulk, BulkResponse::fromXContent, listener, emptySet(), headers);
+    public final IngestClient ingest() {
+        return ingestClient;
+    }
+
+    /**
+     * Provides a {@link SnapshotClient} which can be used to access the Snapshot API.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html">Snapshot API on elastic.co</a>
+     */
+    public final SnapshotClient snapshot() {
+        return snapshotClient;
+    }
+
+    /**
+     * Provides a {@link TasksClient} which can be used to access the Tasks API.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html">Task Management API on elastic.co</a>
+     */
+    public final TasksClient tasks() {
+        return tasksClient;
+    }
+
+    /**
+     * A wrapper for the {@link RestHighLevelClient} that provides methods for
+     * accessing the Elastic Licensed X-Pack APIs that are shipped with the
+     * default distribution of Elasticsearch. All of these APIs will 404 if run
+     * against the OSS distribution of Elasticsearch.
+     * <p>
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/xpack-api.html">
+     * X-Pack APIs on elastic.co</a> for more information.
+     */
+    public final XPackClient xpack() {
+        return xPackClient;
+    }
+
+    /**
+     * Executes a bulk request using the Bulk API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html">Bulk API on elastic.co</a>
+     * @param bulkRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public final BulkResponse bulk(BulkRequest bulkRequest, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(bulkRequest, RequestConverters::bulk, options, BulkResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously executes a bulk request using the Bulk API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html">Bulk API on elastic.co</a>
+     * @param bulkRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public final void bulkAsync(BulkRequest bulkRequest, RequestOptions options, ActionListener<BulkResponse> listener) {
+        performRequestAsyncAndParseEntity(bulkRequest, RequestConverters::bulk, options, BulkResponse::fromXContent, listener, emptySet());
     }
 
     /**
      * Pings the remote Elasticsearch cluster and returns true if the ping succeeded, false otherwise
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return <code>true</code> if the ping succeeded, false otherwise
+     * @throws IOException in case there is a problem sending the request
      */
-    public final boolean ping(Header... headers) throws IOException {
-        return performRequest(new MainRequest(), (request) -> Request.ping(), RestHighLevelClient::convertExistsResponse,
-                emptySet(), headers);
+    public final boolean ping(RequestOptions options) throws IOException {
+        return performRequest(new MainRequest(), (request) -> RequestConverters.ping(), options, RestHighLevelClient::convertExistsResponse,
+                emptySet());
     }
 
     /**
-     * Get the cluster info otherwise provided when sending an HTTP request to port 9200
+     * Get the cluster info otherwise provided when sending an HTTP request to '/'
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public final MainResponse info(Header... headers) throws IOException {
-        return performRequestAndParseEntity(new MainRequest(), (request) -> Request.info(), MainResponse::fromXContent, emptySet(),
-                headers);
+    public final MainResponse info(RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(new MainRequest(), (request) -> RequestConverters.info(), options,
+                MainResponse::fromXContent, emptySet());
     }
 
     /**
-     * Retrieves a document by id using the Get API
-     *
+     * Retrieves a document by id using the Get API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html">Get API on elastic.co</a>
+     * @param getRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public final GetResponse get(GetRequest getRequest, Header... headers) throws IOException {
-        return performRequestAndParseEntity(getRequest, Request::get, GetResponse::fromXContent, singleton(404), headers);
+    public final GetResponse get(GetRequest getRequest, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(getRequest, RequestConverters::get, options, GetResponse::fromXContent, singleton(404));
     }
 
     /**
-     * Asynchronously retrieves a document by id using the Get API
-     *
+     * Asynchronously retrieves a document by id using the Get API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html">Get API on elastic.co</a>
+     * @param getRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
-    public void getAsync(GetRequest getRequest, ActionListener<GetResponse> listener, Header... headers) {
-        performRequestAsyncAndParseEntity(getRequest, Request::get, GetResponse::fromXContent, listener, singleton(404), headers);
+    public final void getAsync(GetRequest getRequest, RequestOptions options, ActionListener<GetResponse> listener) {
+        performRequestAsyncAndParseEntity(getRequest, RequestConverters::get, options, GetResponse::fromXContent, listener,
+                singleton(404));
     }
 
     /**
-     * Checks for the existence of a document. Returns true if it exists, false otherwise
-     *
+     * Retrieves multiple documents by id using the Multi Get API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-multi-get.html">Multi Get API on elastic.co</a>
+     * @param multiGetRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     * @deprecated use {@link #mget(MultiGetRequest, RequestOptions)} instead
+     */
+    @Deprecated
+    public final MultiGetResponse multiGet(MultiGetRequest multiGetRequest, RequestOptions options) throws IOException {
+        return mget(multiGetRequest, options);
+    }
+
+
+    /**
+     * Retrieves multiple documents by id using the Multi Get API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-multi-get.html">Multi Get API on elastic.co</a>
+     * @param multiGetRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public final MultiGetResponse mget(MultiGetRequest multiGetRequest, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(multiGetRequest, RequestConverters::multiGet, options, MultiGetResponse::fromXContent,
+                singleton(404));
+    }
+
+    /**
+     * Asynchronously retrieves multiple documents by id using the Multi Get API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-multi-get.html">Multi Get API on elastic.co</a>
+     * @param multiGetRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @deprecated use {@link #mgetAsync(MultiGetRequest, RequestOptions, ActionListener)} instead
+     */
+    @Deprecated
+    public final void multiGetAsync(MultiGetRequest multiGetRequest, RequestOptions options, ActionListener<MultiGetResponse> listener) {
+        mgetAsync(multiGetRequest, options, listener);
+    }
+
+    /**
+     * Asynchronously retrieves multiple documents by id using the Multi Get API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-multi-get.html">Multi Get API on elastic.co</a>
+     * @param multiGetRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public final void mgetAsync(MultiGetRequest multiGetRequest, RequestOptions options, ActionListener<MultiGetResponse> listener) {
+        performRequestAsyncAndParseEntity(multiGetRequest, RequestConverters::multiGet, options, MultiGetResponse::fromXContent, listener,
+                singleton(404));
+    }
+
+    /**
+     * Checks for the existence of a document. Returns true if it exists, false otherwise.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html">Get API on elastic.co</a>
+     * @param getRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return <code>true</code> if the document exists, <code>false</code> otherwise
+     * @throws IOException in case there is a problem sending the request
      */
-    public final boolean exists(GetRequest getRequest, Header... headers) throws IOException {
-        return performRequest(getRequest, Request::exists, RestHighLevelClient::convertExistsResponse, emptySet(), headers);
+    public final boolean exists(GetRequest getRequest, RequestOptions options) throws IOException {
+        return performRequest(getRequest, RequestConverters::exists, options, RestHighLevelClient::convertExistsResponse, emptySet());
     }
 
     /**
-     * Asynchronously checks for the existence of a document. Returns true if it exists, false otherwise
-     *
+     * Asynchronously checks for the existence of a document. Returns true if it exists, false otherwise.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html">Get API on elastic.co</a>
+     * @param getRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
-    public final void existsAsync(GetRequest getRequest, ActionListener<Boolean> listener, Header... headers) {
-        performRequestAsync(getRequest, Request::exists, RestHighLevelClient::convertExistsResponse, listener, emptySet(), headers);
+    public final void existsAsync(GetRequest getRequest, RequestOptions options, ActionListener<Boolean> listener) {
+        performRequestAsync(getRequest, RequestConverters::exists, options, RestHighLevelClient::convertExistsResponse, listener,
+                emptySet());
     }
 
     /**
-     * Index a document using the Index API
-     *
+     * Index a document using the Index API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-index_.html">Index API on elastic.co</a>
+     * @param indexRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public final IndexResponse index(IndexRequest indexRequest, Header... headers) throws IOException {
-        return performRequestAndParseEntity(indexRequest, Request::index, IndexResponse::fromXContent, emptySet(), headers);
+    public final IndexResponse index(IndexRequest indexRequest, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(indexRequest, RequestConverters::index, options, IndexResponse::fromXContent, emptySet());
     }
 
     /**
-     * Asynchronously index a document using the Index API
-     *
+     * Asynchronously index a document using the Index API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-index_.html">Index API on elastic.co</a>
+     * @param indexRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
-    public final void indexAsync(IndexRequest indexRequest, ActionListener<IndexResponse> listener, Header... headers) {
-        performRequestAsyncAndParseEntity(indexRequest, Request::index, IndexResponse::fromXContent, listener, emptySet(), headers);
+    public final void indexAsync(IndexRequest indexRequest, RequestOptions options, ActionListener<IndexResponse> listener) {
+        performRequestAsyncAndParseEntity(indexRequest, RequestConverters::index, options, IndexResponse::fromXContent, listener,
+                emptySet());
     }
 
     /**
-     * Updates a document using the Update API
-     * <p>
+     * Updates a document using the Update API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update.html">Update API on elastic.co</a>
+     * @param updateRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public final UpdateResponse update(UpdateRequest updateRequest, Header... headers) throws IOException {
-        return performRequestAndParseEntity(updateRequest, Request::update, UpdateResponse::fromXContent, emptySet(), headers);
+    public final UpdateResponse update(UpdateRequest updateRequest, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(updateRequest, RequestConverters::update, options, UpdateResponse::fromXContent, emptySet());
     }
 
     /**
-     * Asynchronously updates a document using the Update API
-     * <p>
+     * Asynchronously updates a document using the Update API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update.html">Update API on elastic.co</a>
+     * @param updateRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
-    public final void updateAsync(UpdateRequest updateRequest, ActionListener<UpdateResponse> listener, Header... headers) {
-        performRequestAsyncAndParseEntity(updateRequest, Request::update, UpdateResponse::fromXContent, listener, emptySet(), headers);
+    public final void updateAsync(UpdateRequest updateRequest, RequestOptions options, ActionListener<UpdateResponse> listener) {
+        performRequestAsyncAndParseEntity(updateRequest, RequestConverters::update, options, UpdateResponse::fromXContent, listener,
+                emptySet());
     }
 
     /**
-     * Deletes a document by id using the Delete API
-     *
+     * Deletes a document by id using the Delete API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete.html">Delete API on elastic.co</a>
+     * @param deleteRequest the reuqest
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public final DeleteResponse delete(DeleteRequest deleteRequest, Header... headers) throws IOException {
-        return performRequestAndParseEntity(deleteRequest, Request::delete, DeleteResponse::fromXContent, Collections.singleton(404),
-            headers);
+    public final DeleteResponse delete(DeleteRequest deleteRequest, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(deleteRequest, RequestConverters::delete, options, DeleteResponse::fromXContent,
+                singleton(404));
     }
 
     /**
-     * Asynchronously deletes a document by id using the Delete API
-     *
+     * Asynchronously deletes a document by id using the Delete API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete.html">Delete API on elastic.co</a>
+     * @param deleteRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
-    public final void deleteAsync(DeleteRequest deleteRequest, ActionListener<DeleteResponse> listener, Header... headers) {
-        performRequestAsyncAndParseEntity(deleteRequest, Request::delete, DeleteResponse::fromXContent, listener,
-            Collections.singleton(404), headers);
+    public final void deleteAsync(DeleteRequest deleteRequest, RequestOptions options, ActionListener<DeleteResponse> listener) {
+        performRequestAsyncAndParseEntity(deleteRequest, RequestConverters::delete, options, DeleteResponse::fromXContent, listener,
+            Collections.singleton(404));
     }
 
     /**
-     * Executes a search using the Search API
-     *
+     * Executes a search request using the Search API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-search.html">Search API on elastic.co</a>
+     * @param searchRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public final SearchResponse search(SearchRequest searchRequest, Header... headers) throws IOException {
-        return performRequestAndParseEntity(searchRequest, Request::search, SearchResponse::fromXContent, emptySet(), headers);
+    public final SearchResponse search(SearchRequest searchRequest, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(searchRequest, RequestConverters::search, options, SearchResponse::fromXContent, emptySet());
     }
 
     /**
-     * Asynchronously executes a search using the Search API
-     *
+     * Asynchronously executes a search using the Search API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-search.html">Search API on elastic.co</a>
+     * @param searchRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
      */
-    public final void searchAsync(SearchRequest searchRequest, ActionListener<SearchResponse> listener, Header... headers) {
-        performRequestAsyncAndParseEntity(searchRequest, Request::search, SearchResponse::fromXContent, listener, emptySet(), headers);
+    public final void searchAsync(SearchRequest searchRequest, RequestOptions options, ActionListener<SearchResponse> listener) {
+        performRequestAsyncAndParseEntity(searchRequest, RequestConverters::search, options, SearchResponse::fromXContent, listener,
+                emptySet());
     }
 
     /**
-     * Executes a search using the Search Scroll API
-     *
+     * Executes a multi search using the msearch API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-multi-search.html">Multi search API on
+     * elastic.co</a>
+     * @param multiSearchRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     * @deprecated use {@link #msearch(MultiSearchRequest, RequestOptions)} instead
+     */
+    @Deprecated
+    public final MultiSearchResponse multiSearch(MultiSearchRequest multiSearchRequest, RequestOptions options) throws IOException {
+        return msearch(multiSearchRequest, options);
+    }
+
+    /**
+     * Executes a multi search using the msearch API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-multi-search.html">Multi search API on
+     * elastic.co</a>
+     * @param multiSearchRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public final MultiSearchResponse msearch(MultiSearchRequest multiSearchRequest, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(multiSearchRequest, RequestConverters::multiSearch, options, MultiSearchResponse::fromXContext,
+                emptySet());
+    }
+
+    /**
+     * Asynchronously executes a multi search using the msearch API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-multi-search.html">Multi search API on
+     * elastic.co</a>
+     * @param searchRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @deprecated use {@link #msearchAsync(MultiSearchRequest, RequestOptions, ActionListener)} instead
+     */
+    @Deprecated
+    public final void multiSearchAsync(MultiSearchRequest searchRequest, RequestOptions options,
+                                   ActionListener<MultiSearchResponse> listener) {
+        msearchAsync(searchRequest, options, listener);
+    }
+
+    /**
+     * Asynchronously executes a multi search using the msearch API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-multi-search.html">Multi search API on
+     * elastic.co</a>
+     * @param searchRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public final void msearchAsync(MultiSearchRequest searchRequest, RequestOptions options,
+                                   ActionListener<MultiSearchResponse> listener) {
+        performRequestAsyncAndParseEntity(searchRequest, RequestConverters::multiSearch, options, MultiSearchResponse::fromXContext,
+                listener, emptySet());
+    }
+
+    /**
+     * Executes a search using the Search Scroll API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-scroll.html">Search Scroll
      * API on elastic.co</a>
+     * @param searchScrollRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     * @deprecated use {@link #scroll(SearchScrollRequest, RequestOptions)} instead
      */
-    public final SearchResponse searchScroll(SearchScrollRequest searchScrollRequest, Header... headers) throws IOException {
-        return performRequestAndParseEntity(searchScrollRequest, Request::searchScroll, SearchResponse::fromXContent, emptySet(), headers);
+    @Deprecated
+    public final SearchResponse searchScroll(SearchScrollRequest searchScrollRequest, RequestOptions options) throws IOException {
+        return scroll(searchScrollRequest, options);
     }
 
     /**
-     * Asynchronously executes a search using the Search Scroll API
-     *
+     * Executes a search using the Search Scroll API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-scroll.html">Search Scroll
      * API on elastic.co</a>
+     * @param searchScrollRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public final void searchScrollAsync(SearchScrollRequest searchScrollRequest,
-                                        ActionListener<SearchResponse> listener, Header... headers) {
-        performRequestAsyncAndParseEntity(searchScrollRequest, Request::searchScroll, SearchResponse::fromXContent,
-                listener, emptySet(), headers);
+    public final SearchResponse scroll(SearchScrollRequest searchScrollRequest, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(searchScrollRequest, RequestConverters::searchScroll, options, SearchResponse::fromXContent,
+                emptySet());
     }
 
     /**
-     * Clears one or more scroll ids using the Clear Scroll API
-     *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-scroll.html#_clear_scroll_api">
-     * Clear Scroll API on elastic.co</a>
+     * Asynchronously executes a search using the Search Scroll API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-scroll.html">Search Scroll
+     * API on elastic.co</a>
+     * @param searchScrollRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @deprecated use {@link #scrollAsync(SearchScrollRequest, RequestOptions, ActionListener)} instead
      */
-    public final ClearScrollResponse clearScroll(ClearScrollRequest clearScrollRequest, Header... headers) throws IOException {
-        return performRequestAndParseEntity(clearScrollRequest, Request::clearScroll, ClearScrollResponse::fromXContent,
-                emptySet(), headers);
+    @Deprecated
+    public final void searchScrollAsync(SearchScrollRequest searchScrollRequest, RequestOptions options,
+                                  ActionListener<SearchResponse> listener) {
+        scrollAsync(searchScrollRequest, options, listener);
     }
 
     /**
-     * Asynchronously clears one or more scroll ids using the Clear Scroll API
-     *
+     * Asynchronously executes a search using the Search Scroll API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-scroll.html">Search Scroll
+     * API on elastic.co</a>
+     * @param searchScrollRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public final void scrollAsync(SearchScrollRequest searchScrollRequest, RequestOptions options,
+                                  ActionListener<SearchResponse> listener) {
+        performRequestAsyncAndParseEntity(searchScrollRequest, RequestConverters::searchScroll, options, SearchResponse::fromXContent,
+                listener, emptySet());
+    }
+
+    /**
+     * Clears one or more scroll ids using the Clear Scroll API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-scroll.html#_clear_scroll_api">
      * Clear Scroll API on elastic.co</a>
+     * @param clearScrollRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public final void clearScrollAsync(ClearScrollRequest clearScrollRequest,
-                                       ActionListener<ClearScrollResponse> listener, Header... headers) {
-        performRequestAsyncAndParseEntity(clearScrollRequest, Request::clearScroll, ClearScrollResponse::fromXContent,
-                listener, emptySet(), headers);
+    public final ClearScrollResponse clearScroll(ClearScrollRequest clearScrollRequest, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(clearScrollRequest, RequestConverters::clearScroll, options, ClearScrollResponse::fromXContent,
+                emptySet());
+    }
+
+    /**
+     * Asynchronously clears one or more scroll ids using the Clear Scroll API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-scroll.html#_clear_scroll_api">
+     * Clear Scroll API on elastic.co</a>
+     * @param clearScrollRequest the reuqest
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public final void clearScrollAsync(ClearScrollRequest clearScrollRequest, RequestOptions options,
+                                       ActionListener<ClearScrollResponse> listener) {
+        performRequestAsyncAndParseEntity(clearScrollRequest, RequestConverters::clearScroll, options, ClearScrollResponse::fromXContent,
+                listener, emptySet());
+    }
+
+    /**
+     * Executes a request using the Search Template API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-template.html">Search Template API
+     * on elastic.co</a>.
+     * @param searchTemplateRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public final SearchTemplateResponse searchTemplate(SearchTemplateRequest searchTemplateRequest,
+                                                       RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(searchTemplateRequest, RequestConverters::searchTemplate, options,
+            SearchTemplateResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously executes a request using the Search Template API.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-template.html">Search Template API
+     * on elastic.co</a>.
+     */
+    public final void searchTemplateAsync(SearchTemplateRequest searchTemplateRequest, RequestOptions options,
+                                          ActionListener<SearchTemplateResponse> listener) {
+        performRequestAsyncAndParseEntity(searchTemplateRequest, RequestConverters::searchTemplate, options,
+            SearchTemplateResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Executes a request using the Explain API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-explain.html">Explain API on elastic.co</a>
+     * @param explainRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public final ExplainResponse explain(ExplainRequest explainRequest, RequestOptions options) throws IOException {
+        return performRequest(explainRequest, RequestConverters::explain, options,
+            response -> {
+                CheckedFunction<XContentParser, ExplainResponse, IOException> entityParser =
+                    parser -> ExplainResponse.fromXContent(parser, convertExistsResponse(response));
+                return parseEntity(response.getEntity(), entityParser);
+            },
+            singleton(404));
+    }
+
+    /**
+     * Asynchronously executes a request using the Explain API.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-explain.html">Explain API on elastic.co</a>
+     * @param explainRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public final void explainAsync(ExplainRequest explainRequest, RequestOptions options, ActionListener<ExplainResponse> listener) {
+        performRequestAsync(explainRequest, RequestConverters::explain, options,
+            response -> {
+                CheckedFunction<XContentParser, ExplainResponse, IOException> entityParser =
+                    parser -> ExplainResponse.fromXContent(parser, convertExistsResponse(response));
+                return parseEntity(response.getEntity(), entityParser);
+            },
+            listener, singleton(404));
+    }
+
+    /**
+     * Executes a request using the Ranking Evaluation API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-rank-eval.html">Ranking Evaluation API
+     * on elastic.co</a>
+     * @param rankEvalRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public final RankEvalResponse rankEval(RankEvalRequest rankEvalRequest, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(rankEvalRequest, RequestConverters::rankEval, options, RankEvalResponse::fromXContent,
+                emptySet());
+    }
+
+
+    /**
+     * Executes a request using the Multi Search Template API.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/multi-search-template.html">Multi Search Template API
+     * on elastic.co</a>.
+     */
+    public final MultiSearchTemplateResponse msearchTemplate(MultiSearchTemplateRequest multiSearchTemplateRequest,
+                                                             RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(multiSearchTemplateRequest, RequestConverters::multiSearchTemplate,
+                options, MultiSearchTemplateResponse::fromXContext, emptySet());
+    }
+
+    /**
+     * Asynchronously executes a request using the Multi Search Template API
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/multi-search-template.html">Multi Search Template API
+     * on elastic.co</a>.
+     */
+    public final void msearchTemplateAsync(MultiSearchTemplateRequest multiSearchTemplateRequest,
+                                           RequestOptions options,
+                                           ActionListener<MultiSearchTemplateResponse> listener) {
+        performRequestAsyncAndParseEntity(multiSearchTemplateRequest, RequestConverters::multiSearchTemplate,
+            options, MultiSearchTemplateResponse::fromXContext, listener, emptySet());
+    }
+
+    /**
+     * Asynchronously executes a request using the Ranking Evaluation API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-rank-eval.html">Ranking Evaluation API
+     * on elastic.co</a>
+     * @param rankEvalRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public final void rankEvalAsync(RankEvalRequest rankEvalRequest, RequestOptions options,  ActionListener<RankEvalResponse> listener) {
+        performRequestAsyncAndParseEntity(rankEvalRequest, RequestConverters::rankEval, options,  RankEvalResponse::fromXContent, listener,
+                emptySet());
+    }
+
+    /**
+     * Executes a request using the Field Capabilities API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-field-caps.html">Field Capabilities API
+     * on elastic.co</a>.
+     * @param fieldCapabilitiesRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public final FieldCapabilitiesResponse fieldCaps(FieldCapabilitiesRequest fieldCapabilitiesRequest,
+                                                     RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(fieldCapabilitiesRequest, RequestConverters::fieldCaps, options,
+            FieldCapabilitiesResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Get stored script by id.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-scripting-using.html">
+     *     How to use scripts on elastic.co</a>
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public GetStoredScriptResponse getScript(GetStoredScriptRequest request, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(request, RequestConverters::getScript, options,
+            GetStoredScriptResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously get stored script by id.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-scripting-using.html">
+     *     How to use scripts on elastic.co</a>
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void getScriptAsync(GetStoredScriptRequest request, RequestOptions options,
+                               ActionListener<GetStoredScriptResponse> listener) {
+        performRequestAsyncAndParseEntity(request, RequestConverters::getScript, options,
+            GetStoredScriptResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Delete stored script by id.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-scripting-using.html">
+     *     How to use scripts on elastic.co</a>
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public DeleteStoredScriptResponse deleteScript(DeleteStoredScriptRequest request, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(request, RequestConverters::deleteScript, options,
+            DeleteStoredScriptResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously delete stored script by id.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-scripting-using.html">
+     *     How to use scripts on elastic.co</a>
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void deleteScriptAsync(DeleteStoredScriptRequest request, RequestOptions options,
+                                  ActionListener<DeleteStoredScriptResponse> listener) {
+        performRequestAsyncAndParseEntity(request, RequestConverters::deleteScript, options,
+            DeleteStoredScriptResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Asynchronously executes a request using the Field Capabilities API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-field-caps.html">Field Capabilities API
+     * on elastic.co</a>.
+     * @param fieldCapabilitiesRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public final void fieldCapsAsync(FieldCapabilitiesRequest fieldCapabilitiesRequest, RequestOptions options,
+                                     ActionListener<FieldCapabilitiesResponse> listener) {
+        performRequestAsyncAndParseEntity(fieldCapabilitiesRequest, RequestConverters::fieldCaps, options,
+            FieldCapabilitiesResponse::fromXContent, listener, emptySet());
     }
 
     protected final <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(Req request,
                                                                             CheckedFunction<Req, Request, IOException> requestConverter,
+                                                                            RequestOptions options,
                                                                             CheckedFunction<XContentParser, Resp, IOException> entityParser,
-                                                                            Set<Integer> ignores, Header... headers) throws IOException {
-        return performRequest(request, requestConverter, (response) -> parseEntity(response.getEntity(), entityParser), ignores, headers);
+                                                                            Set<Integer> ignores) throws IOException {
+        return performRequest(request, requestConverter, options,
+                response -> parseEntity(response.getEntity(), entityParser), ignores);
     }
 
     protected final <Req extends ActionRequest, Resp> Resp performRequest(Req request,
                                                           CheckedFunction<Req, Request, IOException> requestConverter,
+                                                          RequestOptions options,
                                                           CheckedFunction<Response, Resp, IOException> responseConverter,
-                                                          Set<Integer> ignores, Header... headers) throws IOException {
+                                                          Set<Integer> ignores) throws IOException {
         ActionRequestValidationException validationException = request.validate();
         if (validationException != null) {
             throw validationException;
         }
         Request req = requestConverter.apply(request);
+        req.setOptions(options);
         Response response;
         try {
-            response = client.performRequest(req.getMethod(), req.getEndpoint(), req.getParameters(), req.getEntity(), headers);
+            response = client.performRequest(req);
         } catch (ResponseException e) {
             if (ignores.contains(e.getResponse().getStatusLine().getStatusCode())) {
                 try {
                     return responseConverter.apply(e.getResponse());
                 } catch (Exception innerException) {
-                    //the exception is ignored as we now try to parse the response as an error.
-                    //this covers cases like get where 404 can either be a valid document not found response,
-                    //or an error for which parsing is completely different. We try to consider the 404 response as a valid one
-                    //first. If parsing of the response breaks, we fall back to parsing it as an error.
+                    // the exception is ignored as we now try to parse the response as an error.
+                    // this covers cases like get where 404 can either be a valid document not found response,
+                    // or an error for which parsing is completely different. We try to consider the 404 response as a valid one
+                    // first. If parsing of the response breaks, we fall back to parsing it as an error.
                     throw parseResponseException(e);
                 }
             }
@@ -463,16 +943,18 @@ public class RestHighLevelClient implements Closeable {
 
     protected final <Req extends ActionRequest, Resp> void performRequestAsyncAndParseEntity(Req request,
                                                                  CheckedFunction<Req, Request, IOException> requestConverter,
+                                                                 RequestOptions options,
                                                                  CheckedFunction<XContentParser, Resp, IOException> entityParser,
-                                                                 ActionListener<Resp> listener, Set<Integer> ignores, Header... headers) {
-        performRequestAsync(request, requestConverter, (response) -> parseEntity(response.getEntity(), entityParser),
-                listener, ignores, headers);
+                                                                 ActionListener<Resp> listener, Set<Integer> ignores) {
+        performRequestAsync(request, requestConverter, options,
+                response -> parseEntity(response.getEntity(), entityParser), listener, ignores);
     }
 
     protected final <Req extends ActionRequest, Resp> void performRequestAsync(Req request,
                                                                CheckedFunction<Req, Request, IOException> requestConverter,
+                                                               RequestOptions options,
                                                                CheckedFunction<Response, Resp, IOException> responseConverter,
-                                                               ActionListener<Resp> listener, Set<Integer> ignores, Header... headers) {
+                                                               ActionListener<Resp> listener, Set<Integer> ignores) {
         ActionRequestValidationException validationException = request.validate();
         if (validationException != null) {
             listener.onFailure(validationException);
@@ -485,9 +967,10 @@ public class RestHighLevelClient implements Closeable {
             listener.onFailure(e);
             return;
         }
+        req.setOptions(options);
 
         ResponseListener responseListener = wrapResponseListener(responseConverter, listener, ignores);
-        client.performRequestAsync(req.getMethod(), req.getEndpoint(), req.getParameters(), req.getEntity(), responseListener, headers);
+        client.performRequestAsync(req, responseListener);
     }
 
     final <Resp> ResponseListener wrapResponseListener(CheckedFunction<Response, Resp, IOException> responseConverter,
@@ -512,10 +995,10 @@ public class RestHighLevelClient implements Closeable {
                         try {
                             actionListener.onResponse(responseConverter.apply(response));
                         } catch (Exception innerException) {
-                            //the exception is ignored as we now try to parse the response as an error.
-                            //this covers cases like get where 404 can either be a valid document not found response,
-                            //or an error for which parsing is completely different. We try to consider the 404 response as a valid one
-                            //first. If parsing of the response breaks, we fall back to parsing it as an error.
+                            // the exception is ignored as we now try to parse the response as an error.
+                            // this covers cases like get where 404 can either be a valid document not found response,
+                            // or an error for which parsing is completely different. We try to consider the 404 response as a valid one
+                            // first. If parsing of the response breaks, we fall back to parsing it as an error.
                             actionListener.onFailure(parseResponseException(responseException));
                         }
                     } else {
@@ -567,9 +1050,19 @@ public class RestHighLevelClient implements Closeable {
         if (xContentType == null) {
             throw new IllegalStateException("Unsupported Content-Type: " + entity.getContentType().getValue());
         }
-        try (XContentParser parser = xContentType.xContent().createParser(registry, entity.getContent())) {
+        try (XContentParser parser = xContentType.xContent().createParser(registry,
+            LoggingDeprecationHandler.INSTANCE, entity.getContent())) {
             return entityParser.apply(parser);
         }
+    }
+
+    private static RequestOptions optionsForHeaders(Header[] headers) {
+        RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
+        for (Header header : headers) {
+            Objects.requireNonNull(header, "header cannot be null");
+            options.addHeader(header.getName(), header.getValue());
+        }
+        return options.build();
     }
 
     static boolean convertExistsResponse(Response response) {
@@ -601,6 +1094,7 @@ public class RestHighLevelClient implements Closeable {
         map.put(GeoCentroidAggregationBuilder.NAME, (p, c) -> ParsedGeoCentroid.fromXContent(p, (String) c));
         map.put(HistogramAggregationBuilder.NAME, (p, c) -> ParsedHistogram.fromXContent(p, (String) c));
         map.put(DateHistogramAggregationBuilder.NAME, (p, c) -> ParsedDateHistogram.fromXContent(p, (String) c));
+        map.put(AutoDateHistogramAggregationBuilder.NAME, (p, c) -> ParsedAutoDateHistogram.fromXContent(p, (String) c));
         map.put(StringTerms.NAME, (p, c) -> ParsedStringTerms.fromXContent(p, (String) c));
         map.put(LongTerms.NAME, (p, c) -> ParsedLongTerms.fromXContent(p, (String) c));
         map.put(DoubleTerms.NAME, (p, c) -> ParsedDoubleTerms.fromXContent(p, (String) c));
@@ -621,6 +1115,7 @@ public class RestHighLevelClient implements Closeable {
         map.put(ScriptedMetricAggregationBuilder.NAME, (p, c) -> ParsedScriptedMetric.fromXContent(p, (String) c));
         map.put(IpRangeAggregationBuilder.NAME, (p, c) -> ParsedBinaryRange.fromXContent(p, (String) c));
         map.put(TopHitsAggregationBuilder.NAME, (p, c) -> ParsedTopHits.fromXContent(p, (String) c));
+        map.put(CompositeAggregationBuilder.NAME, (p, c) -> ParsedComposite.fromXContent(p, (String) c));
         List<NamedXContentRegistry.Entry> entries = map.entrySet().stream()
                 .map(entry -> new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(entry.getKey()), entry.getValue()))
                 .collect(Collectors.toList());

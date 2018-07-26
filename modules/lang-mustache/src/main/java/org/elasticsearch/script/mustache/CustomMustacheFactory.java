@@ -30,6 +30,8 @@ import com.github.mustachejava.TemplateContext;
 import com.github.mustachejava.codes.DefaultMustache;
 import com.github.mustachejava.codes.IterableCode;
 import com.github.mustachejava.codes.WriteCode;
+
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 
@@ -201,11 +203,9 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
                     return null;
                 }
                 try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
-                    if (resolved == null) {
-                        builder.nullValue();
-                    } else if (resolved instanceof Iterable) {
+                    if (resolved instanceof Iterable) {
                         builder.startArray();
-                        for (Object o : (Iterable) resolved) {
+                        for (Object o : (Iterable<?>) resolved) {
                             builder.value(o);
                         }
                         builder.endArray();
@@ -215,7 +215,7 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
                         // Do not handle as JSON
                         return oh.stringify(resolved);
                     }
-                    return builder.string();
+                    return Strings.toString(builder);
                 } catch (IOException e) {
                     throw new MustacheException("Failed to convert object to JSON", e);
                 }
@@ -253,7 +253,7 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
                     return null;
                 } else if (resolved instanceof Iterable) {
                     StringJoiner joiner = new StringJoiner(delimiter);
-                    for (Object o : (Iterable) resolved) {
+                    for (Object o : (Iterable<?>) resolved) {
                         joiner.add(oh.stringify(o));
                     }
                     return joiner.toString();

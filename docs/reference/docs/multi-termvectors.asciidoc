@@ -17,13 +17,13 @@ POST /_mtermvectors
    "docs": [
       {
          "_index": "twitter",
-         "_type": "tweet",
+         "_type": "_doc",
          "_id": "2",
          "term_statistics": true
       },
       {
          "_index": "twitter",
-         "_type": "tweet",
+         "_type": "_doc",
          "_id": "1",
          "fields": [
             "message"
@@ -46,7 +46,7 @@ POST /twitter/_mtermvectors
 {
    "docs": [
       {
-         "_type": "tweet",
+         "_type": "_doc",
          "_id": "2",
          "fields": [
             "message"
@@ -54,7 +54,7 @@ POST /twitter/_mtermvectors
          "term_statistics": true
       },
       {
-         "_type": "tweet",
+         "_type": "_doc",
          "_id": "1"
       }
    ]
@@ -67,7 +67,7 @@ And type:
 
 [source,js]
 --------------------------------------------------
-POST /twitter/tweet/_mtermvectors
+POST /twitter/_doc/_mtermvectors
 {
    "docs": [
       {
@@ -90,7 +90,7 @@ If all requested documents are on same index and have same type and also the par
 
 [source,js]
 --------------------------------------------------
-POST /twitter/tweet/_mtermvectors
+POST /twitter/_doc/_mtermvectors
 {
     "ids" : ["1", "2"],
     "parameters": {
@@ -115,7 +115,7 @@ POST /_mtermvectors
    "docs": [
       {
          "_index": "twitter",
-         "_type": "tweet",
+         "_type": "_doc",
          "doc" : {
             "user" : "John Doe",
             "message" : "twitter test test test"
@@ -123,7 +123,7 @@ POST /_mtermvectors
       },
       {
          "_index": "twitter",
-         "_type": "test",
+         "_type": "_doc",
          "doc" : {
            "user" : "Jane Doe",
            "message" : "Another twitter test ..."

@@ -250,7 +250,7 @@ POST _ingest/pipeline/_simulate
   "docs": [
     {
       "_index": "index",
-      "_type": "type",
+      "_type": "_doc",
       "_id": "id",
       "_source": {
         "foo": "bar"
@@ -258,7 +258,7 @@ POST _ingest/pipeline/_simulate
     },
     {
       "_index": "index",
-      "_type": "type",
+      "_type": "_doc",
       "_id": "id",
       "_source": {
         "foo": "rab"
@@ -279,7 +279,7 @@ Response:
          "doc": {
             "_id": "id",
             "_index": "index",
-            "_type": "type",
+            "_type": "_doc",
             "_source": {
                "field2": "_value",
                "foo": "bar"
@@ -293,7 +293,7 @@ Response:
          "doc": {
             "_id": "id",
             "_index": "index",
-            "_type": "type",
+            "_type": "_doc",
             "_source": {
                "field2": "_value",
                "foo": "rab"
@@ -343,7 +343,7 @@ POST _ingest/pipeline/_simulate?verbose
   "docs": [
     {
       "_index": "index",
-      "_type": "type",
+      "_type": "_doc",
       "_id": "id",
       "_source": {
         "foo": "bar"
@@ -351,7 +351,7 @@ POST _ingest/pipeline/_simulate?verbose
     },
     {
       "_index": "index",
-      "_type": "type",
+      "_type": "_doc",
       "_id": "id",
       "_source": {
         "foo": "rab"
@@ -374,7 +374,7 @@ Response:
                "doc": {
                   "_id": "id",
                   "_index": "index",
-                  "_type": "type",
+                  "_type": "_doc",
                   "_source": {
                      "field2": "_value2",
                      "foo": "bar"
@@ -388,7 +388,7 @@ Response:
                "doc": {
                   "_id": "id",
                   "_index": "index",
-                  "_type": "type",
+                  "_type": "_doc",
                   "_source": {
                      "field3": "_value3",
                      "field2": "_value2",
@@ -407,7 +407,7 @@ Response:
                "doc": {
                   "_id": "id",
                   "_index": "index",
-                  "_type": "type",
+                  "_type": "_doc",
                   "_source": {
                      "field2": "_value2",
                      "foo": "rab"
@@ -421,7 +421,7 @@ Response:
                "doc": {
                   "_id": "id",
                   "_index": "index",
-                  "_type": "type",
+                  "_type": "_doc",
                   "_source": {
                      "field3": "_value3",
                      "field2": "_value2",
@@ -458,7 +458,7 @@ their name. For example:
 --------------------------------------------------
 {
   "set": {
-    "field": "my_field"
+    "field": "my_field",
     "value": 582.1
   }
 }
@@ -471,7 +471,7 @@ On top of this, fields from the source are always accessible via the `_source` p
 --------------------------------------------------
 {
   "set": {
-    "field": "_source.my_field"
+    "field": "_source.my_field",
     "value": 582.1
   }
 }
@@ -491,7 +491,7 @@ The following example sets the `_id` metadata field of a document to `1`:
 --------------------------------------------------
 {
   "set": {
-    "field": "_id"
+    "field": "_id",
     "value": "1"
   }
 }
@@ -517,7 +517,7 @@ The following example adds a field with the name `received`. The value is the in
 --------------------------------------------------
 {
   "set": {
-    "field": "received"
+    "field": "received",
     "value": "{{_ingest.timestamp}}"
   }
 }
@@ -542,7 +542,7 @@ the values of `field_a` and `field_b`.
 --------------------------------------------------
 {
   "set": {
-    "field": "field_c"
+    "field": "field_c",
     "value": "{{field_a}} {{field_b}}"
   }
 }
@@ -556,21 +556,21 @@ to set the index that the document will be indexed into:
 --------------------------------------------------
 {
   "set": {
-    "field": "_index"
+    "field": "_index",
     "value": "{{geoip.country_iso_code}}"
   }
 }
 --------------------------------------------------
 // NOTCONSOLE
 
-Dynamic field names are also supported. This example sets the field named after the 
+Dynamic field names are also supported. This example sets the field named after the
 value of `service` to the value of the field `code`:
 
 [source,js]
 --------------------------------------------------
 {
   "set": {
-    "field": "{{service}}"
+    "field": "{{service}}",
     "value": "{{code}}"
   }
 }
@@ -773,21 +773,49 @@ Accepts a single value or an array of values.
 --------------------------------------------------
 // NOTCONSOLE
 
+[[bytes-processor]]
+=== Bytes Processor
+Converts a human readable byte value (e.g. 1kb) to its value in bytes (e.g. 1024).
+
+Supported human readable units are "b", "kb", "mb", "gb", "tb", "pb" case insensitive. An error will occur if
+the field is not a supported format or resultant value exceeds 2^63.
+
+[[bytes-options]]
+.Bytes Options
+[options="header"]
+|======
+| Name             | Required  | Default  | Description
+| `field`          | yes       | -        | The field to convert
+| `target_field`   | no        | `field`  | The field to assign the converted value to, by default `field` is updated in-place
+| `ignore_missing` | no        | `false`  | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
+|======
+
+[source,js]
+--------------------------------------------------
+{
+  "bytes": {
+    "field": "foo"
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
 [[convert-processor]]
 === Convert Processor
 Converts an existing field's value to a different type, such as converting a string to an integer.
 If the field value is an array, all members will be converted.
 
-The supported types include: `integer`, `float`, `string`, `boolean`, and `auto`.
+The supported types include: `integer`, `long`, `float`, `double`, `string`, `boolean`, and `auto`.
 
 Specifying `boolean` will set the field to true if its string value is equal to `true` (ignore case), to
 false if its string value is equal to `false` (ignore case), or it will throw an exception otherwise.
 
 Specifying `auto` will attempt to convert the string-valued `field` into the closest non-string type.
-For example, a field whose value is `"true"` will be converted to its respective boolean type: `true`. And
-a value of `"242.15"` will "automatically" be converted to `242.15` of type `float`. If a provided field cannot
-be appropriately converted, the Convert Processor will still process successfully and leave the field value as-is. In
-such a case, `target_field` will still be updated with the unconverted field value.
+For example, a field whose value is `"true"` will be converted to its respective boolean type: `true`. Do note
+that float takes precedence of double in `auto`. A value of `"242.15"` will "automatically" be converted to
+`242.15` of type `float`. If a provided field cannot be appropriately converted, the Convert Processor will
+still process successfully and leave the field value as-is. In such a case, `target_field` will
+still be updated with the unconverted field value.
 
 [[convert-options]]
 .Convert Options
@@ -917,7 +945,7 @@ Using that pipeline for an index request:
 
 [source,js]
 --------------------------------------------------
-PUT /myindex/type/1?pipeline=monthlyindex
+PUT /myindex/_doc/1?pipeline=monthlyindex
 {
   "date1" : "2016-04-25T12:02:01.789Z"
 }
@@ -929,7 +957,7 @@ PUT /myindex/type/1?pipeline=monthlyindex
 --------------------------------------------------
 {
   "_index" : "myindex-2016-04-01",
-  "_type" : "type",
+  "_type" : "_doc",
   "_id" : "1",
   "_version" : 1,
   "result" : "created",
@@ -1015,7 +1043,7 @@ understands this to mean `2016-04-01` as is explained in the <<date-math-index-n
 | `field`                | yes       | -                            | The field to get the date or timestamp from.
 | `index_name_prefix`    | no        | -                            | A prefix of the index name to be prepended before the printed date.
 | `date_rounding`        | yes       | -                            | How to round the date when formatting the date into the index name. Valid values are: `y` (year), `M` (month), `w` (week), `d` (day), `h` (hour), `m` (minute) and `s` (second).
-| `date_formats `        | no        | yyyy-MM-dd'T'HH:mm:ss.SSSZ   | An array of the expected date formats for parsing dates / timestamps in the document being preprocessed. Can be a Joda pattern or one of the following formats: ISO8601, UNIX, UNIX_MS, or TAI64N.
+| `date_formats`         | no        | yyyy-MM-dd'T'HH:mm:ss.SSSZ   | An array of the expected date formats for parsing dates / timestamps in the document being preprocessed. Can be a Joda pattern or one of the following formats: ISO8601, UNIX, UNIX_MS, or TAI64N.
 | `timezone`             | no        | UTC                          | The timezone to use when parsing the date and when date math index supports resolves expressions into concrete index names.
 | `locale`               | no        | ENGLISH                      | The locale to use when parsing the date from the document being preprocessed, relevant when parsing month names or week days.
 | `index_name_format`    | no        | yyyy-MM-dd                   | The format to be used when printing the parsed date into the index name. An valid Joda pattern is expected here.
@@ -1074,9 +1102,10 @@ then it aborts the execution and leaves the array unmodified.
 .Foreach Options
 [options="header"]
 |======
-| Name          | Required  | Default  | Description
-| `field`       | yes       | -        | The array field
-| `processor`   | yes       | -        | The processor to execute against each field
+| Name             | Required  | Default  | Description
+| `field`          | yes       | -        | The array field
+| `processor`      | yes       | -        | The processor to execute against each field
+| `ignore_missing` | no        | false    | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
 |======
 
 Assume the following document:
@@ -1215,8 +1244,8 @@ expression that supports aliased expressions that can be reused.
 
 This tool is perfect for syslog logs, apache and other webserver logs, mysql logs, and in general, any log format
 that is generally written for humans and not computer consumption.
-This processor comes packaged with over
-https://github.com/elastic/elasticsearch/tree/master/modules/ingest-common/src/main/resources/patterns[120 reusable patterns].
+This processor comes packaged with many
+https://github.com/elastic/elasticsearch/blob/{branch}/libs/grok/src/main/resources/patterns[reusable patterns].
 
 If you need help building patterns to match your logs, you will find the {kibana-ref}/xpack-grokdebugger.html[Grok Debugger] tool quite useful! The Grok Debugger is an {xpack} feature under the Basic License and is therefore *free to use*. The Grok Constructor at <http://grokconstructor.appspot.com/> is also a useful tool.
 
@@ -1240,7 +1269,7 @@ The `SEMANTIC` is the identifier you give to the piece of text being matched. Fo
 duration of an event, so you could call it simply `duration`. Further, a string `55.3.244.1` might identify
 the `client` making a request.
 
-The `TYPE` is the type you wish to cast your named field. `int` and `float` are currently the only types supported for coercion.
+The `TYPE` is the type you wish to cast your named field. `int`, `long`, `double`, `float` and `boolean` are supported types for coercion.
 
 For example, you might want to match the following text:
 
@@ -1324,7 +1353,7 @@ This pipeline will insert these named captures as new fields within the document
 // NOTCONSOLE
 
 [[custom-patterns]]
-==== Custom Patterns and Pattern Files
+==== Custom Patterns
 
 The Grok processor comes pre-packaged with a base set of pattern. These patterns may not always have
 what you are looking for. Pattern have a very basic format. Each entry describes has a name and the pattern itself.
@@ -1340,7 +1369,7 @@ Here is an example of a pipeline specifying custom pattern definitions:
     {
       "grok": {
         "field": "message",
-        "patterns": ["my %{FAVORITE_DOG:dog} is colored %{RGB:color}"]
+        "patterns": ["my %{FAVORITE_DOG:dog} is colored %{RGB:color}"],
         "pattern_definitions" : {
           "FAVORITE_DOG" : "beagle",
           "RGB" : "RED|GREEN|BLUE"
@@ -1510,6 +1539,24 @@ The above request will return a response body containing a key-value representat
 // NOTCONSOLE
 
 This can be useful to reference as the built-in patterns change across versions.
+
+[[grok-watchdog]]
+==== Grok watchdog
+
+Grok expressions that take too long to execute are interrupted and
+the grok processor then fails with an exception. The grok
+processor has a watchdog thread that determines when evaluation of
+a grok expression takes too long and is controlled by the following
+settings:
+
+[[grok-watchdog-options]]
+.Grok watchdog settings
+[options="header"]
+|======
+| Name                                      | Default | Description
+| `ingest.grok.watchdog.interval`           | 1s      | How often to check whether there are grok evaluations that take longer than the maximum allowed execution time.
+| `ingest.grok.watchdog.max_execution_time` | 1s      | The maximum allowed execution of a grok expression evaluation.
+|======
 
 [[gsub-processor]]
 === Gsub Processor
@@ -1685,6 +1732,10 @@ For example, if you have a log message which contains `ip=1.2.3.4 error=REFUSED`
 | `include_keys`   | no        | `null`   | List of keys to filter and insert into document. Defaults to including all keys
 | `exclude_keys`   | no        | `null`   | List of keys to exclude from document
 | `ignore_missing` | no        | `false`  | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
+| `prefix`         | no        | `null`   | Prefix to be added to extracted keys
+| `trim_key`       | no        | `null`   | String of characters to trim from extracted keys
+| `trim_value`     | no        | `null`   | String of characters to trim from extracted values
+| `strip_brackets` | no        | `false`  | If `true` strip brackets `()`, `<>`, `[]` as well as quotes `'` and `"` from extracted values
 |======
 
 
@@ -1720,8 +1771,9 @@ Removes existing fields. If one field doesn't exist, an exception will be thrown
 .Remove Options
 [options="header"]
 |======
-| Name      | Required  | Default  | Description
-| `field`   | yes       | -        | Fields to be removed
+| Name             | Required  | Default  | Description
+| `field`          | yes       | -        | Fields to be removed
+| `ignore_missing` | no        | `false`  | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
 |======
 
 Here is an example to remove a single field:
@@ -1824,11 +1876,14 @@ was provided in the original index request:
 --------------------------------------------------
 PUT _ingest/pipeline/my_index
 {
-    "description": "use index:my_index and type:my_type",
+    "description": "use index:my_index and type:_doc",
     "processors": [
       {
         "script": {
-          "source": " ctx._index = 'my_index'; ctx._type = 'my_type' "
+          "source": """
+            ctx._index = 'my_index';
+            ctx._type = '_doc';
+          """
         }
       }
     ]
@@ -1840,7 +1895,7 @@ Using the above pipeline, we can attempt to index a document into the `any_index
 
 [source,js]
 --------------------------------------------------
-PUT any_index/any_type/1?pipeline=my_index
+PUT any_index/_doc/1?pipeline=my_index
 {
   "message": "text"
 }
@@ -1854,7 +1909,7 @@ The response from the above index request:
 --------------------------------------------------
 {
   "_index": "my_index",
-  "_type": "my_type",
+  "_type": "_doc",
   "_id": "1",
   "_version": 1,
   "result": "created",

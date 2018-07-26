@@ -78,9 +78,11 @@
         id:     4
         body:   { "theField": "foo 4" }
 
+  # we use a different index here since we compare the explain description which contains a doc ID and we can only be sure that it's 0
+  # if we are the only doc in the shard.
   - do:
       index:
-        index:  test
+        index:  otherindex
         type:   type
         id:     5
         body:   { "otherField": "foo" }

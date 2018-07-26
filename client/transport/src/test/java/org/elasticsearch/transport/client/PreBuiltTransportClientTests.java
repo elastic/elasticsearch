@@ -20,7 +20,6 @@
 package org.elasticsearch.transport.client;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -30,7 +29,6 @@ import org.elasticsearch.percolator.PercolatorPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.mustache.MustachePlugin;
 import org.elasticsearch.transport.Netty4Plugin;
-import org.elasticsearch.search.aggregations.composite.CompositeAggregationPlugin;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -54,7 +52,7 @@ public class PreBuiltTransportClientTests extends RandomizedTest {
     public void testInstallPluginTwice() {
         for (Class<? extends Plugin> plugin :
                 Arrays.asList(ParentJoinPlugin.class, ReindexPlugin.class, PercolatorPlugin.class,
-                    MustachePlugin.class, CompositeAggregationPlugin.class)) {
+                    MustachePlugin.class)) {
             try {
                 new PreBuiltTransportClient(Settings.EMPTY, plugin);
                 fail("exception expected");

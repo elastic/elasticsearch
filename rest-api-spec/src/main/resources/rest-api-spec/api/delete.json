@@ -4,7 +4,7 @@
     "methods": ["DELETE"],
     "url": {
       "path": "/{index}/{type}/{id}",
-      "paths": ["/{index}/{type}/{id}"],
+      "paths": ["/{index}/{type}/{id}", "/{index}/_doc/{id}"],
       "parts": {
         "id": {
           "type" : "string",
@@ -18,11 +18,14 @@
         },
         "type": {
           "type" : "string",
-          "required" : true,
           "description" : "The type of the document"
         }
       },
       "params": {
+        "include_type_name": {
+          "type" : "string",
+          "description" : "Whether to add the type name to the response"
+        },
         "wait_for_active_shards": {
           "type" : "string",
           "description" : "Sets the number of shard copies that must be active before proceeding with the delete operation. Defaults to 1, meaning the primary shard only. Set to `all` for all shard copies, otherwise set to any non-negative value less than or equal to the total number of copies for the shard (number of replicas + 1)"

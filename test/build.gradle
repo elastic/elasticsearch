@@ -38,6 +38,7 @@ subprojects {
 
   // TODO: should we have licenses for our test deps?
   dependencyLicenses.enabled = false
+  dependenciesInfo.enabled = false
 
   // TODO: why is the test framework pulled in...
   forbiddenApisMain.enabled = false

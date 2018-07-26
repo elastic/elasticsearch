@@ -21,6 +21,7 @@ package org.elasticsearch.ingest.geoip;
 
 import com.maxmind.geoip2.DatabaseReader;
 import com.maxmind.geoip2.exception.AddressNotFoundException;
+import com.maxmind.geoip2.model.AsnResponse;
 import com.maxmind.geoip2.model.CityResponse;
 import com.maxmind.geoip2.model.CountryResponse;
 import com.maxmind.geoip2.record.City;
@@ -36,7 +37,6 @@ import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 
-import java.io.IOException;
 import java.net.InetAddress;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -59,6 +59,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
     public static final String TYPE = "geoip";
     private static final String CITY_DB_SUFFIX = "-City";
     private static final String COUNTRY_DB_SUFFIX = "-Country";
+    private static final String ASN_DB_SUFFIX = "-ASN";
 
     private final String field;
     private final String targetField;
@@ -66,8 +67,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
     private final Set<Property> properties;
     private final boolean ignoreMissing;
 
-    GeoIpProcessor(String tag, String field, DatabaseReader dbReader, String targetField, Set<Property> properties,
-                   boolean ignoreMissing) throws IOException {
+    GeoIpProcessor(String tag, String field, DatabaseReader dbReader, String targetField, Set<Property> properties, boolean ignoreMissing) {
         super(tag);
         this.field = field;
         this.targetField = targetField;
@@ -104,6 +104,12 @@ public final class GeoIpProcessor extends AbstractProcessor {
         } else if (databaseType.endsWith(COUNTRY_DB_SUFFIX)) {
             try {
                 geoData = retrieveCountryGeoData(ipAddress);
+            } catch (AddressNotFoundRuntimeException e) {
+                geoData = Collections.emptyMap();
+            }
+        } else if (databaseType.endsWith(ASN_DB_SUFFIX)) {
+            try {
+                geoData = retrieveAsnGeoData(ipAddress);
             } catch (AddressNotFoundRuntimeException e) {
                 geoData = Collections.emptyMap();
             }
@@ -177,6 +183,16 @@ public final class GeoIpProcessor extends AbstractProcessor {
                     String continentName = continent.getName();
                     if (continentName != null) {
                         geoData.put("continent_name", continentName);
+                    }
+                    break;
+                case REGION_ISO_CODE:
+                    // ISO 3166-2 code for country subdivisions.
+                    // See iso.org/iso-3166-country-codes.html
+                    String countryIso = country.getIsoCode();
+                    String subdivisionIso = subdivision.getIsoCode();
+                    if (countryIso != null && subdivisionIso != null) {
+                        String regionIsoCode = countryIso + "-" + subdivisionIso;
+                        geoData.put("region_iso_code", regionIsoCode);
                     }
                     break;
                 case REGION_NAME:
@@ -256,12 +272,53 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return geoData;
     }
 
+    private Map<String, Object> retrieveAsnGeoData(InetAddress ipAddress) {
+        SpecialPermission.check();
+        AsnResponse response = AccessController.doPrivileged((PrivilegedAction<AsnResponse>) () -> {
+            try {
+                return dbReader.asn(ipAddress);
+            } catch (AddressNotFoundException e) {
+                throw new AddressNotFoundRuntimeException(e);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        Integer asn = response.getAutonomousSystemNumber();
+        String organization_name = response.getAutonomousSystemOrganization();
+
+        Map<String, Object> geoData = new HashMap<>();
+        for (Property property : this.properties) {
+            switch (property) {
+                case IP:
+                    geoData.put("ip", NetworkAddress.format(ipAddress));
+                    break;
+                case ASN:
+                    if (asn != null) {
+                        geoData.put("asn", asn);
+                    }
+                    break;
+                case ORGANIZATION_NAME:
+                    if (organization_name != null) {
+                        geoData.put("organization_name", organization_name);
+                    }
+                    break;
+            }
+        }
+        return geoData;
+    }
+
     public static final class Factory implements Processor.Factory {
         static final Set<Property> DEFAULT_CITY_PROPERTIES = EnumSet.of(
-            Property.CONTINENT_NAME, Property.COUNTRY_ISO_CODE, Property.REGION_NAME,
-            Property.CITY_NAME, Property.LOCATION
+            Property.CONTINENT_NAME, Property.COUNTRY_ISO_CODE, Property.REGION_ISO_CODE,
+            Property.REGION_NAME, Property.CITY_NAME, Property.LOCATION
         );
-        static final Set<Property> DEFAULT_COUNTRY_PROPERTIES = EnumSet.of(Property.CONTINENT_NAME, Property.COUNTRY_ISO_CODE);
+        static final Set<Property> DEFAULT_COUNTRY_PROPERTIES = EnumSet.of(
+            Property.CONTINENT_NAME, Property.COUNTRY_ISO_CODE
+        );
+        static final Set<Property> DEFAULT_ASN_PROPERTIES = EnumSet.of(
+            Property.IP, Property.ASN, Property.ORGANIZATION_NAME
+        );
 
         private final Map<String, DatabaseReaderLazyLoader> databaseReaders;
 
@@ -274,7 +331,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
                                        Map<String, Object> config) throws Exception {
             String ipField = readStringProperty(TYPE, processorTag, config, "field");
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "geoip");
-            String databaseFile = readStringProperty(TYPE, processorTag, config, "database_file", "GeoLite2-City.mmdb.gz");
+            String databaseFile = readStringProperty(TYPE, processorTag, config, "database_file", "GeoLite2-City.mmdb");
             List<String> propertyNames = readOptionalList(TYPE, processorTag, config, "properties");
             boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
 
@@ -302,6 +359,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
                     properties = DEFAULT_CITY_PROPERTIES;
                 } else if (databaseType.endsWith(COUNTRY_DB_SUFFIX)) {
                     properties = DEFAULT_COUNTRY_PROPERTIES;
+                } else if (databaseType.endsWith(ASN_DB_SUFFIX)) {
+                    properties = DEFAULT_ASN_PROPERTIES;
                 } else {
                     throw newConfigurationException(TYPE, processorTag, "database_file", "Unsupported database type ["
                             + databaseType + "]");
@@ -328,14 +387,25 @@ public final class GeoIpProcessor extends AbstractProcessor {
         COUNTRY_ISO_CODE,
         COUNTRY_NAME,
         CONTINENT_NAME,
+        REGION_ISO_CODE,
         REGION_NAME,
         CITY_NAME,
         TIMEZONE,
-        LOCATION;
+        LOCATION,
+        ASN,
+        ORGANIZATION_NAME;
 
-        static final EnumSet<Property> ALL_CITY_PROPERTIES = EnumSet.allOf(Property.class);
-        static final EnumSet<Property> ALL_COUNTRY_PROPERTIES = EnumSet.of(Property.IP, Property.CONTINENT_NAME,
-            Property.COUNTRY_NAME, Property.COUNTRY_ISO_CODE);
+        static final EnumSet<Property> ALL_CITY_PROPERTIES = EnumSet.of(
+            Property.IP, Property.COUNTRY_ISO_CODE, Property.COUNTRY_NAME, Property.CONTINENT_NAME,
+            Property.REGION_ISO_CODE, Property.REGION_NAME, Property.CITY_NAME, Property.TIMEZONE,
+            Property.LOCATION
+        );
+        static final EnumSet<Property> ALL_COUNTRY_PROPERTIES = EnumSet.of(
+            Property.IP, Property.CONTINENT_NAME, Property.COUNTRY_NAME, Property.COUNTRY_ISO_CODE
+        );
+        static final EnumSet<Property> ALL_ASN_PROPERTIES = EnumSet.of(
+            Property.IP, Property.ASN, Property.ORGANIZATION_NAME
+        );
 
         public static Property parseProperty(String databaseType, String value) {
             Set<Property> validProperties = EnumSet.noneOf(Property.class);
@@ -343,6 +413,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 validProperties = ALL_CITY_PROPERTIES;
             } else if (databaseType.endsWith(COUNTRY_DB_SUFFIX)) {
                 validProperties = ALL_COUNTRY_PROPERTIES;
+            } else if (databaseType.endsWith(ASN_DB_SUFFIX)) {
+                validProperties = ALL_ASN_PROPERTIES;
             }
 
             try {

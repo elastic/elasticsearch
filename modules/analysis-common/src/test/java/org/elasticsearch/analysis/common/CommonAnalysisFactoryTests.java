@@ -45,6 +45,17 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         Map<String, Class<?>> tokenizers = new TreeMap<>(super.getTokenizers());
         tokenizers.put("simplepattern", SimplePatternTokenizerFactory.class);
         tokenizers.put("simplepatternsplit", SimplePatternSplitTokenizerFactory.class);
+        tokenizers.put("thai", ThaiTokenizerFactory.class);
+        tokenizers.put("ngram", NGramTokenizerFactory.class);
+        tokenizers.put("edgengram", EdgeNGramTokenizerFactory.class);
+        tokenizers.put("classic", ClassicTokenizerFactory.class);
+        tokenizers.put("letter", LetterTokenizerFactory.class);
+        tokenizers.put("lowercase", LowerCaseTokenizerFactory.class);
+        tokenizers.put("pathhierarchy", PathHierarchyTokenizerFactory.class);
+        tokenizers.put("pattern", PatternTokenizerFactory.class);
+        tokenizers.put("uax29urlemail", UAX29URLEmailTokenizerFactory.class);
+        tokenizers.put("whitespace", WhitespaceTokenizerFactory.class);
+        tokenizers.put("keyword", KeywordTokenizerFactory.class);
         return tokenizers;
     }
 
@@ -130,6 +141,8 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("brazilianstem", BrazilianStemTokenFilterFactory.class);
         filters.put("czechstem", CzechStemTokenFilterFactory.class);
         filters.put("germanstem", GermanStemTokenFilterFactory.class);
+        // this filter is not exposed and should only be used internally
+        filters.put("fixedshingle", Void.class);
         return filters;
     }
 
@@ -170,6 +183,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("czech_stem", null);
         filters.put("decimal_digit", null);
         filters.put("delimited_payload_filter", org.apache.lucene.analysis.payloads.DelimitedPayloadTokenFilterFactory.class);
+        filters.put("delimited_payload", org.apache.lucene.analysis.payloads.DelimitedPayloadTokenFilterFactory.class);
         filters.put("dutch_stem", SnowballPorterFilterFactory.class);
         filters.put("edge_ngram", null);
         filters.put("edgeNGram", null);
@@ -208,10 +222,25 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
 
     @Override
     protected Map<String, Class<?>> getPreConfiguredTokenizers() {
-        Map<String, Class<?>> filters = new TreeMap<>(super.getPreConfiguredTokenizers());
-        filters.put("keyword", null);
-        filters.put("lowercase", null);
-        return filters;
+        Map<String, Class<?>> tokenizers = new TreeMap<>(super.getPreConfiguredTokenizers());
+        tokenizers.put("keyword", null);
+        tokenizers.put("lowercase", null);
+        tokenizers.put("classic", null);
+        tokenizers.put("uax_url_email", org.apache.lucene.analysis.standard.UAX29URLEmailTokenizerFactory.class);
+        tokenizers.put("path_hierarchy", null);
+        tokenizers.put("letter", null);
+        tokenizers.put("whitespace", null);
+        tokenizers.put("ngram", null);
+        tokenizers.put("edge_ngram", null);
+        tokenizers.put("pattern", null);
+        tokenizers.put("thai", null);
+
+        // TODO drop aliases once they are moved to module
+        tokenizers.put("nGram", tokenizers.get("ngram"));
+        tokenizers.put("edgeNGram", tokenizers.get("edge_ngram"));
+        tokenizers.put("PathHierarchy", tokenizers.get("path_hierarchy"));
+
+        return tokenizers;
     }
 
     /**

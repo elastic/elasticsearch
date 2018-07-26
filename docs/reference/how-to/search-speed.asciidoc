@@ -6,7 +6,7 @@
 
 Elasticsearch heavily relies on the filesystem cache in order to make search
 fast. In general, you should make sure that at least half the available memory
-goes to the filesystem cache so that elasticsearch can keep hot regions of the
+goes to the filesystem cache so that Elasticsearch can keep hot regions of the
 index in physical memory.
 
 [float]
@@ -36,6 +36,44 @@ queries hundreds of times slower. So if the same questions can be answered witho
 joins by denormalizing documents, significant speedups can be expected.
 
 [float]
+=== Search as few fields as possible
+
+The more fields a <<query-dsl-query-string-query,`query_string`>> or
+<<query-dsl-multi-match-query,`multi_match`>> query targets, the slower it is.
+A common technique to improve search speed over multiple fields is to copy
+their values into a single field at index time, and then use this field at
+search time. This can be automated with the <<copy-to,`copy-to`>> directive of
+mappings without having to change the source of documents. Here is an example
+of an index containing movies that optimizes queries that search over both the
+name and the plot of the movie by indexing both values into the `name_and_plot`
+field.
+
+[source,js]
+--------------------------------------------------
+PUT movies
+{
+  "mappings": {
+    "_doc": {
+      "properties": {
+        "name_and_plot": {
+          "type": "text"
+        },
+        "name": {
+          "type": "text",
+          "copy_to": "name_and_plot"
+        },
+        "plot": {
+          "type": "text",
+          "copy_to": "name_and_plot"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+[float]
 === Pre-index data
 
 You should leverage patterns in your queries to optimize the way data is indexed.
@@ -49,7 +87,7 @@ For instance, if documents look like:
 
 [source,js]
 --------------------------------------------------
-PUT index/type/1
+PUT index/_doc/1
 {
   "designation": "spoon",
   "price": 13
@@ -88,7 +126,7 @@ should be mapped as a <<keyword,`keyword`>>:
 PUT index
 {
   "mappings": {
-    "type": {
+    "_doc": {
       "properties": {
         "price_range": {
           "type": "keyword"
@@ -98,7 +136,7 @@ PUT index
   }
 }
 
-PUT index/type/1
+PUT index/_doc/1
 {
   "designation": "spoon",
   "price": 13,
@@ -152,7 +190,7 @@ For instance the below query:
 
 [source,js]
 --------------------------------------------------
-PUT index/type/1
+PUT index/_doc/1
 {
   "my_date": "2016-05-11T16:30:55.328Z"
 }
@@ -275,8 +313,8 @@ merging to the background merge process.
 Global ordinals are a data-structure that is used in order to run
 <<search-aggregations-bucket-terms-aggregation,`terms`>> aggregations on
 <<keyword,`keyword`>> fields. They are loaded lazily in memory because
-elasticsearch does not know which fields will be used in `terms` aggregations
-and which fields won't. You can tell elasticsearch to load global ordinals
+Elasticsearch does not know which fields will be used in `terms` aggregations
+and which fields won't. You can tell Elasticsearch to load global ordinals
 eagerly at refresh-time by configuring mappings as described below:
 
 [source,js]
@@ -284,7 +322,7 @@ eagerly at refresh-time by configuring mappings as described below:
 PUT index
 {
   "mappings": {
-    "type": {
+    "_doc": {
       "properties": {
         "foo": {
           "type": "keyword",
@@ -300,7 +338,7 @@ PUT index
 [float]
 === Warm up the filesystem cache
 
-If the machine running elasticsearch is restarted, the filesystem cache will be
+If the machine running Elasticsearch is restarted, the filesystem cache will be
 empty, so it will take some time before the operating system loads hot regions
 of the index into memory so that search operations are fast. You can explicitly
 tell the operating system which files should be loaded into memory eagerly

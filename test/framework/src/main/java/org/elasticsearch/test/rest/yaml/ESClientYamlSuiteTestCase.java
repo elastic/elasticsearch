@@ -21,14 +21,17 @@ package org.elasticsearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.apache.http.HttpHost;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
+import org.elasticsearch.client.Node;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.sniff.ElasticsearchNodesSniffer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
@@ -38,20 +41,30 @@ import org.elasticsearch.test.rest.yaml.section.DoSection;
 import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
 import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
 /**
- * Runs a suite of yaml tests shared with all the official Elasticsearch clients against against an elasticsearch cluster.
+ * Runs a suite of yaml tests shared with all the official Elasticsearch
+ * clients against against an elasticsearch cluster.
+ * <p>
+ * <strong>IMPORTANT</strong>: These tests sniff the cluster for metadata
+ * and hosts on startup and replace the list of hosts that they are
+ * configured to use with the list sniffed from the cluster. So you can't
+ * control which nodes receive the request by providing the right list of
+ * nodes in the <code>tests.rest.cluster</code> system property. Instead
+ * the tests must explictly use `node_selector`s.
  */
 public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
@@ -65,6 +78,11 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      * e.g. "-Dtests.rest.blacklist=get/10_basic/*"
      */
     public static final String REST_TESTS_BLACKLIST = "tests.rest.blacklist";
+    /**
+     * We use tests.rest.blacklist in build files to blacklist tests; this property enables a user to add additional blacklisted tests on
+     * top of the tests blacklisted in the build.
+     */
+    public static final String REST_TESTS_BLACKLIST_ADDITIONS = "tests.rest.blacklist_additions";
     /**
      * Property that allows to control whether spec validation is enabled or not (default true).
      */
@@ -87,6 +105,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     private static List<BlacklistedPathPatternMatcher> blacklistPathMatchers;
     private static ClientYamlTestExecutionContext restTestExecutionContext;
     private static ClientYamlTestExecutionContext adminExecutionContext;
+    private static ClientYamlTestClient clientYamlTestClient;
 
     private final ClientYamlTestCandidate testCandidate;
 
@@ -94,38 +113,40 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         this.testCandidate = testCandidate;
     }
 
+    private static boolean useDefaultNumberOfShards;
+
+    @BeforeClass
+    public static void initializeUseDefaultNumberOfShards() {
+        useDefaultNumberOfShards = usually();
+    }
+
     @Before
     public void initAndResetContext() throws Exception {
         if (restTestExecutionContext == null) {
+            // Sniff host metadata in case we need it in the yaml tests
+            List<Node> nodesWithMetadata = sniffHostMetadata();
+            client().setNodes(nodesWithMetadata);
+            adminClient().setNodes(nodesWithMetadata);
+
             assert adminExecutionContext == null;
             assert blacklistPathMatchers == null;
-            ClientYamlSuiteRestSpec restSpec = ClientYamlSuiteRestSpec.load(SPEC_PATH);
+            final ClientYamlSuiteRestSpec restSpec = ClientYamlSuiteRestSpec.load(SPEC_PATH);
             validateSpec(restSpec);
-            List<HttpHost> hosts = getClusterHosts();
-            RestClient restClient = client();
-            Version infoVersion = readVersionsFromInfo(restClient, hosts.size());
-            Version esVersion;
-            try {
-                Tuple<Version, Version> versionVersionTuple = readVersionsFromCatNodes(restClient);
-                esVersion = versionVersionTuple.v1();
-                Version masterVersion = versionVersionTuple.v2();
-                logger.info("initializing yaml client, minimum es version: [{}] master version: [{}] hosts: {}",
-                        esVersion, masterVersion, hosts);
-            } catch (ResponseException ex) {
-                if (ex.getResponse().getStatusLine().getStatusCode() == 403) {
-                    logger.warn("Fallback to simple info '/' request, _cat/nodes is not authorized");
-                    esVersion = infoVersion;
-                    logger.info("initializing yaml client, minimum es version: [{}] hosts: {}", esVersion, hosts);
-                } else {
-                    throw ex;
-                }
-            }
-            ClientYamlTestClient clientYamlTestClient = initClientYamlTestClient(restSpec, restClient, hosts, esVersion);
+            final List<HttpHost> hosts = getClusterHosts();
+            Tuple<Version, Version> versionVersionTuple = readVersionsFromCatNodes(adminClient());
+            final Version esVersion = versionVersionTuple.v1();
+            final Version masterVersion = versionVersionTuple.v2();
+            logger.info("initializing client, minimum es version [{}], master version, [{}], hosts {}", esVersion, masterVersion, hosts);
+            clientYamlTestClient = initClientYamlTestClient(restSpec, client(), hosts, esVersion, masterVersion);
             restTestExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, randomizeContentType());
             adminExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, false);
-            String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
+            final String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
             blacklistPathMatchers = new ArrayList<>();
-            for (String entry : blacklist) {
+            for (final String entry : blacklist) {
+                blacklistPathMatchers.add(new BlacklistedPathPatternMatcher(entry));
+            }
+            final String[] blacklistAdditions = resolvePathsProperty(REST_TESTS_BLACKLIST_ADDITIONS, null);
+            for (final String entry : blacklistAdditions) {
                 blacklistPathMatchers.add(new BlacklistedPathPatternMatcher(entry));
             }
         }
@@ -139,21 +160,41 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         restTestExecutionContext.clear();
     }
 
-    protected ClientYamlTestClient initClientYamlTestClient(ClientYamlSuiteRestSpec restSpec, RestClient restClient,
-                                                            List<HttpHost> hosts, Version esVersion) throws IOException {
-        return new ClientYamlTestClient(restSpec, restClient, hosts, esVersion);
+    protected ClientYamlTestClient initClientYamlTestClient(
+            final ClientYamlSuiteRestSpec restSpec,
+            final RestClient restClient,
+            final List<HttpHost> hosts,
+            final Version esVersion,
+            final Version masterVersion) {
+        return new ClientYamlTestClient(restSpec, restClient, hosts, esVersion, masterVersion,
+                restClientBuilder -> configureClient(restClientBuilder, restClientSettings()));
     }
 
-    @Override
-    protected void afterIfFailed(List<Throwable> errors) {
-        // Dump the stash on failure. Instead of dumping it in true json we escape `\n`s so stack traces are easier to read
-        logger.info("Stash dump on failure [{}]",
-                Strings.toString(restTestExecutionContext.stash(), true, true)
-                        .replace("\\n", "\n").replace("\\r", "\r").replace("\\t", "\t"));
-        super.afterIfFailed(errors);
+    @AfterClass
+    public static void closeClient() throws IOException {
+        try {
+            IOUtils.close(clientYamlTestClient);
+        } finally {
+            blacklistPathMatchers = null;
+            restTestExecutionContext = null;
+            adminExecutionContext = null;
+            clientYamlTestClient = null;
+        }
     }
 
+    /**
+     * Create parameters for this parameterized test. Uses the
+     * {@link ExecutableSection#XCONTENT_REGISTRY list} of executable sections
+     * defined in {@link ExecutableSection}.
+     */
     public static Iterable<Object[]> createParameters() throws Exception {
+        return createParameters(ExecutableSection.XCONTENT_REGISTRY);
+    }
+
+    /**
+     * Create parameters for this parameterized test.
+     */
+    public static Iterable<Object[]> createParameters(NamedXContentRegistry executeableSectionRegistry) throws Exception {
         String[] paths = resolvePathsProperty(REST_TESTS_SUITE, ""); // default to all tests under the test root
         List<Object[]> tests = new ArrayList<>();
         Map<String, Set<Path>> yamlSuites = loadSuites(paths);
@@ -161,7 +202,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         for (String api : yamlSuites.keySet()) {
             List<Path> yamlFiles = new ArrayList<>(yamlSuites.get(api));
             for (Path yamlFile : yamlFiles) {
-                ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(api, yamlFile);
+                ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(executeableSectionRegistry, api, yamlFile);
                 for (ClientYamlTestSection testSection : restTestSuite.getTestSections()) {
                     tests.add(new Object[]{ new ClientYamlTestCandidate(restTestSuite, testSection) });
                 }
@@ -169,8 +210,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         }
 
         //sort the candidates so they will always be in the same order before being shuffled, for repeatability
-        Collections.sort(tests,
-            (o1, o2) -> ((ClientYamlTestCandidate)o1[0]).getTestPath().compareTo(((ClientYamlTestCandidate)o2[0]).getTestPath()));
+        tests.sort(Comparator.comparing(o -> ((ClientYamlTestCandidate) o[0]).getTestPath()));
         return tests;
     }
 
@@ -239,16 +279,11 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         }
     }
 
-    @AfterClass
-    public static void clearStatic() {
-        blacklistPathMatchers = null;
-        restTestExecutionContext = null;
-        adminExecutionContext = null;
-    }
-
     private static Tuple<Version, Version> readVersionsFromCatNodes(RestClient restClient) throws IOException {
         // we simply go to the _cat/nodes API and parse all versions in the cluster
-        Response response = restClient.performRequest("GET", "/_cat/nodes", Collections.singletonMap("h", "version,master"));
+        Request request = new Request("GET", "/_cat/nodes");
+        request.addParameter("h", "version,master");
+        Response response = restClient.performRequest(request);
         ClientYamlTestResponse restTestResponse = new ClientYamlTestResponse(response);
         String nodesCatResponse = restTestResponse.getBodyAsString();
         String[] split = nodesCatResponse.split("\n");
@@ -276,7 +311,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         Version version = null;
         for (int i = 0; i < numHosts; i++) {
             //we don't really use the urls here, we rely on the client doing round-robin to touch all the nodes in the cluster
-            Response response = restClient.performRequest("GET", "/");
+            Response response = restClient.performRequest(new Request("GET", "/"));
             ClientYamlTestResponse restTestResponse = new ClientYamlTestResponse(response);
             Object latestVersion = restTestResponse.evaluate("version.number");
             if (latestVersion == null) {
@@ -315,6 +350,13 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             throw new IllegalArgumentException("No executable sections loaded for [" + testCandidate.getTestPath() + "]");
         }
 
+        if (useDefaultNumberOfShards == false
+                && testCandidate.getTestSection().getSkipSection().getFeatures().contains("default_shards") == false) {
+            final Request request = new Request("PUT", "/_template/global");
+            request.setJsonEntity("{\"index_patterns\":[\"*\"],\"settings\":{\"index.number_of_shards\":2}}");
+            adminClient().performRequest(request);
+        }
+
         if (!testCandidate.getSetupSection().isEmpty()) {
             logger.debug("start setup test [{}]", testCandidate.getTestPath());
             for (DoSection doSection : testCandidate.getSetupSection().getDoSections()) {
@@ -344,10 +386,16 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     private void executeSection(ExecutableSection executableSection) {
         try {
             executableSection.execute(restTestExecutionContext);
-        } catch (Exception e) {
-            throw new RuntimeException(errorMessage(executableSection, e), e);
-        } catch (AssertionError e) {
-            throw new AssertionError(errorMessage(executableSection, e), e);
+        } catch (AssertionError | Exception e) {
+            // Dump the stash on failure. Instead of dumping it in true json we escape `\n`s so stack traces are easier to read
+            logger.info("Stash dump on test failure [{}]",
+                    Strings.toString(restTestExecutionContext.stash(), true, true)
+                            .replace("\\n", "\n").replace("\\r", "\r").replace("\\t", "\t"));
+            if (e instanceof AssertionError) {
+                throw new AssertionError(errorMessage(executableSection, e), e);
+            } else {
+                throw new RuntimeException(errorMessage(executableSection, e), e);
+            }
         }
     }
 
@@ -357,5 +405,16 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     protected boolean randomizeContentType() {
         return true;
+    }
+
+    /**
+     * Sniff the cluster for host metadata.
+     */
+    private List<Node> sniffHostMetadata() throws IOException {
+        ElasticsearchNodesSniffer.Scheme scheme =
+            ElasticsearchNodesSniffer.Scheme.valueOf(getProtocol().toUpperCase(Locale.ROOT));
+        ElasticsearchNodesSniffer sniffer = new ElasticsearchNodesSniffer(
+                adminClient(), ElasticsearchNodesSniffer.DEFAULT_SNIFF_REQUEST_TIMEOUT, scheme);
+        return sniffer.sniff();
     }
 }

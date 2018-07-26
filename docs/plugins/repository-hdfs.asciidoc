@@ -95,7 +95,7 @@ methods are supported by the plugin:
 `simple`::
 
     Also means "no security" and is enabled by default. Uses information from underlying operating system account
-    running elasticsearch to inform Hadoop of the name of the current user. Hadoop makes no attempts to verify this
+    running Elasticsearch to inform Hadoop of the name of the current user. Hadoop makes no attempts to verify this
     information.
 
 `kerberos`::

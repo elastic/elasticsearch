@@ -1,7 +1,7 @@
 [[search-aggregations-bucket-composite-aggregation]]
 === Composite Aggregation
 
-experimental[]
+beta[]
 
 A multi-bucket aggregation that creates composite buckets from different sources.
 
@@ -59,27 +59,32 @@ POST /sales/docs/_bulk?refresh
 
 For instance the following document:
 
-```
+[source,js]
+--------------------------------------------------
 {
     "keyword": ["foo", "bar"],
     "number": [23, 65, 76]
 }
-```
+--------------------------------------------------
+// NOTCONSOLE
+
 \... creates the following composite buckets when `keyword` and `number` are used as values source
 for the aggregation:
 
-```
+[source,js]
+--------------------------------------------------
 { "keyword": "foo", "number": 23 }
 { "keyword": "foo", "number": 65 }
 { "keyword": "foo", "number": 76 }
 { "keyword": "bar", "number": 23 }
 { "keyword": "bar", "number": 65 }
 { "keyword": "bar", "number": 76 }
-```
+--------------------------------------------------
+// NOTCONSOLE
 
 ==== Values source
 
-The `values` parameter controls the sources that should be used to build the composite buckets.
+The `sources` parameter controls the sources that should be used to build the composite buckets.
 There are three different types of values source:
 
 ===== Terms
@@ -219,7 +224,40 @@ Time values can also be specified via abbreviations supported by <<time-units,ti
 Note that fractional time values are not supported, but you can address this by shifting to another
 time unit (e.g., `1.5h` could instead be specified as `90m`).
 
-====== Time Zone
+*Format*
+
+Internally, a date is represented as a 64 bit number representing a timestamp in milliseconds-since-the-epoch.
+These timestamps are returned as the bucket keys. It is possible to return a formatted date string instead using
+the format specified with the format parameter:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "aggs" : {
+        "my_buckets": {
+            "composite" : {
+                "sources" : [
+                    {
+                        "date": {
+                            "date_histogram" : {
+                                "field": "timestamp",
+                                "interval": "1d",
+                                "format": "yyyy-MM-dd" <1>
+                            }
+                        }
+                    }
+                ]
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+<1> Supports expressive date <<date-format-pattern,format pattern>>
+
+*Time Zone*
 
 Date-times are stored in Elasticsearch in UTC.  By default, all bucketing and
 rounding is also done in UTC. The `time_zone` parameter can be used to indicate
@@ -310,11 +348,39 @@ GET /_search
 \... will sort the composite bucket in descending order when comparing values from the `date_histogram` source
 and in ascending order when comparing values from the `terms` source.
 
+====== Missing bucket
+
+By default documents without a value for a given source are ignored.
+It is possible to include them in the response by setting `missing_bucket` to
+`true` (defaults to `false`):
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "aggs" : {
+        "my_buckets": {
+            "composite" : {
+                "sources" : [
+                    { "product_name": { "terms" : { "field": "product", "missing_bucket": true } } }
+                ]
+            }
+        }
+     }
+}
+--------------------------------------------------
+// CONSOLE
+
+In the example above the source `product_name` will emit an explicit `null` value
+for documents without a value for the field `product`.
+The `order` specified in the source dictates whether the `null` values should rank
+first (ascending order, `asc`) or last (descending order, `desc`).
+
 ==== Size
 
 The `size` parameter can be set to define how many composite buckets should be returned.
 Each composite bucket is considered as a single bucket so setting a size of 10 will return the
-first 1O composite buckets created from the values source.
+first 10 composite buckets created from the values source.
 The response contains the values for each composite bucket in an array containing the values extracted
 from each value source.
 
@@ -356,6 +422,10 @@ GET /_search
     ...
     "aggregations": {
         "my_buckets": {
+            "after_key": { <1>
+                "date": 1494288000000,
+                "product": "mad max"
+            },
             "buckets": [
                 {
                     "key": {
@@ -365,7 +435,7 @@ GET /_search
                     "doc_count": 1
                 },
                 {
-                    "key": {     <1>
+                    "key": {
                         "date": 1494288000000,
                         "product": "mad max"
                     },
@@ -380,9 +450,14 @@ GET /_search
 
 <1> The last composite bucket returned by the query.
 
+NOTE: The `after_key` is equals to the last bucket returned in the response before
+any filtering that could be done by <<search-aggregations-pipeline, Pipeline aggregations>>.
+If all buckets are filtered/removed by a pipeline aggregation, the `after_key` will contain
+the last bucket before filtering.
+
 The `after` parameter can be used to retrieve the composite buckets that are **after**
 the last composite buckets returned in a previous round.
-For the example below the last bucket is `"key": [1494288000000, "mad max"]` so the next
+For the example below the last bucket can be found in `after_key` and the next
 round of result can be retrieved with:
 
 [source,js]
@@ -447,6 +522,10 @@ GET /_search
     ...
     "aggregations": {
         "my_buckets": {
+            "after_key": {
+                "date": 1494201600000,
+                "product": "rocky"
+            },
             "buckets": [
                 {
                     "key": {
@@ -494,88 +573,3 @@ GET /_search
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\.//]
-
-==== Index sorting
-
-By default this aggregation runs on every document that match the query.
-Though if the index sort matches the composite sort this aggregation can optimize
-the execution and can skip documents that contain composite buckets that would not
-be part of the response.
-
-For instance the following aggregations:
-
-[source,js]
---------------------------------------------------
-GET /_search
-{
-    "aggs" : {
-        "my_buckets": {
-            "composite" : {
-                "size": 2,
-                "sources" : [
-                    { "date": { "date_histogram": { "field": "timestamp", "interval": "1d", "order": "asc" } } },
-                    { "product": { "terms": { "field": "product", "order": "asc" } } }
-                ]
-            }
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
-
-\... is much faster on an index that uses the following sort:
-
-[source,js]
---------------------------------------------------
-PUT twitter
-{
-    "settings" : {
-        "index" : {
-            "sort.field" : ["timestamp", "product"],
-            "sort.order" : ["asc", "asc"]
-        }
-    },
-    "mappings": {
-        "sales": {
-            "properties": {
-                "timestamp": {
-                    "type": "date"
-                },
-                "product": {
-                    "type": "keyword"
-                }
-            }
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
-
-WARNING: The optimization takes effect only if the fields used for sorting are single-valued and follow
-the same order as the aggregation (`desc` or `asc`).
-
-If only the aggregation results are needed it is also better to set the size of the query to 0
-and `track_total_hits` to false in order to remove other slowing factors:
-
-[source,js]
---------------------------------------------------
-GET /_search
-{
-    "size": 0,
-    "track_total_hits": false,
-    "aggs" : {
-        "my_buckets": {
-            "composite" : {
-                "size": 2,
-                "sources" : [
-                    { "date": { "date_histogram": { "field": "timestamp", "interval": "1d" } } },
-                    { "product": { "terms": { "field": "product" } } }
-                ]
-            }
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
-
-See <<index-modules-index-sorting, index sorting>> for more details.

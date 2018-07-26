@@ -61,10 +61,16 @@ public class AzureDiscoveryPlugin extends Plugin implements DiscoveryPlugin {
     public Map<String, Supplier<UnicastHostsProvider>> getZenHostsProviders(TransportService transportService,
                                                                             NetworkService networkService) {
         return Collections.singletonMap(AZURE,
-            () -> new AzureUnicastHostsProvider(settings, createComputeService(), transportService, networkService));
+            () -> createUnicastHostsProvider(settings, createComputeService(), transportService, networkService));
     }
 
-
+    // Used for testing
+    protected AzureUnicastHostsProvider createUnicastHostsProvider(final Settings settings,
+                                                                   final AzureComputeService azureComputeService,
+                                                                   final TransportService transportService,
+                                                                   final NetworkService networkService) {
+        return new AzureUnicastHostsProvider(settings, azureComputeService, transportService, networkService);
+    }
 
     @Override
     public List<Setting<?>> getSettings() {
@@ -79,6 +85,4 @@ public class AzureDiscoveryPlugin extends Plugin implements DiscoveryPlugin {
                             AzureComputeService.Discovery.DEPLOYMENT_SLOT_SETTING,
                             AzureComputeService.Discovery.ENDPOINT_NAME_SETTING);
     }
-
-
 }

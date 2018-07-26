@@ -30,11 +30,12 @@
         type: test
         id: 1
   - match: { _source.field1: "128.101.101.101" }
-  - length: { _source.geoip: 5 }
+  - length: { _source.geoip: 6 }
   - match: { _source.geoip.city_name: "Minneapolis" }
   - match: { _source.geoip.country_iso_code: "US" }
   - match: { _source.geoip.location.lon: -93.2166 }
   - match: { _source.geoip.location.lat: 44.9759 }
+  - match: { _source.geoip.region_iso_code: "US-MN" }
   - match: { _source.geoip.region_name: "Minnesota" }
   - match: { _source.geoip.continent_name: "North America" }
 
@@ -54,7 +55,7 @@
               {
                 "geoip" : {
                   "field" : "field1",
-                  "properties" : ["city_name", "country_iso_code", "ip", "location", "timezone", "country_name", "region_name", "continent_name"]
+                  "properties" : ["city_name", "country_iso_code", "ip", "location", "timezone", "country_name", "region_iso_code", "region_name", "continent_name"]
                 }
               }
             ]
@@ -75,7 +76,7 @@
         type: test
         id: 1
   - match: { _source.field1: "128.101.101.101" }
-  - length: { _source.geoip: 8 }
+  - length: { _source.geoip: 9 }
   - match: { _source.geoip.city_name: "Minneapolis" }
   - match: { _source.geoip.country_iso_code: "US" }
   - match: { _source.geoip.ip: "128.101.101.101" }
@@ -83,11 +84,12 @@
   - match: { _source.geoip.location.lat: 44.9759 }
   - match: { _source.geoip.timezone: "America/Chicago" }
   - match: { _source.geoip.country_name: "United States" }
+  - match: { _source.geoip.region_iso_code: "US-MN" }
   - match: { _source.geoip.region_name: "Minnesota" }
   - match: { _source.geoip.continent_name: "North America" }
 
 ---
-"Test geoip processor with different database file":
+"Test geoip processor with different database file - GeoLite2-Country":
   - do:
       ingest.put_pipeline:
         id: "my_pipeline"
@@ -98,7 +100,7 @@
               {
                 "geoip" : {
                   "field" : "field1",
-                  "database_file" : "GeoLite2-Country.mmdb.gz"
+                  "database_file" : "GeoLite2-Country.mmdb"
                 }
               }
             ]
@@ -164,14 +166,14 @@
         type: test
         id: 1
         pipeline: "my_pipeline"
-        body: { field1: "93.114.45.13" }
+        body: { field1: "80.231.5.0" }
 
   - do:
       get:
         index: test
         type: test
         id: 1
-  - match: { _source.field1: "93.114.45.13" }
+  - match: { _source.field1: "80.231.5.0" }
   - is_false: _source.geoip
 
   - do:
@@ -188,10 +190,49 @@
         type: test
         id: 2
   - match: { _source.field1: "128.101.101.101" }
-  - length: { _source.geoip: 5 }
+  - length: { _source.geoip: 6 }
   - match: { _source.geoip.city_name: "Minneapolis" }
   - match: { _source.geoip.country_iso_code: "US" }
   - match: { _source.geoip.location.lon: -93.2166 }
   - match: { _source.geoip.location.lat: 44.9759 }
+  - match: { _source.geoip.region_iso_code: "US-MN" }
   - match: { _source.geoip.region_name: "Minnesota" }
   - match: { _source.geoip.continent_name: "North America" }
+
+---
+"Test geoip processor with different database file - GeoLite2-ASN":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "geoip" : {
+                  "field" : "field1",
+                  "database_file" : "GeoLite2-ASN.mmdb"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        type: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {field1: "82.170.213.79"}
+
+  - do:
+      get:
+        index: test
+        type: test
+        id: 1
+  - match: { _source.field1: "82.170.213.79" }
+  - length: { _source.geoip: 3 }
+  - match: { _source.geoip.ip: "82.170.213.79" }
+  - match: { _source.geoip.asn: 5615 }
+  - match: { _source.geoip.organization_name: "KPN B.V." }

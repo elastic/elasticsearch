@@ -10,9 +10,6 @@ setup:
         index: index2
 ---
 "Delete index against alias":
-  - skip:
-      version: " - 5.99.0"
-      reason: delete index doesn't support aliases only from 6.0.0 on
   - do:
       catch: bad_request
       indices.delete:
@@ -24,9 +21,6 @@ setup:
   - is_true: index2
 ---
 "Delete index against alias - ignore unavailable":
-  - skip:
-      version: " - 5.99.0"
-      reason: delete index doesn't support aliases only from 6.0.0 on
   - do:
       indices.delete:
         index: alias
@@ -38,9 +32,6 @@ setup:
   - is_true: index2
 ---
 "Delete index against alias -  multiple indices":
-  - skip:
-      version: " - 5.99.0"
-      reason: delete index doesn't support aliases only from 6.0.0 on
   - do:
       catch: bad_request
       indices.delete:
@@ -52,9 +43,6 @@ setup:
   - is_true: index2
 ---
 "Delete index against alias -  ignore unavailable - multiple indices":
-  - skip:
-      version: " - 5.99.0"
-      reason: delete index doesn't support aliases only from 6.0.0 on
   - do:
       indices.delete:
         index: alias,index2
@@ -67,9 +55,6 @@ setup:
   - is_false: index2
 ---
 "Delete index against wildcard matching alias":
-  - skip:
-      version: " - 5.99.0"
-      reason: delete index doesn't support aliases only from 6.0.0 on
   - do:
       indices.delete:
         index: alia*
@@ -80,9 +65,6 @@ setup:
   - is_true: index2
 ---
 "Delete index against wildcard matching alias - disallow no indices":
-  - skip:
-      version: " - 5.99.0"
-      reason: delete index doesn't support aliases only from 6.0.0 on
   - do:
       catch: missing
       indices.delete:
@@ -95,9 +77,6 @@ setup:
   - is_true: index2
 ---
 "Delete index against wildcard matching alias - multiple indices":
-  - skip:
-      version: " - 5.99.0"
-      reason: delete index doesn't support aliases only from 6.0.0 on
   - do:
       indices.delete:
         index: alia*,index2
@@ -109,9 +88,6 @@ setup:
   - is_false: index2
 ---
 "Delete index against wildcard matching alias - disallow no indices - multiple indices":
-  - skip:
-      version: " - 5.99.0"
-      reason: delete index doesn't support aliases only from 6.0.0 on
   - do:
       catch: missing
       indices.delete:

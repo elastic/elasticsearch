@@ -1,0 +1,25 @@
+import org.elasticsearch.gradle.test.NodeInfo
+import org.elasticsearch.gradle.LoggedExec
+
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+
+dependencies {
+  testCompile project(path: xpackModule('core'), configuration: 'shadow')
+  testCompile project(path: xpackModule('watcher'), configuration: 'runtime')
+}
+
+String slackUrl = System.getenv('slack_url')
+
+integTestCluster {
+  setting 'xpack.security.enabled', 'false'
+  setting 'xpack.monitoring.enabled', 'false'
+  setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
+  keystoreSetting 'xpack.notification.slack.account.test_account.secure_url', slackUrl
+}
+
+if (!slackUrl) {
+  integTest.enabled = false
+}

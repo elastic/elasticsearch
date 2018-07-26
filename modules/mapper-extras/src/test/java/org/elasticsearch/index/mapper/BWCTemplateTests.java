@@ -39,19 +39,15 @@ public class BWCTemplateTests extends ESSingleNodeTestCase {
     }
 
     public void testBeatsTemplatesBWC() throws Exception {
-        byte[] metricBeat = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/metricbeat-5.0.template.json");
-        byte[] packetBeat = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/packetbeat-5.0.template.json");
-        byte[] fileBeat = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/filebeat-5.0.template.json");
-        byte[] winLogBeat = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/winlogbeat-5.0.template.json");
+        byte[] metricBeat = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/metricbeat-6.0.template.json");
+        byte[] packetBeat = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/packetbeat-6.0.template.json");
+        byte[] fileBeat = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/filebeat-6.0.template.json");
         client().admin().indices().preparePutTemplate("metricbeat").setSource(metricBeat, XContentType.JSON).get();
         client().admin().indices().preparePutTemplate("packetbeat").setSource(packetBeat, XContentType.JSON).get();
         client().admin().indices().preparePutTemplate("filebeat").setSource(fileBeat, XContentType.JSON).get();
-        client().admin().indices().preparePutTemplate("winlogbeat").setSource(winLogBeat, XContentType.JSON).get();
 
         client().prepareIndex("metricbeat-foo", "doc", "1").setSource("message", "foo").get();
         client().prepareIndex("packetbeat-foo", "doc", "1").setSource("message", "foo").get();
         client().prepareIndex("filebeat-foo", "doc", "1").setSource("message", "foo").get();
-        client().prepareIndex("winlogbeat-foo", "doc", "1").setSource("message", "foo").get();
-        assertWarnings("Deprecated field [template] used, replaced by [index_patterns]");
     }
 }

@@ -19,20 +19,22 @@
 
 package org.elasticsearch.ingest.common;
 
-import com.fasterxml.jackson.core.JsonFactory;
-
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.common.xcontent.json.JsonXContentParser;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.IngestScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptService;
 
+import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Map;
 
@@ -44,7 +46,6 @@ import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationExcept
 public final class ScriptProcessor extends AbstractProcessor {
 
     public static final String TYPE = "script";
-    private static final JsonFactory JSON_FACTORY = new JsonFactory();
 
     private final Script script;
     private final ScriptService scriptService;
@@ -69,10 +70,8 @@ public final class ScriptProcessor extends AbstractProcessor {
      */
     @Override
     public void execute(IngestDocument document) {
-        ExecutableScript.Factory factory = scriptService.compile(script, ExecutableScript.INGEST_CONTEXT);
-        ExecutableScript executableScript = factory.newInstance(script.getParams());
-        executableScript.setNextVar("ctx",  document.getSourceAndMetadata());
-        executableScript.run();
+        IngestScript.Factory factory = scriptService.compile(script, IngestScript.CONTEXT);
+        factory.newInstance(script.getParams()).execute(document.getSourceAndMetadata());
     }
 
     @Override
@@ -94,21 +93,23 @@ public final class ScriptProcessor extends AbstractProcessor {
         @Override
         public ScriptProcessor create(Map<String, Processor.Factory> registry, String processorTag,
                                       Map<String, Object> config) throws Exception {
-            XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent).map(config);
-            JsonXContentParser parser = new JsonXContentParser(NamedXContentRegistry.EMPTY,
-                JSON_FACTORY.createParser(builder.bytes().streamInput()));
-            Script script = Script.parse(parser);
+            try (XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent).map(config);
+                 InputStream stream = BytesReference.bytes(builder).streamInput();
+                 XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
+                     LoggingDeprecationHandler.INSTANCE, stream)) {
+                Script script = Script.parse(parser);
 
-            Arrays.asList("id", "source", "inline", "lang", "params", "options").forEach(config::remove);
+                Arrays.asList("id", "source", "inline", "lang", "params", "options").forEach(config::remove);
 
-            // verify script is able to be compiled before successfully creating processor.
-            try {
-                scriptService.compile(script, ExecutableScript.INGEST_CONTEXT);
-            } catch (ScriptException e) {
-                throw newConfigurationException(TYPE, processorTag, null, e);
+                // verify script is able to be compiled before successfully creating processor.
+                try {
+                    scriptService.compile(script, IngestScript.CONTEXT);
+                } catch (ScriptException e) {
+                    throw newConfigurationException(TYPE, processorTag, null, e);
+                }
+
+                return new ScriptProcessor(processorTag, script, scriptService);
             }
-
-            return new ScriptProcessor(processorTag, script, scriptService);
         }
     }
 }

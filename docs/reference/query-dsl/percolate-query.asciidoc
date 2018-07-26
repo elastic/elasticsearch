@@ -16,7 +16,7 @@ Create an index with two fields:
 PUT /my-index
 {
     "mappings": {
-        "doc": {
+        "_doc": {
             "properties": {
                 "message": {
                     "type": "text"
@@ -37,14 +37,14 @@ the `percolator` query before it gets indexed into a temporary index.
 The `query` field is used for indexing the query documents. It will hold a
 json object that represents an actual Elasticsearch query. The `query` field
 has been configured to use the <<percolator,percolator field type>>. This field
-type understands the query dsl and stored the query in such a way that it can be
+type understands the query dsl and stores the query in such a way that it can be
 used later on to match documents defined on the `percolate` query.
 
 Register a query in the percolator:
 
 [source,js]
 --------------------------------------------------
-PUT /my-index/doc/1?refresh
+PUT /my-index/_doc/1?refresh
 {
     "query" : {
         "match" : {
@@ -83,8 +83,8 @@ The above request will yield the following response:
   "took": 13,
   "timed_out": false,
   "_shards": {
-    "total": 5,
-    "successful": 5,
+    "total": 1,
+    "successful": 1,
     "skipped" : 0,
     "failed": 0
   },
@@ -94,7 +94,7 @@ The above request will yield the following response:
     "hits": [
       { <1>
         "_index": "my-index",
-        "_type": "doc",
+        "_type": "_doc",
         "_id": "1",
         "_score": 0.5753642,
         "_source": {
@@ -145,6 +145,42 @@ In that case the `document` parameter can be substituted with the following para
 `version`:: Optionally, the expected version of the document to be fetched.
 
 [float]
+==== Percolating in a filter context
+
+In case you are not interested in the score, better performance can be expected by wrapping
+the percolator query in a `bool` query's filter clause or in a `constant_score` query:
+
+[source,js]
+--------------------------------------------------
+GET /my-index/_search
+{
+    "query" : {
+        "constant_score": {
+            "filter": {
+                "percolate" : {
+                    "field" : "query",
+                    "document" : {
+                        "message" : "A new bonsai tree in the office"
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+At index time terms are extracted from the percolator query and the percolator
+can often determine whether a query matches just by looking at those extracted
+terms. However, computing scores requires to deserialize each matching query
+and run it against the percolated document, which is a much more expensive
+operation. Hence if computing scores is not required the `percolate` query
+should be wrapped in a `constant_score` query or a `bool` query's filter clause.
+
+Note that the `percolate` query never gets cached by the query cache.
+
+[float]
 ==== Percolating multiple documents
 
 The `percolate` query can match multiple documents simultaneously with the indexed percolator queries.
@@ -191,8 +227,8 @@ GET /my-index/_search
   "took": 13,
   "timed_out": false,
   "_shards": {
-    "total": 5,
-    "successful": 5,
+    "total": 1,
+    "successful": 1,
     "skipped" : 0,
     "failed": 0
   },
@@ -202,7 +238,7 @@ GET /my-index/_search
     "hits": [
       {
         "_index": "my-index",
-        "_type": "doc",
+        "_type": "_doc",
         "_id": "1",
         "_score": 1.5606477,
         "_source": {
@@ -241,7 +277,7 @@ Index the document we want to percolate:
 
 [source,js]
 --------------------------------------------------
-PUT /my-index/doc/2
+PUT /my-index/_doc/2
 {
   "message" : "A new bonsai tree in the office"
 }
@@ -254,7 +290,7 @@ Index response:
 --------------------------------------------------
 {
   "_index": "my-index",
-  "_type": "doc",
+  "_type": "_doc",
   "_id": "2",
   "_version": 1,
   "_shards": {
@@ -263,7 +299,7 @@ Index response:
     "failed": 0
   },
   "result": "created",
-  "_seq_no" : 0,
+  "_seq_no" : 1,
   "_primary_term" : 1
 }
 --------------------------------------------------
@@ -279,7 +315,7 @@ GET /my-index/_search
         "percolate" : {
             "field": "query",
             "index" : "my-index",
-            "type" : "doc",
+            "type" : "_doc",
             "id" : "2",
             "version" : 1 <1>
         }
@@ -311,7 +347,7 @@ Save a query:
 
 [source,js]
 --------------------------------------------------
-PUT /my-index/doc/3?refresh
+PUT /my-index/_doc/3?refresh
 {
     "query" : {
         "match" : {
@@ -327,7 +363,7 @@ Save another query:
 
 [source,js]
 --------------------------------------------------
-PUT /my-index/doc/4?refresh
+PUT /my-index/_doc/4?refresh
 {
     "query" : {
         "match" : {
@@ -371,8 +407,8 @@ This will yield the following response.
   "took": 7,
   "timed_out": false,
   "_shards": {
-    "total": 5,
-    "successful": 5,
+    "total": 1,
+    "successful": 1,
     "skipped" : 0,
     "failed": 0
   },
@@ -382,28 +418,7 @@ This will yield the following response.
     "hits": [
       {
         "_index": "my-index",
-        "_type": "doc",
-        "_id": "4",
-        "_score": 0.5753642,
-        "_source": {
-          "query": {
-            "match": {
-              "message": "lazy dog"
-            }
-          }
-        },
-        "highlight": {
-          "message": [
-            "The quick brown fox jumps over the <em>lazy</em> <em>dog</em>" <1>
-          ]
-        },
-        "fields" : {
-          "_percolator_document_slot" : [0]
-        }
-      },
-      {
-        "_index": "my-index",
-        "_type": "doc",
+        "_type": "_doc",
         "_id": "3",
         "_score": 0.5753642,
         "_source": {
@@ -416,6 +431,27 @@ This will yield the following response.
         "highlight": {
           "message": [
             "The quick <em>brown</em> <em>fox</em> jumps over the lazy dog" <1>
+          ]
+        },
+        "fields" : {
+          "_percolator_document_slot" : [0]
+        }
+      },
+      {
+        "_index": "my-index",
+        "_type": "_doc",
+        "_id": "4",
+        "_score": 0.5753642,
+        "_source": {
+          "query": {
+            "match": {
+              "message": "lazy dog"
+            }
+          }
+        },
+        "highlight": {
+          "message": [
+            "The quick brown fox jumps over the <em>lazy</em> <em>dog</em>" <1>
           ]
         },
         "fields" : {
@@ -476,8 +512,8 @@ The slightly different response:
   "took": 13,
   "timed_out": false,
   "_shards": {
-    "total": 5,
-    "successful": 5,
+    "total": 1,
+    "successful": 1,
     "skipped" : 0,
     "failed": 0
   },
@@ -487,7 +523,7 @@ The slightly different response:
     "hits": [
       {
         "_index": "my-index",
-        "_type": "doc",
+        "_type": "_doc",
         "_id": "1",
         "_score": 1.5606477,
         "_source": {
@@ -572,8 +608,8 @@ The above search request returns a response similar to this:
   "took": 13,
   "timed_out": false,
   "_shards": {
-    "total": 5,
-    "successful": 5,
+    "total": 1,
+    "successful": 1,
     "skipped" : 0,
     "failed": 0
   },
@@ -583,7 +619,7 @@ The above search request returns a response similar to this:
     "hits": [
       {
         "_index": "my-index",
-        "_type": "doc",
+        "_type": "_doc",
         "_id": "1",
         "_score": 0.5753642,
         "_source": {

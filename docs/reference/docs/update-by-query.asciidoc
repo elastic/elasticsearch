@@ -63,12 +63,11 @@ conflicting document was updated between the start of the `_update_by_query`
 and the time when it attempted to update the document. This is fine because
 that update will have picked up the online mapping update.
 
-Back to the API format, you can limit `_update_by_query` to a single type. This
-will only update `tweet` documents from the `twitter` index:
+Back to the API format, this will update tweets from the `twitter` index:
 
 [source,js]
 --------------------------------------------------
-POST twitter/tweet/_update_by_query?conflicts=proceed
+POST twitter/_update_by_query?conflicts=proceed
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
@@ -146,12 +145,12 @@ This API doesn't allow you to move the documents it touches, just modify their
 source. This is intentional! We've made no provisions for removing the document
 from its original location.
 
-It's also possible to do this whole thing on multiple indexes and multiple
-types at once, just like the search API:
+It's also possible to do this whole thing on multiple indexes at once, just
+like the search API:
 
 [source,js]
 --------------------------------------------------
-POST twitter,blog/tweet,post/_update_by_query
+POST twitter,blog/_update_by_query
 --------------------------------------------------
 // CONSOLE
 // TEST[s/^/PUT twitter\nPUT blog\n/]
@@ -200,7 +199,8 @@ POST twitter/_update_by_query?pipeline=set-foo
 === URL Parameters
 
 In addition to the standard parameters like `pretty`, the Update By Query API
-also supports `refresh`, `wait_for_completion`, `wait_for_active_shards`, and `timeout`.
+also supports `refresh`, `wait_for_completion`, `wait_for_active_shards`, `timeout`
+and `scroll`.
 
 Sending the `refresh` will update all shards in the index being updated when
 the request completes. This is different than the Index API's `refresh`
@@ -218,7 +218,9 @@ Elasticsearch can reclaim the space it uses.
 before proceeding with the request. See <<index-wait-for-active-shards,here>>
 for details. `timeout` controls how long each write request waits for unavailable
 shards to become available. Both work exactly how they work in the
-<<docs-bulk,Bulk API>>.
+<<docs-bulk,Bulk API>>. As `_update_by_query` uses scroll search, you can also specify
+the `scroll` parameter to control how long it keeps the "search context" alive,
+eg `?scroll=10m`, by default it's 5 minutes.
 
 `requests_per_second` can be set to any positive decimal number (`1.4`, `6`,
 `1000`, etc) and throttles rate at which `_update_by_query` issues batches of
@@ -336,9 +338,13 @@ executed again in order to conform to `requests_per_second`.
 
 `failures`::
 
-Array of all indexing failures. If this is non-empty then the request aborted
-because of those failures. See `conflicts` for how to prevent version conflicts
-from aborting the operation.
+Array of failures if there were any unrecoverable errors during the process. If
+this is non-empty then the request aborted because of those failures.
+Update-by-query is implemented using batches and any failure causes the entire
+process to abort but all failures in the current batch are collected into the
+array. You can use the `conflicts` option to prevent reindex from aborting on
+version conflicts.
+
 
 
 [float]
@@ -409,9 +415,10 @@ With the task id you can look up the task directly:
 
 [source,js]
 --------------------------------------------------
-GET /_tasks/taskId:1
+GET /_tasks/task_id
 --------------------------------------------------
 // CONSOLE
+// TEST[s/task_id/node_id:1/]
 // TEST[catch:missing]
 
 The advantage of this API is that it integrates with `wait_for_completion=false`
@@ -430,9 +437,10 @@ Any Update By Query can be canceled using the <<tasks,Task Cancel API>>:
 
 [source,js]
 --------------------------------------------------
-POST _tasks/task_id:1/_cancel
+POST _tasks/task_id/_cancel
 --------------------------------------------------
 // CONSOLE
+// TEST[s/task_id/node_id:1/]
 
 The `task_id` can be found using the tasks API above.
 
@@ -449,9 +457,10 @@ using the `_rethrottle` API:
 
 [source,js]
 --------------------------------------------------
-POST _update_by_query/task_id:1/_rethrottle?requests_per_second=-1
+POST _update_by_query/task_id/_rethrottle?requests_per_second=-1
 --------------------------------------------------
 // CONSOLE
+// TEST[s/task_id/node_id:1/]
 
 The `task_id` can be found using the tasks API above.
 
@@ -529,7 +538,7 @@ Which results in a sensible `total` like this one:
 ==== Automatic slicing
 
 You can also let update-by-query automatically parallelize using
-<<sliced-scroll>> to slice on `_uid`. Use `slices` to specify the number of
+<<sliced-scroll>> to slice on `_id`. Use `slices` to specify the number of
 slices to use:
 
 [source,js]
@@ -626,7 +635,7 @@ added a mapping value to pick up more fields from the data:
 PUT test
 {
   "mappings": {
-    "test": {
+    "_doc": {
       "dynamic": false,   <1>
       "properties": {
         "text": {"type": "text"}
@@ -635,17 +644,17 @@ PUT test
   }
 }
 
-POST test/test?refresh
+POST test/_doc?refresh
 {
   "text": "words words",
   "flag": "bar"
 }
-POST test/test?refresh
+POST test/_doc?refresh
 {
   "text": "words words",
   "flag": "foo"
 }
-PUT test/_mapping/test   <2>
+PUT test/_mapping/_doc   <2>
 {
   "properties": {
     "text": {"type": "text"},

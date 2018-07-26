@@ -119,17 +119,14 @@ public class MockFSDirectoryService extends FsDirectoryService {
                 if (!Lucene.indexExists(dir)) {
                     return;
                 }
-                try (CheckIndex checkIndex = new CheckIndex(dir)) {
+                try {
                     BytesStreamOutput os = new BytesStreamOutput();
                     PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8.name());
-                    checkIndex.setInfoStream(out);
+                    CheckIndex.Status status = store.checkIndex(out);
                     out.flush();
-                    CheckIndex.Status status = checkIndex.checkIndex();
                     if (!status.clean) {
                         ESTestCase.checkIndexFailed = true;
-                        logger.warn("check index [failure] index files={}\n{}",
-                                Arrays.toString(dir.listAll()),
-                                os.bytes().utf8ToString());
+                        logger.warn("check index [failure] index files={}\n{}", Arrays.toString(dir.listAll()), os.bytes().utf8ToString());
                         throw new IOException("index check failure");
                     } else {
                         if (logger.isDebugEnabled()) {

@@ -25,6 +25,7 @@ import io.netty.channel.AdaptiveRecvByteBufAllocator;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandler;
+import io.netty.channel.ChannelHandlerAdapter;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
@@ -37,10 +38,7 @@ import io.netty.util.AttributeKey;
 import io.netty.util.concurrent.Future;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -51,12 +49,10 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequestOptions;
 
@@ -104,8 +100,6 @@ public class Netty4Transport extends TcpTransport {
     protected final int workerCount;
     protected final ByteSizeValue receivePredictorMin;
     protected final ByteSizeValue receivePredictorMax;
-    // package private for testing
-    volatile Netty4OpenChannelsHandler serverOpenChannels;
     protected volatile Bootstrap bootstrap;
     protected final Map<String, ServerBootstrap> serverBootstraps = newConcurrentMap();
 
@@ -132,8 +126,6 @@ public class Netty4Transport extends TcpTransport {
         try {
             bootstrap = createBootstrap();
             if (NetworkService.NETWORK_SERVER.get(settings)) {
-                final Netty4OpenChannelsHandler openChannels = new Netty4OpenChannelsHandler(logger);
-                this.serverOpenChannels = openChannels;
                 for (ProfileSettings profileSettings : profileSettings) {
                     createServerBootstrap(profileSettings);
                     bindServer(profileSettings);
@@ -203,6 +195,7 @@ public class Netty4Transport extends TcpTransport {
         serverBootstrap.channel(NioServerSocketChannel.class);
 
         serverBootstrap.childHandler(getServerChannelInitializer(name));
+        serverBootstrap.handler(new ServerChannelExceptionHandler());
 
         serverBootstrap.childOption(ChannelOption.TCP_NODELAY, profileSettings.tcpNoDelay);
         serverBootstrap.childOption(ChannelOption.SO_KEEPALIVE, profileSettings.tcpKeepAlive);
@@ -233,25 +226,12 @@ public class Netty4Transport extends TcpTransport {
         return new ClientChannelInitializer();
     }
 
-    static final AttributeKey<NettyTcpChannel> CHANNEL_KEY = AttributeKey.newInstance("es-channel");
-
-    protected final void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-        final Throwable unwrapped = ExceptionsHelper.unwrap(cause, ElasticsearchException.class);
-        final Throwable t = unwrapped != null ? unwrapped : cause;
-        Channel channel = ctx.channel();
-        onException(channel.attr(CHANNEL_KEY).get(), t instanceof Exception ? (Exception) t : new ElasticsearchException(t));
-    }
+    static final AttributeKey<Netty4TcpChannel> CHANNEL_KEY = AttributeKey.newInstance("es-channel");
+    static final AttributeKey<Netty4TcpServerChannel> SERVER_CHANNEL_KEY = AttributeKey.newInstance("es-server-channel");
 
     @Override
-    public long getNumOpenServerConnections() {
-        Netty4OpenChannelsHandler channels = serverOpenChannels;
-        return channels == null ? 0 : channels.numberOfOpenChannels();
-    }
-
-    @Override
-    protected NettyTcpChannel initiateChannel(DiscoveryNode node, TimeValue connectTimeout, ActionListener<TcpChannel> listener)
-        throws IOException {
-        ChannelFuture channelFuture = bootstrap.connect(node.getAddress().address());
+    protected Netty4TcpChannel initiateChannel(InetSocketAddress address, ActionListener<Void> listener) throws IOException {
+        ChannelFuture channelFuture = bootstrap.connect(address);
         Channel channel = channelFuture.channel();
         if (channel == null) {
             Netty4Utils.maybeDie(channelFuture.cause());
@@ -259,12 +239,12 @@ public class Netty4Transport extends TcpTransport {
         }
         addClosedExceptionLogger(channel);
 
-        NettyTcpChannel nettyChannel = new NettyTcpChannel(channel);
+        Netty4TcpChannel nettyChannel = new Netty4TcpChannel(channel, "default");
         channel.attr(CHANNEL_KEY).set(nettyChannel);
 
         channelFuture.addListener(f -> {
             if (f.isSuccess()) {
-                listener.onResponse(nettyChannel);
+                listener.onResponse(null);
             } else {
                 Throwable cause = f.cause();
                 if (cause instanceof Error) {
@@ -280,10 +260,10 @@ public class Netty4Transport extends TcpTransport {
     }
 
     @Override
-    protected NettyTcpChannel bind(String name, InetSocketAddress address) {
+    protected Netty4TcpServerChannel bind(String name, InetSocketAddress address) {
         Channel channel = serverBootstraps.get(name).bind(address).syncUninterruptibly().channel();
-        NettyTcpChannel esChannel = new NettyTcpChannel(channel);
-        channel.attr(CHANNEL_KEY).set(esChannel);
+        Netty4TcpServerChannel esChannel = new Netty4TcpServerChannel(channel, name);
+        channel.attr(SERVER_CHANNEL_KEY).set(esChannel);
         return esChannel;
     }
 
@@ -294,7 +274,7 @@ public class Netty4Transport extends TcpTransport {
     @Override
     @SuppressForbidden(reason = "debug")
     protected void stopInternal() {
-        Releasables.close(serverOpenChannels, () -> {
+        Releasables.close(() -> {
             final List<Tuple<String, Future<?>>> serverBootstrapCloseFutures = new ArrayList<>(serverBootstraps.size());
             for (final Map.Entry<String, ServerBootstrap> entry : serverBootstraps.entrySet()) {
                 serverBootstrapCloseFutures.add(
@@ -324,7 +304,7 @@ public class Netty4Transport extends TcpTransport {
             ch.pipeline().addLast("logging", new ESLoggingHandler());
             ch.pipeline().addLast("size", new Netty4SizeHeaderFrameDecoder());
             // using a dot as a prefix means this cannot come from any settings parsed
-            ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(Netty4Transport.this, ".client"));
+            ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(Netty4Transport.this));
         }
 
         @Override
@@ -345,13 +325,12 @@ public class Netty4Transport extends TcpTransport {
         @Override
         protected void initChannel(Channel ch) throws Exception {
             addClosedExceptionLogger(ch);
-            NettyTcpChannel nettyTcpChannel = new NettyTcpChannel(ch);
+            Netty4TcpChannel nettyTcpChannel = new Netty4TcpChannel(ch, name);
             ch.attr(CHANNEL_KEY).set(nettyTcpChannel);
-            serverAcceptedChannel(nettyTcpChannel);
             ch.pipeline().addLast("logging", new ESLoggingHandler());
-            ch.pipeline().addLast("open_channels", Netty4Transport.this.serverOpenChannels);
             ch.pipeline().addLast("size", new Netty4SizeHeaderFrameDecoder());
-            ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(Netty4Transport.this, name));
+            ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(Netty4Transport.this));
+            serverAcceptedChannel(nettyTcpChannel);
         }
 
         @Override
@@ -367,5 +346,20 @@ public class Netty4Transport extends TcpTransport {
                 logger.debug(() -> new ParameterizedMessage("exception while closing channel: {}", channel), f.cause());
             }
         });
+    }
+
+    @ChannelHandler.Sharable
+    private class ServerChannelExceptionHandler extends ChannelHandlerAdapter {
+
+        @Override
+        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+            Netty4Utils.maybeDie(cause);
+            Netty4TcpServerChannel serverChannel = ctx.channel().attr(SERVER_CHANNEL_KEY).get();
+            if (cause instanceof Error) {
+                onServerException(serverChannel, new Exception(cause));
+            } else {
+                onServerException(serverChannel, (Exception) cause);
+            }
+        }
     }
 }

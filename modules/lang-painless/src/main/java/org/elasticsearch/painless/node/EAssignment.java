@@ -19,15 +19,16 @@
 
 package org.elasticsearch.painless.node;
 
+
+import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Cast;
-import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
+import org.elasticsearch.painless.lookup.PainlessCast;
+import org.elasticsearch.painless.lookup.def;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -46,11 +47,10 @@ public final class EAssignment extends AExpression {
     private Operation operation;
 
     private boolean cat = false;
-    private Type promote = null;
-    private Type shiftDistance; // for shifts, the RHS is promoted independently
-    private Cast there = null;
-    private Cast back = null;
-    private Type DefType = null;
+    private Class<?> promote = null;
+    private Class<?> shiftDistance; // for shifts, the RHS is promoted independently
+    private PainlessCast there = null;
+    private PainlessCast back = null;
 
     public EAssignment(Location location, AExpression lhs, AExpression rhs, boolean pre, boolean post, Operation operation) {
         super(location);
@@ -80,8 +80,6 @@ public final class EAssignment extends AExpression {
         } else {
             throw new IllegalStateException("Illegal tree structure.");
         }
-
-        DefType = locals.getDefinition().DefType;
     }
 
     private void analyzeLHS(Locals locals) {
@@ -105,11 +103,11 @@ public final class EAssignment extends AExpression {
             }
 
             if (operation == Operation.INCR) {
-                if (lhs.actual.clazz == double.class) {
+                if (lhs.actual == double.class) {
                     rhs = new EConstant(location, 1D);
-                } else if (lhs.actual.clazz == float.class) {
+                } else if (lhs.actual == float.class) {
                     rhs = new EConstant(location, 1F);
-                } else if (lhs.actual.clazz == long.class) {
+                } else if (lhs.actual == long.class) {
                     rhs = new EConstant(location, 1L);
                 } else {
                     rhs = new EConstant(location, 1);
@@ -117,11 +115,11 @@ public final class EAssignment extends AExpression {
 
                 operation = Operation.ADD;
             } else if (operation == Operation.DECR) {
-                if (lhs.actual.clazz == double.class) {
+                if (lhs.actual == double.class) {
                     rhs = new EConstant(location, 1D);
-                } else if (lhs.actual.clazz == float.class) {
+                } else if (lhs.actual == float.class) {
                     rhs = new EConstant(location, 1F);
-                } else if (lhs.actual.clazz == long.class) {
+                } else if (lhs.actual == long.class) {
                     rhs = new EConstant(location, 1L);
                 } else {
                     rhs = new EConstant(location, 1);
@@ -140,33 +138,33 @@ public final class EAssignment extends AExpression {
         boolean shift = false;
 
         if (operation == Operation.MUL) {
-            promote = locals.getDefinition().caster.promoteNumeric(lhs.actual, rhs.actual, true);
+            promote = AnalyzerCaster.promoteNumeric(lhs.actual, rhs.actual, true);
         } else if (operation == Operation.DIV) {
-            promote = locals.getDefinition().caster.promoteNumeric(lhs.actual, rhs.actual, true);
+            promote = AnalyzerCaster.promoteNumeric(lhs.actual, rhs.actual, true);
         } else if (operation == Operation.REM) {
-            promote = locals.getDefinition().caster.promoteNumeric(lhs.actual, rhs.actual, true);
+            promote = AnalyzerCaster.promoteNumeric(lhs.actual, rhs.actual, true);
         } else if (operation == Operation.ADD) {
-            promote = locals.getDefinition().caster.promoteAdd(lhs.actual, rhs.actual);
+            promote = AnalyzerCaster.promoteAdd(lhs.actual, rhs.actual);
         } else if (operation == Operation.SUB) {
-            promote = locals.getDefinition().caster.promoteNumeric(lhs.actual, rhs.actual, true);
+            promote = AnalyzerCaster.promoteNumeric(lhs.actual, rhs.actual, true);
         } else if (operation == Operation.LSH) {
-            promote = locals.getDefinition().caster.promoteNumeric(lhs.actual, false);
-            shiftDistance = locals.getDefinition().caster.promoteNumeric(rhs.actual, false);
+            promote = AnalyzerCaster.promoteNumeric(lhs.actual, false);
+            shiftDistance = AnalyzerCaster.promoteNumeric(rhs.actual, false);
             shift = true;
         } else if (operation == Operation.RSH) {
-            promote = locals.getDefinition().caster.promoteNumeric(lhs.actual, false);
-            shiftDistance = locals.getDefinition().caster.promoteNumeric(rhs.actual, false);
+            promote = AnalyzerCaster.promoteNumeric(lhs.actual, false);
+            shiftDistance = AnalyzerCaster.promoteNumeric(rhs.actual, false);
             shift = true;
         } else if (operation == Operation.USH) {
-            promote = locals.getDefinition().caster.promoteNumeric(lhs.actual, false);
-            shiftDistance = locals.getDefinition().caster.promoteNumeric(rhs.actual, false);
+            promote = AnalyzerCaster.promoteNumeric(lhs.actual, false);
+            shiftDistance = AnalyzerCaster.promoteNumeric(rhs.actual, false);
             shift = true;
         } else if (operation == Operation.BWAND) {
-            promote = locals.getDefinition().caster.promoteXor(lhs.actual, rhs.actual);
+            promote = AnalyzerCaster.promoteXor(lhs.actual, rhs.actual);
         } else if (operation == Operation.XOR) {
-            promote = locals.getDefinition().caster.promoteXor(lhs.actual, rhs.actual);
+            promote = AnalyzerCaster.promoteXor(lhs.actual, rhs.actual);
         } else if (operation == Operation.BWOR) {
-            promote = locals.getDefinition().caster.promoteXor(lhs.actual, rhs.actual);
+            promote = AnalyzerCaster.promoteXor(lhs.actual, rhs.actual);
         } else {
             throw createError(new IllegalStateException("Illegal tree structure."));
         }
@@ -176,20 +174,20 @@ public final class EAssignment extends AExpression {
                 "[" + operation.symbol + "=] to types [" + lhs.actual + "] and [" + rhs.actual + "]."));
         }
 
-        cat = operation == Operation.ADD && promote.clazz == String.class;
+        cat = operation == Operation.ADD && promote == String.class;
 
         if (cat) {
-            if (rhs instanceof EBinary && ((EBinary)rhs).operation == Operation.ADD && rhs.actual.clazz == String.class) {
+            if (rhs instanceof EBinary && ((EBinary)rhs).operation == Operation.ADD && rhs.actual == String.class) {
                 ((EBinary)rhs).cat = true;
             }
 
             rhs.expected = rhs.actual;
         } else if (shift) {
-            if (promote.dynamic) {
+            if (promote == def.class) {
                 // shifts are promoted independently, but for the def type, we need object.
                 rhs.expected = promote;
-            } else if (shiftDistance.clazz == long.class) {
-                rhs.expected = locals.getDefinition().intType;
+            } else if (shiftDistance == long.class) {
+                rhs.expected = int.class;
                 rhs.explicit = true;
             } else {
                 rhs.expected = shiftDistance;
@@ -200,11 +198,11 @@ public final class EAssignment extends AExpression {
 
         rhs = rhs.cast(locals);
 
-        there = locals.getDefinition().caster.getLegalCast(location, lhs.actual, promote, false, false);
-        back = locals.getDefinition().caster.getLegalCast(location, promote, lhs.actual, true, false);
+        there = AnalyzerCaster.getLegalCast(location, lhs.actual, promote, false, false);
+        back = AnalyzerCaster.getLegalCast(location, promote, lhs.actual, true, false);
 
         this.statement = true;
-        this.actual = read ? lhs.actual : locals.getDefinition().voidType;
+        this.actual = read ? lhs.actual : void.class;
     }
 
     private void analyzeSimple(Locals locals) {
@@ -213,6 +211,11 @@ public final class EAssignment extends AExpression {
         // If the lhs node is a def optimized node we update the actual type to remove the need for a cast.
         if (lhs.isDefOptimized()) {
             rhs.analyze(locals);
+
+            if (rhs.actual == void.class) {
+                throw createError(new IllegalArgumentException("Right-hand side cannot be a [void] type for assignment."));
+            }
+
             rhs.expected = rhs.actual;
             lhs.updateActual(rhs.actual);
         // Otherwise, we must adapt the rhs type to the lhs type with a cast.
@@ -224,7 +227,7 @@ public final class EAssignment extends AExpression {
         rhs = rhs.cast(locals);
 
         this.statement = true;
-        this.actual = read ? lhs.actual : locals.getDefinition().voidType;
+        this.actual = read ? lhs.actual : void.class;
     }
 
     /**
@@ -259,11 +262,11 @@ public final class EAssignment extends AExpression {
             writer.writeDup(lhs.accessElementCount(), catElementStackSize); // dup the top element and insert it
                                                                             // before concat helper on stack
             lhs.load(writer, globals);                                      // read the current lhs's value
-            writer.writeAppendStrings(lhs.actual);                          // append the lhs's value using the StringBuilder
+            writer.writeAppendStrings(lhs.actual);  // append the lhs's value using the StringBuilder
 
             rhs.write(writer, globals); // write the bytecode for the rhs
 
-            if (!(rhs instanceof EBinary) || !((EBinary)rhs).cat) { // check to see if the rhs has already done a concatenation
+            if (!(rhs instanceof EBinary) || !((EBinary)rhs).cat) {            // check to see if the rhs has already done a concatenation
                 writer.writeAppendStrings(rhs.actual); // append the rhs's value since it's hasn't already
             }
 
@@ -271,8 +274,8 @@ public final class EAssignment extends AExpression {
             writer.writeCast(back);  // if necessary, cast the String to the lhs actual type
 
             if (lhs.read) {
-                writer.writeDup(lhs.actual.type.getSize(), lhs.accessElementCount()); // if this lhs is also read
-                                                                          // from dup the value onto the stack
+                writer.writeDup(MethodWriter.getType(lhs.actual).getSize(), lhs.accessElementCount()); // if this lhs is also read
+                                                                                                       // from dup the value onto the stack
             }
 
             lhs.store(writer, globals); // store the lhs's value from the stack in its respective variable/field/array
@@ -285,7 +288,7 @@ public final class EAssignment extends AExpression {
             lhs.load(writer, globals);                    // load the current lhs's value
 
             if (lhs.read && post) {
-                writer.writeDup(lhs.actual.type.getSize(), lhs.accessElementCount()); // dup the value if the lhs is also
+                writer.writeDup(MethodWriter.getType(lhs.actual).getSize(), lhs.accessElementCount()); // dup the value if the lhs is also
                                                                                  // read from and is a post increment
             }
 
@@ -296,9 +299,9 @@ public final class EAssignment extends AExpression {
         // XXX: fix these types, but first we need def compound assignment tests.
         // its tricky here as there are possibly explicit casts, too.
         // write the operation instruction for compound assignment
-            if (promote.dynamic) {
+            if (promote == def.class) {
                 writer.writeDynamicBinaryInstruction(
-                    location, promote, DefType, DefType, operation, DefBootstrap.OPERATOR_COMPOUND_ASSIGNMENT);
+                    location, promote, def.class, def.class, operation, DefBootstrap.OPERATOR_COMPOUND_ASSIGNMENT);
             } else {
                 writer.writeBinaryInstruction(location, promote, operation);
             }
@@ -306,8 +309,9 @@ public final class EAssignment extends AExpression {
             writer.writeCast(back); // if necessary cast the promotion type value back to the lhs's type
 
             if (lhs.read && !post) {
-                writer.writeDup(lhs.actual.type.getSize(), lhs.accessElementCount()); // dup the value if the lhs is also
-                                                                                 // read from and is not a post increment
+                writer.writeDup(MethodWriter.getType(lhs.actual).getSize(), lhs.accessElementCount()); // dup the value if the lhs is also
+                                                                                                       // read from and is not a post
+                                                                                                       // increment
             }
 
             lhs.store(writer, globals); // store the lhs's value from the stack in its respective variable/field/array
@@ -317,7 +321,8 @@ public final class EAssignment extends AExpression {
             rhs.write(writer, globals); // write the bytecode for the rhs rhs
 
             if (lhs.read) {
-                writer.writeDup(lhs.actual.type.getSize(), lhs.accessElementCount()); // dup the value if the lhs is also read from
+                writer.writeDup(MethodWriter.getType(lhs.actual).getSize(), lhs.accessElementCount()); // dup the value if the lhs
+                                                                                                       // is also read from
             }
 
             lhs.store(writer, globals); // store the lhs's value from the stack in its respective variable/field/array

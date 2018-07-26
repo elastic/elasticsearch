@@ -136,7 +136,7 @@ POST _reindex
 // TEST[setup:twitter]
 
 You can limit the documents by adding a type to the `source` or by adding a
-query. This will only copy ++tweet++&apos;s made by `kimchy` into `new_twitter`:
+query. This will only copy tweets made by `kimchy` into `new_twitter`:
 
 [source,js]
 --------------------------------------------------
@@ -144,7 +144,7 @@ POST _reindex
 {
   "source": {
     "index": "twitter",
-    "type": "tweet",
+    "type": "_doc",
     "query": {
       "term": {
         "user": "kimchy"
@@ -160,12 +160,14 @@ POST _reindex
 // TEST[setup:twitter]
 
 `index` and `type` in `source` can both be lists, allowing you to copy from
-lots of sources in one request. This will copy documents from the `tweet` and
-`post` types in the `twitter` and `blog` index. It'd include the `post` type in
-the `twitter` index and the `tweet` type in the `blog` index. If you want to be
-more specific you'll need to use the `query`. It also makes no effort to handle
-ID collisions. The target index will remain valid but it's not easy to predict
-which document will survive because the iteration order isn't well defined.
+lots of sources in one request. This will copy documents from the `_doc` and
+`post` types in the `twitter` and `blog` index. The copied documents would include the
+`post` type in the `twitter` index and the `_doc` type in the `blog` index. For more
+specific parameters, you can use `query`.
+
+The Reindex API makes no effort to handle ID collisions. For such issues, the target index
+will remain valid, but it's not easy to predict which document will survive because
+the iteration order isn't well defined.
 
 [source,js]
 --------------------------------------------------
@@ -173,7 +175,7 @@ POST _reindex
 {
   "source": {
     "index": ["twitter", "blog"],
-    "type": ["tweet", "post"]
+    "type": ["_doc", "post"]
   },
   "dest": {
     "index": "all_together"
@@ -203,8 +205,8 @@ POST _reindex
 // CONSOLE
 // TEST[setup:twitter]
 
-If you want a particular set of documents from the twitter index you'll
-need to sort. Sorting makes the scroll less efficient but in some contexts
+If you want a particular set of documents from the `twitter` index you'll
+need to use `sort`. Sorting makes the scroll less efficient but in some contexts
 it's worth it. If possible, prefer a more selective query to `size` and `sort`.
 This will copy 10000 documents from `twitter` into `new_twitter`:
 
@@ -226,8 +228,8 @@ POST _reindex
 // TEST[setup:twitter]
 
 The `source` section supports all the elements that are supported in a
-<<search-request-body,search request>>. For instance only a subset of the
-fields from the original documents can be reindexed using source filtering
+<<search-request-body,search request>>. For instance, only a subset of the
+fields from the original documents can be reindexed using `source` filtering
 as follows:
 
 [source,js]
@@ -236,7 +238,7 @@ POST _reindex
 {
   "source": {
     "index": "twitter",
-    "_source": ["user", "tweet"]
+    "_source": ["user", "_doc"]
   },
   "dest": {
     "index": "new_twitter"
@@ -286,10 +288,10 @@ Set `ctx.op = "delete"` if your script decides that the document must be
  deleted from the destination index. The deletion will be reported in the
  `deleted` counter in the <<docs-reindex-response-body, response body>>.
 
-Setting `ctx.op` to anything else is an error. Setting any
-other field in `ctx` is an error.
+Setting `ctx.op` to anything else will return an error, as will setting any
+other field in `ctx`.
 
-Think of the possibilities! Just be careful! With great power.... You can
+Think of the possibilities! Just be careful; you are able to
 change:
 
  * `_id`
@@ -299,7 +301,7 @@ change:
  * `_routing`
 
 Setting `_version` to `null` or clearing it from the `ctx` map is just like not
-sending the version in an indexing request. It will cause that document to be
+sending the version in an indexing request; it will cause the document to be
 overwritten in the target index regardless of the version on the target or the
 version type you use in the `_reindex` request.
 
@@ -310,11 +312,11 @@ preserved unless it's changed by the script. You can set `routing` on the
 `keep`::
 
 Sets the routing on the bulk request sent for each match to the routing on
-the match. The default.
+the match. This is the default value.
 
 `discard`::
 
-Sets the routing on the bulk request sent for each match to null.
+Sets the routing on the bulk request sent for each match to `null`.
 
 `=<some text>`::
 
@@ -420,17 +422,25 @@ POST _reindex
 // TEST[s/"username": "user",//]
 // TEST[s/"password": "pass"//]
 
-The `host` parameter must contain a scheme, host, and port (e.g.
-`https://otherhost:9200`). The `username` and `password` parameters are
-optional and when they are present reindex will connect to the remote
-Elasticsearch node using basic auth. Be sure to use `https` when using
-basic auth or the password will be sent in plain text.
+The `host` parameter must contain a scheme, host, port (e.g.
+`https://otherhost:9200`) and optional path (e.g. `https://otherhost:9200/proxy`).
+The `username` and `password` parameters are optional, and when they are present `_reindex`
+will connect to the remote Elasticsearch node using basic auth. Be sure to use `https` when
+using basic auth or the password will be sent in plain text.
 
-Remote hosts have to be explicitly whitelisted in elasticsearch.yaml using the
+Remote hosts have to be explicitly whitelisted in elasticsearch.yml using the
 `reindex.remote.whitelist` property. It can be set to a comma delimited list
 of allowed remote `host` and `port` combinations (e.g.
 `otherhost:9200, another:9200, 127.0.10.*:9200, localhost:*`). Scheme is
-ignored by the whitelist - only host and port are used.
+ignored by the whitelist - only host and port are used, for example:
+
+
+[source,yaml]
+--------------------------------------------------
+reindex.remote.whitelist: "otherhost:9200, another:9200, 127.0.10.*:9200, localhost:*"
+--------------------------------------------------
+
+The whitelist must be configured on any nodes that will coordinate the reindex.
 
 This feature should work with remote clusters of any version of Elasticsearch
 you are likely to find. This should allow you to upgrade from any version of
@@ -446,7 +456,7 @@ NOTE: Reindexing from remote clusters does not support
 
 Reindexing from a remote server uses an on-heap buffer that defaults to a
 maximum size of 100mb. If the remote index includes very large documents you'll
-need to use a smaller batch size. The example below sets the batch size `10`
+need to use a smaller batch size. The example below sets the batch size to `10`
 which is very, very small.
 
 [source,js]
@@ -477,8 +487,8 @@ POST _reindex
 
 It is also possible to set the socket read timeout on the remote connection
 with the `socket_timeout` field and the connection timeout with the
-`connect_timeout` field. Both default to thirty seconds. This example
-sets the socket read timeout to one minute and the connection timeout to ten
+`connect_timeout` field. Both default to 30 seconds. This example
+sets the socket read timeout to one minute and the connection timeout to 10
 seconds:
 
 [source,js]
@@ -512,8 +522,8 @@ POST _reindex
 === URL Parameters
 
 In addition to the standard parameters like `pretty`, the Reindex API also
-supports `refresh`, `wait_for_completion`, `wait_for_active_shards`, `timeout`, and
-`requests_per_second`.
+supports `refresh`, `wait_for_completion`, `wait_for_active_shards`, `timeout`,
+`scroll` and `requests_per_second`.
 
 Sending the `refresh` url parameter will cause all indexes to which the request
 wrote to be refreshed. This is different than the Index API's `refresh`
@@ -531,14 +541,16 @@ Elasticsearch can reclaim the space it uses.
 before proceeding with the reindexing. See <<index-wait-for-active-shards,here>>
 for details. `timeout` controls how long each write request waits for unavailable
 shards to become available. Both work exactly how they work in the
-<<docs-bulk,Bulk API>>.
+<<docs-bulk,Bulk API>>. As `_reindex` uses scroll search, you can also specify
+the `scroll` parameter to control how long it keeps the "search context" alive,
+(e.g. `?scroll=10m`). The default value is 5 minutes.
 
 `requests_per_second` can be set to any positive decimal number (`1.4`, `6`,
-`1000`, etc) and throttles rate at which reindex issues batches of index
+`1000`, etc) and throttles the rate at which `_reindex` issues batches of index
 operations by padding each batch with a wait time. The throttling can be
 disabled by setting `requests_per_second` to `-1`.
 
-The throttling is done by waiting between batches so that scroll that reindex
+The throttling is done by waiting between batches so that the `scroll` which `_reindex`
 uses internally can be given a timeout that takes into account the padding.
 The padding time is the difference between the batch size divided by the
 `requests_per_second` and the time spent writing. By default the batch size is
@@ -550,9 +562,9 @@ target_time = 1000 / 500 per second = 2 seconds
 wait_time = target_time - write_time = 2 seconds - .5 seconds = 1.5 seconds
 --------------------------------------------------
 
-Since the batch is issued as a single `_bulk` request large batch sizes will
+Since the batch is issued as a single `_bulk` request, large batch sizes will
 cause Elasticsearch to create many requests and then wait for a while before
-starting the next set. This is "bursty" instead of "smooth". The default is `-1`.
+starting the next set. This is "bursty" instead of "smooth". The default value is `-1`.
 
 [float]
 [[docs-reindex-response-body]]
@@ -604,12 +616,12 @@ The JSON response looks like this:
 
 `took`::
 
-The number of milliseconds from start to end of the whole operation.
+The total milliseconds the entire operation took.
 
 `timed_out`::
 
 This flag is set to `true` if any of the requests executed during the
-reindex has timed out.
+reindex timed out.
 
 `total`::
 
@@ -655,16 +667,18 @@ The number of requests per second effectively executed during the reindex.
 
 `throttled_until_millis`::
 
-This field should always be equal to zero in a delete by query response. It only
+This field should always be equal to zero in a `_delete_by_query` response. It only
 has meaning when using the <<docs-reindex-task-api, Task API>>, where it
 indicates the next time (in milliseconds since epoch) a throttled request will be
 executed again in order to conform to `requests_per_second`.
 
 `failures`::
 
-Array of all indexing failures. If this is non-empty then the request aborted
-because of those failures. See `conflicts` for how to prevent version conflicts
-from aborting the operation.
+Array of failures if there were any unrecoverable errors during the process. If
+this is non-empty then the request aborted because of those failures. Reindex
+is implemented using batches and any failure causes the entire process to abort
+but all failures in the current batch are collected into the array. You can use
+the `conflicts` option to prevent reindex from aborting on version conflicts.
 
 [float]
 [[docs-reindex-task-api]]
@@ -679,7 +693,7 @@ GET _tasks?detailed=true&actions=*reindex
 --------------------------------------------------
 // CONSOLE
 
-The responses looks like:
+The response looks like:
 
 [source,js]
 --------------------------------------------------
@@ -724,9 +738,9 @@ The responses looks like:
 // NOTCONSOLE
 // We can't test tasks output
 
-<1> this object contains the actual status. It is just like the response json
-with the important addition of the `total` field. `total` is the total number
-of operations that the reindex expects to perform. You can estimate the
+<1> this object contains the actual status. It is identical to the response JSON
+except for the important addition of the `total` field. `total` is the total number
+of operations that the `_reindex` expects to perform. You can estimate the
 progress by adding the `updated`, `created`, and `deleted` fields. The request
 will finish when their sum is equal to the `total` field.
 
@@ -734,14 +748,15 @@ With the task id you can look up the task directly:
 
 [source,js]
 --------------------------------------------------
-GET /_tasks/taskId:1
+GET /_tasks/task_id
 --------------------------------------------------
 // CONSOLE
+// TEST[s/task_id/node_id:1/]
 // TEST[catch:missing]
 
 The advantage of this API is that it integrates with `wait_for_completion=false`
 to transparently return the status of completed tasks. If the task is completed
-and `wait_for_completion=false` was set on it them it'll come back with a
+and `wait_for_completion=false` was set, it will return a
 `results` or an `error` field. The cost of this feature is the document that
 `wait_for_completion=false` creates at `.tasks/task/${taskId}`. It is up to
 you to delete that document.
@@ -755,14 +770,15 @@ Any Reindex can be canceled using the <<tasks,Task Cancel API>>:
 
 [source,js]
 --------------------------------------------------
-POST _tasks/task_id:1/_cancel
+POST _tasks/task_id/_cancel
 --------------------------------------------------
 // CONSOLE
+// TEST[s/task_id/node_id:1/]
 
-The `task_id` can be found using the tasks API above.
+The `task_id` can be found using the Tasks API.
 
-Cancelation should happen quickly but might take a few seconds. The task status
-API above will continue to list the task until it is wakes to cancel itself.
+Cancelation should happen quickly but might take a few seconds. The Tasks
+API will continue to list the task until it wakes to cancel itself.
 
 
 [float]
@@ -774,13 +790,14 @@ the `_rethrottle` API:
 
 [source,js]
 --------------------------------------------------
-POST _reindex/task_id:1/_rethrottle?requests_per_second=-1
+POST _reindex/task_id/_rethrottle?requests_per_second=-1
 --------------------------------------------------
 // CONSOLE
+// TEST[s/task_id/node_id:1/]
 
-The `task_id` can be found using the tasks API above.
+The `task_id` can be found using the Tasks API above.
 
-Just like when setting it on the `_reindex` API `requests_per_second`
+Just like when setting it on the Reindex API, `requests_per_second`
 can be either `-1` to disable throttling or any decimal number
 like `1.7` or `12` to throttle to that level. Rethrottling that speeds up the
 query takes effect immediately but rethrotting that slows down the query will
@@ -796,7 +813,7 @@ create an index containing documents that look like this:
 
 [source,js]
 --------------------------------------------------
-POST test/test/1?refresh
+POST test/_doc/1?refresh
 {
   "text": "words words",
   "flag": "foo"
@@ -804,7 +821,7 @@ POST test/test/1?refresh
 --------------------------------------------------
 // CONSOLE
 
-But you don't like the name `flag` and want to replace it with `tag`.
+but you don't like the name `flag` and want to replace it with `tag`.
 `_reindex` can create the other index for you:
 
 [source,js]
@@ -829,12 +846,12 @@ Now you can get the new document:
 
 [source,js]
 --------------------------------------------------
-GET test2/test/1
+GET test2/_doc/1
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
 
-and it'll look like:
+which will return:
 
 [source,js]
 --------------------------------------------------
@@ -842,7 +859,7 @@ and it'll look like:
   "found": true,
   "_id": "1",
   "_index": "test2",
-  "_type": "test",
+  "_type": "_doc",
   "_version": 1,
   "_source": {
     "text": "words words",
@@ -851,8 +868,6 @@ and it'll look like:
 }
 --------------------------------------------------
 // TESTRESPONSE
-
-Or you can search by `tag` or whatever you want.
 
 [float]
 [[docs-reindex-slice]]
@@ -900,7 +915,7 @@ POST _reindex
 // CONSOLE
 // TEST[setup:big_twitter]
 
-Which you can verify works with:
+You can verify this works by:
 
 [source,js]
 ----------------------------------------------------------------
@@ -910,7 +925,7 @@ POST new_twitter/_search?size=0&filter_path=hits.total
 // CONSOLE
 // TEST[continued]
 
-Which results in a sensible `total` like this one:
+which results in a sensible `total` like this one:
 
 [source,js]
 ----------------------------------------------------------------
@@ -926,7 +941,7 @@ Which results in a sensible `total` like this one:
 [[docs-reindex-automatic-slice]]
 ==== Automatic slicing
 
-You can also let reindex automatically parallelize using <<sliced-scroll>> to
+You can also let `_reindex` automatically parallelize using <<sliced-scroll>> to
 slice on `_uid`. Use `slices` to specify the number of slices to use:
 
 [source,js]
@@ -944,7 +959,7 @@ POST _reindex?slices=5&refresh
 // CONSOLE
 // TEST[setup:big_twitter]
 
-Which you also can verify works with:
+You can also this verify works by:
 
 [source,js]
 ----------------------------------------------------------------
@@ -953,7 +968,7 @@ POST new_twitter/_search?size=0&filter_path=hits.total
 // CONSOLE
 // TEST[continued]
 
-Which results in a sensible `total` like this one:
+which results in a sensible `total` like this one:
 
 [source,js]
 ----------------------------------------------------------------
@@ -977,7 +992,7 @@ section above, creating sub-requests which means it has some quirks:
 sub-requests are "child" tasks of the task for the request with `slices`.
 * Fetching the status of the task for the request with `slices` only contains
 the status of completed slices.
-* These sub-requests are individually addressable for things like cancellation
+* These sub-requests are individually addressable for things like cancelation
 and rethrottling.
 * Rethrottling the request with `slices` will rethrottle the unfinished
 sub-request proportionally.
@@ -990,7 +1005,7 @@ are distributed proportionally to each sub-request. Combine that with the point
 above about distribution being uneven and you should conclude that the using
 `size` with `slices` might not result in exactly `size` documents being
 `_reindex`ed.
-* Each sub-requests gets a slightly different snapshot of the source index
+* Each sub-request gets a slightly different snapshot of the source index,
 though these are all taken at approximately the same time.
 
 [float]
@@ -998,12 +1013,12 @@ though these are all taken at approximately the same time.
 ===== Picking the number of slices
 
 If slicing automatically, setting `slices` to `auto` will choose a reasonable
-number for most indices. If you're slicing manually or otherwise tuning
+number for most indices. If slicing manually or otherwise tuning
 automatic slicing, use these guidelines.
 
 Query performance is most efficient when the number of `slices` is equal to the
-number of shards in the index. If that number is large, (for example,
-500) choose a lower number as too many `slices` will hurt performance. Setting
+number of shards in the index. If that number is large (e.g. 500),
+choose a lower number as too many `slices` will hurt performance. Setting
 `slices` higher than the number of shards generally does not improve efficiency
 and adds overhead.
 
@@ -1014,28 +1029,55 @@ Whether query or indexing performance dominates the runtime depends on the
 documents being reindexed and cluster resources.
 
 [float]
+=== Reindexing many indices
+If you have many indices to reindex it is generally better to reindex them
+one at a time rather than using a glob pattern to pick up many indices. That
+way you can resume the process if there are any errors by removing the
+partially completed index and starting over at that index. It also makes
+parallelizing the process fairly simple: split the list of indices to reindex
+and run each list in parallel.
+
+One off bash scripts seem to work nicely for this:
+
+[source,bash]
+----------------------------------------------------------------
+for index in i1 i2 i3 i4 i5; do
+  curl -HContent-Type:application/json -XPOST localhost:9200/_reindex?pretty -d'{
+    "source": {
+      "index": "'$index'"
+    },
+    "dest": {
+      "index": "'$index'-reindexed"
+    }
+  }'
+done
+----------------------------------------------------------------
+// NOTCONSOLE
+
+[float]
 === Reindex daily indices
 
-You can use `_reindex` in combination with <<modules-scripting-painless, Painless>>
- to reindex daily indices to apply a new template to the existing documents.
+Notwithstanding the above advice, you can use `_reindex` in combination with
+<<modules-scripting-painless, Painless>> to reindex daily indices to apply
+a new template to the existing documents.
 
-Assuming you have indices consisting of documents as following:
+Assuming you have indices consisting of documents as follows:
 
 [source,js]
 ----------------------------------------------------------------
-PUT metricbeat-2016.05.30/beat/1?refresh
+PUT metricbeat-2016.05.30/_doc/1?refresh
 {"system.cpu.idle.pct": 0.908}
-PUT metricbeat-2016.05.31/beat/1?refresh
+PUT metricbeat-2016.05.31/_doc/1?refresh
 {"system.cpu.idle.pct": 0.105}
 ----------------------------------------------------------------
 // CONSOLE
 
-The new template for the `metricbeat-*` indices is already loaded into elasticsearch
+The new template for the `metricbeat-*` indices is already loaded into Elasticsearch,
 but it applies only to the newly created indices. Painless can be used to reindex
 the existing documents and apply the new template.
 
 The script below extracts the date from the index name and creates a new index
-with `-1` appended. All data from `metricbeat-2016.05.31` will be reindex
+with `-1` appended. All data from `metricbeat-2016.05.31` will be reindexed
 into `metricbeat-2016.05.31-1`.
 
 [source,js]
@@ -1057,23 +1099,23 @@ POST _reindex
 // CONSOLE
 // TEST[continued]
 
-All documents from the previous metricbeat indices now can be found in the `*-1` indices.
+All documents from the previous metricbeat indices can now be found in the `*-1` indices.
 
 [source,js]
 ----------------------------------------------------------------
-GET metricbeat-2016.05.30-1/beat/1
-GET metricbeat-2016.05.31-1/beat/1
+GET metricbeat-2016.05.30-1/_doc/1
+GET metricbeat-2016.05.31-1/_doc/1
 ----------------------------------------------------------------
 // CONSOLE
 // TEST[continued]
 
-The previous method can also be used in combination with <<docs-reindex-change-name, change the name of a field>>
-to only load the existing data into the new index, but also rename fields if needed.
+The previous method can also be used in conjunction with <<docs-reindex-change-name, change the name of a field>>
+to load only the existing data into the new index and rename any fields if needed.
 
 [float]
 === Extracting a random subset of an index
 
-Reindex can be used to extract a random subset of an index for testing:
+`_reindex` can be used to extract a random subset of an index for testing:
 
 [source,js]
 ----------------------------------------------------------------
@@ -1098,5 +1140,5 @@ POST _reindex
 // CONSOLE
 // TEST[setup:big_twitter]
 
-<1> Reindex defaults to sorting by `_doc` so `random_score` won't have any
+<1> `_reindex` defaults to sorting by `_doc` so `random_score` will not have any
 effect unless you override the sort to `_score`.

@@ -1,0 +1,22 @@
+evaluationDependsOn(xpackModule('core'))
+
+apply plugin: 'elasticsearch.esplugin'
+esplugin {
+    name 'x-pack-logstash'
+    description 'Elasticsearch Expanded Pack Plugin - Logstash'
+    classname 'org.elasticsearch.xpack.logstash.Logstash'
+    extendedPlugins = ['x-pack-core']
+}
+archivesBaseName = 'x-pack-logstash'
+
+dependencies {
+    compileOnly project(path: xpackModule('core'), configuration: 'shadow')
+    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+
+}
+
+run {
+    plugin xpackModule('core')
+}
+
+integTest.enabled = false

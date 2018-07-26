@@ -40,7 +40,7 @@ are supported out of the box:
 
 [source,js]
 --------------------------------------------------
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "message": "some arrays in this document...",
   "tags":  [ "elasticsearch", "wow" ], <1>
@@ -56,7 +56,7 @@ PUT my_index/my_type/1
   ]
 }
 
-PUT my_index/my_type/2 <3>
+PUT my_index/_doc/2 <3>
 {
   "message": "no arrays in this document...",
   "tags":  "elasticsearch",

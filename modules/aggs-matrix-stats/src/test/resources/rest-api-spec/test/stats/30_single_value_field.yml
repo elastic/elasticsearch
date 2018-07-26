@@ -7,6 +7,7 @@ setup:
         body:
           settings:
             number_of_shards: 3
+            number_of_routing_shards: 3
           mappings:
             test:
               "properties":
@@ -129,7 +130,6 @@ setup:
   - do:
       search:
         index: unmapped
-        type:  test
         body: {"aggs": { "mfs" : { "matrix_stats": {"fields": ["val1", "val2", "val3"]} } } }
 
   - match: {hits.total: 0}
@@ -141,7 +141,6 @@ setup:
   - do:
       search:
         index: test
-        type:  test
         body: {"aggs": { "mfs" : { "matrix_stats": {"fields": ["val1", "val3"]} } } }
 
   - match: {hits.total: 15}
@@ -154,7 +153,6 @@ setup:
   - do:
       search:
         index: [test, unmapped]
-        type:  test
         body: {"aggs": { "mfs" : { "matrix_stats": {"fields": ["val1", "val2", "val3"]} } } }
 
   - match: {hits.total: 15}
@@ -168,7 +166,6 @@ setup:
   - do:
       search:
         index: [test, unmapped]
-        type:  test
         body: {"aggs": { "mfs" : { "matrix_stats": {"fields": ["val1", "val2", "val3"], "missing" : {"val2" : 10} } } } }
 
   - match: {hits.total: 15}
@@ -183,7 +180,6 @@ setup:
       catch: /parsing_exception/
       search:
         index: test
-        type:  test
         body: {"aggs": { "mfs" : { "matrix_stats": {"fields": ["val1", "val2"], "script" : { "my_script" : {"source" : "1 + doc['val1'].value", "lang" : "js"} } } } } }
 
 ---
@@ -193,5 +189,4 @@ setup:
       catch: /parsing_exception/
       search:
         index: test
-        type:  test
         body: {"aggs": { "mfs" : { "matrix_stats": {"fields": ["val1", "val2", "val3"], "script" : { "my_script" : {"source" : "my_var + doc['val1'].value", "params" : { "my_var" : 1 }, "lang" : "js" } } } } } }

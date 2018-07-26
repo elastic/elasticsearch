@@ -8,7 +8,7 @@ The store module allows you to control how index data is stored and accessed on 
 === File system storage types
 
 There are different file system implementations or _storage types_. By default,
-elasticsearch will pick the best implementation based on the operating
+Elasticsearch will pick the best implementation based on the operating
 environment.
 
 This can be overridden for all indices by adding this to the
@@ -76,7 +76,7 @@ compatibility.
 
 NOTE: This is an expert setting, the details of which may change in the future.
 
-By default, elasticsearch completely relies on the operating system file system
+By default, Elasticsearch completely relies on the operating system file system
 cache for caching I/O operations. It is possible to set `index.store.preload`
 in order to tell the operating system to load the content of hot index
 files into memory upon opening. This setting accept a comma-separated list of
@@ -115,7 +115,7 @@ The default value is the empty array, which means that nothing will be loaded
 into the file-system cache eagerly. For indices that are actively searched,
 you might want to set it to `["nvd", "dvd"]`, which will cause norms and doc
 values to be loaded eagerly into physical memory. These are the two first
-extensions to look at since elasticsearch performs random access on them.
+extensions to look at since Elasticsearch performs random access on them.
 
 A wildcard can be used in order to indicate that all files should be preloaded:
 `index.store.preload: ["*"]`. Note however that it is generally not useful to

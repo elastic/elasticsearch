@@ -21,7 +21,6 @@
  - do:
       search:
           index:   test_1
-          type:    test
           body:
             query:   { term: { _id: 1 }}
 
@@ -41,7 +40,6 @@
  - do:
       search:
           index:   test_1
-          type:    test
           body:
             query:   { term: { _id: 2 }}
 
@@ -71,7 +69,6 @@
  - do:
       search:
           index:   test_1
-          type:    test
           body:
             query:   { term: { cat: dog }}
 
@@ -91,7 +88,6 @@
  - do:
       search:
           index:   update_60_refresh_1
-          type:    test
           body:
             query:   { term: { _id: update_60_refresh_id1 }}
  - match: { hits.total: 1 }
@@ -109,7 +105,6 @@
  - do:
       search:
           index:   update_60_refresh_1
-          type:    test
           body:
             query:   { match: { test: asdf } }
  - match: { hits.total: 1 }

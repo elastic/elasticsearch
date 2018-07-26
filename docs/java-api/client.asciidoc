@@ -8,7 +8,7 @@ You can use the *Java client* in multiple ways:
   existing cluster
 * Perform administrative tasks on a running cluster
 
-Obtaining an elasticsearch `Client` is simple. The most common way to
+Obtaining an Elasticsearch `Client` is simple. The most common way to
 get a client is by creating a <<transport-client,`TransportClient`>>
 that connects to a cluster.
 
@@ -23,13 +23,10 @@ cluster.
 
 ==============================
 
-WARNING: The `TransportClient` is aimed to be replaced by the Java High Level REST
-Client, which executes HTTP requests instead of serialized Java requests. The
-`TransportClient` will be deprecated in upcoming versions of Elasticsearch and it
-is advised to use the Java High Level REST Client instead.
-
 [[transport-client]]
 === Transport Client
+
+deprecated[7.0.0, The `TransportClient` is deprecated in favour of the {java-rest}/java-rest-high.html[Java High Level REST Client] and will be removed in Elasticsearch 8.0. The {java-rest}/java-rest-high-level-migration.html[migration guide] describes all the steps needed to migrate.]
 
 The `TransportClient` connects remotely to an Elasticsearch cluster
 using the transport module. It does not join the cluster, but simply
@@ -69,7 +66,7 @@ After this, the client will call the internal cluster state API on those nodes
 to discover available data nodes. The internal node list of the client will
 be replaced with those data nodes only. This list is refreshed every five seconds by default.
 Note that the IP addresses the sniffer connects to are the ones declared as the 'publish'
-address in those node's elasticsearch config.
+address in those node's Elasticsearch config.
 
 Keep in mind that the list might possibly not include the original node it connected to
 if that node is not a data node. If, for instance, you initially connect to a

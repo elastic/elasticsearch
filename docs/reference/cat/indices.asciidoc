@@ -18,7 +18,7 @@ Might respond with:
 --------------------------------------------------
 health status index    uuid                   pri rep docs.count docs.deleted store.size pri.store.size
 yellow open   twitter  u8FNjxh8Rfy_awN11oDKYQ   1   1       1200            0     88.1kb         88.1kb
-green  open   twitter2 nYFWZEO7TUiOjLQXBaYJpA   5   0          0            0       260b           260b
+green  open   twitter2 nYFWZEO7TUiOjLQXBaYJpA   1   0          0            0       260b           260b
 --------------------------------------------------
 // TESTRESPONSE[s/\d+(\.\d+)?[tgmk]?b/\\d+(\\.\\d+)?[tgmk]?b/]
 // TESTRESPONSE[s/u8FNjxh8Rfy_awN11oDKYQ|nYFWZEO7TUiOjLQXBaYJpA/.+/ _cat]
@@ -32,7 +32,7 @@ All these exposed metrics come directly from Lucene APIs.
 1. As the number of documents and deleted documents shown in this are at the lucene level,
 it includes all the hidden documents (e.g. from nested documents) as well.
 
-2. To get actual count of documents at the elasticsearch level, the recommended way
+2. To get actual count of documents at the Elasticsearch level, the recommended way
 is to use either the <<cat-count>> or the <<search-count>>
 
 [float]
@@ -81,7 +81,7 @@ Which looks like:
 --------------------------------------------------
 health status index    uuid                   pri rep docs.count docs.deleted store.size pri.store.size
 yellow open   twitter  u8FNjxh8Rfy_awN11oDKYQ   1   1       1200            0     88.1kb         88.1kb
-green  open   twitter2 nYFWZEO7TUiOjLQXBaYJpA   5   0          0            0       260b           260b
+green  open   twitter2 nYFWZEO7TUiOjLQXBaYJpA   1   0          0            0       260b           260b
 --------------------------------------------------
 // TESTRESPONSE[s/\d+(\.\d+)?[tgmk]?b/\\d+(\\.\\d+)?[tgmk]?b/]
 // TESTRESPONSE[s/u8FNjxh8Rfy_awN11oDKYQ|nYFWZEO7TUiOjLQXBaYJpA/.+/ _cat]

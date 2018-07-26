@@ -26,7 +26,7 @@ Let's look at a range of percentiles representing load time:
 
 [source,js]
 --------------------------------------------------
-GET latency/data/_search
+GET latency/_search
 {
     "size": 0,
     "aggs" : {
@@ -53,13 +53,13 @@ percentiles: `[ 1, 5, 25, 50, 75, 95, 99 ]`.  The response will look like this:
    "aggregations": {
       "load_time_outlier": {
          "values" : {
-            "1.0": 9.9,
-            "5.0": 29.500000000000004,
-            "25.0": 167.5,
+            "1.0": 5.0,
+            "5.0": 25.0,
+            "25.0": 165.0,
             "50.0": 445.0,
-            "75.0": 722.5,
-            "95.0": 940.5,
-            "99.0": 980.1000000000001
+            "75.0": 725.0,
+            "95.0": 945.0,
+            "99.0": 985.0
          }
       }
    }
@@ -69,8 +69,8 @@ percentiles: `[ 1, 5, 25, 50, 75, 95, 99 ]`.  The response will look like this:
 
 As you can see, the aggregation will return a calculated value for each percentile
 in the default range.  If we assume response times are in milliseconds, it is
-immediately obvious that the webpage normally loads in 15-30ms, but occasionally
-spikes to 60-150ms.
+immediately obvious that the webpage normally loads in 10-725ms, but occasionally
+spikes to 945-985ms.
 
 Often, administrators are only interested in outliers -- the extreme percentiles.
 We can specify just the percents we are interested in (requested percentiles
@@ -78,7 +78,7 @@ must be a value between 0-100 inclusive):
 
 [source,js]
 --------------------------------------------------
-GET latency/data/_search
+GET latency/_search
 {
     "size": 0,
     "aggs" : {
@@ -101,7 +101,7 @@ By default the `keyed` flag is set to `true` which associates a unique string ke
 
 [source,js]
 --------------------------------------------------
-GET latency/data/_search
+GET latency/_search
 {
     "size": 0,
     "aggs": {
@@ -129,15 +129,15 @@ Response:
             "values": [
                 {
                     "key": 1.0,
-                    "value": 9.9
+                    "value": 5.0
                 },
                 {
                     "key": 5.0,
-                    "value": 29.500000000000004
+                    "value": 25.0
                 },
                 {
                     "key": 25.0,
-                    "value": 167.5
+                    "value": 165.0
                 },
                 {
                     "key": 50.0,
@@ -145,15 +145,15 @@ Response:
                 },
                 {
                     "key": 75.0,
-                    "value": 722.5
+                    "value": 725.0
                 },
                 {
                     "key": 95.0,
-                    "value": 940.5
+                    "value": 945.0
                 },
                 {
                     "key": 99.0,
-                    "value": 980.1000000000001
+                    "value": 985.0
                 }
             ]
         }
@@ -170,7 +170,7 @@ a script to convert them on-the-fly:
 
 [source,js]
 --------------------------------------------------
-GET latency/data/_search
+GET latency/_search
 {
     "size": 0,
     "aggs" : {
@@ -199,7 +199,7 @@ This will interpret the `script` parameter as an `inline` script with the `painl
 
 [source,js]
 --------------------------------------------------
-GET latency/data/_search
+GET latency/_search
 {
     "size": 0,
     "aggs" : {
@@ -264,7 +264,7 @@ This balance can be controlled using a `compression` parameter:
 
 [source,js]
 --------------------------------------------------
-GET latency/data/_search
+GET latency/_search
 {
     "size": 0,
     "aggs" : {
@@ -315,7 +315,7 @@ The HDR Histogram can be used by specifying the `method` parameter in the reques
 
 [source,js]
 --------------------------------------------------
-GET latency/data/_search
+GET latency/_search
 {
     "size": 0,
     "aggs" : {
@@ -348,7 +348,7 @@ had a value.
 
 [source,js]
 --------------------------------------------------
-GET latency/data/_search
+GET latency/_search
 {
     "size": 0,
     "aggs" : {

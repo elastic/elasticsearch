@@ -38,7 +38,7 @@ command line or via your shell profile.
 For the package distributions, the config directory location defaults to
 `/etc/elasticsearch`. The location of the config directory can also be changed
 via the `ES_PATH_CONF` environment variable, but note that setting this in your
-shell is not sufficient. Instead, this variabled is sourced from
+shell is not sufficient. Instead, this variable is sourced from
 `/etc/default/elasticsearch` (for the Debian package) and
 `/etc/sysconfig/elasticsearch` (for the RPM package). You will need to edit the
 `ES_PATH_CONF=/etc/elasticsearch` entry in one of these files accordingly to
@@ -78,30 +78,3 @@ variable, for instance:
 node.name:    ${HOSTNAME}
 network.host: ${ES_NETWORK_HOST}
 --------------------------------------------------
-
-[float]
-=== Prompting for settings
-
-For settings that you do not wish to store in the configuration file, you can
-use the value `${prompt.text}` or `${prompt.secret}` and start Elasticsearch
-in the foreground. `${prompt.secret}` has echoing disabled so that the value
-entered will not be shown in your terminal; `${prompt.text}` will allow you to
-see the value as you type it in. For example:
-
-[source,yaml]
---------------------------------------------------
-node:
-  name: ${prompt.text}
---------------------------------------------------
-
-When starting Elasticsearch, you will be prompted to enter the actual value
-like so:
-
-[source,sh]
---------------------------------------------------
-Enter value for [node.name]:
---------------------------------------------------
-
-NOTE: Elasticsearch will not start if `${prompt.text}` or `${prompt.secret}`
-is used in the settings and the process is run as a service or in the background.
-

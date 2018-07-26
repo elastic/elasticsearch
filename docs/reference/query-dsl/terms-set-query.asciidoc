@@ -17,7 +17,7 @@ be a number field:
 PUT /my-index
 {
     "mappings": {
-        "doc": {
+        "_doc": {
             "properties": {
                 "required_matches": {
                     "type": "long"
@@ -27,13 +27,13 @@ PUT /my-index
     }
 }
 
-PUT /my-index/doc/1?refresh
+PUT /my-index/_doc/1?refresh
 {
     "codes": ["ghi", "jkl"],
     "required_matches": 2
 }
 
-PUT /my-index/doc/2?refresh
+PUT /my-index/_doc/2?refresh
 {
     "codes": ["def", "ghi"],
     "required_matches": 2
@@ -68,20 +68,20 @@ Response:
   "took": 13,
   "timed_out": false,
   "_shards": {
-    "total": 5,
-    "successful": 5,
+    "total": 1,
+    "successful": 1,
     "skipped" : 0,
     "failed": 0
   },
   "hits": {
     "total": 1,
-    "max_score": 0.5753642,
+    "max_score": 0.87546873,
     "hits": [
       {
         "_index": "my-index",
-        "_type": "doc",
+        "_type": "_doc",
         "_id": "2",
-        "_score": 0.5753642,
+        "_score": 0.87546873,
         "_source": {
           "codes": ["def", "ghi"],
           "required_matches": 2

@@ -82,7 +82,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
 
         SearchRequestBuilder req = client().prepareSearch().setIndices("test");
         req.setQuery(QueryBuilders.matchAllQuery())
-                .addSort(SortBuilders.fieldSort("_uid")
+                .addSort(SortBuilders.fieldSort("_id")
                         .order(SortOrder.ASC))
                 .addScriptField("foo", new Script(ScriptType.INLINE, "expression", script, paramsMap));
         return req;

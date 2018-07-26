@@ -12,21 +12,11 @@ that match the query. The query can either be provided using a simple
 All search APIs can be applied across multiple types within an index, and
 across multiple indices with support for the
 <<multi-index,multi index syntax>>. For
-example, we can search on all documents across all types within the
-twitter index:
+example, we can search on all documents within the twitter index:
 
 [source,js]
 --------------------------------------------------
 GET /twitter/_search?q=user:kimchy
---------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
-
-We can also search within specific types:
-
-[source,js]
---------------------------------------------------
-GET /twitter/tweet,user/_search?q=user:kimchy
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
@@ -36,7 +26,7 @@ We can also search all tweets with a certain tag across several indices
 
 [source,js]
 --------------------------------------------------
-GET /kimchy,elasticsearch/tweet/_search?q=tag:wow
+GET /kimchy,elasticsearch/_search?q=tag:wow
 --------------------------------------------------
 // CONSOLE
 // TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]
@@ -46,7 +36,7 @@ placeholder:
 
 [source,js]
 --------------------------------------------------
-GET /_all/tweet/_search?q=tag:wow
+GET /_all/_search?q=tag:wow
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
@@ -59,18 +49,3 @@ GET /_search?q=tag:wow
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
-
-By default elasticsearch doesn't reject any search requests based on the number
-of shards the request hits. While elasticsearch will optimize the search execution
-on the coordinating node a large number of shards can have a significant impact
-CPU and memory wise. It is usually a better idea to organize data in such a way
-that there are fewer larger shards. In case you would like to configure a soft
-limit, you can update the `action.search.shard_count.limit` cluster setting in order
-to reject search requests that hit too many shards.
-
-The search's `max_concurrent_shard_requests` request parameter can be used to control
-the maximum number of concurrent shard requests the search API will execute for this request.
-This parameter should be used to protect a singe request from overloading a cluster ie. a default
-request will hit all indices in a cluster which could cause shard request rejections if the
-number of shards per node is high. This default is based on the number of data nodes in
-the cluster but at most `256`.

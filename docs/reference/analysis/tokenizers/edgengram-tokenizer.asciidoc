@@ -250,7 +250,7 @@ PUT my_index
     }
   },
   "mappings": {
-    "doc": {
+    "_doc": {
       "properties": {
         "title": {
           "type": "text",
@@ -262,7 +262,7 @@ PUT my_index
   }
 }
 
-PUT my_index/doc/1
+PUT my_index/_doc/1
 {
   "title": "Quick Foxes" <1>
 }
@@ -294,8 +294,8 @@ GET my_index/_search
   "took": $body.took,
   "timed_out": false,
   "_shards": {
-    "total": 5,
-    "successful": 5,
+    "total": 1,
+    "successful": 1,
     "skipped" : 0,
     "failed": 0
   },
@@ -305,7 +305,7 @@ GET my_index/_search
     "hits": [
       {
         "_index": "my_index",
-        "_type": "doc",
+        "_type": "_doc",
         "_id": "1",
         "_score": 0.5753642,
         "_source": {

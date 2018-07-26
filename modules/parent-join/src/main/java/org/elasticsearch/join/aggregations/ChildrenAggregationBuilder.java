@@ -26,11 +26,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.plain.SortedSetDVOrdinalsIndexFieldData;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.join.mapper.ParentIdFieldMapper;
 import org.elasticsearch.join.mapper.ParentJoinFieldMapper;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.FieldContext;
@@ -43,6 +42,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 public class ChildrenAggregationBuilder
@@ -66,6 +66,19 @@ public class ChildrenAggregationBuilder
             throw new IllegalArgumentException("[childType] must not be null: [" + name + "]");
         }
         this.childType = childType;
+    }
+
+    protected ChildrenAggregationBuilder(ChildrenAggregationBuilder clone,
+                                         Builder factoriesBuilder, Map<String, Object> metaData) {
+        super(clone, factoriesBuilder, metaData);
+        this.childType = clone.childType;
+        this.childFilter = clone.childFilter;
+        this.parentFilter = clone.parentFilter;
+    }
+
+    @Override
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
+        return new ChildrenAggregationBuilder(this, factoriesBuilder, metaData);
     }
 
     /**
@@ -93,11 +106,7 @@ public class ChildrenAggregationBuilder
     @Override
     protected ValuesSourceConfig<WithOrdinals> resolveConfig(SearchContext context) {
         ValuesSourceConfig<WithOrdinals> config = new ValuesSourceConfig<>(ValuesSourceType.BYTES);
-        if (context.mapperService().getIndexSettings().isSingleType()) {
-            joinFieldResolveConfig(context, config);
-        } else {
-            parentFieldResolveConfig(context, config);
-        }
+        joinFieldResolveConfig(context, config);
         return config;
     }
 
@@ -110,30 +119,6 @@ public class ChildrenAggregationBuilder
             MappedFieldType fieldType = parentIdFieldMapper.fieldType();
             final SortedSetDVOrdinalsIndexFieldData fieldData = context.getForField(fieldType);
             config.fieldContext(new FieldContext(fieldType.name(), fieldData, fieldType));
-        } else {
-            config.unmapped(true);
-        }
-    }
-
-    private void parentFieldResolveConfig(SearchContext context, ValuesSourceConfig<WithOrdinals> config) {
-        DocumentMapper childDocMapper = context.mapperService().documentMapper(childType);
-        if (childDocMapper != null) {
-            ParentFieldMapper parentFieldMapper = childDocMapper.parentFieldMapper();
-            if (!parentFieldMapper.active()) {
-                throw new IllegalArgumentException("[children] no [_parent] field not configured that points to a parent type");
-            }
-            String parentType = parentFieldMapper.type();
-            DocumentMapper parentDocMapper = context.mapperService().documentMapper(parentType);
-            if (parentDocMapper != null) {
-                parentFilter = parentDocMapper.typeFilter(context.getQueryShardContext());
-                childFilter = childDocMapper.typeFilter(context.getQueryShardContext());
-                MappedFieldType parentFieldType = parentDocMapper.parentFieldMapper().getParentJoinFieldType();
-                final SortedSetDVOrdinalsIndexFieldData fieldData = context.getForField(parentFieldType);
-                config.fieldContext(new FieldContext(parentFieldType.name(), fieldData,
-                    parentFieldType));
-            } else {
-                config.unmapped(true);
-            }
         } else {
             config.unmapped(true);
         }

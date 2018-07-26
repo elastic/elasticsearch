@@ -20,7 +20,6 @@
 package org.elasticsearch.painless;
 
 import junit.framework.AssertionFailedError;
-
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.script.ScriptException;
 
@@ -256,7 +255,7 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
             // We don't want PICKY here so we get the normal error message
             exec("def i = 1} return 1", emptyMap(), emptyMap(), null, false);
         });
-        assertEquals("unexpected token ['}'] was expecting one of [<EOF>].", e.getMessage());
+        assertEquals("invalid sequence of tokens near ['}'].", e.getMessage());
     }
 
     public void testBadBoxingCast() {

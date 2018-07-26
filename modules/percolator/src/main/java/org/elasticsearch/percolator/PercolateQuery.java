@@ -164,6 +164,13 @@ final class PercolateQuery extends Query implements Accountable {
                     };
                 }
             }
+
+            @Override
+            public boolean isCacheable(LeafReaderContext ctx) {
+                // This query uses a significant amount of memory, let's never
+                // cache it or compound queries that wrap it.
+                return false;
+            }
         };
     }
 
@@ -185,6 +192,10 @@ final class PercolateQuery extends Query implements Accountable {
 
     Query getCandidateMatchesQuery() {
         return candidateMatchesQuery;
+    }
+
+    Query getVerifiedMatchesQuery() {
+        return verifiedMatchesQuery;
     }
 
     // Comparing identity here to avoid being cached
@@ -259,11 +270,6 @@ final class PercolateQuery extends Query implements Accountable {
                     return MATCH_COST;
                 }
             };
-        }
-
-        @Override
-        public final int freq() throws IOException {
-            return approximation.freq();
         }
 
         @Override

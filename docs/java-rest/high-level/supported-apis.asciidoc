@@ -1,26 +1,197 @@
 [[java-rest-high-supported-apis]]
-== Supported APIs
 
-The Java High Level REST Client supports the following APIs:
+== Document APIs
 
-Indices APIs::
-* <<java-rest-high-delete-index>>
+The Java High Level REST Client supports the following Document APIs:
 
+[[single-doc]]
 Single document APIs::
 * <<java-rest-high-document-index>>
 * <<java-rest-high-document-get>>
 * <<java-rest-high-document-delete>>
 * <<java-rest-high-document-update>>
 
-Multi document APIs::
+[[multi-doc]]
+Multi-document APIs::
 * <<java-rest-high-document-bulk>>
+* <<java-rest-high-document-multi-get>>
 
-Search APIs::
+include::document/index.asciidoc[]
+include::document/get.asciidoc[]
+include::document/exists.asciidoc[]
+include::document/delete.asciidoc[]
+include::document/update.asciidoc[]
+include::document/bulk.asciidoc[]
+include::document/multi-get.asciidoc[]
+
+== Search APIs
+
+The Java High Level REST Client supports the following Search APIs:
+
 * <<java-rest-high-search>>
 * <<java-rest-high-search-scroll>>
 * <<java-rest-high-clear-scroll>>
+* <<java-rest-high-search-template>>
+* <<java-rest-high-multi-search-template>>
+* <<java-rest-high-multi-search>>
+* <<java-rest-high-field-caps>>
+* <<java-rest-high-rank-eval>>
+* <<java-rest-high-explain>>
 
-Miscellaneous APIs::
+include::search/search.asciidoc[]
+include::search/scroll.asciidoc[]
+include::search/multi-search.asciidoc[]
+include::search/search-template.asciidoc[]
+include::search/multi-search-template.asciidoc[]
+include::search/field-caps.asciidoc[]
+include::search/rank-eval.asciidoc[]
+include::search/explain.asciidoc[]
+
+== Miscellaneous APIs
+
+The Java High Level REST Client supports the following Miscellaneous APIs:
+
 * <<java-rest-high-main>>
+* <<java-rest-high-ping>>
+* <<java-rest-high-x-pack-info>>
 
-include::apis/index.asciidoc[]
+include::miscellaneous/main.asciidoc[]
+include::miscellaneous/ping.asciidoc[]
+include::x-pack/x-pack-info.asciidoc[]
+include::x-pack/watcher/put-watch.asciidoc[]
+
+== Indices APIs
+
+The Java High Level REST Client supports the following Indices APIs:
+
+Index Management::
+* <<java-rest-high-create-index>>
+* <<java-rest-high-delete-index>>
+* <<java-rest-high-indices-exists>>
+* <<java-rest-high-open-index>>
+* <<java-rest-high-close-index>>
+* <<java-rest-high-shrink-index>>
+* <<java-rest-high-split-index>>
+* <<java-rest-high-refresh>>
+* <<java-rest-high-flush>>
+* <<java-rest-high-flush-synced>>
+* <<java-rest-high-clear-cache>>
+* <<java-rest-high-force-merge>>
+* <<java-rest-high-rollover-index>>
+* <<java-rest-high-indices-put-settings>>
+* <<java-rest-high-get-settings>>
+* <<java-rest-high-indices-validate-query>>
+* <<java-rest-high-get-index>>
+
+Mapping Management::
+* <<java-rest-high-put-mapping>>
+* <<java-rest-high-get-mappings>>
+* <<java-rest-high-get-field-mappings>>
+
+Alias Management::
+* <<java-rest-high-update-aliases>>
+* <<java-rest-high-exists-alias>>
+* <<java-rest-high-get-alias>>
+
+include::indices/analyze.asciidoc[]
+include::indices/create_index.asciidoc[]
+include::indices/delete_index.asciidoc[]
+include::indices/indices_exists.asciidoc[]
+include::indices/open_index.asciidoc[]
+include::indices/close_index.asciidoc[]
+include::indices/shrink_index.asciidoc[]
+include::indices/split_index.asciidoc[]
+include::indices/refresh.asciidoc[]
+include::indices/flush.asciidoc[]
+include::indices/flush_synced.asciidoc[]
+include::indices/clear_cache.asciidoc[]
+include::indices/force_merge.asciidoc[]
+include::indices/rollover.asciidoc[]
+include::indices/put_mapping.asciidoc[]
+include::indices/get_mappings.asciidoc[]
+include::indices/get_field_mappings.asciidoc[]
+include::indices/update_aliases.asciidoc[]
+include::indices/exists_alias.asciidoc[]
+include::indices/get_alias.asciidoc[]
+include::indices/put_settings.asciidoc[]
+include::indices/get_settings.asciidoc[]
+include::indices/put_template.asciidoc[]
+include::indices/validate_query.asciidoc[]
+include::indices/get_templates.asciidoc[]
+include::indices/get_index.asciidoc[]
+
+== Cluster APIs
+
+The Java High Level REST Client supports the following Cluster APIs:
+
+* <<java-rest-high-cluster-put-settings>>
+* <<java-rest-high-cluster-get-settings>>
+* <<java-rest-high-cluster-health>>
+
+include::cluster/put_settings.asciidoc[]
+include::cluster/get_settings.asciidoc[]
+include::cluster/health.asciidoc[]
+
+== Ingest APIs
+The Java High Level REST Client supports the following Ingest APIs:
+
+* <<java-rest-high-ingest-put-pipeline>>
+* <<java-rest-high-ingest-get-pipeline>>
+* <<java-rest-high-ingest-delete-pipeline>>
+* <<java-rest-high-ingest-simulate-pipeline>>
+
+include::ingest/put_pipeline.asciidoc[]
+include::ingest/get_pipeline.asciidoc[]
+include::ingest/delete_pipeline.asciidoc[]
+include::ingest/simulate_pipeline.asciidoc[]
+
+== Snapshot APIs
+
+The Java High Level REST Client supports the following Snapshot APIs:
+
+* <<java-rest-high-snapshot-get-repository>>
+* <<java-rest-high-snapshot-create-repository>>
+* <<java-rest-high-snapshot-delete-repository>>
+* <<java-rest-high-snapshot-verify-repository>>
+* <<java-rest-high-snapshot-create-snapshot>>
+* <<java-rest-high-snapshot-get-snapshots>>
+* <<java-rest-high-snapshot-snapshots-status>>
+* <<java-rest-high-snapshot-delete-snapshot>>
+
+include::snapshot/get_repository.asciidoc[]
+include::snapshot/create_repository.asciidoc[]
+include::snapshot/delete_repository.asciidoc[]
+include::snapshot/verify_repository.asciidoc[]
+include::snapshot/create_snapshot.asciidoc[]
+include::snapshot/get_snapshots.asciidoc[]
+include::snapshot/snapshots_status.asciidoc[]
+include::snapshot/delete_snapshot.asciidoc[]
+
+== Tasks APIs
+
+The Java High Level REST Client supports the following Tasks APIs:
+
+* <<java-rest-high-tasks-list>>
+* <<java-rest-high-cluster-cancel-tasks>>
+
+include::tasks/list_tasks.asciidoc[]
+include::tasks/cancel_tasks.asciidoc[]
+
+== Script APIs
+
+The Java High Level REST Client supports the following Scripts APIs:
+
+* <<java-rest-high-get-stored-script>>
+* <<java-rest-high-delete-stored-script>>
+
+include::script/get_script.asciidoc[]
+include::script/delete_script.asciidoc[]
+
+
+== Licensing APIs
+
+The Java High Level REST Client supports the following Licensing APIs:
+
+* <<java-rest-high-put-license>>
+
+include::licensing/put-license.asciidoc[]

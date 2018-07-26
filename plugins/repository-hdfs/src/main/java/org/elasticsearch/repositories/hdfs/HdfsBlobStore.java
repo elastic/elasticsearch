@@ -23,15 +23,11 @@ import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.Path;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 
 import java.io.IOException;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 
 final class HdfsBlobStore implements BlobStore {
 
@@ -43,8 +39,14 @@ final class HdfsBlobStore implements BlobStore {
     private volatile boolean closed;
 
     HdfsBlobStore(FileContext fileContext, String path, int bufferSize, boolean readOnly) throws IOException {
+        this(fileContext, path, bufferSize, readOnly, false);
+    }
+
+    HdfsBlobStore(FileContext fileContext, String path, int bufferSize, boolean readOnly, boolean haEnabled) throws IOException {
         this.fileContext = fileContext;
-        this.securityContext = new HdfsSecurityContext(fileContext.getUgi());
+        // Only restrict permissions if not running with HA
+        boolean restrictPermissions = (haEnabled == false);
+        this.securityContext = new HdfsSecurityContext(fileContext.getUgi(), restrictPermissions);
         this.bufferSize = bufferSize;
         this.root = execute(fileContext1 -> fileContext1.makeQualified(new Path(path)));
         this.readOnly = readOnly;
@@ -112,21 +114,13 @@ final class HdfsBlobStore implements BlobStore {
      * Executes the provided operation against this store
      */
     <V> V execute(Operation<V> operation) throws IOException {
-        SpecialPermission.check();
         if (closed) {
             throw new AlreadyClosedException("HdfsBlobStore is closed: " + this);
         }
-        try {
-            return AccessController.doPrivileged((PrivilegedExceptionAction<V>)
-                () -> {
-                    securityContext.ensureLogin();
-                    return operation.run(fileContext);
-                },
-                null,
-                securityContext.getRestrictedExecutionPermissions());
-        } catch (PrivilegedActionException pae) {
-            throw (IOException) pae.getException();
-        }
+        return securityContext.doPrivilegedOrThrow(() -> {
+            securityContext.ensureLogin();
+            return operation.run(fileContext);
+        });
     }
 
     @Override

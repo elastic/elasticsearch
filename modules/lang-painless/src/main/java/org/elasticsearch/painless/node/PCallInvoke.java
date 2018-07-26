@@ -19,14 +19,14 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.MethodKey;
-import org.elasticsearch.painless.Definition.Struct;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.PainlessClass;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.lookup.def;
 
 import java.util.List;
 import java.util.Objects;
@@ -66,22 +66,22 @@ public final class PCallInvoke extends AExpression {
         prefix.expected = prefix.actual;
         prefix = prefix.cast(locals);
 
-        if (prefix.actual.dimensions > 0) {
+        if (prefix.actual.isArray()) {
             throw createError(new IllegalArgumentException("Illegal call [" + name + "] on array type."));
         }
 
-        Struct struct = prefix.actual.struct;
+        PainlessClass struct = locals.getPainlessLookup().getPainlessStructFromJavaClass(prefix.actual);
 
-        if (prefix.actual.clazz.isPrimitive()) {
-            struct = locals.getDefinition().getBoxedType(prefix.actual).struct;
+        if (prefix.actual.isPrimitive()) {
+            struct = locals.getPainlessLookup().getPainlessStructFromJavaClass(PainlessLookupUtility.typeToBoxedType(prefix.actual));
         }
 
-        MethodKey methodKey = new MethodKey(name, arguments.size());
-        Method method = prefix instanceof EStatic ? struct.staticMethods.get(methodKey) : struct.methods.get(methodKey);
+        String methodKey = PainlessLookupUtility.buildPainlessMethodKey(name, arguments.size());
+        PainlessMethod method = prefix instanceof EStatic ? struct.staticMethods.get(methodKey) : struct.methods.get(methodKey);
 
         if (method != null) {
             sub = new PSubCallInvoke(location, method, prefix.actual, arguments);
-        } else if (prefix.actual.dynamic) {
+        } else if (prefix.actual == def.class) {
             sub = new PSubDefCall(location, name, arguments);
         } else {
             throw createError(new IllegalArgumentException(

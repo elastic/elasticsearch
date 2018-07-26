@@ -207,3 +207,39 @@ The request returns the following result:
 --------------------------------------------------
 // TESTRESPONSE
 <1> Output only "keyword" attribute, since specify "attributes" in the request.
+
+[[tokens-limit-settings]]
+[float]
+== Settings to prevent tokens explosion
+Generating excessive amount of tokens may cause a node to run out of memory.
+The following setting allows to limit the number of tokens that can be produced:
+
+`index.analyze.max_token_count`::
+    The maximum number of tokens that can be produced using `_analyze` API.
+    The default value is `10000`. If more than this limit of tokens gets
+    generated, an error will be thrown. The `_analyze` endpoint without a specified
+    index will always use `10000` value as a limit. This setting allows you to control
+    the limit for a specific index:
+
+
+[source,js]
+--------------------------------------------------
+PUT analyze_sample
+{
+  "settings" : {
+    "index.analyze.max_token_count" : 20000
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+
+[source,js]
+--------------------------------------------------
+GET analyze_sample/_analyze
+{
+  "text" : "this is a test"
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:analyze_sample]

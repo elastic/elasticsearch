@@ -26,13 +26,13 @@ import java.net.UnknownHostException;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Locale;
-import java.util.Map;
-import java.util.Map.Entry;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.AbstractFileSystem;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.UnsupportedFileSystemException;
+import org.apache.hadoop.hdfs.client.HdfsClientConfigKeys;
+import org.apache.hadoop.io.retry.FailoverProxyProvider;
 import org.apache.hadoop.security.SecurityUtil;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.UserGroupInformation.AuthenticationMethod;
@@ -42,7 +42,6 @@ import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -61,79 +60,72 @@ public final class HdfsRepository extends BlobStoreRepository {
     private final ByteSizeValue chunkSize;
     private final boolean compress;
     private final BlobPath basePath = BlobPath.cleanPath();
-
-    private HdfsBlobStore blobStore;
+    private final URI uri;
+    private final String pathSetting;
 
     // buffer size passed to HDFS read/write methods
     // TODO: why 100KB?
     private static final ByteSizeValue DEFAULT_BUFFER_SIZE = new ByteSizeValue(100, ByteSizeUnit.KB);
 
     public HdfsRepository(RepositoryMetaData metadata, Environment environment,
-                          NamedXContentRegistry namedXContentRegistry) throws IOException {
+                          NamedXContentRegistry namedXContentRegistry) {
         super(metadata, environment.settings(), namedXContentRegistry);
 
         this.environment = environment;
         this.chunkSize = metadata.settings().getAsBytesSize("chunk_size", null);
         this.compress = metadata.settings().getAsBoolean("compress", false);
-    }
 
-    @Override
-    protected void doStart() {
         String uriSetting = getMetadata().settings().get("uri");
         if (Strings.hasText(uriSetting) == false) {
             throw new IllegalArgumentException("No 'uri' defined for hdfs snapshot/restore");
         }
-        URI uri = URI.create(uriSetting);
+        uri = URI.create(uriSetting);
         if ("hdfs".equalsIgnoreCase(uri.getScheme()) == false) {
-            throw new IllegalArgumentException(
-                    String.format(Locale.ROOT, "Invalid scheme [%s] specified in uri [%s]; only 'hdfs' uri allowed for hdfs snapshot/restore", uri.getScheme(), uriSetting));
+            throw new IllegalArgumentException(String.format(Locale.ROOT,
+                "Invalid scheme [%s] specified in uri [%s]; only 'hdfs' uri allowed for hdfs snapshot/restore", uri.getScheme(), uriSetting));
         }
         if (Strings.hasLength(uri.getPath()) && uri.getPath().equals("/") == false) {
             throw new IllegalArgumentException(String.format(Locale.ROOT,
-                    "Use 'path' option to specify a path [%s], not the uri [%s] for hdfs snapshot/restore", uri.getPath(), uriSetting));
+                "Use 'path' option to specify a path [%s], not the uri [%s] for hdfs snapshot/restore", uri.getPath(), uriSetting));
         }
 
-        String pathSetting = getMetadata().settings().get("path");
+        pathSetting = getMetadata().settings().get("path");
         // get configuration
         if (pathSetting == null) {
             throw new IllegalArgumentException("No 'path' defined for hdfs snapshot/restore");
         }
-
-        int bufferSize = getMetadata().settings().getAsBytesSize("buffer_size", DEFAULT_BUFFER_SIZE).bytesAsInt();
-
-        try {
-            // initialize our filecontext
-            SpecialPermission.check();
-            FileContext fileContext = AccessController.doPrivileged((PrivilegedAction<FileContext>)
-                () -> createContext(uri, getMetadata().settings()));
-            blobStore = new HdfsBlobStore(fileContext, pathSetting, bufferSize, isReadOnly());
-            logger.debug("Using file-system [{}] for URI [{}], path [{}]", fileContext.getDefaultFileSystem(), fileContext.getDefaultFileSystem().getUri(), pathSetting);
-        } catch (IOException e) {
-            throw new UncheckedIOException(String.format(Locale.ROOT, "Cannot create HDFS repository for uri [%s]", uri), e);
-        }
-        super.doStart();
     }
 
-    // create hadoop filecontext
-    private FileContext createContext(URI uri, Settings repositorySettings)  {
+    private HdfsBlobStore createBlobstore(URI uri, String path, Settings repositorySettings)  {
         Configuration hadoopConfiguration = new Configuration(repositorySettings.getAsBoolean("load_defaults", true));
         hadoopConfiguration.setClassLoader(HdfsRepository.class.getClassLoader());
         hadoopConfiguration.reloadConfiguration();
 
         final Settings confSettings = repositorySettings.getByPrefix("conf.");
         for (String key : confSettings.keySet()) {
+            LOGGER.debug("Adding configuration to HDFS Client Configuration : {} = {}", key, confSettings.get(key));
             hadoopConfiguration.set(key, confSettings.get(key));
         }
-
-        // Create a hadoop user
-        UserGroupInformation ugi = login(hadoopConfiguration, repositorySettings);
 
         // Disable FS cache
         hadoopConfiguration.setBoolean("fs.hdfs.impl.disable.cache", true);
 
+        // Create a hadoop user
+        UserGroupInformation ugi = login(hadoopConfiguration, repositorySettings);
+
+        // Sense if HA is enabled
+        // HA requires elevated permissions during regular usage in the event that a failover operation
+        // occurs and a new connection is required.
+        String host = uri.getHost();
+        String configKey = HdfsClientConfigKeys.Failover.PROXY_PROVIDER_KEY_PREFIX + "." + host;
+        Class<?> ret = hadoopConfiguration.getClass(configKey, null, FailoverProxyProvider.class);
+        boolean haEnabled = ret != null;
+
+        int bufferSize = repositorySettings.getAsBytesSize("buffer_size", DEFAULT_BUFFER_SIZE).bytesAsInt();
+
         // Create the filecontext with our user information
         // This will correctly configure the filecontext to have our UGI as its internal user.
-        return ugi.doAs((PrivilegedAction<FileContext>) () -> {
+        FileContext fileContext = ugi.doAs((PrivilegedAction<FileContext>) () -> {
             try {
                 AbstractFileSystem fs = AbstractFileSystem.get(uri, hadoopConfiguration);
                 return FileContext.getFileContext(fs, hadoopConfiguration);
@@ -141,6 +133,14 @@ public final class HdfsRepository extends BlobStoreRepository {
                 throw new UncheckedIOException(e);
             }
         });
+
+        logger.debug("Using file-system [{}] for URI [{}], path [{}]", fileContext.getDefaultFileSystem(), fileContext.getDefaultFileSystem().getUri(), path);
+
+        try {
+            return new HdfsBlobStore(fileContext, path, bufferSize, isReadOnly(), haEnabled);
+        } catch (IOException e) {
+            throw new UncheckedIOException(String.format(Locale.ROOT, "Cannot create HDFS repository for uri [%s]", uri), e);
+        }
     }
 
     private UserGroupInformation login(Configuration hadoopConfiguration, Settings repositorySettings) {
@@ -220,7 +220,12 @@ public final class HdfsRepository extends BlobStoreRepository {
     }
 
     @Override
-    protected BlobStore blobStore() {
+    protected HdfsBlobStore createBlobStore() {
+        // initialize our blobstore using elevated privileges.
+        SpecialPermission.check();
+        final HdfsBlobStore blobStore =
+            AccessController.doPrivileged((PrivilegedAction<HdfsBlobStore>)
+                () -> createBlobstore(uri, pathSetting, getMetadata().settings()));
         return blobStore;
     }
 

@@ -2,6 +2,9 @@ package org.elasticsearch.painless;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -21,10 +24,6 @@ import java.util.Collections;
  * specific language governing permissions and limitations
  * under the License.
  */
-
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 public class BasicStatementTests extends ScriptTestCase {
 
@@ -108,7 +107,11 @@ public class BasicStatementTests extends ScriptTestCase {
     }
 
     public void testForStatement() {
+        assertEquals(6, exec("int x, y; for (x = 0; x < 4; ++x) {y += x;} return y;"));
         assertEquals("aaaaaa", exec("String c = \"a\"; for (int x = 0; x < 5; ++x) c += \"a\"; return c;"));
+
+        assertEquals(6, exec("double test() { return 0.0; }" +
+            "int x, y; for (test(); x < 4; test()) {y += x; ++x;} return y;"));
 
         Object value = exec(
                 " int[][] b = new int[5][5];  \n" +

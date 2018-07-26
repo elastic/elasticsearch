@@ -16,7 +16,6 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.ml.MlParserType;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.time.TimeUtils;
@@ -24,10 +23,8 @@ import org.elasticsearch.xpack.core.ml.utils.time.TimeUtils;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
@@ -76,46 +73,38 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
     public static final long DEFAULT_RESULT_FINALIZATION_WINDOW = 2L;
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
-    @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<AnalysisConfig.Builder, Void> METADATA_PARSER =
-            new ConstructingObjectParser<>(ANALYSIS_CONFIG.getPreferredName(), true,
-                    a -> new AnalysisConfig.Builder((List<Detector>) a[0]));
-    @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<AnalysisConfig.Builder, Void> CONFIG_PARSER =
-            new ConstructingObjectParser<>(ANALYSIS_CONFIG.getPreferredName(), false,
-                    a -> new AnalysisConfig.Builder((List<Detector>) a[0]));
-    public static final Map<MlParserType, ConstructingObjectParser<Builder, Void>> PARSERS =
-            new EnumMap<>(MlParserType.class);
+    public static final ConstructingObjectParser<AnalysisConfig.Builder, Void> LENIENT_PARSER = createParser(true);
+    public static final ConstructingObjectParser<AnalysisConfig.Builder, Void> STRICT_PARSER = createParser(false);
 
-    static {
-        PARSERS.put(MlParserType.METADATA, METADATA_PARSER);
-        PARSERS.put(MlParserType.CONFIG, CONFIG_PARSER);
-        for (MlParserType parserType : MlParserType.values()) {
-            ConstructingObjectParser<AnalysisConfig.Builder, Void> parser = PARSERS.get(parserType);
-            assert parser != null;
-            parser.declareObjectArray(ConstructingObjectParser.constructorArg(),
-                    (p, c) -> Detector.PARSERS.get(parserType).apply(p, c).build(), DETECTORS);
-            parser.declareString((builder, val) ->
-                    builder.setBucketSpan(TimeValue.parseTimeValue(val, BUCKET_SPAN.getPreferredName())), BUCKET_SPAN);
-            parser.declareString(Builder::setCategorizationFieldName, CATEGORIZATION_FIELD_NAME);
-            parser.declareStringArray(Builder::setCategorizationFilters, CATEGORIZATION_FILTERS);
-            // This one is nasty - the syntax for analyzers takes either names or objects at many levels, hence it's not
-            // possible to simply declare whether the field is a string or object and a completely custom parser is required
-            parser.declareField(Builder::setCategorizationAnalyzerConfig,
-                    (p, c) -> CategorizationAnalyzerConfig.buildFromXContentFragment(p, parserType),
-                    CATEGORIZATION_ANALYZER, ObjectParser.ValueType.OBJECT_OR_STRING);
-            parser.declareString((builder, val) ->
-                    builder.setLatency(TimeValue.parseTimeValue(val, LATENCY.getPreferredName())), LATENCY);
-            parser.declareString(Builder::setSummaryCountFieldName, SUMMARY_COUNT_FIELD_NAME);
-            parser.declareStringArray(Builder::setInfluencers, INFLUENCERS);
-            parser.declareBoolean(Builder::setOverlappingBuckets, OVERLAPPING_BUCKETS);
-            parser.declareLong(Builder::setResultFinalizationWindow, RESULT_FINALIZATION_WINDOW);
-            parser.declareBoolean(Builder::setMultivariateByFields, MULTIVARIATE_BY_FIELDS);
-            parser.declareStringArray((builder, values) -> builder.setMultipleBucketSpans(
-                    values.stream().map(v -> TimeValue.parseTimeValue(v, MULTIPLE_BUCKET_SPANS.getPreferredName()))
-                            .collect(Collectors.toList())), MULTIPLE_BUCKET_SPANS);
-            parser.declareBoolean(Builder::setUsePerPartitionNormalization, USER_PER_PARTITION_NORMALIZATION);
-        }
+    @SuppressWarnings("unchecked")
+    private static ConstructingObjectParser<AnalysisConfig.Builder, Void> createParser(boolean ignoreUnknownFields) {
+        ConstructingObjectParser<AnalysisConfig.Builder, Void> parser = new ConstructingObjectParser<>(ANALYSIS_CONFIG.getPreferredName(),
+            ignoreUnknownFields, a -> new AnalysisConfig.Builder((List<Detector>) a[0]));
+
+        parser.declareObjectArray(ConstructingObjectParser.constructorArg(),
+            (p, c) -> (ignoreUnknownFields ? Detector.LENIENT_PARSER : Detector.STRICT_PARSER).apply(p, c).build(), DETECTORS);
+        parser.declareString((builder, val) ->
+            builder.setBucketSpan(TimeValue.parseTimeValue(val, BUCKET_SPAN.getPreferredName())), BUCKET_SPAN);
+        parser.declareString(Builder::setCategorizationFieldName, CATEGORIZATION_FIELD_NAME);
+        parser.declareStringArray(Builder::setCategorizationFilters, CATEGORIZATION_FILTERS);
+        // This one is nasty - the syntax for analyzers takes either names or objects at many levels, hence it's not
+        // possible to simply declare whether the field is a string or object and a completely custom parser is required
+        parser.declareField(Builder::setCategorizationAnalyzerConfig,
+            (p, c) -> CategorizationAnalyzerConfig.buildFromXContentFragment(p, ignoreUnknownFields),
+            CATEGORIZATION_ANALYZER, ObjectParser.ValueType.OBJECT_OR_STRING);
+        parser.declareString((builder, val) ->
+            builder.setLatency(TimeValue.parseTimeValue(val, LATENCY.getPreferredName())), LATENCY);
+        parser.declareString(Builder::setSummaryCountFieldName, SUMMARY_COUNT_FIELD_NAME);
+        parser.declareStringArray(Builder::setInfluencers, INFLUENCERS);
+        parser.declareBoolean(Builder::setOverlappingBuckets, OVERLAPPING_BUCKETS);
+        parser.declareLong(Builder::setResultFinalizationWindow, RESULT_FINALIZATION_WINDOW);
+        parser.declareBoolean(Builder::setMultivariateByFields, MULTIVARIATE_BY_FIELDS);
+        parser.declareStringArray((builder, values) -> builder.setMultipleBucketSpans(
+            values.stream().map(v -> TimeValue.parseTimeValue(v, MULTIPLE_BUCKET_SPANS.getPreferredName()))
+                .collect(Collectors.toList())), MULTIPLE_BUCKET_SPANS);
+        parser.declareBoolean(Builder::setUsePerPartitionNormalization, USER_PER_PARTITION_NORMALIZATION);
+
+        return parser;
     }
 
     /**

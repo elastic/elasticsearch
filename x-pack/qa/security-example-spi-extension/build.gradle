@@ -8,7 +8,7 @@ esplugin {
 }
 
 dependencies {
-  compileOnly project(path: xpackModule('core'), configuration: 'runtime')
+  compileOnly project(path: xpackModule('core'), configuration: 'shadow')
   testCompile project(path: xpackProject('transport-client').path, configuration: 'runtime')
 }
 

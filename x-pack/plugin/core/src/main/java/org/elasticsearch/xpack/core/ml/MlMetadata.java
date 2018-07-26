@@ -55,17 +55,18 @@ import java.util.stream.Collectors;
 
 public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
 
+    public static final String TYPE = "ml";
     private static final ParseField JOBS_FIELD = new ParseField("jobs");
     private static final ParseField DATAFEEDS_FIELD = new ParseField("datafeeds");
 
     public static final MlMetadata EMPTY_METADATA = new MlMetadata(Collections.emptySortedMap(), Collections.emptySortedMap());
     // This parser follows the pattern that metadata is parsed leniently (to allow for enhancements)
-    public static final ObjectParser<Builder, Void> METADATA_PARSER = new ObjectParser<>("ml_metadata", true, Builder::new);
+    public static final ObjectParser<Builder, Void> LENIENT_PARSER = new ObjectParser<>("ml_metadata", true, Builder::new);
 
     static {
-        METADATA_PARSER.declareObjectArray(Builder::putJobs, (p, c) -> Job.METADATA_PARSER.apply(p, c).build(), JOBS_FIELD);
-        METADATA_PARSER.declareObjectArray(Builder::putDatafeeds,
-                (p, c) -> DatafeedConfig.METADATA_PARSER.apply(p, c).build(), DATAFEEDS_FIELD);
+        LENIENT_PARSER.declareObjectArray(Builder::putJobs, (p, c) -> Job.LENIENT_PARSER.apply(p, c).build(), JOBS_FIELD);
+        LENIENT_PARSER.declareObjectArray(Builder::putDatafeeds,
+                (p, c) -> DatafeedConfig.LENIENT_PARSER.apply(p, c).build(), DATAFEEDS_FIELD);
     }
 
     private final SortedMap<String, Job> jobs;
@@ -119,7 +120,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
 
     @Override
     public String getWriteableName() {
-        return MLMetadataField.TYPE;
+        return TYPE;
     }
 
     @Override
@@ -213,7 +214,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
 
         @Override
         public String getWriteableName() {
-            return MLMetadataField.TYPE;
+            return TYPE;
         }
 
         static Diff<Job> readJobDiffFrom(StreamInput in) throws IOException {
@@ -277,7 +278,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
         public Builder deleteJob(String jobId, PersistentTasksCustomMetaData tasks) {
             checkJobHasNoDatafeed(jobId);
 
-            JobState jobState = MlMetadata.getJobState(jobId, tasks);
+            JobState jobState = MlTasks.getJobState(jobId, tasks);
             if (jobState.isAnyOf(JobState.CLOSED, JobState.FAILED) == false) {
                 throw ExceptionsHelper.conflictStatusException("Unexpected job state [" + jobState + "], expected [" +
                         JobState.CLOSED + " or " + JobState.FAILED + "]");
@@ -362,7 +363,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
 
         private void checkDatafeedIsStopped(Supplier<String> msg, String datafeedId, PersistentTasksCustomMetaData persistentTasks) {
             if (persistentTasks != null) {
-                if (persistentTasks.getTask(MLMetadataField.datafeedTaskId(datafeedId)) != null) {
+                if (persistentTasks.getTask(MlTasks.datafeedTaskId(datafeedId)) != null) {
                     throw ExceptionsHelper.conflictStatusException(msg.get());
                 }
             }
@@ -399,7 +400,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
             checkJobHasNoDatafeed(jobId);
 
             if (allowDeleteOpenJob == false) {
-                PersistentTask<?> jobTask = getJobTask(jobId, tasks);
+                PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
                 if (jobTask != null) {
                     JobTaskState jobTaskState = (JobTaskState) jobTask.getState();
                     throw ExceptionsHelper.conflictStatusException("Cannot delete job [" + jobId + "] because the job is "
@@ -420,56 +421,10 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
         }
     }
 
-    /**
-     * Namespaces the task ids for jobs.
-     * A datafeed id can be used as a job id, because they are stored separately in cluster state.
-     */
-    public static String jobTaskId(String jobId) {
-        return "job-" + jobId;
-    }
 
-    @Nullable
-    public static PersistentTask<?> getJobTask(String jobId, @Nullable PersistentTasksCustomMetaData tasks) {
-        if (tasks == null) {
-            return null;
-        }
-        return tasks.getTask(jobTaskId(jobId));
-    }
-
-    @Nullable
-    public static PersistentTask<?> getDatafeedTask(String datafeedId, @Nullable PersistentTasksCustomMetaData tasks) {
-        if (tasks == null) {
-            return null;
-        }
-        return tasks.getTask(MLMetadataField.datafeedTaskId(datafeedId));
-    }
-
-    public static JobState getJobState(String jobId, @Nullable PersistentTasksCustomMetaData tasks) {
-        PersistentTask<?> task = getJobTask(jobId, tasks);
-        if (task != null) {
-            JobTaskState jobTaskState = (JobTaskState) task.getState();
-            if (jobTaskState == null) {
-                return JobState.OPENING;
-            }
-            return jobTaskState.getState();
-        }
-        // If we haven't opened a job than there will be no persistent task, which is the same as if the job was closed
-        return JobState.CLOSED;
-    }
-
-    public static DatafeedState getDatafeedState(String datafeedId, @Nullable PersistentTasksCustomMetaData tasks) {
-        PersistentTask<?> task = getDatafeedTask(datafeedId, tasks);
-        if (task != null && task.getState() != null) {
-            return (DatafeedState) task.getState();
-        } else {
-            // If we haven't started a datafeed then there will be no persistent task,
-            // which is the same as if the datafeed was't started
-            return DatafeedState.STOPPED;
-        }
-    }
 
     public static MlMetadata getMlMetadata(ClusterState state) {
-        MlMetadata mlMetadata = (state == null) ? null : state.getMetaData().custom(MLMetadataField.TYPE);
+        MlMetadata mlMetadata = (state == null) ? null : state.getMetaData().custom(TYPE);
         if (mlMetadata == null) {
             return EMPTY_METADATA;
         }

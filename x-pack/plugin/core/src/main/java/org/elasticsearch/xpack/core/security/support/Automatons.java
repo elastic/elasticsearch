@@ -9,6 +9,8 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -25,8 +27,14 @@ import static org.elasticsearch.common.Strings.collectionToDelimitedString;
 
 public final class Automatons {
 
+    public static final Setting<Integer> MAX_DETERMINIZED_STATES_SETTING =
+        Setting.intSetting("xpack.security.automata.max_determinized_states", 100000, DEFAULT_MAX_DETERMINIZED_STATES,
+            Setting.Property.NodeScope);
     public static final Automaton EMPTY = Automata.makeEmpty();
     public static final Automaton MATCH_ALL = Automata.makeAnyString();
+
+    // this value is not final since we allow it to be set at runtime
+    private static int maxDeterminizedStates = 100000;
 
     static final char WILDCARD_STRING = '*';     // String equality with support for wildcards
     static final char WILDCARD_CHAR = '?';       // Char equality with support for wildcards
@@ -49,13 +57,12 @@ public final class Automatons {
         if (patterns.isEmpty()) {
             return EMPTY;
         }
-        Automaton automaton = null;
+        List<Automaton> automata = new ArrayList<>(patterns.size());
         for (String pattern : patterns) {
-            final Automaton patternAutomaton = minimize(pattern(pattern), DEFAULT_MAX_DETERMINIZED_STATES);
-            automaton = automaton == null ? patternAutomaton : unionAndMinimize(Arrays.asList(automaton, patternAutomaton));
+            final Automaton patternAutomaton = pattern(pattern);
+            automata.add(patternAutomaton);
         }
-        // the automaton is always minimized and deterministic
-        return automaton;
+        return unionAndMinimize(automata);
     }
 
     /**
@@ -111,12 +118,12 @@ public final class Automatons {
 
     public static Automaton unionAndMinimize(Collection<Automaton> automata) {
         Automaton res = union(automata);
-        return minimize(res, DEFAULT_MAX_DETERMINIZED_STATES);
+        return minimize(res, maxDeterminizedStates);
     }
 
     public static Automaton minusAndMinimize(Automaton a1, Automaton a2) {
-        Automaton res = minus(a1, a2, DEFAULT_MAX_DETERMINIZED_STATES);
-        return minimize(res, DEFAULT_MAX_DETERMINIZED_STATES);
+        Automaton res = minus(a1, a2, maxDeterminizedStates);
+        return minimize(res, maxDeterminizedStates);
     }
 
     public static Predicate<String> predicate(String... patterns) {
@@ -131,8 +138,17 @@ public final class Automatons {
         return predicate(automaton, "Predicate for " + automaton);
     }
 
+    public static void updateMaxDeterminizedStates(Settings settings) {
+        maxDeterminizedStates = MAX_DETERMINIZED_STATES_SETTING.get(settings);
+    }
+
+    // accessor for testing
+    static int getMaxDeterminizedStates() {
+        return maxDeterminizedStates;
+    }
+
     private static Predicate<String> predicate(Automaton automaton, final String toString) {
-        CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton, DEFAULT_MAX_DETERMINIZED_STATES);
+        CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton, maxDeterminizedStates);
         return new Predicate<String>() {
             @Override
             public boolean test(String s) {

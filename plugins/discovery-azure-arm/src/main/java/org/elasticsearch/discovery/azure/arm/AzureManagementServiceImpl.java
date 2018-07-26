@@ -50,50 +50,50 @@ public class AzureManagementServiceImpl implements AzureManagementService, AutoC
     private static final Logger logger = Loggers.getLogger(AzureManagementServiceImpl.class);
 
     // Should it be final or should we able to reinitialize it sometimes?
-    private final ComputeManager client;
+    private final ComputeManager computeManager;
 
     // Package private for test purposes
     final RestClient restClient;
 
     AzureManagementServiceImpl(Settings settings) {
-        try (SecureString clientId = CLIENT_ID_SETTING.get(settings);
-             SecureString tenantId = TENANT_ID_SETTING.get(settings);
-             SecureString secret = SECRET_SETTING.get(settings);
-             SecureString subscriptionId = SUBSCRIPTION_ID_SETTING.get(settings)) {
+        try (SecureString clientId = AzureClientSettings.CLIENT_ID_SETTING.get(settings);
+             SecureString tenantId = AzureClientSettings.TENANT_ID_SETTING.get(settings);
+             SecureString secret = AzureClientSettings.SECRET_SETTING.get(settings);
+             SecureString subscriptionId = AzureClientSettings.SUBSCRIPTION_ID_SETTING.get(settings)) {
             this.restClient = initializeRestClient(clientId.toString(), tenantId.toString(), secret.toString());
-            this.client = initialize(restClient, subscriptionId.toString());
+            this.computeManager = initialize(restClient, subscriptionId.toString());
         }
     }
 
     /**
-     * Create a client instance
-     * @param restClient        Rest client to use
+     * Create a computeManager instance
+     * @param restClient        Rest computeManager to use
      * @param subscriptionId    Subscription ID
-     * @return a client Instance
+     * @return a computeManager Instance
      */
     private static ComputeManager initialize(RestClient restClient, String subscriptionId) {
-        logger.debug("Initializing azure client");
+        logger.debug("Initializing azure computeManager");
 
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
             sm.checkPermission(new SpecialPermission());
         }
-        ComputeManager client = AccessController.doPrivileged((PrivilegedAction<ComputeManager>) () ->
+        ComputeManager computeManager = AccessController.doPrivileged((PrivilegedAction<ComputeManager>) () ->
             ComputeManager.authenticate(restClient, subscriptionId));
 
-        logger.debug("Azure client initialized");
-        return client;
+        logger.debug("Azure computeManager initialized");
+        return computeManager;
     }
 
     /**
-     * Create a rest client instance
+     * Create a rest computeManager instance
      * @param clientId  Client ID
      * @param tenantId  Tenant ID
      * @param secret    Secret
-     * @return a rest client Instance
+     * @return a rest computeManager Instance
      */
     private static RestClient initializeRestClient(String clientId, String tenantId, String secret) {
-        logger.debug("Initializing azure client");
+        logger.debug("Initializing azure computeManager");
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
             sm.checkPermission(new SpecialPermission());
@@ -106,13 +106,17 @@ public class AzureManagementServiceImpl implements AzureManagementService, AutoC
                 .withSerializerAdapter(new JacksonAdapter())
                 .build();
 
-            logger.debug("Rest client initialized");
+            logger.debug("Rest computeManager initialized");
             return restClient;
         });
     }
 
 
-    @Override
+    /**
+     * Get the list of azure virtual machines
+     * @param groupName If provided (null or empty are allowed), we can filter by group name
+     * @return a list of azure virtual machines
+     */
     public List<AzureVirtualMachine> getVirtualMachines(String groupName) {
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
@@ -121,7 +125,7 @@ public class AzureManagementServiceImpl implements AzureManagementService, AutoC
         return AccessController.doPrivileged((PrivilegedAction<List<AzureVirtualMachine>>) () -> {
             List<AzureVirtualMachine> machines = new ArrayList<>();
 
-            VirtualMachines virtualMachines = client.virtualMachines();
+            VirtualMachines virtualMachines = computeManager.virtualMachines();
             PagedList<VirtualMachine> vms;
 
             if (Strings.isNullOrEmpty(groupName)) {
@@ -163,14 +167,14 @@ public class AzureManagementServiceImpl implements AzureManagementService, AutoC
 
     @Override
     public void close() {
-        // Sadly we can't close a client yet so we will have leaked resources
-        logger.debug("Closing azure client");
+        // Sadly we can't close a computeManager yet so we will have leaked resources
+        logger.debug("Closing azure computeManager");
         // We try to close the restClient but it's useless as it it still failing
         try {
             restClient.closeAndWait();
         } catch (InterruptedException e) {
             throw new ElasticsearchException("Can't close the Azure internal Rest Client", e);
         }
-        // client.close();
+        // computeManager.close();
     }
 }

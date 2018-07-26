@@ -20,7 +20,6 @@
 package org.elasticsearch.discovery.azure.arm;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
@@ -38,10 +37,9 @@ import java.util.function.Supplier;
 
 public class AzureArmDiscoveryPlugin extends Plugin implements DiscoveryPlugin {
 
-    public static final String AZURE_ARM = "azure-arm";
+    private static final String AZURE_ARM = "azure-arm";
     private final Settings settings;
     private static final Logger logger = Loggers.getLogger(AzureArmDiscoveryPlugin.class);
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     public AzureArmDiscoveryPlugin(Settings settings) {
         this.settings = settings;
@@ -63,14 +61,14 @@ public class AzureArmDiscoveryPlugin extends Plugin implements DiscoveryPlugin {
     @Override
     public List<Setting<?>> getSettings() {
         return Arrays.asList(
-            AzureManagementService.CLIENT_ID_SETTING,
-            AzureManagementService.SECRET_SETTING,
-            AzureManagementService.SUBSCRIPTION_ID_SETTING,
-            AzureManagementService.TENANT_ID_SETTING,
-            AzureManagementService.HOST_RESOURCE_GROUP_SETTING,
-            AzureManagementService.HOST_NAME_SETTING,
-            AzureManagementService.HOST_TYPE_SETTING,
-            AzureManagementService.REFRESH_SETTING,
-            AzureManagementService.REGION_SETTING);
+            AzureClientSettings.CLIENT_ID_SETTING,
+            AzureClientSettings.SECRET_SETTING,
+            AzureClientSettings.SUBSCRIPTION_ID_SETTING,
+            AzureClientSettings.TENANT_ID_SETTING,
+            AzureClientSettings.HOST_RESOURCE_GROUP_SETTING,
+            AzureClientSettings.HOST_NAME_SETTING,
+            AzureClientSettings.HOST_TYPE_SETTING,
+            AzureClientSettings.REFRESH_SETTING,
+            AzureClientSettings.REGION_SETTING);
     }
 }

@@ -24,15 +24,13 @@ import okio.AsyncTimeout;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.util.List;
 
-import static org.elasticsearch.discovery.azure.arm.AzureManagementService.CLIENT_ID_SETTING;
-import static org.elasticsearch.discovery.azure.arm.AzureManagementService.SECRET_SETTING;
-import static org.elasticsearch.discovery.azure.arm.AzureManagementService.SUBSCRIPTION_ID_SETTING;
-import static org.elasticsearch.discovery.azure.arm.AzureManagementService.TENANT_ID_SETTING;
+import static org.hamcrest.Matchers.not;
 
 /**
  * This is not really a real test. It's just there to help when we have to write code
@@ -57,10 +55,10 @@ public class AzureArmClientTests extends ESTestCase {
                 SUBSCRIPTION_ID.startsWith("FILL_WITH_YOUR_"));
 
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString(CLIENT_ID_SETTING.getKey(), CLIENT_ID);
-        secureSettings.setString(TENANT_ID_SETTING.getKey(), TENANT);
-        secureSettings.setString(SECRET_SETTING.getKey(), SECRET);
-        secureSettings.setString(SUBSCRIPTION_ID_SETTING.getKey(), SUBSCRIPTION_ID);
+        secureSettings.setString(AzureClientSettings.CLIENT_ID_SETTING.getKey(), CLIENT_ID);
+        secureSettings.setString(AzureClientSettings.TENANT_ID_SETTING.getKey(), TENANT);
+        secureSettings.setString(AzureClientSettings.SECRET_SETTING.getKey(), SECRET);
+        secureSettings.setString(AzureClientSettings.SUBSCRIPTION_ID_SETTING.getKey(), SUBSCRIPTION_ID);
         Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
 
         service = new AzureManagementServiceImpl(settings);
@@ -69,8 +67,10 @@ public class AzureArmClientTests extends ESTestCase {
     public void testConnectWithKeySecret() {
         List<AzureVirtualMachine> vms = service.getVirtualMachines(GROUP_NAME);
 
+        assumeFalse("We continue testing only if there are some existing VMs", vms.isEmpty());
         for (AzureVirtualMachine vm : vms) {
             logger.info(" -> {}", vm);
+            assertThat(vm.getName(), not(Matchers.isEmptyOrNullString()));
         }
     }
 
@@ -82,8 +82,9 @@ public class AzureArmClientTests extends ESTestCase {
      * See discussion on https://github.com/Azure/azure-sdk-for-java/issues/1387
      */
     @AfterClass
-    public static void waitForHttpClientToClose() throws InterruptedException {
+    public static void waitForHttpClientToClose() throws Exception {
         if (service != null) {
+            service.close();
             OkHttpClient okHttpClient = service.restClient.httpClient();
             okHttpClient.dispatcher().executorService().shutdown();
             okHttpClient.connectionPool().evictAll();

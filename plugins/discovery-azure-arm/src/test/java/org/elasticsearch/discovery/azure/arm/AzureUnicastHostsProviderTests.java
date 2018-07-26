@@ -50,12 +50,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static org.elasticsearch.discovery.azure.arm.AzureManagementService.HOST_NAME_SETTING;
-import static org.elasticsearch.discovery.azure.arm.AzureManagementService.HOST_RESOURCE_GROUP_SETTING;
-import static org.elasticsearch.discovery.azure.arm.AzureManagementService.HOST_TYPE_SETTING;
-import static org.elasticsearch.discovery.azure.arm.AzureManagementService.HostType.PRIVATE_IP;
-import static org.elasticsearch.discovery.azure.arm.AzureManagementService.HostType.PUBLIC_IP;
-import static org.elasticsearch.discovery.azure.arm.AzureManagementService.REGION_SETTING;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -204,7 +198,7 @@ public class AzureUnicastHostsProviderTests extends ESTestCase {
 
     public void testPrivateIpSettings() {
         List<TransportAddress> addresses = runDiscoveryTest(Settings.builder()
-                .put(HOST_TYPE_SETTING.getKey(), PRIVATE_IP.name())
+                .put(AzureClientSettings.HOST_TYPE_SETTING.getKey(), AzureClientSettings.HostType.PRIVATE_IP.name())
                 .build(),
             VM_1);
         assertThat(addresses, hasSize(1));
@@ -215,7 +209,7 @@ public class AzureUnicastHostsProviderTests extends ESTestCase {
 
     public void testPublicIpSettings() {
         List<TransportAddress> addresses = runDiscoveryTest(Settings.builder()
-                .put(HOST_TYPE_SETTING.getKey(), PUBLIC_IP.name())
+                .put(AzureClientSettings.HOST_TYPE_SETTING.getKey(), AzureClientSettings.HostType.PUBLIC_IP.name())
                 .build(),
             VM_1);
         assertThat(addresses, hasSize(1));
@@ -226,7 +220,7 @@ public class AzureUnicastHostsProviderTests extends ESTestCase {
 
     public void testPublicIpNotBoundedSettings() {
         List<TransportAddress> addresses = runDiscoveryTest(Settings.builder()
-                .put(HOST_TYPE_SETTING.getKey(), PUBLIC_IP.name())
+                .put(AzureClientSettings.HOST_TYPE_SETTING.getKey(), AzureClientSettings.HostType.PUBLIC_IP.name())
                 .build(),
             VM_PRIVATE_1);
         assertThat(addresses, hasSize(0));
@@ -266,7 +260,7 @@ public class AzureUnicastHostsProviderTests extends ESTestCase {
 
     public void testGroup1() {
         List<TransportAddress> addresses = runDiscoveryTest(
-            Settings.builder().put(HOST_RESOURCE_GROUP_SETTING.getKey(), VM_GROUP_1_1.getGroupName()).build(),
+            Settings.builder().put(AzureClientSettings.HOST_RESOURCE_GROUP_SETTING.getKey(), VM_GROUP_1_1.getGroupName()).build(),
             VM_GROUP_1_1, VM_GROUP_1_2, VM_GROUP_2_1, VM_GROUP_2_2);
         assertThat(addresses, hasSize(2));
         assertThat(addresses,
@@ -278,7 +272,7 @@ public class AzureUnicastHostsProviderTests extends ESTestCase {
 
     public void testGroupWithWildcard() {
         List<TransportAddress> addresses = runDiscoveryTest(
-            Settings.builder().put(HOST_RESOURCE_GROUP_SETTING.getKey(), "azure-group*").build(),
+            Settings.builder().put(AzureClientSettings.HOST_RESOURCE_GROUP_SETTING.getKey(), "azure-group*").build(),
             VM_GROUP_1_1, VM_GROUP_1_2, VM_GROUP_2_1, VM_GROUP_2_2);
         assertThat(addresses, hasSize(4));
         assertThat(addresses,
@@ -292,7 +286,7 @@ public class AzureUnicastHostsProviderTests extends ESTestCase {
 
     public void testName() {
         List<TransportAddress> addresses = runDiscoveryTest(
-            Settings.builder().put(HOST_NAME_SETTING.getKey(), VM_GROUP_1_1.getName()).build(),
+            Settings.builder().put(AzureClientSettings.HOST_NAME_SETTING.getKey(), VM_GROUP_1_1.getName()).build(),
             VM_GROUP_1_1, VM_GROUP_1_2, VM_GROUP_2_1, VM_GROUP_2_2);
         assertThat(addresses, hasSize(1));
         assertThat(addresses, hasItem(isNode(VM_GROUP_1_1.getPrivateIp(), 9300)));
@@ -300,7 +294,7 @@ public class AzureUnicastHostsProviderTests extends ESTestCase {
 
     public void testNameWithWildcard1() {
         List<TransportAddress> addresses = runDiscoveryTest(
-            Settings.builder().put(HOST_NAME_SETTING.getKey(), "azure-mock-group1-*").build(),
+            Settings.builder().put(AzureClientSettings.HOST_NAME_SETTING.getKey(), "azure-mock-group1-*").build(),
             VM_GROUP_1_1, VM_GROUP_1_2, VM_GROUP_2_1, VM_GROUP_2_2);
         assertThat(addresses, hasSize(2));
         assertThat(addresses,
@@ -312,7 +306,7 @@ public class AzureUnicastHostsProviderTests extends ESTestCase {
 
     public void testNameWithWildcard2() {
         List<TransportAddress> addresses = runDiscoveryTest(
-            Settings.builder().put(HOST_NAME_SETTING.getKey(), "azure-mock-group*-1").build(),
+            Settings.builder().put(AzureClientSettings.HOST_NAME_SETTING.getKey(), "azure-mock-group*-1").build(),
             VM_GROUP_1_1, VM_GROUP_1_2, VM_GROUP_2_1, VM_GROUP_2_2);
         assertThat(addresses, hasSize(2));
         assertThat(addresses,
@@ -340,7 +334,7 @@ public class AzureUnicastHostsProviderTests extends ESTestCase {
 
     public void testRegion() {
         List<TransportAddress> addresses = runDiscoveryTest(
-            Settings.builder().put(REGION_SETTING.getKey(), VM_REGION_EASTUS.getRegion()).build(),
+            Settings.builder().put(AzureClientSettings.REGION_SETTING.getKey(), VM_REGION_EASTUS.getRegion()).build(),
             VM_REGION_EASTUS, VM_REGION_WESTUS, VM_REGION_WESTEUROPE);
         assertThat(addresses, hasSize(1));
         assertThat(addresses, hasItem(isNode(VM_REGION_EASTUS.getPrivateIp(), 9300)));

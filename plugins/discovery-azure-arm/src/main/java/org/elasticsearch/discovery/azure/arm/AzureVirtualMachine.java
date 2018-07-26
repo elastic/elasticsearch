@@ -64,7 +64,7 @@ public class AzureVirtualMachine {
 
     // TODO Add metadata so people will be able to define on which port elasticsearch is actually running
 
-    public String getGroupName() {
+    String getGroupName() {
         return groupName;
     }
 
@@ -77,7 +77,7 @@ public class AzureVirtualMachine {
         return this;
     }
 
-    public String getName() {
+    String getName() {
         return name;
     }
 
@@ -90,7 +90,7 @@ public class AzureVirtualMachine {
         return this;
     }
 
-    public String getRegion() {
+    String getRegion() {
         return region;
     }
 
@@ -103,7 +103,7 @@ public class AzureVirtualMachine {
         return this;
     }
 
-    public String getPublicIp() {
+    String getPublicIp() {
         return publicIp;
     }
 
@@ -116,7 +116,7 @@ public class AzureVirtualMachine {
         return this;
     }
 
-    public String getPrivateIp() {
+    String getPrivateIp() {
         return privateIp;
     }
 
@@ -129,7 +129,7 @@ public class AzureVirtualMachine {
         return this;
     }
 
-    public PowerState getPowerState() {
+    PowerState getPowerState() {
         return powerState;
     }
 

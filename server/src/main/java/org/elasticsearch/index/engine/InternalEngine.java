@@ -1361,18 +1361,13 @@ public class InternalEngine extends Engine {
     public SyncedFlushResult syncFlush(String syncId, CommitId expectedCommitId) throws EngineException {
         // best effort attempt before we acquire locks
         ensureOpen();
-        if (mergeScheduler.onGoingMerges().size() > 0) {
-            logger.error("ongoing merges");
-        }
-
-        if (expectedCommitId.idsEqual(lastCommittedSegmentInfos.getId()) == false) {
-            logger.error("can't sync commit [{}]. current commit id is not equal to expected.", syncId);
-            return SyncedFlushResult.COMMIT_MISMATCH;
-        }
         if (indexWriter.hasUncommittedChanges()) {
-            logger.error("can't sync commit [{}]. have pending changes, merges {}", syncId, mergeScheduler.onGoingMerges().size());
-            indexWriter.hasUncommittedChanges();
+            logger.trace("can't sync commit [{}]. have pending changes", syncId);
             return SyncedFlushResult.PENDING_OPERATIONS;
+        }
+        if (expectedCommitId.idsEqual(lastCommittedSegmentInfos.getId()) == false) {
+            logger.trace("can't sync commit [{}]. current commit id is not equal to expected.", syncId);
+            return SyncedFlushResult.COMMIT_MISMATCH;
         }
         try (ReleasableLock lock = writeLock.acquire()) {
             ensureOpen();
@@ -1380,14 +1375,13 @@ public class InternalEngine extends Engine {
             // lets do a refresh to make sure we shrink the version map. This refresh will be either a no-op (just shrink the version map)
             // or we also have uncommitted changes and that causes this syncFlush to fail.
             refresh("sync_flush", SearcherScope.INTERNAL);
+            if (indexWriter.hasUncommittedChanges()) {
+                logger.trace("can't sync commit [{}]. have pending changes", syncId);
+                return SyncedFlushResult.PENDING_OPERATIONS;
+            }
             if (expectedCommitId.idsEqual(lastCommittedSegmentInfos.getId()) == false) {
                 logger.trace("can't sync commit [{}]. current commit id is not equal to expected.", syncId);
                 return SyncedFlushResult.COMMIT_MISMATCH;
-            }
-            if (indexWriter.hasUncommittedChanges()) {
-                logger.error("can't sync commit [{}]. have pending changes", syncId);
-                indexWriter.hasUncommittedChanges();
-                return SyncedFlushResult.PENDING_OPERATIONS;
             }
             logger.trace("starting sync commit [{}]", syncId);
             commitIndexWriter(indexWriter, translog, syncId);

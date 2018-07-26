@@ -20,8 +20,6 @@
 package org.elasticsearch.index;
 
 import org.apache.lucene.index.FilterMergePolicy;
-import org.apache.lucene.index.MergePolicy;
-import org.apache.lucene.index.MergeTrigger;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.TieredMergePolicy;
@@ -44,26 +42,12 @@ final class EsTieredMergePolicy extends FilterMergePolicy {
         regularMergePolicy = (TieredMergePolicy) in;
         forcedMergePolicy = new TieredMergePolicy();
         forcedMergePolicy.setMaxMergedSegmentMB(Double.POSITIVE_INFINITY); // unlimited
-        regularMergePolicy.setDeletesPctAllowed(48);
     }
 
     @Override
     public MergeSpecification findForcedMerges(SegmentInfos infos, int maxSegmentCount,
             Map<SegmentCommitInfo, Boolean> segmentsToMerge, MergeContext mergeContext) throws IOException {
-        MergeSpecification spec = forcedMergePolicy.findForcedMerges(infos, maxSegmentCount, segmentsToMerge, mergeContext);
-        if (spec.merges.size() == 2) {
-            return forcedMergePolicy.findForcedMerges(infos, maxSegmentCount, segmentsToMerge, mergeContext);
-        }
-        return spec;
-    }
-
-    @Override
-    public MergeSpecification findMerges(MergeTrigger mergeTrigger, SegmentInfos segmentInfos, MergeContext mergeContext) throws IOException {
-        MergeSpecification spec = super.findMerges(mergeTrigger, segmentInfos, mergeContext);
-        if (spec != null && spec.merges !=null && spec.merges.size() == 2){
-            System.out.println("");
-        }
-        return spec;
+        return forcedMergePolicy.findForcedMerges(infos, maxSegmentCount, segmentsToMerge, mergeContext);
     }
 
     @Override

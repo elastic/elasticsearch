@@ -91,8 +91,9 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
         OnGoingMerge onGoingMerge = new OnGoingMerge(merge);
         onGoingMerges.add(onGoingMerge);
 
-        logger.error("merge [{}] starting..., merging [{}] segments, [{}] docs, [{}] size, into [{}] estimated_size", OneMergeHelper.getSegmentName(merge), merge.segments.size(), totalNumDocs, new ByteSizeValue(totalSizeInBytes), new ByteSizeValue(merge.estimatedMergeBytes));
-
+        if (logger.isTraceEnabled()) {
+            logger.trace("merge [{}] starting..., merging [{}] segments, [{}] docs, [{}] size, into [{}] estimated_size", OneMergeHelper.getSegmentName(merge), merge.segments.size(), totalNumDocs, new ByteSizeValue(totalSizeInBytes), new ByteSizeValue(merge.estimatedMergeBytes));
+        }
         try {
             beforeMerge(onGoingMerge);
             super.doMerge(writer, merge);
@@ -133,9 +134,9 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
                                            mbPerSec);
 
             if (tookMS > 20000) { // if more than 20 seconds, DEBUG log it
-                logger.error("{}", message);
+                logger.debug("{}", message);
             } else if (logger.isTraceEnabled()) {
-                logger.error("{}", message);
+                logger.trace("{}", message);
             }
         }
     }

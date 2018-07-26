@@ -1,0 +1,4 @@
+[[pause-resume-ilm]]
+== Pause and resume {ilm}
+ILM can be skipped on a per-index basis
+ILM as a whole can be placed in maintenance mode

@@ -1,0 +1,10 @@
+[[get-index-lifecycle-information]]
+== Get index lifecycle information
+
+Execution Model
+Discuss how actions are actually split up into discrete steps and how you can see more information about where an index is within a policy (info and all)
+Talk about the jump-to-step API
+Error Handling
+Show error in explain api
+Demonstrate the retry API
+Show how to get a sense of progress for things like the allocate step

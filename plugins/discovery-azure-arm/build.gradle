@@ -19,7 +19,7 @@
 
 esplugin {
   description 'The Azure ARM Discovery plugin allows to use Azure Resources Management API for the unicast discovery mechanism'
-  classname 'org.elasticsearch.plugin.discovery.azure.arm.AzureArmDiscoveryPlugin'
+  classname 'org.elasticsearch.discovery.azure.arm.AzureArmDiscoveryPlugin'
 }
 
 versions << [

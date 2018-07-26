@@ -21,17 +21,14 @@ package org.elasticsearch.discovery.azure.arm;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
-import org.elasticsearch.Version;
-import org.elasticsearch.cloud.azure.arm.AzureManagementService;
-import org.elasticsearch.cloud.azure.arm.AzureVirtualMachine;
-import org.elasticsearch.cloud.azure.arm.AzureVirtualMachine.PowerState;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.discovery.azure.arm.AzureVirtualMachine.PowerState;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.transport.TransportService;
 
@@ -39,17 +36,15 @@ import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
 
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
-import static org.elasticsearch.cloud.azure.arm.AzureManagementService.HOST_NAME_SETTING;
-import static org.elasticsearch.cloud.azure.arm.AzureManagementService.HOST_RESOURCE_GROUP_SETTING;
-import static org.elasticsearch.cloud.azure.arm.AzureManagementService.HOST_TYPE_SETTING;
-import static org.elasticsearch.cloud.azure.arm.AzureManagementService.HostType.PRIVATE_IP;
-import static org.elasticsearch.cloud.azure.arm.AzureManagementService.HostType.PUBLIC_IP;
-import static org.elasticsearch.cloud.azure.arm.AzureManagementService.REFRESH_SETTING;
-import static org.elasticsearch.cloud.azure.arm.AzureManagementService.REGION_SETTING;
+import static org.elasticsearch.discovery.azure.arm.AzureManagementService.HOST_NAME_SETTING;
+import static org.elasticsearch.discovery.azure.arm.AzureManagementService.HOST_RESOURCE_GROUP_SETTING;
+import static org.elasticsearch.discovery.azure.arm.AzureManagementService.HOST_TYPE_SETTING;
+import static org.elasticsearch.discovery.azure.arm.AzureManagementService.HostType.PRIVATE_IP;
+import static org.elasticsearch.discovery.azure.arm.AzureManagementService.HostType.PUBLIC_IP;
+import static org.elasticsearch.discovery.azure.arm.AzureManagementService.REFRESH_SETTING;
+import static org.elasticsearch.discovery.azure.arm.AzureManagementService.REGION_SETTING;
 
-public class AzureArmUnicastHostsProvider implements UnicastHostsProvider {
+public class AzureArmUnicastHostsProvider extends AbstractComponent implements UnicastHostsProvider {
 
     private static final Logger logger = Loggers.getLogger(AzureArmUnicastHostsProvider.class);
 
@@ -57,12 +52,13 @@ public class AzureArmUnicastHostsProvider implements UnicastHostsProvider {
     private TransportService transportService;
 
     private long lastRefresh;
-    private List<DiscoveryNode> cachedDiscoNodes;
+    private List<TransportAddress> dynamicHosts;
     private final Settings settings;
 
 
     public AzureArmUnicastHostsProvider(Settings settings, AzureManagementService azureManagementService,
                                         TransportService transportService) {
+        super(settings);
         this.settings = settings;
         this.azureManagementService = azureManagementService;
         this.transportService = transportService;
@@ -73,26 +69,26 @@ public class AzureArmUnicastHostsProvider implements UnicastHostsProvider {
     }
 
     /**
-     * We build the list of Nodes from Azure Management API
+     * We build the list of TransportAddress from Azure Management API
      * Information can be cached using `discovery.azure-arm.refresh_interval` property if needed.
      * Setting `discovery.azure-arm.refresh_interval` to `-1` will cause infinite caching.
      * Setting `discovery.azure-arm.refresh_interval` to `0` will disable caching (default).
      */
     @Override
-    public List<DiscoveryNode> buildDynamicNodes() {
+    public List<TransportAddress> buildDynamicHosts(HostsResolver hostsResolver) {
         // Evaluating refresh settings here will allow live update of this setting
         TimeValue refreshInterval = REFRESH_SETTING.get(settings);
         if (refreshInterval.millis() != 0) {
-            if (cachedDiscoNodes != null &&
-                    (refreshInterval.millis() < 0 || (System.currentTimeMillis() - lastRefresh) < refreshInterval.millis())) {
+            if (dynamicHosts != null &&
+                (refreshInterval.millis() < 0 || (System.currentTimeMillis() - lastRefresh) < refreshInterval.millis())) {
                 logger.trace("using cache to retrieve node list");
-                return cachedDiscoNodes;
+                return dynamicHosts;
             }
             lastRefresh = System.currentTimeMillis();
         }
         logger.debug("start building nodes list using Azure API");
 
-        cachedDiscoNodes = new ArrayList<>();
+        dynamicHosts = new ArrayList<>();
 
         List<AzureVirtualMachine> vms;
         String groupName = HOST_RESOURCE_GROUP_SETTING.get(settings);
@@ -188,16 +184,15 @@ public class AzureArmUnicastHostsProvider implements UnicastHostsProvider {
                 TransportAddress[] addresses = transportService.addressesFromString(networkAddress, 1);
                 for (TransportAddress address : addresses) {
                     logger.trace("adding {}, transport_address {}", networkAddress, address);
-                    cachedDiscoNodes.add(new DiscoveryNode("#cloud-" + vm.getName(), address, emptyMap(),
-                        emptySet(), Version.CURRENT.minimumCompatibilityVersion()));
+                    dynamicHosts.add(address);
                 }
             } catch (Exception e) {
                 logger.warn("can not convert [{}] to transport address. skipping. [{}]", networkAddress, e.getMessage());
             }
         }
 
-        logger.debug("{} node(s) added", cachedDiscoNodes.size());
+        logger.debug("{} hosts(s) added", dynamicHosts.size());
 
-        return cachedDiscoNodes;
+        return dynamicHosts;
     }
 }

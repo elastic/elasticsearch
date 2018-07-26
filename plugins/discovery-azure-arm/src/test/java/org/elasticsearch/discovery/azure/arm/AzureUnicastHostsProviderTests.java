@@ -17,17 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.azure.arm;
+package org.elasticsearch.discovery.azure.arm;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cloud.azure.arm.AzureVirtualMachine.PowerState;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.discovery.azure.arm.AzureArmUnicastHostsProvider;
+import org.elasticsearch.discovery.azure.arm.AzureVirtualMachine.PowerState;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -52,12 +50,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static org.elasticsearch.cloud.azure.arm.AzureManagementService.HOST_NAME_SETTING;
-import static org.elasticsearch.cloud.azure.arm.AzureManagementService.HOST_RESOURCE_GROUP_SETTING;
-import static org.elasticsearch.cloud.azure.arm.AzureManagementService.HOST_TYPE_SETTING;
-import static org.elasticsearch.cloud.azure.arm.AzureManagementService.HostType.PRIVATE_IP;
-import static org.elasticsearch.cloud.azure.arm.AzureManagementService.HostType.PUBLIC_IP;
-import static org.elasticsearch.cloud.azure.arm.AzureManagementService.REGION_SETTING;
+import static org.elasticsearch.discovery.azure.arm.AzureManagementService.HOST_NAME_SETTING;
+import static org.elasticsearch.discovery.azure.arm.AzureManagementService.HOST_RESOURCE_GROUP_SETTING;
+import static org.elasticsearch.discovery.azure.arm.AzureManagementService.HOST_TYPE_SETTING;
+import static org.elasticsearch.discovery.azure.arm.AzureManagementService.HostType.PRIVATE_IP;
+import static org.elasticsearch.discovery.azure.arm.AzureManagementService.HostType.PUBLIC_IP;
+import static org.elasticsearch.discovery.azure.arm.AzureManagementService.REGION_SETTING;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -179,13 +177,13 @@ public class AzureUnicastHostsProviderTests extends ESTestCase {
     }
 
     @Before
-    public void createTransportService() throws UnknownHostException {
+    public void createTransportService() {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         final Transport transport = new MockTcpTransport(Settings.EMPTY, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
             new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(Collections.emptyList()),
             Version.CURRENT) {
             @Override
-            public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException {
+            public TransportAddress[] addressesFromString(String address, int perAddressLimit) {
                 // we just need to ensure we don't resolve DNS here
                 return new TransportAddress[] {
                     poorMansDNS.getOrDefault(address, buildNewFakeTransportAddress())
@@ -197,50 +195,47 @@ public class AzureUnicastHostsProviderTests extends ESTestCase {
     }
 
     public void testDefaultSettings() {
-        List<DiscoveryNode> nodes = runDiscoveryTest(Settings.EMPTY, VM_1);
-        assertThat(nodes, hasSize(1));
-        DiscoveryNode node = nodes.get(0);
-        assertThat(node.getId(), is("#cloud-azure-mock-1"));
-        assertThat(node.getAddress().getAddress(), is(VM_1.getPrivateIp()));
-        assertThat(node.getAddress().getPort(), is(9300));
+        List<TransportAddress> addresses = runDiscoveryTest(Settings.EMPTY, VM_1);
+        assertThat(addresses, hasSize(1));
+        TransportAddress address = addresses.get(0);
+        assertThat(address.getAddress(), is(VM_1.getPrivateIp()));
+        assertThat(address.getPort(), is(9300));
     }
 
     public void testPrivateIpSettings() {
-        List<DiscoveryNode> nodes = runDiscoveryTest(Settings.builder()
+        List<TransportAddress> addresses = runDiscoveryTest(Settings.builder()
                 .put(HOST_TYPE_SETTING.getKey(), PRIVATE_IP.name())
                 .build(),
             VM_1);
-        assertThat(nodes, hasSize(1));
-        DiscoveryNode node = nodes.get(0);
-        assertThat(node.getId(), is("#cloud-azure-mock-1"));
-        assertThat(node.getAddress().getAddress(), is(VM_1.getPrivateIp()));
-        assertThat(node.getAddress().getPort(), is(9300));
+        assertThat(addresses, hasSize(1));
+        TransportAddress address = addresses.get(0);
+        assertThat(address.getAddress(), is(VM_1.getPrivateIp()));
+        assertThat(address.getPort(), is(9300));
     }
 
     public void testPublicIpSettings() {
-        List<DiscoveryNode> nodes = runDiscoveryTest(Settings.builder()
+        List<TransportAddress> addresses = runDiscoveryTest(Settings.builder()
                 .put(HOST_TYPE_SETTING.getKey(), PUBLIC_IP.name())
                 .build(),
             VM_1);
-        assertThat(nodes, hasSize(1));
-        DiscoveryNode node = nodes.get(0);
-        assertThat(node.getId(), is("#cloud-azure-mock-1"));
-        assertThat(node.getAddress().getAddress(), is(VM_1.getPublicIp()));
-        assertThat(node.getAddress().getPort(), is(9300));
+        assertThat(addresses, hasSize(1));
+        TransportAddress address = addresses.get(0);
+        assertThat(address.getAddress(), is(VM_1.getPublicIp()));
+        assertThat(address.getPort(), is(9300));
     }
 
     public void testPublicIpNotBoundedSettings() {
-        List<DiscoveryNode> nodes = runDiscoveryTest(Settings.builder()
+        List<TransportAddress> addresses = runDiscoveryTest(Settings.builder()
                 .put(HOST_TYPE_SETTING.getKey(), PUBLIC_IP.name())
                 .build(),
             VM_PRIVATE_1);
-        assertThat(nodes, hasSize(0));
+        assertThat(addresses, hasSize(0));
     }
 
     public void testMultipleNodes() {
-        List<DiscoveryNode> nodes = runDiscoveryTest(Settings.EMPTY, VM_1, VM_2);
-        assertThat(nodes, hasSize(2));
-        assertThat(nodes,
+        List<TransportAddress> addresses = runDiscoveryTest(Settings.EMPTY, VM_1, VM_2);
+        assertThat(addresses, hasSize(2));
+        assertThat(addresses,
             containsInAnyOrder(Arrays.asList(
                 isNode(VM_1.getPrivateIp(), 9300),
                 isNode(VM_2.getPrivateIp(), 9300)
@@ -248,9 +243,9 @@ public class AzureUnicastHostsProviderTests extends ESTestCase {
     }
 
     public void testPowerState() {
-        List<DiscoveryNode> nodes = runDiscoveryTest(Settings.EMPTY, VM_PRIVATE_1, VM_DEALLOCATED, VM_STARTING, VM_STOPPED);
-        assertThat(nodes, hasSize(2));
-        assertThat(nodes,
+        List<TransportAddress> addresses = runDiscoveryTest(Settings.EMPTY, VM_PRIVATE_1, VM_DEALLOCATED, VM_STARTING, VM_STOPPED);
+        assertThat(addresses, hasSize(2));
+        assertThat(addresses,
             containsInAnyOrder(Arrays.asList(
                 isNode(VM_PRIVATE_1.getPrivateIp(), 9300),
                 isNode(VM_STARTING.getPrivateIp(), 9300)
@@ -258,9 +253,9 @@ public class AzureUnicastHostsProviderTests extends ESTestCase {
     }
 
     public void testNoGroup() {
-        List<DiscoveryNode> nodes = runDiscoveryTest(Settings.EMPTY, VM_GROUP_1_1, VM_GROUP_1_2, VM_GROUP_2_1, VM_GROUP_2_2);
-        assertThat(nodes, hasSize(4));
-        assertThat(nodes,
+        List<TransportAddress> addresses = runDiscoveryTest(Settings.EMPTY, VM_GROUP_1_1, VM_GROUP_1_2, VM_GROUP_2_1, VM_GROUP_2_2);
+        assertThat(addresses, hasSize(4));
+        assertThat(addresses,
             containsInAnyOrder(Arrays.asList(
                 isNode(VM_GROUP_1_1.getPrivateIp(), 9300),
                 isNode(VM_GROUP_1_2.getPrivateIp(), 9300),
@@ -270,11 +265,11 @@ public class AzureUnicastHostsProviderTests extends ESTestCase {
     }
 
     public void testGroup1() {
-        List<DiscoveryNode> nodes = runDiscoveryTest(
+        List<TransportAddress> addresses = runDiscoveryTest(
             Settings.builder().put(HOST_RESOURCE_GROUP_SETTING.getKey(), VM_GROUP_1_1.getGroupName()).build(),
             VM_GROUP_1_1, VM_GROUP_1_2, VM_GROUP_2_1, VM_GROUP_2_2);
-        assertThat(nodes, hasSize(2));
-        assertThat(nodes,
+        assertThat(addresses, hasSize(2));
+        assertThat(addresses,
             containsInAnyOrder(Arrays.asList(
                 isNode(VM_GROUP_1_1.getPrivateIp(), 9300),
                 isNode(VM_GROUP_1_2.getPrivateIp(), 9300)
@@ -282,11 +277,11 @@ public class AzureUnicastHostsProviderTests extends ESTestCase {
     }
 
     public void testGroupWithWildcard() {
-        List<DiscoveryNode> nodes = runDiscoveryTest(
+        List<TransportAddress> addresses = runDiscoveryTest(
             Settings.builder().put(HOST_RESOURCE_GROUP_SETTING.getKey(), "azure-group*").build(),
             VM_GROUP_1_1, VM_GROUP_1_2, VM_GROUP_2_1, VM_GROUP_2_2);
-        assertThat(nodes, hasSize(4));
-        assertThat(nodes,
+        assertThat(addresses, hasSize(4));
+        assertThat(addresses,
             containsInAnyOrder(Arrays.asList(
                 isNode(VM_GROUP_1_1.getPrivateIp(), 9300),
                 isNode(VM_GROUP_1_2.getPrivateIp(), 9300),
@@ -296,19 +291,19 @@ public class AzureUnicastHostsProviderTests extends ESTestCase {
     }
 
     public void testName() {
-        List<DiscoveryNode> nodes = runDiscoveryTest(
+        List<TransportAddress> addresses = runDiscoveryTest(
             Settings.builder().put(HOST_NAME_SETTING.getKey(), VM_GROUP_1_1.getName()).build(),
             VM_GROUP_1_1, VM_GROUP_1_2, VM_GROUP_2_1, VM_GROUP_2_2);
-        assertThat(nodes, hasSize(1));
-        assertThat(nodes, hasItem(isNode(VM_GROUP_1_1.getPrivateIp(), 9300)));
+        assertThat(addresses, hasSize(1));
+        assertThat(addresses, hasItem(isNode(VM_GROUP_1_1.getPrivateIp(), 9300)));
     }
 
     public void testNameWithWildcard1() {
-        List<DiscoveryNode> nodes = runDiscoveryTest(
+        List<TransportAddress> addresses = runDiscoveryTest(
             Settings.builder().put(HOST_NAME_SETTING.getKey(), "azure-mock-group1-*").build(),
             VM_GROUP_1_1, VM_GROUP_1_2, VM_GROUP_2_1, VM_GROUP_2_2);
-        assertThat(nodes, hasSize(2));
-        assertThat(nodes,
+        assertThat(addresses, hasSize(2));
+        assertThat(addresses,
             containsInAnyOrder(Arrays.asList(
                 isNode(VM_GROUP_1_1.getPrivateIp(), 9300),
                 isNode(VM_GROUP_1_2.getPrivateIp(), 9300)
@@ -316,11 +311,11 @@ public class AzureUnicastHostsProviderTests extends ESTestCase {
     }
 
     public void testNameWithWildcard2() {
-        List<DiscoveryNode> nodes = runDiscoveryTest(
+        List<TransportAddress> addresses = runDiscoveryTest(
             Settings.builder().put(HOST_NAME_SETTING.getKey(), "azure-mock-group*-1").build(),
             VM_GROUP_1_1, VM_GROUP_1_2, VM_GROUP_2_1, VM_GROUP_2_2);
-        assertThat(nodes, hasSize(2));
-        assertThat(nodes,
+        assertThat(addresses, hasSize(2));
+        assertThat(addresses,
             containsInAnyOrder(Arrays.asList(
                 isNode(VM_GROUP_1_1.getPrivateIp(), 9300),
                 isNode(VM_GROUP_2_1.getPrivateIp(), 9300)
@@ -328,15 +323,15 @@ public class AzureUnicastHostsProviderTests extends ESTestCase {
     }
 
     public void testWeird() {
-        List<DiscoveryNode> nodes = runDiscoveryTest(Settings.EMPTY, VM_WEIRD);
-        assertThat(nodes, hasSize(0));
+        List<TransportAddress> addresses = runDiscoveryTest(Settings.EMPTY, VM_WEIRD);
+        assertThat(addresses, hasSize(0));
     }
 
     public void testNoRegion() {
-        List<DiscoveryNode> nodes = runDiscoveryTest(Settings.EMPTY,
+        List<TransportAddress> addresses = runDiscoveryTest(Settings.EMPTY,
             VM_REGION_EASTUS, VM_REGION_WESTUS, VM_REGION_WESTEUROPE);
-        assertThat(nodes, hasSize(3));
-        assertThat(nodes, containsInAnyOrder(Arrays.asList(
+        assertThat(addresses, hasSize(3));
+        assertThat(addresses, containsInAnyOrder(Arrays.asList(
             isNode(VM_REGION_EASTUS.getPrivateIp(), 9300),
             isNode(VM_REGION_WESTUS.getPrivateIp(), 9300),
             isNode(VM_REGION_WESTEUROPE.getPrivateIp(), 9300)
@@ -344,15 +339,15 @@ public class AzureUnicastHostsProviderTests extends ESTestCase {
     }
 
     public void testRegion() {
-        List<DiscoveryNode> nodes = runDiscoveryTest(
+        List<TransportAddress> addresses = runDiscoveryTest(
             Settings.builder().put(REGION_SETTING.getKey(), VM_REGION_EASTUS.getRegion()).build(),
             VM_REGION_EASTUS, VM_REGION_WESTUS, VM_REGION_WESTEUROPE);
-        assertThat(nodes, hasSize(1));
-        assertThat(nodes, hasItem(isNode(VM_REGION_EASTUS.getPrivateIp(), 9300)));
+        assertThat(addresses, hasSize(1));
+        assertThat(addresses, hasItem(isNode(VM_REGION_EASTUS.getPrivateIp(), 9300)));
     }
 
 
-    private List<DiscoveryNode> runDiscoveryTest(Settings settings, AzureVirtualMachine... vms) {
+    private List<TransportAddress> runDiscoveryTest(Settings settings, AzureVirtualMachine... vms) {
         for (AzureVirtualMachine vm : vms) {
             // We add the vm addresses to the Dns so it can be "resolved"
             addMachineToDns(vm.getPrivateIp());
@@ -362,7 +357,7 @@ public class AzureUnicastHostsProviderTests extends ESTestCase {
             addVirtualMachineToMock(vm);
         }
 
-        return new AzureArmUnicastHostsProvider(settings, groupName -> mockVms, transportService).buildDynamicNodes();
+        return new AzureArmUnicastHostsProvider(settings, groupName -> mockVms, transportService).buildDynamicHosts(null);
     }
 
     private void addMachineToDns(String ip) {
@@ -378,13 +373,12 @@ public class AzureUnicastHostsProviderTests extends ESTestCase {
         mockVms.add(vm);
     }
 
-    private Matcher<DiscoveryNode> isNode(final String address, final int port) {
-        return new TypeSafeMatcher<DiscoveryNode>() {
+    private Matcher<TransportAddress> isNode(final String address, final int port) {
+        return new TypeSafeMatcher<TransportAddress>() {
             @Override
-            protected boolean matchesSafely(DiscoveryNode item) {
-                return item.getAddress() != null &&
-                    item.getAddress().getAddress().equals(address) &&
-                    item.getAddress().getPort() == port;
+            protected boolean matchesSafely(TransportAddress item) {
+                return item.getAddress().equals(address) &&
+                    item.getPort() == port;
             }
 
             @Override

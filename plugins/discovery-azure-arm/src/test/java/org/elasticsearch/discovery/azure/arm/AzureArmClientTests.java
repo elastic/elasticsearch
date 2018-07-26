@@ -17,22 +17,25 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.azure.arm;
+package org.elasticsearch.discovery.azure.arm;
 
 import okhttp3.OkHttpClient;
 import okio.AsyncTimeout;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.azure.arm.AzureManagementServiceImpl;
+import org.elasticsearch.discovery.azure.arm.AzureVirtualMachine;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.Test;
 
 import java.util.List;
 
-import static org.elasticsearch.cloud.azure.arm.AzureManagementService.CLIENT_ID_SETTING;
-import static org.elasticsearch.cloud.azure.arm.AzureManagementService.SECRET_SETTING;
-import static org.elasticsearch.cloud.azure.arm.AzureManagementService.SUBSCRIPTION_ID_SETTING;
-import static org.elasticsearch.cloud.azure.arm.AzureManagementService.TENANT_ID_SETTING;
+import static org.elasticsearch.discovery.azure.arm.AzureManagementService.CLIENT_ID_SETTING;
+import static org.elasticsearch.discovery.azure.arm.AzureManagementService.SECRET_SETTING;
+import static org.elasticsearch.discovery.azure.arm.AzureManagementService.SUBSCRIPTION_ID_SETTING;
+import static org.elasticsearch.discovery.azure.arm.AzureManagementService.TENANT_ID_SETTING;
 
 /**
  * This is not really a real test. It's just there to help when we have to write code

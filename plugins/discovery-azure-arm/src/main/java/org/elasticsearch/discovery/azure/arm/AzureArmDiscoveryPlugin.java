@@ -17,17 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.discovery.azure.arm;
+package org.elasticsearch.discovery.azure.arm;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cloud.azure.arm.AzureManagementService;
-import org.elasticsearch.cloud.azure.arm.AzureManagementServiceImpl;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.azure.arm.AzureArmUnicastHostsProvider;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;

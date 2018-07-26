@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.azure.arm;
+package org.elasticsearch.discovery.azure.arm;
 
 public class AzureServiceRemoteException extends IllegalStateException {
     public AzureServiceRemoteException(String msg) {

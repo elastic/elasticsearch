@@ -17,9 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.azure.arm;
-
-import com.microsoft.azure.management.compute.PowerState;
+package org.elasticsearch.discovery.azure.arm;
 
 /**
  * Represents an Azure Virtual Machine

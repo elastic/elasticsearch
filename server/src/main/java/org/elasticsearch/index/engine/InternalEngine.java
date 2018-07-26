@@ -1110,7 +1110,7 @@ public class InternalEngine extends Engine {
 
         static IndexingStrategy processNormally(boolean currentNotFoundOrDeleted, long seqNoForIndexing,
                                                 long versionForIndexing, SeqNoAndVersionValue currentVersionValue) {
-            return new IndexingStrategy(currentNotFoundOrDeleted, currentVersionValue != null && currentVersionValue.isDelete() == false,
+            return new IndexingStrategy(currentNotFoundOrDeleted, currentNotFoundOrDeleted == false,
                 true, false, seqNoForIndexing, versionForIndexing, currentVersionValue, null);
         }
 

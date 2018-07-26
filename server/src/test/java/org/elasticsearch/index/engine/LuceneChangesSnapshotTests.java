@@ -42,6 +42,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class LuceneChangesSnapshotTests extends EngineTestCase {
     private MapperService mapperService;
@@ -187,7 +188,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
             while ((op = snapshot.next()) != null) {
                 assertThat(op.toString(), op.primaryTerm(), equalTo(latestOperations.get(op.seqNo())));
             }
-            assertThat(snapshot.skippedOperations(), equalTo(totalOps - latestOperations.size()));
+            assertThat(snapshot.skippedOperations(), greaterThanOrEqualTo(totalOps - latestOperations.size()));
         }
     }
 

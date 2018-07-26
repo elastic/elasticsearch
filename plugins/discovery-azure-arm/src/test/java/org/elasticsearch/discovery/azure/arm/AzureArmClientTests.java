@@ -23,12 +23,9 @@ import okhttp3.OkHttpClient;
 import okio.AsyncTimeout;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.azure.arm.AzureManagementServiceImpl;
-import org.elasticsearch.discovery.azure.arm.AzureVirtualMachine;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
-import org.junit.Test;
 
 import java.util.List;
 

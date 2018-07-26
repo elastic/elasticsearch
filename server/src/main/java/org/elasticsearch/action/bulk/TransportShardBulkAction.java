@@ -136,7 +136,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         PrimaryExecutionContext context, UpdateHelper updateHelper, LongSupplier nowInMillisSupplier,
         MappingUpdatePerformer mappingUpdater, ClusterStateObserver observer, DiscoveryNode localNode) throws Exception {
 
-        while (context.isAllFinalized() == false) {
+        while (context.noMoreOperationsToExecute() == false) {
             executeBulkItemRequest(context, updateHelper, nowInMillisSupplier, mappingUpdater);
             if (context.isFinalized()) {
                 context.advance();

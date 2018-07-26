@@ -55,7 +55,7 @@ public class PrimaryExecutionContextTests extends ESTestCase {
 
         PrimaryExecutionContext context = new PrimaryExecutionContext(shardRequest, null);
         ArrayList<DocWriteRequest<?>> visitedRequests = new ArrayList<>();
-        for (context.advance(); context.isAllFinalized() == false; context.advance()) {
+        for (context.advance(); context.noMoreOperationsToExecute() == false; context.advance()) {
             visitedRequests.add(context.getCurrent());
             context.setRequestToExecute(context.getCurrent());
             // using failures prevents caring about types
@@ -105,7 +105,7 @@ public class PrimaryExecutionContextTests extends ESTestCase {
         long translogOffset = 0;
 
         PrimaryExecutionContext context = new PrimaryExecutionContext(shardRequest, primary);
-        for (context.advance(); context.isAllFinalized() == false; context.advance()) {
+        for (context.advance(); context.noMoreOperationsToExecute() == false; context.advance()) {
             final Engine.Result result;
             final DocWriteRequest<?> current = context.getCurrent();
             final boolean failure = rarely();

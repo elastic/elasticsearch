@@ -316,14 +316,6 @@ subprojects {
           project.evaluationDependsOn(upstreamProject.path)
           project.javadoc.source += upstreamProject.javadoc.source
           /*
-           * Do not add those projects to the javadoc classpath because
-           * we are going to resolve them with their source instead.
-           */
-           // NOCOMMIT check if we need this line
-          project.javadoc.classpath = project.javadoc.classpath.filter { f ->
-            false == upstreamProject.configurations.archives.artifacts.files.files.contains(f)
-          }
-          /*
            * Instead we need the upstream project's javadoc classpath so
            * we don't barf on the classes that it references.
            */

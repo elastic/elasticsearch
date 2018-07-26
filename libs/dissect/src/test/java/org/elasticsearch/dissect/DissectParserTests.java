@@ -277,6 +277,24 @@ public class DissectParserTests extends ESTestCase {
         assertBadKey("%{++}");
     }
 
+    public void testSyslog() {
+        assertMatch("%{timestamp} %{+timestamp} %{+timestamp} %{logsource} %{program}[%{pid}]: %{message}",
+            "Mar 16 00:01:25 evita postfix/smtpd[1713]: connect from camomile.cloud9.net[168.100.1.3]",
+            Arrays.asList("timestamp", "logsource", "program", "pid", "message"),
+            Arrays.asList("Mar 16 00:01:25", "evita", "postfix/smtpd", "1713", "connect from camomile.cloud9.net[168.100.1.3]"), " ");
+    }
+
+    public void testApacheLog(){
+        assertMatch("%{clientip} %{ident} %{auth} [%{timestamp}] \"%{verb} %{request} HTTP/%{httpversion}\" %{response} %{bytes} \"%{referrer}\" \"%{agent}\" %{->}",
+            "31.184.238.164 - - [24/Jul/2014:05:35:37 +0530] \"GET /logs/access.log HTTP/1.0\" 200 69849 " +
+                "\"http://8rursodiol.enjin.com\" \"Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) " +
+                "Chrome/30.0.1599.12785 YaBrowser/13.12.1599.12785 Safari/537.36\" \"www.dlwindianrailways.com\"",
+            Arrays.asList("clientip", "ident", "auth", "timestamp", "verb", "request", "httpversion", "response", "bytes", "referrer", "agent"),
+            Arrays.asList("31.184.238.164", "-", "-", "24/Jul/2014:05:35:37 +0530", "GET", "/logs/access.log", "1.0", "200", "69849",
+                "http://8rursodiol.enjin.com", "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36" +
+                    " (KHTML, like Gecko) Chrome/30.0.1599.12785 YaBrowser/13.12.1599.12785 Safari/537.36"));
+    }
+
     private void assertMiss(String pattern, String input) {
         DissectException e = expectThrows(DissectException.class, () -> new DissectParser(pattern, null).parse(input));
         assertThat(e.getMessage(), CoreMatchers.containsString("Unable to find match for dissect pattern"));

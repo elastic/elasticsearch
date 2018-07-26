@@ -126,14 +126,55 @@ public class PainlessLookupBuilder {
     private static final Pattern METHOD_NAME_PATTERN = Pattern.compile("^[_a-zA-Z][_a-zA-Z0-9]*$");
     private static final Pattern FIELD_NAME_PATTERN  = Pattern.compile("^[_a-zA-Z][_a-zA-Z0-9]*$");
 
-    private final List<Whitelist> whitelists;
+    public static PainlessLookup buildFromWhitelists(List<Whitelist> whitelists) {
+        PainlessLookupBuilder painlessLookupBuilder = new PainlessLookupBuilder();
+        String origin = "internal error";
+
+        try {
+            for (Whitelist whitelist : whitelists) {
+                for (WhitelistClass whitelistClass : whitelist.whitelistStructs) {
+                    origin = whitelistClass.origin;
+                    painlessLookupBuilder.addPainlessClass(
+                            whitelist.javaClassLoader, whitelistClass.javaClassName, whitelistClass.onlyFQNJavaClassName == false);
+                }
+            }
+
+            for (Whitelist whitelist : whitelists) {
+                for (WhitelistClass whitelistClass : whitelist.whitelistStructs) {
+                    String targetCanonicalClassName = whitelistClass.javaClassName.replace('$', '.');
+
+                    for (WhitelistConstructor whitelistConstructor : whitelistClass.whitelistConstructors) {
+                        origin = whitelistConstructor.origin;
+                        painlessLookupBuilder.addPainlessConstructor(
+                                targetCanonicalClassName, whitelistConstructor.painlessParameterTypeNames);
+                    }
+
+                    for (WhitelistMethod whitelistMethod : whitelistClass.whitelistMethods) {
+                        origin = whitelistMethod.origin;
+                        painlessLookupBuilder.addPainlessMethod(
+                                whitelist.javaClassLoader, targetCanonicalClassName, whitelistMethod.javaAugmentedClassName,
+                                whitelistMethod.javaMethodName, whitelistMethod.painlessReturnTypeName,
+                                whitelistMethod.painlessParameterTypeNames);
+                    }
+
+                    for (WhitelistField whitelistField : whitelistClass.whitelistFields) {
+                        origin = whitelistField.origin;
+                        painlessLookupBuilder.addPainlessField(
+                                targetCanonicalClassName, whitelistField.javaFieldName, whitelistField.painlessFieldTypeName);
+                    }
+                }
+            }
+        } catch (Exception exception) {
+            throw new IllegalArgumentException("error loading whitelist(s) " + origin, exception);
+        }
+
+        return painlessLookupBuilder.build();
+    }
 
     private final Map<String, Class<?>> canonicalClassNamesToClasses;
     private final Map<Class<?>, PainlessClassBuilder> classesToPainlessClassBuilders;
 
-    public PainlessLookupBuilder(List<Whitelist> whitelists) {
-        this.whitelists = whitelists;
-
+    public PainlessLookupBuilder() {
         canonicalClassNamesToClasses = new HashMap<>();
         classesToPainlessClassBuilders = new HashMap<>();
 
@@ -666,60 +707,6 @@ public class PainlessLookupBuilder {
     }
 
     public PainlessLookup build() {
-        String origin = "internal error";
-
-        try {
-            // first iteration collects all the Painless type names that
-            // are used for validation during the second iteration
-            for (Whitelist whitelist : whitelists) {
-                for (WhitelistClass whitelistStruct : whitelist.whitelistStructs) {
-                    String painlessTypeName = whitelistStruct.javaClassName.replace('$', '.');
-                    PainlessClassBuilder painlessStruct =
-                            classesToPainlessClassBuilders.get(canonicalClassNamesToClasses.get(painlessTypeName));
-
-                    if (painlessStruct != null && painlessStruct.clazz.getName().equals(whitelistStruct.javaClassName) == false) {
-                        throw new IllegalArgumentException("struct [" + painlessStruct.name + "] cannot represent multiple classes " +
-                                "[" + painlessStruct.clazz.getName() + "] and [" + whitelistStruct.javaClassName + "]");
-                    }
-
-                    origin = whitelistStruct.origin;
-                    addPainlessClass(
-                            whitelist.javaClassLoader, whitelistStruct.javaClassName, whitelistStruct.onlyFQNJavaClassName == false);
-
-                    painlessStruct = classesToPainlessClassBuilders.get(canonicalClassNamesToClasses.get(painlessTypeName));
-                    classesToPainlessClassBuilders.put(painlessStruct.clazz, painlessStruct);
-                }
-            }
-
-            // second iteration adds all the constructors, methods, and fields that will
-            // be available in Painless along with validating they exist and all their types have
-            // been white-listed during the first iteration
-            for (Whitelist whitelist : whitelists) {
-                for (WhitelistClass whitelistStruct : whitelist.whitelistStructs) {
-                    String painlessTypeName = whitelistStruct.javaClassName.replace('$', '.');
-
-                    for (WhitelistConstructor whitelistConstructor : whitelistStruct.whitelistConstructors) {
-                        origin = whitelistConstructor.origin;
-                        addPainlessConstructor(painlessTypeName, whitelistConstructor.painlessParameterTypeNames);
-                    }
-
-                    for (WhitelistMethod whitelistMethod : whitelistStruct.whitelistMethods) {
-                        origin = whitelistMethod.origin;
-                        addPainlessMethod(whitelist.javaClassLoader, painlessTypeName, whitelistMethod.javaAugmentedClassName,
-                                whitelistMethod.javaMethodName, whitelistMethod.painlessReturnTypeName,
-                                whitelistMethod.painlessParameterTypeNames);
-                    }
-
-                    for (WhitelistField whitelistField : whitelistStruct.whitelistFields) {
-                        origin = whitelistField.origin;
-                        addPainlessField(painlessTypeName, whitelistField.javaFieldName, whitelistField.painlessFieldTypeName);
-                    }
-                }
-            }
-        } catch (Exception exception) {
-            throw new IllegalArgumentException("error loading whitelist(s) " + origin, exception);
-        }
-
         copyPainlessClassMembers();
         cacheRuntimeHandles();
         setFunctionalInterfaceMethods();

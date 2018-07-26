@@ -1,0 +1,4 @@
+grant {
+  permission javax.security.auth.AuthPermission "doAsPrivileged";
+  permission javax.security.auth.kerberos.DelegationPermission "\"HTTP/localhost@BUILD.ELASTIC.CO\" \"krbtgt/BUILD.ELASTIC.CO@BUILD.ELASTIC.CO\"";
+};

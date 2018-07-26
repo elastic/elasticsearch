@@ -57,8 +57,15 @@ public class SSLDriverTests extends ESTestCase {
     public void testRenegotiate() throws Exception {
         SSLContext sslContext = getSSLContext();
 
-        SSLDriver clientDriver = getDriver(sslContext.createSSLEngine(), true);
-        SSLDriver serverDriver = getDriver(sslContext.createSSLEngine(), false);
+        SSLEngine serverEngine = sslContext.createSSLEngine();
+        SSLEngine clientEngine = sslContext.createSSLEngine();
+
+        String[] serverProtocols = {"TLSv1.2"};
+        serverEngine.setEnabledProtocols(serverProtocols);
+        String[] clientProtocols = {"TLSv1.2"};
+        clientEngine.setEnabledProtocols(clientProtocols);
+        SSLDriver clientDriver = getDriver(clientEngine, true);
+        SSLDriver serverDriver = getDriver(serverEngine, false);
 
         handshake(clientDriver, serverDriver);
 
@@ -119,16 +126,27 @@ public class SSLDriverTests extends ESTestCase {
         SSLContext sslContext = getSSLContext();
         SSLEngine clientEngine = sslContext.createSSLEngine();
         SSLEngine serverEngine = sslContext.createSSLEngine();
-        String[] serverProtocols = {"TLSv1.1", "TLSv1.2"};
+        String[] serverProtocols = {"TLSv1.2"};
         serverEngine.setEnabledProtocols(serverProtocols);
-        String[] clientProtocols = {"TLSv1"};
+        String[] clientProtocols = {"TLSv1.1"};
         clientEngine.setEnabledProtocols(clientProtocols);
         SSLDriver clientDriver = getDriver(clientEngine, true);
         SSLDriver serverDriver = getDriver(serverEngine, false);
 
         SSLException sslException = expectThrows(SSLException.class, () -> handshake(clientDriver, serverDriver));
-        assertEquals("Client requested protocol TLSv1 not enabled or not supported", sslException.getMessage());
-        failedCloseAlert(serverDriver, clientDriver);
+        String oldExpected = "Client requested protocol TLSv1.1 not enabled or not supported";
+        String jdk11Expected = "Received fatal alert: protocol_version";
+        boolean expectedMessage = oldExpected.equals(sslException.getMessage()) || jdk11Expected.equals(sslException.getMessage());
+        assertTrue("Unexpected exception message: " + sslException.getMessage(), expectedMessage);
+
+        // In JDK11 we need an non-application write
+        if (serverDriver.needsNonApplicationWrite()) {
+            serverDriver.nonApplicationWrite();
+        }
+        // Prior to JDK11 we still need to send a close alert
+        if (serverDriver.isClosed() == false) {
+            failedCloseAlert(serverDriver, clientDriver);
+        }
     }
 
     public void testHandshakeFailureBecauseNoCiphers() throws Exception {
@@ -144,11 +162,18 @@ public class SSLDriverTests extends ESTestCase {
         SSLDriver clientDriver = getDriver(clientEngine, true);
         SSLDriver serverDriver = getDriver(serverEngine, false);
 
-        SSLException sslException = expectThrows(SSLException.class, () -> handshake(clientDriver, serverDriver));
-        assertEquals("no cipher suites in common", sslException.getMessage());
-        failedCloseAlert(serverDriver, clientDriver);
+        expectThrows(SSLException.class, () -> handshake(clientDriver, serverDriver));
+        // In JDK11 we need an non-application write
+        if (serverDriver.needsNonApplicationWrite()) {
+            serverDriver.nonApplicationWrite();
+        }
+        // Prior to JDK11 we still need to send a close alert
+        if (serverDriver.isClosed() == false) {
+            failedCloseAlert(serverDriver, clientDriver);
+        }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32144")
     public void testCloseDuringHandshake() throws Exception {
         SSLContext sslContext = getSSLContext();
         SSLDriver clientDriver = getDriver(sslContext.createSSLEngine(), true);

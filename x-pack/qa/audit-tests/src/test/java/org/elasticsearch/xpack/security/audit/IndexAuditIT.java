@@ -11,6 +11,8 @@ import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplat
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
@@ -18,8 +20,10 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
@@ -112,8 +116,53 @@ public class IndexAuditIT extends ESIntegTestCase {
                         UsernamePasswordToken.basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()))));
         assertThat(response.getStatusLine().getStatusCode(), is(200));
         final AtomicReference<ClusterState> lastClusterState = new AtomicReference<>();
+        final boolean found = awaitSecurityAuditIndex(lastClusterState, QueryBuilders.matchQuery("principal", USER));
+
+        assertTrue("Did not find security audit index. Current cluster state:\n" + lastClusterState.get().toString(), found);
+
+        SearchResponse searchResponse = client().prepareSearch(".security_audit_log*").setQuery(
+                QueryBuilders.matchQuery("principal", USER)).get();
+        assertThat(searchResponse.getHits().getHits().length, greaterThan(0));
+        assertThat(searchResponse.getHits().getAt(0).getSourceAsMap().get("principal"), is(USER));
+    }
+
+    public void testAuditTrailTemplateIsRecreatedAfterDelete() throws Exception {
+        // this is already "tested" by the test framework since we wipe the templates before and after,
+        // but lets be explicit about the behavior
+        awaitIndexTemplateCreation();
+
+        // delete the template
+        DeleteIndexTemplateResponse deleteResponse = client().admin().indices()
+                .prepareDeleteTemplate(IndexAuditTrail.INDEX_TEMPLATE_NAME).execute().actionGet();
+        assertThat(deleteResponse.isAcknowledged(), is(true));
+        awaitIndexTemplateCreation();
+    }
+
+    public void testOpaqueIdWorking() throws Exception {
+        Request request = new Request("GET", "/");
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader(Task.X_OPAQUE_ID, "foo");
+        options.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
+            UsernamePasswordToken.basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray())));
+        request.setOptions(options);
+        Response response = getRestClient().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), is(200));
+        final AtomicReference<ClusterState> lastClusterState = new AtomicReference<>();
+        final boolean found = awaitSecurityAuditIndex(lastClusterState, QueryBuilders.matchQuery("opaque_id", "foo"));
+
+        assertTrue("Did not find security audit index. Current cluster state:\n" + lastClusterState.get().toString(), found);
+
+        SearchResponse searchResponse = client().prepareSearch(".security_audit_log*").setQuery(
+            QueryBuilders.matchQuery("opaque_id", "foo")).get();
+        assertThat(searchResponse.getHits().getHits().length, greaterThan(0));
+
+        assertThat(searchResponse.getHits().getAt(0).getSourceAsMap().get("opaque_id"), is("foo"));
+    }
+
+    private boolean awaitSecurityAuditIndex(AtomicReference<ClusterState> lastClusterState,
+                                            QueryBuilder query) throws InterruptedException {
         final AtomicBoolean indexExists = new AtomicBoolean(false);
-        final boolean found = awaitBusy(() -> {
+        return awaitBusy(() -> {
             if (indexExists.get() == false) {
                 ClusterState state = client().admin().cluster().prepareState().get().getState();
                 lastClusterState.set(state);
@@ -138,28 +187,9 @@ public class IndexAuditIT extends ESIntegTestCase {
             logger.info("refreshing audit indices");
             client().admin().indices().prepareRefresh(".security_audit_log*").get();
             logger.info("refreshed audit indices");
-            return client().prepareSearch(".security_audit_log*").setQuery(QueryBuilders.matchQuery("principal", USER))
-                    .get().getHits().getTotalHits() > 0;
+            return client().prepareSearch(".security_audit_log*").setQuery(query)
+                .get().getHits().getTotalHits() > 0;
         }, 60L, TimeUnit.SECONDS);
-
-        assertTrue("Did not find security audit index. Current cluster state:\n" + lastClusterState.get().toString(), found);
-
-        SearchResponse searchResponse = client().prepareSearch(".security_audit_log*").setQuery(
-                QueryBuilders.matchQuery("principal", USER)).get();
-        assertThat(searchResponse.getHits().getHits().length, greaterThan(0));
-        assertThat(searchResponse.getHits().getAt(0).getSourceAsMap().get("principal"), is(USER));
-    }
-
-    public void testAuditTrailTemplateIsRecreatedAfterDelete() throws Exception {
-        // this is already "tested" by the test framework since we wipe the templates before and after,
-        // but lets be explicit about the behavior
-        awaitIndexTemplateCreation();
-
-        // delete the template
-        DeleteIndexTemplateResponse deleteResponse = client().admin().indices()
-                .prepareDeleteTemplate(IndexAuditTrail.INDEX_TEMPLATE_NAME).execute().actionGet();
-        assertThat(deleteResponse.isAcknowledged(), is(true));
-        awaitIndexTemplateCreation();
     }
 
     private void awaitIndexTemplateCreation() throws InterruptedException {

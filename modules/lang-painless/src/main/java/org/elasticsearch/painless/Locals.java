@@ -292,7 +292,7 @@ public final class Locals {
         @Override
         public String toString() {
             StringBuilder b = new StringBuilder();
-            b.append("Variable[type=").append(PainlessLookupUtility.anyTypeToPainlessTypeName(clazz));
+            b.append("Variable[type=").append(PainlessLookupUtility.typeToCanonicalTypeName(clazz));
             b.append(",name=").append(name);
             b.append(",slot=").append(slot);
             if (readonly) {

@@ -29,6 +29,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetRequestBuilder;
 import org.elasticsearch.action.get.MultiGetResponse;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -39,6 +40,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 
@@ -51,6 +53,7 @@ import java.util.Set;
 import static java.util.Collections.singleton;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
@@ -70,7 +73,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test")
                 .addMapping("type1", "field1", "type=keyword,store=true", "field2", "type=keyword,store=true")
                 .setSettings(Settings.builder().put("index.refresh_interval", -1))
-                .addAlias(new Alias("alias")));
+                .addAlias(new Alias("alias").writeIndex(randomFrom(true, false, null))));
         ensureGreen();
 
         GetResponse response = client().prepareGet(indexOrAlias(), "type1", "1").get();
@@ -192,12 +195,31 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.isExists(), equalTo(false));
     }
 
+    public void testGetWithAliasPointingToMultipleIndices() {
+        client().admin().indices().prepareCreate("index1")
+            .addAlias(new Alias("alias1").indexRouting("0")).get();
+        if (randomBoolean()) {
+            client().admin().indices().prepareCreate("index2")
+                .addAlias(new Alias("alias1").indexRouting("0").writeIndex(randomFrom(false, null))).get();
+        } else {
+            client().admin().indices().prepareCreate("index3")
+                .addAlias(new Alias("alias1").indexRouting("1").writeIndex(true)).get();
+        }
+        IndexResponse indexResponse = client().prepareIndex("index1", "type", "id")
+            .setSource(Collections.singletonMap("foo", "bar")).get();
+        assertThat(indexResponse.status().getStatus(), equalTo(RestStatus.CREATED.getStatus()));
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () ->
+            client().prepareGet("alias1", "type", "_alias_id").get());
+        assertThat(exception.getMessage(), endsWith("can't execute a single index op"));
+    }
+
     private static String indexOrAlias() {
         return randomBoolean() ? "test" : "alias";
     }
 
     public void testSimpleMultiGet() throws Exception {
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias").writeIndex(randomFrom(true, false, null)))
                 .addMapping("type1", "field", "type=keyword,store=true")
                 .setSettings(Settings.builder().put("index.refresh_interval", -1)));
         ensureGreen();

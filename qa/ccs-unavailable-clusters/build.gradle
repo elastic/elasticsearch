@@ -21,6 +21,5 @@ apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.test-with-dependencies'
 
 dependencies {
-    // NOCOMMIT figure out how to force the build if not built
     testCompile "org.elasticsearch.client:elasticsearch-rest-high-level-client:${version}"
 }

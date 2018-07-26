@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.IntervalsSourceProvider;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
@@ -126,9 +127,15 @@ public interface SearchPlugin {
         return emptyList();
     }
     /**
-     * The next {@link Rescorer}s added by this plugin.
+     * The new {@link Rescorer}s added by this plugin.
      */
     default List<RescorerSpec<?>> getRescorers() {
+        return emptyList();
+    }
+    /**
+     * The new {@link IntervalsSourceProvider}s added by this plugin
+     */
+    default List<IntervalSpec<?>> getIntervalsSourceProviders() {
         return emptyList();
     }
 
@@ -208,6 +215,21 @@ public interface SearchPlugin {
             super(name, reader, parser);
         }
     }
+
+    /**
+     * Specification of custom {@link IntervalsSourceProvider}
+     */
+    class IntervalSpec<T extends IntervalsSourceProvider> extends SearchExtensionSpec<T, CheckedFunction<XContentParser, T, IOException>> {
+
+        /**
+         * Specification of custom {@link IntervalsSourceProvider}
+         */
+        public IntervalSpec(String name, Writeable.Reader<T> reader, CheckedFunction<XContentParser, T, IOException> parser) {
+            super(name, reader, parser);
+        }
+
+    }
+
     /**
      * Specification for an {@link Aggregation}.
      */

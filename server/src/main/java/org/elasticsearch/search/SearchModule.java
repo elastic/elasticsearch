@@ -44,6 +44,8 @@ import org.elasticsearch.index.query.GeoDistanceQueryBuilder;
 import org.elasticsearch.index.query.GeoPolygonQueryBuilder;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
+import org.elasticsearch.index.query.IntervalQueryBuilder;
+import org.elasticsearch.index.query.IntervalsSourceProvider;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
@@ -291,6 +293,7 @@ public class SearchModule {
         highlighters = setupHighlighters(settings, plugins);
         registerScoreFunctions(plugins);
         registerQueryParsers(plugins);
+        registerIntervalsSourceProviders(plugins);
         registerRescorers(plugins);
         registerSorts();
         registerValueFormats();
@@ -773,6 +776,7 @@ public class SearchModule {
         registerQuery(new QuerySpec<>(ExistsQueryBuilder.NAME, ExistsQueryBuilder::new, ExistsQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(MatchNoneQueryBuilder.NAME, MatchNoneQueryBuilder::new, MatchNoneQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(TermsSetQueryBuilder.NAME, TermsSetQueryBuilder::new, TermsSetQueryBuilder::fromXContent));
+        registerQuery(new QuerySpec<>(IntervalQueryBuilder.NAME, IntervalQueryBuilder::new, IntervalQueryBuilder::fromXContent));
 
         if (ShapesAvailability.JTS_AVAILABLE && ShapesAvailability.SPATIAL4J_AVAILABLE) {
             registerQuery(new QuerySpec<>(GeoShapeQueryBuilder.NAME, GeoShapeQueryBuilder::new, GeoShapeQueryBuilder::fromXContent));
@@ -781,10 +785,25 @@ public class SearchModule {
         registerFromPlugin(plugins, SearchPlugin::getQueries, this::registerQuery);
     }
 
+    private void registerIntervalsSourceProviders(List<SearchPlugin> plugins) {
+        registerIntervalsSourceProvider(new SearchPlugin.IntervalSpec<>(IntervalsSourceProvider.Match.NAME,
+            IntervalsSourceProvider.Match::new, IntervalsSourceProvider.Match::fromXContent));
+        registerIntervalsSourceProvider(new SearchPlugin.IntervalSpec<>(IntervalsSourceProvider.Combine.NAME,
+            IntervalsSourceProvider.Combine::new, IntervalsSourceProvider.Combine::fromXContent));
+        registerFromPlugin(plugins, SearchPlugin::getIntervalsSourceProviders, this::registerIntervalsSourceProvider);
+    }
+
     private void registerQuery(QuerySpec<?> spec) {
         namedWriteables.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
         namedXContents.add(new NamedXContentRegistry.Entry(QueryBuilder.class, spec.getName(),
                 (p, c) -> spec.getParser().fromXContent(p)));
+    }
+
+    private void registerIntervalsSourceProvider(SearchPlugin.IntervalSpec<?> spec) {
+        namedWriteables.add(new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class,
+            spec.getName().getPreferredName(), spec.getReader()));
+        namedXContents.add(new NamedXContentRegistry.Entry(IntervalsSourceProvider.class, spec.getName(),
+            (p, c) -> spec.getParser().apply(p)));
     }
 
     public FetchPhase getFetchPhase() {

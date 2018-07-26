@@ -22,21 +22,21 @@ package org.elasticsearch.discovery.azure.arm;
 import com.microsoft.azure.AzureEnvironment;
 import com.microsoft.azure.PagedList;
 import com.microsoft.azure.credentials.ApplicationTokenCredentials;
-import com.microsoft.azure.management.Azure;
 import com.microsoft.azure.management.compute.VirtualMachine;
 import com.microsoft.azure.management.compute.VirtualMachines;
+import com.microsoft.azure.management.compute.implementation.ComputeManager;
 import com.microsoft.azure.management.network.PublicIPAddress;
 import com.microsoft.rest.RestClient;
 import com.microsoft.rest.ServiceResponseBuilder;
 import com.microsoft.rest.serializer.JacksonAdapter;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 
-import java.io.IOException;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.ArrayList;
@@ -50,37 +50,36 @@ public class AzureManagementServiceImpl implements AzureManagementService, AutoC
     private static final Logger logger = Loggers.getLogger(AzureManagementServiceImpl.class);
 
     // Should it be final or should we able to reinitialize it sometimes?
-    private final Azure client;
+    private final ComputeManager client;
 
     // Package private for test purposes
     final RestClient restClient;
 
-    public AzureManagementServiceImpl(Settings settings) {
+    AzureManagementServiceImpl(Settings settings) {
         try (SecureString clientId = CLIENT_ID_SETTING.get(settings);
              SecureString tenantId = TENANT_ID_SETTING.get(settings);
              SecureString secret = SECRET_SETTING.get(settings);
              SecureString subscriptionId = SUBSCRIPTION_ID_SETTING.get(settings)) {
             this.restClient = initializeRestClient(clientId.toString(), tenantId.toString(), secret.toString());
-            this.client = initialize(restClient, tenantId.toString(), subscriptionId.toString());
+            this.client = initialize(restClient, subscriptionId.toString());
         }
     }
 
     /**
      * Create a client instance
      * @param restClient        Rest client to use
-     * @param tenantId          Tenant ID
      * @param subscriptionId    Subscription ID
      * @return a client Instance
      */
-    private static Azure initialize(RestClient restClient, String tenantId, String subscriptionId) {
+    private static ComputeManager initialize(RestClient restClient, String subscriptionId) {
         logger.debug("Initializing azure client");
 
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
             sm.checkPermission(new SpecialPermission());
         }
-        Azure client = AccessController.doPrivileged((PrivilegedAction<Azure>) () ->
-            Azure.authenticate(restClient, tenantId).withSubscription(subscriptionId));
+        ComputeManager client = AccessController.doPrivileged((PrivilegedAction<ComputeManager>) () ->
+            ComputeManager.authenticate(restClient, subscriptionId));
 
         logger.debug("Azure client initialized");
         return client;
@@ -163,9 +162,15 @@ public class AzureManagementServiceImpl implements AzureManagementService, AutoC
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         // Sadly we can't close a client yet so we will have leaked resources
         logger.debug("Closing azure client");
+        // We try to close the restClient but it's useless as it it still failing
+        try {
+            restClient.closeAndWait();
+        } catch (InterruptedException e) {
+            throw new ElasticsearchException("Can't close the Azure internal Rest Client", e);
+        }
         // client.close();
     }
 }

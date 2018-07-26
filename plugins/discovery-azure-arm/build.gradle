@@ -23,8 +23,9 @@ esplugin {
 }
 
 versions << [
-  'azure': '1.3.0',
-  'azure_auth': '1.2.0',
+  'azure': '1.13.0',
+  'azure_annotations': '1.7.0',
+  'azure_auth': '1.5.4',
   'okhttp3': '3.4.2',
   'retrofit': '2.1.0'
 ]
@@ -40,32 +41,15 @@ dependencies {
   compile "com.google.code.gson:gson:2.2.4"
   compile "com.google.guava:guava:20.0"
   compile "com.microsoft.azure:adal4j:1.1.2"
-  compile "com.microsoft.azure:azure-annotations:${versions.azure}"
+  compile "com.microsoft.azure:azure-annotations:${versions.azure_annotations}"
   compile "com.microsoft.azure:azure-client-authentication:${versions.azure_auth}"
   compile "com.microsoft.azure:azure-client-runtime:${versions.azure_auth}"
   compile "com.microsoft.azure:azure-keyvault-core:0.8.0"
-  compile "com.microsoft.azure:azure-mgmt-appservice:${versions.azure}"
-  compile "com.microsoft.azure:azure-mgmt-batch:${versions.azure}"
-  compile "com.microsoft.azure:azure-mgmt-cdn:${versions.azure}"
   compile "com.microsoft.azure:azure-mgmt-compute:${versions.azure}"
-  compile "com.microsoft.azure:azure-mgmt-containerinstance:${versions.azure}"
-  compile "com.microsoft.azure:azure-mgmt-containerregistry:${versions.azure}"
-  // Not sure why this transitive deps can not be found with gradle but exists with maven
-  // compile "com.microsoft.azure:azure-mgmt-containerservice:${versions.azure}"
-  compile "com.microsoft.azure:azure-mgmt-cosmosdb:${versions.azure}"
-  compile "com.microsoft.azure:azure-mgmt-dns:${versions.azure}"
   compile "com.microsoft.azure:azure-mgmt-graph-rbac:${versions.azure}"
-  compile "com.microsoft.azure:azure-mgmt-keyvault:${versions.azure}"
-  // Not sure why this transitive deps can not be found with gradle but exists with maven
-  // compile "com.microsoft.azure:azure-mgmt-locks:${versions.azure}"
   compile "com.microsoft.azure:azure-mgmt-network:${versions.azure}"
-  compile "com.microsoft.azure:azure-mgmt-redis:${versions.azure}"
   compile "com.microsoft.azure:azure-mgmt-resources:${versions.azure}"
-  compile "com.microsoft.azure:azure-mgmt-search:${versions.azure}"
-  compile "com.microsoft.azure:azure-mgmt-servicebus:${versions.azure}"
-  compile "com.microsoft.azure:azure-mgmt-sql:${versions.azure}"
   compile "com.microsoft.azure:azure-mgmt-storage:${versions.azure}"
-  compile "com.microsoft.azure:azure-mgmt-trafficmanager:${versions.azure}"
   compile "com.microsoft.azure:azure-storage:4.4.0"
   compile "com.microsoft.azure:azure:${versions.azure}"
   compile "com.microsoft.rest:client-runtime:${versions.azure_auth}"
@@ -116,6 +100,52 @@ thirdPartyAudit.excludes = [
   'android.os.Handler',
   'android.os.Looper',
   'android.util.Log',
+  'com.microsoft.azure.management.appservice.WebApps',
+  'com.microsoft.azure.management.appservice.implementation.AppServiceManager',
+  'com.microsoft.azure.management.batch.BatchAccounts',
+  'com.microsoft.azure.management.batch.implementation.BatchManager',
+  'com.microsoft.azure.management.batchai.BatchAIUsages',
+  'com.microsoft.azure.management.batchai.BatchAIWorkspaces',
+  'com.microsoft.azure.management.batchai.implementation.BatchAIManager',
+  'com.microsoft.azure.management.cdn.CdnProfiles',
+  'com.microsoft.azure.management.cdn.implementation.CdnManager',
+  'com.microsoft.azure.management.containerinstance.ContainerGroups',
+  'com.microsoft.azure.management.containerinstance.implementation.ContainerInstanceManager',
+  'com.microsoft.azure.management.containerregistry.Registries',
+  'com.microsoft.azure.management.containerregistry.implementation.ContainerRegistryManager',
+  'com.microsoft.azure.management.containerservice.ContainerServices',
+  'com.microsoft.azure.management.containerservice.KubernetesClusters',
+  'com.microsoft.azure.management.containerservice.implementation.ContainerServiceManager',
+  'com.microsoft.azure.management.cosmosdb.CosmosDBAccounts',
+  'com.microsoft.azure.management.cosmosdb.implementation.CosmosDBManager',
+  'com.microsoft.azure.management.dns.DnsZones',
+  'com.microsoft.azure.management.dns.implementation.DnsZoneManager',
+  'com.microsoft.azure.management.eventhub.EventHubDisasterRecoveryPairings',
+  'com.microsoft.azure.management.eventhub.EventHubNamespaces',
+  'com.microsoft.azure.management.eventhub.EventHubs',
+  'com.microsoft.azure.management.eventhub.implementation.EventHubManager',
+  'com.microsoft.azure.management.keyvault.Vaults',
+  'com.microsoft.azure.management.keyvault.implementation.KeyVaultManager',
+  'com.microsoft.azure.management.locks.ManagementLocks',
+  'com.microsoft.azure.management.locks.implementation.AuthorizationManager',
+  'com.microsoft.azure.management.monitor.ActionGroups',
+  'com.microsoft.azure.management.monitor.ActivityLogs',
+  'com.microsoft.azure.management.monitor.DiagnosticSettings',
+  'com.microsoft.azure.management.monitor.MetricDefinitions',
+  'com.microsoft.azure.management.monitor.implementation.MonitorManager',
+  'com.microsoft.azure.management.msi.Identities',
+  'com.microsoft.azure.management.msi.Identity',
+  'com.microsoft.azure.management.msi.implementation.MSIManager',
+  'com.microsoft.azure.management.redis.RedisCaches',
+  'com.microsoft.azure.management.redis.implementation.RedisManager',
+  'com.microsoft.azure.management.search.SearchServices',
+  'com.microsoft.azure.management.search.implementation.SearchServiceManager',
+  'com.microsoft.azure.management.servicebus.ServiceBusNamespaces',
+  'com.microsoft.azure.management.servicebus.implementation.ServiceBusManager',
+  'com.microsoft.azure.management.sql.SqlServers',
+  'com.microsoft.azure.management.sql.implementation.SqlServerManager',
+  'com.microsoft.azure.management.trafficmanager.TrafficManagerProfiles',
+  'com.microsoft.azure.management.trafficmanager.implementation.TrafficManager',
   'javax.servlet.http.HttpServletRequest',
   'javax.servlet.http.HttpServletResponse',
   'rx.Completable$CompletableOnSubscribe',
@@ -153,35 +183,9 @@ thirdPartyAudit.excludes = [
   'com.sun.activation.registries.LineTokenizer',
   'com.sun.activation.registries.LogSupport',
   'com.sun.activation.registries.MailcapFile',
-  'com.sun.activation.registries.MailcapParseException',
   'com.sun.activation.registries.MailcapTokenizer',
   'com.sun.activation.registries.MimeTypeEntry',
   'com.sun.activation.registries.MimeTypeFile',
-  'javax.activation.ActivationDataFlavor',
-  'javax.activation.CommandInfo',
-  'javax.activation.CommandMap',
-  'javax.activation.CommandObject',
-  'javax.activation.DataContentHandler',
-  'javax.activation.DataContentHandlerFactory',
-  'javax.activation.DataHandler$1',
-  'javax.activation.DataHandler',
-  'javax.activation.DataHandlerDataSource',
-  'javax.activation.DataSource',
-  'javax.activation.DataSourceDataContentHandler',
-  'javax.activation.FileDataSource',
-  'javax.activation.FileTypeMap',
   'javax.activation.MailcapCommandMap',
-  'javax.activation.MimeType',
-  'javax.activation.MimeTypeParameterList',
-  'javax.activation.MimeTypeParseException',
   'javax.activation.MimetypesFileTypeMap',
-  'javax.activation.ObjectDataContentHandler',
-  'javax.activation.SecuritySupport$1',
-  'javax.activation.SecuritySupport$2',
-  'javax.activation.SecuritySupport$3',
-  'javax.activation.SecuritySupport$4',
-  'javax.activation.SecuritySupport$5',
-  'javax.activation.SecuritySupport',
-  'javax.activation.URLDataSource',
-  'javax.activation.UnsupportedDataTypeException'
 ]

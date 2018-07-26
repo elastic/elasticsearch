@@ -71,10 +71,4 @@ public class EsTieredMergePolicyTests extends ESTestCase {
         policy.setSegmentsPerTier(42);
         assertEquals(42, policy.regularMergePolicy.getSegmentsPerTier(), 0);
     }
-
-    public void testSetReclaimDeletesWeight() {
-        EsTieredMergePolicy policy = new EsTieredMergePolicy();
-        policy.setReclaimDeletesWeight(42);
-        assertEquals(42, policy.regularMergePolicy.getReclaimDeletesWeight(), 0);
-    }
 }

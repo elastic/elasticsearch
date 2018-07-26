@@ -4,7 +4,7 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testCompile project(xpackModule('core'))
+  testCompile "org.elasticsearch.plugin:x-pack-core:${version}"
   testCompile project(path: xpackModule('watcher'), configuration: 'runtime')
 }
 

@@ -14,7 +14,7 @@ esplugin {
 archivesBaseName = 'x-pack-upgrade'
 
 dependencies {
-    compileOnly project(xpackModule('core'))
+    compileOnly "org.elasticsearch.plugin:x-pack-core:${version}"
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 

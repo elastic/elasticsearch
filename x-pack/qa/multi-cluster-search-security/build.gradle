@@ -3,7 +3,7 @@ import org.elasticsearch.gradle.test.RestIntegTestTask
 apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
-  testCompile project(xpackModule('core'))
+  testCompile "org.elasticsearch.plugin:x-pack-core:${version}"
   testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 

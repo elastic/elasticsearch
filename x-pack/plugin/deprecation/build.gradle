@@ -10,7 +10,7 @@ esplugin {
 archivesBaseName = 'x-pack-deprecation'
 
 dependencies {
-    compileOnly project(xpackModule('core'))
+    compileOnly "org.elasticsearch.plugin:x-pack-core:${version}"
 }
 
 run {

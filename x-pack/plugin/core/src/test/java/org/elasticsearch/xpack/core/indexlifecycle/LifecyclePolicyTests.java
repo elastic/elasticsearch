@@ -355,7 +355,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
 
         private final String name;
 
-        public NamedMockAction(String name, List<Step> steps) {
+        NamedMockAction(String name, List<Step> steps) {
             super(steps, true);
             this.name = name;
         }
@@ -376,7 +376,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         private final List<String> orderedPhaseNames;
         private final Map<String, List<String>> orderedActionNamesForPhases;
 
-        public ControllableLifecycleType(List<String> orderedPhases, Map<String, List<String>> orderedActionNamesForPhases) {
+        ControllableLifecycleType(List<String> orderedPhases, Map<String, List<String>> orderedActionNamesForPhases) {
             this.orderedPhaseNames = orderedPhases;
             this.orderedActionNamesForPhases = orderedActionNamesForPhases;
         }

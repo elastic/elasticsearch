@@ -7,17 +7,17 @@
 package org.elasticsearch.xpack.core.indexlifecycle.action;
 
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexPolicyRequest;
 import org.elasticsearch.test.AbstractStreamableTestCase;
-import org.elasticsearch.xpack.core.indexlifecycle.action.SetPolicyForIndexAction.Request;
 
 import java.io.IOException;
 import java.util.Arrays;
 
-public class SetPolicyForIndexRequestTests extends AbstractStreamableTestCase<SetPolicyForIndexAction.Request> {
+public class SetIndexPolicyRequestTests extends AbstractStreamableTestCase<SetIndexPolicyRequest> {
 
     @Override
-    protected Request createTestInstance() {
-        Request request = new Request(randomAlphaOfLength(20), generateRandomStringArray(20, 20, false));
+    protected SetIndexPolicyRequest createTestInstance() {
+        SetIndexPolicyRequest request = new SetIndexPolicyRequest(randomAlphaOfLength(20), generateRandomStringArray(20, 20, false));
         if (randomBoolean()) {
             IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
                     randomBoolean(), randomBoolean(), randomBoolean());
@@ -27,12 +27,12 @@ public class SetPolicyForIndexRequestTests extends AbstractStreamableTestCase<Se
     }
 
     @Override
-    protected Request createBlankInstance() {
-        return new Request();
+    protected SetIndexPolicyRequest createBlankInstance() {
+        return new SetIndexPolicyRequest();
     }
 
     @Override
-    protected Request mutateInstance(Request instance) throws IOException {
+    protected SetIndexPolicyRequest mutateInstance(SetIndexPolicyRequest instance) throws IOException {
         String[] indices = instance.indices();
         IndicesOptions indicesOptions = instance.indicesOptions();
         String policy = instance.policy();
@@ -51,25 +51,25 @@ public class SetPolicyForIndexRequestTests extends AbstractStreamableTestCase<Se
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        Request newRequest = new Request(policy, indices);
+        SetIndexPolicyRequest newRequest = new SetIndexPolicyRequest(policy, indices);
         newRequest.indicesOptions(indicesOptions);
         return newRequest;
     }
 
     public void testNullIndices() {
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-                () -> new Request(randomAlphaOfLength(20), (String[]) null));
+                () -> new SetIndexPolicyRequest(randomAlphaOfLength(20), (String[]) null));
         assertEquals("indices cannot be null", exception.getMessage());
     }
 
     public void testNullPolicy() {
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-                () -> new Request(null, generateRandomStringArray(20, 20, false)));
+                () -> new SetIndexPolicyRequest(null, generateRandomStringArray(20, 20, false)));
         assertEquals("policy cannot be null", exception.getMessage());
     }
 
     public void testValidate() {
-        Request request = createTestInstance();
+        SetIndexPolicyRequest request = createTestInstance();
         assertNull(request.validate());
     }
 }

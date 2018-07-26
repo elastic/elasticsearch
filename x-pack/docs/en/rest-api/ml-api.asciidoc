@@ -16,6 +16,14 @@ machine learning APIs and in advanced job configuration options in Kibana.
 * <<ml-get-calendar,Get calendars>>, <<ml-get-calendar-event,Get scheduled events>>
 
 [float]
+[[ml-api-filter-endpoint]]
+=== Filters
+
+* <<ml-put-filter,Create filter>>, <<ml-delete-filter,Delete filter>>
+* <<ml-update-filter,Update filters>>
+* <<ml-get-filter,Get filters>>
+
+[float]
 [[ml-api-datafeed-endpoint]]
 === {dfeeds-cap}
 
@@ -69,11 +77,13 @@ include::ml/close-job.asciidoc[]
 //CREATE
 include::ml/put-calendar.asciidoc[]
 include::ml/put-datafeed.asciidoc[]
+include::ml/put-filter.asciidoc[]
 include::ml/put-job.asciidoc[]
 //DELETE
 include::ml/delete-calendar.asciidoc[]
 include::ml/delete-datafeed.asciidoc[]
 include::ml/delete-calendar-event.asciidoc[]
+include::ml/delete-filter.asciidoc[]
 include::ml/delete-job.asciidoc[]
 include::ml/delete-calendar-job.asciidoc[]
 include::ml/delete-snapshot.asciidoc[]
@@ -93,6 +103,7 @@ include::ml/get-job.asciidoc[]
 include::ml/get-job-stats.asciidoc[]
 include::ml/get-snapshot.asciidoc[]
 include::ml/get-calendar-event.asciidoc[]
+include::ml/get-filter.asciidoc[]
 include::ml/get-record.asciidoc[]
 //OPEN
 include::ml/open-job.asciidoc[]
@@ -107,6 +118,7 @@ include::ml/start-datafeed.asciidoc[]
 include::ml/stop-datafeed.asciidoc[]
 //UPDATE
 include::ml/update-datafeed.asciidoc[]
+include::ml/update-filter.asciidoc[]
 include::ml/update-job.asciidoc[]
 include::ml/update-snapshot.asciidoc[]
 //VALIDATE

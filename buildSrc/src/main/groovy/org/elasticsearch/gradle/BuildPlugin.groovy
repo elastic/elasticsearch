@@ -522,11 +522,11 @@ class BuildPlugin implements Plugin<Project> {
 
     }
 
+    /**
+     * Add dependencies that we are going to bundle to the compile classpath.
+     */
     static void configureSourceSets(Project project) {
         project.plugins.withType(ShadowPlugin).whenPluginAdded {
-            /*
-             *
-             */
             ['main', 'test'].each {name ->
                 SourceSet sourceSet = project.sourceSets.findByName(name)
                 if (sourceSet != null) {

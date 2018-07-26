@@ -274,8 +274,11 @@ public class FlushIT extends ESIntegTestCase {
             "out of sync replica; num docs on replica [" + (numDocs + extraDocs) + "]; num docs on primary [" + numDocs + "]"));
         // Index extra documents to all shards - synced-flush should be ok.
         for (IndexShard indexShard : indexShards) {
-            for (int i = 0; i < extraDocs; i++) {
-                indexDoc(IndexShardTestCase.getEngine(indexShard), "extra_" + i);
+            // Do reindex documents to the out of sync replica to avoid trigger merges
+            if (indexShard != outOfSyncReplica) {
+                for (int i = 0; i < extraDocs; i++) {
+                    indexDoc(IndexShardTestCase.getEngine(indexShard), "extra_" + i);
+                }
             }
         }
         final ShardsSyncedFlushResult fullResult = SyncedFlushUtil.attemptSyncedFlush(logger, internalCluster(), shardId);

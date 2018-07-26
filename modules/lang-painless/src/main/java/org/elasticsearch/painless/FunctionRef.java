@@ -20,6 +20,7 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.lookup.PainlessClass;
+import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
@@ -27,6 +28,7 @@ import org.objectweb.asm.Type;
 
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Modifier;
+import java.util.List;
 
 import static org.elasticsearch.painless.WriterConstants.CLASS_NAME;
 import static org.objectweb.asm.Opcodes.H_INVOKEINTERFACE;
@@ -59,8 +61,10 @@ public class FunctionRef {
 
     /** interface method */
     public final PainlessMethod interfaceMethod;
-    /** delegate method */
-    public final PainlessMethod delegateMethod;
+    /** delegate method type parameters */
+    public final List<Class<?>> delegateTypeParameters;
+    /** delegate method return type */
+    public final Class<?> delegateReturnType;
 
     /** factory method type descriptor */
     public final String factoryDescriptor;
@@ -93,12 +97,12 @@ public class FunctionRef {
      * @param numCaptures number of captured arguments
      */
     public FunctionRef(Class<?> expected, PainlessMethod interfaceMethod, PainlessMethod delegateMethod, int numCaptures) {
-        MethodType delegateMethodType = delegateMethod.getMethodType();
+        MethodType delegateMethodType = getMethodType(delegateMethod);
 
         interfaceMethodName = interfaceMethod.name;
         factoryMethodType = MethodType.methodType(expected,
                 delegateMethodType.dropParameterTypes(numCaptures, delegateMethodType.parameterCount()));
-        interfaceMethodType = interfaceMethod.getMethodType().dropParameterTypes(0, 1);
+        interfaceMethodType = getMethodType(delegateMethod).dropParameterTypes(0, 1);
 
         // the Painless$Script class can be inferred if owner is null
         if (delegateMethod.target == null) {
@@ -126,7 +130,8 @@ public class FunctionRef {
         this.delegateMethodType = delegateMethodType.dropParameterTypes(0, numCaptures);
 
         this.interfaceMethod = interfaceMethod;
-        this.delegateMethod = delegateMethod;
+        delegateTypeParameters = delegateMethod.arguments;
+        delegateReturnType = delegateMethod.rtn;
 
         factoryDescriptor = factoryMethodType.toMethodDescriptorString();
         interfaceType = Type.getMethodType(interfaceMethodType.toMethodDescriptorString());
@@ -142,7 +147,7 @@ public class FunctionRef {
         interfaceMethodName = interfaceMethod.name;
         factoryMethodType = MethodType.methodType(expected,
             delegateMethodType.dropParameterTypes(numCaptures, delegateMethodType.parameterCount()));
-        interfaceMethodType = interfaceMethod.getMethodType().dropParameterTypes(0, 1);
+        interfaceMethodType = getMethodType(interfaceMethod).dropParameterTypes(0, 1);
 
         delegateClassName = CLASS_NAME;
         delegateInvokeType = H_INVOKESTATIC;
@@ -151,7 +156,8 @@ public class FunctionRef {
         isDelegateInterface = false;
 
         this.interfaceMethod = null;
-        delegateMethod = null;
+        delegateTypeParameters = null;
+        delegateReturnType = null;
 
         factoryDescriptor = null;
         interfaceType = null;
@@ -176,7 +182,7 @@ public class FunctionRef {
         final PainlessMethod impl;
         // ctor ref
         if ("new".equals(call)) {
-            impl = struct.constructors.get(PainlessLookupUtility.buildPainlessMethodKey("<init>", method.arguments.size()));
+            impl = null;//TODO: struct.constructors.get(PainlessLookupUtility.buildPainlessMethodKey("<init>", method.arguments.size()));
         } else {
             // look for a static impl first
             PainlessMethod staticImpl =
@@ -201,5 +207,59 @@ public class FunctionRef {
                                                "[" + expected + "]");
         }
         return impl;
+    }
+
+    /**
+     * Returns MethodType for this constructor.
+     */
+    private MethodType getMethodType(PainlessConstructor painlessConstructor) {
+        // constructor: returns the owner class
+        final Class<?> params[] = new Class<?>[painlessConstructor.typeParameters.size()];
+        for (int i = 0; i < painlessConstructor.typeParameters.size(); i++) {
+            params[i] = PainlessLookupUtility.typeToJavaType(painlessConstructor.typeParameters.get(i));
+        }
+        Class<?> returnValue = painlessConstructor.javaConstructor.getDeclaringClass();
+        return MethodType.methodType(returnValue, params);
+    }
+
+    /**
+     * Returns MethodType for this method.
+     * <p>
+     * This works even for user-defined Methods (where the MethodHandle is null).
+     */
+    private MethodType getMethodType(PainlessMethod painlessMethod) {
+        // we have a methodhandle already (e.g. whitelisted class)
+        // just return its type
+        if (painlessMethod.handle != null) {
+            return painlessMethod.handle.type();
+        }
+        // otherwise compute it
+        final Class<?> params[];
+        final Class<?> returnValue;
+        if (painlessMethod.augmentation != null) {
+            // static method disguised as virtual/interface method
+            params = new Class<?>[1 + painlessMethod.arguments.size()];
+            params[0] = painlessMethod.augmentation;
+            for (int i = 0; i < painlessMethod.arguments.size(); i++) {
+                params[i + 1] = PainlessLookupUtility.typeToJavaType(painlessMethod.arguments.get(i));
+            }
+            returnValue = PainlessLookupUtility.typeToJavaType(painlessMethod.rtn);
+        } else if (Modifier.isStatic(painlessMethod.modifiers)) {
+            // static method: straightforward copy
+            params = new Class<?>[painlessMethod.arguments.size()];
+            for (int i = 0; i < painlessMethod.arguments.size(); i++) {
+                params[i] = PainlessLookupUtility.typeToJavaType(painlessMethod.arguments.get(i));
+            }
+            returnValue = PainlessLookupUtility.typeToJavaType(painlessMethod.rtn);
+        } else {
+            // virtual/interface method: add receiver class
+            params = new Class<?>[1 + painlessMethod.arguments.size()];
+            params[0] = painlessMethod.target;
+            for (int i = 0; i < painlessMethod.arguments.size(); i++) {
+                params[i + 1] = PainlessLookupUtility.typeToJavaType(painlessMethod.arguments.get(i));
+            }
+            returnValue = PainlessLookupUtility.typeToJavaType(painlessMethod.rtn);
+        }
+        return MethodType.methodType(returnValue, params);
     }
 }

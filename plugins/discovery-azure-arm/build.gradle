@@ -65,7 +65,6 @@ dependencies {
   compile "com.squareup.retrofit2:retrofit:${versions.retrofit}"
   compile "commons-codec:commons-codec:1.10"
   compile "io.reactivex:rxjava:1.2.4"
-  compile "javax.activation:activation:1.1"
   compile "javax.mail:mail:1.4.7"
   // Azure is using JODA 2.1 but we have 2.9.5 which is causing kind of conflict
   // compile "joda-time:joda-time:2.1"
@@ -146,6 +145,12 @@ thirdPartyAudit.excludes = [
   'com.microsoft.azure.management.sql.implementation.SqlServerManager',
   'com.microsoft.azure.management.trafficmanager.TrafficManagerProfiles',
   'com.microsoft.azure.management.trafficmanager.implementation.TrafficManager',
+  'javax.activation.ActivationDataFlavor',
+  'javax.activation.DataContentHandler',
+  'javax.activation.DataHandler',
+  'javax.activation.DataSource',
+  'javax.activation.FileDataSource',
+  'javax.activation.FileTypeMap',
   'javax.servlet.http.HttpServletRequest',
   'javax.servlet.http.HttpServletResponse',
   'rx.Completable$CompletableOnSubscribe',
@@ -178,14 +183,4 @@ thirdPartyAudit.excludes = [
   'rx.internal.util.unsafe.SpscArrayQueue',
   'rx.internal.util.unsafe.SpscUnboundedArrayQueue',
   'rx.internal.util.unsafe.UnsafeAccess',
-
-  // JAR HELL WITH JDK
-  'com.sun.activation.registries.LineTokenizer',
-  'com.sun.activation.registries.LogSupport',
-  'com.sun.activation.registries.MailcapFile',
-  'com.sun.activation.registries.MailcapTokenizer',
-  'com.sun.activation.registries.MimeTypeEntry',
-  'com.sun.activation.registries.MimeTypeFile',
-  'javax.activation.MailcapCommandMap',
-  'javax.activation.MimetypesFileTypeMap',
 ]

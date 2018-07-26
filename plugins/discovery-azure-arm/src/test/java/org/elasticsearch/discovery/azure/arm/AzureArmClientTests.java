@@ -74,30 +74,11 @@ public class AzureArmClientTests extends ESTestCase {
         }
     }
 
-    /**
-     * This is super ugly. The HTTP client which is used behind the scene
-     * by the azure client does not close its resources.
-     * The only workaround for now is to wait for 60s so the client
-     * will shutdown "normally".
-     * See discussion on https://github.com/Azure/azure-sdk-for-java/issues/1387
-     */
     @AfterClass
-    public static void waitForHttpClientToClose() throws Exception {
+    public static void waitForHttpClientToClose() {
         if (service != null) {
             service.close();
-            OkHttpClient okHttpClient = service.restClient.httpClient();
-            okHttpClient.dispatcher().executorService().shutdown();
-            okHttpClient.connectionPool().evictAll();
-            synchronized (okHttpClient.connectionPool()) {
-                okHttpClient.connectionPool().notifyAll();
-            }
-            synchronized (AsyncTimeout.class) {
-                AsyncTimeout.class.notifyAll();
-            }
-
-            Thread.sleep(60000);
         }
-
         service = null;
     }
 }

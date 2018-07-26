@@ -1,0 +1,7 @@
+[[using-policies-rollover]]
+== Using policies to manage index rollover
+
+Demonstrate Template Usage - letting `is_write_index` default to true
+Demonstrate alias swapping - rollover will set new index to the write index
+Discuss how the `after` param will now be relative to the rollover time
+Show how after/rollover-conditions interplay with one another

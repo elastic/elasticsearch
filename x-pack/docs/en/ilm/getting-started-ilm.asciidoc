@@ -1,0 +1,14 @@
+[[getting-started-index-lifecycle-management]]
+== Getting started with {ilm}
+
+Create a policy that rolls over after 1 day deletes an index after 30 days
+
+Show create policy API req/res
+
+Show assign policy to index API req/res
+
+Show both the API and how it is done with `index.lifecyce.name` using the
+create-index API
+
+Show explain API to show current state, but ignore the “step” related info,
+only focus on managed/phase/action

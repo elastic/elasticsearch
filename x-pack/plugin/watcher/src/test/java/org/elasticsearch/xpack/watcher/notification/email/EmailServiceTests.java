@@ -68,6 +68,7 @@ public class EmailServiceTests extends ESTestCase {
                 .put("xpack.notification.email.account.account4.smtp.local_port", "1025")
                 .put("xpack.notification.email.account.account5.smtp.host", "localhost")
                 .put("xpack.notification.email.account.account5.smtp.wait_on_quit", true)
+                .put("xpack.notification.email.account.account5.smtp.ssl.trust", "host1,host2,host3")
                 .build();
         EmailService emailService = new EmailService(settings, null,
                 new ClusterSettings(Settings.EMPTY, new HashSet<>(EmailService.getSettings())));
@@ -100,5 +101,6 @@ public class EmailServiceTests extends ESTestCase {
         Account account5 = emailService.getAccount("account5");
         Properties properties5 = account5.getConfig().smtp.properties;
         assertThat(properties5, hasEntry("mail.smtp.quitwait", "true"));
+        assertThat(properties5, hasEntry("mail.smtp.ssl.trust", "host1,host2,host3"));
     }
 }

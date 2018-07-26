@@ -40,6 +40,10 @@ public class RealmSettings {
         return realmSettingPrefix(identifier.getType()) + identifier.getName() + ".";
     }
 
+    public static String realmSslPrefix(RealmConfig.RealmIdentifier identifier) {
+        return realmSettingPrefix(identifier) + "ssl.";
+    }
+
     /**
      * Create a {@link Setting#simpleString(String, Setting.Property...) simple string} {@link Setting} object for a realm of
      * with the provided type and setting suffix.
@@ -110,4 +114,5 @@ public class RealmSettings {
 
     private RealmSettings() {
     }
+
 }

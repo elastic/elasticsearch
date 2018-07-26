@@ -52,7 +52,6 @@ import static org.hamcrest.Matchers.containsString;
 public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
     private IndexService indexService;
     private DocumentMapperParser parser;
-    private DocumentMapperParser preEs6Parser;
 
     @Before
     public void setup() {
@@ -101,7 +100,7 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject());
 
         DocumentMapper defaultMapper = parser.parse("type", new CompressedXContent(mapping));
-        FieldMapper mapper = defaultMapper.mappers().getMapper("field");
+        Mapper mapper = defaultMapper.mappers().getMapper("field");
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         mapper.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();

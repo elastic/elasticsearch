@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -326,10 +327,11 @@ public class RealmsTests extends ESTestCase {
     }
 
     public void testUnlicensedWithNonStandardRealms() throws Exception {
-        factories.put(SamlRealmSettings.TYPE, config -> new DummyRealm(SamlRealmSettings.TYPE, config));
+        final String selectedRealmType = randomFrom(SamlRealmSettings.TYPE, KerberosRealmSettings.TYPE);
+        factories.put(selectedRealmType, config -> new DummyRealm(selectedRealmType, config));
         Settings.Builder builder = Settings.builder()
                 .put("path.home", createTempDir())
-                .put("xpack.security.authc.realms.saml.foo.order", "0");
+                .put("xpack.security.authc.realms." + selectedRealmType + ".foo.order", "0");
         Settings settings = builder.build();
         Environment env = TestEnvironment.newEnvironment(settings);
         Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
@@ -339,7 +341,7 @@ public class RealmsTests extends ESTestCase {
         assertThat(realm, is(reservedRealm));
         assertThat(iter.hasNext(), is(true));
         realm = iter.next();
-        assertThat(realm.type(), is(SamlRealmSettings.TYPE));
+        assertThat(realm.type(), is(selectedRealmType));
         assertThat(iter.hasNext(), is(false));
 
         when(licenseState.allowedRealmType()).thenReturn(AllowedRealmType.DEFAULT);

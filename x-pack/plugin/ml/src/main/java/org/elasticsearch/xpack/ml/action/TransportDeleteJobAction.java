@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -27,9 +26,9 @@ import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.KillProcessAction;
 import org.elasticsearch.xpack.core.ml.job.persistence.JobStorageDeletionTask;
@@ -178,7 +177,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                                       ActionListener<Boolean> listener) {
         PersistentTasksCustomMetaData tasks = currentState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
 
-        PersistentTasksCustomMetaData.PersistentTask<?> jobTask = MlMetadata.getJobTask(jobId, tasks);
+        PersistentTasksCustomMetaData.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
         if (jobTask == null) {
             listener.onResponse(null);
         } else {
@@ -213,7 +212,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
             }
 
             @Override
-            public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 logger.debug("Job [" + jobId + "] is successfully marked as deleted");
                 listener.onResponse(true);
             }
@@ -252,7 +251,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
 
     private static ClusterState buildNewClusterState(ClusterState currentState, MlMetadata.Builder builder) {
         ClusterState.Builder newState = ClusterState.builder(currentState);
-        newState.metaData(MetaData.builder(currentState.getMetaData()).putCustom(MLMetadataField.TYPE, builder.build()).build());
+        newState.metaData(MetaData.builder(currentState.getMetaData()).putCustom(MlMetadata.TYPE, builder.build()).build());
         return newState.build();
     }
 }

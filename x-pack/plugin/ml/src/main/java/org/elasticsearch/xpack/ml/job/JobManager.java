@@ -11,7 +11,6 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -31,15 +30,16 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
+import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeSta
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.process.autodetect.UpdateParams;
@@ -168,7 +169,23 @@ public class JobManager extends AbstractComponent {
 
     public JobState getJobState(String jobId) {
         PersistentTasksCustomMetaData tasks = clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-        return MlMetadata.getJobState(jobId, tasks);
+        return MlTasks.getJobState(jobId, tasks);
+    }
+
+    /**
+     * Validate the char filter/tokenizer/token filter names used in the categorization analyzer config (if any).
+     * This validation has to be done server-side; it cannot be done in a client as that won't have loaded the
+     * appropriate analysis modules/plugins.
+     * The overall structure can be validated at parse time, but the exact names need to be checked separately,
+     * as plugins that provide the functionality can be installed/uninstalled.
+     */
+    static void validateCategorizationAnalyzer(Job.Builder jobBuilder, AnalysisRegistry analysisRegistry, Environment environment)
+        throws IOException {
+        CategorizationAnalyzerConfig categorizationAnalyzerConfig = jobBuilder.getAnalysisConfig().getCategorizationAnalyzerConfig();
+        if (categorizationAnalyzerConfig != null) {
+            CategorizationAnalyzer.verifyConfigBuilder(new CategorizationAnalyzerConfig.Builder(categorizationAnalyzerConfig),
+                analysisRegistry, environment);
+        }
     }
 
     /**
@@ -178,7 +195,7 @@ public class JobManager extends AbstractComponent {
                        ActionListener<PutJobAction.Response> actionListener) throws IOException {
 
         request.getJobBuilder().validateAnalysisLimitsAndSetDefaults(maxModelMemoryLimit);
-        request.getJobBuilder().validateCategorizationAnalyzer(analysisRegistry, environment);
+        validateCategorizationAnalyzer(request.getJobBuilder(), analysisRegistry, environment);
 
         Job job = request.getJobBuilder().build(new Date());
 
@@ -347,8 +364,8 @@ public class JobManager extends AbstractComponent {
                 }
 
                 @Override
-                public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
-                    afterClusterStateUpdate(clusterChangedEvent.state(), request);
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    afterClusterStateUpdate(newState, request);
                     actionListener.onResponse(new PutJobAction.Response(updatedJob.get()));
                 }
             });
@@ -394,7 +411,7 @@ public class JobManager extends AbstractComponent {
 
     private boolean isJobOpen(ClusterState clusterState, String jobId) {
         PersistentTasksCustomMetaData persistentTasks = clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
-        JobState jobState = MlMetadata.getJobState(jobId, persistentTasks);
+        JobState jobState = MlTasks.getJobState(jobId, persistentTasks);
         return jobState == JobState.OPENED;
     }
 
@@ -404,24 +421,53 @@ public class JobManager extends AbstractComponent {
         return buildNewClusterState(currentState, builder);
     }
 
-    public void updateProcessOnFilterChanged(MlFilter filter) {
+    public void notifyFilterChanged(MlFilter filter, Set<String> addedItems, Set<String> removedItems) {
+        if (addedItems.isEmpty() && removedItems.isEmpty()) {
+            return;
+        }
+
         ClusterState clusterState = clusterService.state();
         QueryPage<Job> jobs = expandJobs("*", true, clusterService.state());
         for (Job job : jobs.results()) {
-            if (isJobOpen(clusterState, job.getId())) {
-                Set<String> jobFilters = job.getAnalysisConfig().extractReferencedFilters();
-                if (jobFilters.contains(filter.getId())) {
-                    updateJobProcessNotifier.submitJobUpdate(UpdateParams.filterUpdate(job.getId(), filter), ActionListener.wrap(
-                            isUpdated -> {
-                                if (isUpdated) {
-                                    auditor.info(job.getId(),
-                                            Messages.getMessage(Messages.JOB_AUDIT_FILTER_UPDATED_ON_PROCESS, filter.getId()));
-                                }
-                            }, e -> {}
-                    ));
+            Set<String> jobFilters = job.getAnalysisConfig().extractReferencedFilters();
+            if (jobFilters.contains(filter.getId())) {
+                if (isJobOpen(clusterState, job.getId())) {
+                    updateJobProcessNotifier.submitJobUpdate(UpdateParams.filterUpdate(job.getId(), filter),
+                            ActionListener.wrap(isUpdated -> {
+                                auditFilterChanges(job.getId(), filter.getId(), addedItems, removedItems);
+                            }, e -> {}));
+                } else {
+                    auditFilterChanges(job.getId(), filter.getId(), addedItems, removedItems);
                 }
             }
         }
+    }
+
+    private void auditFilterChanges(String jobId, String filterId, Set<String> addedItems, Set<String> removedItems) {
+        StringBuilder auditMsg = new StringBuilder("Filter [");
+        auditMsg.append(filterId);
+        auditMsg.append("] has been modified; ");
+
+        if (addedItems.isEmpty() == false) {
+            auditMsg.append("added items: ");
+            appendCommaSeparatedSet(addedItems, auditMsg);
+            if (removedItems.isEmpty() == false) {
+                auditMsg.append(", ");
+            }
+        }
+
+        if (removedItems.isEmpty() == false) {
+            auditMsg.append("removed items: ");
+            appendCommaSeparatedSet(removedItems, auditMsg);
+        }
+
+        auditor.info(jobId, auditMsg.toString());
+    }
+
+    private static void appendCommaSeparatedSet(Set<String> items, StringBuilder sb) {
+        sb.append("[");
+        Strings.collectionToDelimitedString(items, ", ", "'", "'", sb);
+        sb.append("]");
     }
 
     public void updateProcessOnCalendarChanged(List<String> calendarJobIds) {
@@ -572,7 +618,7 @@ public class JobManager extends AbstractComponent {
     private static ClusterState buildNewClusterState(ClusterState currentState, MlMetadata.Builder builder) {
         XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
         ClusterState.Builder newState = ClusterState.builder(currentState);
-        newState.metaData(MetaData.builder(currentState.getMetaData()).putCustom(MLMetadataField.TYPE, builder.build()).build());
+        newState.metaData(MetaData.builder(currentState.getMetaData()).putCustom(MlMetadata.TYPE, builder.build()).build());
         return newState.build();
     }
 }

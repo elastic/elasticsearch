@@ -7,11 +7,14 @@ package org.elasticsearch.xpack.watcher.notification;
 
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 
@@ -25,12 +28,19 @@ public abstract class NotificationService<Account> extends AbstractComponent {
     private Map<String, Account> accounts;
     private Account defaultAccount;
 
-    public NotificationService(Settings settings, String type) {
+    public NotificationService(Settings settings, String type,
+                               ClusterSettings clusterSettings, List<Setting<?>> pluginSettings) {
+        this(settings, type);
+        clusterSettings.addSettingsUpdateConsumer(this::reload, pluginSettings);
+    }
+
+    // Used for testing only
+    NotificationService(Settings settings, String type) {
         super(settings);
         this.type = type;
     }
 
-    protected synchronized void setAccountSetting(Settings settings) {
+    public synchronized void reload(Settings settings) {
         Tuple<Map<String, Account>, Account> accounts = buildAccounts(settings, this::createAccount);
         this.accounts = Collections.unmodifiableMap(accounts.v1());
         this.defaultAccount = accounts.v2();

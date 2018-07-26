@@ -6,8 +6,9 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 
-public class PutLicenseAction extends Action<PutLicenseRequest, PutLicenseResponse> {
+public class PutLicenseAction extends Action<PutLicenseResponse> {
 
     public static final PutLicenseAction INSTANCE = new PutLicenseAction();
     public static final String NAME = "cluster:admin/xpack/license/put";

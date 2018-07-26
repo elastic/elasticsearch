@@ -21,6 +21,7 @@ import org.elasticsearch.gradle.ConcatFilesTask
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.NoticeTask
 import org.elasticsearch.gradle.test.RunTask
+import org.apache.tools.ant.filters.FixCrLfFilter
 
 import java.nio.file.Path
 
@@ -226,16 +227,24 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     /*****************************************************************************
      *                   Common files in all distributions                       *
      *****************************************************************************/
-    libFiles = copySpec {
-      // delay by using closures, since they have not yet been configured, so no jar task exists yet
-      from { project(':server').jar }
-      from { project(':server').configurations.runtime }
-      from { project(':libs:plugin-classloader').jar }
-      from { project(':distribution:tools:java-version-checker').jar }
-      from { project(':distribution:tools:launchers').jar }
-      into('tools/plugin-cli') {
-        from { project(':distribution:tools:plugin-cli').jar }
-        from { project(':distribution:tools:plugin-cli').configurations.runtime }
+    libFiles = { oss ->
+      copySpec {
+        // delay by using closures, since they have not yet been configured, so no jar task exists yet
+        from { project(':server').jar }
+        from { project(':server').configurations.runtime }
+        from { project(':libs:plugin-classloader').jar }
+        from { project(':distribution:tools:java-version-checker').jar }
+        from { project(':distribution:tools:launchers').jar }
+        into('tools/plugin-cli') {
+          from { project(':distribution:tools:plugin-cli').jar }
+          from { project(':distribution:tools:plugin-cli').configurations.runtime }
+        }
+        if (oss == false) {
+          into('tools/security-cli') {
+            from { project(':x-pack:plugin:security:cli').jar }
+            from { project(':x-pack:plugin:security:cli').configurations.compile }
+          }
+        }
       }
     }
 
@@ -281,21 +290,37 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
     binFiles = { distributionType, oss ->
       copySpec {
+        // non-windows files, for all distributions 
         with copySpec {
-          // main bin files, processed with distribution specific substitutions
-          // everything except windows files
           from '../src/bin'
           exclude '*.exe'
           exclude '*.bat'
           eachFile { it.setMode(0755) }
           MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, oss))
         }
+        // windows files, only for zip
+        if (distributionType == 'zip') {
+          with copySpec {
+            from '../src/bin'
+            include '*.bat'
+            filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
+            MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, oss))
+          }
+          with copySpec {
+            from '../src/bin'
+            include '*.exe'
+          }
+        }
+        // module provided bin files
         with copySpec {
           eachFile { it.setMode(0755) }
           if (oss) {
             from project(':distribution').buildOssBin
           } else {
             from project(':distribution').buildDefaultBin
+          }
+          if (distributionType != 'zip') {
+            exclude '*.bat'
           }
         }
       }

@@ -59,9 +59,10 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.util.UUID;
 import java.util.Collections;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Phaser;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -73,6 +74,8 @@ import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.sameInstance;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -138,6 +141,7 @@ public class ShardStateActionTests extends ESTestCase {
         clusterService.close();
         transportService.close();
         super.tearDown();
+        assertThat(shardStateAction.remoteShardFailedCacheSize(), equalTo(0));
     }
 
     @AfterClass
@@ -381,6 +385,89 @@ public class ShardStateActionTests extends ESTestCase {
         assertThat(failure.get().getMessage(), equalTo(catastrophicError.getMessage()));
     }
 
+    public void testCacheRemoteShardFailed() throws Exception {
+        final String index = "test";
+        setState(clusterService, ClusterStateCreationUtils.stateWithActivePrimary(index, true, randomInt(5)));
+        ShardRouting failedShard = getRandomShardRouting(index);
+        boolean markAsStale = randomBoolean();
+        int numListeners = between(1, 100);
+        CountDownLatch latch = new CountDownLatch(numListeners);
+        long primaryTerm = randomLongBetween(1, Long.MAX_VALUE);
+        for (int i = 0; i < numListeners; i++) {
+            shardStateAction.remoteShardFailed(failedShard.shardId(), failedShard.allocationId().getId(),
+                primaryTerm, markAsStale, "test", getSimulatedFailure(), new ShardStateAction.Listener() {
+                    @Override
+                    public void onSuccess() {
+                        latch.countDown();
+                    }
+                    @Override
+                    public void onFailure(Exception e) {
+                        latch.countDown();
+                    }
+                });
+        }
+        CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
+        assertThat(capturedRequests, arrayWithSize(1));
+        transport.handleResponse(capturedRequests[0].requestId, TransportResponse.Empty.INSTANCE);
+        latch.await();
+        assertThat(transport.capturedRequests(), arrayWithSize(0));
+    }
+
+    public void testRemoteShardFailedConcurrently() throws Exception {
+        final String index = "test";
+        final AtomicBoolean shutdown = new AtomicBoolean(false);
+        setState(clusterService, ClusterStateCreationUtils.stateWithActivePrimary(index, true, randomInt(5)));
+        ShardRouting[] failedShards = new ShardRouting[between(1, 5)];
+        for (int i = 0; i < failedShards.length; i++) {
+            failedShards[i] = getRandomShardRouting(index);
+        }
+        Thread[] clientThreads = new Thread[between(1, 6)];
+        int iterationsPerThread = scaledRandomIntBetween(50, 500);
+        Phaser barrier = new Phaser(clientThreads.length + 2); // one for master thread, one for the main thread
+        Thread masterThread = new Thread(() -> {
+            barrier.arriveAndAwaitAdvance();
+            while (shutdown.get() == false) {
+                for (CapturingTransport.CapturedRequest request : transport.getCapturedRequestsAndClear()) {
+                    if (randomBoolean()) {
+                        transport.handleResponse(request.requestId, TransportResponse.Empty.INSTANCE);
+                    } else {
+                        transport.handleRemoteError(request.requestId, randomFrom(getSimulatedFailure()));
+                    }
+                }
+            }
+        });
+        masterThread.start();
+
+        AtomicInteger notifiedResponses = new AtomicInteger();
+        for (int t = 0; t < clientThreads.length; t++) {
+            clientThreads[t] = new Thread(() -> {
+                barrier.arriveAndAwaitAdvance();
+                for (int i = 0; i < iterationsPerThread; i++) {
+                    ShardRouting failedShard = randomFrom(failedShards);
+                    shardStateAction.remoteShardFailed(failedShard.shardId(), failedShard.allocationId().getId(),
+                        randomLongBetween(1, Long.MAX_VALUE), randomBoolean(), "test", getSimulatedFailure(), new ShardStateAction.Listener() {
+                            @Override
+                            public void onSuccess() {
+                                notifiedResponses.incrementAndGet();
+                            }
+                            @Override
+                            public void onFailure(Exception e) {
+                                notifiedResponses.incrementAndGet();
+                            }
+                        });
+                }
+            });
+            clientThreads[t].start();
+        }
+        barrier.arriveAndAwaitAdvance();
+        for (Thread t : clientThreads) {
+            t.join();
+        }
+        assertBusy(() -> assertThat(notifiedResponses.get(), equalTo(clientThreads.length * iterationsPerThread)));
+        shutdown.set(true);
+        masterThread.join();
+    }
+
     private ShardRouting getRandomShardRouting(String index) {
         IndexRoutingTable indexRoutingTable = clusterService.state().routingTable().index(index);
         ShardsIterator shardsIterator = indexRoutingTable.randomAllActiveShardsIt();
@@ -451,5 +538,62 @@ public class ShardStateActionTests extends ESTestCase {
             writeable.writeTo(out);
             return out.bytes();
         }
+    }
+
+    public void testCompositeListener() throws Exception {
+        AtomicInteger successCount = new AtomicInteger();
+        AtomicInteger failureCount = new AtomicInteger();
+        Exception failure = randomBoolean() ? getSimulatedFailure() : null;
+        ShardStateAction.CompositeListener compositeListener = new ShardStateAction.CompositeListener(new ShardStateAction.Listener() {
+            @Override
+            public void onSuccess() {
+                successCount.incrementAndGet();
+            }
+            @Override
+            public void onFailure(Exception e) {
+                assertThat(e, sameInstance(failure));
+                failureCount.incrementAndGet();
+            }
+        });
+        int iterationsPerThread = scaledRandomIntBetween(100, 1000);
+        Thread[] threads = new Thread[between(1, 4)];
+        Phaser barrier = new Phaser(threads.length + 1);
+        for (int i = 0; i < threads.length; i++) {
+            threads[i] = new Thread(() -> {
+                barrier.arriveAndAwaitAdvance();
+                for (int n = 0; n < iterationsPerThread; n++) {
+                    compositeListener.addListener(new ShardStateAction.Listener() {
+                        @Override
+                        public void onSuccess() {
+                            successCount.incrementAndGet();
+                        }
+                        @Override
+                        public void onFailure(Exception e) {
+                            assertThat(e, sameInstance(failure));
+                            failureCount.incrementAndGet();
+                        }
+                    });
+                }
+            });
+            threads[i].start();
+        }
+        barrier.arriveAndAwaitAdvance();
+        if (failure != null) {
+            compositeListener.onFailure(failure);
+        } else {
+            compositeListener.onSuccess();
+        }
+        for (Thread t : threads) {
+            t.join();
+        }
+        assertBusy(() -> {
+            if (failure != null) {
+                assertThat(successCount.get(), equalTo(0));
+                assertThat(failureCount.get(), equalTo(threads.length*iterationsPerThread + 1));
+            } else {
+                assertThat(successCount.get(), equalTo(threads.length*iterationsPerThread + 1));
+                assertThat(failureCount.get(), equalTo(0));
+            }
+        });
     }
 }

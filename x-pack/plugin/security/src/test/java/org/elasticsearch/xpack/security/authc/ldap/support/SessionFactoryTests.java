@@ -27,6 +27,9 @@ import org.junit.After;
 import org.junit.Before;
 
 import static org.elasticsearch.test.SecuritySettingsSource.getSettingKey;
+
+import java.nio.file.Path;
+
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -61,18 +64,18 @@ public class SessionFactoryTests extends ESTestCase {
 
     public void testConnectionFactoryReturnsCorrectLDAPConnectionOptions() throws Exception {
         final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("ldap", "conn_settings");
+        final Path pathHome = createTempDir();
         Settings settings = Settings.builder()
                 .put(getSettingKey(SessionFactorySettings.TIMEOUT_TCP_CONNECTION_SETTING, realmId), "10ms")
                 .put(getSettingKey(SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING, realmId), "false")
                 .put(getSettingKey(SessionFactorySettings.TIMEOUT_TCP_READ_SETTING, realmId), "20ms")
                 .put(getSettingKey(SessionFactorySettings.FOLLOW_REFERRALS_SETTING, realmId), "false")
+                .put("path.home", pathHome)
                 .build();
 
-        final Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
-        RealmConfig realmConfig = new RealmConfig(realmId, mergeSettings(settings, environment.settings()),
-                environment, new ThreadContext(Settings.EMPTY));
-        LDAPConnectionOptions options = SessionFactory.connectionOptions(realmConfig, new SSLService(environment.settings(), environment),
-                logger);
+        final Environment environment = TestEnvironment.newEnvironment(settings);
+        RealmConfig realmConfig = new RealmConfig(realmId, settings, environment, new ThreadContext(settings));
+        LDAPConnectionOptions options = SessionFactory.connectionOptions(realmConfig, new SSLService(settings, environment), logger);
         assertThat(options.followReferrals(), is(equalTo(false)));
         assertThat(options.allowConcurrentSocketFactoryUse(), is(equalTo(true)));
         assertThat(options.getConnectTimeoutMillis(), is(equalTo(10)));
@@ -83,29 +86,26 @@ public class SessionFactoryTests extends ESTestCase {
 
         settings = Settings.builder()
                 .put(getSettingKey(SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM, realmId), VerificationMode.CERTIFICATE)
+                .put("path.home", pathHome)
                 .build();
-        realmConfig = new RealmConfig(realmId, mergeSettings(settings, environment.settings()),
-                environment, new ThreadContext(Settings.EMPTY));
-        options = SessionFactory.connectionOptions(realmConfig, new SSLService(environment.settings(), environment),
-                logger);
+        realmConfig = new RealmConfig(realmId, settings, environment, new ThreadContext(settings));
+        options = SessionFactory.connectionOptions(realmConfig, new SSLService(settings, environment), logger);
         assertThat(options.getSSLSocketVerifier(), is(instanceOf(TrustAllSSLSocketVerifier.class)));
 
         settings = Settings.builder()
                 .put(getSettingKey(SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM, realmId), VerificationMode.NONE)
+                .put("path.home", pathHome)
                 .build();
-        realmConfig = new RealmConfig(realmId, mergeSettings(settings, environment.settings()),
-                environment, new ThreadContext(Settings.EMPTY));
-        options = SessionFactory.connectionOptions(realmConfig, new SSLService(environment.settings(), environment),
-                logger);
+        realmConfig = new RealmConfig(realmId, settings, environment, new ThreadContext(settings));
+        options = SessionFactory.connectionOptions(realmConfig, new SSLService(settings, environment), logger);
         assertThat(options.getSSLSocketVerifier(), is(instanceOf(TrustAllSSLSocketVerifier.class)));
 
         settings = Settings.builder()
                 .put(getSettingKey(SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM, realmId), VerificationMode.FULL)
+                .put("path.home", pathHome)
                 .build();
-        realmConfig = new RealmConfig(realmId, mergeSettings(settings, environment.settings()),
-                environment, new ThreadContext(Settings.EMPTY));
-        options = SessionFactory.connectionOptions(realmConfig, new SSLService(environment.settings(), environment),
-                logger);
+        realmConfig = new RealmConfig(realmId, settings, environment, new ThreadContext(settings));
+        options = SessionFactory.connectionOptions(realmConfig, new SSLService(settings, environment), logger);
         assertThat(options.getSSLSocketVerifier(), is(instanceOf(HostNameSSLSocketVerifier.class)));
     }
 

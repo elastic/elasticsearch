@@ -132,7 +132,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * To find the right position in the root query, we add a marker as `queryName` which
      * all query builders support. The added bogus field after that should trigger the exception.
      * Queries that allow arbitrary field names at this level need to override this test.
-     * @throws IOException
      */
     public void testUnknownField() throws IOException {
         String marker = "#marker#";
@@ -523,7 +522,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      */
     protected abstract void doAssertLuceneQuery(QB queryBuilder, Query query, SearchContext context) throws IOException;
 
-    protected static void assertTermOrBoostQuery(Query query, String field, String value, float fieldBoost) {
+    protected void assertTermOrBoostQuery(Query query, String field, String value, float fieldBoost) {
         if (fieldBoost != AbstractQueryBuilder.DEFAULT_BOOST) {
             assertThat(query, instanceOf(BoostQuery.class));
             BoostQuery boostQuery = (BoostQuery) query;
@@ -533,10 +532,12 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         assertTermQuery(query, field, value);
     }
 
-    protected static void assertTermQuery(Query query, String field, String value) {
+    protected void assertTermQuery(Query query, String field, String value) {
         assertThat(query, instanceOf(TermQuery.class));
         TermQuery termQuery = (TermQuery) query;
-        assertThat(termQuery.getTerm().field(), equalTo(field));
+
+        String expectedFieldName = expectedFieldName(field);
+        assertThat(termQuery.getTerm().field(), equalTo(expectedFieldName));
         assertThat(termQuery.getTerm().text().toLowerCase(Locale.ROOT), equalTo(value.toLowerCase(Locale.ROOT)));
     }
 
@@ -626,6 +627,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         Object value;
         switch (fieldName) {
             case STRING_FIELD_NAME:
+            case STRING_ALIAS_FIELD_NAME:
                 if (rarely()) {
                     // unicode in 10% cases
                     JsonStringEncoder encoder = JsonStringEncoder.getInstance();
@@ -783,5 +785,9 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         PlainActionFuture<QueryBuilder> future = new PlainActionFuture<>();
         Rewriteable.rewriteAndFetch(builder, context, future);
         return future.actionGet();
+    }
+
+    public boolean isTextField(String fieldName) {
+        return fieldName.equals(STRING_FIELD_NAME) || fieldName.equals(STRING_ALIAS_FIELD_NAME);
     }
 }

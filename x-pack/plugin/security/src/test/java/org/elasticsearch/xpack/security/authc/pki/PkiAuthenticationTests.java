@@ -24,21 +24,24 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.core.TestXPackTransportClient;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.security.SecurityField;
+import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
+import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.elasticsearch.xpack.core.ssl.SSLClientAuth;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 
-import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.TrustManagerFactory;
-import java.io.InputStream;
-import java.net.InetSocketAddress;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.security.KeyStore;
-import java.security.SecureRandom;
-import java.util.Locale;
+import javax.net.ssl.TrustManager;
 
-import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForStore;
+import java.net.InetSocketAddress;
+import java.security.SecureRandom;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForPEMFiles;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -57,14 +60,14 @@ public class PkiAuthenticationTests extends SecuritySingleNodeTestCase {
         SSLClientAuth sslClientAuth = randomBoolean() ? SSLClientAuth.REQUIRED : SSLClientAuth.OPTIONAL;
 
         Settings.Builder builder = Settings.builder()
-                .put(super.nodeSettings())
-                .put("xpack.security.http.ssl.enabled", true)
-                .put("xpack.security.http.ssl.client_authentication", sslClientAuth)
-                .put("xpack.security.authc.realms.file.file.order", "0")
-                .put("xpack.security.authc.realms.pki.pki1.order", "1")
-                .put("xpack.security.authc.realms.pki.pki1.truststore.path",
-                        getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/truststore-testnode-only.jks"))
-                .put("xpack.security.authc.realms.pki.pki1.files.role_mapping", getDataPath("role_mapping.yml"));
+            .put(super.nodeSettings())
+            .put("xpack.security.http.ssl.enabled", true)
+            .put("xpack.security.http.ssl.client_authentication", sslClientAuth)
+            .put("xpack.security.authc.realms.file.file.order", "0")
+            .put("xpack.security.authc.realms.pki.pki1.order", "1")
+            .put("xpack.security.authc.realms.pki.pki1.certificate_authorities",
+                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
+            .put("xpack.security.authc.realms.pki.pki1.files.role_mapping", getDataPath("role_mapping.yml"));
 
         SecuritySettingsSource.addSecureSettings(builder, secureSettings ->
                 secureSettings.setString("xpack.security.authc.realms.pki.pki1.truststore.secure_password", "truststore-testnode-only"));
@@ -85,7 +88,13 @@ public class PkiAuthenticationTests extends SecuritySingleNodeTestCase {
 
     public void testTransportClientCanAuthenticateViaPki() {
         Settings.Builder builder = Settings.builder();
-        addSSLSettingsForStore(builder, "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks", "testnode");
+        addSSLSettingsForPEMFiles(
+            builder,
+            "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem",
+            "testnode",
+            "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
+            Arrays.asList
+                ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
         try (TransportClient client = createTransportClient(builder.build())) {
             client.addTransportAddress(randomFrom(node().injector().getInstance(Transport.class).boundAddress().boundAddresses()));
             IndexResponse response = client.prepareIndex("foo", "bar").setSource("pki", "auth").get();
@@ -108,7 +117,11 @@ public class PkiAuthenticationTests extends SecuritySingleNodeTestCase {
     }
 
     public void testRestAuthenticationViaPki() throws Exception {
-        SSLContext context = getRestSSLContext("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks", "testnode");
+        SSLContext context = getRestSSLContext("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem",
+            "testnode",
+            "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
+            Arrays.asList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt",
+                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
         try (CloseableHttpClient client = HttpClients.custom().setSSLContext(context).build()) {
             HttpPut put = new HttpPut(getNodeUrl() + "foo");
             try (CloseableHttpResponse response = SocketAccess.doPrivileged(() -> client.execute(put))) {
@@ -119,7 +132,10 @@ public class PkiAuthenticationTests extends SecuritySingleNodeTestCase {
     }
 
     public void testRestAuthenticationFailure() throws Exception {
-        SSLContext context = getRestSSLContext("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks", "testclient");
+        SSLContext context = getRestSSLContext("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.pem",
+            "testclient", "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt",
+            Arrays.asList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt",
+                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
         try (CloseableHttpClient client = HttpClients.custom().setSSLContext(context).build()) {
             HttpPut put = new HttpPut(getNodeUrl() + "foo");
             try (CloseableHttpResponse response = SocketAccess.doPrivileged(() -> client.execute(put))) {
@@ -130,21 +146,13 @@ public class PkiAuthenticationTests extends SecuritySingleNodeTestCase {
         }
     }
 
-    private SSLContext getRestSSLContext(String keystoreResourcePath, String password) throws Exception {
+    private SSLContext getRestSSLContext(String keyPath, String password, String certPath, List<String> trustedCertPaths) throws Exception {
         SSLContext context = SSLContext.getInstance("TLS");
-        KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-        Path store = getDataPath(keystoreResourcePath);
-        KeyStore ks;
-        try (InputStream in = Files.newInputStream(store)) {
-            ks = KeyStore.getInstance("jks");
-            ks.load(in, password.toCharArray());
-        }
-
-        kmf.init(ks, password.toCharArray());
-        TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-        tmf.init(ks);
-        context.init(kmf.getKeyManagers(), tmf.getTrustManagers(), new SecureRandom());
-
+        TrustManager tm = CertParsingUtils.trustManager(CertParsingUtils.readCertificates(trustedCertPaths.stream().map(p -> getDataPath
+            (p)).collect(Collectors.toList())));
+        KeyManager km = CertParsingUtils.keyManager(CertParsingUtils.readCertificates(Collections.singletonList(getDataPath
+            (certPath))), PemUtils.readPrivateKey(getDataPath(keyPath), password::toCharArray), password.toCharArray());
+        context.init(new KeyManager[]{km}, new TrustManager[]{tm}, new SecureRandom());
         return context;
     }
 

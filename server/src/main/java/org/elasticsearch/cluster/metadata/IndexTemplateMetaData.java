@@ -381,7 +381,6 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                 aliases.build(), customs.build());
         }
 
-        @SuppressWarnings("unchecked")
         public static void toXContent(IndexTemplateMetaData indexTemplateMetaData, XContentBuilder builder, ToXContent.Params params)
                 throws IOException {
             builder.startObject(indexTemplateMetaData.name());

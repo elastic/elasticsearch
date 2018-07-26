@@ -48,7 +48,7 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
     private static final Map<String, List<? extends ToXContent>> contextMap = new HashMap<>();
     private static String categoryContextName;
     private static String geoQueryContextName;
-    private static List<ContextMapping> contextMappings = new ArrayList<>();
+    private static List<ContextMapping<?>> contextMappings = new ArrayList<>();
 
     @Override
     protected CompletionSuggestionBuilder randomSuggestionBuilder() {
@@ -164,8 +164,9 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
     }
 
     @Override
-    protected MappedFieldType mockFieldType() {
+    protected MappedFieldType mockFieldType(String fieldName) {
         CompletionFieldType completionFieldType = new CompletionFieldType();
+        completionFieldType.setName(fieldName);
         completionFieldType.setContextMappings(new ContextMappings(contextMappings));
         return completionFieldType;
     }

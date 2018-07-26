@@ -18,7 +18,7 @@ public final class CachingUsernamePasswordRealmSettings {
 
     private static final String CACHE_HASH_ALGO_SUFFIX = "cache.hash_algo";
     public static final Function<String, Setting.AffixSetting<String>> CACHE_HASH_ALGO_SETTING = RealmSettings.affixSetting(
-            CACHE_HASH_ALGO_SUFFIX, key -> Setting.simpleString(key, Setting.Property.NodeScope));
+            CACHE_HASH_ALGO_SUFFIX, key -> Setting.simpleString(key, "ssha256", Setting.Property.NodeScope));
 
     private static final TimeValue DEFAULT_TTL = TimeValue.timeValueMinutes(20);
     private static final String CACHE_TTL_SUFFIX = "cache.ttl";

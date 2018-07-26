@@ -27,8 +27,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class RealmSettingsTests extends ESTestCase {
-
-    private static final List<String> HASH_ALGOS = Arrays.stream(Hasher.values()).map(Hasher::name).collect(Collectors.toList());
+    private static final List<String> CACHE_HASHING_ALGOS = Arrays.stream(Hasher.values()).map(Hasher::name).collect(Collectors.toList());
 
     public void testRealmWithBlankTypeDoesNotValidate() throws Exception {
         final Settings.Builder builder = baseSettings(false);
@@ -233,8 +232,8 @@ public class RealmSettingsTests extends ESTestCase {
                 .put("enabled", true);
         if (withCacheSettings) {
             builder.put("cache.ttl", randomPositiveTimeValue())
-                    .put("cache.max_users", randomIntBetween(1_000, 1_000_000))
-                    .put("cache.hash_algo", randomFrom(HASH_ALGOS));
+                .put("cache.max_users", randomIntBetween(1_000, 1_000_000))
+                .put("cache.hash_algo", randomFrom(CACHE_HASHING_ALGOS));
         }
         return builder;
     }

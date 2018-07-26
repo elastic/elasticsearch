@@ -11,6 +11,7 @@ import com.unboundid.ldap.sdk.LDAPConnectionPool;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPInterface;
 import com.unboundid.ldap.sdk.SearchResultEntry;
+import com.unboundid.ldap.sdk.ServerSet;
 import com.unboundid.ldap.sdk.SimpleBindRequest;
 import com.unboundid.ldap.sdk.controls.AuthorizationIdentityRequestControl;
 import org.apache.logging.log4j.Logger;
@@ -62,8 +63,6 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
     final DownLevelADAuthenticator downLevelADAuthenticator;
     final UpnADAuthenticator upnADAuthenticator;
 
-    private final int ldapPort;
-
     ActiveDirectorySessionFactory(RealmConfig config, SSLService sslService, ThreadPool threadPool) throws LDAPException {
         super(config, sslService, new ActiveDirectoryGroupsResolver(config),
                 ActiveDirectorySessionFactorySettings.POOL_ENABLED,
@@ -85,7 +84,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
                     + "] setting for active directory");
         }
         String domainDN = buildDnFromDomain(domainName);
-        ldapPort = config.getSetting(ActiveDirectorySessionFactorySettings.AD_LDAP_PORT_SETTING);
+        final int ldapPort = config.getSetting(ActiveDirectorySessionFactorySettings.AD_LDAP_PORT_SETTING);
         final int ldapsPort = config.getSetting(ActiveDirectorySessionFactorySettings.AD_LDAPS_PORT_SETTING);
         final int gcLdapPort = config.getSetting(ActiveDirectorySessionFactorySettings.AD_GC_LDAP_PORT_SETTING);
         final int gcLdapsPort = config.getSetting(ActiveDirectorySessionFactorySettings.AD_GC_LDAPS_PORT_SETTING);
@@ -102,7 +101,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
     @Override
     protected List<String> getDefaultLdapUrls(RealmConfig config) {
         return Collections.singletonList("ldap://" + config.getSetting(ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING) +
-                ":" + ldapPort);
+                ":" + config.getSetting(ActiveDirectorySessionFactorySettings.AD_LDAP_PORT_SETTING));
     }
 
     @Override
@@ -195,6 +194,11 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
             bindDN = bindDN + "@" + config.getSetting(ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING);
         }
         return bindDN;
+    }
+
+    // Exposed for testing
+    ServerSet getServerSet() {
+        return super.serverSet;
     }
 
     ADAuthenticator getADAuthenticator(String username) {

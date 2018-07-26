@@ -190,7 +190,7 @@ public final class CsvTestUtils {
     }
 
     public static class CsvTestCase {
-        String query;
-        String expectedResults;
+        public String query;
+        public String expectedResults;
     }
 }

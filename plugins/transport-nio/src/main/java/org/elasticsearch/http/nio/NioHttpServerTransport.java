@@ -20,42 +20,29 @@
 package org.elasticsearch.http.nio;
 
 import io.netty.handler.codec.http.HttpMethod;
-import io.netty.handler.timeout.ReadTimeoutException;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.NetworkExceptionHelper;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.AbstractHttpServerTransport;
-import org.elasticsearch.http.BindHttpException;
-import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.http.HttpStats;
+import org.elasticsearch.http.HttpChannel;
+import org.elasticsearch.http.HttpServerChannel;
 import org.elasticsearch.http.nio.cors.NioCorsConfig;
 import org.elasticsearch.http.nio.cors.NioCorsConfigBuilder;
 import org.elasticsearch.nio.BytesChannelContext;
 import org.elasticsearch.nio.ChannelFactory;
 import org.elasticsearch.nio.EventHandler;
 import org.elasticsearch.nio.InboundChannelBuffer;
-import org.elasticsearch.nio.NioChannel;
 import org.elasticsearch.nio.NioGroup;
 import org.elasticsearch.nio.NioSelector;
-import org.elasticsearch.nio.NioServerSocketChannel;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.ServerChannelContext;
 import org.elasticsearch.nio.SocketChannelContext;
@@ -63,18 +50,11 @@ import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.regex.Pattern;
 
@@ -106,23 +86,21 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
             (s) -> Integer.toString(EsExecutors.numberOfProcessors(s) * 2),
             (s) -> Setting.parseInt(s, 1, "http.nio.worker_count"), Setting.Property.NodeScope);
 
-    private final PageCacheRecycler pageCacheRecycler;
+    protected final PageCacheRecycler pageCacheRecycler;
+    protected final NioCorsConfig corsConfig;
 
-    private final boolean tcpNoDelay;
-    private final boolean tcpKeepAlive;
-    private final boolean reuseAddress;
-    private final int tcpSendBufferSize;
-    private final int tcpReceiveBufferSize;
+    protected final boolean tcpNoDelay;
+    protected final boolean tcpKeepAlive;
+    protected final boolean reuseAddress;
+    protected final int tcpSendBufferSize;
+    protected final int tcpReceiveBufferSize;
 
-    private final Set<NioServerSocketChannel> serverChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
-    private final Set<NioSocketChannel> socketChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private NioGroup nioGroup;
-    private HttpChannelFactory channelFactory;
-    private final NioCorsConfig corsConfig;
+    private ChannelFactory<NioHttpServerChannel, NioHttpChannel> channelFactory;
 
     public NioHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays,
                                   PageCacheRecycler pageCacheRecycler, ThreadPool threadPool, NamedXContentRegistry xContentRegistry,
-                                  HttpServerTransport.Dispatcher dispatcher) {
+                                  Dispatcher dispatcher) {
         super(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher);
         this.pageCacheRecycler = pageCacheRecycler;
 
@@ -156,14 +134,9 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
             int workerCount = NIO_HTTP_WORKER_COUNT.get(settings);
             nioGroup = new NioGroup(daemonThreadFactory(this.settings, HTTP_SERVER_ACCEPTOR_THREAD_NAME_PREFIX), acceptorCount,
                 daemonThreadFactory(this.settings, HTTP_SERVER_WORKER_THREAD_NAME_PREFIX), workerCount,
-                (s) -> new EventHandler(this::nonChannelExceptionCaught, s));
-            channelFactory = new HttpChannelFactory();
-            this.boundAddress = createBoundHttpAddress();
-
-            if (logger.isInfoEnabled()) {
-                logger.info("{}", boundAddress);
-            }
-
+                (s) -> new EventHandler(this::onNonChannelException, s));
+            channelFactory = channelFactory();
+            bindServer();
             success = true;
         } catch (IOException e) {
             throw new ElasticsearchException(e);
@@ -175,25 +148,7 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
     }
 
     @Override
-    protected void doStop() {
-        synchronized (serverChannels) {
-            if (serverChannels.isEmpty() == false) {
-                try {
-                    closeChannels(new ArrayList<>(serverChannels));
-                } catch (Exception e) {
-                    logger.error("unexpected exception while closing http server channels", e);
-                }
-                serverChannels.clear();
-            }
-        }
-
-        try {
-            closeChannels(new ArrayList<>(socketChannels));
-        } catch (Exception e) {
-            logger.warn("unexpected exception while closing http channels", e);
-        }
-        socketChannels.clear();
-
+    protected void stopInternal() {
         try {
             nioGroup.close();
         } catch (Exception e) {
@@ -202,71 +157,12 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
     }
 
     @Override
-    protected void doClose() throws IOException {
+    protected HttpServerChannel bind(InetSocketAddress socketAddress) throws IOException {
+        return nioGroup.bindServerChannel(socketAddress, channelFactory);
     }
 
-    @Override
-    protected TransportAddress bindAddress(InetAddress hostAddress) {
-        final AtomicReference<Exception> lastException = new AtomicReference<>();
-        final AtomicReference<InetSocketAddress> boundSocket = new AtomicReference<>();
-        boolean success = port.iterate(portNumber -> {
-            try {
-                synchronized (serverChannels) {
-                    InetSocketAddress address = new InetSocketAddress(hostAddress, portNumber);
-                    NioServerSocketChannel channel = nioGroup.bindServerChannel(address, channelFactory);
-                    serverChannels.add(channel);
-                    boundSocket.set(channel.getLocalAddress());
-                }
-            } catch (Exception e) {
-                lastException.set(e);
-                return false;
-            }
-            return true;
-        });
-        if (success == false) {
-            throw new BindHttpException("Failed to bind to [" + port.getPortRangeString() + "]", lastException.get());
-        }
-
-        if (logger.isDebugEnabled()) {
-            logger.debug("Bound http to address {{}}", NetworkAddress.format(boundSocket.get()));
-        }
-        return new TransportAddress(boundSocket.get());
-    }
-
-    @Override
-    public HttpStats stats() {
-        return new HttpStats(serverChannels.size(), socketChannels.size());
-    }
-
-    protected void exceptionCaught(NioSocketChannel channel, Exception cause) {
-        if (cause instanceof ReadTimeoutException) {
-            if (logger.isTraceEnabled()) {
-                logger.trace("Read timeout [{}]", channel.getRemoteAddress());
-            }
-            channel.close();
-        } else {
-            if (lifecycle.started() == false) {
-                // ignore
-                return;
-            }
-            if (NetworkExceptionHelper.isCloseConnectionException(cause) == false) {
-                logger.warn(
-                    (Supplier<?>) () -> new ParameterizedMessage(
-                        "caught exception while handling client http traffic, closing connection {}", channel),
-                    cause);
-                channel.close();
-            } else {
-                logger.debug(
-                    (Supplier<?>) () -> new ParameterizedMessage(
-                        "caught exception while handling client http traffic, closing connection {}", channel),
-                    cause);
-                channel.close();
-            }
-        }
-    }
-
-    protected void nonChannelExceptionCaught(Exception ex) {
-        logger.warn(new ParameterizedMessage("exception caught on transport layer [thread={}]", Thread.currentThread().getName()), ex);
+    protected ChannelFactory<NioHttpServerChannel, NioHttpChannel> channelFactory() {
+        return new HttpChannelFactory();
     }
 
     static NioCorsConfig buildCorsConfig(Settings settings) {
@@ -301,33 +197,11 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
             .build();
     }
 
-    private void closeChannels(List<NioChannel> channels) {
-        List<ActionFuture<Void>> futures = new ArrayList<>(channels.size());
-
-        for (NioChannel channel : channels) {
-            PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-            channel.addCloseListener(ActionListener.toBiConsumer(future));
-            futures.add(future);
-            channel.close();
-        }
-
-        List<RuntimeException> closeExceptions  = new ArrayList<>();
-        for (ActionFuture<Void> f : futures) {
-            try {
-                f.actionGet();
-            } catch (RuntimeException e) {
-                closeExceptions.add(e);
-            }
-        }
-
-        ExceptionsHelper.rethrowAndSuppress(closeExceptions);
+    protected void acceptChannel(NioSocketChannel socketChannel) {
+        super.serverAcceptedChannel((HttpChannel) socketChannel);
     }
 
-    private void acceptChannel(NioSocketChannel socketChannel) {
-        socketChannels.add(socketChannel);
-    }
-
-    private class HttpChannelFactory extends ChannelFactory<NioServerSocketChannel, NioHttpChannel> {
+    private class HttpChannelFactory extends ChannelFactory<NioHttpServerChannel, NioHttpChannel> {
 
         private HttpChannelFactory() {
             super(new RawChannelFactory(tcpNoDelay, tcpKeepAlive, reuseAddress, tcpSendBufferSize, tcpReceiveBufferSize));
@@ -335,29 +209,28 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
 
         @Override
         public NioHttpChannel createChannel(NioSelector selector, SocketChannel channel) throws IOException {
-            NioHttpChannel nioChannel = new NioHttpChannel(channel);
+            NioHttpChannel httpChannel = new NioHttpChannel(channel);
             java.util.function.Supplier<InboundChannelBuffer.Page> pageSupplier = () -> {
                 Recycler.V<byte[]> bytes = pageCacheRecycler.bytePage(false);
                 return new InboundChannelBuffer.Page(ByteBuffer.wrap(bytes.v()), bytes::close);
             };
-            HttpReadWriteHandler httpReadWritePipeline = new HttpReadWriteHandler(nioChannel,NioHttpServerTransport.this,
+            HttpReadWriteHandler httpReadWritePipeline = new HttpReadWriteHandler(httpChannel,NioHttpServerTransport.this,
                 handlingSettings, corsConfig);
-            Consumer<Exception> exceptionHandler = (e) -> exceptionCaught(nioChannel, e);
-            SocketChannelContext context = new BytesChannelContext(nioChannel, selector, exceptionHandler, httpReadWritePipeline,
+            Consumer<Exception> exceptionHandler = (e) -> onException(httpChannel, e);
+            SocketChannelContext context = new BytesChannelContext(httpChannel, selector, exceptionHandler, httpReadWritePipeline,
                 new InboundChannelBuffer(pageSupplier));
-            nioChannel.setContext(context);
-            return nioChannel;
+            httpChannel.setContext(context);
+            return httpChannel;
         }
 
         @Override
-        public NioServerSocketChannel createServerChannel(NioSelector selector, ServerSocketChannel channel) throws IOException {
-            NioServerSocketChannel nioChannel = new NioServerSocketChannel(channel);
-            Consumer<Exception> exceptionHandler = (e) -> logger.error(() ->
-                new ParameterizedMessage("exception from server channel caught on transport layer [{}]", channel), e);
+        public NioHttpServerChannel createServerChannel(NioSelector selector, ServerSocketChannel channel) throws IOException {
+            NioHttpServerChannel httpServerChannel = new NioHttpServerChannel(channel);
+            Consumer<Exception> exceptionHandler = (e) -> onServerException(httpServerChannel, e);
             Consumer<NioSocketChannel> acceptor = NioHttpServerTransport.this::acceptChannel;
-            ServerChannelContext context = new ServerChannelContext(nioChannel, this, selector, acceptor, exceptionHandler);
-            nioChannel.setContext(context);
-            return nioChannel;
+            ServerChannelContext context = new ServerChannelContext(httpServerChannel, this, selector, acceptor, exceptionHandler);
+            httpServerChannel.setContext(context);
+            return httpServerChannel;
         }
 
     }

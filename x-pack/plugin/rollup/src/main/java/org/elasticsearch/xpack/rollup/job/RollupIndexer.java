@@ -401,11 +401,13 @@ public abstract class RollupIndexer {
             composite.setMetaData(metadata);
         }
         composite.size(config.getPageSize());
+
         return composite;
     }
 
     /**
-     * Creates the range query that limits the search to documents that appear before the maximum allowed time (see {@link this#maxBoundary}
+     * Creates the range query that limits the search to documents that appear before the maximum allowed time
+     * (see {@link #maxBoundary}
      * and on or after the last processed time.
      * @param position The current position of the pagination
      * @return The range query to execute
@@ -415,11 +417,16 @@ public abstract class RollupIndexer {
         DateHistoGroupConfig dateHisto = job.getConfig().getGroupConfig().getDateHisto();
         String fieldName = dateHisto.getField();
         String rollupFieldName = fieldName + "."  + DateHistogramAggregationBuilder.NAME;
-        long lowerBound = position != null ? (long) position.get(rollupFieldName) : 0;
+        long lowerBound = 0L;
+        if (position != null) {
+            Number value = (Number) position.get(rollupFieldName);
+            lowerBound = value.longValue();
+        }
         assert lowerBound <= maxBoundary;
         final RangeQueryBuilder query = new RangeQueryBuilder(fieldName)
                 .gte(lowerBound)
-                .lt(maxBoundary);
+                .lt(maxBoundary)
+                .format("epoch_millis");
         return query;
     }
 }

@@ -28,6 +28,16 @@ import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequ
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 
 import java.io.IOException;
 
@@ -55,7 +65,7 @@ public final class SnapshotClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public GetRepositoriesResponse getRepositories(GetRepositoriesRequest getRepositoriesRequest, RequestOptions options)
+    public GetRepositoriesResponse getRepository(GetRepositoriesRequest getRepositoriesRequest, RequestOptions options)
         throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(getRepositoriesRequest, RequestConverters::getRepositories, options,
             GetRepositoriesResponse::fromXContent, emptySet());
@@ -70,8 +80,8 @@ public final class SnapshotClient {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      */
-    public void getRepositoriesAsync(GetRepositoriesRequest getRepositoriesRequest, RequestOptions options,
-                                     ActionListener<GetRepositoriesResponse> listener) {
+    public void getRepositoryAsync(GetRepositoriesRequest getRepositoriesRequest, RequestOptions options,
+                                   ActionListener<GetRepositoriesResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(getRepositoriesRequest, RequestConverters::getRepositories, options,
             GetRepositoriesResponse::fromXContent, listener, emptySet());
     }
@@ -160,5 +170,147 @@ public final class SnapshotClient {
                                       ActionListener<VerifyRepositoryResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(verifyRepositoryRequest, RequestConverters::verifyRepository, options,
             VerifyRepositoryResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Creates a snapshot.
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
+     * API on elastic.co</a>
+     */
+    public CreateSnapshotResponse create(CreateSnapshotRequest createSnapshotRequest, RequestOptions options)
+        throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(createSnapshotRequest, RequestConverters::createSnapshot, options,
+            CreateSnapshotResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously creates a snapshot.
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
+     * API on elastic.co</a>
+     */
+    public void createAsync(CreateSnapshotRequest createSnapshotRequest, RequestOptions options,
+                                    ActionListener<CreateSnapshotResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(createSnapshotRequest, RequestConverters::createSnapshot, options,
+            CreateSnapshotResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Get snapshots.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
+     * API on elastic.co</a>
+     *
+     * @param getSnapshotsRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public GetSnapshotsResponse get(GetSnapshotsRequest getSnapshotsRequest, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(getSnapshotsRequest, RequestConverters::getSnapshots, options,
+            GetSnapshotsResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously get snapshots.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
+     * API on elastic.co</a>
+     *
+     * @param getSnapshotsRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void getAsync(GetSnapshotsRequest getSnapshotsRequest, RequestOptions options, ActionListener<GetSnapshotsResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(getSnapshotsRequest, RequestConverters::getSnapshots, options,
+            GetSnapshotsResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Gets the status of requested snapshots.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
+     * API on elastic.co</a>
+     * @param snapshotsStatusRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public SnapshotsStatusResponse status(SnapshotsStatusRequest snapshotsStatusRequest, RequestOptions options)
+        throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(snapshotsStatusRequest, RequestConverters::snapshotsStatus, options,
+            SnapshotsStatusResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously gets the status of requested snapshots.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
+     * API on elastic.co</a>
+     * @param snapshotsStatusRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void statusAsync(SnapshotsStatusRequest snapshotsStatusRequest, RequestOptions options,
+                            ActionListener<SnapshotsStatusResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(snapshotsStatusRequest, RequestConverters::snapshotsStatus, options,
+            SnapshotsStatusResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Restores a snapshot.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
+     * API on elastic.co</a>
+     *
+     * @param restoreSnapshotRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public RestoreSnapshotResponse restore(RestoreSnapshotRequest restoreSnapshotRequest, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(restoreSnapshotRequest, RequestConverters::restoreSnapshot, options,
+            RestoreSnapshotResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously restores a snapshot.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
+     * API on elastic.co</a>
+     *
+     * @param restoreSnapshotRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void restoreAsync(RestoreSnapshotRequest restoreSnapshotRequest, RequestOptions options,
+                            ActionListener<RestoreSnapshotResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(restoreSnapshotRequest, RequestConverters::restoreSnapshot, options,
+            RestoreSnapshotResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Deletes a snapshot.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
+     * API on elastic.co</a>
+     *
+     * @param deleteSnapshotRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public DeleteSnapshotResponse delete(DeleteSnapshotRequest deleteSnapshotRequest, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(deleteSnapshotRequest, RequestConverters::deleteSnapshot, options,
+            DeleteSnapshotResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously deletes a snapshot.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
+     * API on elastic.co</a>
+     *
+     * @param deleteSnapshotRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void deleteAsync(DeleteSnapshotRequest deleteSnapshotRequest, RequestOptions options,
+                            ActionListener<DeleteSnapshotResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(deleteSnapshotRequest, RequestConverters::deleteSnapshot, options,
+            DeleteSnapshotResponse::fromXContent, listener, emptySet());
     }
 }

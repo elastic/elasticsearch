@@ -19,7 +19,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
-import org.elasticsearch.xpack.core.security.authc.support.BCrypt;
 import org.elasticsearch.xpack.core.security.authc.support.CachingUsernamePasswordRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
@@ -29,6 +28,7 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -62,17 +62,16 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
     }
 
     public void testSettings() throws Exception {
-        String hashAlgo = randomFrom("bcrypt", "bcrypt4", "bcrypt5", "bcrypt6", "bcrypt7", "bcrypt8", "bcrypt9",
-                "sha1", "ssha256", "md5", "clear_text", "noop");
+        String cachingHashAlgo = Hasher.values()[randomIntBetween(0, Hasher.values().length - 1)].name().toLowerCase(Locale.ROOT);
         int maxUsers = randomIntBetween(10, 100);
         TimeValue ttl = TimeValue.timeValueMinutes(randomIntBetween(10, 20));
         final RealmConfig.RealmIdentifier identifier = new RealmConfig.RealmIdentifier("caching", "test_realm");
         Settings settings = Settings.builder()
-                .put(globalSettings)
-                .put(getSettingKey(CachingUsernamePasswordRealmSettings.CACHE_HASH_ALGO_SETTING, identifier), hashAlgo)
-                .put(getSettingKey(CachingUsernamePasswordRealmSettings.CACHE_MAX_USERS_SETTING, identifier), maxUsers)
-                .put(getSettingKey(CachingUsernamePasswordRealmSettings.CACHE_TTL_SETTING, identifier), ttl)
-                .build();
+            .put(globalSettings)
+            .put(getSettingKey(CachingUsernamePasswordRealmSettings.CACHE_HASH_ALGO_SETTING, identifier), cachingHashAlgo)
+            .put(getSettingKey(CachingUsernamePasswordRealmSettings.CACHE_MAX_USERS_SETTING, identifier), maxUsers)
+            .put(getSettingKey(CachingUsernamePasswordRealmSettings.CACHE_TTL_SETTING, identifier), ttl)
+            .build();
 
         RealmConfig config = new RealmConfig(identifier, settings,
                 TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
@@ -87,8 +86,7 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
                 listener.onFailure(new UnsupportedOperationException("this method should not be called"));
             }
         };
-
-        assertThat(realm.hasher, sameInstance(Hasher.resolve(hashAlgo)));
+        assertThat(realm.cacheHasher, sameInstance(Hasher.resolve(cachingHashAlgo)));
     }
 
     public void testAuthCache() {
@@ -354,8 +352,8 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         final String username = "username";
         final SecureString password = SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
         final AtomicInteger authCounter = new AtomicInteger(0);
-
-        final String passwordHash = new String(Hasher.BCRYPT.hash(password));
+        final Hasher pwdHasher = Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9"));
+        final String passwordHash = new String(pwdHasher.hash(password));
         RealmConfig config = new RealmConfig(new RealmConfig.RealmIdentifier("caching", "test_realm"), Settings.EMPTY, globalSettings,
             TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
         final CachingUsernamePasswordRealm realm = new CachingUsernamePasswordRealm(config, threadPool) {
@@ -363,7 +361,7 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
             protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
                 authCounter.incrementAndGet();
                 // do something slow
-                if (BCrypt.checkpw(token.credentials(), passwordHash)) {
+                if (pwdHasher.verify(token.credentials(), passwordHash.toCharArray())) {
                     listener.onResponse(AuthenticationResult.success(new User(username, new String[]{"r1", "r2", "r3"})));
                 } else {
                     listener.onFailure(new IllegalStateException("password auth should never fail"));
@@ -420,15 +418,15 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         final String username = "username";
         final SecureString password = SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
         final SecureString randomPassword = new SecureString(randomAlphaOfLength(password.length()).toCharArray());
-
-        final String passwordHash = new String(Hasher.BCRYPT.hash(password));
+        final Hasher localHasher = Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9"));
+        final String passwordHash = new String(localHasher.hash(password));
         RealmConfig config = new RealmConfig(new RealmConfig.RealmIdentifier("caching", "test_realm"), Settings.EMPTY, globalSettings,
                 TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
         final CachingUsernamePasswordRealm realm = new CachingUsernamePasswordRealm(config, threadPool) {
             @Override
             protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
                 // do something slow
-                if (BCrypt.checkpw(token.credentials(), passwordHash)) {
+                if (localHasher.verify(token.credentials(), passwordHash.toCharArray())) {
                     listener.onResponse(AuthenticationResult.success(new User(username, new String[]{"r1", "r2", "r3"})));
                 } else {
                     listener.onResponse(AuthenticationResult.unsuccessful("Incorrect password", null));

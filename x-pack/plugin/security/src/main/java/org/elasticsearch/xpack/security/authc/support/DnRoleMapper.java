@@ -68,7 +68,7 @@ public class DnRoleMapper implements UserRoleMapper {
     }
 
     @Override
-    public void refreshRealmOnChange(CachingUsernamePasswordRealm realm) {
+    public void refreshRealmOnChange(CachingRealm realm) {
         addListener(realm::expireAll);
     }
 

@@ -10,17 +10,16 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequest;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.test.WatchExecutionContextMockBuilder;
@@ -73,9 +72,8 @@ public class TransportPutWatchActionTests extends ESTestCase {
             return null;
         }).when(client).execute(any(), any(), any());
 
-        action = new TransportPutWatchAction(Settings.EMPTY, transportService, threadPool,
-                new ActionFilters(Collections.emptySet()), new IndexNameExpressionResolver(Settings.EMPTY), new ClockMock(),
-                new XPackLicenseState(Settings.EMPTY), parser, client);
+        action = new TransportPutWatchAction(Settings.EMPTY, transportService, threadPool, new ActionFilters(Collections.emptySet()),
+            new ClockMock(), new XPackLicenseState(Settings.EMPTY), parser, client);
     }
 
     public void testHeadersAreFilteredWhenPuttingWatches() throws Exception {

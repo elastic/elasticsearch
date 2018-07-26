@@ -56,10 +56,11 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -685,7 +686,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
                         return lookupPrototypeSafe(key).readFrom(in);
                     }
 
-                    @SuppressWarnings("unchecked")
                     @Override
                     public Diff<Custom> readDiff(StreamInput in, String key) throws IOException {
                         return lookupPrototypeSafe(key).readDiffFrom(in);
@@ -693,7 +693,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
                 });
             inSyncAllocationIds = DiffableUtils.readImmutableOpenIntMapDiff(in, DiffableUtils.getVIntKeySerializer(),
                 DiffableUtils.StringSetValueSerializer.getInstance());
-            if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
                 rolloverInfos = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), RolloverInfo::new,
                     RolloverInfo::readDiffFrom);
             } else {
@@ -714,7 +714,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             aliases.writeTo(out);
             customs.writeTo(out);
             inSyncAllocationIds.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
                 rolloverInfos.writeTo(out);
             }
         }
@@ -765,7 +765,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             Set<String> allocationIds = DiffableUtils.StringSetValueSerializer.getInstance().read(in, key);
             builder.putInSyncAllocationIds(key, allocationIds);
         }
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
             int rolloverAliasesSize = in.readVInt();
             for (int i = 0; i < rolloverAliasesSize; i++) {
                 builder.putRolloverInfo(new RolloverInfo(in));
@@ -800,7 +800,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             out.writeVInt(cursor.key);
             DiffableUtils.StringSetValueSerializer.getInstance().write(cursor.value, out);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
             out.writeVInt(rolloverInfos.size());
             for (ObjectCursor<RolloverInfo> cursor : rolloverInfos.values()) {
                 cursor.value.writeTo(out);
@@ -1345,7 +1345,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         }
         Long creationDate = settings.getAsLong(SETTING_CREATION_DATE, null);
         if (creationDate != null) {
-            DateTime creationDateTime = new DateTime(creationDate, DateTimeZone.UTC);
+            ZonedDateTime creationDateTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(creationDate), ZoneOffset.UTC);
             builder.put(SETTING_CREATION_DATE_STRING, creationDateTime.toString());
         }
         return builder.build();

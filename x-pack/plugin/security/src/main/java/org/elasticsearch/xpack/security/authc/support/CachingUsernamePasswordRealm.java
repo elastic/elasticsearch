@@ -27,18 +27,18 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
-import java.util.function.Function;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 
 public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm implements CachingRealm {
 
     private final Cache<String, ListenableFuture<Tuple<AuthenticationResult, UserWithHash>>> cache;
     private final ThreadPool threadPool;
-    final Hasher hasher;
+    final Hasher cacheHasher;
 
     protected CachingUsernamePasswordRealm(RealmConfig config, ThreadPool threadPool) {
         super(config);
-        hasher = Hasher.resolve(setting(CachingUsernamePasswordRealmSettings.CACHE_HASH_ALGO_SETTING), Hasher.SSHA256);
+        cacheHasher = Hasher.resolve(setting(CachingUsernamePasswordRealmSettings.CACHE_HASH_ALGO_SETTING));
         this.threadPool = threadPool;
         TimeValue ttl = setting(CachingUsernamePasswordRealmSettings.CACHE_TTL_SETTING);
         if (ttl.getNanos() > 0) {
@@ -111,7 +111,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
                     if (result.isAuthenticated()) {
                         final User user = result.getUser();
                         authenticatedUser.set(user);
-                        final UserWithHash userWithHash = new UserWithHash(user, token.credentials(), hasher);
+                        final UserWithHash userWithHash = new UserWithHash(user, token.credentials(), cacheHasher);
                         future.onResponse(new Tuple<>(result, userWithHash));
                     } else {
                         future.onResponse(new Tuple<>(result, null));
@@ -242,16 +242,14 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
     private static class UserWithHash {
         final User user;
         final char[] hash;
-        final Hasher hasher;
 
         UserWithHash(User user, SecureString password, Hasher hasher) {
             this.user = Objects.requireNonNull(user);
             this.hash = password == null ? null : hasher.hash(password);
-            this.hasher = hasher;
         }
 
         boolean verify(SecureString password) {
-            return hash != null && hasher.verify(password, hash);
+            return hash != null && Hasher.verifyHash(password, hash);
         }
     }
 }

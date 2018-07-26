@@ -33,6 +33,7 @@ import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 import java.util.List;
+
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -72,7 +73,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
 
     public void testDeletedDocs() throws Exception {
         add2SingleValuedDocumentsAndDeleteOneOfThem();
-        IndexFieldData indexFieldData = getForField("value");
+        IndexFieldData<?> indexFieldData = getForField("value");
         List<LeafReaderContext> readerContexts = refreshReader();
         for (LeafReaderContext readerContext : readerContexts) {
             AtomicFieldData fieldData = indexFieldData.load(readerContext);
@@ -86,7 +87,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
 
     public void testSingleValueAllSet() throws Exception {
         fillSingleValueAllSet();
-        IndexFieldData indexFieldData = getForField("value");
+        IndexFieldData<?> indexFieldData = getForField("value");
         List<LeafReaderContext> readerContexts = refreshReader();
         for (LeafReaderContext readerContext : readerContexts) {
             AtomicFieldData fieldData = indexFieldData.load(readerContext);
@@ -156,7 +157,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
 
     public void testSingleValueWithMissing() throws Exception {
         fillSingleValueWithMissing();
-        IndexFieldData indexFieldData = getForField("value");
+        IndexFieldData<?> indexFieldData = getForField("value");
         List<LeafReaderContext> readerContexts = refreshReader();
         for (LeafReaderContext readerContext : readerContexts) {
             AtomicFieldData fieldData = indexFieldData.load(readerContext);
@@ -177,7 +178,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
         // the segments are force merged to a single segment so that the sorted binary doc values can be asserted within a single segment.
         // Previously we used the SlowCompositeReaderWrapper but this is an unideal solution so force merging is a better idea.
         writer.forceMerge(1);
-        IndexFieldData indexFieldData = getForField("value");
+        IndexFieldData<?> indexFieldData = getForField("value");
         List<LeafReaderContext> readerContexts = refreshReader();
         for (LeafReaderContext readerContext : readerContexts) {
             AtomicFieldData fieldData = indexFieldData.load(readerContext);
@@ -211,7 +212,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
 
     public void testMultiValueWithMissing() throws Exception {
         fillMultiValueWithMissing();
-        IndexFieldData indexFieldData = getForField("value");
+        IndexFieldData<?> indexFieldData = getForField("value");
         List<LeafReaderContext> readerContexts = refreshReader();
         for (LeafReaderContext readerContext : readerContexts) {
             AtomicFieldData fieldData = indexFieldData.load(readerContext);
@@ -227,7 +228,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
 
     public void testMissingValueForAll() throws Exception {
         fillAllMissing();
-        IndexFieldData indexFieldData = getForField("value");
+        IndexFieldData<?> indexFieldData = getForField("value");
         List<LeafReaderContext> readerContexts = refreshReader();
         for (LeafReaderContext readerContext : readerContexts) {
             AtomicFieldData fieldData = indexFieldData.load(readerContext);
@@ -251,7 +252,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
 
     public void testSortMultiValuesFields() throws Exception {
         fillExtendedMvSet();
-        IndexFieldData indexFieldData = getForField("value");
+        IndexFieldData<?> indexFieldData = getForField("value");
 
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer));
         SortField sortField =

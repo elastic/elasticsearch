@@ -61,7 +61,8 @@ public class FileRealmTests extends ESTestCase {
     public void init() throws Exception {
         userPasswdStore = mock(FileUserPasswdStore.class);
         userRolesStore = mock(FileUserRolesStore.class);
-        globalSettings = Settings.builder().put("path.home", createTempDir()).build();
+        globalSettings = Settings.builder().put("path.home", createTempDir()).put("xpack.security.authc.password_hashing.algorithm",
+            randomFrom("bcrypt9", "pbkdf2")).build();
         threadPool = mock(ThreadPool.class);
         threadContext = new ThreadContext(globalSettings);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
@@ -93,9 +94,8 @@ public class FileRealmTests extends ESTestCase {
 
     public void testAuthenticateCaching() throws Exception {
         Settings settings = Settings.builder()
-                .put(RealmSettings.realmSettingPrefix(REALM_IDENTIFIER) + "cache.hash_algo",
-                        Hasher.values()[randomIntBetween(0, Hasher.values().length - 1)].name().toLowerCase(Locale.ROOT))
-                .build();
+            .put(RealmSettings.realmSettingPrefix(REALM_IDENTIFIER) + "cache.hash_algo",
+                Hasher.values()[randomIntBetween(0, Hasher.values().length - 1)].name().toLowerCase(Locale.ROOT)).build();
         RealmConfig config = getRealmConfig(settings);
         when(userPasswdStore.verifyPassword(eq("user1"), eq(new SecureString("test123")), any(Supplier.class)))
                 .thenAnswer(VERIFY_PASSWORD_ANSWER);

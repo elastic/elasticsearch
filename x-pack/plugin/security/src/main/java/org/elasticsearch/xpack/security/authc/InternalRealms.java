@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.security.authc.esnative.NativeRealm;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
+import org.elasticsearch.xpack.security.authc.kerberos.KerberosRealm;
 import org.elasticsearch.xpack.security.authc.ldap.LdapRealm;
 import org.elasticsearch.xpack.security.authc.pki.PkiRealm;
 import org.elasticsearch.xpack.security.authc.saml.SamlRealm;
@@ -31,10 +33,8 @@ import org.elasticsearch.xpack.security.authc.support.RoleMappingFileBootstrapCh
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -51,17 +51,16 @@ public final class InternalRealms {
     /**
      * The list of all <em>internal</em> realm types, excluding {@link ReservedRealm#TYPE}.
      */
-    private static final Set<String> XPACK_TYPES = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
-            NativeRealmSettings.TYPE, FileRealmSettings.TYPE, LdapRealmSettings.AD_TYPE, LdapRealmSettings.LDAP_TYPE, PkiRealmSettings.TYPE,
-            SamlRealmSettings.TYPE
-    )));
+    private static final Set<String> XPACK_TYPES = Collections
+            .unmodifiableSet(Sets.newHashSet(NativeRealmSettings.TYPE, FileRealmSettings.TYPE, LdapRealmSettings.AD_TYPE,
+                    LdapRealmSettings.LDAP_TYPE, PkiRealmSettings.TYPE, SamlRealmSettings.TYPE, KerberosRealmSettings.TYPE));
 
     /**
      * The list of all standard realm types, which are those provided by x-pack and do not have extensive
      * interaction with third party sources
      */
-    private static final Set<String> STANDARD_TYPES =
-            Collections.unmodifiableSet(Sets.difference(XPACK_TYPES, Collections.singleton(SamlRealmSettings.TYPE)));
+    private static final Set<String> STANDARD_TYPES = Collections.unmodifiableSet(Sets.newHashSet(NativeRealmSettings.TYPE,
+            FileRealmSettings.TYPE, LdapRealmSettings.AD_TYPE, LdapRealmSettings.LDAP_TYPE, PkiRealmSettings.TYPE));
 
     /**
      * Determines whether <code>type</code> is an internal realm-type that is provided by x-pack,
@@ -106,6 +105,7 @@ public final class InternalRealms {
                 sslService, resourceWatcherService, nativeRoleMappingStore, threadPool));
         map.put(PkiRealmSettings.TYPE, config -> new PkiRealm(config, resourceWatcherService, nativeRoleMappingStore));
         map.put(SamlRealmSettings.TYPE, config -> SamlRealm.create(config, sslService, resourceWatcherService, nativeRoleMappingStore));
+        map.put(KerberosRealmSettings.TYPE, config -> new KerberosRealm(config, nativeRoleMappingStore, threadPool));
         return Collections.unmodifiableMap(map);
     }
 

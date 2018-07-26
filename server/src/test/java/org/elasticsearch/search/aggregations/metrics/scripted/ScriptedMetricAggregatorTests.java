@@ -26,12 +26,9 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.MockScriptEngine;
-import org.elasticsearch.script.ScoreAccessor;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
@@ -107,7 +104,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             });
         SCRIPTS.put("mapScriptScore", params -> {
             Map<String, Object> agg = (Map<String, Object>) params.get("_agg");
-            ((List<Double>) agg.get("collector")).add(((ScoreAccessor) params.get("_score")).doubleValue());
+            ((List<Double>) agg.get("collector")).add(((Number) params.get("_score")).doubleValue());
             return agg;
         });
         SCRIPTS.put("combineScriptScore", params -> {
@@ -345,8 +342,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
      * is final and cannot be mocked
      */
     @Override
-    protected QueryShardContext queryShardContextMock(MapperService mapperService, final MappedFieldType[] fieldTypes,
-            CircuitBreakerService circuitBreakerService) {
+    protected QueryShardContext queryShardContextMock(MapperService mapperService) {
         MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, SCRIPTS);
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
         ScriptService scriptService =  new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);

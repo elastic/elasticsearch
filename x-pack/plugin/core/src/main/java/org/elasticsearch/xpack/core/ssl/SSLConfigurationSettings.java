@@ -295,4 +295,10 @@ public class SSLConfigurationSettings {
                 .map(f -> f.apply(realmType)).collect(Collectors.toList());
     }
 
+    public List<Setting<SecureString>> getSecureSettingsInUse(Settings settings) {
+        return Stream.of(this.truststorePassword, this.x509KeyPair.keystorePassword,
+            this.x509KeyPair.keystoreKeyPassword, this.x509KeyPair.keyPassword)
+            .filter(s -> s.exists(settings))
+            .collect(Collectors.toList());
+    }
 }

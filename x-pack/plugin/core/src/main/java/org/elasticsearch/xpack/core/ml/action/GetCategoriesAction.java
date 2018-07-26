@@ -29,7 +29,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class GetCategoriesAction extends Action<GetCategoriesAction.Request, GetCategoriesAction.Response> {
+public class GetCategoriesAction extends Action<GetCategoriesAction.Response> {
 
     public static final GetCategoriesAction INSTANCE = new GetCategoriesAction();
     public static final String NAME = "cluster:monitor/xpack/ml/job/results/categories/get";

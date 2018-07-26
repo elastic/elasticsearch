@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.OpenLdapTests;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.core.security.authc.ldap.LdapUserSearchSessionFac
 import org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.SearchGroupsResolverSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
+import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapTestCase;
@@ -35,33 +37,31 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
-import static org.elasticsearch.test.OpenLdapTests.LDAPTRUST_PATH;
 import static org.elasticsearch.test.SecuritySettingsSource.getSettingKey;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 
+@TestLogging("org.elasticsearch.xpack.core.ssl.SSLService:TRACE")
 public class OpenLdapUserSearchSessionFactoryTests extends ESTestCase {
 
     private Settings globalSettings;
     private ThreadPool threadPool;
-    private MockSecureSettings globalSecureSettings;
+    private static final String LDAPCACERT_PATH = "/ca.crt";
 
     @Before
     public void init() throws Exception {
-        Path keystore = getDataPath(LDAPTRUST_PATH);
+        Path caPath = getDataPath(LDAPCACERT_PATH);
         /*
          * Prior to each test we reinitialize the socket factory with a new SSLService so that we get a new SSLContext.
          * If we re-use a SSLContext, previously connected sessions can get re-established which breaks hostname
          * verification tests since a re-established connection does not perform hostname verification.
          */
-        globalSecureSettings = newSecureSettings("xpack.ssl.truststore.secure_password", "changeit");
         globalSettings = Settings.builder()
-                .put("path.home", createTempDir())
-                .put("xpack.ssl.truststore.path", keystore)
-                .setSecureSettings(globalSecureSettings)
-                .build();
+            .put("path.home", createTempDir())
+            .put("xpack.ssl.certificate_authorities", caPath)
+            .build();
         threadPool = new TestThreadPool("LdapUserSearchSessionFactoryTests");
     }
 
@@ -82,7 +82,8 @@ public class OpenLdapUserSearchSessionFactoryTests extends ESTestCase {
                 .put(getSettingKey(SearchGroupsResolverSettings.USER_ATTRIBUTE, realmId), "uid")
                 .put(getSettingKey(PoolingSessionFactorySettings.BIND_DN, realmId),
                         "uid=blackwidow,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com")
-                .put(getSettingKey(LdapUserSearchSessionFactorySettings.POOL_ENABLED, realmId), randomBoolean());
+                .put(getSettingKey(LdapUserSearchSessionFactorySettings.POOL_ENABLED, realmId), randomBoolean())
+                .put(getSettingKey(SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM, realmId), "full");
         if (useSecureBindPassword) {
             final MockSecureSettings secureSettings = new MockSecureSettings();
             secureSettings.setString(getSettingKey(PoolingSessionFactorySettings.SECURE_BIND_PASSWORD, realmId), OpenLdapTests.PASSWORD);
@@ -93,6 +94,7 @@ public class OpenLdapUserSearchSessionFactoryTests extends ESTestCase {
         final Settings settings = realmSettings.put(globalSettings).build();
         RealmConfig config = new RealmConfig(realmId, settings,
                 TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+
         SSLService sslService = new SSLService(settings, TestEnvironment.newEnvironment(settings));
 
         String[] users = new String[]{"cap", "hawkeye", "hulk", "ironman", "thor"};
@@ -117,12 +119,6 @@ public class OpenLdapUserSearchSessionFactoryTests extends ESTestCase {
         if (useSecureBindPassword == false) {
             assertSettingDeprecationsAndWarnings(new Setting<?>[]{PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD.apply("ldap")});
         }
-    }
-
-    private MockSecureSettings newSecureSettings(String key, String value) {
-        MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString(key, value);
-        return secureSettings;
     }
 
     private LdapSession session(SessionFactory factory, String username, SecureString password) {

@@ -9,15 +9,16 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetInfluencersAction;
-import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder;
 import org.elasticsearch.xpack.ml.job.JobManager;
+import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+
+import java.util.function.Supplier;
 
 public class TransportGetInfluencersAction extends HandledTransportAction<GetInfluencersAction.Request, GetInfluencersAction.Response> {
 
@@ -26,18 +27,17 @@ public class TransportGetInfluencersAction extends HandledTransportAction<GetInf
     private final JobManager jobManager;
 
     @Inject
-    public TransportGetInfluencersAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                         JobProvider jobProvider, Client client, JobManager jobManager) {
-        super(settings, GetInfluencersAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                GetInfluencersAction.Request::new);
+    public TransportGetInfluencersAction(Settings settings, TransportService transportService,
+                                         ActionFilters actionFilters, JobProvider jobProvider, Client client, JobManager jobManager) {
+        super(settings, GetInfluencersAction.NAME, transportService, actionFilters,
+            (Supplier<GetInfluencersAction.Request>) GetInfluencersAction.Request::new);
         this.jobProvider = jobProvider;
         this.client = client;
         this.jobManager = jobManager;
     }
 
     @Override
-    protected void doExecute(GetInfluencersAction.Request request, ActionListener<GetInfluencersAction.Response> listener) {
+    protected void doExecute(Task task, GetInfluencersAction.Request request, ActionListener<GetInfluencersAction.Response> listener) {
         jobManager.getJobOrThrowIfUnknown(request.getJobId());
 
         InfluencersQueryBuilder.InfluencersQuery query = new InfluencersQueryBuilder()

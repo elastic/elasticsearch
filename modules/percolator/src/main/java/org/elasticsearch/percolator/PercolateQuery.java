@@ -194,6 +194,10 @@ final class PercolateQuery extends Query implements Accountable {
         return candidateMatchesQuery;
     }
 
+    Query getVerifiedMatchesQuery() {
+        return verifiedMatchesQuery;
+    }
+
     // Comparing identity here to avoid being cached
     // Note that in theory if the same instance gets used multiple times it could still get cached,
     // however since we create a new query instance each time we this query this shouldn't happen and thus

@@ -27,6 +27,9 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.protocol.xpack.XPackInfoResponse;
+import org.elasticsearch.protocol.xpack.license.LicensesStatus;
+import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -72,7 +75,8 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
      */
     static final TimeValue GRACE_PERIOD_DURATION = days(7);
 
-    public static final long BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS = Long.MAX_VALUE - days(365).millis();
+    public static final long BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS =
+            XPackInfoResponse.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS;
 
     private final ClusterService clusterService;
 
@@ -118,7 +122,8 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         this.scheduler = new SchedulerEngine(clock);
         this.licenseState = licenseState;
         this.operationModeFileWatcher = new OperationModeFileWatcher(resourceWatcherService,
-                XPackPlugin.resolveConfigFile(env, "license_mode"), logger, () -> updateLicenseState(getLicense()));
+            XPackPlugin.resolveConfigFile(env, "license_mode"), logger,
+            () -> updateLicenseState(getLicensesMetaData()));
         this.scheduler.register(this);
         populateExpirationCallbacks();
     }
@@ -263,11 +268,11 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
 
     @Override
     public void triggered(SchedulerEngine.Event event) {
-        final LicensesMetaData licensesMetaData = clusterService.state().metaData().custom(LicensesMetaData.TYPE);
+        final LicensesMetaData licensesMetaData = getLicensesMetaData();
         if (licensesMetaData != null) {
             final License license = licensesMetaData.getLicense();
             if (event.getJobName().equals(LICENSE_JOB)) {
-                updateLicenseState(license);
+                updateLicenseState(license, licensesMetaData.getMostRecentTrialVersion());
             } else if (event.getJobName().startsWith(ExpirationCallback.EXPIRATION_JOB_PREFIX)) {
                 expirationCallbacks.stream()
                         .filter(expirationCallback -> expirationCallback.getId().equals(event.getJobName()))
@@ -307,6 +312,10 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     public License getLicense() {
         final License license = getLicense(clusterService.state().metaData());
         return license == LicensesMetaData.LICENSE_TOMBSTONE ? null : license;
+    }
+
+    private LicensesMetaData getLicensesMetaData() {
+        return this.clusterService.state().metaData().custom(LicensesMetaData.TYPE);
     }
 
     void startTrialLicense(PostStartTrialRequest request, final ActionListener<PostStartTrialResponse> listener) {
@@ -420,10 +429,16 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         }
     }
 
-    protected void updateLicenseState(final License license) {
+    private void updateLicenseState(LicensesMetaData licensesMetaData) {
+        if (licensesMetaData != null) {
+            updateLicenseState(getLicense(licensesMetaData), licensesMetaData.getMostRecentTrialVersion());
+        }
+    }
+
+    protected void updateLicenseState(final License license, Version mostRecentTrialVersion) {
         if (license == LicensesMetaData.LICENSE_TOMBSTONE) {
             // implies license has been explicitly deleted
-            licenseState.update(License.OperationMode.MISSING, false);
+            licenseState.update(License.OperationMode.MISSING, false, mostRecentTrialVersion);
             return;
         }
         if (license != null) {
@@ -436,7 +451,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                 // date that is near Long.MAX_VALUE
                 active = time >= license.issueDate() && time - GRACE_PERIOD_DURATION.getMillis() < license.expiryDate();
             }
-            licenseState.update(license.operationMode(), active);
+            licenseState.update(license.operationMode(), active, mostRecentTrialVersion);
 
             if (active) {
                 if (time < license.expiryDate()) {
@@ -478,7 +493,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                 logger.info("license [{}] mode [{}] - valid", license.uid(),
                         license.operationMode().name().toLowerCase(Locale.ROOT));
             }
-            updateLicenseState(license);
+            updateLicenseState(license, currentLicensesMetaData.getMostRecentTrialVersion());
         }
     }
 

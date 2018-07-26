@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
-import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
@@ -42,12 +41,14 @@ import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzerTests
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
+import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import java.io.ByteArrayInputStream;
@@ -202,6 +203,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         verify(jobTask).updatePersistentTaskState(eq(new JobTaskState(JobState.OPENED, 1L)), any());
     }
 
+    @SuppressWarnings("unchecked")
     public void testOpenJob_exceedMaxNumJobs() {
         when(jobManager.getJobOrThrowIfUnknown("foo")).thenReturn(createJobDetails("foo"));
         when(jobManager.getJobOrThrowIfUnknown("bar")).thenReturn(createJobDetails("bar"));
@@ -214,7 +216,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         ThreadPool.Cancellable cancellable = mock(ThreadPool.Cancellable.class);
         when(threadPool.scheduleWithFixedDelay(any(), any(), any())).thenReturn(cancellable);
         ExecutorService executorService = mock(ExecutorService.class);
-        Future future = mock(Future.class);
+        Future<?> future = mock(Future.class);
         when(executorService.submit(any(Callable.class))).thenReturn(future);
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.newDirectExecutorService());
         AutodetectProcess autodetectProcess = mock(AutodetectProcess.class);
@@ -230,7 +232,6 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         doReturn(executorService).when(manager).createAutodetectExecutorService(any());
 
         doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked")
             CheckedConsumer<Exception, IOException> consumer = (CheckedConsumer<Exception, IOException>) invocationOnMock.getArguments()[2];
             consumer.accept(null);
             return null;
@@ -489,8 +490,15 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         JobTask jobTask = mock(JobTask.class);
         when(jobTask.getJobId()).thenReturn("foo");
         UpdateParams updateParams = UpdateParams.builder("foo").modelPlotConfig(modelConfig).detectorUpdates(detectorUpdates).build();
+
         manager.writeUpdateProcessMessage(jobTask, updateParams, e -> {});
-        verify(communicator).writeUpdateProcessMessage(same(updateParams), eq(null), any());
+
+        ArgumentCaptor<UpdateProcessMessage> captor = ArgumentCaptor.forClass(UpdateProcessMessage.class);
+        verify(communicator).writeUpdateProcessMessage(captor.capture(), any());
+
+        UpdateProcessMessage updateProcessMessage = captor.getValue();
+        assertThat(updateProcessMessage.getModelPlotConfig(), equalTo(modelConfig));
+        assertThat(updateProcessMessage.getDetectorUpdates(), equalTo(detectorUpdates));
     }
 
     public void testJobHasActiveAutodetectProcess() {

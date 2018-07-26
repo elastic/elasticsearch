@@ -20,7 +20,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -56,6 +55,7 @@ import java.util.stream.Collectors;
 
 public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
 
+    public static final String TYPE = "ml";
     private static final ParseField JOBS_FIELD = new ParseField("jobs");
     private static final ParseField DATAFEEDS_FIELD = new ParseField("datafeeds");
 
@@ -120,7 +120,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
 
     @Override
     public String getWriteableName() {
-        return MLMetadataField.TYPE;
+        return TYPE;
     }
 
     @Override
@@ -214,7 +214,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
 
         @Override
         public String getWriteableName() {
-            return MLMetadataField.TYPE;
+            return TYPE;
         }
 
         static Diff<Job> readJobDiffFrom(StreamInput in) throws IOException {
@@ -278,7 +278,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
         public Builder deleteJob(String jobId, PersistentTasksCustomMetaData tasks) {
             checkJobHasNoDatafeed(jobId);
 
-            JobState jobState = MlMetadata.getJobState(jobId, tasks);
+            JobState jobState = MlTasks.getJobState(jobId, tasks);
             if (jobState.isAnyOf(JobState.CLOSED, JobState.FAILED) == false) {
                 throw ExceptionsHelper.conflictStatusException("Unexpected job state [" + jobState + "], expected [" +
                         JobState.CLOSED + " or " + JobState.FAILED + "]");
@@ -293,7 +293,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
             return this;
         }
 
-        public Builder putDatafeed(DatafeedConfig datafeedConfig, ThreadContext threadContext) {
+        public Builder putDatafeed(DatafeedConfig datafeedConfig, Map<String, String> headers) {
             if (datafeeds.containsKey(datafeedConfig.getId())) {
                 throw new ResourceAlreadyExistsException("A datafeed with id [" + datafeedConfig.getId() + "] already exists");
             }
@@ -302,13 +302,13 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
             Job job = jobs.get(jobId);
             DatafeedJobValidator.validate(datafeedConfig, job);
 
-            if (threadContext != null) {
+            if (headers.isEmpty() == false) {
                 // Adjust the request, adding security headers from the current thread context
                 DatafeedConfig.Builder builder = new DatafeedConfig.Builder(datafeedConfig);
-                Map<String, String> headers = threadContext.getHeaders().entrySet().stream()
+                Map<String, String> securityHeaders = headers.entrySet().stream()
                         .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
                         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-                builder.setHeaders(headers);
+                builder.setHeaders(securityHeaders);
                 datafeedConfig = builder.build();
             }
 
@@ -328,7 +328,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
             }
         }
 
-        public Builder updateDatafeed(DatafeedUpdate update, PersistentTasksCustomMetaData persistentTasks, ThreadContext threadContext) {
+        public Builder updateDatafeed(DatafeedUpdate update, PersistentTasksCustomMetaData persistentTasks, Map<String, String> headers) {
             String datafeedId = update.getId();
             DatafeedConfig oldDatafeedConfig = datafeeds.get(datafeedId);
             if (oldDatafeedConfig == null) {
@@ -336,7 +336,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
             }
             checkDatafeedIsStopped(() -> Messages.getMessage(Messages.DATAFEED_CANNOT_UPDATE_IN_CURRENT_STATE, datafeedId,
                     DatafeedState.STARTED), datafeedId, persistentTasks);
-            DatafeedConfig newDatafeedConfig = update.apply(oldDatafeedConfig, threadContext);
+            DatafeedConfig newDatafeedConfig = update.apply(oldDatafeedConfig, headers);
             if (newDatafeedConfig.getJobId().equals(oldDatafeedConfig.getJobId()) == false) {
                 checkJobIsAvailableForDatafeed(newDatafeedConfig.getJobId());
             }
@@ -363,7 +363,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
 
         private void checkDatafeedIsStopped(Supplier<String> msg, String datafeedId, PersistentTasksCustomMetaData persistentTasks) {
             if (persistentTasks != null) {
-                if (persistentTasks.getTask(MLMetadataField.datafeedTaskId(datafeedId)) != null) {
+                if (persistentTasks.getTask(MlTasks.datafeedTaskId(datafeedId)) != null) {
                     throw ExceptionsHelper.conflictStatusException(msg.get());
                 }
             }
@@ -400,7 +400,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
             checkJobHasNoDatafeed(jobId);
 
             if (allowDeleteOpenJob == false) {
-                PersistentTask<?> jobTask = getJobTask(jobId, tasks);
+                PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
                 if (jobTask != null) {
                     JobTaskState jobTaskState = (JobTaskState) jobTask.getState();
                     throw ExceptionsHelper.conflictStatusException("Cannot delete job [" + jobId + "] because the job is "
@@ -421,56 +421,10 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
         }
     }
 
-    /**
-     * Namespaces the task ids for jobs.
-     * A datafeed id can be used as a job id, because they are stored separately in cluster state.
-     */
-    public static String jobTaskId(String jobId) {
-        return "job-" + jobId;
-    }
 
-    @Nullable
-    public static PersistentTask<?> getJobTask(String jobId, @Nullable PersistentTasksCustomMetaData tasks) {
-        if (tasks == null) {
-            return null;
-        }
-        return tasks.getTask(jobTaskId(jobId));
-    }
-
-    @Nullable
-    public static PersistentTask<?> getDatafeedTask(String datafeedId, @Nullable PersistentTasksCustomMetaData tasks) {
-        if (tasks == null) {
-            return null;
-        }
-        return tasks.getTask(MLMetadataField.datafeedTaskId(datafeedId));
-    }
-
-    public static JobState getJobState(String jobId, @Nullable PersistentTasksCustomMetaData tasks) {
-        PersistentTask<?> task = getJobTask(jobId, tasks);
-        if (task != null) {
-            JobTaskState jobTaskState = (JobTaskState) task.getState();
-            if (jobTaskState == null) {
-                return JobState.OPENING;
-            }
-            return jobTaskState.getState();
-        }
-        // If we haven't opened a job than there will be no persistent task, which is the same as if the job was closed
-        return JobState.CLOSED;
-    }
-
-    public static DatafeedState getDatafeedState(String datafeedId, @Nullable PersistentTasksCustomMetaData tasks) {
-        PersistentTask<?> task = getDatafeedTask(datafeedId, tasks);
-        if (task != null && task.getState() != null) {
-            return (DatafeedState) task.getState();
-        } else {
-            // If we haven't started a datafeed then there will be no persistent task,
-            // which is the same as if the datafeed was't started
-            return DatafeedState.STOPPED;
-        }
-    }
 
     public static MlMetadata getMlMetadata(ClusterState state) {
-        MlMetadata mlMetadata = (state == null) ? null : state.getMetaData().custom(MLMetadataField.TYPE);
+        MlMetadata mlMetadata = (state == null) ? null : state.getMetaData().custom(TYPE);
         if (mlMetadata == null) {
             return EMPTY_METADATA;
         }

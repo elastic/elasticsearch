@@ -111,7 +111,7 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
     private final String[] csvHeaderWithNamedBlanks;
     private final List<Map<String, ?>> sampleRecords;
     private final boolean trimFields;
-    private SortedMap<String, String> mappings;
+    private SortedMap<String, Map<String, String>> mappings;
     private String filebeatToLogstashConfig;
     private String logstashFromFilebeatConfig;
     private String logstashFromFileConfig;
@@ -549,13 +549,19 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
         writeConfigFile(directory, "logstash-from-file.conf", logstashFromFileConfig);
     }
 
-    static String makeColumnConversions(Map<String, String> mappings) {
+    static String makeColumnConversions(Map<String, Map<String, String>> mappings) {
         StringBuilder builder = new StringBuilder();
 
-        for (Map.Entry<String, String> mapping : mappings.entrySet()) {
+        for (Map.Entry<String, Map<String, String>> mapping : mappings.entrySet()) {
+
+            String fieldName = mapping.getKey();
+            Map<String, String> settings = mapping.getValue();
+            if (settings.isEmpty()) {
+                continue;
+            }
 
             String convertTo = null;
-            switch (mapping.getValue()) {
+            switch (settings.get(MAPPING_TYPE_SETTING)){
 
                 case "boolean":
                     convertTo = "boolean";
@@ -574,8 +580,8 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
             }
 
             if (convertTo != null) {
-                String fieldQuote = bestLogstashQuoteFor(mapping.getKey());
-                builder.append("      ").append(fieldQuote).append(mapping.getKey()).append(fieldQuote)
+                String fieldQuote = bestLogstashQuoteFor(fieldName);
+                builder.append("      ").append(fieldQuote).append(fieldName).append(fieldQuote)
                     .append(" => \"").append(convertTo).append("\"\n");
             }
         }

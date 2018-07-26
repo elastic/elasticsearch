@@ -10,6 +10,7 @@ import org.elasticsearch.grok.Grok;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -322,15 +323,16 @@ public final class TimestampFormatFinder {
 
         /**
          * Sometimes Elasticsearch mappings for dates need to include the format.
-         * This method returns the information in the form required by the mappings
-         * builder of this program: the mapping type, followed if appropriate by a
-         * dollar sign and the format specifier.
+         * This method returns appropriate mappings settings: at minimum "type"="date",
+         * and possibly also a "format" setting.
          */
-        public String getEsDateMappingTypeWithFormat() {
+        public Map<String, String> getEsDateMappingTypeWithFormat() {
             if (dateFormats.contains("TAI64N")) {
                 // There's no format for TAI64N in the date formats used in mappings
-                return "keyword";
+                return Collections.singletonMap(AbstractLogFileStructure.MAPPING_TYPE_SETTING, "keyword");
             }
+            Map<String, String> mapping = new HashMap<>();
+            mapping.put(AbstractLogFileStructure.MAPPING_TYPE_SETTING, "date");
             String formats = dateFormats.stream().flatMap(format -> {
                 switch (format) {
                     case "ISO8601":
@@ -343,7 +345,10 @@ public final class TimestampFormatFinder {
                         return Stream.of(format);
                 }
             }).collect(Collectors.joining("||"));
-            return formats.isEmpty() ? "date" : "date$" + formats;
+            if (formats.isEmpty() == false) {
+                mapping.put(AbstractLogFileStructure.MAPPING_FORMAT_SETTING, formats);
+            }
+            return mapping;
         }
 
         @Override

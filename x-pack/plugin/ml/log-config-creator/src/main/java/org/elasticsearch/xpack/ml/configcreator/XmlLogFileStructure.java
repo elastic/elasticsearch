@@ -93,7 +93,7 @@ public class XmlLogFileStructure extends AbstractStructuredLogFileStructure impl
 
     private final String topLevelTag;
     private final List<Map<String, ?>> sampleRecords;
-    private SortedMap<String, String> mappings;
+    private SortedMap<String, Map<String, String>> mappings;
     private String filebeatToLogstashConfig;
     private String logstashFromFilebeatConfig;
     private String logstashFromFileConfig;

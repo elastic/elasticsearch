@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.ml.configcreator.TimestampFormatFinder.TimestampM
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -102,12 +103,11 @@ public abstract class AbstractStructuredLogFileStructure extends AbstractLogFile
     /**
      * Given the sampled record, guess appropriate Elasticsearch mappings.
      * @param sampleRecords The sampled records.
-     * @return A map of field name to mapping type.  This may contain empty string values,
-     *         indicating that no mapping type could be determined for that field.
+     * @return A map of field name to mapping settings.
      */
-    protected SortedMap<String, String> guessMappings(List<Map<String, ?>> sampleRecords) throws UserException {
+    protected SortedMap<String, Map<String, String>> guessMappings(List<Map<String, ?>> sampleRecords) throws UserException {
 
-        SortedMap<String, String> mappings = new TreeMap<>();
+        SortedMap<String, Map<String, String>> mappings = new TreeMap<>();
 
         if (sampleRecords != null) {
 
@@ -128,17 +128,17 @@ public abstract class AbstractStructuredLogFileStructure extends AbstractLogFile
         return mappings;
     }
 
-    String guessMapping(String fieldName, List<Object> fieldValues) {
+    Map<String, String> guessMapping(String fieldName, List<Object> fieldValues) {
 
         if (fieldValues == null || fieldValues.isEmpty()) {
             // We can get here if all the records that contained a given field had a null value for it.
             // In this case it's best not to make any statement about what the mapping type should be.
-            return "";
+            return null;
         }
 
         if (fieldValues.stream().anyMatch(value -> value instanceof Map)) {
             if (fieldValues.stream().allMatch(value -> value instanceof Map)) {
-                return "object";
+                return Collections.singletonMap(MAPPING_TYPE_SETTING, "object");
             }
             throw new RuntimeException("Field [" + fieldName +
                 "] has both object and non-object values - this won't work with Elasticsearch");

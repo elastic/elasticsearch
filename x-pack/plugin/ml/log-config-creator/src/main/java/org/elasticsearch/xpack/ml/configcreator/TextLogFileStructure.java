@@ -124,7 +124,7 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
 
     private final String sample;
     private final FilebeatModuleStore filebeatModuleStore;
-    private SortedMap<String, String> mappings;
+    private SortedMap<String, Map<String, String>> mappings;
     private String filebeatToLogstashConfig;
     private String logstashFromFilebeatConfig;
     private String logstashFromFileConfig;
@@ -207,7 +207,7 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
         createPreambleComment(linesConsumed, sampleMessages.size(), preamble.toString());
 
         mappings = new TreeMap<>();
-        mappings.put("message", "text");
+        mappings.put("message", Collections.singletonMap(MAPPING_TYPE_SETTING, "text"));
 
         // We can't parse directly into @timestamp using Grok, so parse to some other time field, which the date filter will then remove
         String interimTimestampField;

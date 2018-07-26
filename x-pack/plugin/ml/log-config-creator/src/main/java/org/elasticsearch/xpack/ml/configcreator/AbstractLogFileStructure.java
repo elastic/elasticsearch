@@ -17,7 +17,9 @@ import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.security.AccessControlException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.SortedMap;
 import java.util.stream.Collectors;
@@ -26,6 +28,8 @@ public abstract class AbstractLogFileStructure {
 
     protected static final boolean IS_WINDOWS = System.getProperty("os.name").startsWith("Windows");
     protected static final String DEFAULT_TIMESTAMP_FIELD = "@timestamp";
+    protected static final String MAPPING_TYPE_SETTING = "type";
+    protected static final String MAPPING_FORMAT_SETTING = "format";
 
     private static final String BEAT_TIMEZONE_FIELD = "beat.timezone";
 
@@ -71,12 +75,12 @@ public abstract class AbstractLogFileStructure {
     private static final String INGEST_PIPELINE_DATE_PARSE_TIMEZONE = "        \"timezone\": \"{{ " + BEAT_TIMEZONE_FIELD + " }}\",\n";
 
     private static final String FIELD_MAPPING_FORMAT_TEMPLATE = ",\n" +
-        "%s  \"format\": \"%s\"";
+        "%s  \"" + MAPPING_FORMAT_SETTING + "\": \"%s\"";
     private static final String FIELD_MAPPING_TEMPLATE = "%s\"%s\": {\n" +
-        "%s  \"type\": \"%s\"%s\n" +
+        "%s  \"" + MAPPING_TYPE_SETTING + "\": \"%s\"%s\n" +
         "%s}";
     private static final String TOP_LEVEL_OBJECT_FIELD_MAPPING_TEMPLATE = "        \"%s\": {\n" +
-        "          \"type\": \"object\",\n" +
+        "          \"" + MAPPING_TYPE_SETTING + "\": \"object\",\n" +
         "          \"properties\": {\n" +
         "%s\n" +
         "          }\n" +
@@ -87,7 +91,7 @@ public abstract class AbstractLogFileStructure {
         "    \"_doc\": {\n" +
         "      \"properties\": {\n" +
         "        \"" + DEFAULT_TIMESTAMP_FIELD + "\": {\n" +
-        "          \"type\": \"date\"\n" +
+        "          \"" + MAPPING_TYPE_SETTING + "\": \"date\"\n" +
         "        },\n" +
         "%s\n" +
         "      }\n" +
@@ -137,21 +141,21 @@ public abstract class AbstractLogFileStructure {
         writeConfigFile(directory, consoleFileName.replaceFirst("\\.console$", ".sh"), curlCommand);
     }
 
-    protected void writeMappingsConfigs(Path directory, SortedMap<String, String> fieldTypes) throws IOException {
+    protected void writeMappingsConfigs(Path directory, SortedMap<String, Map<String, String>> fieldTypes) throws IOException {
         writeMappingsConfigs(directory, null, fieldTypes);
     }
 
-    protected void writeMappingsConfigs(Path directory, String topLevelObjectName, SortedMap<String, String> fieldTypes)
+    protected void writeMappingsConfigs(Path directory, String topLevelObjectName, SortedMap<String, Map<String, String>> fieldTypes)
         throws IOException {
         terminal.println(Verbosity.VERBOSE, "---");
         String indent = (topLevelObjectName == null) ? "        " : "            ";
-        String fieldTypeMappings = fieldTypes.entrySet().stream().filter(entry -> entry.getValue().isEmpty() == false)
+        String fieldTypeMappings = fieldTypes.entrySet().stream().filter(entry -> entry.getValue().get(MAPPING_TYPE_SETTING) != null)
             .map(entry -> {
-                String[] mappingData = entry.getValue().split("\\$");
-                String type = mappingData[0];
-                String format = (mappingData.length < 2) ? "" : String.format(Locale.ROOT, FIELD_MAPPING_FORMAT_TEMPLATE, indent,
-                    mappingData[1]);
-                return String.format(Locale.ROOT, FIELD_MAPPING_TEMPLATE, indent, entry.getKey(), indent, type, format, indent);
+                Map<String, String> mappingData = entry.getValue();
+                String type = mappingData.get(MAPPING_TYPE_SETTING);
+                String format = mappingData.get(MAPPING_FORMAT_SETTING);
+                String formatSettingStr = (format == null) ? "" : String.format(Locale.ROOT, FIELD_MAPPING_FORMAT_TEMPLATE, indent, format);
+                return String.format(Locale.ROOT, FIELD_MAPPING_TEMPLATE, indent, entry.getKey(), indent, type, formatSettingStr, indent);
             }).collect(Collectors.joining(",\n"));
         if (topLevelObjectName != null) {
             fieldTypeMappings = String.format(Locale.ROOT, TOP_LEVEL_OBJECT_FIELD_MAPPING_TEMPLATE, topLevelObjectName, fieldTypeMappings);
@@ -199,10 +203,10 @@ public abstract class AbstractLogFileStructure {
             multilineRegexQuote);
     }
 
-    protected static String guessScalarMapping(Terminal terminal, String fieldName, Collection<String> fieldValues) {
+    protected static Map<String, String> guessScalarMapping(Terminal terminal, String fieldName, Collection<String> fieldValues) {
 
         if (fieldValues.stream().allMatch(value -> "true".equals(value) || "false".equals(value))) {
-            return "boolean";
+            return Collections.singletonMap(MAPPING_TYPE_SETTING, "boolean");
         }
 
         TimestampMatch singleMatch = null;
@@ -224,14 +228,14 @@ public abstract class AbstractLogFileStructure {
         if (fieldValues.stream().allMatch(NUMBER_GROK::match)) {
             try {
                 fieldValues.forEach(Long::parseLong);
-                return "long";
+                return Collections.singletonMap(MAPPING_TYPE_SETTING, "long");
             } catch (NumberFormatException e) {
                 terminal.println(Verbosity.VERBOSE,
                     "Rejecting type 'long' for field [" + fieldName + "] due to parse failure: [" + e.getMessage() + "]");
             }
             try {
                 fieldValues.forEach(Double::parseDouble);
-                return "double";
+                return Collections.singletonMap(MAPPING_TYPE_SETTING, "double");
             } catch (NumberFormatException e) {
                 terminal.println(Verbosity.VERBOSE,
                     "Rejecting type 'double' for field [" + fieldName + "] due to parse failure: [" + e.getMessage() + "]");
@@ -239,14 +243,14 @@ public abstract class AbstractLogFileStructure {
         }
 
         else if (fieldValues.stream().allMatch(IP_GROK::match)) {
-            return "ip";
+            return Collections.singletonMap(MAPPING_TYPE_SETTING, "ip");
         }
 
         if (fieldValues.stream().anyMatch(AbstractStructuredLogFileStructure::isMoreLikelyTextThanKeyword)) {
-            return "text";
+            return Collections.singletonMap(MAPPING_TYPE_SETTING, "text");
         }
 
-        return "keyword";
+        return Collections.singletonMap(MAPPING_TYPE_SETTING, "keyword");
     }
 
     static boolean isMoreLikelyTextThanKeyword(String str) {

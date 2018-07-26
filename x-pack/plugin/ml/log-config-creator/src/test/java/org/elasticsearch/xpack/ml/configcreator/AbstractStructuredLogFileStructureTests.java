@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.ml.configcreator.TimestampFormatFinder.TimestampM
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -169,50 +170,71 @@ public class AbstractStructuredLogFileStructureTests extends LogConfigCreatorTes
     }
 
     public void testGuessMappingGivenNothing() {
-        assertEquals("", testStructure.guessMapping("foo", Collections.emptyList()));
+        assertNull(testStructure.guessMapping("foo", Collections.emptyList()));
     }
 
     public void testGuessMappingGivenKeyword() {
-        assertEquals("keyword", testStructure.guessMapping("foo", Arrays.asList("ERROR", "INFO", "DEBUG")));
-        assertEquals("keyword", testStructure.guessMapping("foo", Arrays.asList("2018-06-11T13:26:47Z", "not a date")));
+        Map<String, String> expected = Collections.singletonMap(AbstractLogFileStructure.MAPPING_TYPE_SETTING, "keyword");
+
+        assertEquals(expected, testStructure.guessMapping("foo", Arrays.asList("ERROR", "INFO", "DEBUG")));
+        assertEquals(expected, testStructure.guessMapping("foo", Arrays.asList("2018-06-11T13:26:47Z", "not a date")));
     }
 
     public void testGuessMappingGivenText() {
-        assertEquals("text", testStructure.guessMapping("foo", Arrays.asList("a", "the quick brown fox jumped over the lazy dog")));
+        Map<String, String> expected = Collections.singletonMap(AbstractLogFileStructure.MAPPING_TYPE_SETTING, "text");
+
+        assertEquals(expected, testStructure.guessMapping("foo", Arrays.asList("a", "the quick brown fox jumped over the lazy dog")));
     }
 
     public void testGuessMappingGivenIp() {
-        assertEquals("ip", testStructure.guessMapping("foo", Arrays.asList("10.0.0.1", "172.16.0.1", "192.168.0.1")));
+        Map<String, String> expected = Collections.singletonMap(AbstractLogFileStructure.MAPPING_TYPE_SETTING, "ip");
+
+        assertEquals(expected, testStructure.guessMapping("foo", Arrays.asList("10.0.0.1", "172.16.0.1", "192.168.0.1")));
     }
 
     public void testGuessMappingGivenDouble() {
-        assertEquals("double", testStructure.guessMapping("foo", Arrays.asList("3.14159265359", "0", "-8")));
-        assertEquals("double", testStructure.guessMapping("foo", Arrays.asList("1", "2", "12345678901234567890"))); // too long for long
-        assertEquals("double", testStructure.guessMapping("foo", Arrays.asList(3.14159265359, 0.0, 1e-308)));
-        assertEquals("double", testStructure.guessMapping("foo", Arrays.asList("-1e-1", "-1e308", "1e-308")));
+        Map<String, String> expected = Collections.singletonMap(AbstractLogFileStructure.MAPPING_TYPE_SETTING, "double");
+
+        assertEquals(expected, testStructure.guessMapping("foo", Arrays.asList("3.14159265359", "0", "-8")));
+        assertEquals(expected, testStructure.guessMapping("foo", Arrays.asList("1", "2", "12345678901234567890"))); // too long for long
+        assertEquals(expected, testStructure.guessMapping("foo", Arrays.asList(3.14159265359, 0.0, 1e-308)));
+        assertEquals(expected, testStructure.guessMapping("foo", Arrays.asList("-1e-1", "-1e308", "1e-308")));
     }
 
     public void testGuessMappingGivenLong() {
-        assertEquals("long", testStructure.guessMapping("foo", Arrays.asList("500", "3", "-3")));
-        assertEquals("long", testStructure.guessMapping("foo", Arrays.asList(500, 6, 0)));
+        Map<String, String> expected = Collections.singletonMap(AbstractLogFileStructure.MAPPING_TYPE_SETTING, "long");
+
+        assertEquals(expected, testStructure.guessMapping("foo", Arrays.asList("500", "3", "-3")));
+        assertEquals(expected, testStructure.guessMapping("foo", Arrays.asList(500, 6, 0)));
     }
 
     public void testGuessMappingGivenDate() {
-        assertEquals("date", testStructure.guessMapping("foo", Arrays.asList("2018-06-11T13:26:47Z", "2018-06-11T13:27:12Z")));
+        Map<String, String> expected = Collections.singletonMap(AbstractLogFileStructure.MAPPING_TYPE_SETTING, "date");
+
+        assertEquals(expected, testStructure.guessMapping("foo", Arrays.asList("2018-06-11T13:26:47Z", "2018-06-11T13:27:12Z")));
     }
 
     public void testGuessMappingGivenBoolean() {
-        assertEquals("boolean", testStructure.guessMapping("foo", Arrays.asList("false", "true")));
-        assertEquals("boolean", testStructure.guessMapping("foo", Arrays.asList(true, false)));
+        Map<String, String> expected = Collections.singletonMap(AbstractLogFileStructure.MAPPING_TYPE_SETTING, "boolean");
+
+        assertEquals(expected, testStructure.guessMapping("foo", Arrays.asList("false", "true")));
+        assertEquals(expected, testStructure.guessMapping("foo", Arrays.asList(true, false)));
     }
 
     public void testGuessMappingGivenArray() {
-        assertEquals("long", testStructure.guessMapping("foo", Arrays.asList(42, Arrays.asList(1, -99))));
-        assertEquals("keyword", testStructure.guessMapping("foo", Arrays.asList(new String[]{ "x", "y" }, "z")));
+        Map<String, String> expected = Collections.singletonMap(AbstractLogFileStructure.MAPPING_TYPE_SETTING, "long");
+
+        assertEquals(expected, testStructure.guessMapping("foo", Arrays.asList(42, Arrays.asList(1, -99))));
+
+        expected = Collections.singletonMap(AbstractLogFileStructure.MAPPING_TYPE_SETTING, "keyword");
+
+        assertEquals(expected, testStructure.guessMapping("foo", Arrays.asList(new String[]{ "x", "y" }, "z")));
     }
 
     public void testGuessMappingGivenObject() {
-        assertEquals("object", testStructure.guessMapping("foo", Arrays.asList(Collections.singletonMap("name", "value1"),
+        Map<String, String> expected = Collections.singletonMap(AbstractLogFileStructure.MAPPING_TYPE_SETTING, "object");
+
+        assertEquals(expected, testStructure.guessMapping("foo", Arrays.asList(Collections.singletonMap("name", "value1"),
             Collections.singletonMap("name", "value2"))));
     }
 
@@ -235,11 +257,14 @@ public class AbstractStructuredLogFileStructureTests extends LogConfigCreatorTes
         sample2.put("bar", 17);
         sample2.put("nothing", null);
 
-        Map<String, String> mappings = testStructure.guessMappings(Arrays.asList(sample1, sample2));
+        Map<String, Map<String, String>> mappings = testStructure.guessMappings(Arrays.asList(sample1, sample2));
         assertNotNull(mappings);
-        assertEquals("keyword", mappings.get("foo"));
-        assertEquals("date$YYYY-MM-dd HH:mm:ss,SSS", mappings.get("time"));
-        assertEquals("long", mappings.get("bar"));
-        assertEquals("", mappings.get("nothing"));
+        assertEquals(Collections.singletonMap(AbstractLogFileStructure.MAPPING_TYPE_SETTING, "keyword"), mappings.get("foo"));
+        Map<String, String> expectedTimeMapping = new HashMap<>();
+        expectedTimeMapping.put(AbstractLogFileStructure.MAPPING_TYPE_SETTING, "date");
+        expectedTimeMapping.put(AbstractLogFileStructure.MAPPING_FORMAT_SETTING, "YYYY-MM-dd HH:mm:ss,SSS");
+        assertEquals(expectedTimeMapping, mappings.get("time"));
+        assertEquals(Collections.singletonMap(AbstractLogFileStructure.MAPPING_TYPE_SETTING, "long"), mappings.get("bar"));
+        assertNull(mappings.get("nothing"));
     }
 }

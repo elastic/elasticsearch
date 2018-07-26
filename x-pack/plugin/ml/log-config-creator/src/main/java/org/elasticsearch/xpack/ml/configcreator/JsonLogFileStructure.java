@@ -112,7 +112,7 @@ public class JsonLogFileStructure extends AbstractStructuredLogFileStructure imp
         "}\n";
 
     private final List<Map<String, ?>> sampleRecords;
-    private SortedMap<String, String> mappings;
+    private SortedMap<String, Map<String, String>> mappings;
     private String filebeatToLogstashConfig;
     private String logstashFromFilebeatConfig;
     private String logstashFromFileConfig;

@@ -11,6 +11,7 @@ import org.supercsv.prefs.CsvPreference;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -287,15 +288,15 @@ public class SeparatedValuesLogFileStructureTests extends LogConfigCreatorTestCa
     }
 
     public void testMakeColumnConversions() {
-        Map<String, String> mappings = new LinkedHashMap<>();
-        mappings.put("f1", "long");
-        mappings.put("f2", "date");
-        mappings.put("f3", "text");
-        mappings.put("f4", "keyword");
-        mappings.put("f5", "double");
-        mappings.put("f6", "long");
-        mappings.put("f7", "boolean");
-        mappings.put("f8", "keyword");
+        Map<String, Map<String, String>> mappings = new LinkedHashMap<>();
+        mappings.put("f1", Collections.singletonMap(AbstractLogFileStructure.MAPPING_TYPE_SETTING, "long"));
+        mappings.put("f2", Collections.singletonMap(AbstractLogFileStructure.MAPPING_TYPE_SETTING, "date"));
+        mappings.put("f3", Collections.singletonMap(AbstractLogFileStructure.MAPPING_TYPE_SETTING, "text"));
+        mappings.put("f4", Collections.singletonMap(AbstractLogFileStructure.MAPPING_TYPE_SETTING, "keyword"));
+        mappings.put("f5", Collections.singletonMap(AbstractLogFileStructure.MAPPING_TYPE_SETTING, "double"));
+        mappings.put("f6", Collections.singletonMap(AbstractLogFileStructure.MAPPING_TYPE_SETTING, "long"));
+        mappings.put("f7", Collections.singletonMap(AbstractLogFileStructure.MAPPING_TYPE_SETTING, "boolean"));
+        mappings.put("f8", Collections.singletonMap(AbstractLogFileStructure.MAPPING_TYPE_SETTING, "keyword"));
         String conversions = SeparatedValuesLogFileStructure.makeColumnConversions(mappings);
         assertEquals("    convert => {\n" +
             "      \"f1\" => \"integer\"\n" +

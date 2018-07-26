@@ -100,6 +100,7 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -181,6 +182,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final IndicesQueryCache indicesQueryCache;
     private final MetaStateService metaStateService;
     private final Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders;
+    private final Map<String, Function<IndexSettings, IndexStore>> indexStoreFactories;
 
     @Override
     protected void doStart() {
@@ -193,7 +195,8 @@ public class IndicesService extends AbstractLifecycleComponent
                           MapperRegistry mapperRegistry, NamedWriteableRegistry namedWriteableRegistry, ThreadPool threadPool,
                           IndexScopedSettings indexScopedSettings, CircuitBreakerService circuitBreakerService, BigArrays bigArrays,
                           ScriptService scriptService, Client client, MetaStateService metaStateService,
-                          Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders) {
+                          Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders,
+                          Map<String, Function<IndexSettings, IndexStore>> indexStoreFactories) {
         super(settings);
         this.threadPool = threadPool;
         this.pluginsService = pluginsService;
@@ -225,6 +228,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.cacheCleaner = new CacheCleaner(indicesFieldDataCache, indicesRequestCache,  logger, threadPool, this.cleanInterval);
         this.metaStateService = metaStateService;
         this.engineFactoryProviders = engineFactoryProviders;
+        this.indexStoreFactories = indexStoreFactories;
     }
 
     @Override
@@ -464,7 +468,7 @@ public class IndicesService extends AbstractLifecycleComponent
             idxSettings.getNumberOfReplicas(),
             reason);
 
-        final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry, getEngineFactory(idxSettings));
+        final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry, getEngineFactory(idxSettings), indexStoreFactories);
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
         }
@@ -524,7 +528,7 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public synchronized MapperService createIndexMapperService(IndexMetaData indexMetaData) throws IOException {
         final IndexSettings idxSettings = new IndexSettings(indexMetaData, this.settings, indexScopedSettings);
-        final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry, getEngineFactory(idxSettings));
+        final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry, getEngineFactory(idxSettings), indexStoreFactories);
         pluginsService.onIndexModule(indexModule);
         return indexModule.newIndexMapperService(xContentRegistry, mapperRegistry, scriptService);
     }

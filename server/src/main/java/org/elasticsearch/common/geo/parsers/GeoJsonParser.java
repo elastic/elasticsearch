@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.common.geo.parsers;
 
-import org.locationtech.jts.geom.Coordinate;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -29,6 +28,7 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
+import org.locationtech.jts.geom.Coordinate;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -128,10 +128,6 @@ abstract class GeoJsonParser {
         } else if (radius != null && GeoShapeType.CIRCLE != shapeType) {
             throw new ElasticsearchParseException("field [{}] is supported for [{}] only", CircleBuilder.FIELD_RADIUS,
                 CircleBuilder.TYPE);
-        }
-
-        if (shapeType == null) {
-            throw new ElasticsearchParseException("shape type [{}] not included", shapeType);
         }
 
         if (shapeType.equals(GeoShapeType.GEOMETRYCOLLECTION)) {

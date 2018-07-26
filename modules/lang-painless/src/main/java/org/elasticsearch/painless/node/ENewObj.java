@@ -72,8 +72,9 @@ public final class ENewObj extends AExpression {
             constructor.arguments.toArray(types);
 
             if (constructor.arguments.size() != arguments.size()) {
-                throw createError(new IllegalArgumentException("When calling constructor on type [" + struct.name + "]" +
-                    " expected [" + constructor.arguments.size() + "] arguments, but found [" + arguments.size() + "]."));
+                throw createError(new IllegalArgumentException(
+                        "When calling constructor on type [" + PainlessLookupUtility.typeToCanonicalTypeName(actual) + "] " +
+                        "expected [" + constructor.arguments.size() + "] arguments, but found [" + arguments.size() + "]."));
             }
 
             for (int argument = 0; argument < arguments.size(); ++argument) {
@@ -87,7 +88,8 @@ public final class ENewObj extends AExpression {
 
             statement = true;
         } else {
-            throw createError(new IllegalArgumentException("Unknown new call on type [" + struct.name + "]."));
+            throw createError(new IllegalArgumentException(
+                    "Unknown new call on type [" + PainlessLookupUtility.typeToCanonicalTypeName(actual) + "]."));
         }
     }
 

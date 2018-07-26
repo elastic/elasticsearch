@@ -133,26 +133,20 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
         if (queryBuilder.from() == null && queryBuilder.to() == null) {
             final Query expectedQuery;
-            if (getCurrentTypes().length > 0) {
-                if (context.mapperService().getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_1_0)
-                        && context.mapperService().fullName(queryBuilder.fieldName()).hasDocValues()) {
-                    expectedQuery = new ConstantScoreQuery(new DocValuesFieldExistsQuery(expectedFieldName));
-                } else if (context.mapperService().getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_1_0)
-                        && context.mapperService().fullName(queryBuilder.fieldName()).omitNorms() == false) {
-                    expectedQuery = new ConstantScoreQuery(new NormsFieldExistsQuery(expectedFieldName));
-                } else {
-                    expectedQuery = new ConstantScoreQuery(new TermQuery(new Term(FieldNamesFieldMapper.NAME, expectedFieldName)));
-                }
+            if (context.mapperService().getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_1_0)
+                    && context.mapperService().fullName(queryBuilder.fieldName()).hasDocValues()) {
+                expectedQuery = new ConstantScoreQuery(new DocValuesFieldExistsQuery(expectedFieldName));
+            } else if (context.mapperService().getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_1_0) &&
+                            context.mapperService().fullName(queryBuilder.fieldName()).omitNorms() == false) {
+                expectedQuery = new ConstantScoreQuery(new NormsFieldExistsQuery(expectedFieldName));
             } else {
-                expectedQuery = new MatchNoDocsQuery("no mappings yet");
+                expectedQuery = new ConstantScoreQuery(new TermQuery(new Term(FieldNamesFieldMapper.NAME, expectedFieldName)));
             }
             assertThat(query, equalTo(expectedQuery));
-
-        } else if (getCurrentTypes().length == 0 ||
-            (expectedFieldName.equals(DATE_FIELD_NAME) == false
-                && expectedFieldName.equals(INT_FIELD_NAME) == false
-                && expectedFieldName.equals(DATE_RANGE_FIELD_NAME) == false
-                && expectedFieldName.equals(INT_RANGE_FIELD_NAME) == false)) {
+        } else if (expectedFieldName.equals(DATE_FIELD_NAME) == false &&
+                        expectedFieldName.equals(INT_FIELD_NAME) == false &&
+                        expectedFieldName.equals(DATE_RANGE_FIELD_NAME) == false &&
+                        expectedFieldName.equals(INT_RANGE_FIELD_NAME) == false) {
             assertThat(query, instanceOf(TermRangeQuery.class));
             TermRangeQuery termRangeQuery = (TermRangeQuery) query;
             assertThat(termRangeQuery.getField(), equalTo(expectedFieldName));
@@ -165,7 +159,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             query = ((IndexOrDocValuesQuery) query).getIndexQuery();
             assertThat(query, instanceOf(PointRangeQuery.class));
             MapperService mapperService = context.getQueryShardContext().getMapperService();
-            MappedFieldType mappedFieldType = mapperService.fullName(DATE_FIELD_NAME);
+            MappedFieldType mappedFieldType = mapperService.fullName(expectedFieldName);
             final Long fromInMillis;
             final Long toInMillis;
             // we have to normalize the incoming value into milliseconds since it could be literally anything
@@ -257,7 +251,6 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
     }
 
     public void testToQueryNumericField() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query parsedQuery = rangeQuery(INT_FIELD_NAME).from(23).to(54).includeLower(true).includeUpper(false).toQuery(createShardContext());
         // since age is automatically registered in data, we encode it as numeric
         assertThat(parsedQuery, instanceOf(IndexOrDocValuesQuery.class));
@@ -267,7 +260,6 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
     }
 
     public void testDateRangeQueryFormat() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         // We test 01/01/2012 from gte and 2030 for lt
         String query = "{\n" +
                 "    \"range\" : {\n" +
@@ -302,7 +294,6 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
     }
 
     public void testDateRangeBoundaries() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
                 "    \"range\" : {\n" +
                 "        \"" + DATE_FIELD_NAME + "\" : {\n" +
@@ -339,7 +330,6 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
     }
 
     public void testDateRangeQueryTimezone() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
                 "    \"range\" : {\n" +
                 "        \"" + DATE_FIELD_NAME + "\" : {\n" +
@@ -427,19 +417,19 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         assertThat(rewrittenRange.to(), equalTo(null));
 
         // Range query with open bounds rewrite to an exists query
-        final Query luceneQuery = rewrittenRange.toQuery(queryShardContext);
+        Query luceneQuery = rewrittenRange.toQuery(queryShardContext);
         final Query expectedQuery;
-        if (getCurrentTypes().length > 0) {
-            if (queryShardContext.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_1_0)
-                    && queryShardContext.fieldMapper(query.fieldName()).hasDocValues()) {
-                expectedQuery = new ConstantScoreQuery(new DocValuesFieldExistsQuery(query.fieldName()));
-            } else {
-                expectedQuery = new ConstantScoreQuery(new TermQuery(new Term(FieldNamesFieldMapper.NAME, query.fieldName())));
-            }
+        if (queryShardContext.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_1_0)
+                && queryShardContext.fieldMapper(query.fieldName()).hasDocValues()) {
+            expectedQuery = new ConstantScoreQuery(new DocValuesFieldExistsQuery(query.fieldName()));
         } else {
-            expectedQuery = new MatchNoDocsQuery("no mappings yet");
+            expectedQuery = new ConstantScoreQuery(new TermQuery(new Term(FieldNamesFieldMapper.NAME, query.fieldName())));
         }
         assertThat(luceneQuery, equalTo(expectedQuery));
+
+        QueryShardContext queryShardContextWithUnkType = createShardContextWithNoType();
+        luceneQuery  = rewrittenRange.toQuery(queryShardContextWithUnkType);
+        assertThat(luceneQuery, equalTo(new MatchNoDocsQuery("no mappings yet")));
     }
 
     public void testRewriteDateToMatchAllWithTimezoneAndFormat() throws IOException {

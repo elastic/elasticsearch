@@ -74,13 +74,21 @@ import java.util.stream.Collectors;
  * string: {@code foo bar baz}
  * result: {@code foo=baz, b=bar}
  * </pre></li>
+ * <li>{@code ?} Instructs the parser to ignore this key. The key name exists only for the purpose of human readability. Example
+ * <pre>
+ *  pattern: {@code %{a} %{?skipme} %{c}}
+ *  string: {@code foo bar baz}
+ *  result: {@code a=foo, c=baz}
+ * </pre>
  * </ul>
- * <p>Empty key names patterns are also supported. They will simply be ignored in the result. Example
+ * <p>Empty key names patterns are also supported. They behave just like the {@code ?} modifier, except the name is not required.
+ * The result will simply be ignored. Example
  * <pre>
  * pattern: {@code %{a} %{} %{c}}
  * string: {@code foo bar baz}
  * result: {@code a=foo, c=baz}
  * </pre>
+
  * <p>
  * Inspired by the Logstash Dissect Filter by Guy Boertje
  */

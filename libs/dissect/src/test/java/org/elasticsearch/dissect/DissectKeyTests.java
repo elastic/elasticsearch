@@ -113,6 +113,9 @@ public class DissectKeyTests extends ESTestCase {
         dissectKey = new DissectKey("+" + keyName + "->");
         assertThat(dissectKey.skipRightPadding(), is(true));
 
+        dissectKey = new DissectKey("?" + keyName + "->");
+        assertThat(dissectKey.skipRightPadding(), is(true));
+
         dissectKey = new DissectKey("+" + keyName + "/2->");
         assertThat(dissectKey.skipRightPadding(), is(true));
     }
@@ -138,10 +141,29 @@ public class DissectKeyTests extends ESTestCase {
         assertThat(dissectKey.getAppendPosition(), equalTo(0));
         assertThat(dissectKey.getName(), equalTo(keyName));
     }
+    public void testNamedSkipKey() {
+        String keyName = "myname";
+        DissectKey dissectKey = new DissectKey("?" +keyName);
+        assertThat(dissectKey.getModifier(), equalTo(DissectKey.Modifier.NAMED_SKIP));
+        assertThat(dissectKey.skip(), is(true));
+        assertThat(dissectKey.skipRightPadding(), is(false));
+        assertThat(dissectKey.getAppendPosition(), equalTo(0));
+        assertThat(dissectKey.getName(), equalTo(keyName));
+    }
+
     public void testSkipKeyWithPadding() {
         String keyName = "";
         DissectKey dissectKey = new DissectKey(keyName  + "->");
         assertThat(dissectKey.getModifier(), equalTo(DissectKey.Modifier.NONE));
+        assertThat(dissectKey.skip(), is(true));
+        assertThat(dissectKey.skipRightPadding(), is(true));
+        assertThat(dissectKey.getAppendPosition(), equalTo(0));
+        assertThat(dissectKey.getName(), equalTo(keyName));
+    }
+    public void testNamedEmptySkipKeyWithPadding() {
+        String keyName = "";
+        DissectKey dissectKey = new DissectKey("?" +keyName + "->");
+        assertThat(dissectKey.getModifier(), equalTo(DissectKey.Modifier.NAMED_SKIP));
         assertThat(dissectKey.skip(), is(true));
         assertThat(dissectKey.skipRightPadding(), is(true));
         assertThat(dissectKey.getAppendPosition(), equalTo(0));

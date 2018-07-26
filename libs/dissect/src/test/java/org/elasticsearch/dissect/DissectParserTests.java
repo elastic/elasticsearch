@@ -41,6 +41,7 @@ public class DissectParserTests extends ESTestCase {
         assertMatch("%{a} %{+a/2} %{+a/1}", "foo bar baz", Arrays.asList("a"), Arrays.asList("foobazbar"));
         assertMatch("%{*a} %{b} %{&a}", "foo bar baz", Arrays.asList("foo", "b"), Arrays.asList("baz", "bar"));
         assertMatch("%{a} %{} %{c}", "foo bar baz", Arrays.asList("a", "c"), Arrays.asList("foo", "baz"));
+        assertMatch("%{a} %{?skipme} %{c}", "foo bar baz", Arrays.asList("a", "c"), Arrays.asList("foo", "baz"));
         assertMatch("%{a},%{b},%{c},%{d}", "foo,,,", Arrays.asList("a", "b", "c", "d"), Arrays.asList("foo", "", "", ""));
         assertMatch("%{a->},%{b}", "foo,,,,,,bar", Arrays.asList("a", "b"), Arrays.asList("foo", "bar"));
     }
@@ -198,6 +199,18 @@ public class DissectParserTests extends ESTestCase {
         assertMatch("%{->} %{b}", "foo        bar", Arrays.asList("b"), Arrays.asList("bar"));
         assertMatch("%{->} %{b}", "        bar", Arrays.asList("b"), Arrays.asList("bar"));
         assertMatch("%{a} %{->}", "foo  bar       ", Arrays.asList("a"), Arrays.asList("foo"));
+    }
+
+    public void testNamedSkipKey() {
+        assertMatch("%{?foo} %{b}", "foo bar", Arrays.asList("b"), Arrays.asList("bar"));
+        assertMatch("%{?} %{b}", "foo bar", Arrays.asList("b"), Arrays.asList("bar"));
+        assertMatch("%{a} %{?bar}", "foo bar", Arrays.asList("a"), Arrays.asList("foo"));
+        assertMatch("%{?foo->} %{b}", "foo        bar", Arrays.asList("b"), Arrays.asList("bar"));
+        assertMatch("%{?->} %{b}", "foo        bar", Arrays.asList("b"), Arrays.asList("bar"));
+        assertMatch("%{?foo->} %{b}", "        bar", Arrays.asList("b"), Arrays.asList("bar"));
+        assertMatch("%{a} %{->?bar}", "foo  bar       ", Arrays.asList("a"), Arrays.asList("foo"));
+        assertMatch("%{a} %{?skipme} %{?skipme}", "foo  bar  baz", Arrays.asList("a"), Arrays.asList("foo"));
+        assertMatch("%{a} %{?} %{?}", "foo  bar  baz", Arrays.asList("a"), Arrays.asList("foo"));
     }
 
     public void testConsecutiveDelimiters() {

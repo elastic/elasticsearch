@@ -125,7 +125,7 @@ Closure commonPackageConfig(String type, boolean oss) {
         fileMode 0644
       }
       into('lib') {
-        with libFiles
+          with libFiles(oss)
       }
       into('modules') {
         with modulesFiles(oss)

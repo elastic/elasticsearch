@@ -228,6 +228,25 @@ public class IndicesService extends AbstractLifecycleComponent
         this.cacheCleaner = new CacheCleaner(indicesFieldDataCache, indicesRequestCache,  logger, threadPool, this.cleanInterval);
         this.metaStateService = metaStateService;
         this.engineFactoryProviders = engineFactoryProviders;
+
+        // do not allow any plugin-provided index store type to conflict with a built-in type
+        for (final String indexStoreType : indexStoreFactories.keySet()) {
+            if (IndexModule.isBuiltinType(indexStoreType)) {
+                throw new IllegalStateException("registered index store type [" + indexStoreType + "] conflicts with a built-in type");
+            }
+        }
+
+        // do not allow an allowed index store type that does not exist
+        final List<String> allowedIndexStoreTypes = IndexModule.NODE_ALLOWED_INDEX_STORE_TYPES_SETTING.get(settings);
+        if (allowedIndexStoreTypes.isEmpty() == false) {
+            for (final String allowedIndexStoreType : allowedIndexStoreTypes) {
+                if (IndexModule.isBuiltinType(allowedIndexStoreType) == false
+                        && indexStoreFactories.containsKey(allowedIndexStoreType) == false) {
+                    throw new IllegalArgumentException("allowed index store type [" + allowedIndexStoreType + "] does not exist");
+                }
+            }
+        }
+
         this.indexStoreFactories = indexStoreFactories;
     }
 

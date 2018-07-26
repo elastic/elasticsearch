@@ -80,13 +80,18 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class IndexModuleTests extends ESTestCase {
@@ -374,6 +379,25 @@ public class IndexModuleTests extends ESTestCase {
         IndexService indexService = newIndexService(module);
         assertTrue(indexService.cache().query() instanceof DisabledQueryCache);
         indexService.close("simon says", false);
+    }
+
+    public void testIndexStoreTypeNotAllowed() {
+        final Set<String> builtInIndexStoreTypes =
+                Arrays.stream(IndexModule.Type.values()).map(IndexModule.Type::getSettingsKey).collect(Collectors.toSet());
+        final String excludedIndexStoreType = randomFrom(builtInIndexStoreTypes);
+        builtInIndexStoreTypes.remove(excludedIndexStoreType);
+        final Settings settings = Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+                .put("index.store.type", excludedIndexStoreType)
+                .build();
+        final Settings nodeSettings = Settings.builder()
+                .put(IndexModule.NODE_ALLOWED_INDEX_STORE_TYPES_SETTING.getKey(), String.join(",", builtInIndexStoreTypes))
+                .build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(new Index("foo", "_na_"), settings, nodeSettings);
+        final IndexModule module =
+                new IndexModule(indexSettings, emptyAnalysisRegistry, new InternalEngineFactory(), Collections.emptyMap());
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> newIndexService(module));
+        assertThat(e, hasToString(containsString("store type [" + excludedIndexStoreType + "] is not allowed")));
     }
 
     class CustomQueryCache implements QueryCache {

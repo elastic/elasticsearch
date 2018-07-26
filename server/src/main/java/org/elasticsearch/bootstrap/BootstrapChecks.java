@@ -21,6 +21,7 @@ package org.elasticsearch.bootstrap;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.node.Node;
@@ -397,17 +399,26 @@ final class BootstrapChecks {
 
     static class MaxMapCountCheck implements BootstrapCheck {
 
-        private static final long LIMIT = 1 << 18;
+        static final long LIMIT = 1 << 18;
 
         @Override
-        public BootstrapCheckResult check(BootstrapContext context) {
-            if (getMaxMapCount() != -1 && getMaxMapCount() < LIMIT) {
-               final String message = String.format(
-                        Locale.ROOT,
-                        "max virtual memory areas vm.max_map_count [%d] is too low, increase to at least [%d]",
-                        getMaxMapCount(),
-                        LIMIT);
-               return BootstrapCheckResult.failure(message);
+        public BootstrapCheckResult check(final BootstrapContext context) {
+            // we only enforce the check if mmapfs is an allowed store type
+            final List<String> allowedIndexStoreTypes = IndexModule.NODE_ALLOWED_INDEX_STORE_TYPES_SETTING.get(context.settings);
+            if (allowedIndexStoreTypes.isEmpty() || // all store types including mmapfs are allowed
+                    allowedIndexStoreTypes.contains(IndexModule.Type.MMAPFS.getSettingsKey()) || // mmapfs is explicitly allowed
+                    (allowedIndexStoreTypes.contains(IndexModule.Type.FS.getSettingsKey())
+                            && IndexModule.defaultStoreType().equals(MMapDirectory.class))) { // the default type is allowed and is mmapfs
+                if (getMaxMapCount() != -1 && getMaxMapCount() < LIMIT) {
+                    final String message = String.format(
+                            Locale.ROOT,
+                            "max virtual memory areas vm.max_map_count [%d] is too low, increase to at least [%d]",
+                            getMaxMapCount(),
+                            LIMIT);
+                    return BootstrapCheckResult.failure(message);
+                } else {
+                    return BootstrapCheckResult.success();
+                }
             } else {
                 return BootstrapCheckResult.success();
             }

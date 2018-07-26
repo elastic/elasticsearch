@@ -21,10 +21,14 @@ package org.elasticsearch.index;
 
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
+import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.MMapDirectory;
+import org.apache.lucene.store.NIOFSDirectory;
+import org.apache.lucene.store.SimpleFSDirectory;
+import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
@@ -84,8 +88,15 @@ import java.util.function.Function;
  */
 public final class IndexModule {
 
+    public static final Setting<List<String>> NODE_ALLOWED_INDEX_STORE_TYPES_SETTING =
+            Setting.listSetting("node.allowed_index_store_types", Collections.emptyList(), Function.identity(), Property.NodeScope);
+
+    public static final Setting<String> NODE_DEFAULT_INDEX_STORE_TYPE_SETTING =
+            Setting.simpleString("node.default_index_store_type", Type.FS.getSettingsKey(), Property.NodeScope);
+
     public static final Setting<String> INDEX_STORE_TYPE_SETTING =
-        new Setting<>("index.store.type", "", Function.identity(), Property.IndexScope, Property.NodeScope);
+        new Setting<>(
+                "index.store.type", NODE_DEFAULT_INDEX_STORE_TYPE_SETTING, Function.identity(), Property.IndexScope, Property.NodeScope);
 
     /** On which extensions to load data into the file-system cache upon opening of files.
      *  This only works with the mmap directory, and even in that case is still
@@ -289,7 +300,7 @@ public final class IndexModule {
         }
     }
 
-    private static boolean isBuiltinType(String storeType) {
+    public static boolean isBuiltinType(String storeType) {
         for (Type type : Type.values()) {
             if (type.match(storeType)) {
                 return true;
@@ -325,6 +336,16 @@ public final class IndexModule {
         IndexSearcherWrapper newWrapper(IndexService indexService);
     }
 
+    public static Class<? extends FSDirectory> defaultStoreType() {
+        if (Constants.JRE_IS_64BIT && MMapDirectory.UNMAP_SUPPORTED) {
+            return MMapDirectory.class;
+        } else if (Constants.WINDOWS) {
+            return SimpleFSDirectory.class;
+        } else {
+            return NIOFSDirectory.class;
+        }
+    }
+
     public IndexService newIndexService(
             NodeEnvironment environment,
             NamedXContentRegistry xContentRegistry,
@@ -343,20 +364,7 @@ public final class IndexModule {
         IndexSearcherWrapperFactory searcherWrapperFactory = indexSearcherWrapper.get() == null
             ? (shard) -> null : indexSearcherWrapper.get();
         eventListener.beforeIndexCreated(indexSettings.getIndex(), indexSettings.getSettings());
-        final String storeType = indexSettings.getValue(INDEX_STORE_TYPE_SETTING);
-        final IndexStore store;
-        if (Strings.isEmpty(storeType) || isBuiltinType(storeType)) {
-            store = new IndexStore(indexSettings);
-        } else {
-            Function<IndexSettings, IndexStore> factory = indexStoreFactories.get(storeType);
-            if (factory == null) {
-                throw new IllegalArgumentException("Unknown store type [" + storeType + "]");
-            }
-            store = factory.apply(indexSettings);
-            if (store == null) {
-                throw new IllegalStateException("store must not be null");
-            }
-        }
+        final IndexStore store = getIndexStore(indexSettings, indexStoreFactories);
         final QueryCache queryCache;
         if (indexSettings.getValue(INDEX_QUERY_CACHE_ENABLED_SETTING)) {
             BiFunction<IndexSettings, IndicesQueryCache, QueryCache> queryCacheProvider = forceQueryCacheProvider.get();
@@ -373,6 +381,29 @@ public final class IndexModule {
                 shardStoreDeleter, analysisRegistry, engineFactory, circuitBreakerService, bigArrays, threadPool, scriptService,
                 client, queryCache, store, eventListener, searcherWrapperFactory, mapperRegistry,
                 indicesFieldDataCache, searchOperationListeners, indexOperationListeners, namedWriteableRegistry);
+    }
+
+    private static IndexStore getIndexStore(
+            final IndexSettings indexSettings, final Map<String, Function<IndexSettings, IndexStore>> indexStoreFactories) {
+        final String storeType = indexSettings.getValue(INDEX_STORE_TYPE_SETTING);
+        final List<String> allowedIndexStoreTypes = NODE_ALLOWED_INDEX_STORE_TYPES_SETTING.get(indexSettings.getNodeSettings());
+        if (allowedIndexStoreTypes.isEmpty() == false && allowedIndexStoreTypes.contains(storeType) == false) {
+            throw new IllegalArgumentException("store type [" + storeType + "] is not allowed");
+        }
+        final IndexStore store;
+        if (isBuiltinType(storeType)) {
+            store = new IndexStore(indexSettings);
+        } else {
+            Function<IndexSettings, IndexStore> factory = indexStoreFactories.get(storeType);
+            if (factory == null) {
+                throw new IllegalArgumentException("Unknown store type [" + storeType + "]");
+            }
+            store = factory.apply(indexSettings);
+            if (store == null) {
+                throw new IllegalStateException("store must not be null");
+            }
+        }
+        return store;
     }
 
     /**

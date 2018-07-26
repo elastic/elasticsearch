@@ -790,6 +790,8 @@ public class SearchModule {
             IntervalsSourceProvider.Match::new, IntervalsSourceProvider.Match::fromXContent));
         registerIntervalsSourceProvider(new SearchPlugin.IntervalSpec<>(IntervalsSourceProvider.Combine.NAME,
             IntervalsSourceProvider.Combine::new, IntervalsSourceProvider.Combine::fromXContent));
+        registerIntervalsSourceProvider(new SearchPlugin.IntervalSpec<>(IntervalsSourceProvider.Relate.NAME,
+            IntervalsSourceProvider.Relate::new, IntervalsSourceProvider.Relate::fromXContent));
         registerFromPlugin(plugins, SearchPlugin::getIntervalsSourceProviders, this::registerIntervalsSourceProvider);
     }
 

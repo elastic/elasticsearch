@@ -9,6 +9,7 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 import java.io.IOException;
 import java.util.Arrays;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQueryBuilder> {
@@ -103,5 +104,70 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
                 Intervals.unordered(Intervals.term("two"), Intervals.term("three")))));
         assertEquals(expected, builder.toQuery(createShardContext()));
 
+    }
+
+    public void testRelateIntervals() throws IOException {
+
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+
+        String json = "{ \"intervals\" : " +
+            "{ \"field\" : \"" + STRING_FIELD_NAME + "\", " +
+            "  \"source\" : { " +
+            "       \"relate\" : {" +
+            "           \"relation\" : \"containing\"," +
+            "           \"source\" : { \"match\" : { \"text\" : \"one\" } }," +
+            "           \"filter\" : { \"match\" : { \"text\" : \"two\" } } } } } }";
+        IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
+        Query expected = new IntervalQuery(STRING_FIELD_NAME,
+            Intervals.containing(Intervals.term("one"), Intervals.term("two")));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        json = "{ \"intervals\" : " +
+            "{ \"field\" : \"" + STRING_FIELD_NAME + "\", " +
+            "  \"source\" : { " +
+            "       \"relate\" : {" +
+            "           \"relation\" : \"contained_by\"," +
+            "           \"source\" : { \"match\" : { \"text\" : \"one\" } }," +
+            "           \"filter\" : { \"match\" : { \"text\" : \"two\" } } } } } }";
+        builder = (IntervalQueryBuilder) parseQuery(json);
+        expected = new IntervalQuery(STRING_FIELD_NAME,
+            Intervals.containedBy(Intervals.term("one"), Intervals.term("two")));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        json = "{ \"intervals\" : " +
+            "{ \"field\" : \"" + STRING_FIELD_NAME + "\", " +
+            "  \"source\" : { " +
+            "       \"relate\" : {" +
+            "           \"relation\" : \"not_containing\"," +
+            "           \"source\" : { \"match\" : { \"text\" : \"one\" } }," +
+            "           \"filter\" : { \"match\" : { \"text\" : \"two\" } } } } } }";
+        builder = (IntervalQueryBuilder) parseQuery(json);
+        expected = new IntervalQuery(STRING_FIELD_NAME,
+            Intervals.notContaining(Intervals.term("one"), Intervals.term("two")));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        json = "{ \"intervals\" : " +
+            "{ \"field\" : \"" + STRING_FIELD_NAME + "\", " +
+            "  \"source\" : { " +
+            "       \"relate\" : {" +
+            "           \"relation\" : \"not_contained_by\"," +
+            "           \"source\" : { \"match\" : { \"text\" : \"one\" } }," +
+            "           \"filter\" : { \"match\" : { \"text\" : \"two\" } } } } } }";
+        builder = (IntervalQueryBuilder) parseQuery(json);
+        expected = new IntervalQuery(STRING_FIELD_NAME,
+            Intervals.notContainedBy(Intervals.term("one"), Intervals.term("two")));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        json = "{ \"intervals\" : " +
+            "{ \"field\" : \"" + STRING_FIELD_NAME + "\", " +
+            "  \"source\" : { " +
+            "       \"relate\" : {" +
+            "           \"relation\" : \"not_overlapping\"," +
+            "           \"source\" : { \"match\" : { \"text\" : \"one\" } }," +
+            "           \"filter\" : { \"match\" : { \"text\" : \"two\" } } } } } }";
+        builder = (IntervalQueryBuilder) parseQuery(json);
+        expected = new IntervalQuery(STRING_FIELD_NAME,
+            Intervals.nonOverlapping(Intervals.term("one"), Intervals.term("two")));
+        assertEquals(expected, builder.toQuery(createShardContext()));
     }
 }

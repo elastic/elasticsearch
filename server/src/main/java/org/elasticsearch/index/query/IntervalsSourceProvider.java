@@ -348,4 +348,116 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
     }
 
+    public static class Relate extends IntervalsSourceProvider {
+
+        public static final String NAME = "relate";
+
+        public enum Relation {
+            CONTAINING {
+                @Override
+                IntervalsSource getSource(IntervalsSource source, IntervalsSource filter) {
+                    return Intervals.containing(source, filter);
+                }
+            }, NOT_CONTAINING {
+                @Override
+                IntervalsSource getSource(IntervalsSource source, IntervalsSource filter) {
+                    return Intervals.notContaining(source, filter);
+                }
+            }, CONTAINED_BY {
+                @Override
+                IntervalsSource getSource(IntervalsSource source, IntervalsSource filter) {
+                    return Intervals.containedBy(source, filter);
+                }
+            }, NOT_CONTAINED_BY {
+                @Override
+                IntervalsSource getSource(IntervalsSource source, IntervalsSource filter) {
+                    return Intervals.notContainedBy(source, filter);
+                }
+            }, NOT_OVERLAPPING {
+                @Override
+                IntervalsSource getSource(IntervalsSource source, IntervalsSource filter) {
+                    return Intervals.nonOverlapping(source, filter);
+                }
+            };
+            abstract IntervalsSource getSource(IntervalsSource source, IntervalsSource filter);
+        }
+
+        private final IntervalsSourceProvider source;
+        private final IntervalsSourceProvider filter;
+        private final Relation relation;
+
+        public Relate(IntervalsSourceProvider source, IntervalsSourceProvider filter, Relation relation) {
+            this.source = source;
+            this.filter = filter;
+            this.relation = relation;
+        }
+
+        public Relate(StreamInput in) throws IOException {
+            this.source = in.readNamedWriteable(IntervalsSourceProvider.class);
+            this.filter = in.readNamedWriteable(IntervalsSourceProvider.class);
+            this.relation = in.readEnum(Relation.class);
+        }
+
+        @Override
+        public IntervalsSource getSource(MappedFieldType fieldType) throws IOException {
+            IntervalsSource s = source.getSource(fieldType);
+            IntervalsSource f = filter.getSource(fieldType);
+            return relation.getSource(s, f);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Relate relate = (Relate) o;
+            return Objects.equals(source, relate.source) &&
+                Objects.equals(filter, relate.filter) &&
+                relation == relate.relation;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(source, filter, relation);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeNamedWriteable(source);
+            out.writeNamedWriteable(filter);
+            out.writeEnum(relation);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.startObject(NAME);
+            builder.field("source", source);
+            builder.field("filter", filter);
+            builder.field("relation", relation.toString().toLowerCase(Locale.ROOT));
+            builder.endObject();
+            builder.endObject();
+            return builder;
+        }
+
+        static final ConstructingObjectParser<Relate, Void> PARSER = new ConstructingObjectParser<>(NAME,
+            args -> {
+                Relation relation = Relation.valueOf(((String)args[2]).toUpperCase(Locale.ROOT));
+                return new Relate((IntervalsSourceProvider)args[0], (IntervalsSourceProvider)args[1], relation);
+            });
+        static {
+            PARSER.declareObject(constructorArg(), (p, c) -> IntervalsSourceProvider.fromXContent(p), new ParseField("source"));
+            PARSER.declareObject(constructorArg(), (p, c) -> IntervalsSourceProvider.fromXContent(p), new ParseField("filter"));
+            PARSER.declareString(constructorArg(), new ParseField("relation"));
+        }
+
+        public static Relate fromXContent(XContentParser parser) {
+            return PARSER.apply(parser, null);
+        }
+    }
+
 }

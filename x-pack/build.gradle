@@ -41,6 +41,7 @@ subprojects {
     ]
   }
 
+  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-ccr:${version}": xpackModule('ccr')]
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-core:${version}": xpackModule('core')]
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-deprecation:${version}": xpackModule('deprecation')]
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-graph:${version}": xpackModule('graph')]
@@ -51,5 +52,4 @@ subprojects {
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-sql:${version}": xpackModule('sql')]
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-upgrade:${version}": xpackModule('upgrade')]
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-watcher:${version}": xpackModule('watcher')]
-  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-ccr:${version}": xpackModule('ccr')]
 }

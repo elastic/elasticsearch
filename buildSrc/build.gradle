@@ -25,8 +25,9 @@ plugins {
 
 group = 'org.elasticsearch.gradle'
 
-if (GradleVersion.current() < GradleVersion.version('4.9')) {
-  throw new GradleException('Gradle 4.9+ is required to build elasticsearch')
+String minimumGradleVersion = file('src/main/resources/minimumGradleVersion').text.trim()
+if (GradleVersion.current() < GradleVersion.version(minimumGradleVersion)) {
+    throw new GradleException("Gradle ${minimumGradleVersion}+ is required to build elasticsearch")
 }
 
 if (JavaVersion.current() < JavaVersion.VERSION_1_8) {

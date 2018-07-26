@@ -54,7 +54,6 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
 
         if (field == null) {
             if (script == null) {
-                @SuppressWarnings("unchecked")
                 ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(ValuesSourceType.ANY);
                 config.format(resolveFormat(null, valueType));
                 return config;

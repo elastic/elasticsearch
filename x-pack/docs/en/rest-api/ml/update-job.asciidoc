@@ -35,6 +35,8 @@ each periodic persistence of the model. See <<ml-job-resource>>. | Yes
 
 |`description` |A description of the job. See <<ml-job-resource>>. | No
 
+|`detectors` |An array of <<ml-detector-update, detector update objects>>. | No
+
 |`groups` |A list of job groups. See <<ml-job-resource>>. | No
 
 |`model_plot_config`: `enabled` |If true, enables calculation and storage of the
@@ -58,12 +60,6 @@ if the job is open when you make the update, you must stop the data feed, close
 the job, then restart the data feed and open the job for the changes to take
 effect.
 
-//|`analysis_config`: `detectors`: `detector_index` | A unique identifier of the
-//detector. Matches the order of detectors returned by
-//<<ml-get-job,GET job>>, starting from 0. | No
-//|`analysis_config`: `detectors`: `detector_description` |A description of the
-//detector. See <<ml-analysisconfig>>. | No
-
 [NOTE]
 --
 * You can update the `analysis_limits` only while the job is closed.
@@ -73,6 +69,21 @@ of `hard_limit`, this means that it was unable to process some data. You might
 want to re-run this job with an increased `model_memory_limit`.
 --
 
+[[ml-detector-update]]
+==== Detector Update Objects
+
+A detector update object has the following properties:
+
+`detector_index`::
+  (integer) The identifier of the detector to update.
+
+`description`::
+  (string) The new description for the detector.
+
+`custom_rules`::
+  (array) The new list of <<ml-detector-custom-rule, rules>> for the detector.
+
+No other detector property can be updated.
 
 ==== Authorization
 

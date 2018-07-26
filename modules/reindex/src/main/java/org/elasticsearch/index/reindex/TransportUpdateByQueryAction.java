@@ -29,6 +29,7 @@ import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -43,7 +44,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.Map;
 import java.util.function.BiFunction;
-import java.util.function.Supplier;
 
 public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateByQueryRequest, BulkByScrollResponse> {
 
@@ -56,7 +56,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     public TransportUpdateByQueryAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters, Client client,
                                         TransportService transportService, ScriptService scriptService, ClusterService clusterService) {
         super(settings, UpdateByQueryAction.NAME, transportService, actionFilters,
-            (Supplier<UpdateByQueryRequest>) UpdateByQueryRequest::new);
+            (Writeable.Reader<UpdateByQueryRequest>) UpdateByQueryRequest::new);
         this.threadPool = threadPool;
         this.client = client;
         this.scriptService = scriptService;

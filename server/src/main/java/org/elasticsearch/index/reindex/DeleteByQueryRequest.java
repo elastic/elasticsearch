@@ -23,7 +23,10 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.TaskId;
+
+import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -51,6 +54,10 @@ public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQu
 
     public DeleteByQueryRequest(SearchRequest search) {
         this(search, true);
+    }
+
+    public DeleteByQueryRequest(StreamInput in) throws IOException {
+        super.readFrom(in);
     }
 
     private DeleteByQueryRequest(SearchRequest search, boolean setDefaults) {

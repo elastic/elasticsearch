@@ -29,8 +29,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.protocol.xpack.ml.job.config.Job;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.junit.Before;
@@ -257,7 +257,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
         addJobTask(job.getId(), nodeId, JobState.OPENED, tasksBuilder);
         // Set to lower allocationId, so job task is stale:
-        tasksBuilder.updateTaskState(MlMetadata.jobTaskId(job.getId()), new JobTaskState(JobState.OPENED, 0));
+        tasksBuilder.updateTaskState(MlTasks.jobTaskId(job.getId()), new JobTaskState(JobState.OPENED, 0));
         tasks = tasksBuilder.build();
 
         givenClusterState("foo", 1, 0);
@@ -319,7 +319,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
 
         clusterState = ClusterState.builder(new ClusterName("cluster_name"))
                 .metaData(new MetaData.Builder()
-                        .putCustom(MLMetadataField.TYPE, mlMetadata)
+                        .putCustom(MlMetadata.TYPE, mlMetadata)
                         .putCustom(PersistentTasksCustomMetaData.TYPE, tasks)
                         .put(indexMetaData, false))
                 .nodes(nodes)

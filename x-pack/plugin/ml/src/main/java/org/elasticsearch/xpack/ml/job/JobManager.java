@@ -40,8 +40,8 @@ import org.elasticsearch.protocol.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.protocol.xpack.ml.messages.Messages;
 import org.elasticsearch.protocol.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
@@ -169,7 +169,7 @@ public class JobManager extends AbstractComponent {
 
     public JobState getJobState(String jobId) {
         PersistentTasksCustomMetaData tasks = clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-        return MlMetadata.getJobState(jobId, tasks);
+        return MlTasks.getJobState(jobId, tasks);
     }
 
     /**
@@ -411,7 +411,7 @@ public class JobManager extends AbstractComponent {
 
     private boolean isJobOpen(ClusterState clusterState, String jobId) {
         PersistentTasksCustomMetaData persistentTasks = clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
-        JobState jobState = MlMetadata.getJobState(jobId, persistentTasks);
+        JobState jobState = MlTasks.getJobState(jobId, persistentTasks);
         return jobState == JobState.OPENED;
     }
 
@@ -618,7 +618,7 @@ public class JobManager extends AbstractComponent {
     private static ClusterState buildNewClusterState(ClusterState currentState, MlMetadata.Builder builder) {
         XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
         ClusterState.Builder newState = ClusterState.builder(currentState);
-        newState.metaData(MetaData.builder(currentState.getMetaData()).putCustom(MLMetadataField.TYPE, builder.build()).build());
+        newState.metaData(MetaData.builder(currentState.getMetaData()).putCustom(MlMetadata.TYPE, builder.build()).build());
         return newState.build();
     }
 }

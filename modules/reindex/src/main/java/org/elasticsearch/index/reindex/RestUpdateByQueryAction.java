@@ -57,7 +57,6 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     protected UpdateByQueryRequest buildRequest(RestRequest request) throws IOException {
         /*
          * Passing the search request through UpdateByQueryRequest first allows

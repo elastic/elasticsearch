@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.protocol.xpack.ml.PutJobRequest;
 import org.elasticsearch.protocol.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
@@ -111,7 +110,7 @@ public class DeleteJobIT extends BaseMlIntegTestCase {
         builder.markJobAsDeleted(jobId, tasks, true);
 
         ClusterState.Builder newState = ClusterState.builder(currentState);
-        return newState.metaData(MetaData.builder(currentState.getMetaData()).putCustom(MLMetadataField.TYPE, builder.build()).build())
+        return newState.metaData(MetaData.builder(currentState.getMetaData()).putCustom(MlMetadata.TYPE, builder.build()).build())
                 .build();
     }
 
@@ -120,7 +119,7 @@ public class DeleteJobIT extends BaseMlIntegTestCase {
         builder.deleteJob(jobId, currentState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE));
 
         ClusterState.Builder newState = ClusterState.builder(currentState);
-        return newState.metaData(MetaData.builder(currentState.getMetaData()).putCustom(MLMetadataField.TYPE, builder.build()).build())
+        return newState.metaData(MetaData.builder(currentState.getMetaData()).putCustom(MlMetadata.TYPE, builder.build()).build())
                 .build();
     }
 }

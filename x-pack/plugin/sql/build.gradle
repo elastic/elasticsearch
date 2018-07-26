@@ -19,7 +19,7 @@ archivesBaseName = 'x-pack-sql'
 integTest.enabled = false
 
 dependencies {
-    compileOnly "org.elasticsearch.plugin:x-pack-core:${version}"
+    compileOnly project(path: xpackModule('core'), configuration: 'shadow')
     compileOnly(project(':modules:lang-painless')) {
         // exclude ASM to not affect featureAware task on Java 10+
         exclude group: "org.ow2.asm"

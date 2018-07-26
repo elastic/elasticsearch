@@ -73,7 +73,7 @@ public final class PCallInvoke extends AExpression {
         PainlessClass struct = locals.getPainlessLookup().getPainlessStructFromJavaClass(prefix.actual);
 
         if (prefix.actual.isPrimitive()) {
-            struct = locals.getPainlessLookup().getPainlessStructFromJavaClass(PainlessLookupUtility.getBoxedAnyType(prefix.actual));
+            struct = locals.getPainlessLookup().getPainlessStructFromJavaClass(PainlessLookupUtility.typeToBoxedType(prefix.actual));
         }
 
         String methodKey = PainlessLookupUtility.buildPainlessMethodKey(name, arguments.size());

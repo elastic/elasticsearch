@@ -52,7 +52,7 @@ import static java.util.stream.Collectors.toList;
  */
 public class PainlessDocGenerator {
 
-    private static final PainlessLookup PAINLESS_LOOKUP = new PainlessLookupBuilder(Whitelist.BASE_WHITELISTS).build();
+    private static final PainlessLookup PAINLESS_LOOKUP = PainlessLookupBuilder.buildFromWhitelists(Whitelist.BASE_WHITELISTS);
     private static final Logger logger = ESLoggerFactory.getLogger(PainlessDocGenerator.class);
     private static final Comparator<PainlessField> FIELD_NAME = comparing(f -> f.name);
     private static final Comparator<PainlessMethod> METHOD_NAME = comparing(m -> m.name);
@@ -210,7 +210,7 @@ public class PainlessDocGenerator {
      */
     private static void emitAnchor(PrintStream stream, Class<?> clazz) {
         stream.print("painless-api-reference-");
-        stream.print(PainlessLookupUtility.anyTypeToPainlessTypeName(clazz).replace('.', '-'));
+        stream.print(PainlessLookupUtility.typeToCanonicalTypeName(clazz).replace('.', '-'));
     }
 
     /**
@@ -234,7 +234,7 @@ public class PainlessDocGenerator {
     }
 
     private static String methodName(PainlessMethod method) {
-        return method.name.equals("<init>") ? PainlessLookupUtility.anyTypeToPainlessTypeName(method.target) : method.name;
+        return method.name.equals("<init>") ? PainlessLookupUtility.typeToCanonicalTypeName(method.target) : method.name;
     }
 
     /**

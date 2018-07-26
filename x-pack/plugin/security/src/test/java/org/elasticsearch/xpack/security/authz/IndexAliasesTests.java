@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.junit.Before;
 
@@ -235,15 +236,19 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         //ok: user has manage_aliases on test_*
         assertAcked(client().filterWithHeader(headers).admin().indices().prepareAliases().removeAlias("test_1", "test_alias_*").get());
 
-        //fails: all aliases have been deleted, no existing aliases match test_alias_*
-        IndexNotFoundException indexNotFoundException = expectThrows(IndexNotFoundException.class,
+        {
+            //fails: all aliases have been deleted, no existing aliases match test_alias_*
+            AliasesNotFoundException exception = expectThrows(AliasesNotFoundException.class,
                 client().filterWithHeader(headers).admin().indices().prepareAliases().removeAlias("test_1", "test_alias_*")::get);
-        assertThat(indexNotFoundException.toString(), containsString("[test_alias_*]"));
+            assertThat(exception.getMessage(), equalTo("aliases [test_alias_*] missing"));
+        }
 
-        //fails: all aliases have been deleted, no existing aliases match _all
-        indexNotFoundException = expectThrows(IndexNotFoundException.class,
+        {
+            //fails: all aliases have been deleted, no existing aliases match _all
+            AliasesNotFoundException exception = expectThrows(AliasesNotFoundException.class,
                 client().filterWithHeader(headers).admin().indices().prepareAliases().removeAlias("test_1", "_all")::get);
-        assertThat(indexNotFoundException.toString(), containsString("[_all]"));
+            assertThat(exception.getMessage(), equalTo("aliases [_all] missing"));
+        }
 
         //fails: user doesn't have manage_aliases on alias_1
         assertThrowsAuthorizationException(client().filterWithHeader(headers).admin().indices().prepareAliases()
@@ -383,24 +388,27 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         getAliasesResponse = client.admin().indices().prepareGetAliases().setAliases("test_alias").get();
         assertEquals(0, getAliasesResponse.getAliases().size());
 
-        //fails: no existing aliases to replace wildcards
-        IndexNotFoundException indexNotFoundException = expectThrows(IndexNotFoundException.class,
-                client.admin().indices().prepareGetAliases().setIndices("test_1").setAliases("test_*")::get);
-        assertThat(indexNotFoundException.toString(), containsString("[test_*]"));
-
-        //fails: no existing aliases to replace _all
-        indexNotFoundException = expectThrows(IndexNotFoundException.class,
-                client.admin().indices().prepareGetAliases().setIndices("test_1").setAliases("_all")::get);
-        assertThat(indexNotFoundException.toString(), containsString("[_all]"));
-
-        //fails: no existing aliases to replace empty aliases
-        indexNotFoundException = expectThrows(IndexNotFoundException.class,
-                client.admin().indices().prepareGetAliases().setIndices("test_1")::get);
-        assertThat(indexNotFoundException.toString(), containsString("[_all]"));
-
-        //fails: no existing aliases to replace empty aliases
-        indexNotFoundException = expectThrows(IndexNotFoundException.class, client.admin().indices().prepareGetAliases()::get);
-        assertThat(indexNotFoundException.toString(), containsString("[_all]"));
+        {
+            //fails: no existing aliases to replace wildcards
+            assertThrowsAuthorizationException(
+                client.admin().indices().prepareGetAliases().setIndices("test_1").setAliases("test_*")::get,
+                GetAliasesAction.NAME, "create_test_aliases_alias");
+        }
+        {
+            //fails: no existing aliases to replace _all
+            assertThrowsAuthorizationException(client.admin().indices().prepareGetAliases().setIndices("test_1").setAliases("_all")::get,
+                GetAliasesAction.NAME, "create_test_aliases_alias");
+        }
+        {
+            //fails: no existing aliases to replace empty aliases
+            assertThrowsAuthorizationException(client.admin().indices().prepareGetAliases().setIndices("test_1")::get,
+                GetAliasesAction.NAME, "create_test_aliases_alias");
+        }
+        {
+            //fails: no existing aliases to replace empty aliases
+            GetAliasesResponse response = client.admin().indices().prepareGetAliases().get();
+            assertThat(response.getAliases().size(), equalTo(0));
+        }
     }
 
     public void testCreateIndexThenAliasesCreateAndAliasesPermission3() {
@@ -447,9 +455,9 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         assertAcked(client.admin().indices().prepareAliases().removeAlias("test_*", "_all"));
 
         //fails: all aliases have been deleted, _all can't be resolved to any existing authorized aliases
-        IndexNotFoundException indexNotFoundException = expectThrows(IndexNotFoundException.class,
+        AliasesNotFoundException exception = expectThrows(AliasesNotFoundException.class,
                 client.admin().indices().prepareAliases().removeAlias("test_1", "_all")::get);
-        assertThat(indexNotFoundException.toString(), containsString("[_all]"));
+        assertThat(exception.getMessage(), equalTo("aliases [_all] missing"));
     }
 
     public void testGetAliasesCreateAndAliasesPermission3() {

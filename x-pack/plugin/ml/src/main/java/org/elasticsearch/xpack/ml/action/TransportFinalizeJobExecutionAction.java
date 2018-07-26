@@ -21,7 +21,6 @@ import org.elasticsearch.protocol.xpack.ml.job.config.Job;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
 
@@ -70,7 +69,7 @@ public class TransportFinalizeJobExecutionAction extends TransportMasterNodeActi
                 }
                 ClusterState.Builder builder = ClusterState.builder(currentState);
                 return builder.metaData(new MetaData.Builder(currentState.metaData())
-                        .putCustom(MLMetadataField.TYPE, mlMetadataBuilder.build()))
+                        .putCustom(MlMetadata.TYPE, mlMetadataBuilder.build()))
                         .build();
             }
 

@@ -61,6 +61,7 @@ grant {
 
   // Hadoop depends on OS level user information for simple authentication
   // Unix: UnixLoginModule: com.sun.security.auth.module.UnixSystem.UnixSystem init
+  permission java.lang.RuntimePermission "loadLibrary.jaas";
   permission java.lang.RuntimePermission "loadLibrary.jaas_unix";
   // Windows: NTLoginModule: com.sun.security.auth.module.NTSystem.loadNative
   permission java.lang.RuntimePermission "loadLibrary.jaas_nt";

@@ -28,7 +28,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackFeatureSet.Usage;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MachineLearningFeatureSetUsage;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
@@ -273,7 +272,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         }
         ClusterState clusterState = new ClusterState.Builder(ClusterState.EMPTY_STATE)
                 .metaData(new MetaData.Builder()
-                        .putCustom(MLMetadataField.TYPE, mlMetadataBuilder.build()))
+                        .putCustom(MlMetadata.TYPE, mlMetadataBuilder.build()))
                 .build();
         when(clusterService.state()).thenReturn(clusterState);
 

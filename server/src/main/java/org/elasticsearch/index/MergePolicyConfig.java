@@ -116,7 +116,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
  */
 
 public final class MergePolicyConfig {
-    private final TieredMergePolicy mergePolicy = new TieredMergePolicy();
+    private final EsTieredMergePolicy mergePolicy = new EsTieredMergePolicy();
     private final Logger logger;
     private final boolean mergesEnabled;
 

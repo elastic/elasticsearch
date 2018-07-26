@@ -17,28 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.store.smb;
+package org.elasticsearch.plugins;
 
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.store.IndexStore;
-import org.elasticsearch.index.store.smbmmapfs.SmbMmapFsIndexStore;
-import org.elasticsearch.index.store.smbsimplefs.SmbSimpleFsIndexStore;
-import org.elasticsearch.plugins.IndexStorePlugin;
-import org.elasticsearch.plugins.Plugin;
 
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
-public class SMBStorePlugin extends Plugin implements IndexStorePlugin {
+/**
+ * A plugin that provides alternative index store implementations.
+ */
+public interface IndexStorePlugin {
 
-    @Override
-    public Map<String, Function<IndexSettings, IndexStore>> getIndexStoreFactories() {
-        final Map<String, Function<IndexSettings, IndexStore>> indexStoreFactories = new HashMap<>(2);
-        indexStoreFactories.put("smb_mmap_fs", SmbMmapFsIndexStore::new);
-        indexStoreFactories.put("smb_simple_fs", SmbSimpleFsIndexStore::new);
-        return Collections.unmodifiableMap(indexStoreFactories);
-    }
+    /**
+     * The index store factories for this plugin. When an index is created the store type setting
+     * {@link org.elasticsearch.index.IndexModule#INDEX_STORE_TYPE_SETTING} on the index will be examined and either use the default or a
+     * built-in type, or looked up among all the index store factories from {@link IndexStore} plugins.
+     *
+     * @return a map from store type to an index store factory
+     */
+    Map<String, Function<IndexSettings, IndexStore>> getIndexStoreFactories();
 
 }

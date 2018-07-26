@@ -126,8 +126,6 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         ALIAS_TO_CONCRETE_FIELD_NAME.put(GEO_POINT_ALIAS_FIELD_NAME, GEO_POINT_FIELD_NAME);
     }
 
-    protected static Version indexVersionCreated;
-
     private static ServiceHolder serviceHolder;
     private static int queryNameId = 0;
     private static Settings nodeSettings;
@@ -207,13 +205,17 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         return queryName;
     }
 
-    protected Settings indexSettings() {
+    protected Settings createTestIndexSettings() {
         // we have to prefer CURRENT since with the range of versions we support it's rather unlikely to get the current actually.
-        indexVersionCreated = randomBoolean() ? Version.CURRENT
+        Version indexVersionCreated = randomBoolean() ? Version.CURRENT
                 : VersionUtils.randomVersionBetween(random(), null, Version.CURRENT);
         return Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, indexVersionCreated)
             .build();
+    }
+
+    protected IndexSettings indexSettings() {
+        return serviceHolder.idxSettings;
     }
 
     protected static String expectedFieldName(String builderFieldName) {
@@ -231,8 +233,13 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
 
     @Before
     public void beforeTest() throws IOException {
+        // the two following ranomized parameters are drawn every run, even though we use them in
+        // creating ServiceHolder just once. The other times are necessary so that further random
+        // generation stays the same for all test that is run, otherwise reproducability breaks
+        Settings indexSettings = createTestIndexSettings();
+        long now = randomNonNegativeLong();
         if (serviceHolder == null) {
-            serviceHolder = new ServiceHolder(nodeSettings, indexSettings(), getPlugins(), this);
+            serviceHolder = new ServiceHolder(nodeSettings, indexSettings, getPlugins(), now, this);
         }
         serviceHolder.clientInvocationHandler.delegate = this;
     }
@@ -329,10 +336,11 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         private final BitsetFilterCache bitsetFilterCache;
         private final ScriptService scriptService;
         private final Client client;
-        private final long nowInMillis = randomNonNegativeLong();
+        private final long nowInMillis;
 
         ServiceHolder(Settings nodeSettings, Settings indexSettings,
-                      Collection<Class<? extends Plugin>> plugins, AbstractBuilderTestCase testCase) throws IOException {
+                      Collection<Class<? extends Plugin>> plugins, long nowInMillis, AbstractBuilderTestCase testCase) throws IOException {
+            this.nowInMillis = nowInMillis;
             Environment env = InternalSettingsPreparer.prepareEnvironment(nodeSettings);
             PluginsService pluginsService;
             pluginsService = new PluginsService(nodeSettings, null, env.modulesFile(), env.pluginsFile(), plugins);

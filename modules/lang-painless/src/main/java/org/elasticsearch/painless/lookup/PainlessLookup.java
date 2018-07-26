@@ -29,8 +29,8 @@ import java.util.Map;
  */
 public final class PainlessLookup {
 
-    public Collection<PainlessClass> getStructs() {
-        return classesToPainlessClasses.values();
+    public Collection<Class<?>> getStructs() {
+        return classesToPainlessClasses.keySet();
     }
 
     private final Map<String, Class<?>> canonicalClassNamesToClasses;

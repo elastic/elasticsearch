@@ -18,11 +18,11 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.json.JsonXContent.jsonXContent;
 
-public class JsonLogFileStructureFactory implements LogFileStructureFactory {
+public class JsonLogFileStructureFinderFactory implements LogFileStructureFinderFactory {
 
     private final Terminal terminal;
 
-    public JsonLogFileStructureFactory(Terminal terminal) {
+    public JsonLogFileStructureFinderFactory(Terminal terminal) {
         this.terminal = Objects.requireNonNull(terminal);
     }
 
@@ -70,10 +70,10 @@ public class JsonLogFileStructureFactory implements LogFileStructureFactory {
     }
 
     @Override
-    public LogFileStructure createFromSample(String sampleFileName, String indexName, String typeName, String elasticsearchHost,
-                                             String logstashHost, String logstashFileTimezone, String sample, String charsetName)
+    public LogFileStructureFinder createFromSample(String sampleFileName, String indexName, String typeName, String elasticsearchHost,
+                                                   String logstashHost, String logstashFileTimezone, String sample, String charsetName)
         throws IOException {
-        return new JsonLogFileStructure(terminal, sampleFileName, indexName, typeName, elasticsearchHost, logstashHost,
+        return new JsonLogFileStructureFinder(terminal, sampleFileName, indexName, typeName, elasticsearchHost, logstashHost,
             logstashFileTimezone, sample, charsetName);
     }
 

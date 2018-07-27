@@ -11,11 +11,11 @@ import org.supercsv.prefs.CsvPreference;
 import java.io.IOException;
 import java.util.Objects;
 
-public class SemiColonSeparatedValuesLogFileStructureFactory implements LogFileStructureFactory {
+public class SemiColonSeparatedValuesLogFileStructureFinderFactory implements LogFileStructureFinderFactory {
 
     private final Terminal terminal;
 
-    public SemiColonSeparatedValuesLogFileStructureFactory(Terminal terminal) {
+    public SemiColonSeparatedValuesLogFileStructureFinderFactory(Terminal terminal) {
         this.terminal = Objects.requireNonNull(terminal);
     }
 
@@ -31,15 +31,15 @@ public class SemiColonSeparatedValuesLogFileStructureFactory implements LogFileS
      */
     @Override
     public boolean canCreateFromSample(String sample) {
-        return SeparatedValuesLogFileStructure.canCreateFromSample(terminal, sample, 4, CsvPreference.EXCEL_NORTH_EUROPE_PREFERENCE,
+        return SeparatedValuesLogFileStructureFinder.canCreateFromSample(terminal, sample, 4, CsvPreference.EXCEL_NORTH_EUROPE_PREFERENCE,
             "semi-colon separated values");
     }
 
     @Override
-    public LogFileStructure createFromSample(String sampleFileName, String indexName, String typeName, String elasticsearchHost,
-                                             String logstashHost, String logstashFileTimezone, String sample, String charsetName)
+    public LogFileStructureFinder createFromSample(String sampleFileName, String indexName, String typeName, String elasticsearchHost,
+                                                   String logstashHost, String logstashFileTimezone, String sample, String charsetName)
         throws IOException {
-        return new SeparatedValuesLogFileStructure(terminal, sampleFileName, indexName, typeName, elasticsearchHost, logstashHost,
+        return new SeparatedValuesLogFileStructureFinder(terminal, sampleFileName, indexName, typeName, elasticsearchHost, logstashHost,
             logstashFileTimezone, sample, charsetName, CsvPreference.EXCEL_NORTH_EUROPE_PREFERENCE, false);
     }
 }

@@ -9,13 +9,13 @@ import org.junit.Before;
 
 import java.io.IOException;
 
-public class TextLogFileStructureFactoryTests extends LogConfigCreatorTestCase {
+public class TextLogFileStructureFinderFactoryTests extends LogConfigCreatorTestCase {
 
-    private LogFileStructureFactory factory;
+    private LogFileStructureFinderFactory factory;
 
     @Before
     public void setup() throws IOException {
-        factory = new TextLogFileStructureFactory(TEST_TERMINAL, null);
+        factory = new TextLogFileStructureFinderFactory(TEST_TERMINAL, null);
     }
 
     // No need to check JSON, XML, CSV, TSV, semi-colon separated values or pipe

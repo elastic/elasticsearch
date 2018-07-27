@@ -10,7 +10,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.ml.configcreator.TimestampFormatFinder.TimestampMatch;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Locale;
@@ -19,13 +18,13 @@ import java.util.Set;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
-public class TextLogFileStructureTests extends LogConfigCreatorTestCase {
+public class TextLogFileStructureFinderTests extends LogConfigCreatorTestCase {
 
-    private LogFileStructureFactory factory;
+    private LogFileStructureFinderFactory factory;
 
     @Before
-    public void setup() throws IOException {
-        factory = new TextLogFileStructureFactory(TEST_TERMINAL, null);
+    public void setup() {
+        factory = new TextLogFileStructureFinderFactory(TEST_TERMINAL, null);
     }
 
     public void testCreateConfigsGivenElasticsearchLog() throws Exception {
@@ -34,7 +33,7 @@ public class TextLogFileStructureTests extends LogConfigCreatorTestCase {
         String timezone = randomFrom(POSSIBLE_TIMEZONES);
         String elasticsearchHost = randomFrom(POSSIBLE_HOSTNAMES);
         String logstashHost = randomFrom(POSSIBLE_HOSTNAMES);
-        TextLogFileStructure structure = (TextLogFileStructure) factory.createFromSample(TEST_FILE_NAME, TEST_INDEX_NAME, "es",
+        TextLogFileStructureFinder structure = (TextLogFileStructureFinder) factory.createFromSample(TEST_FILE_NAME, TEST_INDEX_NAME, "es",
             elasticsearchHost, logstashHost, timezone, TEXT_SAMPLE, charset);
         structure.createConfigs();
         if (charset.equals(StandardCharsets.UTF_8.name())) {
@@ -81,7 +80,7 @@ public class TextLogFileStructureTests extends LogConfigCreatorTestCase {
         for (TimestampFormatFinder.CandidateTimestampFormat candidateTimestampFormat : TimestampFormatFinder.ORDERED_CANDIDATE_FORMATS) {
             String simpleDateRegex = candidateTimestampFormat.simplePattern.pattern();
             assertEquals("^" + simpleDateRegex.replaceFirst("^\\\\b", ""),
-                TextLogFileStructure.createMultiLineMessageStartRegex(Collections.emptySet(), simpleDateRegex));
+                TextLogFileStructureFinder.createMultiLineMessageStartRegex(Collections.emptySet(), simpleDateRegex));
         }
     }
 
@@ -89,7 +88,7 @@ public class TextLogFileStructureTests extends LogConfigCreatorTestCase {
         for (TimestampFormatFinder.CandidateTimestampFormat candidateTimestampFormat : TimestampFormatFinder.ORDERED_CANDIDATE_FORMATS) {
             String simpleDateRegex = candidateTimestampFormat.simplePattern.pattern();
             assertEquals("^" + simpleDateRegex.replaceFirst("^\\\\b", ""),
-                TextLogFileStructure.createMultiLineMessageStartRegex(Collections.singleton(""), simpleDateRegex));
+                TextLogFileStructureFinder.createMultiLineMessageStartRegex(Collections.singleton(""), simpleDateRegex));
         }
     }
 
@@ -97,7 +96,7 @@ public class TextLogFileStructureTests extends LogConfigCreatorTestCase {
         for (TimestampFormatFinder.CandidateTimestampFormat candidateTimestampFormat : TimestampFormatFinder.ORDERED_CANDIDATE_FORMATS) {
             String simpleDateRegex = candidateTimestampFormat.simplePattern.pattern();
             assertEquals("^\\[.*?\\] \\[" + simpleDateRegex,
-                TextLogFileStructure.createMultiLineMessageStartRegex(Collections.singleton("[ERROR] ["), simpleDateRegex));
+                TextLogFileStructureFinder.createMultiLineMessageStartRegex(Collections.singleton("[ERROR] ["), simpleDateRegex));
         }
     }
 
@@ -106,7 +105,7 @@ public class TextLogFileStructureTests extends LogConfigCreatorTestCase {
             Set<String> prefaces = Sets.newHashSet("[ERROR] [", "[DEBUG] [");
             String simpleDateRegex = candidateTimestampFormat.simplePattern.pattern();
             assertEquals("^\\[.*?\\] \\[" + simpleDateRegex,
-                TextLogFileStructure.createMultiLineMessageStartRegex(prefaces, simpleDateRegex));
+                TextLogFileStructureFinder.createMultiLineMessageStartRegex(prefaces, simpleDateRegex));
         }
     }
 
@@ -115,7 +114,7 @@ public class TextLogFileStructureTests extends LogConfigCreatorTestCase {
             Set<String> prefaces = Sets.newHashSet("host-1.acme.com|", "my_host.elastic.co|");
             String simpleDateRegex = candidateTimestampFormat.simplePattern.pattern();
             assertEquals("^.*?\\|" + simpleDateRegex,
-                TextLogFileStructure.createMultiLineMessageStartRegex(prefaces, simpleDateRegex));
+                TextLogFileStructureFinder.createMultiLineMessageStartRegex(prefaces, simpleDateRegex));
         }
     }
 
@@ -124,7 +123,7 @@ public class TextLogFileStructureTests extends LogConfigCreatorTestCase {
             Set<String> prefaces = Sets.newHashSet("", "[non-standard] ");
             String simpleDateRegex = candidateTimestampFormat.simplePattern.pattern();
             assertEquals("^.*?" + simpleDateRegex,
-                TextLogFileStructure.createMultiLineMessageStartRegex(prefaces, simpleDateRegex));
+                TextLogFileStructureFinder.createMultiLineMessageStartRegex(prefaces, simpleDateRegex));
         }
     }
 
@@ -178,7 +177,7 @@ public class TextLogFileStructureTests extends LogConfigCreatorTestCase {
             "[2018-06-27T11:59:23,588][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [x-pack-watcher]\n" +
             "[2018-06-27T11:59:23,588][INFO ][o.e.p.PluginsService     ] [node-0] no plugins loaded\n";
 
-        Tuple<TimestampMatch, Set<String>> mostLikelyMatch = TextLogFileStructure.mostLikelyTimestamp(sample.split("\n"));
+        Tuple<TimestampMatch, Set<String>> mostLikelyMatch = TextLogFileStructureFinder.mostLikelyTimestamp(sample.split("\n"));
         assertNotNull(mostLikelyMatch);
         assertEquals(new TimestampMatch(7, "", "ISO8601", "\\b\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}", "TIMESTAMP_ISO8601", ""),
             mostLikelyMatch.v1());
@@ -268,7 +267,7 @@ public class TextLogFileStructureTests extends LogConfigCreatorTestCase {
             "\tat java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624) [?:1.8.0_144]\n" +
             "\tat java.lang.Thread.run(Thread.java:748) [?:1.8.0_144]\n";
 
-        Tuple<TimestampMatch, Set<String>> mostLikelyMatch = TextLogFileStructure.mostLikelyTimestamp(sample.split("\n"));
+        Tuple<TimestampMatch, Set<String>> mostLikelyMatch = TextLogFileStructureFinder.mostLikelyTimestamp(sample.split("\n"));
         assertNotNull(mostLikelyMatch);
 
         // Even though many lines have a timestamp near the end (in the Lucene version information),

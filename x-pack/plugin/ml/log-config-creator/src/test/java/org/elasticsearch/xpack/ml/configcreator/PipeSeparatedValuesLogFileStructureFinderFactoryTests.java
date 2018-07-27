@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.ml.configcreator;
 
-public class PipeSeparatedValuesLogFileStructureFactoryTests extends LogConfigCreatorTestCase {
+public class PipeSeparatedValuesLogFileStructureFinderFactoryTests extends LogConfigCreatorTestCase {
 
-    private LogFileStructureFactory factory = new PipeSeparatedValuesLogFileStructureFactory(TEST_TERMINAL);
+    private LogFileStructureFinderFactory factory = new PipeSeparatedValuesLogFileStructureFinderFactory(TEST_TERMINAL);
 
     // No need to check JSON, XML, CSV, TSV or semi-colon separated values because they come earlier in the order we check formats
 

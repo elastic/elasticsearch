@@ -11,13 +11,13 @@ import org.supercsv.prefs.CsvPreference;
 import java.io.IOException;
 import java.util.Objects;
 
-public class PipeSeparatedValuesLogFileStructureFactory implements LogFileStructureFactory {
+public class PipeSeparatedValuesLogFileStructureFinderFactory implements LogFileStructureFinderFactory {
 
     private static final CsvPreference PIPE_PREFERENCE = new CsvPreference.Builder('"', '|', "\n").build();
 
     private final Terminal terminal;
 
-    public PipeSeparatedValuesLogFileStructureFactory(Terminal terminal) {
+    public PipeSeparatedValuesLogFileStructureFinderFactory(Terminal terminal) {
         this.terminal = Objects.requireNonNull(terminal);
     }
 
@@ -33,14 +33,14 @@ public class PipeSeparatedValuesLogFileStructureFactory implements LogFileStruct
      */
     @Override
     public boolean canCreateFromSample(String sample) {
-        return SeparatedValuesLogFileStructure.canCreateFromSample(terminal, sample, 5, PIPE_PREFERENCE, "pipe separated values");
+        return SeparatedValuesLogFileStructureFinder.canCreateFromSample(terminal, sample, 5, PIPE_PREFERENCE, "pipe separated values");
     }
 
     @Override
-    public LogFileStructure createFromSample(String sampleFileName, String indexName, String typeName, String elasticsearchHost,
-                                             String logstashHost, String logstashFileTimezone, String sample, String charsetName)
+    public LogFileStructureFinder createFromSample(String sampleFileName, String indexName, String typeName, String elasticsearchHost,
+                                                   String logstashHost, String logstashFileTimezone, String sample, String charsetName)
         throws IOException {
-        return new SeparatedValuesLogFileStructure(terminal, sampleFileName, indexName, typeName, elasticsearchHost, logstashHost,
+        return new SeparatedValuesLogFileStructureFinder(terminal, sampleFileName, indexName, typeName, elasticsearchHost, logstashHost,
             logstashFileTimezone, sample, charsetName, PIPE_PREFERENCE, true);
     }
 }

@@ -20,7 +20,7 @@ import java.util.Arrays;
 import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
-public class LogFileStructureFinderTests extends LogConfigCreatorTestCase {
+public class LogFileStructureFinderManagerTests extends LogConfigCreatorTestCase {
 
     private static final int IDEAL_SAMPLE_LINE_COUNT = 1000;
 
@@ -35,11 +35,11 @@ public class LogFileStructureFinderTests extends LogConfigCreatorTestCase {
     private static final String INDEX_MAPPINGS_CONSOLE = TEST_TYPE + "-index-mappings.console";
     private static final String INDEX_MAPPINGS_SH = TEST_TYPE + "-index-mappings.sh";
 
-    private LogFileStructureFinder structureFinder;
+    private LogFileStructureFinderManager structureFinder;
 
     @Before
     public void setup() throws IOException {
-        structureFinder = new LogFileStructureFinder(TEST_TERMINAL, null, TEST_FILE_NAME, TEST_INDEX_NAME, TEST_TYPE,
+        structureFinder = new LogFileStructureFinderManager(TEST_TERMINAL, null, TEST_FILE_NAME, TEST_INDEX_NAME, TEST_TYPE,
             randomFrom(POSSIBLE_HOSTNAMES), randomFrom(POSSIBLE_HOSTNAMES), "UTC");
     }
 
@@ -71,22 +71,22 @@ public class LogFileStructureFinderTests extends LogConfigCreatorTestCase {
 
     public void testMakeBestStructureGivenJson() throws Exception {
         assertThat(structureFinder.makeBestStructure("{ \"time\": \"2018-05-17T13:41:23\", \"message\": \"hello\" }",
-            StandardCharsets.UTF_8.name()), instanceOf(JsonLogFileStructure.class));
+            StandardCharsets.UTF_8.name()), instanceOf(JsonLogFileStructureFinder.class));
     }
 
     public void testMakeBestStructureGivenXml() throws Exception {
         assertThat(structureFinder.makeBestStructure("<log time=\"2018-05-17T13:41:23\"><message>hello</message></log>",
-            StandardCharsets.UTF_8.name()), instanceOf(XmlLogFileStructure.class));
+            StandardCharsets.UTF_8.name()), instanceOf(XmlLogFileStructureFinder.class));
     }
 
     public void testMakeBestStructureGivenCsv() throws Exception {
         assertThat(structureFinder.makeBestStructure("time,message\n" +
-            "2018-05-17T13:41:23,hello\n", StandardCharsets.UTF_8.name()), instanceOf(SeparatedValuesLogFileStructure.class));
+            "2018-05-17T13:41:23,hello\n", StandardCharsets.UTF_8.name()), instanceOf(SeparatedValuesLogFileStructureFinder.class));
     }
 
     public void testMakeBestStructureGivenText() throws Exception {
         assertThat(structureFinder.makeBestStructure("[2018-05-17T13:41:23] hello\n", StandardCharsets.UTF_8.name()),
-            instanceOf(TextLogFileStructure.class));
+            instanceOf(TextLogFileStructureFinder.class));
     }
 
     public void testFindLogFileFormatGivenJson() throws Exception {

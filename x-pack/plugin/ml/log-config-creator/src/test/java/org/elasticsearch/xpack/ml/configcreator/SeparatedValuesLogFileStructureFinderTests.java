@@ -16,15 +16,15 @@ import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.ml.configcreator.SeparatedValuesLogFileStructure.levenshteinCompareRows;
-import static org.elasticsearch.xpack.ml.configcreator.SeparatedValuesLogFileStructure.levenshteinDistance;
+import static org.elasticsearch.xpack.ml.configcreator.SeparatedValuesLogFileStructureFinder.levenshteinCompareRows;
+import static org.elasticsearch.xpack.ml.configcreator.SeparatedValuesLogFileStructureFinder.levenshteinDistance;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
-public class SeparatedValuesLogFileStructureTests extends LogConfigCreatorTestCase {
+public class SeparatedValuesLogFileStructureFinderTests extends LogConfigCreatorTestCase {
 
-    private LogFileStructureFactory factory = new CsvLogFileStructureFactory(TEST_TERMINAL);
+    private LogFileStructureFinderFactory factory = new CsvLogFileStructureFinderFactory(TEST_TERMINAL);
 
     public void testCreateConfigsGivenCompleteCsv() throws Exception {
         String sample = "time,message\n" +
@@ -35,7 +35,7 @@ public class SeparatedValuesLogFileStructureTests extends LogConfigCreatorTestCa
         String timezone = randomFrom(POSSIBLE_TIMEZONES);
         String elasticsearchHost = randomFrom(POSSIBLE_HOSTNAMES);
         String logstashHost = randomFrom(POSSIBLE_HOSTNAMES);
-        SeparatedValuesLogFileStructure structure = (SeparatedValuesLogFileStructure) factory.createFromSample(TEST_FILE_NAME,
+        SeparatedValuesLogFileStructureFinder structure = (SeparatedValuesLogFileStructureFinder) factory.createFromSample(TEST_FILE_NAME,
             TEST_INDEX_NAME, "time_message", elasticsearchHost, logstashHost, timezone, sample, charset);
         structure.createConfigs();
         assertThat(structure.getFilebeatToLogstashConfig(), containsString("exclude_lines: ['^\"?time\"?,\"?message\"?']\n"));
@@ -60,7 +60,7 @@ public class SeparatedValuesLogFileStructureTests extends LogConfigCreatorTestCa
         String timezone = randomFrom(POSSIBLE_TIMEZONES);
         String elasticsearchHost = randomFrom(POSSIBLE_HOSTNAMES);
         String logstashHost = randomFrom(POSSIBLE_HOSTNAMES);
-        SeparatedValuesLogFileStructure structure = (SeparatedValuesLogFileStructure) factory.createFromSample(TEST_FILE_NAME,
+        SeparatedValuesLogFileStructureFinder structure = (SeparatedValuesLogFileStructureFinder) factory.createFromSample(TEST_FILE_NAME,
             TEST_INDEX_NAME, "message_time", elasticsearchHost, logstashHost, timezone, sample, charset);
         structure.createConfigs();
         if (charset.equals(StandardCharsets.UTF_8.name())) {
@@ -97,7 +97,7 @@ public class SeparatedValuesLogFileStructureTests extends LogConfigCreatorTestCa
         String timezone = randomFrom(POSSIBLE_TIMEZONES);
         String elasticsearchHost = randomFrom(POSSIBLE_HOSTNAMES);
         String logstashHost = randomFrom(POSSIBLE_HOSTNAMES);
-        SeparatedValuesLogFileStructure structure = (SeparatedValuesLogFileStructure) factory.createFromSample(TEST_FILE_NAME,
+        SeparatedValuesLogFileStructureFinder structure = (SeparatedValuesLogFileStructureFinder) factory.createFromSample(TEST_FILE_NAME,
             TEST_INDEX_NAME, "nyc-taxi", elasticsearchHost, logstashHost, timezone, sample, charset);
         structure.createConfigs();
         if (charset.equals(StandardCharsets.UTF_8.name())) {
@@ -148,7 +148,7 @@ public class SeparatedValuesLogFileStructureTests extends LogConfigCreatorTestCa
         String timezone = randomFrom(POSSIBLE_TIMEZONES);
         String elasticsearchHost = randomFrom(POSSIBLE_HOSTNAMES);
         String logstashHost = randomFrom(POSSIBLE_HOSTNAMES);
-        SeparatedValuesLogFileStructure structure = (SeparatedValuesLogFileStructure) factory.createFromSample(TEST_FILE_NAME,
+        SeparatedValuesLogFileStructureFinder structure = (SeparatedValuesLogFileStructureFinder) factory.createFromSample(TEST_FILE_NAME,
             TEST_INDEX_NAME, "nyc-taxi", elasticsearchHost, logstashHost, timezone, sample, charset);
         structure.createConfigs();
         if (charset.equals(StandardCharsets.UTF_8.name())) {
@@ -195,7 +195,7 @@ public class SeparatedValuesLogFileStructureTests extends LogConfigCreatorTestCa
         String timezone = randomFrom(POSSIBLE_TIMEZONES);
         String elasticsearchHost = randomFrom(POSSIBLE_HOSTNAMES);
         String logstashHost = randomFrom(POSSIBLE_HOSTNAMES);
-        SeparatedValuesLogFileStructure structure = (SeparatedValuesLogFileStructure) factory.createFromSample(TEST_FILE_NAME,
+        SeparatedValuesLogFileStructureFinder structure = (SeparatedValuesLogFileStructureFinder) factory.createFromSample(TEST_FILE_NAME,
             TEST_INDEX_NAME, "positions", elasticsearchHost, logstashHost, timezone, sample, charset);
         structure.createConfigs();
         if (charset.equals(StandardCharsets.UTF_8.name())) {
@@ -233,8 +233,8 @@ public class SeparatedValuesLogFileStructureTests extends LogConfigCreatorTestCa
             "2014-06-23 00:00:01Z,JBU,877.5927,farequote\n" +
             "2014-06-23 00:00:01Z,KLM,1355.4812,farequote\n";
 
-        Tuple<Boolean, String[]> header = SeparatedValuesLogFileStructure.findHeaderFromSample(TEST_TERMINAL,
-            SeparatedValuesLogFileStructure.readRows(withHeader, CsvPreference.EXCEL_PREFERENCE).v1());
+        Tuple<Boolean, String[]> header = SeparatedValuesLogFileStructureFinder.findHeaderFromSample(TEST_TERMINAL,
+            SeparatedValuesLogFileStructureFinder.readRows(withHeader, CsvPreference.EXCEL_PREFERENCE).v1());
 
         assertTrue(header.v1());
         assertThat(header.v2(), arrayContaining("time", "airline", "responsetime", "sourcetype"));
@@ -246,8 +246,8 @@ public class SeparatedValuesLogFileStructureTests extends LogConfigCreatorTestCa
             "2014-06-23 00:00:01Z,JBU,877.5927,farequote\n" +
             "2014-06-23 00:00:01Z,KLM,1355.4812,farequote\n";
 
-        Tuple<Boolean, String[]> header = SeparatedValuesLogFileStructure.findHeaderFromSample(TEST_TERMINAL,
-            SeparatedValuesLogFileStructure.readRows(withoutHeader, CsvPreference.EXCEL_PREFERENCE).v1());
+        Tuple<Boolean, String[]> header = SeparatedValuesLogFileStructureFinder.findHeaderFromSample(TEST_TERMINAL,
+            SeparatedValuesLogFileStructureFinder.readRows(withoutHeader, CsvPreference.EXCEL_PREFERENCE).v1());
 
         assertFalse(header.v1());
         assertThat(header.v2(), arrayContaining("column1", "column2", "column3", "column4"));
@@ -289,15 +289,15 @@ public class SeparatedValuesLogFileStructureTests extends LogConfigCreatorTestCa
 
     public void testMakeColumnConversions() {
         Map<String, Map<String, String>> mappings = new LinkedHashMap<>();
-        mappings.put("f1", Collections.singletonMap(AbstractLogFileStructure.MAPPING_TYPE_SETTING, "long"));
-        mappings.put("f2", Collections.singletonMap(AbstractLogFileStructure.MAPPING_TYPE_SETTING, "date"));
-        mappings.put("f3", Collections.singletonMap(AbstractLogFileStructure.MAPPING_TYPE_SETTING, "text"));
-        mappings.put("f4", Collections.singletonMap(AbstractLogFileStructure.MAPPING_TYPE_SETTING, "keyword"));
-        mappings.put("f5", Collections.singletonMap(AbstractLogFileStructure.MAPPING_TYPE_SETTING, "double"));
-        mappings.put("f6", Collections.singletonMap(AbstractLogFileStructure.MAPPING_TYPE_SETTING, "long"));
-        mappings.put("f7", Collections.singletonMap(AbstractLogFileStructure.MAPPING_TYPE_SETTING, "boolean"));
-        mappings.put("f8", Collections.singletonMap(AbstractLogFileStructure.MAPPING_TYPE_SETTING, "keyword"));
-        String conversions = SeparatedValuesLogFileStructure.makeColumnConversions(mappings);
+        mappings.put("f1", Collections.singletonMap(AbstractLogFileStructureFinder.MAPPING_TYPE_SETTING, "long"));
+        mappings.put("f2", Collections.singletonMap(AbstractLogFileStructureFinder.MAPPING_TYPE_SETTING, "date"));
+        mappings.put("f3", Collections.singletonMap(AbstractLogFileStructureFinder.MAPPING_TYPE_SETTING, "text"));
+        mappings.put("f4", Collections.singletonMap(AbstractLogFileStructureFinder.MAPPING_TYPE_SETTING, "keyword"));
+        mappings.put("f5", Collections.singletonMap(AbstractLogFileStructureFinder.MAPPING_TYPE_SETTING, "double"));
+        mappings.put("f6", Collections.singletonMap(AbstractLogFileStructureFinder.MAPPING_TYPE_SETTING, "long"));
+        mappings.put("f7", Collections.singletonMap(AbstractLogFileStructureFinder.MAPPING_TYPE_SETTING, "boolean"));
+        mappings.put("f8", Collections.singletonMap(AbstractLogFileStructureFinder.MAPPING_TYPE_SETTING, "keyword"));
+        String conversions = SeparatedValuesLogFileStructureFinder.makeColumnConversions(mappings);
         assertEquals("    convert => {\n" +
             "      \"f1\" => \"integer\"\n" +
             "      \"f5\" => \"float\"\n" +
@@ -307,32 +307,32 @@ public class SeparatedValuesLogFileStructureTests extends LogConfigCreatorTestCa
     }
 
     public void testLineHasUnescapedQuote() {
-        assertFalse(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("a,b,c", CsvPreference.EXCEL_PREFERENCE));
-        assertFalse(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("\"a\",b,c", CsvPreference.EXCEL_PREFERENCE));
-        assertFalse(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("\"a,b\",c", CsvPreference.EXCEL_PREFERENCE));
-        assertFalse(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("\"a,b,c\"", CsvPreference.EXCEL_PREFERENCE));
-        assertFalse(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("a,\"b\",c", CsvPreference.EXCEL_PREFERENCE));
-        assertFalse(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("a,b,\"c\"", CsvPreference.EXCEL_PREFERENCE));
-        assertFalse(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("a,\"b\"\"\",c", CsvPreference.EXCEL_PREFERENCE));
-        assertFalse(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("a,b,\"c\"\"\"", CsvPreference.EXCEL_PREFERENCE));
-        assertFalse(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("\"\"\"a\",b,c", CsvPreference.EXCEL_PREFERENCE));
-        assertFalse(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("\"a\"\"\",b,c", CsvPreference.EXCEL_PREFERENCE));
-        assertFalse(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("\"a,\"\"b\",c", CsvPreference.EXCEL_PREFERENCE));
-        assertTrue(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("between\"words,b,c", CsvPreference.EXCEL_PREFERENCE));
-        assertTrue(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("x and \"y\",b,c", CsvPreference.EXCEL_PREFERENCE));
+        assertFalse(SeparatedValuesLogFileStructureFinder.lineHasUnescapedQuote("a,b,c", CsvPreference.EXCEL_PREFERENCE));
+        assertFalse(SeparatedValuesLogFileStructureFinder.lineHasUnescapedQuote("\"a\",b,c", CsvPreference.EXCEL_PREFERENCE));
+        assertFalse(SeparatedValuesLogFileStructureFinder.lineHasUnescapedQuote("\"a,b\",c", CsvPreference.EXCEL_PREFERENCE));
+        assertFalse(SeparatedValuesLogFileStructureFinder.lineHasUnescapedQuote("\"a,b,c\"", CsvPreference.EXCEL_PREFERENCE));
+        assertFalse(SeparatedValuesLogFileStructureFinder.lineHasUnescapedQuote("a,\"b\",c", CsvPreference.EXCEL_PREFERENCE));
+        assertFalse(SeparatedValuesLogFileStructureFinder.lineHasUnescapedQuote("a,b,\"c\"", CsvPreference.EXCEL_PREFERENCE));
+        assertFalse(SeparatedValuesLogFileStructureFinder.lineHasUnescapedQuote("a,\"b\"\"\",c", CsvPreference.EXCEL_PREFERENCE));
+        assertFalse(SeparatedValuesLogFileStructureFinder.lineHasUnescapedQuote("a,b,\"c\"\"\"", CsvPreference.EXCEL_PREFERENCE));
+        assertFalse(SeparatedValuesLogFileStructureFinder.lineHasUnescapedQuote("\"\"\"a\",b,c", CsvPreference.EXCEL_PREFERENCE));
+        assertFalse(SeparatedValuesLogFileStructureFinder.lineHasUnescapedQuote("\"a\"\"\",b,c", CsvPreference.EXCEL_PREFERENCE));
+        assertFalse(SeparatedValuesLogFileStructureFinder.lineHasUnescapedQuote("\"a,\"\"b\",c", CsvPreference.EXCEL_PREFERENCE));
+        assertTrue(SeparatedValuesLogFileStructureFinder.lineHasUnescapedQuote("between\"words,b,c", CsvPreference.EXCEL_PREFERENCE));
+        assertTrue(SeparatedValuesLogFileStructureFinder.lineHasUnescapedQuote("x and \"y\",b,c", CsvPreference.EXCEL_PREFERENCE));
 
-        assertFalse(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("a\tb\tc", CsvPreference.TAB_PREFERENCE));
-        assertFalse(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("\"a\"\tb\tc", CsvPreference.TAB_PREFERENCE));
-        assertFalse(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("\"a\tb\"\tc", CsvPreference.TAB_PREFERENCE));
-        assertFalse(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("\"a\tb\tc\"", CsvPreference.TAB_PREFERENCE));
-        assertFalse(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("a\t\"b\"\tc", CsvPreference.TAB_PREFERENCE));
-        assertFalse(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("a\tb\t\"c\"", CsvPreference.TAB_PREFERENCE));
-        assertFalse(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("a\t\"b\"\"\"\tc", CsvPreference.TAB_PREFERENCE));
-        assertFalse(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("a\tb\t\"c\"\"\"", CsvPreference.TAB_PREFERENCE));
-        assertFalse(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("\"\"\"a\"\tb\tc", CsvPreference.TAB_PREFERENCE));
-        assertFalse(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("\"a\"\"\"\tb\tc", CsvPreference.TAB_PREFERENCE));
-        assertFalse(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("\"a\t\"\"b\"\tc", CsvPreference.TAB_PREFERENCE));
-        assertTrue(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("between\"words\tb\tc", CsvPreference.TAB_PREFERENCE));
-        assertTrue(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("x and \"y\"\tb\tc", CsvPreference.TAB_PREFERENCE));
+        assertFalse(SeparatedValuesLogFileStructureFinder.lineHasUnescapedQuote("a\tb\tc", CsvPreference.TAB_PREFERENCE));
+        assertFalse(SeparatedValuesLogFileStructureFinder.lineHasUnescapedQuote("\"a\"\tb\tc", CsvPreference.TAB_PREFERENCE));
+        assertFalse(SeparatedValuesLogFileStructureFinder.lineHasUnescapedQuote("\"a\tb\"\tc", CsvPreference.TAB_PREFERENCE));
+        assertFalse(SeparatedValuesLogFileStructureFinder.lineHasUnescapedQuote("\"a\tb\tc\"", CsvPreference.TAB_PREFERENCE));
+        assertFalse(SeparatedValuesLogFileStructureFinder.lineHasUnescapedQuote("a\t\"b\"\tc", CsvPreference.TAB_PREFERENCE));
+        assertFalse(SeparatedValuesLogFileStructureFinder.lineHasUnescapedQuote("a\tb\t\"c\"", CsvPreference.TAB_PREFERENCE));
+        assertFalse(SeparatedValuesLogFileStructureFinder.lineHasUnescapedQuote("a\t\"b\"\"\"\tc", CsvPreference.TAB_PREFERENCE));
+        assertFalse(SeparatedValuesLogFileStructureFinder.lineHasUnescapedQuote("a\tb\t\"c\"\"\"", CsvPreference.TAB_PREFERENCE));
+        assertFalse(SeparatedValuesLogFileStructureFinder.lineHasUnescapedQuote("\"\"\"a\"\tb\tc", CsvPreference.TAB_PREFERENCE));
+        assertFalse(SeparatedValuesLogFileStructureFinder.lineHasUnescapedQuote("\"a\"\"\"\tb\tc", CsvPreference.TAB_PREFERENCE));
+        assertFalse(SeparatedValuesLogFileStructureFinder.lineHasUnescapedQuote("\"a\t\"\"b\"\tc", CsvPreference.TAB_PREFERENCE));
+        assertTrue(SeparatedValuesLogFileStructureFinder.lineHasUnescapedQuote("between\"words\tb\tc", CsvPreference.TAB_PREFERENCE));
+        assertTrue(SeparatedValuesLogFileStructureFinder.lineHasUnescapedQuote("x and \"y\"\tb\tc", CsvPreference.TAB_PREFERENCE));
     }
 }

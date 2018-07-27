@@ -23,16 +23,16 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public abstract class AbstractStructuredLogFileStructure extends AbstractLogFileStructure {
+public abstract class AbstractStructuredLogFileStructureFinder extends AbstractLogFileStructureFinder {
 
     private static final String LOGSTASH_DATE_FILTER_TEMPLATE = "  date {\n" +
         "    match => [ %s%s%s, %s ]\n" +
         "%s" +
         "  }\n";
 
-    protected AbstractStructuredLogFileStructure(Terminal terminal, String sampleFileName, String indexName, String typeName,
-                                                 String elasticsearchHost, String logstashHost, String logstashFileTimezone,
-                                                 String charsetName) {
+    protected AbstractStructuredLogFileStructureFinder(Terminal terminal, String sampleFileName, String indexName, String typeName,
+                                                       String elasticsearchHost, String logstashHost, String logstashFileTimezone,
+                                                       String charsetName) {
         super(terminal, sampleFileName, indexName, typeName, elasticsearchHost, logstashHost, logstashFileTimezone, charsetName);
     }
 
@@ -147,7 +147,7 @@ public abstract class AbstractStructuredLogFileStructure extends AbstractLogFile
         if (fieldValues.stream().anyMatch(value -> value instanceof List || value instanceof Object[])) {
             // Elasticsearch fields can be either arrays or single values, but array values must all have the same type
             return guessMapping(fieldName,
-                fieldValues.stream().flatMap(AbstractStructuredLogFileStructure::flatten).collect(Collectors.toList()));
+                fieldValues.stream().flatMap(AbstractStructuredLogFileStructureFinder::flatten).collect(Collectors.toList()));
         }
 
         return guessScalarMapping(terminal, fieldName, fieldValues.stream().map(Object::toString).collect(Collectors.toList()));

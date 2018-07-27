@@ -29,7 +29,7 @@ import java.util.TreeMap;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-public class TextLogFileStructure extends AbstractLogFileStructure implements LogFileStructure {
+public class TextLogFileStructureFinder extends AbstractLogFileStructureFinder implements LogFileStructureFinder {
 
     private static final String FILEBEAT_TO_LOGSTASH_TEMPLATE = "filebeat.inputs:\n" +
         "- type: log\n" +
@@ -131,9 +131,9 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
     private String filebeatToIngestPipelineConfig;
     private String ingestPipelineFromFilebeatConfig;
 
-    TextLogFileStructure(Terminal terminal, FilebeatModuleStore filebeatModuleStore, String sampleFileName, String indexName,
-                         String typeName, String elasticsearchHost, String logstashHost, String logstashFileTimezone, String sample,
-                         String charsetName) {
+    TextLogFileStructureFinder(Terminal terminal, FilebeatModuleStore filebeatModuleStore, String sampleFileName, String indexName,
+                               String typeName, String elasticsearchHost, String logstashHost, String logstashFileTimezone, String sample,
+                               String charsetName) {
         super(terminal, sampleFileName, indexName, typeName, elasticsearchHost, logstashHost, logstashFileTimezone, charsetName);
         this.filebeatModuleStore = filebeatModuleStore;
         this.sample = Objects.requireNonNull(sample);

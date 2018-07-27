@@ -28,7 +28,7 @@ import static org.elasticsearch.common.xcontent.json.JsonXContent.jsonXContent;
 /**
  * Really ND-JSON.
  */
-public class JsonLogFileStructure extends AbstractStructuredLogFileStructure implements LogFileStructure {
+public class JsonLogFileStructureFinder extends AbstractStructuredLogFileStructureFinder implements LogFileStructureFinder {
 
     private static final String FILEBEAT_TO_LOGSTASH_TEMPLATE = "filebeat.inputs:\n" +
         "- type: log\n" +
@@ -119,8 +119,8 @@ public class JsonLogFileStructure extends AbstractStructuredLogFileStructure imp
     private String filebeatToIngestPipelineConfig;
     private String ingestPipelineFromFilebeatConfig;
 
-    JsonLogFileStructure(Terminal terminal, String sampleFileName, String indexName, String typeName, String elasticsearchHost,
-                         String logstashHost, String logstashFileTimezone, String sample, String charsetName) throws IOException {
+    JsonLogFileStructureFinder(Terminal terminal, String sampleFileName, String indexName, String typeName, String elasticsearchHost,
+                               String logstashHost, String logstashFileTimezone, String sample, String charsetName) throws IOException {
         super(terminal, sampleFileName, indexName, typeName, elasticsearchHost, logstashHost, logstashFileTimezone, charsetName);
 
         sampleRecords = new ArrayList<>();

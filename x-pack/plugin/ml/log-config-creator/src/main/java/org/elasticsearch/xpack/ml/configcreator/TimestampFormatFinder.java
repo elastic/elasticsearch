@@ -329,10 +329,10 @@ public final class TimestampFormatFinder {
         public Map<String, String> getEsDateMappingTypeWithFormat() {
             if (dateFormats.contains("TAI64N")) {
                 // There's no format for TAI64N in the date formats used in mappings
-                return Collections.singletonMap(AbstractLogFileStructure.MAPPING_TYPE_SETTING, "keyword");
+                return Collections.singletonMap(AbstractLogFileStructureFinder.MAPPING_TYPE_SETTING, "keyword");
             }
             Map<String, String> mapping = new HashMap<>();
-            mapping.put(AbstractLogFileStructure.MAPPING_TYPE_SETTING, "date");
+            mapping.put(AbstractLogFileStructureFinder.MAPPING_TYPE_SETTING, "date");
             String formats = dateFormats.stream().flatMap(format -> {
                 switch (format) {
                     case "ISO8601":
@@ -346,7 +346,7 @@ public final class TimestampFormatFinder {
                 }
             }).collect(Collectors.joining("||"));
             if (formats.isEmpty() == false) {
-                mapping.put(AbstractLogFileStructure.MAPPING_FORMAT_SETTING, formats);
+                mapping.put(AbstractLogFileStructureFinder.MAPPING_FORMAT_SETTING, formats);
             }
             return mapping;
         }

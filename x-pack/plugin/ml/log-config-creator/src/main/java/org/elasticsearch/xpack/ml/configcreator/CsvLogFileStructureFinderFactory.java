@@ -11,11 +11,11 @@ import org.supercsv.prefs.CsvPreference;
 import java.io.IOException;
 import java.util.Objects;
 
-public class CsvLogFileStructureFactory implements LogFileStructureFactory {
+public class CsvLogFileStructureFinderFactory implements LogFileStructureFinderFactory {
 
     private final Terminal terminal;
 
-    public CsvLogFileStructureFactory(Terminal terminal) {
+    public CsvLogFileStructureFinderFactory(Terminal terminal) {
         this.terminal = Objects.requireNonNull(terminal);
     }
 
@@ -30,14 +30,14 @@ public class CsvLogFileStructureFactory implements LogFileStructureFactory {
      */
     @Override
     public boolean canCreateFromSample(String sample) {
-        return SeparatedValuesLogFileStructure.canCreateFromSample(terminal, sample, 2, CsvPreference.EXCEL_PREFERENCE, "CSV");
+        return SeparatedValuesLogFileStructureFinder.canCreateFromSample(terminal, sample, 2, CsvPreference.EXCEL_PREFERENCE, "CSV");
     }
 
     @Override
-    public LogFileStructure createFromSample(String sampleFileName, String indexName, String typeName, String elasticsearchHost,
-                                             String logstashHost, String logstashFileTimezone, String sample, String charsetName)
+    public LogFileStructureFinder createFromSample(String sampleFileName, String indexName, String typeName, String elasticsearchHost,
+                                                   String logstashHost, String logstashFileTimezone, String sample, String charsetName)
         throws IOException {
-        return new SeparatedValuesLogFileStructure(terminal, sampleFileName, indexName, typeName, elasticsearchHost, logstashHost,
+        return new SeparatedValuesLogFileStructureFinder(terminal, sampleFileName, indexName, typeName, elasticsearchHost, logstashHost,
             logstashFileTimezone, sample, charsetName, CsvPreference.EXCEL_PREFERENCE, false);
     }
 }

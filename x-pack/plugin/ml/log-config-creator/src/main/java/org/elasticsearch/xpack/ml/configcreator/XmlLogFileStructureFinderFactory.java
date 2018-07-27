@@ -19,12 +19,12 @@ import java.io.Reader;
 import java.io.StringReader;
 import java.util.Objects;
 
-public class XmlLogFileStructureFactory implements LogFileStructureFactory {
+public class XmlLogFileStructureFinderFactory implements LogFileStructureFinderFactory {
 
     private final Terminal terminal;
     private final XMLInputFactory xmlFactory;
 
-    public XmlLogFileStructureFactory(Terminal terminal) {
+    public XmlLogFileStructureFinderFactory(Terminal terminal) {
         this.terminal = Objects.requireNonNull(terminal);
         xmlFactory = XMLInputFactory.newInstance();
         xmlFactory.setProperty(XMLInputFactory.IS_NAMESPACE_AWARE, Boolean.FALSE);
@@ -120,10 +120,10 @@ public class XmlLogFileStructureFactory implements LogFileStructureFactory {
     }
 
     @Override
-    public LogFileStructure createFromSample(String sampleFileName, String indexName, String typeName, String elasticsearchHost,
-                                             String logstashHost, String logstashFileTimezone, String sample, String charsetName)
+    public LogFileStructureFinder createFromSample(String sampleFileName, String indexName, String typeName, String elasticsearchHost,
+                                                   String logstashHost, String logstashFileTimezone, String sample, String charsetName)
         throws IOException, ParserConfigurationException, SAXException {
-        return new XmlLogFileStructure(terminal, sampleFileName, indexName, typeName, elasticsearchHost, logstashHost, logstashFileTimezone,
-            sample, charsetName);
+        return new XmlLogFileStructureFinder(terminal, sampleFileName, indexName, typeName, elasticsearchHost, logstashHost,
+            logstashFileTimezone, sample, charsetName);
     }
 }

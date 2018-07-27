@@ -152,7 +152,7 @@ public class LogConfigCreator extends Command {
         }
 
         try {
-            LogFileStructureFinder structureFinder = new LogFileStructureFinder(terminal, filebeatModulePath,
+            LogFileStructureFinderManager structureFinder = new LogFileStructureFinderManager(terminal, filebeatModulePath,
                 file.toAbsolutePath().normalize().toString(), indexName, typeName, elasticsearchHost, logstashHost, timezone);
             structureFinder.findLogFileConfigs(sampleLines, Files.newInputStream(file), outputDirectory);
         } catch (IOException e) {

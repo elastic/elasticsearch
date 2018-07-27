@@ -24,7 +24,7 @@ import java.util.Objects;
 import java.util.SortedMap;
 import java.util.stream.Collectors;
 
-public abstract class AbstractLogFileStructure {
+public abstract class AbstractLogFileStructureFinder {
 
     protected static final boolean IS_WINDOWS = System.getProperty("os.name").startsWith("Windows");
     protected static final String DEFAULT_TIMESTAMP_FIELD = "@timestamp";
@@ -109,8 +109,9 @@ public abstract class AbstractLogFileStructure {
     protected final String charsetName;
     private String preambleComment = "";
 
-    protected AbstractLogFileStructure(Terminal terminal, String sampleFileName, String indexName, String typeName,
-                                       String elasticsearchHost, String logstashHost, String logstashFileTimezone, String charsetName) {
+    protected AbstractLogFileStructureFinder(Terminal terminal, String sampleFileName, String indexName, String typeName,
+                                             String elasticsearchHost, String logstashHost, String logstashFileTimezone,
+                                             String charsetName) {
         this.terminal = Objects.requireNonNull(terminal);
         this.sampleFileName = Objects.requireNonNull(sampleFileName);
         this.indexName = Objects.requireNonNull(indexName);
@@ -246,7 +247,7 @@ public abstract class AbstractLogFileStructure {
             return Collections.singletonMap(MAPPING_TYPE_SETTING, "ip");
         }
 
-        if (fieldValues.stream().anyMatch(AbstractStructuredLogFileStructure::isMoreLikelyTextThanKeyword)) {
+        if (fieldValues.stream().anyMatch(AbstractStructuredLogFileStructureFinder::isMoreLikelyTextThanKeyword)) {
             return Collections.singletonMap(MAPPING_TYPE_SETTING, "text");
         }
 

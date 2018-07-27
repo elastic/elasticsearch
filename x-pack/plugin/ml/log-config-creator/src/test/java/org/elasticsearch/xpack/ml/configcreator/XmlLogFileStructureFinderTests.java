@@ -11,9 +11,9 @@ import java.util.Locale;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
-public class XmlLogFileStructureTests extends LogConfigCreatorTestCase {
+public class XmlLogFileStructureFinderTests extends LogConfigCreatorTestCase {
 
-    private LogFileStructureFactory factory = new XmlLogFileStructureFactory(TEST_TERMINAL);
+    private LogFileStructureFinderFactory factory = new XmlLogFileStructureFinderFactory(TEST_TERMINAL);
 
     public void testCreateConfigsGivenGoodXml() throws Exception {
         assertTrue(factory.canCreateFromSample(XML_SAMPLE));
@@ -21,8 +21,8 @@ public class XmlLogFileStructureTests extends LogConfigCreatorTestCase {
         String timezone = randomFrom(POSSIBLE_TIMEZONES);
         String elasticsearchHost = randomFrom(POSSIBLE_HOSTNAMES);
         String logstashHost = randomFrom(POSSIBLE_HOSTNAMES);
-        XmlLogFileStructure structure = (XmlLogFileStructure) factory.createFromSample(TEST_FILE_NAME, TEST_INDEX_NAME, "log4cxx-xml",
-            elasticsearchHost, logstashHost, timezone, XML_SAMPLE, charset);
+        XmlLogFileStructureFinder structure = (XmlLogFileStructureFinder) factory.createFromSample(TEST_FILE_NAME, TEST_INDEX_NAME,
+            "log4cxx-xml", elasticsearchHost, logstashHost, timezone, XML_SAMPLE, charset);
         structure.createConfigs();
         if (charset.equals(StandardCharsets.UTF_8.name())) {
             assertThat(structure.getFilebeatToLogstashConfig(), not(containsString("encoding:")));

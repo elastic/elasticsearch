@@ -32,7 +32,7 @@ import java.util.Scanner;
 import java.util.SortedMap;
 import java.util.regex.Pattern;
 
-public class XmlLogFileStructure extends AbstractStructuredLogFileStructure implements LogFileStructure {
+public class XmlLogFileStructureFinder extends AbstractStructuredLogFileStructureFinder implements LogFileStructureFinder {
 
     private static final String FILEBEAT_TO_LOGSTASH_TEMPLATE = "filebeat.inputs:\n" +
         "- type: log\n" +
@@ -98,8 +98,8 @@ public class XmlLogFileStructure extends AbstractStructuredLogFileStructure impl
     private String logstashFromFilebeatConfig;
     private String logstashFromFileConfig;
 
-    XmlLogFileStructure(Terminal terminal, String sampleFileName, String indexName, String typeName, String elasticsearchHost,
-                        String logstashHost, String logstashFileTimezone, String sample, String charsetName)
+    XmlLogFileStructureFinder(Terminal terminal, String sampleFileName, String indexName, String typeName, String elasticsearchHost,
+                              String logstashHost, String logstashFileTimezone, String sample, String charsetName)
         throws IOException, ParserConfigurationException, SAXException {
         super(terminal, sampleFileName, indexName, typeName, elasticsearchHost, logstashHost, logstashFileTimezone, charsetName);
 

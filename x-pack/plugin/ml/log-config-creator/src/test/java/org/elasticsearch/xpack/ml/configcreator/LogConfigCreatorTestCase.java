@@ -19,7 +19,7 @@ import java.util.stream.Collectors;
 public abstract class LogConfigCreatorTestCase extends ESTestCase {
 
     protected static final List<String> POSSIBLE_CHARSETS = Collections.unmodifiableList(Charset.availableCharsets().keySet().stream()
-        .filter(name -> LogFileStructureFinder.FILEBEAT_SUPPORTED_ENCODINGS.contains(name.toLowerCase(Locale.ROOT)))
+        .filter(name -> LogFileStructureFinderManager.FILEBEAT_SUPPORTED_ENCODINGS.contains(name.toLowerCase(Locale.ROOT)))
         .collect(Collectors.toList()));
     protected static final List<String> POSSIBLE_TIMEZONES = Arrays.asList(null, "Europe/London", "UTC", "+05:30", "-08:00", "EST");
     protected static final List<String> POSSIBLE_HOSTNAMES = Arrays.asList("localhost", "192.168.1.2", "::1", "server", "server.acme.com");

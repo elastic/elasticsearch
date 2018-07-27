@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.configcreator;
 
-public interface LogFileStructureFactory {
+public interface LogFileStructureFinderFactory {
 
     /**
      * Given a sample of a log file, decide whether this factory will be able
@@ -29,6 +29,7 @@ public interface LogFileStructureFactory {
      * @return A log file structure object suitable for ingesting the supplied sample.
      * @throws Exception if something goes wrong during creation.
      */
-    LogFileStructure createFromSample(String sampleFileName, String indexName, String typeName, String elasticsearchHost,
-                                      String logstashHost, String logstashFileTimezone, String sample, String charsetName) throws Exception;
+    LogFileStructureFinder createFromSample(String sampleFileName, String indexName, String typeName, String elasticsearchHost,
+                                            String logstashHost, String logstashFileTimezone, String sample, String charsetName)
+        throws Exception;
 }

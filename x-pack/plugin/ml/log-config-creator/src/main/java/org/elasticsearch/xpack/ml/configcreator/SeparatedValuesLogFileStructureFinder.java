@@ -32,7 +32,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileStructure implements LogFileStructure {
+public class SeparatedValuesLogFileStructureFinder extends AbstractStructuredLogFileStructureFinder implements LogFileStructureFinder {
 
     private static final int MAX_LEVENSHTEIN_COMPARISONS = 100;
 
@@ -116,9 +116,9 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
     private String logstashFromFilebeatConfig;
     private String logstashFromFileConfig;
 
-    SeparatedValuesLogFileStructure(Terminal terminal, String sampleFileName, String indexName, String typeName,
-                                    String elasticsearchHost, String logstashHost, String logstashFileTimezone, String sample,
-                                    String charsetName, CsvPreference csvPreference, boolean trimFields) throws IOException {
+    SeparatedValuesLogFileStructureFinder(Terminal terminal, String sampleFileName, String indexName, String typeName,
+                                          String elasticsearchHost, String logstashHost, String logstashFileTimezone, String sample,
+                                          String charsetName, CsvPreference csvPreference, boolean trimFields) throws IOException {
         super(terminal, sampleFileName, indexName, typeName, elasticsearchHost, logstashHost, logstashFileTimezone, charsetName);
         this.csvPreference = Objects.requireNonNull(csvPreference);
         this.trimFields = trimFields;

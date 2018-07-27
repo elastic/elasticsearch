@@ -8,15 +8,14 @@ package org.elasticsearch.xpack.ml.configcreator;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
 
-import java.io.IOException;
 import java.util.Objects;
 
-public class TextLogFileStructureFactory implements LogFileStructureFactory {
+public class TextLogFileStructureFinderFactory implements LogFileStructureFinderFactory {
 
     private final Terminal terminal;
     private final FilebeatModuleStore filebeatModuleStore;
 
-    public TextLogFileStructureFactory(Terminal terminal, FilebeatModuleStore filebeatModuleStore) throws IOException {
+    public TextLogFileStructureFinderFactory(Terminal terminal, FilebeatModuleStore filebeatModuleStore) {
         this.terminal = Objects.requireNonNull(terminal);
         this.filebeatModuleStore = filebeatModuleStore;
     }
@@ -40,9 +39,9 @@ public class TextLogFileStructureFactory implements LogFileStructureFactory {
     }
 
     @Override
-    public LogFileStructure createFromSample(String sampleFileName, String indexName, String typeName, String elasticsearchHost,
-                                             String logstashHost, String logstashFileTimezone, String sample, String charsetName) {
-        return new TextLogFileStructure(terminal, filebeatModuleStore, sampleFileName, indexName, typeName, elasticsearchHost, logstashHost,
-            logstashFileTimezone, sample, charsetName);
+    public LogFileStructureFinder createFromSample(String sampleFileName, String indexName, String typeName, String elasticsearchHost,
+                                                   String logstashHost, String logstashFileTimezone, String sample, String charsetName) {
+        return new TextLogFileStructureFinder(terminal, filebeatModuleStore, sampleFileName, indexName, typeName, elasticsearchHost,
+            logstashHost, logstashFileTimezone, sample, charsetName);
     }
 }

@@ -27,6 +27,7 @@ import org.objectweb.asm.Type;
 
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Modifier;
+import java.util.List;
 
 import static org.elasticsearch.painless.WriterConstants.CLASS_NAME;
 import static org.objectweb.asm.Opcodes.H_INVOKEINTERFACE;
@@ -59,8 +60,10 @@ public class FunctionRef {
 
     /** interface method */
     public final PainlessMethod interfaceMethod;
-    /** delegate method */
-    public final PainlessMethod delegateMethod;
+    /** delegate method type parameters */
+    public final List<Class<?>> delegateTypeParameters;
+    /** delegate method return type */
+    public final Class<?> delegateReturnType;
 
     /** factory method type descriptor */
     public final String factoryDescriptor;
@@ -126,7 +129,8 @@ public class FunctionRef {
         this.delegateMethodType = delegateMethodType.dropParameterTypes(0, numCaptures);
 
         this.interfaceMethod = interfaceMethod;
-        this.delegateMethod = delegateMethod;
+        delegateTypeParameters = delegateMethod.arguments;
+        delegateReturnType = delegateMethod.rtn;
 
         factoryDescriptor = factoryMethodType.toMethodDescriptorString();
         interfaceType = Type.getMethodType(interfaceMethodType.toMethodDescriptorString());
@@ -151,7 +155,8 @@ public class FunctionRef {
         isDelegateInterface = false;
 
         this.interfaceMethod = null;
-        delegateMethod = null;
+        delegateTypeParameters = null;
+        delegateReturnType = null;
 
         factoryDescriptor = null;
         interfaceType = null;
@@ -176,7 +181,7 @@ public class FunctionRef {
         final PainlessMethod impl;
         // ctor ref
         if ("new".equals(call)) {
-            impl = struct.constructors.get(PainlessLookupUtility.buildPainlessMethodKey("<init>", method.arguments.size()));
+            impl = null;//TODO: struct.constructors.get(PainlessLookupUtility.buildPainlessMethodKey("<init>", method.arguments.size()));
         } else {
             // look for a static impl first
             PainlessMethod staticImpl =

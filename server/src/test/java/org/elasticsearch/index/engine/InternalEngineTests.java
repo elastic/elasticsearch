@@ -83,6 +83,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -113,6 +114,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -139,6 +141,7 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -171,6 +174,7 @@ import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
 import static org.elasticsearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.sameInstance;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
@@ -178,6 +182,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
@@ -4159,6 +4164,68 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    public void assertSameLuceneHistory(InternalEngine primary, InternalEngine replica) throws IOException {
+        MapperService mapper = createMapperService("test");
+        try (Translog.Snapshot pSnapshot = primary.newLuceneChangesSnapshot("test", mapper, 0, Long.MAX_VALUE, false)) {
+            try (Translog.Snapshot rSnapshot = replica.newLuceneChangesSnapshot("test", mapper, 0, Long.MAX_VALUE, false)) {
+                assertThat(pSnapshot.totalOperations(), equalTo(rSnapshot.totalOperations()));
+                Translog.Operation pOp;
+                while ((pOp = pSnapshot.next()) != null) {
+                    Translog.Operation rOp = rSnapshot.next();
+                    assertThat(rOp, notNullValue());
+                    BytesStreamOutput pOut = new BytesStreamOutput();
+                    Translog.Operation.writeOperation(pOut, pOp);
+                    BytesStreamOutput rOut = new BytesStreamOutput();
+                    Translog.Operation.writeOperation(rOut, rOp);
+                    assertThat("pOp[" + pOp + "], rOp[" + rOp + "]", rOut.bytes(), equalTo(pOut.bytes()));
+                }
+            }
+        }
+    }
+
+    /**
+     * This assertion asserts that the delete tombstones map satisfy these requirements:
+     * 1. Live docs must not exist in the tombstones map
+     * 2. All deletes after the local checkpoint must be retained in the tombstones map
+     * 3. Any retained deletes must reflect the latest version of that document
+     */
+    public void assertDeleteTombstoneRequirements(InternalEngine engine) throws IOException {
+        Map<String, Long> tombstones = engine.getDeletedTombstones().entrySet().stream()
+            .collect(Collectors.toMap(e -> Uid.decodeId(e.getKey().bytes), e -> e.getValue().seqNo));
+        Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
+        Map<String, Long> liveDocs = new HashMap<>();    // must not have any delete tombstone for live docs
+        Map<String, Long> deletedDocs = new HashMap<>(); // deletes after global checkpoint must be retained
+        try (Translog.Snapshot snapshot = new LuceneChangesSnapshot(
+            Lucene.noDeletesReaderWrapper().apply(searcher.getDirectoryReader()),
+            createMapperService("test"), searcher, 100, 0, Long.MAX_VALUE, false)) {
+            searcher = null;
+            Translog.Operation op;
+            while ((op = snapshot.next()) != null) {
+                if (op instanceof Translog.Index) {
+                    String id = ((Translog.Index) op).id();
+                    deletedDocs.remove(id);
+                    liveDocs.put(id, op.seqNo());
+                } else if (op instanceof Translog.Delete) {
+                    String id = ((Translog.Delete) op).id();
+                    liveDocs.remove(id);
+                    deletedDocs.put(id, op.seqNo());
+                }
+            }
+        } finally {
+            IOUtils.close(searcher);
+        }
+        for (Map.Entry<String, Long> entry : liveDocs.entrySet()) {
+            assertThat("live entry [" + entry + "]", tombstones, not(hasKey(entry.getKey())));
+        }
+        for (Map.Entry<String, Long> entry : deletedDocs.entrySet()) {
+            if (entry.getValue() <= engine.getLocalCheckpoint()) {
+                assertThat(tombstones, anyOf(not(hasKey(entry.getKey())), hasEntry(entry.getKey(), entry.getValue())));
+            } else {
+                assertThat(tombstones, hasEntry(entry.getKey(), entry.getValue()));
+            }
+        }
+    }
+
     public void testRefreshScopedSearcher() throws IOException {
         try (Store store = createStore();
              InternalEngine engine =
@@ -4661,18 +4728,18 @@ public class InternalEngineTests extends EngineTestCase {
                     engine.delete(replicaDeleteForDoc(UUIDs.randomBase64UUID(), 1, seqno, threadPool.relativeTimeInMillis()));
                 }
             }
-            List<DeleteVersionValue> tombstones = new ArrayList<>(engine.getDeletedTombstones());
+            List<DeleteVersionValue> tombstones = new ArrayList<>(engine.getDeletedTombstones().values());
             engine.config().setEnableGcDeletes(true);
             // Prune tombstones whose seqno < gap_seqno and timestamp < clock-gcInterval.
             clock.set(randomLongBetween(gcInterval, deleteBatch + gcInterval));
             engine.refresh("test");
             tombstones.removeIf(v -> v.seqNo < gapSeqNo && v.time < clock.get() - gcInterval);
-            assertThat(engine.getDeletedTombstones(), containsInAnyOrder(tombstones.toArray()));
+            assertThat(engine.getDeletedTombstones().values(), containsInAnyOrder(tombstones.toArray()));
             // Prune tombstones whose seqno at most the local checkpoint (eg. seqno < gap_seqno).
             clock.set(randomLongBetween(deleteBatch + gcInterval * 4/3, 100)); // Need a margin for gcInterval/4.
             engine.refresh("test");
             tombstones.removeIf(v -> v.seqNo < gapSeqNo);
-            assertThat(engine.getDeletedTombstones(), containsInAnyOrder(tombstones.toArray()));
+            assertThat(engine.getDeletedTombstones().values(), containsInAnyOrder(tombstones.toArray()));
             // Fill the seqno gap - should prune all tombstones.
             clock.set(between(0, 100));
             if (randomBoolean()) {
@@ -4682,7 +4749,7 @@ public class InternalEngineTests extends EngineTestCase {
             }
             clock.set(randomLongBetween(100 + gcInterval * 4/3, Long.MAX_VALUE)); // Need a margin for gcInterval/4.
             engine.refresh("test");
-            assertThat(engine.getDeletedTombstones(), empty());
+            assertThat(engine.getDeletedTombstones().keySet(), empty());
         }
     }
 
@@ -4947,6 +5014,119 @@ public class InternalEngineTests extends EngineTestCase {
         trimUnsafeCommits(engine.config());
         try (InternalEngine recoveringEngine = new InternalEngine(engine.config())) {
             assertThat(recoveringEngine.getMinRetainedSeqNo(), equalTo(lastMinRetainedSeqNo));
+        }
+    }
+
+    public void testMaybeRollback() throws Exception {
+        IOUtils.close(engine, store);
+        threadPool = spy(threadPool);
+        AtomicLong clockTime = new AtomicLong();
+        when(threadPool.relativeTimeInMillis()).thenAnswer(i -> clockTime.incrementAndGet());
+        List<Engine.Operation> newPrimaryOps = new ArrayList<>();
+        List<Engine.Operation> replicaOps = new ArrayList<>();
+        List<Engine.Operation> resyncOps = new ArrayList<>();
+        int numOps = scaledRandomIntBetween(1, 500);
+        Map<String, Long> versions = new HashMap<>();
+        long oldTerm = between(1, 10);
+        long newTerm = oldTerm + between(1, 10);
+        long startRollbackSeqNo = between(0, numOps - 1);
+        int numOpsToRollback = 0;
+        for (int i = 0; i < numOps; i++) {
+            // create a hole in seqno to prevent the local checkpoint from advancing
+            if (i > startRollbackSeqNo && rarely()) {
+                continue;
+            }
+            long seqNo = i;
+            String id = Integer.toString(randomIntBetween(1, 10));
+            long version = versions.compute(id, (k, v) -> (v == null ? 1 : v) + between(1, 10));
+            BiFunction<Engine.Operation.TYPE, Long, Engine.Operation> nextOp = (type, primaryTerm) -> {
+                if (type == Engine.Operation.TYPE.INDEX) {
+                    ParsedDocument doc = createParsedDoc(id, null);
+                    return new Engine.Index(newUid(doc), doc, seqNo, primaryTerm, version, VersionType.EXTERNAL, REPLICA,
+                        threadPool.relativeTimeInMillis(), IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, randomBoolean());
+                } else if (type == Engine.Operation.TYPE.DELETE) {
+                    return new Engine.Delete("test", id, newUid(id), seqNo, primaryTerm, version, VersionType.EXTERNAL,
+                        Engine.Operation.Origin.REPLICA, threadPool.relativeTimeInMillis());
+                } else {
+                    return new Engine.NoOp(seqNo, primaryTerm, REPLICA, threadPool.relativeTimeInMillis(), "test-" + seqNo);
+                }
+            };
+            Engine.Operation.TYPE primaryOpType = randomFrom(Engine.Operation.TYPE.values());
+            if (seqNo <= startRollbackSeqNo) {
+                replicaOps.add(nextOp.apply(primaryOpType, oldTerm));
+                newPrimaryOps.add(nextOp.apply(primaryOpType, oldTerm));
+            } else {
+                boolean notArrivedYetOnReplica = randomBoolean();
+                if (notArrivedYetOnReplica) {
+                    long term = randomFrom(oldTerm, newTerm);
+                    resyncOps.add(nextOp.apply(primaryOpType, term));
+                    newPrimaryOps.add(nextOp.apply(primaryOpType, term));
+                    numOpsToRollback++;
+                } else {
+                    boolean rollbackWithSameOp = randomBoolean();
+                    if (rollbackWithSameOp) {
+                        newPrimaryOps.add(nextOp.apply(primaryOpType, oldTerm));
+                        resyncOps.add(nextOp.apply(primaryOpType, oldTerm));
+                        replicaOps.add(nextOp.apply(primaryOpType, oldTerm));
+                    } else {
+                        newPrimaryOps.add(nextOp.apply(primaryOpType, newTerm));
+                        resyncOps.add(nextOp.apply(primaryOpType, newTerm));
+                        replicaOps.add(nextOp.apply(randomFrom(Engine.Operation.TYPE.values()), oldTerm));
+                        numOpsToRollback++;
+                    }
+                }
+            }
+        }
+
+        Settings.Builder settings = Settings.builder()
+            .put(defaultSettings.getSettings())
+            .put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), TimeValue.timeValueMillis(between(0, 100)).getStringRep())
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
+        final IndexMetaData indexMetaData = IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetaData);
+        primaryTerm.set(newTerm);
+        IndexWriterFactory iwf = (dir, conf) -> new IndexWriter(dir, conf) {
+            @Override
+            public long tryUpdateDocValue(IndexReader readerIn, int docID, Field... fields) throws IOException {
+                if (rarely()) {
+                    // make tryUpdateDocValue aborted
+                    forceMerge(between(1, 3), randomBoolean());
+                }
+                return super.tryUpdateDocValue(readerIn, docID, fields);
+            }
+        };
+        Randomness.shuffle(newPrimaryOps);
+        Randomness.shuffle(replicaOps);
+        Randomness.shuffle(resyncOps);
+        MapperService mapperService = createMapperService("test");
+
+        try (Store newPrimaryStore = createStore();
+             InternalEngine newPrimaryEngine = createEngine(indexSettings, newPrimaryStore, createTempDir(), newMergePolicy());
+             Store replicaStore = createStore();
+             InternalEngine replicaEngine = createEngine(indexSettings, replicaStore, createTempDir(), newMergePolicy(), iwf)) {
+            applyOperations(newPrimaryOps, newPrimaryEngine);
+            applyOperations(replicaOps, replicaEngine);
+            replicaEngine.getLocalCheckpointTracker().resetCheckpoint(startRollbackSeqNo);
+            replicaEngine.rollTranslogGeneration();
+            replicaEngine.refresh("test");
+            // Rollback
+            int rolledBackCount = 0;
+            for (Engine.Operation resyncOp : resyncOps) {
+                if (replicaEngine.maybeRollback(mapperService, resyncOp)) {
+                    rolledBackCount++;
+                    applyOperations(Collections.singletonList(resyncOp), replicaEngine);
+                    replicaEngine.refresh("test", Engine.SearcherScope.INTERNAL);
+                }else {
+                    replicaEngine.getLocalCheckpointTracker().markSeqNoAsCompleted(resyncOp.seqNo());
+                }
+            }
+            assertThat(rolledBackCount, equalTo(numOpsToRollback));
+            assertThat(replicaEngine.getLocalCheckpoint(), equalTo(newPrimaryEngine.getLocalCheckpoint()));
+            newPrimaryEngine.refresh("test");
+            replicaEngine.refresh("test");
+            assertSameLuceneHistory(newPrimaryEngine, replicaEngine);
+            assertDeleteTombstoneRequirements(replicaEngine);
+            assertConsistentHistoryBetweenTranslogAndLuceneIndex(newPrimaryEngine, mapperService);
         }
     }
 

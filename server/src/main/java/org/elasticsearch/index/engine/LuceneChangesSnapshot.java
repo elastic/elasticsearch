@@ -20,6 +20,7 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -74,15 +75,16 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
     /**
      * Creates a new "translog" snapshot from Lucene for reading operations whose seq# in the specified range.
      *
-     * @param engineSearcher    the internal engine searcher which will be taken over if the snapshot is opened successfully
+     * @param directoryReader   the directory reader which will be used to search history documents in Lucene index
      * @param mapperService     the mapper service which will be mainly used to resolve the document's type and uid
+     * @param onClose           a call back that will be called when this snapshot is closed
      * @param searchBatchSize   the number of documents should be returned by each search
      * @param fromSeqNo         the min requesting seq# - inclusive
      * @param toSeqNo           the maximum requesting seq# - inclusive
      * @param requiredFullRange if true, the snapshot will strictly check for the existence of operations between fromSeqNo and toSeqNo
      */
-    LuceneChangesSnapshot(Engine.Searcher engineSearcher, MapperService mapperService, int searchBatchSize,
-                          long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
+    LuceneChangesSnapshot(DirectoryReader directoryReader, MapperService mapperService, Closeable onClose,
+                          int searchBatchSize, long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
         if (fromSeqNo < 0 || toSeqNo < 0 || fromSeqNo > toSeqNo) {
             throw new IllegalArgumentException("Invalid range; from_seqno [" + fromSeqNo + "], to_seqno [" + toSeqNo + "]");
         }
@@ -92,7 +94,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         final AtomicBoolean closed = new AtomicBoolean();
         this.onClose = () -> {
             if (closed.compareAndSet(false, true)) {
-                IOUtils.close(engineSearcher);
+                IOUtils.close(onClose);
             }
         };
         this.mapperService = mapperService;
@@ -101,7 +103,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         this.toSeqNo = toSeqNo;
         this.lastSeenSeqNo = fromSeqNo - 1;
         this.requiredFullRange = requiredFullRange;
-        this.indexSearcher = new IndexSearcher(Lucene.wrapAllDocsLive(engineSearcher.getDirectoryReader()));
+        this.indexSearcher = new IndexSearcher(directoryReader);
         this.indexSearcher.setQueryCache(null);
         this.parallelArray = new ParallelArray(searchBatchSize);
         final TopDocs topDocs = searchOperations(null);

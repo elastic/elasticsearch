@@ -777,6 +777,29 @@ public abstract class EngineTestCase extends ESTestCase {
         }
     }
 
+    protected void applyOperations(List<Engine.Operation> ops, InternalEngine engine) {
+        for (int i = 0; i < ops.size(); i++) {
+            try {
+                final Engine.Operation op = ops.get(i);
+                if (op instanceof Engine.Index) {
+                    engine.index((Engine.Index) op);
+                } else if (op instanceof Engine.Delete) {
+                    engine.delete((Engine.Delete) op);
+                } else {
+                    engine.noOp((Engine.NoOp) op);
+                }
+                if ((i + 1) % 4 == 0) {
+                    engine.refresh("test");
+                }
+                if (rarely()) {
+                    engine.flush();
+                }
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        }
+    }
+
     /**
      * Gets all docId from the given engine.
      */

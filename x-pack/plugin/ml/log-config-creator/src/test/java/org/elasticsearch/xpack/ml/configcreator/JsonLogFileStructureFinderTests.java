@@ -22,7 +22,7 @@ public class JsonLogFileStructureFinderTests extends LogConfigCreatorTestCase {
         String elasticsearchHost = randomFrom(POSSIBLE_HOSTNAMES);
         String logstashHost = randomFrom(POSSIBLE_HOSTNAMES);
         JsonLogFileStructureFinder structure = (JsonLogFileStructureFinder) factory.createFromSample(TEST_FILE_NAME, TEST_INDEX_NAME,
-            "ml-cpp", elasticsearchHost, logstashHost, timezone, JSON_SAMPLE, charset);
+            "ml-cpp", elasticsearchHost, logstashHost, timezone, JSON_SAMPLE, charset, randomHasByteOrderMarker(charset));
         structure.createConfigs();
         if (charset.equals(StandardCharsets.UTF_8.name())) {
             assertThat(structure.getFilebeatToLogstashConfig(), not(containsString("encoding:")));

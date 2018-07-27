@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.configcreator;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.ml.configcreator.TimestampFormatFinder.TimestampMatch;
-import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
@@ -20,12 +19,7 @@ import static org.hamcrest.Matchers.not;
 
 public class TextLogFileStructureFinderTests extends LogConfigCreatorTestCase {
 
-    private LogFileStructureFinderFactory factory;
-
-    @Before
-    public void setup() {
-        factory = new TextLogFileStructureFinderFactory(TEST_TERMINAL, null);
-    }
+    private LogFileStructureFinderFactory factory = new TextLogFileStructureFinderFactory(TEST_TERMINAL, null);
 
     public void testCreateConfigsGivenElasticsearchLog() throws Exception {
         assertTrue(factory.canCreateFromSample(TEXT_SAMPLE));
@@ -34,7 +28,7 @@ public class TextLogFileStructureFinderTests extends LogConfigCreatorTestCase {
         String elasticsearchHost = randomFrom(POSSIBLE_HOSTNAMES);
         String logstashHost = randomFrom(POSSIBLE_HOSTNAMES);
         TextLogFileStructureFinder structure = (TextLogFileStructureFinder) factory.createFromSample(TEST_FILE_NAME, TEST_INDEX_NAME, "es",
-            elasticsearchHost, logstashHost, timezone, TEXT_SAMPLE, charset);
+            elasticsearchHost, logstashHost, timezone, TEXT_SAMPLE, charset, randomHasByteOrderMarker(charset));
         structure.createConfigs();
         if (charset.equals(StandardCharsets.UTF_8.name())) {
             assertThat(structure.getFilebeatToLogstashConfig(), not(containsString("encoding:")));

@@ -77,4 +77,8 @@ public abstract class LogConfigCreatorTestCase extends ESTestCase {
         "<log4j:message><![CDATA[Field config could not be interpreted]]></log4j:message>\n" +
         "</log4j:event>\n" +
         "\n";
+
+    protected Boolean randomHasByteOrderMarker(String charset) {
+        return charset.toUpperCase(Locale.ROOT).startsWith("UTF") ? randomBoolean() : null;
+    }
 }

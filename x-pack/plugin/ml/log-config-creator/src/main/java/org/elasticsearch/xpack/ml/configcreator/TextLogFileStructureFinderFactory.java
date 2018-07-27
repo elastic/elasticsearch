@@ -7,10 +7,15 @@ package org.elasticsearch.xpack.ml.configcreator;
 
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
+import org.elasticsearch.cli.UserException;
 
 import java.util.Objects;
+import java.util.regex.Pattern;
 
 public class TextLogFileStructureFinderFactory implements LogFileStructureFinderFactory {
+
+    // This works because, by default, dot doesn't match newlines
+    private static final Pattern TWO_NON_BLANK_LINES_PATTERN = Pattern.compile(".\n+.");
 
     private final Terminal terminal;
     private final FilebeatModuleStore filebeatModuleStore;
@@ -21,7 +26,8 @@ public class TextLogFileStructureFinderFactory implements LogFileStructureFinder
     }
 
     /**
-     * This format matches if the sample contains at least one newline and at least one non-newline character
+     * This format matches if the sample contains at least one newline and at least two
+     * non-blank lines.
      */
     @Override
     public boolean canCreateFromSample(String sample) {
@@ -29,8 +35,8 @@ public class TextLogFileStructureFinderFactory implements LogFileStructureFinder
             terminal.println(Verbosity.VERBOSE, "Not text because sample contains no newlines");
             return false;
         }
-        if (sample.chars().allMatch(c -> c == '\n')) {
-            terminal.println(Verbosity.VERBOSE, "Not text because sample contains only newlines");
+        if (TWO_NON_BLANK_LINES_PATTERN.matcher(sample).find() == false) {
+            terminal.println(Verbosity.VERBOSE, "Not text because sample contains fewer than two non-blank lines");
             return false;
         }
 
@@ -40,8 +46,9 @@ public class TextLogFileStructureFinderFactory implements LogFileStructureFinder
 
     @Override
     public LogFileStructureFinder createFromSample(String sampleFileName, String indexName, String typeName, String elasticsearchHost,
-                                                   String logstashHost, String logstashFileTimezone, String sample, String charsetName) {
+                                                   String logstashHost, String logstashFileTimezone, String sample, String charsetName,
+                                                   Boolean hasByteOrderMarker) throws UserException {
         return new TextLogFileStructureFinder(terminal, filebeatModuleStore, sampleFileName, indexName, typeName, elasticsearchHost,
-            logstashHost, logstashFileTimezone, sample, charsetName);
+            logstashHost, logstashFileTimezone, sample, charsetName, hasByteOrderMarker);
     }
 }

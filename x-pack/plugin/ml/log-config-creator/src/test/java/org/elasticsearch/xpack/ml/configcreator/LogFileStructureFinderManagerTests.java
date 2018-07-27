@@ -35,18 +35,18 @@ public class LogFileStructureFinderManagerTests extends LogConfigCreatorTestCase
     private static final String INDEX_MAPPINGS_CONSOLE = TEST_TYPE + "-index-mappings.console";
     private static final String INDEX_MAPPINGS_SH = TEST_TYPE + "-index-mappings.sh";
 
-    private LogFileStructureFinderManager structureFinder;
+    private LogFileStructureFinderManager structureFinderManager;
 
     @Before
     public void setup() throws IOException {
-        structureFinder = new LogFileStructureFinderManager(TEST_TERMINAL, null, TEST_FILE_NAME, TEST_INDEX_NAME, TEST_TYPE,
+        structureFinderManager = new LogFileStructureFinderManager(TEST_TERMINAL, null, TEST_FILE_NAME, TEST_INDEX_NAME, TEST_TYPE,
             randomFrom(POSSIBLE_HOSTNAMES), randomFrom(POSSIBLE_HOSTNAMES), "UTC");
     }
 
     public void testFindCharsetGivenCharacterWidths() throws Exception {
 
         for (Charset charset : Arrays.asList(StandardCharsets.UTF_8, StandardCharsets.UTF_16LE, StandardCharsets.UTF_16BE)) {
-            CharsetMatch charsetMatch = structureFinder.findCharset(new ByteArrayInputStream(TEXT_SAMPLE.getBytes(charset)));
+            CharsetMatch charsetMatch = structureFinderManager.findCharset(new ByteArrayInputStream(TEXT_SAMPLE.getBytes(charset)));
             assertEquals(charset.name(), charsetMatch.getName());
         }
     }
@@ -62,7 +62,7 @@ public class LogFileStructureFinderManagerTests extends LogConfigCreatorTestCase
         }
 
         try {
-            CharsetMatch charsetMatch = structureFinder.findCharset(new ByteArrayInputStream(binaryBytes));
+            CharsetMatch charsetMatch = structureFinderManager.findCharset(new ByteArrayInputStream(binaryBytes));
             assertThat(charsetMatch.getName(), startsWith("UTF-16"));
         } catch (UserException e) {
             assertEquals("Could not determine a usable character encoding for the input - could it be binary data?", e.getMessage());
@@ -70,22 +70,24 @@ public class LogFileStructureFinderManagerTests extends LogConfigCreatorTestCase
     }
 
     public void testMakeBestStructureGivenJson() throws Exception {
-        assertThat(structureFinder.makeBestStructure("{ \"time\": \"2018-05-17T13:41:23\", \"message\": \"hello\" }",
-            StandardCharsets.UTF_8.name()), instanceOf(JsonLogFileStructureFinder.class));
+        assertThat(structureFinderManager.makeBestStructure("{ \"time\": \"2018-05-17T13:41:23\", \"message\": \"hello\" }",
+            StandardCharsets.UTF_8.name(), randomBoolean()), instanceOf(JsonLogFileStructureFinder.class));
     }
 
     public void testMakeBestStructureGivenXml() throws Exception {
-        assertThat(structureFinder.makeBestStructure("<log time=\"2018-05-17T13:41:23\"><message>hello</message></log>",
-            StandardCharsets.UTF_8.name()), instanceOf(XmlLogFileStructureFinder.class));
+        assertThat(structureFinderManager.makeBestStructure("<log time=\"2018-05-17T13:41:23\"><message>hello</message></log>",
+            StandardCharsets.UTF_8.name(), randomBoolean()), instanceOf(XmlLogFileStructureFinder.class));
     }
 
     public void testMakeBestStructureGivenCsv() throws Exception {
-        assertThat(structureFinder.makeBestStructure("time,message\n" +
-            "2018-05-17T13:41:23,hello\n", StandardCharsets.UTF_8.name()), instanceOf(SeparatedValuesLogFileStructureFinder.class));
+        assertThat(structureFinderManager.makeBestStructure("time,message\n" +
+                "2018-05-17T13:41:23,hello\n", StandardCharsets.UTF_8.name(), randomBoolean()),
+            instanceOf(SeparatedValuesLogFileStructureFinder.class));
     }
 
     public void testMakeBestStructureGivenText() throws Exception {
-        assertThat(structureFinder.makeBestStructure("[2018-05-17T13:41:23] hello\n", StandardCharsets.UTF_8.name()),
+        assertThat(structureFinderManager.makeBestStructure("[2018-05-17T13:41:23] hello\n" +
+                "[2018-05-17T13:41:24] hello again\n", StandardCharsets.UTF_8.name(), randomBoolean()),
             instanceOf(TextLogFileStructureFinder.class));
     }
 
@@ -94,7 +96,7 @@ public class LogFileStructureFinderManagerTests extends LogConfigCreatorTestCase
 
         try (ByteArrayInputStream inputStream =
                  new ByteArrayInputStream(JSON_SAMPLE.getBytes(StandardCharsets.UTF_8))) {
-            structureFinder.findLogFileConfigs(IDEAL_SAMPLE_LINE_COUNT, inputStream, outputDirectory);
+            structureFinderManager.findLogFileConfigs(IDEAL_SAMPLE_LINE_COUNT, inputStream, outputDirectory);
         }
 
         assertTrue(Files.isRegularFile(outputDirectory.resolve(FILEBEAT_TO_LOGSTASH_YML)));
@@ -112,7 +114,7 @@ public class LogFileStructureFinderManagerTests extends LogConfigCreatorTestCase
 
         try (ByteArrayInputStream inputStream =
                  new ByteArrayInputStream(XML_SAMPLE.getBytes(StandardCharsets.UTF_8))) {
-            structureFinder.findLogFileConfigs(IDEAL_SAMPLE_LINE_COUNT, inputStream, outputDirectory);
+            structureFinderManager.findLogFileConfigs(IDEAL_SAMPLE_LINE_COUNT, inputStream, outputDirectory);
         }
 
         assertTrue(Files.isRegularFile(outputDirectory.resolve(FILEBEAT_TO_LOGSTASH_YML)));
@@ -130,7 +132,7 @@ public class LogFileStructureFinderManagerTests extends LogConfigCreatorTestCase
 
         try (ByteArrayInputStream inputStream =
                  new ByteArrayInputStream(CSV_SAMPLE.getBytes(StandardCharsets.UTF_8))) {
-            structureFinder.findLogFileConfigs(IDEAL_SAMPLE_LINE_COUNT, inputStream, outputDirectory);
+            structureFinderManager.findLogFileConfigs(IDEAL_SAMPLE_LINE_COUNT, inputStream, outputDirectory);
         }
 
         assertTrue(Files.isRegularFile(outputDirectory.resolve(FILEBEAT_TO_LOGSTASH_YML)));
@@ -148,7 +150,7 @@ public class LogFileStructureFinderManagerTests extends LogConfigCreatorTestCase
 
         try (ByteArrayInputStream inputStream =
                  new ByteArrayInputStream(TSV_SAMPLE.getBytes(StandardCharsets.UTF_8))) {
-            structureFinder.findLogFileConfigs(IDEAL_SAMPLE_LINE_COUNT, inputStream, outputDirectory);
+            structureFinderManager.findLogFileConfigs(IDEAL_SAMPLE_LINE_COUNT, inputStream, outputDirectory);
         }
 
         assertTrue(Files.isRegularFile(outputDirectory.resolve(FILEBEAT_TO_LOGSTASH_YML)));
@@ -166,7 +168,7 @@ public class LogFileStructureFinderManagerTests extends LogConfigCreatorTestCase
 
         try (ByteArrayInputStream inputStream =
                  new ByteArrayInputStream(TEXT_SAMPLE.getBytes(StandardCharsets.UTF_8))) {
-            structureFinder.findLogFileConfigs(IDEAL_SAMPLE_LINE_COUNT, inputStream, outputDirectory);
+            structureFinderManager.findLogFileConfigs(IDEAL_SAMPLE_LINE_COUNT, inputStream, outputDirectory);
         }
 
         assertTrue(Files.isRegularFile(outputDirectory.resolve(FILEBEAT_TO_LOGSTASH_YML)));

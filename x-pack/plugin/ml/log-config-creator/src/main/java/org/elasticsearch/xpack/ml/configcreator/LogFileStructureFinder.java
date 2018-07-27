@@ -9,6 +9,8 @@ import java.nio.file.Path;
 
 public interface LogFileStructureFinder {
 
+    LogFileStructure getStructure();
+
     /**
      * Write config files suitable for ingesting the log file to the directory provided.
      * @param directory The directory to which the config files will be written.

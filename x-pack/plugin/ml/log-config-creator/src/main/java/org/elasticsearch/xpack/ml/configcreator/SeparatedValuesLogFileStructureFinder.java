@@ -20,14 +20,13 @@ import java.io.StringReader;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.DoubleSummaryStatistics;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Random;
-import java.util.SortedMap;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -105,22 +104,17 @@ public class SeparatedValuesLogFileStructureFinder extends AbstractStructuredLog
         "  }\n" +
         "}\n";
 
-    private final CsvPreference csvPreference;
-    private final boolean isCsvHeaderInFile;
-    private final String[] csvHeader;
-    private final String[] csvHeaderWithNamedBlanks;
-    private final List<Map<String, ?>> sampleRecords;
-    private final boolean trimFields;
-    private SortedMap<String, Map<String, String>> mappings;
+    private final boolean trimFields; // TODO - add to log file structure
     private String filebeatToLogstashConfig;
     private String logstashFromFilebeatConfig;
     private String logstashFromFileConfig;
 
     SeparatedValuesLogFileStructureFinder(Terminal terminal, String sampleFileName, String indexName, String typeName,
                                           String elasticsearchHost, String logstashHost, String logstashFileTimezone, String sample,
-                                          String charsetName, CsvPreference csvPreference, boolean trimFields) throws IOException {
-        super(terminal, sampleFileName, indexName, typeName, elasticsearchHost, logstashHost, logstashFileTimezone, charsetName);
-        this.csvPreference = Objects.requireNonNull(csvPreference);
+                                          String charsetName, Boolean hasByteOrderMarker, CsvPreference csvPreference, boolean trimFields)
+        throws IOException, UserException {
+        super(terminal, sampleFileName, indexName, typeName, elasticsearchHost, logstashHost, logstashFileTimezone, charsetName,
+            hasByteOrderMarker);
         this.trimFields = trimFields;
 
         Tuple<List<List<String>>, List<Integer>> parsed = readRows(sample, csvPreference);
@@ -128,15 +122,15 @@ public class SeparatedValuesLogFileStructureFinder extends AbstractStructuredLog
         List<Integer> lineNumbers = parsed.v2();
 
         Tuple<Boolean, String[]> headerInfo = findHeaderFromSample(terminal, rows);
-        isCsvHeaderInFile = headerInfo.v1();
-        csvHeader = headerInfo.v2();
-        csvHeaderWithNamedBlanks = new String[csvHeader.length];
+        boolean isCsvHeaderInFile = headerInfo.v1();
+        String[] csvHeader = headerInfo.v2();
+        String[] csvHeaderWithNamedBlanks = new String[csvHeader.length];
         for (int i = 0; i < csvHeader.length; ++i) {
             String rawHeader = csvHeader[i].isEmpty() ? "column" + (i + 1) : csvHeader[i];
             csvHeaderWithNamedBlanks[i] = trimFields ? rawHeader.trim() : rawHeader;
         }
 
-        sampleRecords = new ArrayList<>();
+        List<Map<String, ?>> sampleRecords = new ArrayList<>();
         for (List<String> row : isCsvHeaderInFile ? rows.subList(1, rows.size()): rows) {
             Map<String, String> sampleRecord = new HashMap<>();
             Util.filterListToMap(sampleRecord, csvHeaderWithNamedBlanks,
@@ -145,7 +139,58 @@ public class SeparatedValuesLogFileStructureFinder extends AbstractStructuredLog
         }
 
         String preamble = Pattern.compile("\n").splitAsStream(sample).limit(lineNumbers.get(1)).collect(Collectors.joining("\n", "", "\n"));
-        createPreambleComment(lineNumbers.get(lineNumbers.size() - 1), sampleRecords.size(), preamble);
+
+        char delimiter = (char) csvPreference.getDelimiterChar();
+        LogFileStructure.Builder structureBuilder = new LogFileStructure.Builder(LogFileStructure.Format.fromSeparator(delimiter))
+            .setCharset(charsetName)
+            .setHasByteOrderMarker(hasByteOrderMarker)
+            .setSampleStart(preamble)
+            .setNumLinesAnalyzed(lineNumbers.get(lineNumbers.size() - 1))
+            .setNumMessagesAnalyzed(sampleRecords.size())
+            .setHasHeaderRow(isCsvHeaderInFile)
+            .setInputFields(Arrays.stream(csvHeaderWithNamedBlanks).collect(Collectors.toList()));
+
+        Tuple<String, TimestampMatch> timeField = guessTimestampField(sampleRecords);
+        if (timeField != null) {
+            String timeLineRegex = null;
+            StringBuilder builder = new StringBuilder("^");
+            // We make the assumption that the timestamp will be on the first line of each record.  Therefore, if the
+            // timestamp is the last column then either our assumption is wrong (and the approach will completely
+            // break down) or else every record is on a single line and there's no point creating a multiline config.
+            // This is why the loop excludes the last column.
+            for (String column : Arrays.asList(csvHeader).subList(0, csvHeader.length - 1)) {
+                if (timeField.v1().equals(column)) {
+                    builder.append("\"?");
+                    String simpleTimePattern = timeField.v2().simplePattern.pattern();
+                    builder.append(simpleTimePattern.startsWith("\\b") ? simpleTimePattern.substring(2) : simpleTimePattern);
+                    timeLineRegex = builder.toString();
+                    break;
+                } else {
+                    builder.append(".*?");
+                    if (delimiter == '\t') {
+                        builder.append("\\t");
+                    } else {
+                        builder.append(delimiter);
+                    }
+                }
+            }
+
+            if (isCsvHeaderInFile) {
+                structureBuilder.setExcludeLinesPattern(Arrays.stream(csvHeader)
+                    .map(column -> "\"?" + column.replace("\"", "\"\"").replaceAll("([\\\\|()\\[\\]{}^$*?])", "\\\\$1") + "\"?")
+                    .collect(Collectors.joining(",")));
+            }
+
+            structureBuilder.setTimestampField(timeField.v1())
+                .setTimestampFormats(timeField.v2().dateFormats)
+                .setNeedClientTimezone(timeField.v2().hasTimezoneDependentParsing())
+                .setMultilineStartPattern(timeLineRegex);
+        }
+
+        structure = structureBuilder
+            .setMappings(guessMappings(sampleRecords))
+            .setExplanation(Collections.singletonList("TODO")) // TODO
+            .build();
     }
 
     static Tuple<List<List<String>>, List<Integer>> readRows(String sample, CsvPreference csvPreference) throws IOException {
@@ -246,7 +291,7 @@ public class SeparatedValuesLogFileStructureFinder extends AbstractStructuredLog
         // Check edit distances
 
         DoubleSummaryStatistics firstRowStats = otherRows.stream().limit(MAX_LEVENSHTEIN_COMPARISONS)
-            .mapToDouble(otherRow -> (double) levenshteinCompareRows(firstRow, otherRow))
+            .mapToDouble(otherRow -> (double) levenshteinFieldwiseCompareRows(firstRow, otherRow))
             .collect(DoubleSummaryStatistics::new, DoubleSummaryStatistics::accept, DoubleSummaryStatistics::combine);
 
         otherRowStats = new DoubleSummaryStatistics();
@@ -257,7 +302,7 @@ public class SeparatedValuesLogFileStructureFinder extends AbstractStructuredLog
         for (int i = 0; numComparisons < MAX_LEVENSHTEIN_COMPARISONS && i < otherRowStrs.size(); ++i) {
             for (int j = i + 1 + random.nextInt(innerIncrement); numComparisons < MAX_LEVENSHTEIN_COMPARISONS && j < otherRowStrs.size();
                  j += innerIncrement) {
-                otherRowStats.accept((double) levenshteinCompareRows(otherRows.get(i), otherRows.get(j)));
+                otherRowStats.accept((double) levenshteinFieldwiseCompareRows(otherRows.get(i), otherRows.get(j)));
                 ++numComparisons;
             }
         }
@@ -286,7 +331,7 @@ public class SeparatedValuesLogFileStructureFinder extends AbstractStructuredLog
      * there's a "message" field that is much longer than any of the other
      * fields, varies enormously between rows, and skews the comparison.
      */
-    static int levenshteinCompareRows(List<String> firstRow, List<String> secondRow) {
+    static int levenshteinFieldwiseCompareRows(List<String> firstRow, List<String> secondRow) {
 
         int largestSize = Math.max(firstRow.size(), secondRow.size());
         if (largestSize <= 1) {
@@ -467,61 +512,32 @@ public class SeparatedValuesLogFileStructureFinder extends AbstractStructuredLog
         return e.getMessage().startsWith("unexpected end of file while reading quoted column") == false;
     }
 
-    void createConfigs() throws UserException {
-        Tuple<String, TimestampMatch> timeField = guessTimestampField(sampleRecords);
-        mappings = guessMappings(sampleRecords);
+    void createConfigs() {
 
-        char delimiter = (char) csvPreference.getDelimiterChar();
-        String timeLineRegex = null;
-        boolean hasTimezoneDependentParsing = false;
+        char delimiter = structure.getSeparator();
         String logstashFromFilebeatDateFilter = "";
         String logstashFromFileDateFilter = "";
-        if (timeField != null) {
-            StringBuilder builder = new StringBuilder("^");
-            // We make the assumption that the timestamp will be on the first line of each record.  Therefore, if the
-            // timestamp is the last column then either our assumption is wrong (and the approach will completely
-            // break down) or else every record is on a single line and there's no point creating a multiline config.
-            // This is why the loop excludes the last column.
-            for (String column : Arrays.asList(csvHeader).subList(0, csvHeader.length - 1)) {
-                if (timeField.v1().equals(column)) {
-                    builder.append("\"?");
-                    String simpleTimePattern = timeField.v2().simplePattern.pattern();
-                    builder.append(simpleTimePattern.startsWith("\\b") ? simpleTimePattern.substring(2) : simpleTimePattern);
-                    timeLineRegex = builder.toString();
-                    break;
-                } else {
-                    builder.append(".*?");
-                    if (delimiter == '\t') {
-                        builder.append("\\t");
-                    } else {
-                        builder.append(delimiter);
-                    }
-                }
-            }
-
-            hasTimezoneDependentParsing = timeField.v2().hasTimezoneDependentParsing();
-            logstashFromFilebeatDateFilter = makeLogstashDateFilter(timeField.v1(), timeField.v2(), true);
-            logstashFromFileDateFilter = makeLogstashDateFilter(timeField.v1(), timeField.v2(), false);
+        if (structure.getTimestampField() != null) {
+            logstashFromFilebeatDateFilter = makeLogstashDateFilter(structure.getTimestampField(), structure.getTimestampFormats(),
+                structure.needClientTimezone(), true);
+            logstashFromFileDateFilter = makeLogstashDateFilter(structure.getTimestampField(), structure.getTimestampFormats(),
+                structure.needClientTimezone(), false);
         }
 
-        String excludeColumns = isCsvHeaderInFile ? Arrays.stream(csvHeader)
-            .map(column -> "\"?" + column.replace("\"", "\"\"").replaceAll("([\\\\|()\\[\\]{}^$*?])", "\\\\$1") + "\"?")
-            .collect(Collectors.joining(",")) : null;
-
         filebeatToLogstashConfig = String.format(Locale.ROOT, FILEBEAT_TO_LOGSTASH_TEMPLATE,
-            makeFilebeatInputOptions(timeLineRegex, excludeColumns), makeFilebeatAddLocaleSetting(hasTimezoneDependentParsing),
-            logstashHost);
-        String logstashColumns = Arrays.stream(csvHeaderWithNamedBlanks)
+            makeFilebeatInputOptions(structure.getMultilineStartPattern(), structure.getExcludeLinesPattern()),
+            makeFilebeatAddLocaleSetting(structure.needClientTimezone()), logstashHost);
+        String logstashColumns = structure.getInputFields().stream()
             .map(column -> (column.indexOf('"') >= 0) ? ("'" + column + "'") : ("\"" + column + "\"")).collect(Collectors.joining(", "));
         String separatorIfRequired = (delimiter == ',') ? "" : String.format(Locale.ROOT, SEPARATOR_TEMPLATE, delimiter);
-        String logstashColumnConversions = makeColumnConversions(mappings);
+        String logstashColumnConversions = makeColumnConversions(structure.getMappings());
         String logstashStripFilter = trimFields ? String.format(Locale.ROOT, LOGSTASH_STRIP_FILTER_TEMPLATE, logstashColumns) : "";
         logstashFromFilebeatConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILEBEAT_TEMPLATE, separatorIfRequired, logstashColumns,
             logstashColumnConversions, logstashStripFilter, logstashFromFilebeatDateFilter, elasticsearchHost);
-        String skipHeaderIfRequired = isCsvHeaderInFile ? "    skip_header => true\n": "";
-        logstashFromFileConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILE_TEMPLATE, makeLogstashFileInput(timeLineRegex),
-            separatorIfRequired, logstashColumns, skipHeaderIfRequired, logstashColumnConversions, logstashStripFilter,
-            logstashFromFileDateFilter, elasticsearchHost, indexName);
+        String skipHeaderIfRequired = structure.getHasHeaderRow() ? "    skip_header => true\n": "";
+        logstashFromFileConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILE_TEMPLATE,
+            makeLogstashFileInput(structure.getMultilineStartPattern()), separatorIfRequired, logstashColumns, skipHeaderIfRequired,
+            logstashColumnConversions, logstashStripFilter, logstashFromFileDateFilter, elasticsearchHost, indexName);
     }
 
     String getFilebeatToLogstashConfig() {
@@ -538,11 +554,12 @@ public class SeparatedValuesLogFileStructureFinder extends AbstractStructuredLog
 
     @Override
     public synchronized void writeConfigs(Path directory) throws Exception {
-        if (mappings == null) {
+        if (filebeatToLogstashConfig == null) {
             createConfigs();
+            createPreambleComment();
         }
 
-        writeMappingsConfigs(directory, mappings);
+        writeMappingsConfigs(directory, structure.getMappings());
 
         writeConfigFile(directory, "filebeat-to-logstash.yml", filebeatToLogstashConfig);
         writeConfigFile(directory, "logstash-from-filebeat.conf", logstashFromFilebeatConfig);

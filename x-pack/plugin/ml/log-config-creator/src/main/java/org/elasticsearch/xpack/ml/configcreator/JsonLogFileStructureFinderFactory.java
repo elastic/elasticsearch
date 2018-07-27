@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.configcreator;
 
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -71,10 +72,10 @@ public class JsonLogFileStructureFinderFactory implements LogFileStructureFinder
 
     @Override
     public LogFileStructureFinder createFromSample(String sampleFileName, String indexName, String typeName, String elasticsearchHost,
-                                                   String logstashHost, String logstashFileTimezone, String sample, String charsetName)
-        throws IOException {
+                                                   String logstashHost, String logstashFileTimezone, String sample, String charsetName,
+                                                   Boolean hasByteOrderMarker) throws IOException, UserException {
         return new JsonLogFileStructureFinder(terminal, sampleFileName, indexName, typeName, elasticsearchHost, logstashHost,
-            logstashFileTimezone, sample, charsetName);
+            logstashFileTimezone, sample, charsetName, hasByteOrderMarker);
     }
 
     private static class ContextPrintingStringReader extends StringReader {

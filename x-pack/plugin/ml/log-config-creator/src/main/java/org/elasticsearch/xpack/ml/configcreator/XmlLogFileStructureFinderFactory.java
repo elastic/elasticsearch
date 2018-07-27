@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.configcreator;
 
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
+import org.elasticsearch.cli.UserException;
 import org.xml.sax.SAXException;
 
 import javax.xml.parsers.ParserConfigurationException;
@@ -121,9 +122,10 @@ public class XmlLogFileStructureFinderFactory implements LogFileStructureFinderF
 
     @Override
     public LogFileStructureFinder createFromSample(String sampleFileName, String indexName, String typeName, String elasticsearchHost,
-                                                   String logstashHost, String logstashFileTimezone, String sample, String charsetName)
-        throws IOException, ParserConfigurationException, SAXException {
+                                                   String logstashHost, String logstashFileTimezone, String sample, String charsetName,
+                                                   Boolean hasByteOrderMarker)
+        throws IOException, ParserConfigurationException, SAXException, UserException {
         return new XmlLogFileStructureFinder(terminal, sampleFileName, indexName, typeName, elasticsearchHost, logstashHost,
-            logstashFileTimezone, sample, charsetName);
+            logstashFileTimezone, sample, charsetName, hasByteOrderMarker);
     }
 }

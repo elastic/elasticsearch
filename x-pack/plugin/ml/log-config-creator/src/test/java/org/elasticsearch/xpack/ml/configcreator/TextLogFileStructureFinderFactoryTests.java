@@ -5,18 +5,9 @@
  */
 package org.elasticsearch.xpack.ml.configcreator;
 
-import org.junit.Before;
-
-import java.io.IOException;
-
 public class TextLogFileStructureFinderFactoryTests extends LogConfigCreatorTestCase {
 
-    private LogFileStructureFinderFactory factory;
-
-    @Before
-    public void setup() throws IOException {
-        factory = new TextLogFileStructureFinderFactory(TEST_TERMINAL, null);
-    }
+    private LogFileStructureFinderFactory factory = new TextLogFileStructureFinderFactory(TEST_TERMINAL, null);
 
     // No need to check JSON, XML, CSV, TSV, semi-colon separated values or pipe
     // separated values because they come earlier in the order we check formats

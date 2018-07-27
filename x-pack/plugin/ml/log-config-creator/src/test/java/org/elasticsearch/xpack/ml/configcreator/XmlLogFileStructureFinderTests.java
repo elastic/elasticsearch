@@ -22,7 +22,7 @@ public class XmlLogFileStructureFinderTests extends LogConfigCreatorTestCase {
         String elasticsearchHost = randomFrom(POSSIBLE_HOSTNAMES);
         String logstashHost = randomFrom(POSSIBLE_HOSTNAMES);
         XmlLogFileStructureFinder structure = (XmlLogFileStructureFinder) factory.createFromSample(TEST_FILE_NAME, TEST_INDEX_NAME,
-            "log4cxx-xml", elasticsearchHost, logstashHost, timezone, XML_SAMPLE, charset);
+            "log4cxx-xml", elasticsearchHost, logstashHost, timezone, XML_SAMPLE, charset, randomHasByteOrderMarker(charset));
         structure.createConfigs();
         if (charset.equals(StandardCharsets.UTF_8.name())) {
             assertThat(structure.getFilebeatToLogstashConfig(), not(containsString("encoding:")));

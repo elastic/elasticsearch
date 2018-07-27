@@ -17,10 +17,10 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.SortedMap;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.json.JsonXContent.jsonXContent;
@@ -111,8 +111,6 @@ public class JsonLogFileStructureFinder extends AbstractStructuredLogFileStructu
         "  ]\n" +
         "}\n";
 
-    private final List<Map<String, ?>> sampleRecords;
-    private SortedMap<String, Map<String, String>> mappings;
     private String filebeatToLogstashConfig;
     private String logstashFromFilebeatConfig;
     private String logstashFromFileConfig;
@@ -120,10 +118,12 @@ public class JsonLogFileStructureFinder extends AbstractStructuredLogFileStructu
     private String ingestPipelineFromFilebeatConfig;
 
     JsonLogFileStructureFinder(Terminal terminal, String sampleFileName, String indexName, String typeName, String elasticsearchHost,
-                               String logstashHost, String logstashFileTimezone, String sample, String charsetName) throws IOException {
-        super(terminal, sampleFileName, indexName, typeName, elasticsearchHost, logstashHost, logstashFileTimezone, charsetName);
+                               String logstashHost, String logstashFileTimezone, String sample, String charsetName,
+                               Boolean hasByteOrderMarker) throws IOException, UserException {
+        super(terminal, sampleFileName, indexName, typeName, elasticsearchHost, logstashHost, logstashFileTimezone, charsetName,
+            hasByteOrderMarker);
 
-        sampleRecords = new ArrayList<>();
+        List<Map<String, ?>> sampleRecords = new ArrayList<>();
 
         String[] sampleLines = sample.split("\n");
         for (String sampleLine : sampleLines) {
@@ -132,37 +132,51 @@ public class JsonLogFileStructureFinder extends AbstractStructuredLogFileStructu
             sampleRecords.add(parser.map());
         }
 
-        createPreambleComment(sampleLines.length, sampleRecords.size(),
-            Arrays.stream(sampleLines).limit(2).collect(Collectors.joining("\n", "", "\n")));
+        LogFileStructure.Builder structureBuilder = new LogFileStructure.Builder(LogFileStructure.Format.JSON)
+            .setCharset(charsetName)
+            .setHasByteOrderMarker(hasByteOrderMarker)
+            .setSampleStart(Arrays.stream(sampleLines).limit(2).collect(Collectors.joining("\n", "", "\n")))
+            .setNumLinesAnalyzed(sampleLines.length)
+            .setNumMessagesAnalyzed(sampleRecords.size());
+
+        Tuple<String, TimestampMatch> timeField = guessTimestampField(sampleRecords);
+        if (timeField != null) {
+            structureBuilder.setTimestampField(timeField.v1())
+                .setTimestampFormats(timeField.v2().dateFormats)
+                .setNeedClientTimezone(timeField.v2().hasTimezoneDependentParsing());
+        }
+
+        structure = structureBuilder
+            .setMappings(guessMappings(sampleRecords))
+            .setExplanation(Collections.singletonList("TODO")) // TODO
+            .build();
     }
 
-    void createConfigs() throws UserException {
-        Tuple<String, TimestampMatch> timeField = guessTimestampField(sampleRecords);
-        mappings = guessMappings(sampleRecords);
+    void createConfigs() {
 
-        boolean hasTimezoneDependentParsing = false;
         String logstashFromFilebeatDateFilter = "";
         String logstashFromFileDateFilter = "";
         String ingestPipelineDateProcessor = "";
-        if (timeField != null) {
-            hasTimezoneDependentParsing = timeField.v2().hasTimezoneDependentParsing();
-            logstashFromFilebeatDateFilter = makeLogstashDateFilter(timeField.v1(), timeField.v2(), true);
-            logstashFromFileDateFilter = makeLogstashDateFilter(timeField.v1(), timeField.v2(), false);
-            String jsonEscapedField = timeField.v1().replaceAll("([\\\\\"])", "\\\\$1").replace("\t", "\\t");
+        if (structure.getTimestampField() != null) {
+            logstashFromFilebeatDateFilter = makeLogstashDateFilter(structure.getTimestampField(), structure.getTimestampFormats(),
+                structure.needClientTimezone(), true);
+            logstashFromFileDateFilter = makeLogstashDateFilter(structure.getTimestampField(), structure.getTimestampFormats(),
+                structure.needClientTimezone(), false);
+            String jsonEscapedField = structure.getTimestampField().replaceAll("([\\\\\"])", "\\\\$1").replace("\t", "\\t");
             ingestPipelineDateProcessor = String.format(Locale.ROOT, INGEST_PIPELINE_DATE_PROCESSOR_TEMPLATE, jsonEscapedField,
-                makeIngestPipelineTimezoneSetting(hasTimezoneDependentParsing),
-                timeField.v2().dateFormats.stream().collect(Collectors.joining("\", \"", "\"", "\"")));
+                makeIngestPipelineTimezoneSetting(structure.needClientTimezone()),
+                structure.getTimestampFormats().stream().collect(Collectors.joining("\", \"", "\"", "\"")));
         }
 
         String filebeatInputOptions = makeFilebeatInputOptions(null, null);
         filebeatToLogstashConfig = String.format(Locale.ROOT, FILEBEAT_TO_LOGSTASH_TEMPLATE, filebeatInputOptions,
-            makeFilebeatAddLocaleSetting(hasTimezoneDependentParsing), logstashHost);
+            makeFilebeatAddLocaleSetting(structure.needClientTimezone()), logstashHost);
         logstashFromFilebeatConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILEBEAT_TEMPLATE, logstashFromFilebeatDateFilter,
             elasticsearchHost);
         logstashFromFileConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILE_TEMPLATE, makeLogstashFileInput(null),
             logstashFromFileDateFilter, elasticsearchHost, indexName);
         filebeatToIngestPipelineConfig = String.format(Locale.ROOT, FILEBEAT_TO_INGEST_PIPELINE_TEMPLATE, filebeatInputOptions,
-            makeFilebeatAddLocaleSetting(hasTimezoneDependentParsing), elasticsearchHost, typeName);
+            makeFilebeatAddLocaleSetting(structure.needClientTimezone()), elasticsearchHost, typeName);
         ingestPipelineFromFilebeatConfig = String.format(Locale.ROOT, INGEST_PIPELINE_FROM_FILEBEAT_TEMPLATE, typeName, typeName,
             ingestPipelineDateProcessor);
     }
@@ -189,11 +203,12 @@ public class JsonLogFileStructureFinder extends AbstractStructuredLogFileStructu
 
     @Override
     public synchronized void writeConfigs(Path directory) throws Exception {
-        if (mappings == null) {
+        if (filebeatToLogstashConfig == null) {
             createConfigs();
+            createPreambleComment();
         }
 
-        writeMappingsConfigs(directory, mappings);
+        writeMappingsConfigs(directory, structure.getMappings());
 
         writeConfigFile(directory, "filebeat-to-logstash.yml", filebeatToLogstashConfig);
         writeConfigFile(directory, "logstash-from-filebeat.conf", logstashFromFilebeatConfig);

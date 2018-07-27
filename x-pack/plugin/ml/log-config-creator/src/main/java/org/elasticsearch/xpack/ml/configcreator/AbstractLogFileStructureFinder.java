@@ -107,11 +107,13 @@ public abstract class AbstractLogFileStructureFinder {
     protected final String logstashHost;
     protected final String logstashFileTimezone;
     protected final String charsetName;
+    protected final Boolean hasByteOrderMarker;
+    protected LogFileStructure structure;
     private String preambleComment = "";
 
     protected AbstractLogFileStructureFinder(Terminal terminal, String sampleFileName, String indexName, String typeName,
                                              String elasticsearchHost, String logstashHost, String logstashFileTimezone,
-                                             String charsetName) {
+                                             String charsetName, Boolean hasByteOrderMarker) {
         this.terminal = Objects.requireNonNull(terminal);
         this.sampleFileName = Objects.requireNonNull(sampleFileName);
         this.indexName = Objects.requireNonNull(indexName);
@@ -120,6 +122,11 @@ public abstract class AbstractLogFileStructureFinder {
         this.logstashHost = Objects.requireNonNull(logstashHost);
         this.logstashFileTimezone = logstashFileTimezone;
         this.charsetName = Objects.requireNonNull(charsetName);
+        this.hasByteOrderMarker = hasByteOrderMarker;
+    }
+
+    public LogFileStructure getStructure() {
+        return structure;
     }
 
     protected void writeConfigFile(Path directory, String fileName, String contents) throws IOException {
@@ -259,7 +266,10 @@ public abstract class AbstractLogFileStructureFinder {
         return length > KEYWORD_MAX_LEN || length - str.replaceAll("\\s", "").length() > KEYWORD_MAX_SPACES;
     }
 
-    protected void createPreambleComment(int lineCount, int messageCount, String preamble) {
+    protected void createPreambleComment() {
+        String preamble = structure.getSampleStart();
+        int lineCount = structure.getNumLinesAnalyzed();
+        int messageCount = structure.getNumMessagesAnalyzed();
         if (preamble == null || preamble.isEmpty()) {
             preambleComment = "";
         } else {

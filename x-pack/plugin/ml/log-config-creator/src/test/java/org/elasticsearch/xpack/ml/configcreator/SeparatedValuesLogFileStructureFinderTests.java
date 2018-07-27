@@ -16,7 +16,7 @@ import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.ml.configcreator.SeparatedValuesLogFileStructureFinder.levenshteinCompareRows;
+import static org.elasticsearch.xpack.ml.configcreator.SeparatedValuesLogFileStructureFinder.levenshteinFieldwiseCompareRows;
 import static org.elasticsearch.xpack.ml.configcreator.SeparatedValuesLogFileStructureFinder.levenshteinDistance;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
@@ -36,7 +36,7 @@ public class SeparatedValuesLogFileStructureFinderTests extends LogConfigCreator
         String elasticsearchHost = randomFrom(POSSIBLE_HOSTNAMES);
         String logstashHost = randomFrom(POSSIBLE_HOSTNAMES);
         SeparatedValuesLogFileStructureFinder structure = (SeparatedValuesLogFileStructureFinder) factory.createFromSample(TEST_FILE_NAME,
-            TEST_INDEX_NAME, "time_message", elasticsearchHost, logstashHost, timezone, sample, charset);
+            TEST_INDEX_NAME, "time_message", elasticsearchHost, logstashHost, timezone, sample, charset, randomHasByteOrderMarker(charset));
         structure.createConfigs();
         assertThat(structure.getFilebeatToLogstashConfig(), containsString("exclude_lines: ['^\"?time\"?,\"?message\"?']\n"));
         assertThat(structure.getFilebeatToLogstashConfig(),
@@ -61,7 +61,7 @@ public class SeparatedValuesLogFileStructureFinderTests extends LogConfigCreator
         String elasticsearchHost = randomFrom(POSSIBLE_HOSTNAMES);
         String logstashHost = randomFrom(POSSIBLE_HOSTNAMES);
         SeparatedValuesLogFileStructureFinder structure = (SeparatedValuesLogFileStructureFinder) factory.createFromSample(TEST_FILE_NAME,
-            TEST_INDEX_NAME, "message_time", elasticsearchHost, logstashHost, timezone, sample, charset);
+            TEST_INDEX_NAME, "message_time", elasticsearchHost, logstashHost, timezone, sample, charset, randomHasByteOrderMarker(charset));
         structure.createConfigs();
         if (charset.equals(StandardCharsets.UTF_8.name())) {
             assertThat(structure.getFilebeatToLogstashConfig(), not(containsString("encoding:")));
@@ -98,7 +98,7 @@ public class SeparatedValuesLogFileStructureFinderTests extends LogConfigCreator
         String elasticsearchHost = randomFrom(POSSIBLE_HOSTNAMES);
         String logstashHost = randomFrom(POSSIBLE_HOSTNAMES);
         SeparatedValuesLogFileStructureFinder structure = (SeparatedValuesLogFileStructureFinder) factory.createFromSample(TEST_FILE_NAME,
-            TEST_INDEX_NAME, "nyc-taxi", elasticsearchHost, logstashHost, timezone, sample, charset);
+            TEST_INDEX_NAME, "nyc-taxi", elasticsearchHost, logstashHost, timezone, sample, charset, randomHasByteOrderMarker(charset));
         structure.createConfigs();
         if (charset.equals(StandardCharsets.UTF_8.name())) {
             assertThat(structure.getFilebeatToLogstashConfig(), not(containsString("encoding:")));
@@ -149,7 +149,7 @@ public class SeparatedValuesLogFileStructureFinderTests extends LogConfigCreator
         String elasticsearchHost = randomFrom(POSSIBLE_HOSTNAMES);
         String logstashHost = randomFrom(POSSIBLE_HOSTNAMES);
         SeparatedValuesLogFileStructureFinder structure = (SeparatedValuesLogFileStructureFinder) factory.createFromSample(TEST_FILE_NAME,
-            TEST_INDEX_NAME, "nyc-taxi", elasticsearchHost, logstashHost, timezone, sample, charset);
+            TEST_INDEX_NAME, "nyc-taxi", elasticsearchHost, logstashHost, timezone, sample, charset, randomHasByteOrderMarker(charset));
         structure.createConfigs();
         if (charset.equals(StandardCharsets.UTF_8.name())) {
             assertThat(structure.getFilebeatToLogstashConfig(), not(containsString("encoding:")));
@@ -196,7 +196,7 @@ public class SeparatedValuesLogFileStructureFinderTests extends LogConfigCreator
         String elasticsearchHost = randomFrom(POSSIBLE_HOSTNAMES);
         String logstashHost = randomFrom(POSSIBLE_HOSTNAMES);
         SeparatedValuesLogFileStructureFinder structure = (SeparatedValuesLogFileStructureFinder) factory.createFromSample(TEST_FILE_NAME,
-            TEST_INDEX_NAME, "positions", elasticsearchHost, logstashHost, timezone, sample, charset);
+            TEST_INDEX_NAME, "positions", elasticsearchHost, logstashHost, timezone, sample, charset, randomHasByteOrderMarker(charset));
         structure.createConfigs();
         if (charset.equals(StandardCharsets.UTF_8.name())) {
             assertThat(structure.getFilebeatToLogstashConfig(), not(containsString("encoding:")));
@@ -278,13 +278,13 @@ public class SeparatedValuesLogFileStructureFinderTests extends LogConfigCreator
 
     public void testLevenshteinCompareRows() {
 
-        assertEquals(0, levenshteinCompareRows(Arrays.asList("cat", "dog"), Arrays.asList("cat", "dog")));
-        assertEquals(0, levenshteinCompareRows(Arrays.asList("cat", "dog"), Arrays.asList("cat", "cat")));
-        assertEquals(3, levenshteinCompareRows(Arrays.asList("cat", "dog"), Arrays.asList("dog", "cat")));
-        assertEquals(3, levenshteinCompareRows(Arrays.asList("cat", "dog"), Arrays.asList("mouse", "cat")));
-        assertEquals(5, levenshteinCompareRows(Arrays.asList("cat", "dog", "mouse"), Arrays.asList("mouse", "dog", "cat")));
-        assertEquals(4, levenshteinCompareRows(Arrays.asList("cat", "dog", "mouse"), Arrays.asList("mouse", "mouse", "mouse")));
-        assertEquals(7, levenshteinCompareRows(Arrays.asList("cat", "dog", "mouse"), Arrays.asList("mouse", "cat", "dog")));
+        assertEquals(0, levenshteinFieldwiseCompareRows(Arrays.asList("cat", "dog"), Arrays.asList("cat", "dog")));
+        assertEquals(0, levenshteinFieldwiseCompareRows(Arrays.asList("cat", "dog"), Arrays.asList("cat", "cat")));
+        assertEquals(3, levenshteinFieldwiseCompareRows(Arrays.asList("cat", "dog"), Arrays.asList("dog", "cat")));
+        assertEquals(3, levenshteinFieldwiseCompareRows(Arrays.asList("cat", "dog"), Arrays.asList("mouse", "cat")));
+        assertEquals(5, levenshteinFieldwiseCompareRows(Arrays.asList("cat", "dog", "mouse"), Arrays.asList("mouse", "dog", "cat")));
+        assertEquals(4, levenshteinFieldwiseCompareRows(Arrays.asList("cat", "dog", "mouse"), Arrays.asList("mouse", "mouse", "mouse")));
+        assertEquals(7, levenshteinFieldwiseCompareRows(Arrays.asList("cat", "dog", "mouse"), Arrays.asList("mouse", "cat", "dog")));
     }
 
     public void testMakeColumnConversions() {

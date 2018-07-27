@@ -25,14 +25,15 @@ public class AbstractStructuredLogFileStructureFinderTests extends LogConfigCrea
 
         TestStructuredLogFileStructureFinder(Terminal terminal, String sampleFileName, String indexName, String typeName,
                                              String elasticsearchHost, String logstashHost, String logstashFileTimezone,
-                                             String charsetName) {
-            super(terminal, sampleFileName, indexName, typeName, elasticsearchHost, logstashHost, logstashFileTimezone, charsetName);
+                                             String charsetName, Boolean hasByteOrderMarker) {
+            super(terminal, sampleFileName, indexName, typeName, elasticsearchHost, logstashHost, logstashFileTimezone, charsetName,
+                hasByteOrderMarker);
         }
     }
 
     private final TestStructuredLogFileStructureFinder testStructure = new TestStructuredLogFileStructureFinder(TEST_TERMINAL,
         TEST_FILE_NAME, TEST_INDEX_NAME, "tests", randomFrom(POSSIBLE_HOSTNAMES), randomFrom(POSSIBLE_HOSTNAMES), null,
-        StandardCharsets.UTF_8.name());
+        StandardCharsets.UTF_8.name(), randomBoolean());
 
     public void testSingleSampleSingleField() {
         Map<String, String> sample = Collections.singletonMap("field1", "2018-05-24T17:28:31,735");

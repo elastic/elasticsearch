@@ -24,12 +24,12 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Scanner;
-import java.util.SortedMap;
 import java.util.regex.Pattern;
 
 public class XmlLogFileStructureFinder extends AbstractStructuredLogFileStructureFinder implements LogFileStructureFinder {
@@ -91,17 +91,16 @@ public class XmlLogFileStructureFinder extends AbstractStructuredLogFileStructur
         "  }\n" +
         "}\n";
 
-    private final String topLevelTag;
-    private final List<Map<String, ?>> sampleRecords;
-    private SortedMap<String, Map<String, String>> mappings;
+    private final String topLevelTag; // TODO - add to log file structure via mappings
     private String filebeatToLogstashConfig;
     private String logstashFromFilebeatConfig;
     private String logstashFromFileConfig;
 
     XmlLogFileStructureFinder(Terminal terminal, String sampleFileName, String indexName, String typeName, String elasticsearchHost,
-                              String logstashHost, String logstashFileTimezone, String sample, String charsetName)
-        throws IOException, ParserConfigurationException, SAXException {
-        super(terminal, sampleFileName, indexName, typeName, elasticsearchHost, logstashHost, logstashFileTimezone, charsetName);
+                              String logstashHost, String logstashFileTimezone, String sample, String charsetName,
+                              Boolean hasByteOrderMarker) throws IOException, ParserConfigurationException, SAXException, UserException {
+        super(terminal, sampleFileName, indexName, typeName, elasticsearchHost, logstashHost, logstashFileTimezone, charsetName,
+            hasByteOrderMarker);
 
         String messagePrefix;
         try (Scanner scanner = new Scanner(sample)) {
@@ -112,7 +111,7 @@ public class XmlLogFileStructureFinder extends AbstractStructuredLogFileStructur
         docBuilderFactory.setNamespaceAware(false);
         docBuilderFactory.setValidating(false);
 
-        sampleRecords = new ArrayList<>();
+        List<Map<String, ?>> sampleRecords = new ArrayList<>();
 
         String[] sampleDocEnds = sample.split(Pattern.quote(messagePrefix));
         StringBuilder preamble = new StringBuilder(sampleDocEnds[0]);
@@ -134,11 +133,33 @@ public class XmlLogFileStructureFinder extends AbstractStructuredLogFileStructur
             }
         }
 
+        if (sample.endsWith("\n") == false) {
+            ++linesConsumed;
+        }
+
         // If we get here the XML parser should have confirmed this
         assert messagePrefix.charAt(0) == '<';
         topLevelTag = messagePrefix.substring(1);
 
-        createPreambleComment(linesConsumed, sampleRecords.size(), preamble.toString());
+        LogFileStructure.Builder structureBuilder = new LogFileStructure.Builder(LogFileStructure.Format.XML)
+            .setCharset(charsetName)
+            .setHasByteOrderMarker(hasByteOrderMarker)
+            .setSampleStart(preamble.toString())
+            .setNumLinesAnalyzed(linesConsumed)
+            .setNumMessagesAnalyzed(sampleRecords.size())
+            .setMultilineStartPattern("^\\s*<" + topLevelTag);
+
+        Tuple<String, TimestampMatch> timeField = guessTimestampField(sampleRecords);
+        if (timeField != null) {
+            structureBuilder.setTimestampField(timeField.v1())
+                .setTimestampFormats(timeField.v2().dateFormats)
+                .setNeedClientTimezone(timeField.v2().hasTimezoneDependentParsing());
+        }
+
+        structure = structureBuilder
+            .setMappings(guessMappings(sampleRecords))
+            .setExplanation(Collections.singletonList("TODO")) // TODO
+            .build();
     }
 
     private static int numNewlinesIn(String str) {
@@ -184,28 +205,26 @@ public class XmlLogFileStructureFinder extends AbstractStructuredLogFileStructur
         }
     }
 
-    void createConfigs() throws UserException {
-        Tuple<String, TimestampMatch> timeField = guessTimestampField(sampleRecords);
-        mappings = guessMappings(sampleRecords);
+    void createConfigs() {
 
-        boolean hasTimezoneDependentParsing = false;
         String logstashFromFilebeatDateFilter = "";
         String logstashFromFileDateFilter = "";
-        if (timeField != null) {
-            hasTimezoneDependentParsing = timeField.v2().hasTimezoneDependentParsing();
-            String timeFieldPath = "[" + topLevelTag + "][" + timeField.v1() + "]";
-            logstashFromFilebeatDateFilter = makeLogstashDateFilter(timeFieldPath, timeField.v2(), true);
-            logstashFromFileDateFilter = makeLogstashDateFilter(timeFieldPath, timeField.v2(), false);
+        if (structure.getTimestampField() != null) {
+            String timeFieldPath = "[" + topLevelTag + "][" + structure.getTimestampField() + "]";
+            logstashFromFilebeatDateFilter = makeLogstashDateFilter(timeFieldPath, structure.getTimestampFormats(),
+                structure.needClientTimezone(), true);
+            logstashFromFileDateFilter = makeLogstashDateFilter(timeFieldPath, structure.getTimestampFormats(),
+                structure.needClientTimezone(), false);
         }
 
-        String multilineStartRegex = "^\\s*<" + topLevelTag;
         filebeatToLogstashConfig = String.format(Locale.ROOT, FILEBEAT_TO_LOGSTASH_TEMPLATE,
-            makeFilebeatInputOptions(multilineStartRegex, null), makeFilebeatAddLocaleSetting(hasTimezoneDependentParsing),
-            logstashHost);
+            makeFilebeatInputOptions(structure.getMultilineStartPattern(), null),
+            makeFilebeatAddLocaleSetting(structure.needClientTimezone()), logstashHost);
         logstashFromFilebeatConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILEBEAT_TEMPLATE, topLevelTag,
             logstashFromFilebeatDateFilter, elasticsearchHost);
-        logstashFromFileConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILE_TEMPLATE, makeLogstashFileInput(multilineStartRegex),
-            topLevelTag, logstashFromFileDateFilter, elasticsearchHost, indexName);
+        logstashFromFileConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILE_TEMPLATE,
+            makeLogstashFileInput(structure.getMultilineStartPattern()), topLevelTag, logstashFromFileDateFilter, elasticsearchHost,
+            indexName);
     }
 
     String getFilebeatToLogstashConfig() {
@@ -222,11 +241,12 @@ public class XmlLogFileStructureFinder extends AbstractStructuredLogFileStructur
 
     @Override
     public synchronized void writeConfigs(Path directory) throws Exception {
-        if (mappings == null) {
+        if (filebeatToLogstashConfig == null) {
             createConfigs();
+            createPreambleComment();
         }
 
-        writeMappingsConfigs(directory, topLevelTag, mappings);
+        writeMappingsConfigs(directory, topLevelTag, structure.getMappings());
 
         writeConfigFile(directory, "filebeat-to-logstash.yml", filebeatToLogstashConfig);
         writeConfigFile(directory, "logstash-from-filebeat.conf", logstashFromFilebeatConfig);

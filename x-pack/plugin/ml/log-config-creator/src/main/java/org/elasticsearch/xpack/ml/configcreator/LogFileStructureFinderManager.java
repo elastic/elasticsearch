@@ -11,6 +11,7 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.collect.Tuple;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
@@ -108,10 +109,12 @@ public final class LogFileStructureFinderManager {
     public void findLogFileConfigs(int idealSampleLineCount, InputStream fromFile, Path outputDirectory) throws Exception {
 
         CharsetMatch charsetMatch = findCharset(fromFile);
+        String charsetName = charsetMatch.getName();
 
-        String sample = sampleFile(charsetMatch.getReader(), MIN_SAMPLE_LINE_COUNT, Math.max(MIN_SAMPLE_LINE_COUNT, idealSampleLineCount));
+        Tuple<String, Boolean> sampleInfo = sampleFile(charsetMatch.getReader(), charsetName, MIN_SAMPLE_LINE_COUNT,
+            Math.max(MIN_SAMPLE_LINE_COUNT, idealSampleLineCount));
 
-        LogFileStructureFinder structure = makeBestStructure(sample, charsetMatch.getName());
+        LogFileStructureFinder structure = makeBestStructure(sampleInfo.v1(), charsetName, sampleInfo.v2());
         structure.writeConfigs(outputDirectory);
     }
 
@@ -199,18 +202,18 @@ public final class LogFileStructureFinderManager {
             (containsZeroBytes ? " - could it be binary data?" : ""));
     }
 
-    LogFileStructureFinder makeBestStructure(String sample, String charsetName) throws Exception {
+    LogFileStructureFinder makeBestStructure(String sample, String charsetName, Boolean hasByteOrderMarker) throws Exception {
 
         for (LogFileStructureFinderFactory factory : orderedStructureFactories) {
             if (factory.canCreateFromSample(sample)) {
                 return factory.createFromSample(sampleFileName, indexName, typeName, elasticsearchHost, logstashHost, logstashFileTimezone,
-                    sample, charsetName);
+                    sample, charsetName, hasByteOrderMarker);
             }
         }
         throw new UserException(ExitCodes.DATA_ERROR, "Input did not match any known formats");
     }
 
-    private String sampleFile(Reader reader, int minLines, int maxLines) throws IOException {
+    private Tuple<String, Boolean> sampleFile(Reader reader, String charsetName, int minLines, int maxLines) throws IOException {
 
         int lineCount = 0;
         BufferedReader bufferedReader = new BufferedReader(reader);
@@ -218,12 +221,16 @@ public final class LogFileStructureFinderManager {
 
         // Don't include any byte-order-marker in the sample.  (The logic to skip it works for both
         // UTF-8 and UTF-16 assuming the character set of the reader was correctly detected.)
-        int maybeByteOrderMarker = reader.read();
-        if (maybeByteOrderMarker >= 0 && (char) maybeByteOrderMarker != '\uFEFF' && (char) maybeByteOrderMarker != '\r')
-        {
-            sample.appendCodePoint(maybeByteOrderMarker);
-            if ((char) maybeByteOrderMarker == '\n') {
-                ++lineCount;
+        Boolean hasByteOrderMarker = null;
+        if (charsetName.toUpperCase(Locale.ROOT).startsWith("UTF")) {
+            int maybeByteOrderMarker = reader.read();
+            hasByteOrderMarker = ((char) maybeByteOrderMarker == '\uFEFF');
+            if (maybeByteOrderMarker >= 0 && hasByteOrderMarker == false && (char) maybeByteOrderMarker != '\r')
+            {
+                sample.appendCodePoint(maybeByteOrderMarker);
+                if ((char) maybeByteOrderMarker == '\n') {
+                    ++lineCount;
+                }
             }
         }
 
@@ -236,6 +243,6 @@ public final class LogFileStructureFinderManager {
             throw new IOException("Input contained too few lines to sample");
         }
 
-        return sample.toString();
+        return new Tuple<>(sample.toString(), hasByteOrderMarker);
     }
 }

@@ -22,7 +22,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -122,9 +121,8 @@ public class TextLogFileStructureFinder extends AbstractLogFileStructureFinder i
     private static final String INGEST_PIPELINE_FROM_FILEBEAT_WITH_MODULE_TEMPLATE = "PUT _ingest/pipeline/%s\n" +
         "%s\n";
 
-    private final String sample;
     private final FilebeatModuleStore filebeatModuleStore;
-    private SortedMap<String, Map<String, String>> mappings;
+    private final List<String> sampleMessages;
     private String filebeatToLogstashConfig;
     private String logstashFromFilebeatConfig;
     private String logstashFromFileConfig;
@@ -133,33 +131,10 @@ public class TextLogFileStructureFinder extends AbstractLogFileStructureFinder i
 
     TextLogFileStructureFinder(Terminal terminal, FilebeatModuleStore filebeatModuleStore, String sampleFileName, String indexName,
                                String typeName, String elasticsearchHost, String logstashHost, String logstashFileTimezone, String sample,
-                               String charsetName) {
-        super(terminal, sampleFileName, indexName, typeName, elasticsearchHost, logstashHost, logstashFileTimezone, charsetName);
+                               String charsetName, Boolean hasByteOrderMarker) throws UserException {
+        super(terminal, sampleFileName, indexName, typeName, elasticsearchHost, logstashHost, logstashFileTimezone, charsetName,
+            hasByteOrderMarker);
         this.filebeatModuleStore = filebeatModuleStore;
-        this.sample = Objects.requireNonNull(sample);
-    }
-
-    String getFilebeatToLogstashConfig() {
-        return filebeatToLogstashConfig;
-    }
-
-    String getLogstashFromFilebeatConfig() {
-        return logstashFromFilebeatConfig;
-    }
-
-    String getLogstashFromFileConfig() {
-        return logstashFromFileConfig;
-    }
-
-    String getFilebeatToIngestPipelineConfig() {
-        return filebeatToIngestPipelineConfig;
-    }
-
-    String getIngestPipelineFromFilebeatConfig() {
-        return ingestPipelineFromFilebeatConfig;
-    }
-
-    void createConfigs() throws UserException {
 
         String[] sampleLines = sample.split("\n");
         Tuple<TimestampMatch, Set<String>> bestTimestamp = mostLikelyTimestamp(sampleLines);
@@ -168,11 +143,10 @@ public class TextLogFileStructureFinder extends AbstractLogFileStructureFinder i
             // a regular pattern of timestamps as a log file?  Probably not...
             throw new UserException(ExitCodes.DATA_ERROR, "Could not find a timestamp in the log sample provided");
         }
-        boolean hasTimezoneDependentParsing = bestTimestamp.v1().hasTimezoneDependentParsing();
 
         terminal.println(Verbosity.VERBOSE, "Most likely timestamp format is [" + bestTimestamp.v1() + "]");
 
-        List<String> sampleMessages = new ArrayList<>();
+        sampleMessages = new ArrayList<>();
         StringBuilder preamble = new StringBuilder();
         int linesConsumed = 0;
         StringBuilder message = null;
@@ -204,9 +178,15 @@ public class TextLogFileStructureFinder extends AbstractLogFileStructureFinder i
         }
         // Don't add the last message, as it might be partial and mess up subsequent pattern finding
 
-        createPreambleComment(linesConsumed, sampleMessages.size(), preamble.toString());
+        LogFileStructure.Builder structureBuilder = new LogFileStructure.Builder(LogFileStructure.Format.SEMI_STRUCTURED_TEXT)
+            .setCharset(charsetName)
+            .setHasByteOrderMarker(hasByteOrderMarker)
+            .setSampleStart(preamble.toString())
+            .setNumLinesAnalyzed(linesConsumed)
+            .setNumMessagesAnalyzed(sampleMessages.size())
+            .setMultilineStartPattern(multiLineRegex);
 
-        mappings = new TreeMap<>();
+        SortedMap<String, Map<String, String>> mappings = new TreeMap<>();
         mappings.put("message", Collections.singletonMap(MAPPING_TYPE_SETTING, "text"));
 
         // We can't parse directly into @timestamp using Grok, so parse to some other time field, which the date filter will then remove
@@ -222,28 +202,65 @@ public class TextLogFileStructureFinder extends AbstractLogFileStructureFinder i
             grokPattern = GrokPatternCreator.createGrokPatternFromExamples(terminal, sampleMessages, bestTimestamp.v1().grokPatternName,
                 interimTimestampField, mappings);
         }
-        String grokQuote = bestLogstashQuoteFor(grokPattern);
-        String dateFormatsStr = bestTimestamp.v1().dateFormats.stream().collect(Collectors.joining("\", \"", "\"", "\""));
 
-        String filebeatInputOptions = makeFilebeatInputOptions(multiLineRegex, null);
+        structure = structureBuilder
+            .setTimestampField(interimTimestampField)
+            .setTimestampFormats(bestTimestamp.v1().dateFormats)
+            .setNeedClientTimezone(bestTimestamp.v1().hasTimezoneDependentParsing())
+            .setGrokPattern(grokPattern)
+            .setMappings(mappings)
+            .setExplanation(Collections.singletonList("TODO")) // TODO
+            .build();
+    }
+
+    String getFilebeatToLogstashConfig() {
+        return filebeatToLogstashConfig;
+    }
+
+    String getLogstashFromFilebeatConfig() {
+        return logstashFromFilebeatConfig;
+    }
+
+    String getLogstashFromFileConfig() {
+        return logstashFromFileConfig;
+    }
+
+    String getFilebeatToIngestPipelineConfig() {
+        return filebeatToIngestPipelineConfig;
+    }
+
+    String getIngestPipelineFromFilebeatConfig() {
+        return ingestPipelineFromFilebeatConfig;
+    }
+
+    void createConfigs() {
+
+        String grokPattern = structure.getGrokPattern();
+        String grokQuote = bestLogstashQuoteFor(grokPattern);
+        String interimTimestampField = structure.getTimestampField();
+        String dateFormatsStr = structure.getTimestampFormats().stream().collect(Collectors.joining("\", \"", "\"", "\""));
+
+        String filebeatInputOptions = makeFilebeatInputOptions(structure.getMultilineStartPattern(), null);
         filebeatToLogstashConfig = String.format(Locale.ROOT, FILEBEAT_TO_LOGSTASH_TEMPLATE, filebeatInputOptions,
-            makeFilebeatAddLocaleSetting(hasTimezoneDependentParsing), logstashHost);
+            makeFilebeatAddLocaleSetting(structure.needClientTimezone()), logstashHost);
         String logstashFromFilebeatFilters = String.format(Locale.ROOT, COMMON_LOGSTASH_FILTERS_TEMPLATE, grokQuote, grokPattern, grokQuote,
-            interimTimestampField, dateFormatsStr, interimTimestampField, makeLogstashTimezoneSetting(hasTimezoneDependentParsing, true));
+            interimTimestampField, dateFormatsStr, interimTimestampField,
+            makeLogstashTimezoneSetting(structure.needClientTimezone(), true));
         logstashFromFilebeatConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILEBEAT_TEMPLATE, logstashFromFilebeatFilters,
             elasticsearchHost);
         String logstashFromFileFilters = String.format(Locale.ROOT, COMMON_LOGSTASH_FILTERS_TEMPLATE, grokQuote, grokPattern, grokQuote,
-            interimTimestampField, dateFormatsStr, interimTimestampField, makeLogstashTimezoneSetting(hasTimezoneDependentParsing, false));
-        logstashFromFileConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILE_TEMPLATE, makeLogstashFileInput(multiLineRegex),
-            logstashFromFileFilters, elasticsearchHost, indexName);
+            interimTimestampField, dateFormatsStr, interimTimestampField,
+            makeLogstashTimezoneSetting(structure.needClientTimezone(), false));
+        logstashFromFileConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILE_TEMPLATE,
+            makeLogstashFileInput(structure.getMultilineStartPattern()), logstashFromFileFilters, elasticsearchHost, indexName);
         FilebeatModule matchingModule = (filebeatModuleStore != null) ? filebeatModuleStore.findMatchingModule(sampleMessages) : null;
         if (matchingModule == null) {
             filebeatToIngestPipelineConfig = String.format(Locale.ROOT, FILEBEAT_TO_INGEST_PIPELINE_WITHOUT_MODULE_TEMPLATE,
-                filebeatInputOptions, makeFilebeatAddLocaleSetting(hasTimezoneDependentParsing), elasticsearchHost, typeName);
+                filebeatInputOptions, makeFilebeatAddLocaleSetting(structure.needClientTimezone()), elasticsearchHost, typeName);
             String jsonEscapedGrokPattern = grokPattern.replaceAll("([\\\\\"])", "\\\\$1");
             ingestPipelineFromFilebeatConfig = String.format(Locale.ROOT, INGEST_PIPELINE_FROM_FILEBEAT_WITHOUT_MODULE_TEMPLATE, typeName,
                 typeName, jsonEscapedGrokPattern, interimTimestampField,
-                makeIngestPipelineTimezoneSetting(hasTimezoneDependentParsing), dateFormatsStr, interimTimestampField);
+                makeIngestPipelineTimezoneSetting(structure.needClientTimezone()), dateFormatsStr, interimTimestampField);
         } else {
             String aOrAn = ("aeiou".indexOf(matchingModule.fileType.charAt(0)) >= 0) ? "an" : "a";
             terminal.println("An existing Filebeat module [" + matchingModule.moduleName +
@@ -334,11 +351,12 @@ public class TextLogFileStructureFinder extends AbstractLogFileStructureFinder i
 
     @Override
     public synchronized void writeConfigs(Path directory) throws Exception {
-        if (mappings == null) {
+        if (filebeatToLogstashConfig == null) {
             createConfigs();
+            createPreambleComment();
         }
 
-        writeMappingsConfigs(directory, mappings);
+        writeMappingsConfigs(directory, structure.getMappings());
 
         writeConfigFile(directory, "filebeat-to-logstash.yml", filebeatToLogstashConfig);
         writeConfigFile(directory, "logstash-from-filebeat.conf", logstashFromFilebeatConfig);

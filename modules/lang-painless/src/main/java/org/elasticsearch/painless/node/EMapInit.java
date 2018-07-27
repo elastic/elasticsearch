@@ -122,7 +122,7 @@ public final class EMapInit extends AExpression {
             writer.dup();
             key.write(writer, globals);
             value.write(writer, globals);
-            method.write(writer);
+            writer.invokeMethodCall(method);
             writer.pop();
         }
     }

@@ -23,6 +23,7 @@ import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Constant;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Locals.LocalMethod;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
@@ -30,8 +31,6 @@ import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.SimpleChecksAdapter;
 import org.elasticsearch.painless.WriterConstants;
 import org.elasticsearch.painless.lookup.PainlessLookup;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.node.SFunction.FunctionReserved;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
@@ -165,14 +164,15 @@ public final class SSource extends AStatement {
     }
 
     public void analyze(PainlessLookup painlessLookup) {
-        Map<String, PainlessMethod> methods = new HashMap<>();
+        Map<String, LocalMethod> methods = new HashMap<>();
 
         for (SFunction function : functions) {
             function.generateSignature(painlessLookup);
 
-            String key = PainlessLookupUtility.buildPainlessMethodKey(function.name, function.parameters.size());
+            String key = Locals.buildLocalMethodKey(function.name, function.parameters.size());
 
-            if (methods.put(key, function.method) != null) {
+            if (methods.put(key,
+                    new LocalMethod(function.name, function.returnType, function.typeParameters, function.methodType)) != null) {
                 throw createError(new IllegalArgumentException("Duplicate functions with name [" + function.name + "]."));
             }
         }
@@ -184,7 +184,7 @@ public final class SSource extends AStatement {
     void analyze(Locals program) {
         for (SFunction function : functions) {
             Locals functionLocals =
-                Locals.newFunctionScope(program, function.rtnType, function.parameters, function.reserved.getMaxLoopCounter());
+                Locals.newFunctionScope(program, function.returnType, function.parameters, function.reserved.getMaxLoopCounter());
             function.analyze(functionLocals);
         }
 

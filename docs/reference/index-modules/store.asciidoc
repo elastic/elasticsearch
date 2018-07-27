@@ -67,11 +67,6 @@ process equal to the size of the file being mapped. Before using this
 class, be sure you have allowed plenty of
 <<vm-max-map-count,virtual address space>>.
 
-[[default_fs]]`default_fs` deprecated[5.0.0, The `default_fs` store type is deprecated - use `fs` instead]::
-
-The `default` type is deprecated and is aliased to `fs` for backward
-compatibility.
-
 === Pre-loading data into the file system cache
 
 NOTE: This is an expert setting, the details of which may change in the future.

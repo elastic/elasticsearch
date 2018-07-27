@@ -84,12 +84,18 @@ public class ForceMergeAction implements LifecycleAction {
 
     @Override
     public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
-        StepKey updateCompressionKey = new StepKey(phase, NAME, "best_compression");
         StepKey forceMergeKey = new StepKey(phase, NAME, ForceMergeStep.NAME);
         StepKey countKey = new StepKey(phase, NAME, SegmentCountStep.NAME);
         ForceMergeStep forceMergeStep = new ForceMergeStep(forceMergeKey, countKey, client, maxNumSegments);
         SegmentCountStep segmentCountStep = new SegmentCountStep(countKey, nextStepKey, client, maxNumSegments);
         return Arrays.asList(forceMergeStep, segmentCountStep);
+    }
+
+    @Override
+    public List<StepKey> toStepKeys(String phase) {
+        StepKey forceMergeKey = new StepKey(phase, NAME, ForceMergeStep.NAME);
+        StepKey countKey = new StepKey(phase, NAME, SegmentCountStep.NAME);
+        return Arrays.asList(forceMergeKey, countKey);
     }
 
     @Override

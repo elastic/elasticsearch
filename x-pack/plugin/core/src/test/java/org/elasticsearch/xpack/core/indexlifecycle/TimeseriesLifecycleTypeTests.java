@@ -9,10 +9,12 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -184,6 +186,280 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         Phase deletePhase = new Phase("delete", TimeValue.ZERO, actions);
         List<LifecycleAction> orderedActions = TimeseriesLifecycleType.INSTANCE.getOrderedActions(deletePhase);
         assertTrue(isSorted(orderedActions, LifecycleAction::getWriteableName, ORDERED_VALID_DELETE_ACTIONS));
+    }
+
+    public void testGetNextPhaseName() {
+        assertNextPhaseName("hot", "warm", new String[] { "hot", "warm" });
+        assertNextPhaseName("hot", "warm", new String[] { "hot", "warm", "cold" });
+        assertNextPhaseName("hot", "warm", new String[] { "hot", "warm", "cold", "delete" });
+        assertNextPhaseName("hot", "warm", new String[] { "warm", "cold", "delete" });
+        assertNextPhaseName("hot", "warm", new String[] { "warm", "cold", "delete" });
+        assertNextPhaseName("hot", "warm", new String[] { "warm", "delete" });
+        assertNextPhaseName("hot", "cold", new String[] { "cold", "delete" });
+        assertNextPhaseName("hot", "cold", new String[] { "cold" });
+        assertNextPhaseName("hot", "delete", new String[] { "hot", "delete" });
+        assertNextPhaseName("hot", "delete", new String[] { "delete" });
+        assertNextPhaseName("hot", null, new String[] { "hot" });
+        assertNextPhaseName("hot", null, new String[] {});
+
+        assertNextPhaseName("warm", "cold", new String[] { "hot", "warm", "cold", "delete" });
+        assertNextPhaseName("warm", "cold", new String[] { "warm", "cold", "delete" });
+        assertNextPhaseName("warm", "cold", new String[] { "cold", "delete" });
+        assertNextPhaseName("warm", "cold", new String[] { "cold" });
+        assertNextPhaseName("warm", "delete", new String[] { "hot", "warm", "delete" });
+        assertNextPhaseName("warm", null, new String[] { "hot", "warm" });
+        assertNextPhaseName("warm", null, new String[] { "warm" });
+        assertNextPhaseName("warm", null, new String[] { "hot" });
+        assertNextPhaseName("warm", null, new String[] {});
+
+        assertNextPhaseName("cold", "delete", new String[] { "hot", "warm", "cold", "delete" });
+        assertNextPhaseName("cold", "delete", new String[] { "warm", "cold", "delete" });
+        assertNextPhaseName("cold", "delete", new String[] { "cold", "delete" });
+        assertNextPhaseName("cold", "delete", new String[] { "delete" });
+        assertNextPhaseName("cold", "delete", new String[] { "hot", "warm", "delete" });
+        assertNextPhaseName("cold", null, new String[] { "hot", "warm", "cold" });
+        assertNextPhaseName("cold", null, new String[] { "hot", "warm" });
+        assertNextPhaseName("cold", null, new String[] { "cold" });
+        assertNextPhaseName("cold", null, new String[] { "hot" });
+        assertNextPhaseName("cold", null, new String[] {});
+
+        assertNextPhaseName("delete", null, new String[] { "hot", "warm", "cold" });
+        assertNextPhaseName("delete", null, new String[] { "hot", "warm" });
+        assertNextPhaseName("delete", null, new String[] { "cold" });
+        assertNextPhaseName("delete", null, new String[] { "hot" });
+        assertNextPhaseName("delete", null, new String[] {});
+        assertNextPhaseName("delete", null, new String[] { "hot", "warm", "cold", "delete" });
+        assertNextPhaseName("delete", null, new String[] { "hot", "warm", "delete" });
+        assertNextPhaseName("delete", null, new String[] { "cold", "delete" });
+        assertNextPhaseName("delete", null, new String[] { "delete" });
+        assertNextPhaseName("delete", null, new String[] {});
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+                () -> TimeseriesLifecycleType.INSTANCE.getNextPhaseName("foo", Collections.emptyMap()));
+        assertEquals("[foo] is not a valid phase for lifecycle type [" + TimeseriesLifecycleType.TYPE + "]", exception.getMessage());
+        exception = expectThrows(IllegalArgumentException.class, () -> TimeseriesLifecycleType.INSTANCE
+                .getNextPhaseName("foo", Collections.singletonMap("foo", new Phase("foo", TimeValue.ZERO, Collections.emptyMap()))));
+        assertEquals("[foo] is not a valid phase for lifecycle type [" + TimeseriesLifecycleType.TYPE + "]", exception.getMessage());
+    }
+
+    public void testGetPreviousPhaseName() {
+        assertPreviousPhaseName("hot", null, new String[] { "hot", "warm" });
+        assertPreviousPhaseName("hot", null, new String[] { "hot", "warm", "cold" });
+        assertPreviousPhaseName("hot", null, new String[] { "hot", "warm", "cold", "delete" });
+        assertPreviousPhaseName("hot", null, new String[] { "warm", "cold", "delete" });
+        assertPreviousPhaseName("hot", null, new String[] { "warm", "delete" });
+        assertPreviousPhaseName("hot", null, new String[] { "cold", "delete" });
+        assertPreviousPhaseName("hot", null, new String[] { "cold" });
+        assertPreviousPhaseName("hot", null, new String[] { "hot", "delete" });
+        assertPreviousPhaseName("hot", null, new String[] { "delete" });
+        assertPreviousPhaseName("hot", null, new String[] { "hot" });
+        assertPreviousPhaseName("hot", null, new String[] {});
+
+        assertPreviousPhaseName("warm", "hot", new String[] { "hot", "warm", "cold", "delete" });
+        assertPreviousPhaseName("warm", null, new String[] { "warm", "cold", "delete" });
+        assertPreviousPhaseName("warm", "hot", new String[] { "hot", "cold", "delete" });
+        assertPreviousPhaseName("warm", null, new String[] { "cold", "delete" });
+        assertPreviousPhaseName("warm", "hot", new String[] { "hot", "delete" });
+        assertPreviousPhaseName("warm", null, new String[] { "delete" });
+        assertPreviousPhaseName("warm", "hot", new String[] { "hot" });
+        assertPreviousPhaseName("warm", null, new String[] {});
+
+        assertPreviousPhaseName("cold", "warm", new String[] { "hot", "warm", "cold", "delete" });
+        assertPreviousPhaseName("cold", "hot", new String[] { "hot", "cold", "delete" });
+        assertPreviousPhaseName("cold", "warm", new String[] { "warm", "cold", "delete" });
+        assertPreviousPhaseName("cold", null, new String[] { "cold", "delete" });
+        assertPreviousPhaseName("cold", "warm", new String[] { "hot", "warm", "delete" });
+        assertPreviousPhaseName("cold", "hot", new String[] { "hot", "delete" });
+        assertPreviousPhaseName("cold", "warm", new String[] { "warm", "delete" });
+        assertPreviousPhaseName("cold", null, new String[] { "delete" });
+        assertPreviousPhaseName("cold", "warm", new String[] { "hot", "warm" });
+        assertPreviousPhaseName("cold", "hot", new String[] { "hot" });
+        assertPreviousPhaseName("cold", "warm", new String[] { "warm" });
+        assertPreviousPhaseName("cold", null, new String[] {});
+
+        assertPreviousPhaseName("delete", "cold", new String[] { "hot", "warm", "cold", "delete" });
+        assertPreviousPhaseName("delete", "cold", new String[] { "warm", "cold", "delete" });
+        assertPreviousPhaseName("delete", "warm", new String[] { "hot", "warm", "delete" });
+        assertPreviousPhaseName("delete", "hot", new String[] { "hot", "delete" });
+        assertPreviousPhaseName("delete", "cold", new String[] { "cold", "delete" });
+        assertPreviousPhaseName("delete", null, new String[] { "delete" });
+        assertPreviousPhaseName("delete", "cold", new String[] { "hot", "warm", "cold" });
+        assertPreviousPhaseName("delete", "cold", new String[] { "warm", "cold" });
+        assertPreviousPhaseName("delete", "warm", new String[] { "hot", "warm" });
+        assertPreviousPhaseName("delete", "hot", new String[] { "hot" });
+        assertPreviousPhaseName("delete", "cold", new String[] { "cold" });
+        assertPreviousPhaseName("delete", null, new String[] {});
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+                () -> TimeseriesLifecycleType.INSTANCE.getPreviousPhaseName("foo", Collections.emptyMap()));
+        assertEquals("[foo] is not a valid phase for lifecycle type [" + TimeseriesLifecycleType.TYPE + "]", exception.getMessage());
+        exception = expectThrows(IllegalArgumentException.class, () -> TimeseriesLifecycleType.INSTANCE
+                .getPreviousPhaseName("foo", Collections.singletonMap("foo", new Phase("foo", TimeValue.ZERO, Collections.emptyMap()))));
+        assertEquals("[foo] is not a valid phase for lifecycle type [" + TimeseriesLifecycleType.TYPE + "]", exception.getMessage());
+    }
+
+    public void testGetNextActionName() {
+        // Hot Phase
+        assertNextActionName("hot", RolloverAction.NAME, null, new String[] {});
+        assertNextActionName("hot", RolloverAction.NAME, null, new String[] { RolloverAction.NAME });
+        assertInvalidAction("hot", "foo", new String[] { RolloverAction.NAME });
+        assertInvalidAction("hot", AllocateAction.NAME, new String[] { RolloverAction.NAME });
+        assertInvalidAction("hot", DeleteAction.NAME, new String[] { RolloverAction.NAME });
+        assertInvalidAction("hot", ForceMergeAction.NAME, new String[] { RolloverAction.NAME });
+        assertInvalidAction("hot", ReadOnlyAction.NAME, new String[] { RolloverAction.NAME });
+        assertInvalidAction("hot", ReplicasAction.NAME, new String[] { RolloverAction.NAME });
+        assertInvalidAction("hot", ShrinkAction.NAME, new String[] { RolloverAction.NAME });
+
+        // Warm Phase
+        assertNextActionName("warm", ReadOnlyAction.NAME, AllocateAction.NAME,
+                new String[] { ReadOnlyAction.NAME, AllocateAction.NAME, ReplicasAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME });
+        assertNextActionName("warm", ReadOnlyAction.NAME, ReplicasAction.NAME,
+                new String[] { ReadOnlyAction.NAME, ReplicasAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME });
+        assertNextActionName("warm", ReadOnlyAction.NAME, ShrinkAction.NAME,
+                new String[] { ReadOnlyAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME });
+        assertNextActionName("warm", ReadOnlyAction.NAME, ForceMergeAction.NAME,
+                new String[] { ReadOnlyAction.NAME, ForceMergeAction.NAME });
+        assertNextActionName("warm", ReadOnlyAction.NAME, null, new String[] { ReadOnlyAction.NAME });
+
+        assertNextActionName("warm", ReadOnlyAction.NAME, AllocateAction.NAME,
+                new String[] { AllocateAction.NAME, ReplicasAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME });
+        assertNextActionName("warm", ReadOnlyAction.NAME, ReplicasAction.NAME,
+                new String[] { ReplicasAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME });
+        assertNextActionName("warm", ReadOnlyAction.NAME, ShrinkAction.NAME, new String[] { ShrinkAction.NAME, ForceMergeAction.NAME });
+        assertNextActionName("warm", ReadOnlyAction.NAME, ForceMergeAction.NAME, new String[] { ForceMergeAction.NAME });
+        assertNextActionName("warm", ReadOnlyAction.NAME, null, new String[] {});
+
+        assertNextActionName("warm", AllocateAction.NAME, ReplicasAction.NAME,
+                new String[] { ReadOnlyAction.NAME, AllocateAction.NAME, ReplicasAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME });
+        assertNextActionName("warm", AllocateAction.NAME, ShrinkAction.NAME,
+                new String[] { ReadOnlyAction.NAME, AllocateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME });
+        assertNextActionName("warm", AllocateAction.NAME, ForceMergeAction.NAME,
+                new String[] { ReadOnlyAction.NAME, AllocateAction.NAME, ForceMergeAction.NAME });
+        assertNextActionName("warm", AllocateAction.NAME, null, new String[] { ReadOnlyAction.NAME, AllocateAction.NAME });
+
+        assertNextActionName("warm", AllocateAction.NAME, ReplicasAction.NAME,
+                new String[] { ReplicasAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME });
+        assertNextActionName("warm", AllocateAction.NAME, ShrinkAction.NAME, new String[] { ShrinkAction.NAME, ForceMergeAction.NAME });
+        assertNextActionName("warm", AllocateAction.NAME, ForceMergeAction.NAME, new String[] { ForceMergeAction.NAME });
+        assertNextActionName("warm", AllocateAction.NAME, null, new String[] {});
+
+        assertNextActionName("warm", ReplicasAction.NAME, ShrinkAction.NAME,
+                new String[] { ReadOnlyAction.NAME, AllocateAction.NAME, ReplicasAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME });
+        assertNextActionName("warm", ReplicasAction.NAME, ForceMergeAction.NAME,
+                new String[] { ReadOnlyAction.NAME, AllocateAction.NAME, ReplicasAction.NAME, ForceMergeAction.NAME });
+        assertNextActionName("warm", ReplicasAction.NAME, null,
+                new String[] { ReadOnlyAction.NAME, AllocateAction.NAME, ReplicasAction.NAME });
+
+        assertNextActionName("warm", ReplicasAction.NAME, ShrinkAction.NAME, new String[] { ShrinkAction.NAME, ForceMergeAction.NAME });
+        assertNextActionName("warm", ReplicasAction.NAME, ForceMergeAction.NAME, new String[] { ForceMergeAction.NAME });
+        assertNextActionName("warm", ReplicasAction.NAME, null, new String[] {});
+
+        assertNextActionName("warm", ShrinkAction.NAME, ForceMergeAction.NAME,
+                new String[] { ReadOnlyAction.NAME, AllocateAction.NAME, ReplicasAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME });
+        assertNextActionName("warm", ShrinkAction.NAME, null,
+                new String[] { ReadOnlyAction.NAME, AllocateAction.NAME, ReplicasAction.NAME, ShrinkAction.NAME });
+
+        assertNextActionName("warm", ShrinkAction.NAME, ForceMergeAction.NAME, new String[] { ForceMergeAction.NAME });
+        assertNextActionName("warm", ShrinkAction.NAME, null, new String[] {});
+
+        assertNextActionName("warm", ForceMergeAction.NAME, null,
+                new String[] { ReadOnlyAction.NAME, AllocateAction.NAME, ReplicasAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME });
+
+        assertNextActionName("warm", ForceMergeAction.NAME, null, new String[] {});
+
+        assertInvalidAction("warm", "foo", new String[] { RolloverAction.NAME });
+        assertInvalidAction("warm", DeleteAction.NAME,
+                new String[] { ReadOnlyAction.NAME, AllocateAction.NAME, ReplicasAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME });
+        assertInvalidAction("warm", RolloverAction.NAME,
+                new String[] { ReadOnlyAction.NAME, AllocateAction.NAME, ReplicasAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME });
+
+        // Cold Phase
+        assertNextActionName("cold", AllocateAction.NAME, ReplicasAction.NAME, new String[] { AllocateAction.NAME, ReplicasAction.NAME });
+        assertNextActionName("cold", AllocateAction.NAME, null, new String[] { AllocateAction.NAME });
+
+        assertNextActionName("cold", AllocateAction.NAME, ReplicasAction.NAME, new String[] { ReplicasAction.NAME });
+        assertNextActionName("cold", AllocateAction.NAME, null, new String[] {});
+
+        assertNextActionName("cold", ReplicasAction.NAME, null, new String[] { AllocateAction.NAME, ReplicasAction.NAME });
+        assertNextActionName("cold", AllocateAction.NAME, null, new String[] {});
+
+        assertInvalidAction("cold", "foo", new String[] { AllocateAction.NAME, ReplicasAction.NAME });
+        assertInvalidAction("cold", DeleteAction.NAME, new String[] { AllocateAction.NAME, ReplicasAction.NAME });
+        assertInvalidAction("cold", ForceMergeAction.NAME, new String[] { AllocateAction.NAME, ReplicasAction.NAME });
+        assertInvalidAction("cold", ReadOnlyAction.NAME, new String[] { AllocateAction.NAME, ReplicasAction.NAME });
+        assertInvalidAction("cold", RolloverAction.NAME, new String[] { AllocateAction.NAME, ReplicasAction.NAME });
+        assertInvalidAction("cold", ShrinkAction.NAME, new String[] { AllocateAction.NAME, ReplicasAction.NAME });
+
+        // Delete Phase
+        assertNextActionName("delete", DeleteAction.NAME, null, new String[] {});
+        assertNextActionName("delete", DeleteAction.NAME, null, new String[] { DeleteAction.NAME });
+        assertInvalidAction("delete", "foo", new String[] { DeleteAction.NAME });
+        assertInvalidAction("delete", AllocateAction.NAME, new String[] { DeleteAction.NAME });
+        assertInvalidAction("delete", ForceMergeAction.NAME, new String[] { DeleteAction.NAME });
+        assertInvalidAction("delete", ReadOnlyAction.NAME, new String[] { DeleteAction.NAME });
+        assertInvalidAction("delete", ReplicasAction.NAME, new String[] { DeleteAction.NAME });
+        assertInvalidAction("delete", RolloverAction.NAME, new String[] { DeleteAction.NAME });
+        assertInvalidAction("delete", ShrinkAction.NAME, new String[] { DeleteAction.NAME });
+
+        Phase phase = new Phase("foo", TimeValue.ZERO, Collections.emptyMap());
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+                () -> TimeseriesLifecycleType.INSTANCE.getNextActionName(ShrinkAction.NAME, phase));
+        assertEquals("lifecycle type[" + TimeseriesLifecycleType.TYPE + "] does not support phase[" + phase.getName() + "]",
+                exception.getMessage());
+    }
+
+    private void assertNextActionName(String phaseName, String currentAction, String expectedNextAction, String... availableActionNames) {
+        Map<String, LifecycleAction> availableActions = convertActionNamesToActions(availableActionNames);
+        Phase phase = new Phase(phaseName, TimeValue.ZERO, availableActions);
+        String nextAction = TimeseriesLifecycleType.INSTANCE.getNextActionName(currentAction, phase);
+        assertEquals(expectedNextAction, nextAction);
+    }
+
+    private void assertInvalidAction(String phaseName, String currentAction, String... availableActionNames) {
+        Map<String, LifecycleAction> availableActions = convertActionNamesToActions(availableActionNames);
+        Phase phase = new Phase(phaseName, TimeValue.ZERO, availableActions);
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+                () -> TimeseriesLifecycleType.INSTANCE.getNextActionName(currentAction, phase));
+        assertEquals("[" + currentAction + "] is not a valid action for phase [" + phaseName + "] in lifecycle type ["
+                + TimeseriesLifecycleType.TYPE + "]", exception.getMessage());
+    }
+
+    private ConcurrentMap<String, LifecycleAction> convertActionNamesToActions(String... availableActionNames) {
+        return Arrays.asList(availableActionNames).stream().map(n -> {
+            switch (n) {
+            case AllocateAction.NAME:
+                return new AllocateAction(Collections.singletonMap("foo", "bar"), Collections.emptyMap(), Collections.emptyMap());
+            case DeleteAction.NAME:
+                return new DeleteAction();
+            case ForceMergeAction.NAME:
+                return new ForceMergeAction(1);
+            case ReadOnlyAction.NAME:
+                return new ReadOnlyAction();
+            case ReplicasAction.NAME:
+                return new ReplicasAction(1);
+            case RolloverAction.NAME:
+                return new RolloverAction(ByteSizeValue.parseBytesSizeValue("0b", "test"), TimeValue.ZERO, 1L);
+            case ShrinkAction.NAME:
+                return new ShrinkAction(1);
+            }
+            return new DeleteAction();
+        }).collect(Collectors.toConcurrentMap(LifecycleAction::getWriteableName, Function.identity()));
+    }
+
+    private void assertNextPhaseName(String currentPhase, String expectedNextPhase, String... availablePhaseNames) {
+        Map<String, Phase> availablePhases = Arrays.asList(availablePhaseNames).stream()
+                .map(n -> new Phase(n, TimeValue.ZERO, Collections.emptyMap()))
+                .collect(Collectors.toMap(Phase::getName, Function.identity()));
+        String nextPhase = TimeseriesLifecycleType.INSTANCE.getNextPhaseName(currentPhase, availablePhases);
+        assertEquals(expectedNextPhase, nextPhase);
+    }
+
+    private void assertPreviousPhaseName(String currentPhase, String expectedNextPhase, String... availablePhaseNames) {
+        Map<String, Phase> availablePhases = Arrays.asList(availablePhaseNames).stream()
+                .map(n -> new Phase(n, TimeValue.ZERO, Collections.emptyMap()))
+                .collect(Collectors.toMap(Phase::getName, Function.identity()));
+        String nextPhase = TimeseriesLifecycleType.INSTANCE.getPreviousPhaseName(currentPhase, availablePhases);
+        assertEquals(expectedNextPhase, nextPhase);
     }
 
     /**

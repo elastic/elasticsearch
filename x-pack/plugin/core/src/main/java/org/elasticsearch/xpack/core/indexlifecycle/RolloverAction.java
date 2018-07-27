@@ -140,6 +140,13 @@ public class RolloverAction implements LifecycleAction {
     }
 
     @Override
+    public List<StepKey> toStepKeys(String phase) {
+        StepKey rolloverStepKey = new StepKey(phase, NAME, RolloverStep.NAME);
+        StepKey updateDateStepKey = new StepKey(phase, NAME, UpdateRolloverLifecycleDateStep.NAME);
+        return Arrays.asList(rolloverStepKey, updateDateStepKey);
+    }
+
+    @Override
     public int hashCode() {
         return Objects.hash(maxSize, maxAge, maxDocs);
     }

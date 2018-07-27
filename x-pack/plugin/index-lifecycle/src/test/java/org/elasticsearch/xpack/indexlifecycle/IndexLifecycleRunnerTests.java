@@ -846,8 +846,10 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         String indexName = randomAlphaOfLength(10);
         String oldPolicyName = "old_policy";
         String newPolicyName = "new_policy";
-        LifecyclePolicy newPolicy = new LifecyclePolicy(TestLifecycleType.INSTANCE, newPolicyName, Collections.emptyMap());
-        StepKey currentStep = new StepKey(randomAlphaOfLength(10), MockAction.NAME, randomAlphaOfLength(10));
+        String phaseName = randomAlphaOfLength(10);
+        StepKey currentStep = new StepKey(phaseName, MockAction.NAME, randomAlphaOfLength(10));
+        LifecyclePolicy newPolicy = createPolicy(oldPolicyName,
+                new StepKey(phaseName, MockAction.NAME, randomAlphaOfLength(9)), null);
         LifecyclePolicy oldPolicy = createPolicy(oldPolicyName, currentStep, null);
         Settings.Builder indexSettingsBuilder = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, oldPolicyName)
                 .put(LifecycleSettings.LIFECYCLE_PHASE, currentStep.getPhase())
@@ -861,10 +863,10 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         List<String> failedIndexes = new ArrayList<>();
 
         ClusterState newClusterState = IndexLifecycleRunner.setPolicyForIndexes(newPolicyName, indices, clusterState, newPolicy,
-                failedIndexes);
+                failedIndexes, () -> now);
 
         assertTrue(failedIndexes.isEmpty());
-        assertClusterStateOnPolicy(clusterState, index, newPolicyName, currentStep, currentStep, newClusterState, now);
+        assertClusterStateOnPolicy(clusterState, index, newPolicyName, currentStep, TerminalPolicyStep.KEY, newClusterState, now);
     }
 
     public void testSetPolicyForIndexNoCurrentPolicy() {
@@ -880,13 +882,14 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         List<String> failedIndexes = new ArrayList<>();
 
         ClusterState newClusterState = IndexLifecycleRunner.setPolicyForIndexes(newPolicyName, indices, clusterState, newPolicy,
-                failedIndexes);
+                failedIndexes, () -> now);
 
         assertTrue(failedIndexes.isEmpty());
         assertClusterStateOnPolicy(clusterState, index, newPolicyName, currentStep, currentStep, newClusterState, now);
     }
 
     public void testSetPolicyForIndexIndexDoesntExist() {
+        long now = randomNonNegativeLong();
         String indexName = randomAlphaOfLength(10);
         String oldPolicyName = "old_policy";
         String newPolicyName = "new_policy";
@@ -905,7 +908,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         List<String> failedIndexes = new ArrayList<>();
 
         ClusterState newClusterState = IndexLifecycleRunner.setPolicyForIndexes(newPolicyName, indices, clusterState, newPolicy,
-                failedIndexes);
+                failedIndexes, () -> now);
 
         assertEquals(1, failedIndexes.size());
         assertEquals("doesnt_exist", failedIndexes.get(0));
@@ -913,6 +916,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
     }
 
     public void testSetPolicyForIndexIndexInUnsafe() {
+        long now = randomNonNegativeLong();
         String indexName = randomAlphaOfLength(10);
         String oldPolicyName = "old_policy";
         String newPolicyName = "new_policy";
@@ -931,7 +935,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         List<String> failedIndexes = new ArrayList<>();
 
         ClusterState newClusterState = IndexLifecycleRunner.setPolicyForIndexes(newPolicyName, indices, clusterState, newPolicy,
-                failedIndexes);
+                failedIndexes, () -> now);
 
         assertEquals(1, failedIndexes.size());
         assertEquals(index.getName(), failedIndexes.get(0));
@@ -958,13 +962,14 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         List<String> failedIndexes = new ArrayList<>();
 
         ClusterState newClusterState = IndexLifecycleRunner.setPolicyForIndexes(newPolicyName, indices, clusterState, newPolicy,
-                failedIndexes);
+                failedIndexes, () -> now);
 
         assertTrue(failedIndexes.isEmpty());
         assertClusterStateOnPolicy(clusterState, index, newPolicyName, currentStep, currentStep, newClusterState, now);
     }
 
     public void testSetPolicyForIndexIndexInUnsafeActionChanged() {
+        long now = randomNonNegativeLong();
         String indexName = randomAlphaOfLength(10);
         String oldPolicyName = "old_policy";
         String newPolicyName = "new_policy";
@@ -974,7 +979,10 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         // change the current action so its not equal to the old one by adding a step
         Map<String, Phase> phases = new HashMap<>();
         Map<String, LifecycleAction> actions = new HashMap<>();
-        MockAction unsafeAction = new MockAction(Collections.singletonList(new MockStep(currentStep, null)), false);
+        List<Step> steps = new ArrayList<>();
+        steps.add(new MockStep(currentStep, null));
+        steps.add(new MockStep(new StepKey(currentStep.getPhase(), currentStep.getAction(), randomAlphaOfLength(5)), null));
+        MockAction unsafeAction = new MockAction(steps, false);
         actions.put(unsafeAction.getWriteableName(), unsafeAction);
         Phase phase = new Phase(currentStep.getPhase(), TimeValue.timeValueMillis(0), actions);
         phases.put(phase.getName(), phase);
@@ -992,7 +1000,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         List<String> failedIndexes = new ArrayList<>();
 
         ClusterState newClusterState = IndexLifecycleRunner.setPolicyForIndexes(newPolicyName, indices, clusterState, newPolicy,
-                failedIndexes);
+                failedIndexes, () -> now);
 
         assertEquals(1, failedIndexes.size());
         assertEquals(index.getName(), failedIndexes.get(0));
@@ -1006,7 +1014,8 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             assert unsafeStep == null
                     || safeStep.getPhase().equals(unsafeStep.getPhase()) == false : "safe and unsafe actions must be in different phases";
             Map<String, LifecycleAction> actions = new HashMap<>();
-            MockAction safeAction = new MockAction(Collections.emptyList(), true);
+            List<Step> steps = Collections.singletonList(new MockStep(safeStep, null));
+            MockAction safeAction = new MockAction(steps, true);
             actions.put(safeAction.getWriteableName(), safeAction);
             Phase phase = new Phase(safeStep.getPhase(), TimeValue.timeValueMillis(0), actions);
             phases.put(phase.getName(), phase);
@@ -1014,7 +1023,8 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         if (unsafeStep != null) {
             assert MockAction.NAME.equals(unsafeStep.getAction()) : "The unsafe action needs to be MockAction.NAME";
             Map<String, LifecycleAction> actions = new HashMap<>();
-            MockAction unsafeAction = new MockAction(Collections.emptyList(), false);
+            List<Step> steps = Collections.singletonList(new MockStep(unsafeStep, null));
+            MockAction unsafeAction = new MockAction(steps, false);
             actions.put(unsafeAction.getWriteableName(), unsafeAction);
             Phase phase = new Phase(unsafeStep.getPhase(), TimeValue.timeValueMillis(0), actions);
             phases.put(phase.getName(), phase);
@@ -1094,7 +1104,10 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         // change the current action so its not equal to the old one by adding a step
         Map<String, Phase> phases = new HashMap<>();
         Map<String, LifecycleAction> actions = new HashMap<>();
-        MockAction unsafeAction = new MockAction(Collections.singletonList(new MockStep(currentStep, null)), false);
+        List<Step> newSteps = new ArrayList<>();
+        newSteps.add(new MockStep(currentStep, null));
+        newSteps.add(new MockStep(new StepKey(currentStep.getPhase(), currentStep.getAction(), randomAlphaOfLength(5)), null));
+        MockAction unsafeAction = new MockAction(newSteps, false);
         actions.put(unsafeAction.getWriteableName(), unsafeAction);
         Phase phase = new Phase(currentStep.getPhase(), TimeValue.timeValueMillis(0), actions);
         phases.put(phase.getName(), phase);

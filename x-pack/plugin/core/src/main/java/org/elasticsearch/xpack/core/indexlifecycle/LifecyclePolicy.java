@@ -245,6 +245,82 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         }
     }
 
+    /**
+     * Finds the next valid {@link StepKey} on or after the provided
+     * {@link StepKey}. If the provided {@link StepKey} is valid in this policy
+     * it will be returned. If its not valid the next available {@link StepKey}
+     * will be returned.
+     */
+    public StepKey getNextValidStep(StepKey stepKey) {
+        Phase phase = phases.get(stepKey.getPhase());
+        if (phase == null) {
+            // Phase doesn't exist so find the after step for the previous
+            // available phase
+            return getAfterStepBeforePhase(stepKey.getPhase());
+        } else {
+            // Phase exists so check if the action exists
+            LifecycleAction action = phase.getActions().get(stepKey.getAction());
+            if (action == null) {
+                // if action doesn't exist find the first step in the next
+                // available action
+                return getFirstStepInNextAction(stepKey.getAction(), phase);
+            } else {
+                // if the action exists check if the step itself exists
+                if (action.toStepKeys(phase.getName()).contains(stepKey)) {
+                    // stepKey is valid still so return it
+                    return stepKey;
+                } else {
+                    // stepKey no longer exists in the action so we need to move
+                    // to the first step in the next action since skipping steps
+                    // in an action is not safe
+                    return getFirstStepInNextAction(stepKey.getAction(), phase);
+                }
+            }
+        }
+    }
+    
+    private StepKey getNextAfterStep(String currentPhaseName) {
+        String nextPhaseName = type.getNextPhaseName(currentPhaseName, phases);
+        if (nextPhaseName == null) {
+            // We don't have a next phase after this one so there is no after
+            // step to move to. Instead we need to go to the terminal step as
+            // there are no more steps we should execute
+            return TerminalPolicyStep.KEY;
+        } else {
+            return new StepKey(currentPhaseName, PhaseAfterStep.NAME, PhaseAfterStep.NAME);
+        }
+    }
+
+    private StepKey getAfterStepBeforePhase(String currentPhaseName) {
+        String nextPhaseName = type.getNextPhaseName(currentPhaseName, phases);
+        if (nextPhaseName == null) {
+            // We don't have a next phase after this one so the next step is the
+            // TerminalPolicyStep
+            return TerminalPolicyStep.KEY;
+        } else {
+            String prevPhaseName = type.getPreviousPhaseName(currentPhaseName, phases);
+            if (prevPhaseName == null) {
+                // no previous phase available so go to the
+                // InitializePolicyContextStep
+                return InitializePolicyContextStep.KEY;
+            }
+            return new StepKey(prevPhaseName, PhaseAfterStep.NAME, PhaseAfterStep.NAME);
+        }
+    }
+
+    private StepKey getFirstStepInNextAction(String currentActionName, Phase phase) {
+        String nextActionName = type.getNextActionName(currentActionName, phase);
+        if (nextActionName == null) {
+            // The current action is the last in this phase so we need to find
+            // the next after step
+            return getNextAfterStep(phase.getName());
+        } else {
+            LifecycleAction nextAction = phase.getActions().get(nextActionName);
+            // Return the first stepKey for nextAction
+            return nextAction.toStepKeys(phase.getName()).get(0);
+        }
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(name, phases);

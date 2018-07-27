@@ -288,7 +288,7 @@ public class IndexLifecycleRunner {
     }
 
     public static ClusterState setPolicyForIndexes(final String newPolicyName, final Index[] indices, ClusterState currentState,
-            LifecyclePolicy newPolicy, List<String> failedIndexes) {
+            LifecyclePolicy newPolicy, List<String> failedIndexes, LongSupplier nowSupplier) {
         Map<String, LifecyclePolicy> policiesMap = ((IndexLifecycleMetadata) currentState.metaData().custom(IndexLifecycleMetadata.TYPE))
                 .getPolicies();
         MetaData.Builder newMetadata = MetaData.builder(currentState.getMetaData());
@@ -300,7 +300,7 @@ public class IndexLifecycleRunner {
                 failedIndexes.add(index.getName());
             } else {
                 IndexMetaData.Builder newIdxMetadata = IndexLifecycleRunner.setPolicyForIndex(newPolicyName, newPolicy, policiesMap,
-                        failedIndexes, index, indexMetadata);
+                        failedIndexes, index, indexMetadata, nowSupplier);
                 if (newIdxMetadata != null) {
                     newMetadata.put(newIdxMetadata);
                     clusterStateChanged = true;
@@ -317,9 +317,9 @@ public class IndexLifecycleRunner {
     }
 
     private static IndexMetaData.Builder setPolicyForIndex(final String newPolicyName, LifecyclePolicy newPolicy,
-            Map<String, LifecyclePolicy> policiesMap, List<String> failedIndexes, Index index, IndexMetaData indexMetadata) {
+            Map<String, LifecyclePolicy> policiesMap, List<String> failedIndexes, Index index, IndexMetaData indexMetadata,
+            LongSupplier nowSupplier) {
         Settings idxSettings = indexMetadata.getSettings();
-        Settings.Builder newSettings = Settings.builder().put(idxSettings);
         String currentPolicyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxSettings);
         StepKey currentStepKey = IndexLifecycleRunner.getCurrentStepKey(idxSettings);
         LifecyclePolicy currentPolicy = null;
@@ -328,8 +328,16 @@ public class IndexLifecycleRunner {
         }
 
         if (canSetPolicy(currentStepKey, currentPolicy, newPolicy)) {
+            Settings.Builder newSettings = Settings.builder().put(idxSettings);
+            if (currentStepKey != null) {
+                // Check if current step exists in new policy and if not move to
+                // next available step
+                StepKey nextValidStepKey = newPolicy.getNextValidStep(currentStepKey);
+                if (nextValidStepKey.equals(currentStepKey) == false) {
+                    newSettings = moveIndexSettingsToNextStep(idxSettings, currentStepKey, nextValidStepKey, nowSupplier);
+                }
+            }
             newSettings.put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), newPolicyName);
-            // NORELEASE check if current step exists in new policy and if not move to next available step
             return IndexMetaData.builder(indexMetadata).settings(newSettings);
         } else {
             failedIndexes.add(index.getName());

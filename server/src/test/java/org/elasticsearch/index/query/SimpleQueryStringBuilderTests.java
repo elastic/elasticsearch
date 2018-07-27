@@ -247,11 +247,8 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assertThat(queryBuilder.fields().size(), equalTo(0));
         QueryShardContext shardContext = createShardContext();
 
-        // the remaining tests requires either a mapping that we register with types in base test setup
-        if (getCurrentTypes().length > 0) {
-            Query luceneQuery = queryBuilder.toQuery(shardContext);
-            assertThat(luceneQuery, anyOf(instanceOf(BooleanQuery.class), instanceOf(DisjunctionMaxQuery.class)));
-        }
+        Query luceneQuery = queryBuilder.toQuery(shardContext);
+        assertThat(luceneQuery, anyOf(instanceOf(BooleanQuery.class), instanceOf(DisjunctionMaxQuery.class)));
     }
 
     /*
@@ -315,7 +312,6 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     }
 
     public void testToQueryBoost() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         QueryShardContext shardContext = createShardContext();
         SimpleQueryStringBuilder simpleQueryStringBuilder = new SimpleQueryStringBuilder("test");
         simpleQueryStringBuilder.field(STRING_FIELD_NAME, 5);
@@ -380,7 +376,6 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     }
 
     public void testMinimumShouldMatch() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         QueryShardContext shardContext = createShardContext();
         int numberOfTerms = randomIntBetween(1, 4);
         StringBuilder queryString = new StringBuilder();
@@ -421,13 +416,10 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         simpleQueryStringBuilder.field("_index");
         Query query = simpleQueryStringBuilder.toQuery(shardContext);
         assertThat(query, notNullValue());
-        if (getCurrentTypes().length > 0) {
-            assertThat(query, instanceOf(MatchAllDocsQuery.class));
-        }
+        assertThat(query, instanceOf(MatchAllDocsQuery.class));
     }
 
     public void testExpandedTerms() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         // Prefix
         Query query = new SimpleQueryStringBuilder("aBc*")
                 .field(STRING_FIELD_NAME)
@@ -456,7 +448,6 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     }
 
     public void testAnalyzeWildcard() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         SimpleQueryStringQueryParser.Settings settings = new SimpleQueryStringQueryParser.Settings();
         settings.analyzeWildcard(true);
         SimpleQueryStringQueryParser parser = new SimpleQueryStringQueryParser(new StandardAnalyzer(),
@@ -480,7 +471,6 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     }
 
     public void testAnalyzerWildcardWithSynonyms() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         SimpleQueryStringQueryParser.Settings settings = new SimpleQueryStringQueryParser.Settings();
         settings.analyzeWildcard(true);
         SimpleQueryStringQueryParser parser = new SimpleQueryStringQueryParser(new MockRepeatAnalyzer(),
@@ -512,7 +502,6 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     }
 
     public void testAnalyzerWithGraph() {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         SimpleQueryStringQueryParser.Settings settings = new SimpleQueryStringQueryParser.Settings();
         settings.analyzeWildcard(true);
         SimpleQueryStringQueryParser parser = new SimpleQueryStringQueryParser(new MockSynonymAnalyzer(),
@@ -557,7 +546,6 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     }
 
     public void testQuoteFieldSuffix() {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         SimpleQueryStringQueryParser.Settings settings = new SimpleQueryStringQueryParser.Settings();
         settings.analyzeWildcard(true);
         settings.quoteFieldSuffix("_2");
@@ -575,7 +563,6 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     }
 
     public void testDefaultField() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         QueryShardContext context = createShardContext();
         context.getIndexSettings().updateIndexMetaData(
             newIndexMeta("index", context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field",
@@ -598,8 +585,6 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     }
 
     public void testToFuzzyQuery() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-
         Query query = new SimpleQueryStringBuilder("text~2")
             .field(STRING_FIELD_NAME)
             .fuzzyPrefixLength(2)
@@ -611,8 +596,6 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     }
 
     public void testLenientToPrefixQuery() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-
         Query query = new SimpleQueryStringBuilder("t*")
             .field(DATE_FIELD_NAME)
             .field(STRING_FIELD_NAME)
@@ -626,7 +609,6 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     }
 
     public void testWithStopWords() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query query = new SimpleQueryStringBuilder("the quick fox")
             .field(STRING_FIELD_NAME)
             .analyzer("stop")
@@ -639,7 +621,6 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     }
 
     public void testWithPrefixStopWords() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query query = new SimpleQueryStringBuilder("the* quick fox")
             .field(STRING_FIELD_NAME)
             .analyzer("stop")

@@ -137,7 +137,6 @@ public class ConvertProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue(fieldName, Long.class), equalTo(10L));
     }
 
-    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/32370")
     public void testConvertLongHexError() {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         String value = "0xnotanumber";

@@ -92,7 +92,7 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         JdbcPreparedStatement jps = createJdbcPreparedStatement();
         
         SQLException sqle = expectThrows(SQLException.class, () -> jps.setObject(1, "foo bar", Types.INTEGER));
-        assertEquals("Conversion from type [VARCHAR] to [Integer] not supported", sqle.getMessage());
+        assertEquals("Unable to convert value [foo bar] to an Integer", sqle.getMessage());
     }
     
     public void testSettingByteTypeValues() throws SQLException {
@@ -550,7 +550,8 @@ public class JdbcPreparedStatementTests extends ESTestCase {
     }
 
     private long randomMillisSinceEpoch() {
-        return randomLongBetween(0, System.currentTimeMillis());
+        // random between Jan 1st, 1970 and Jan 1st, 2050
+        return ESTestCase.randomLongBetween(0, 2524608000000L);
     }
 
     private JdbcPreparedStatement createJdbcPreparedStatement() throws SQLException {

@@ -24,5 +24,7 @@ Aggregations::
   consistent with other aggregations)
 
 Suggesters::
-* Plugins can now define their own types of suggestions due to changes in how they are
-  serialized {pull}30284[#30284]
+* Plugins that register suggesters can now define their own types of suggestions and must
+  explicitly indicate the type of suggestion that they produce. Existing plugins will
+  require changes to their plugin registration. See the `custom-suggester` example
+  plugin {pull}30284[#30284]

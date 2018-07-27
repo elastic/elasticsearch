@@ -20,6 +20,7 @@
 grant {
   permission java.net.NetPermission "getProxySelector";
   permission java.lang.RuntimePermission "accessDeclaredMembers";
+  permission java.lang.RuntimePermission "getClassLoader";
   permission java.lang.RuntimePermission "accessClassInPackage.sun.security.ssl";
   permission java.lang.reflect.ReflectPermission "newProxyInPackage.com.microsoft.azure.management.resources.implementation";
   permission java.lang.reflect.ReflectPermission "newProxyInPackage.com.microsoft.azure.management.storage.implementation";

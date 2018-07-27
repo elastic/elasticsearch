@@ -20,12 +20,15 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
+import org.elasticsearch.protocol.xpack.license.GetLicenseResponse;
 import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 
 import java.io.IOException;
 
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.client.RestHighLevelClient.convertResponseToJson;
 
 /**
  * A wrapper for the {@link RestHighLevelClient} that provides methods for
@@ -54,13 +57,34 @@ public class LicenseClient {
     }
 
     /**
-     * Asynchronously updates license for the cluster cluster.
+     * Asynchronously updates license for the cluster.
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      */
     public void putLicenseAsync(PutLicenseRequest request, RequestOptions options, ActionListener<PutLicenseResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::putLicense, options,
             PutLicenseResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Returns the current license for the cluster.
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public GetLicenseResponse getLicense(GetLicenseRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequest(request, RequestConverters::getLicense, options,
+            response -> new GetLicenseResponse(convertResponseToJson(response)), emptySet());
+    }
+
+    /**
+     * Asynchronously returns the current license for the cluster cluster.
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void getLicenseAsync(GetLicenseRequest request, RequestOptions options, ActionListener<GetLicenseResponse> listener) {
+        restHighLevelClient.performRequestAsync(request, RequestConverters::getLicense, options,
+            response -> new GetLicenseResponse(convertResponseToJson(response)), listener, emptySet());
     }
 
 }

@@ -24,7 +24,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.Lifecycle;
@@ -484,9 +483,7 @@ public final class MockTransportService extends TransportService {
      * @return {@code true} if no default get connection behavior was registered.
      */
     public boolean addGetConnectionBehavior(GetConnectionBehavior behavior) {
-        GetConnectionBehavior prior = connectionManager().defaultGetConnectionBehavior;
-        connectionManager().defaultGetConnectionBehavior = behavior;
-        return prior == null;
+        return connectionManager().setDefaultConnectBehavior(behavior);
     }
 
     /**
@@ -517,9 +514,7 @@ public final class MockTransportService extends TransportService {
      * @return {@code true} if no default node connected behavior was registered.
      */
     public boolean addNodeConnectedBehavior(NodeConnectedBehavior behavior) {
-        NodeConnectedBehavior prior = connectionManager().defaultNodeConnectedBehavior;
-        connectionManager().defaultNodeConnectedBehavior = behavior;
-        return prior == null;
+        return connectionManager().setDefaultNodeConnectedBehavior(behavior);
     }
 
     /**
@@ -537,88 +532,6 @@ public final class MockTransportService extends TransportService {
 
     public MockConnectionManager connectionManager() {
         return (MockConnectionManager) connectionManager;
-    }
-
-    private static class MockConnectionManager extends ConnectionManager {
-
-        private final ConnectionManager delegate;
-        private final ConcurrentHashMap<TransportAddress, GetConnectionBehavior> getConnectionBehaviors = new ConcurrentHashMap<>();
-        private final ConcurrentHashMap<TransportAddress, NodeConnectedBehavior> nodeConnectedBehaviors = new ConcurrentHashMap<>();
-        private volatile GetConnectionBehavior defaultGetConnectionBehavior = null;
-        private volatile NodeConnectedBehavior defaultNodeConnectedBehavior = null;
-
-        private MockConnectionManager(ConnectionManager delegate, Settings settings, Transport transport, ThreadPool threadPool) {
-            super(settings, transport, threadPool);
-            this.delegate = delegate;
-        }
-
-        boolean addConnectBehavior(TransportAddress transportAddress, GetConnectionBehavior connectBehavior) {
-            return getConnectionBehaviors.put(transportAddress, connectBehavior) == null;
-        }
-
-        boolean addNodeConnectedBehavior(TransportAddress transportAddress, NodeConnectedBehavior behavior) {
-            return nodeConnectedBehaviors.put(transportAddress, behavior) == null;
-        }
-
-        void clearBehaviors() {
-            getConnectionBehaviors.clear();
-            nodeConnectedBehaviors.clear();
-        }
-
-        void clearBehavior(TransportAddress transportAddress) {
-            getConnectionBehaviors.remove(transportAddress);
-            nodeConnectedBehaviors.remove(transportAddress);
-        }
-
-        @Override
-        public Transport.Connection getConnection(DiscoveryNode node) {
-            TransportAddress address = node.getAddress();
-            GetConnectionBehavior behavior = getConnectionBehaviors.getOrDefault(address, defaultGetConnectionBehavior);
-            if (behavior == null) {
-                return delegate.getConnection(node);
-            } else {
-                return behavior.getConnection(delegate, node);
-            }
-        }
-
-        public boolean nodeConnected(DiscoveryNode node) {
-            TransportAddress address = node.getAddress();
-            NodeConnectedBehavior behavior = nodeConnectedBehaviors.getOrDefault(address, defaultNodeConnectedBehavior);
-            if (behavior == null) {
-                return delegate.nodeConnected(node);
-            } else {
-                return behavior.nodeConnected(delegate, node);
-            }
-        }
-
-        @Override
-        public void addListener(TransportConnectionListener listener) {
-            delegate.addListener(listener);
-        }
-
-        @Override
-        public void removeListener(TransportConnectionListener listener) {
-            delegate.removeListener(listener);
-        }
-
-        public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
-                                  CheckedBiConsumer<Transport.Connection, ConnectionProfile, IOException> connectionValidator)
-            throws ConnectTransportException {
-            delegate.connectToNode(node, connectionProfile, connectionValidator);
-        }
-
-        public void disconnectFromNode(DiscoveryNode node) {
-            delegate.disconnectFromNode(node);
-        }
-
-        public int connectedNodeCount() {
-            return delegate.connectedNodeCount();
-        }
-
-        @Override
-        public void close() {
-            delegate.close();
-        }
     }
 
     /**

@@ -36,8 +36,6 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TcpTransport;
-import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
@@ -65,7 +63,7 @@ public class GetIndexActionTests extends ESSingleNodeTestCase {
         clusterService = getInstanceFromNode(ClusterService.class);
         indicesService = getInstanceFromNode(IndicesService.class);
         CapturingTransport capturingTransport = new CapturingTransport();
-        transportService = new TransportService(clusterService.getSettings(), capturingTransport, threadPool,
+        transportService = capturingTransport.createCapturingTransportService(clusterService.getSettings(), threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundAddress -> clusterService.localNode(), null, Collections.emptySet());
         transportService.start();

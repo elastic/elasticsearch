@@ -136,14 +136,14 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         if (managedByILM) {
             policyName = in.readString();
             skip = in.readBoolean();
-            lifecycleDate = in.readVLong();
+            lifecycleDate = in.readZLong();
             phase = in.readString();
             action = in.readString();
             step = in.readString();
             failedStep = in.readOptionalString();
-            phaseTime = in.readVLong();
-            actionTime = in.readVLong();
-            stepTime = in.readVLong();
+            phaseTime = in.readZLong();
+            actionTime = in.readZLong();
+            stepTime = in.readZLong();
             stepInfo = in.readOptionalBytesReference();
             
         } else {
@@ -168,14 +168,14 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         if (managedByILM) {
             out.writeString(policyName);
             out.writeBoolean(skip);
-            out.writeVLong(lifecycleDate);
+            out.writeZLong(lifecycleDate);
             out.writeString(phase);
             out.writeString(action);
             out.writeString(step);
             out.writeOptionalString(failedStep);
-            out.writeVLong(phaseTime);
-            out.writeVLong(actionTime);
-            out.writeVLong(stepTime);
+            out.writeZLong(phaseTime);
+            out.writeZLong(actionTime);
+            out.writeZLong(stepTime);
             out.writeOptionalBytesReference(stepInfo);
         }
     }

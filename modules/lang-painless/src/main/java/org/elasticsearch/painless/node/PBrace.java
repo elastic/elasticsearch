@@ -63,9 +63,9 @@ public final class PBrace extends AStoreable {
         } else if (prefix.actual == def.class) {
             sub = new PSubDefArray(location, index);
         } else if (Map.class.isAssignableFrom(prefix.actual)) {
-            sub = new PSubMapShortcut(location, locals.getPainlessLookup().getPainlessStructFromJavaClass(prefix.actual), index);
+            sub = new PSubMapShortcut(location, prefix.actual, index);
         } else if (List.class.isAssignableFrom(prefix.actual)) {
-            sub = new PSubListShortcut(location, locals.getPainlessLookup().getPainlessStructFromJavaClass(prefix.actual), index);
+            sub = new PSubListShortcut(location, prefix.actual, index);
         } else {
             throw createError(new IllegalArgumentException("Illegal array access on type " +
                     "[" + PainlessLookupUtility.typeToCanonicalTypeName(prefix.actual) + "]."));

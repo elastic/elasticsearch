@@ -87,6 +87,13 @@ public class ReplicasAction implements LifecycleAction {
                 new ReplicasAllocatedStep(enoughKey, nextStepKey));
     }
 
+    @Override
+    public List<StepKey> toStepKeys(String phase) {
+        StepKey updateReplicasKey = new StepKey(phase, NAME, UpdateSettingsStep.NAME);
+        StepKey enoughKey = new StepKey(phase, NAME, ReplicasAllocatedStep.NAME);
+        return Arrays.asList(updateReplicasKey, enoughKey);
+    }
+
     public int getNumberOfReplicas() {
         return numberOfReplicas;
     }

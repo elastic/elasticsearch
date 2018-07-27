@@ -33,7 +33,7 @@ import java.io.IOException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-class MockConnectionManager extends ConnectionManager {
+public class MockConnectionManager extends ConnectionManager {
 
     private final ConnectionManager delegate;
     private final ConcurrentMap<TransportAddress, MockTransportService.GetConnectionBehavior> getConnectionBehaviors;
@@ -41,39 +41,39 @@ class MockConnectionManager extends ConnectionManager {
     private volatile MockTransportService.GetConnectionBehavior defaultGetConnectionBehavior = null;
     private volatile MockTransportService.NodeConnectedBehavior defaultNodeConnectedBehavior = null;
 
-    MockConnectionManager(ConnectionManager delegate, Settings settings, Transport transport, ThreadPool threadPool) {
+    public MockConnectionManager(ConnectionManager delegate, Settings settings, Transport transport, ThreadPool threadPool) {
         super(settings, transport, threadPool);
         this.delegate = delegate;
         this.getConnectionBehaviors = new ConcurrentHashMap<>();
         this.nodeConnectedBehaviors = new ConcurrentHashMap<>();
     }
 
-    boolean addConnectBehavior(TransportAddress transportAddress, MockTransportService.GetConnectionBehavior connectBehavior) {
+    public boolean addConnectBehavior(TransportAddress transportAddress, MockTransportService.GetConnectionBehavior connectBehavior) {
         return getConnectionBehaviors.put(transportAddress, connectBehavior) == null;
     }
 
-    boolean setDefaultConnectBehavior(MockTransportService.GetConnectionBehavior behavior) {
+    public boolean setDefaultConnectBehavior(MockTransportService.GetConnectionBehavior behavior) {
         MockTransportService.GetConnectionBehavior prior = defaultGetConnectionBehavior;
         defaultGetConnectionBehavior = behavior;
         return prior == null;
     }
 
-    boolean addNodeConnectedBehavior(TransportAddress transportAddress, MockTransportService.NodeConnectedBehavior behavior) {
+    public boolean addNodeConnectedBehavior(TransportAddress transportAddress, MockTransportService.NodeConnectedBehavior behavior) {
         return nodeConnectedBehaviors.put(transportAddress, behavior) == null;
     }
 
-    boolean setDefaultNodeConnectedBehavior(MockTransportService.NodeConnectedBehavior behavior) {
+    public boolean setDefaultNodeConnectedBehavior(MockTransportService.NodeConnectedBehavior behavior) {
         MockTransportService.NodeConnectedBehavior prior = defaultNodeConnectedBehavior;
         defaultNodeConnectedBehavior = behavior;
         return prior == null;
     }
 
-    void clearBehaviors() {
+    public void clearBehaviors() {
         getConnectionBehaviors.clear();
         nodeConnectedBehaviors.clear();
     }
 
-    void clearBehavior(TransportAddress transportAddress) {
+    public void clearBehavior(TransportAddress transportAddress) {
         getConnectionBehaviors.remove(transportAddress);
         nodeConnectedBehaviors.remove(transportAddress);
     }

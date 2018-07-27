@@ -50,7 +50,6 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
-import org.elasticsearch.transport.TransportService;
 import org.hamcrest.CustomMatcher;
 
 import java.io.Closeable;
@@ -82,7 +81,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
     private static class TestIteration implements Closeable {
         private final ThreadPool threadPool;
         private final FailAndRetryMockTransport<TestResponse> transport;
-        private final TransportService transportService;
+        private final MockTransportService transportService;
         private final TransportClientNodesService transportClientNodesService;
         private final int listNodesCount;
         private final int sniffNodesCount;
@@ -142,7 +141,8 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                     return ClusterState.builder(clusterName).nodes(TestIteration.this.nodeMap.get(node.getAddress())).build();
                 }
             };
-            transportService = new TransportService(settings, transport, threadPool, new TransportInterceptor() {
+
+            transportService = new MockTransportService(settings, transport, threadPool, new TransportInterceptor() {
                 @Override
                 public AsyncSender interceptSender(AsyncSender sender) {
                     return new AsyncSender() {
@@ -164,6 +164,11 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                 assert addr == null : "boundAddress: " + addr;
                 return DiscoveryNode.createLocal(settings, buildNewFakeTransportAddress(), UUIDs.randomBase64UUID());
             }, null, Collections.emptySet());
+            transportService.addNodeConnectedBehavior((connectionManager, discoveryNode) -> false);
+            transportService.addGetConnectionBehavior((connectionManager, discoveryNode) -> {
+                // The FailAndRetryTransport does not use the connection profile
+                return transport.openConnection(discoveryNode, null);
+            });
             transportService.start();
             transportService.acceptIncomingRequests();
             transportClientNodesService =
@@ -358,17 +363,17 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                 final List<MockConnection> establishedConnections = new CopyOnWriteArrayList<>();
                 final List<MockConnection> reusedConnections = new CopyOnWriteArrayList<>();
 
+                clientService.addConnectBehavior(remoteService, (transport, discoveryNode, profile) -> {
+                    MockConnection connection = new MockConnection(transport.openConnection(discoveryNode, profile));
+                    establishedConnections.add(connection);
+                    return connection;
+                });
                 clientService.addGetConnectionBehavior(remoteService, (connectionManager, discoveryNode) -> {
                     MockConnection connection = new MockConnection(connectionManager.getConnection(discoveryNode));
                     reusedConnections.add(connection);
                     return connection;
                 });
 
-                clientService.addConnectBehavior(remoteService, (transport, discoveryNode, profile) -> {
-                    MockConnection connection = new MockConnection(transport.openConnection(discoveryNode, profile));
-                    establishedConnections.add(connection);
-                    return connection;
-                });
 
                 clientService.start();
                 clientService.acceptIncomingRequests();

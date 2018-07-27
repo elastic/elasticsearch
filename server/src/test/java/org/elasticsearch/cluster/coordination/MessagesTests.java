@@ -25,6 +25,8 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
+import java.util.Optional;
+
 public class MessagesTests extends ESTestCase {
 
     private DiscoveryNode createNode(String id) {
@@ -90,6 +92,33 @@ public class MessagesTests extends ESTestCase {
                         // change version
                         return new PublishResponse(publishResponse.getTerm(),
                             randomValueOtherThan(publishResponse.getVersion(), ESTestCase::randomNonNegativeLong));
+                    default:
+                        throw new AssertionError();
+                }
+            });
+    }
+
+    public void testPublishWithJoinResponseEqualsHashCodeSerialization() {
+        PublishResponse initialPublishResponse = new PublishResponse(randomNonNegativeLong(), randomNonNegativeLong());
+        Join initialJoin = new Join(createNode(randomAlphaOfLength(10)), createNode(randomAlphaOfLength(10)), randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong());
+        PublishWithJoinResponse initialPublishWithJoinResponse = new PublishWithJoinResponse(initialPublishResponse,
+            randomBoolean() ? Optional.empty() : Optional.of(initialJoin));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(initialPublishWithJoinResponse,
+            publishWithJoinResponse -> copyWriteable(publishWithJoinResponse, writableRegistry(), PublishWithJoinResponse::new),
+            publishWithJoinResponse -> {
+                switch (randomInt(1)) {
+                    case 0:
+                        // change publish response
+                        return new PublishWithJoinResponse(new PublishResponse(randomNonNegativeLong(), randomNonNegativeLong()),
+                            publishWithJoinResponse.getJoin());
+                    case 1:
+                        // change optional join
+                        Join newJoin = new Join(createNode(randomAlphaOfLength(10)), createNode(randomAlphaOfLength(10)),
+                            randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
+                        return new PublishWithJoinResponse(publishWithJoinResponse.getPublishResponse(),
+                            publishWithJoinResponse.getJoin().isPresent() && randomBoolean() ? Optional.empty() : Optional.of(newJoin));
                     default:
                         throw new AssertionError();
                 }

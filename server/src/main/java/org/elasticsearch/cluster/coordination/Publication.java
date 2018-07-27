@@ -31,7 +31,6 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -62,21 +61,24 @@ public abstract class Publication extends AbstractComponent {
         publishRequest.getAcceptedState().getNodes().iterator().forEachRemaining(n -> publicationTargets.add(new PublicationTarget(n)));
     }
 
-    @Override
-    public String toString() {
-        return "Publication{term=" + publishRequest.getAcceptedState().term() +
-            ", version=" + publishRequest.getAcceptedState().version() + '}';
-    }
-
     public void start(Set<DiscoveryNode> faultyNodes) {
         logger.trace("publishing {} to {}", publishRequest, publicationTargets);
 
-        Set<DiscoveryNode> localFaultyNodes = new HashSet<>(faultyNodes);
-        for (final DiscoveryNode faultyNode : localFaultyNodes) {
+        for (final DiscoveryNode faultyNode : faultyNodes) {
             onFaultyNode(faultyNode);
         }
         onPossibleCommitFailure();
         publicationTargets.forEach(PublicationTarget::sendPublishRequest);
+    }
+
+    public void onTimeout() {
+        publicationTargets.stream().filter(PublicationTarget::isActive).forEach(PublicationTarget::onTimeOut);
+        onPossibleCompletion();
+    }
+
+    public void onFaultyNode(DiscoveryNode faultyNode) {
+        publicationTargets.forEach(t -> t.onFaultyNode(faultyNode));
+        onPossibleCompletion();
     }
 
     private void onPossibleCompletion() {
@@ -117,13 +119,6 @@ public abstract class Publication extends AbstractComponent {
         return isCompleted;
     }
 
-    public void onCommitted(final ApplyCommitRequest applyCommit) {
-        assert applyCommitReference.get() == null;
-        applyCommitReference.set(applyCommit);
-        ackListener.onCommit(TimeValue.timeValueMillis(currentTimeSupplier.getAsLong() - startTime));
-        publicationTargets.stream().filter(PublicationTarget::isWaitingForQuorum).forEach(PublicationTarget::sendApplyCommit);
-    }
-
     private void onPossibleCommitFailure() {
         if (applyCommitReference.get() != null) {
             onPossibleCompletion();
@@ -141,23 +136,9 @@ public abstract class Publication extends AbstractComponent {
 
         if (isPublishQuorum(possiblySuccessfulNodes) == false) {
             logger.debug("onPossibleCommitFailure: non-failed nodes do not form a quorum, so {} cannot succeed", this);
-            failActiveTargets();
+            publicationTargets.stream().filter(PublicationTarget::isActive).forEach(PublicationTarget::setFailed);
+            onPossibleCompletion();
         }
-    }
-
-    void failActiveTargets() {
-        publicationTargets.stream().filter(PublicationTarget::isActive).forEach(PublicationTarget::setFailed);
-        onPossibleCompletion();
-    }
-
-    public void onTimeout() {
-        publicationTargets.stream().filter(PublicationTarget::isActive).forEach(PublicationTarget::onTimeOut);
-        onPossibleCompletion();
-    }
-
-    void onFaultyNode(DiscoveryNode faultyNode) {
-        publicationTargets.forEach(t -> t.onFaultyNode(faultyNode));
-        onPossibleCompletion();
     }
 
     protected abstract void onCompletion(boolean success);
@@ -166,13 +147,19 @@ public abstract class Publication extends AbstractComponent {
 
     protected abstract Optional<ApplyCommitRequest> handlePublishResponse(DiscoveryNode sourceNode, PublishResponse publishResponse);
 
-    protected abstract void onPossibleJoin(DiscoveryNode sourceNode, LegislatorPublishResponse response);
+    protected abstract void onPossibleJoin(DiscoveryNode sourceNode, PublishWithJoinResponse response);
 
     protected abstract void sendPublishRequest(DiscoveryNode destination, PublishRequest publishRequest,
-                                               ActionListener<LegislatorPublishResponse> responseActionListener);
+                                               ActionListener<PublishWithJoinResponse> responseActionListener);
 
     protected abstract void sendApplyCommit(DiscoveryNode destination, ApplyCommitRequest applyCommit,
                                             ActionListener<TransportResponse.Empty> responseActionListener);
+
+    @Override
+    public String toString() {
+        return "Publication{term=" + publishRequest.getAcceptedState().term() +
+            ", version=" + publishRequest.getAcceptedState().version() + '}';
+    }
 
     enum PublicationTargetState {
         NOT_STARTED,
@@ -268,7 +255,12 @@ public abstract class Publication extends AbstractComponent {
             if (applyCommitReference.get() != null) {
                 sendApplyCommit();
             } else {
-                Publication.this.handlePublishResponse(discoveryNode, publishResponse).ifPresent(Publication.this::onCommitted);
+                Publication.this.handlePublishResponse(discoveryNode, publishResponse).ifPresent(applyCommit -> {
+                    assert applyCommitReference.get() == null;
+                    applyCommitReference.set(applyCommit);
+                    ackListener.onCommit(TimeValue.timeValueMillis(currentTimeSupplier.getAsLong() - startTime));
+                    publicationTargets.stream().filter(PublicationTarget::isWaitingForQuorum).forEach(PublicationTarget::sendApplyCommit);
+                });
             }
         }
 
@@ -320,12 +312,19 @@ public abstract class Publication extends AbstractComponent {
             }
         }
 
-        private class PublishResponseHandler implements ActionListener<LegislatorPublishResponse> {
+        private class PublishResponseHandler implements ActionListener<PublishWithJoinResponse> {
 
             @Override
-            public void onResponse(LegislatorPublishResponse response) {
+            public void onResponse(PublishWithJoinResponse response) {
                 if (publicationTargetStateMachine.isFailed()) {
-                    logger.debug("PublishResponseHandler.handleResponse: already failed, ignoring response from [{}]", discoveryNode);
+                    if (applyCommitReference.get() != null) {
+                        logger.trace("PublishResponseHandler.handleResponse: handling [{}] from [{}] while already failed",
+                            response.getPublishResponse(), discoveryNode);
+                        Publication.this.sendApplyCommit(discoveryNode, applyCommitReference.get(),
+                            new PublicationTarget.ApplyCommitResponseHandler());
+                    } else {
+                        logger.debug("PublishResponseHandler.handleResponse: already failed, ignoring response from [{}]", discoveryNode);
+                    }
                     assert publicationCompletedIffAllTargetsInactive();
                     return;
                 }
@@ -362,6 +361,7 @@ public abstract class Publication extends AbstractComponent {
                 if (publicationTargetStateMachine.isFailed()) {
                     logger.debug("ApplyCommitResponseHandler.handleResponse: already failed, ignoring response from [{}]",
                         discoveryNode);
+                    ackOnce(null); // still need to ack
                     return;
                 }
                 publicationTargetStateMachine.setState(PublicationTargetState.APPLIED_COMMIT);

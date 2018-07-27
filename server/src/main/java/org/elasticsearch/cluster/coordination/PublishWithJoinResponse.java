@@ -25,16 +25,16 @@ import org.elasticsearch.transport.TransportResponse;
 import java.io.IOException;
 import java.util.Optional;
 
-public class LegislatorPublishResponse extends TransportResponse {
+public class PublishWithJoinResponse extends TransportResponse {
     private final PublishResponse publishResponse;
     private final Optional<Join> optionalJoin; // if vote was granted due to node having lower term
 
-    public LegislatorPublishResponse(PublishResponse publishResponse, Optional<Join> optionalJoin) {
+    public PublishWithJoinResponse(PublishResponse publishResponse, Optional<Join> optionalJoin) {
         this.publishResponse = publishResponse;
         this.optionalJoin = optionalJoin;
     }
 
-    public LegislatorPublishResponse(StreamInput in) throws IOException {
+    public PublishWithJoinResponse(StreamInput in) throws IOException {
         this.publishResponse = new PublishResponse(in);
         this.optionalJoin = Optional.ofNullable(in.readOptionalWriteable(Join::new));
     }
@@ -52,5 +52,31 @@ public class LegislatorPublishResponse extends TransportResponse {
 
     public Optional<Join> getJoin() {
         return optionalJoin;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof PublishWithJoinResponse)) return false;
+
+        PublishWithJoinResponse that = (PublishWithJoinResponse) o;
+
+        if (!publishResponse.equals(that.publishResponse)) return false;
+        return optionalJoin.equals(that.optionalJoin);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = publishResponse.hashCode();
+        result = 31 * result + optionalJoin.hashCode();
+        return result;
+    }
+
+    @Override
+    public String toString() {
+        return "PublishWithJoinResponse{" +
+            "publishResponse=" + publishResponse +
+            ", optionalJoin=" + optionalJoin +
+            '}';
     }
 }

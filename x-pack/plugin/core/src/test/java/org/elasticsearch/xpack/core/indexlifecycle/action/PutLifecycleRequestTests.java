@@ -34,8 +34,7 @@ public class PutLifecycleRequestTests extends AbstractStreamableXContentTestCase
 
     @Before
     public void setup() {
-        lifecycleName = randomAlphaOfLength(20); // NORELEASE we need to randomise the lifecycle name rather 
-                                                 // than use the same name for all instances
+        lifecycleName = randomAlphaOfLength(20);
     }
 
     @Override

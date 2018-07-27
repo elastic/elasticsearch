@@ -674,12 +674,9 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             .put(LifecycleSettings.LIFECYCLE_ACTION, currentStepKey.getAction())
             .put(LifecycleSettings.LIFECYCLE_STEP, currentStepKey.getName());
         ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder, Collections.emptyList());
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-            () -> IndexLifecycleRunner.moveClusterStateToStep(indexName, clusterState, currentStepKey,
-                nextStepKey, () -> now, stepRegistry));
-        assertThat(exception.getMessage(),
-            equalTo("step [{\"phase\":\"next_phase\",\"action\":\"next_action\",\"name\":\"next_step\"}] " +
-                "with policy [my_policy] does not exist"));
+        ClusterState newState = IndexLifecycleRunner.moveClusterStateToStep(indexName, clusterState, currentStepKey,
+                nextStepKey, () -> now, stepRegistry);
+        assertSame(newState, clusterState);
     }
 
     public void testMoveClusterStateToErrorStep() throws IOException {

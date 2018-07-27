@@ -58,8 +58,12 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Request
             new AckedClusterStateUpdateTask<Response>(request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    return indexLifecycleService.moveClusterStateToStep(currentState, request.getIndex(), request.getCurrentStepKey(),
+                    ClusterState movedState = indexLifecycleService.moveClusterStateToStep(currentState, request.getIndex(), request.getCurrentStepKey(),
                         request.getNextStepKey());
+                    if (currentState == movedState) {
+                        throw new IllegalArgumentException("next step [" + request.getNextStepKey() + "] is not recognized");
+                    }
+                    return movedState;
                 }
 
                 @Override

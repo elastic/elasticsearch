@@ -19,8 +19,6 @@
 
 package org.elasticsearch.discovery.azure.arm;
 
-import okhttp3.OkHttpClient;
-import okio.AsyncTimeout;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;

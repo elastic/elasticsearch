@@ -7,7 +7,7 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-    testCompile project(path: xpackModule('core'), configuration: 'runtime')
+    testCompile project(path: xpackModule('core'), configuration: 'shadow')
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
     testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
 }
@@ -121,7 +121,7 @@ integTestRunner {
 if (project.rootProject.vagrantSupported == false) {
     integTest.enabled = false
 } else {
-    project.sourceSets.test.output.dir(generatedResources, builtBy: copyKeytabToGeneratedResources)
+    project.sourceSets.test.output.dir(generatedResources)
     integTestCluster.dependsOn krb5AddPrincipals, krb5kdcFixture, copyKeytabToGeneratedResources
     integTest.finalizedBy project(':test:fixtures:krb5kdc-fixture').halt
 }

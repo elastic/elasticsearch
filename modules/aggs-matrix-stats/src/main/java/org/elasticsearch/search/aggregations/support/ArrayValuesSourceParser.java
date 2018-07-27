@@ -78,7 +78,6 @@ public abstract class ArrayValuesSourceParser<VS extends ValuesSource> implement
         throws IOException {
 
         List<String> fields = null;
-        ValueType valueType = null;
         String format = null;
         Map<String, Object> missingMap = null;
         Map<ParseField, Object> otherOptions = new HashMap<>();
@@ -144,9 +143,6 @@ public abstract class ArrayValuesSourceParser<VS extends ValuesSource> implement
             otherOptions);
         if (fields != null) {
             factory.fields(fields);
-        }
-        if (valueType != null) {
-            factory.valueType(valueType);
         }
         if (format != null) {
             factory.format(format);

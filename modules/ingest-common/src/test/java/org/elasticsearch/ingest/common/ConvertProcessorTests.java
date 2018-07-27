@@ -67,6 +67,7 @@ public class ConvertProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue(fieldName, Integer.class), equalTo(10));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32370")
     public void testConvertIntHexError() {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         String value = "0x" + randomAlphaOfLengthBetween(1, 10);
@@ -137,6 +138,7 @@ public class ConvertProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue(fieldName, Long.class), equalTo(10L));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32370")
     public void testConvertLongHexError() {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         String value = "0x" + randomAlphaOfLengthBetween(1, 10);

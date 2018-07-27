@@ -142,7 +142,7 @@ public class FunctionRef {
                 delegateMethodType.dropParameterTypes(numCaptures, delegateMethodType.parameterCount()));
         interfaceMethodType = interfaceMethod.methodType.dropParameterTypes(0, 1);
 
-        delegateClassName = delegateMethod.javaMethod.getName();
+        delegateClassName = delegateMethod.javaMethod.getDeclaringClass().getName();
         isDelegateInterface = delegateMethod.javaMethod.getDeclaringClass().isInterface();
 
         if (Modifier.isStatic(delegateMethod.javaMethod.getModifiers())) {

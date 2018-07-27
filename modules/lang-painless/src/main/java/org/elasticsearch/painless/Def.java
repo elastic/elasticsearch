@@ -334,7 +334,7 @@ public final class Def {
          int arity = interfaceMethod.typeParameters.size();
          PainlessMethod implMethod = lookupMethodInternal(painlessLookup, receiverClass, name, arity);
         return lookupReferenceInternal(painlessLookup, methodHandlesLookup, interfaceType,
-                PainlessLookupUtility.typeToCanonicalTypeName(implMethod.javaMethod.getDeclaringClass()),
+                PainlessLookupUtility.typeToCanonicalTypeName(implMethod.targetClass),
                 implMethod.javaMethod.getName(), receiverClass);
      }
 

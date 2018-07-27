@@ -146,6 +146,7 @@ public final class SFunction extends AStatement {
             }
         }
 
+        typeParameters = paramTypes;
         methodType = MethodType.methodType(PainlessLookupUtility.typeToJavaType(returnType), paramClasses);
         method = new org.objectweb.asm.commons.Method(name, MethodType.methodType(
                 PainlessLookupUtility.typeToJavaType(returnType), paramClasses).toMethodDescriptorString());

@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.Discovery.AckListener;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
@@ -34,19 +35,21 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 
 public abstract class Publication extends AbstractComponent {
 
-    private final AtomicReference<ApplyCommitRequest> applyCommitReference;
     private final List<PublicationTarget> publicationTargets;
+    private final PublicationTarget localPublicationTarget;
     private final PublishRequest publishRequest;
     private final AckListener ackListener;
     private final DiscoveryNode localNode;
     private final LongSupplier currentTimeSupplier;
     private final long startTime;
-    private boolean isCompleted;
+
+    private Optional<ApplyCommitRequest> applyCommitRequest; // set when state is committed
+    private boolean isCompleted; // set when publication is completed
+    private boolean timedOut; // set when publication timed out
 
     public Publication(Settings settings, PublishRequest publishRequest, AckListener ackListener, LongSupplier currentTimeSupplier) {
         super(settings);
@@ -54,11 +57,11 @@ public abstract class Publication extends AbstractComponent {
         this.ackListener = ackListener;
         this.localNode = publishRequest.getAcceptedState().nodes().getLocalNode();
         this.currentTimeSupplier = currentTimeSupplier;
-        applyCommitReference = new AtomicReference<>();
         startTime = currentTimeSupplier.getAsLong();
-
+        applyCommitRequest = Optional.empty();
         publicationTargets = new ArrayList<>(publishRequest.getAcceptedState().getNodes().getNodes().size());
         publishRequest.getAcceptedState().getNodes().iterator().forEachRemaining(n -> publicationTargets.add(new PublicationTarget(n)));
+        localPublicationTarget = publicationTargets.stream().filter(target -> target.discoveryNode.equals(localNode)).findFirst().get();
     }
 
     public void start(Set<DiscoveryNode> faultyNodes) {
@@ -72,7 +75,14 @@ public abstract class Publication extends AbstractComponent {
     }
 
     public void onTimeout() {
-        publicationTargets.stream().filter(PublicationTarget::isActive).forEach(PublicationTarget::onTimeOut);
+        assert timedOut == false;
+        timedOut = true;
+        if (localPublicationTarget.publicationTargetStateMachine.isActive()) {
+            logger.debug("onTimeout: [{}] timed out before master committed", this);
+            // fail all current publications
+            final Exception e = new ElasticsearchException("publication timed out before master committed");
+            publicationTargets.stream().filter(PublicationTarget::isActive).forEach(pt -> pt.setFailed(e));
+        }
         onPossibleCompletion();
     }
 
@@ -86,41 +96,43 @@ public abstract class Publication extends AbstractComponent {
             return;
         }
 
-        for (final PublicationTarget target : publicationTargets) {
-            if (target.publicationTargetStateMachine.isActive()) {
-                return;
+        if (timedOut == false) {
+            for (final PublicationTarget target : publicationTargets) {
+                if (target.publicationTargetStateMachine.isActive()) {
+                    return;
+                }
             }
         }
 
-        for (final PublicationTarget target : publicationTargets) {
-            if (target.discoveryNode.equals(localNode) && target.publicationTargetStateMachine.isFailed()) {
-                logger.debug("onPossibleCompletion: [{}] failed on master", this);
-                assert isCompleted == false;
-                isCompleted = true;
-                onCompletion(false);
-                return;
-            }
+        if (localPublicationTarget.publicationTargetStateMachine.isFailed()) {
+            logger.debug("onPossibleCompletion: [{}] failed on master", this);
+            assert isCompleted == false;
+            isCompleted = true;
+            onCompletion(false);
+            return;
         }
 
         assert isCompleted == false;
         isCompleted = true;
         onCompletion(true);
-        assert applyCommitReference.get() != null;
+        assert applyCommitRequest.isPresent();
         logger.trace("onPossibleCompletion: [{}] was successful, applying new state locally", this);
     }
 
     // For assertions only: verify that this invariant holds
-    private boolean publicationCompletedIffAllTargetsInactive() {
-        for (final PublicationTarget target : publicationTargets) {
-            if (target.publicationTargetStateMachine.isActive()) {
-                return isCompleted == false;
+    private boolean publicationCompletedIffAllTargetsInactiveOrTimedOut() {
+        if (timedOut == false) {
+            for (final PublicationTarget target : publicationTargets) {
+                if (target.publicationTargetStateMachine.isActive()) {
+                    return isCompleted == false;
+                }
             }
         }
         return isCompleted;
     }
 
     private void onPossibleCommitFailure() {
-        if (applyCommitReference.get() != null) {
+        if (applyCommitRequest.isPresent()) {
             onPossibleCompletion();
             return;
         }
@@ -136,7 +148,8 @@ public abstract class Publication extends AbstractComponent {
 
         if (isPublishQuorum(possiblySuccessfulNodes) == false) {
             logger.debug("onPossibleCommitFailure: non-failed nodes do not form a quorum, so {} cannot succeed", this);
-            publicationTargets.stream().filter(PublicationTarget::isActive).forEach(PublicationTarget::setFailed);
+            Exception e = new Discovery.FailedToCommitClusterStateException("non-failed nodes do not form a quorum");
+            publicationTargets.stream().filter(PublicationTarget::isActive).forEach(pt -> pt.setFailed(e));
             onPossibleCompletion();
         }
     }
@@ -218,7 +231,6 @@ public abstract class Publication extends AbstractComponent {
 
         @Override
         public String toString() {
-            // TODO DANGER non-volatile, mutable variable requires synchronisation
             return state.toString();
         }
     }
@@ -245,19 +257,19 @@ public abstract class Publication extends AbstractComponent {
             publicationTargetStateMachine.setState(PublicationTargetState.SENT_PUBLISH_REQUEST);
             Publication.this.sendPublishRequest(discoveryNode, publishRequest, new PublicationTarget.PublishResponseHandler());
             // TODO Can this ^ fail with an exception? Target should be failed if so.
-            assert publicationCompletedIffAllTargetsInactive();
+            assert publicationCompletedIffAllTargetsInactiveOrTimedOut();
         }
 
         void handlePublishResponse(PublishResponse publishResponse) {
             assert publicationTargetStateMachine.isWaitingForQuorum() : publicationTargetStateMachine;
 
             logger.trace("handlePublishResponse: handling [{}] from [{}])", publishResponse, discoveryNode);
-            if (applyCommitReference.get() != null) {
+            if (applyCommitRequest.isPresent()) {
                 sendApplyCommit();
             } else {
                 Publication.this.handlePublishResponse(discoveryNode, publishResponse).ifPresent(applyCommit -> {
-                    assert applyCommitReference.get() == null;
-                    applyCommitReference.set(applyCommit);
+                    assert applyCommitRequest.isPresent() == false;
+                    applyCommitRequest = Optional.of(applyCommit);
                     ackListener.onCommit(TimeValue.timeValueMillis(currentTimeSupplier.getAsLong() - startTime));
                     publicationTargets.stream().filter(PublicationTarget::isWaitingForQuorum).forEach(PublicationTarget::sendApplyCommit);
                 });
@@ -266,12 +278,9 @@ public abstract class Publication extends AbstractComponent {
 
         public void sendApplyCommit() {
             publicationTargetStateMachine.setState(PublicationTargetState.SENT_APPLY_COMMIT);
-
-            ApplyCommitRequest applyCommit = applyCommitReference.get();
-            assert applyCommit != null;
-
-            Publication.this.sendApplyCommit(discoveryNode, applyCommit, new PublicationTarget.ApplyCommitResponseHandler());
-            assert publicationCompletedIffAllTargetsInactive();
+            assert applyCommitRequest.isPresent();
+            Publication.this.sendApplyCommit(discoveryNode, applyCommitRequest.get(), new PublicationTarget.ApplyCommitResponseHandler());
+            assert publicationCompletedIffAllTargetsInactiveOrTimedOut();
         }
 
         public boolean isWaitingForQuorum() {
@@ -282,25 +291,17 @@ public abstract class Publication extends AbstractComponent {
             return publicationTargetStateMachine.isActive();
         }
 
-        public void setFailed() {
+        public void setFailed(Exception e) {
             assert isActive();
             publicationTargetStateMachine.setState(PublicationTargetState.FAILED);
-            ackOnce(new ElasticsearchException("publication failed"));
-        }
-
-        public void onTimeOut() {
-            assert isActive();
-            publicationTargetStateMachine.setState(PublicationTargetState.FAILED);
-            if (applyCommitReference.get() == null) {
-                ackOnce(new ElasticsearchException("publication timed out"));
-            }
+            ackOnce(e);
         }
 
         public void onFaultyNode(DiscoveryNode faultyNode) {
             if (isActive() && discoveryNode.equals(faultyNode)) {
                 logger.debug("onFaultyNode: [{}] is faulty, failing target in publication of version [{}] in term [{}]", faultyNode,
                     publishRequest.getAcceptedState().version(), publishRequest.getAcceptedState().term());
-                setFailed();
+                setFailed(new Exception("faulty node"));
                 onPossibleCommitFailure();
             }
         }
@@ -317,15 +318,8 @@ public abstract class Publication extends AbstractComponent {
             @Override
             public void onResponse(PublishWithJoinResponse response) {
                 if (publicationTargetStateMachine.isFailed()) {
-                    if (applyCommitReference.get() != null) {
-                        logger.trace("PublishResponseHandler.handleResponse: handling [{}] from [{}] while already failed",
-                            response.getPublishResponse(), discoveryNode);
-                        Publication.this.sendApplyCommit(discoveryNode, applyCommitReference.get(),
-                            new PublicationTarget.ApplyCommitResponseHandler());
-                    } else {
-                        logger.debug("PublishResponseHandler.handleResponse: already failed, ignoring response from [{}]", discoveryNode);
-                    }
-                    assert publicationCompletedIffAllTargetsInactive();
+                    logger.debug("PublishResponseHandler.handleResponse: already failed, ignoring response from [{}]", discoveryNode);
+                    assert publicationCompletedIffAllTargetsInactiveOrTimedOut();
                     return;
                 }
 
@@ -334,7 +328,7 @@ public abstract class Publication extends AbstractComponent {
                 publicationTargetStateMachine.setState(PublicationTargetState.WAITING_FOR_QUORUM);
                 handlePublishResponse(response.getPublishResponse());
 
-                assert publicationCompletedIffAllTargetsInactive();
+                assert publicationCompletedIffAllTargetsInactiveOrTimedOut();
             }
 
             @Override
@@ -348,7 +342,7 @@ public abstract class Publication extends AbstractComponent {
                 }
                 publicationTargetStateMachine.setState(PublicationTargetState.FAILED);
                 onPossibleCommitFailure();
-                assert publicationCompletedIffAllTargetsInactive();
+                assert publicationCompletedIffAllTargetsInactiveOrTimedOut();
                 ackOnce(exp);
             }
 
@@ -361,12 +355,11 @@ public abstract class Publication extends AbstractComponent {
                 if (publicationTargetStateMachine.isFailed()) {
                     logger.debug("ApplyCommitResponseHandler.handleResponse: already failed, ignoring response from [{}]",
                         discoveryNode);
-                    ackOnce(null); // still need to ack
                     return;
                 }
                 publicationTargetStateMachine.setState(PublicationTargetState.APPLIED_COMMIT);
                 onPossibleCompletion();
-                assert publicationCompletedIffAllTargetsInactive();
+                assert publicationCompletedIffAllTargetsInactiveOrTimedOut();
                 ackOnce(null);
             }
 
@@ -381,7 +374,7 @@ public abstract class Publication extends AbstractComponent {
                 }
                 publicationTargetStateMachine.setState(PublicationTargetState.FAILED);
                 onPossibleCompletion();
-                assert publicationCompletedIffAllTargetsInactive();
+                assert publicationCompletedIffAllTargetsInactiveOrTimedOut();
                 ackOnce(exp);
             }
         }

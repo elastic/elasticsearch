@@ -28,7 +28,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.discovery.zen.PublishClusterStateActionTests;
 import org.elasticsearch.discovery.zen.PublishClusterStateActionTests.AssertingAckListener;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportException;
@@ -41,7 +40,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -52,8 +50,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class PublicationTests extends ESTestCase {
 
@@ -336,11 +332,14 @@ public class PublicationTests extends ESTestCase {
         publication.onTimeout();
         assertTrue(publication.completed);
 
-        if (committingNodes.contains(n1)) { // master needs to commit for publication to be successful
-            assertTrue(publication.success);
-        } else {
+        if (committingNodes.contains(n1) == false) { // master needs to commit for publication to be successful
             assertFalse(publication.success);
+            // some nodes might have already successfully acked the change, so we can't assert how many exceptions to expect
+            ackListener.awaitErrors(0L, TimeUnit.SECONDS);
+            return;
         }
+
+        assertTrue(publication.success);
 
         Set<DiscoveryNode> ackedNodes = new HashSet<>(committingNodes);
         ackedNodes.remove(n1); // publication does not ack for the master node

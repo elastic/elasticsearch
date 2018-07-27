@@ -30,7 +30,7 @@ forbiddenApis {
 
 dependencies {
   compile "org.apache.lucene:lucene-analyzers-icu:${versions.lucene}"
-  compile 'com.ibm.icu:icu4j:61.1'
+  compile 'com.ibm.icu:icu4j:62.1'
 }
 
 dependencyLicenses {

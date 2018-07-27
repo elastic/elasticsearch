@@ -82,7 +82,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
     @Override
     public String getNextPhaseName(String currentPhaseName, Map<String, Phase> phases) {
         int index = VALID_PHASES.indexOf(currentPhaseName);
-        if (index < 0) {
+        if (index < 0 && "new".equals(currentPhaseName) == false) {
             throw new IllegalArgumentException("[" + currentPhaseName + "] is not a valid phase for lifecycle type [" + TYPE + "]");
         } else {
             // Find the next phase after `index` that exists in `phases` and return it
@@ -100,6 +100,9 @@ public class TimeseriesLifecycleType implements LifecycleType {
     }
 
     public String getPreviousPhaseName(String currentPhaseName, Map<String, Phase> phases) {
+        if ("new".equals(currentPhaseName)) {
+            return null;
+        }
         int index = VALID_PHASES.indexOf(currentPhaseName);
         if (index < 0) {
             throw new IllegalArgumentException("[" + currentPhaseName + "] is not a valid phase for lifecycle type [" + TYPE + "]");

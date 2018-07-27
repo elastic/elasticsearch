@@ -911,7 +911,8 @@ public class InternalEngine extends Engine {
             } else {
                 final OpVsLuceneDocStatus opVsLucene = compareOpToLuceneDocBasedOnSeqNo(index);
                 if (opVsLucene == OpVsLuceneDocStatus.OP_STALE_OR_EQUAL) {
-                    plan = IndexingStrategy.processAsStaleOp(softDeleteEnabled, index.seqNo(), index.version());
+                    boolean addStaleOpToLucene = softDeleteEnabled && localCheckpointTracker.isProcessed(index.seqNo()) == false;
+                    plan = IndexingStrategy.processAsStaleOp(addStaleOpToLucene, index.seqNo(), index.version());
                 } else {
                     plan = IndexingStrategy.processNormally(opVsLucene == OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND,
                         index.seqNo(), index.version());
@@ -1235,7 +1236,8 @@ public class InternalEngine extends Engine {
         } else {
             final OpVsLuceneDocStatus opVsLucene = compareOpToLuceneDocBasedOnSeqNo(delete);
             if (opVsLucene == OpVsLuceneDocStatus.OP_STALE_OR_EQUAL) {
-                plan = DeletionStrategy.processAsStaleOp(softDeleteEnabled, false, delete.seqNo(), delete.version());
+                boolean addStaleOpToLucene = softDeleteEnabled && localCheckpointTracker.isProcessed(delete.seqNo()) == false;
+                plan = DeletionStrategy.processAsStaleOp(addStaleOpToLucene, false, delete.seqNo(), delete.version());
             } else {
                 plan = DeletionStrategy.processNormally(opVsLucene == OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND,
                     delete.seqNo(), delete.version());
@@ -1377,7 +1379,9 @@ public class InternalEngine extends Engine {
     @Override
     public NoOpResult noOp(final NoOp noOp) {
         NoOpResult noOpResult;
-        try (ReleasableLock ignored = readLock.acquire()) {
+        try (ReleasableLock ignored = readLock.acquire();
+             // prevent two noOps with same seqno get in at the same time
+             Releasable uidLock = versionMap.acquireLock(new BytesRef(Long.toString(noOp.seqNo())))) {
             noOpResult = innerNoOp(noOp);
         } catch (final Exception e) {
             noOpResult = new NoOpResult(noOp.seqNo(), e);
@@ -1391,7 +1395,7 @@ public class InternalEngine extends Engine {
         final long seqNo = noOp.seqNo();
         try {
             Exception failure = null;
-            if (softDeleteEnabled) {
+            if (softDeleteEnabled && localCheckpointTracker.isProcessed(noOp.seqNo()) == false) {
                 try {
                     final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newNoopTombstoneDoc(noOp.reason());
                     tombstone.updateSeqID(noOp.seqNo(), noOp.primaryTerm());

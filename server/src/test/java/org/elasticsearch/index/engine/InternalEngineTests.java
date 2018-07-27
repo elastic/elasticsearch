@@ -1418,26 +1418,36 @@ public class InternalEngineTests extends EngineTestCase {
         final MapperService mapperService = createMapperService("test");
         final boolean omitSourceAllTheTime = randomBoolean();
         final Set<String> liveDocs = new HashSet<>();
+        final Set<String> liveDocsWithSource = new HashSet<>();
         try (Store store = createStore();
              InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), newMergePolicy(), null, null,
                  globalCheckpoint::get))) {
             int numDocs = scaledRandomIntBetween(10, 100);
             for (int i = 0; i < numDocs; i++) {
-                ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), B_1, null, randomBoolean()
-                    || omitSourceAllTheTime);
+                boolean useRecoverySource = randomBoolean() || omitSourceAllTheTime;
+                ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), B_1, null, useRecoverySource);
                 engine.index(indexForDoc(doc));
                 liveDocs.add(doc.id());
+                if (useRecoverySource == false) {
+                    liveDocsWithSource.add(Integer.toString(i));
+                }
             }
             for (int i = 0; i < numDocs; i++) {
-                ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), B_1, null, randomBoolean()
-                    || omitSourceAllTheTime);
+                boolean useRecoverySource = randomBoolean() || omitSourceAllTheTime;
+                ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), B_1, null, useRecoverySource);
                 if (randomBoolean()) {
                     engine.delete(new Engine.Delete(doc.type(), doc.id(), newUid(doc.id()), primaryTerm.get()));
                     liveDocs.remove(doc.id());
+                    liveDocsWithSource.remove(doc.id());
                 }
                 if (randomBoolean()) {
                     engine.index(indexForDoc(doc));
                     liveDocs.add(doc.id());
+                    if (useRecoverySource == false) {
+                        liveDocsWithSource.add(doc.id());
+                    } else {
+                        liveDocsWithSource.remove(doc.id());
+                    }
                 }
                 if (randomBoolean()) {
                     engine.flush(randomBoolean(), true);
@@ -1453,12 +1463,7 @@ public class InternalEngineTests extends EngineTestCase {
                 minSeqNoToRetain = Math.min(globalCheckpoint.get() + 1 - retainedExtraOps, safeCommitLocalCheckpoint + 1);
             }
             engine.forceMerge(true, 1, false, false, false);
-            assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService, (luceneOp, translogOp) -> {
-                if (luceneOp.seqNo() >= minSeqNoToRetain) {
-                    assertNotNull(luceneOp.getSource());
-                    assertThat(luceneOp.getSource().source, equalTo(translogOp.getSource().source));
-                }
-            });
+            assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService);
             Map<Long, Translog.Operation> ops = readAllOperationsInLucene(engine, mapperService)
                 .stream().collect(Collectors.toMap(Translog.Operation::seqNo, Function.identity()));
             for (long seqno = 0; seqno <= engine.getLocalCheckpoint(); seqno++) {
@@ -1483,10 +1488,8 @@ public class InternalEngineTests extends EngineTestCase {
             globalCheckpoint.set(engine.getLocalCheckpoint());
             engine.syncTranslog();
             engine.forceMerge(true, 1, false, false, false);
-            assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService, (luceneOp, translogOp) -> {
-                assertEquals(translogOp.getSource().source, B_1);
-            });
-            assertThat(readAllOperationsInLucene(engine, mapperService), hasSize(liveDocs.size()));
+            assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService);
+            assertThat(readAllOperationsInLucene(engine, mapperService), hasSize(liveDocsWithSource.size()));
         }
     }
 

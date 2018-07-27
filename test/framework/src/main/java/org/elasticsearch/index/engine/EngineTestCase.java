@@ -104,7 +104,6 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -835,15 +834,7 @@ public abstract class EngineTestCase extends ESTestCase {
      * Asserts the provided engine has a consistent document history between translog and Lucene index.
      */
     public static void assertConsistentHistoryBetweenTranslogAndLuceneIndex(Engine engine, MapperService mapper) throws IOException {
-        assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapper, (luceneOp, translogOp) ->
-            assertThat(luceneOp.getSource().source, equalTo(translogOp.getSource().source)));
-    }
-
-    public static void assertConsistentHistoryBetweenTranslogAndLuceneIndex(Engine engine, MapperService mapper,
-                                                                            BiConsumer<Translog.Operation, Translog.Operation> assertSource)
-        throws IOException {
-
-        if (mapper.types().isEmpty()  || engine.config().getIndexSettings().isSoftDeleteEnabled() == false) {
+        if (mapper.types().isEmpty() || engine.config().getIndexSettings().isSoftDeleteEnabled() == false) {
             return;
         }
         final long maxSeqNo = ((InternalEngine) engine).getLocalCheckpointTracker().getMaxSeqNo();
@@ -880,7 +871,7 @@ public abstract class EngineTestCase extends ESTestCase {
             assertThat(luceneOp.toString(), luceneOp.primaryTerm(), equalTo(translogOp.primaryTerm()));
             assertThat(luceneOp.opType(), equalTo(translogOp.opType()));
             if (luceneOp.opType() == Translog.Operation.Type.INDEX) {
-                assertSource.accept(luceneOp, translogOp);
+                assertThat(luceneOp.getSource().source, equalTo(translogOp.getSource().source));
             }
         }
     }

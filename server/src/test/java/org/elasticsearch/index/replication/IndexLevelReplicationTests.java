@@ -59,6 +59,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
@@ -231,6 +232,53 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                     assertEquals("shard " + shard.routingEntry() + " misses new version", 1, search.totalHits);
                 }
             }
+        }
+    }
+
+    public void testReplicaTermIncrementWithConcurrentPrimaryPromotion() throws Exception {
+        Map<String, String> mappings =
+            Collections.singletonMap("type", "{ \"type\": { \"properties\": { \"f\": { \"type\": \"keyword\"} }}}");
+        try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetaData(2, mappings))) {
+            shards.startAll();
+            long primaryPrimaryTerm = shards.getPrimary().getPrimaryTerm();
+            List<IndexShard> replicas = shards.getReplicas();
+            IndexShard replica1 = replicas.get(0);
+            IndexShard replica2 = replicas.get(1);
+
+            shards.promoteReplicaToPrimary(replica1, (shard, listener) -> {});
+            long newReplica1Term = replica1.getPrimaryTerm();
+            assertEquals(primaryPrimaryTerm + 1, newReplica1Term);
+
+            assertEquals(primaryPrimaryTerm, replica2.getPrimaryTerm());
+
+            IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "1").source("{ \"f\": \"1\"}", XContentType.JSON);
+            BulkShardRequest replicationRequest = indexOnPrimary(indexRequest, replica1);
+
+            CyclicBarrier barrier = new CyclicBarrier(2);
+            Thread t1 = new Thread(() -> {
+                try {
+                    barrier.await();
+                    indexOnReplica(replicationRequest, shards, replica2, newReplica1Term);
+                } catch (IllegalStateException ise) {
+                    assertThat(ise.getMessage(), containsString("is too old"));
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            Thread t2 = new Thread(() -> {
+                try {
+                    barrier.await();
+                    shards.promoteReplicaToPrimary(replica2).get();
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            t2.start();
+            t1.start();
+            t1.join();
+            t2.join();
+
+            assertEquals(newReplica1Term + 1, replica2.getPrimaryTerm());
         }
     }
 

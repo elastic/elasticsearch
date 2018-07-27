@@ -473,6 +473,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         TimeUnit.MINUTES,
                         () -> {
                             shardStateUpdated.await();
+                            assert primaryTerm == newPrimaryTerm :
+                                "shard term changed on primary. expected [" + newPrimaryTerm + "] but was [" + primaryTerm + "]";
                             try {
                                 /*
                                  * If this shard was serving as a replica shard when another shard was promoted to primary then the state of
@@ -2216,51 +2218,56 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                               final Object debugInfo) {
         verifyNotClosed();
         verifyReplicationTarget();
-        final boolean globalCheckpointUpdated;
         if (operationPrimaryTerm > primaryTerm) {
             synchronized (primaryTermMutex) {
                 if (operationPrimaryTerm > primaryTerm) {
+                    verifyNotClosed();
+
                     IndexShardState shardState = state();
                     // only roll translog and update primary term if shard has made it past recovery
                     // Having a new primary term here means that the old primary failed and that there is a new primary, which again
                     // means that the master will fail this shard as all initializing shards are failed when a primary is selected
-                    // We abort early here to prevent an ongoing recovery from the failed primary to mess with the global / local checkpoint
+                    // We abort early here to prevent an ongoing recovery from the failed primary to mess with the global / local
+                    // checkpoint
                     if (shardState != IndexShardState.POST_RECOVERY &&
                         shardState != IndexShardState.STARTED) {
                         throw new IndexShardNotStartedException(shardId, shardState);
                     }
-                    try {
-                        indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> {
-                            assert operationPrimaryTerm > primaryTerm :
-                                "shard term already update.  op term [" + operationPrimaryTerm + "], shardTerm [" + primaryTerm + "]";
+
+                    synchronized (mutex) {
+                        final CountDownLatch termUpdated = new CountDownLatch(1);
+                        if (operationPrimaryTerm > primaryTerm) {
+                            indexShardOperationPermits.asyncBlockOperations(30, TimeUnit.MINUTES, () -> {
+                                termUpdated.await();
+                                // a primary promotion, or another primary term transition, might have been triggered concurrently to this
+                                // recheck under the operation permit if we can skip doing this work
+                                if (operationPrimaryTerm == primaryTerm) {
+                                    updateGlobalCheckpointOnReplica(globalCheckpoint, "primary term transition");
+                                    final long currentGlobalCheckpoint = getGlobalCheckpoint();
+                                    final long localCheckpoint;
+                                    if (currentGlobalCheckpoint == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                                        localCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
+                                    } else {
+                                        localCheckpoint = currentGlobalCheckpoint;
+                                    }
+                                    logger.trace(
+                                        "detected new primary with primary term [{}], resetting local checkpoint from [{}] to [{}]",
+                                        operationPrimaryTerm,
+                                        getLocalCheckpoint(),
+                                        localCheckpoint);
+                                    getEngine().resetLocalCheckpoint(localCheckpoint);
+                                    getEngine().rollTranslogGeneration();
+                                } else {
+                                    logger.trace("a primary promotion or concurrent primary term transition has made this reset obsolete");
+                                }
+                            }, e -> failShard("exception during primary term transition", e));
+
                             primaryTerm = operationPrimaryTerm;
-                            updateGlobalCheckpointOnReplica(globalCheckpoint, "primary term transition");
-                            final long currentGlobalCheckpoint = getGlobalCheckpoint();
-                            final long localCheckpoint;
-                            if (currentGlobalCheckpoint == SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                                localCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
-                            } else {
-                                localCheckpoint = currentGlobalCheckpoint;
-                            }
-                            logger.trace(
-                                    "detected new primary with primary term [{}], resetting local checkpoint from [{}] to [{}]",
-                                    operationPrimaryTerm,
-                                    getLocalCheckpoint(),
-                                    localCheckpoint);
-                            getEngine().resetLocalCheckpoint(localCheckpoint);
-                            getEngine().rollTranslogGeneration();
-                        });
-                        globalCheckpointUpdated = true;
-                    } catch (final Exception e) {
-                        onPermitAcquired.onFailure(e);
-                        return;
+                            termUpdated.countDown();
+                        }
                     }
-                } else {
-                    globalCheckpointUpdated = false;
                 }
             }
-        } else {
-            globalCheckpointUpdated = false;
         }
 
         assert operationPrimaryTerm <= primaryTerm
@@ -2279,14 +2286,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                     primaryTerm);
                             onPermitAcquired.onFailure(new IllegalStateException(message));
                         } else {
-                            if (globalCheckpointUpdated == false) {
-                                try {
-                                    updateGlobalCheckpointOnReplica(globalCheckpoint, "operation");
-                                } catch (Exception e) {
-                                    releasable.close();
-                                    onPermitAcquired.onFailure(e);
-                                    return;
-                                }
+                            try {
+                                updateGlobalCheckpointOnReplica(globalCheckpoint, "operation");
+                            } catch (Exception e) {
+                                releasable.close();
+                                onPermitAcquired.onFailure(e);
+                                return;
                             }
                             onPermitAcquired.onResponse(releasable);
                         }

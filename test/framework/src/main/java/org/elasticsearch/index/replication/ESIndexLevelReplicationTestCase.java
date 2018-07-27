@@ -84,6 +84,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -279,20 +280,10 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         /**
          * promotes the specific replica as the new primary
          */
-        public synchronized Future<PrimaryReplicaSyncer.ResyncTask> promoteReplicaToPrimary(IndexShard replica) throws IOException {
-            final long newTerm = indexMetaData.primaryTerm(shardId.id()) + 1;
-            IndexMetaData.Builder newMetaData = IndexMetaData.builder(indexMetaData).primaryTerm(shardId.id(), newTerm);
-            indexMetaData = newMetaData.build();
-            assertTrue(replicas.remove(replica));
-            closeShards(primary);
-            primary = replica;
-            assert primary.routingEntry().active() : "only active replicas can be promoted to primary: " + primary.routingEntry();
+        public Future<PrimaryReplicaSyncer.ResyncTask> promoteReplicaToPrimary(IndexShard replica) throws IOException {
             PlainActionFuture<PrimaryReplicaSyncer.ResyncTask> fut = new PlainActionFuture<>();
-            ShardRouting primaryRouting = replica.routingEntry().moveActiveReplicaToPrimary();
-            IndexShardRoutingTable routingTable = routingTable(shr -> shr == replica.routingEntry() ? primaryRouting : shr);
-
-            primary.updateShardState(primaryRouting,
-                newTerm, (shard, listener) -> primaryReplicaSyncer.resync(shard,
+            promoteReplicaToPrimary(replica,
+                (shard, listener) -> primaryReplicaSyncer.resync(shard,
                     new ActionListener<PrimaryReplicaSyncer.ResyncTask>() {
                         @Override
                         public void onResponse(PrimaryReplicaSyncer.ResyncTask resyncTask) {
@@ -305,9 +296,25 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                             listener.onFailure(e);
                             fut.onFailure(e);
                         }
-                    }), currentClusterStateVersion.incrementAndGet(), activeIds(), routingTable, Collections.emptySet());
-
+                    }));
             return fut;
+        }
+
+        public synchronized void promoteReplicaToPrimary(IndexShard replica,
+                 BiConsumer<IndexShard, ActionListener<PrimaryReplicaSyncer.ResyncTask>> primaryReplicaSyncer)
+            throws IOException {
+            final long newTerm = indexMetaData.primaryTerm(shardId.id()) + 1;
+            IndexMetaData.Builder newMetaData = IndexMetaData.builder(indexMetaData).primaryTerm(shardId.id(), newTerm);
+            indexMetaData = newMetaData.build();
+            assertTrue(replicas.remove(replica));
+            closeShards(primary);
+            primary = replica;
+            assert primary.routingEntry().active() : "only active replicas can be promoted to primary: " + primary.routingEntry();
+            ShardRouting primaryRouting = replica.routingEntry().moveActiveReplicaToPrimary();
+            IndexShardRoutingTable routingTable = routingTable(shr -> shr == replica.routingEntry() ? primaryRouting : shr);
+
+            primary.updateShardState(primaryRouting, newTerm, primaryReplicaSyncer, currentClusterStateVersion.incrementAndGet(),
+                activeIds(), routingTable, Collections.emptySet());
         }
 
         private synchronized Set<String> activeIds() {
@@ -664,7 +671,11 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
      * indexes the given requests on the supplied replica shard
      */
     void indexOnReplica(BulkShardRequest request, ReplicationGroup group, IndexShard replica) throws Exception {
-        executeShardBulkOnReplica(request, replica, group.primary.getPrimaryTerm(), group.primary.getGlobalCheckpoint());
+        indexOnReplica(request, group, replica, group.primary.getPrimaryTerm());
+    }
+
+    void indexOnReplica(BulkShardRequest request, ReplicationGroup group, IndexShard replica, long term) throws Exception {
+        executeShardBulkOnReplica(request, replica, term, group.primary.getGlobalCheckpoint());
     }
 
     /**

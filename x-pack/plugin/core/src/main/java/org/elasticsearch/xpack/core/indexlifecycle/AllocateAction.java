@@ -132,6 +132,13 @@ public class AllocateAction implements LifecycleAction {
     }
 
     @Override
+    public List<StepKey> toStepKeys(String phase) {
+        StepKey allocateKey = new StepKey(phase, NAME, NAME);
+        StepKey allocationRoutedKey = new StepKey(phase, NAME, AllocationRoutedStep.NAME);
+        return Arrays.asList(allocateKey, allocationRoutedKey);
+    }
+
+    @Override
     public int hashCode() {
         return Objects.hash(include, exclude, require);
     }

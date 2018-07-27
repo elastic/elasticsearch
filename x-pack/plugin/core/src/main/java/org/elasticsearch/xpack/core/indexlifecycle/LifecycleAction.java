@@ -9,6 +9,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
 import java.util.List;
 
@@ -28,6 +29,15 @@ public interface LifecycleAction extends ToXContentObject, NamedWriteable {
      * @return an ordered list of steps that represent the execution plan of the action
      */
     List<Step> toSteps(Client client, String phase, @Nullable Step.StepKey nextStepKey);
+
+    /**
+     * 
+     * @param phase
+     *            the name of the phase this action is being executed within
+     * @return the {@link StepKey}s for the steps which will be executed in this
+     *         action
+     */
+    List<StepKey> toStepKeys(String phase);
 
     /**
      * @return true if this action is considered safe. An action is not safe if

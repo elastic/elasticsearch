@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -64,6 +65,11 @@ public class ReadOnlyAction implements LifecycleAction {
         Step.StepKey key = new Step.StepKey(phase, NAME, NAME);
         Settings readOnlySettings = Settings.builder().put(IndexMetaData.SETTING_BLOCKS_WRITE, true).build();
         return Collections.singletonList(new UpdateSettingsStep(key, nextStepKey, client, readOnlySettings));
+    }
+    
+    @Override
+    public List<StepKey> toStepKeys(String phase) {
+        return Collections.singletonList(new Step.StepKey(phase, NAME, NAME));
     }
 
     @Override

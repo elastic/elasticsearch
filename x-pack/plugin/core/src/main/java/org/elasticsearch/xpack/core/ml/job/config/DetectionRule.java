@@ -13,17 +13,14 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.ml.MlParserType;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -37,23 +34,18 @@ public class DetectionRule implements ToXContentObject, Writeable {
     public static final ParseField CONDITIONS_FIELD = new ParseField("conditions");
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
-    public static final ObjectParser<Builder, Void> METADATA_PARSER =
-            new ObjectParser<>(DETECTION_RULE_FIELD.getPreferredName(), true, Builder::new);
-    public static final ObjectParser<Builder, Void> CONFIG_PARSER =
-            new ObjectParser<>(DETECTION_RULE_FIELD.getPreferredName(), false, Builder::new);
-    public static final Map<MlParserType, ObjectParser<Builder, Void>> PARSERS = new EnumMap<>(MlParserType.class);
+    public static final ObjectParser<Builder, Void> LENIENT_PARSER = createParser(true);
+    public static final ObjectParser<Builder, Void> STRICT_PARSER = createParser(false);
 
-    static {
-        PARSERS.put(MlParserType.METADATA, METADATA_PARSER);
-        PARSERS.put(MlParserType.CONFIG, CONFIG_PARSER);
-        for (MlParserType parserType : MlParserType.values()) {
-            ObjectParser<Builder, Void> parser = PARSERS.get(parserType);
-            assert parser != null;
-            parser.declareStringArray(Builder::setActions, ACTIONS_FIELD);
-            parser.declareObject(Builder::setScope, RuleScope.parser(parserType), SCOPE_FIELD);
-            parser.declareObjectArray(Builder::setConditions, (p, c) ->
-                    RuleCondition.PARSERS.get(parserType).apply(p, c), CONDITIONS_FIELD);
-        }
+    private static ObjectParser<Builder, Void> createParser(boolean ignoreUnknownFields) {
+        ObjectParser<Builder, Void> parser = new ObjectParser<>(DETECTION_RULE_FIELD.getPreferredName(), ignoreUnknownFields, Builder::new);
+
+        parser.declareStringArray(Builder::setActions, ACTIONS_FIELD);
+        parser.declareObject(Builder::setScope, RuleScope.parser(ignoreUnknownFields), SCOPE_FIELD);
+        parser.declareObjectArray(Builder::setConditions, ignoreUnknownFields ? RuleCondition.LENIENT_PARSER : RuleCondition.STRICT_PARSER,
+            CONDITIONS_FIELD);
+
+        return parser;
     }
 
     private final EnumSet<RuleAction> actions;

@@ -1555,11 +1555,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     filesToRecover.add(fileInfo);
                     recoveryState.getIndex().addFileDetail(fileInfo.name(), fileInfo.length(), false);
                     if (logger.isTraceEnabled()) {
-                        if (md == null) {
-                            logger.trace("[{}] [{}] recovering [{}] from [{}], does not exists in local store", shardId, snapshotId, fileInfo.physicalName(), fileInfo.name());
-                        } else {
-                            logger.trace("[{}] [{}] recovering [{}] from [{}], exists in local store but is different", shardId, snapshotId, fileInfo.physicalName(), fileInfo.name());
-                        }
+                        logger.trace("[{}] [{}] recovering [{}] from [{}], exists in local store but is different", shardId, snapshotId,
+                                fileInfo.physicalName(), fileInfo.name());
                     }
                 }
 

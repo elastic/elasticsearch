@@ -16,7 +16,17 @@ import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSetting
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.SeekableByteChannel;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.FileAttribute;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
+import java.security.PrivilegedActionException;
+import java.util.EnumSet;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -26,8 +36,8 @@ public class KerberosRealmBootstrapCheckTests extends ESTestCase {
 
     public void testBootstrapCheckFailsForMultipleKerberosRealms() throws IOException {
         final Path tempDir = createTempDir();
-        final Settings settings1 = buildKerberosRealmSettings("kerb1", false, tempDir);
-        final Settings settings2 = buildKerberosRealmSettings("kerb2", false, tempDir);
+        final Settings settings1 = buildKerberosRealmSettings("kerb1", false, tempDir, false);
+        final Settings settings2 = buildKerberosRealmSettings("kerb2", false, tempDir, false);
         final Settings settings3 = realm("pki1", PkiRealmSettings.TYPE, Settings.builder()).build();
         final Settings settings =
                 Settings.builder().put("path.home", tempDir).put(settings1).put(settings2).put(settings3).build();
@@ -44,7 +54,7 @@ public class KerberosRealmBootstrapCheckTests extends ESTestCase {
     public void testBootstrapCheckFailsForMissingKeytabFile() throws IOException {
         final Path tempDir = createTempDir();
         final Settings settings =
-                Settings.builder().put("path.home", tempDir).put(buildKerberosRealmSettings("kerb1", true, tempDir)).build();
+                Settings.builder().put("path.home", tempDir).put(buildKerberosRealmSettings("kerb1", true, tempDir, false)).build();
         final BootstrapContext context = new BootstrapContext(settings, null);
         final KerberosRealmBootstrapCheck kerbRealmBootstrapCheck =
                 new KerberosRealmBootstrapCheck(TestEnvironment.newEnvironment(settings));
@@ -55,10 +65,39 @@ public class KerberosRealmBootstrapCheckTests extends ESTestCase {
                 equalTo("configured service key tab file [" + tempDir.resolve("kerb1.keytab").toString() + "] does not exist"));
     }
 
+    public void testBootstrapCheckFailsIfDirectoryIsProvidedAsKeytab() throws IOException {
+        final Path tempDir = createTempDir();
+        Files.createDirectory(tempDir.resolve("kerb1.keytab"));
+        final Settings settings =
+                Settings.builder().put("path.home", tempDir).put(buildKerberosRealmSettings("kerb1", true, tempDir, false)).build();
+        final BootstrapContext context = new BootstrapContext(settings, null);
+        final KerberosRealmBootstrapCheck kerbRealmBootstrapCheck =
+                new KerberosRealmBootstrapCheck(TestEnvironment.newEnvironment(settings));
+        final BootstrapCheck.BootstrapCheckResult result = kerbRealmBootstrapCheck.check(context);
+        assertThat(result, is(notNullValue()));
+        assertThat(result.isFailure(), is(true));
+        assertThat(result.getMessage(),
+                equalTo("configured service key tab file [" + tempDir.resolve("kerb1.keytab").toString() + "] is a directory"));
+    }
+
+    public void testBootstrapCheckFailsIfKeytabIsNotReadable() throws IOException, PrivilegedActionException {
+        final Path tempDir = createTempDir();
+        final Settings settings =
+                Settings.builder().put("path.home", tempDir).put(buildKerberosRealmSettings("kerb1", false, tempDir, true)).build();
+        final BootstrapContext context = new BootstrapContext(settings, null);
+        final KerberosRealmBootstrapCheck kerbRealmBootstrapCheck =
+                new KerberosRealmBootstrapCheck(TestEnvironment.newEnvironment(settings));
+        final BootstrapCheck.BootstrapCheckResult result = kerbRealmBootstrapCheck.check(context);
+        assertThat(result, is(notNullValue()));
+        assertThat(result.isFailure(), is(true));
+        assertThat(result.getMessage(),
+                equalTo("configured service key tab file [" + tempDir.resolve("kerb1.keytab").toString() + "] must have read permission"));
+    }
+
     public void testBootstrapCheckFailsForMissingRealmType() throws IOException {
         final Path tempDir = createTempDir();
         final String name = "kerb1";
-        final Settings settings1 = buildKerberosRealmSettings("kerb1", false, tempDir);
+        final Settings settings1 = buildKerberosRealmSettings("kerb1", false, tempDir, false);
         final Settings settings2 = realm(name, randomFrom("", "    "), Settings.builder()).build();
         final Settings settings =
                 Settings.builder().put("path.home", tempDir).put(settings1).put(settings2).build();
@@ -74,7 +113,7 @@ public class KerberosRealmBootstrapCheckTests extends ESTestCase {
     public void testBootstrapCheckSucceedsForCorrectConfiguration() throws IOException {
         final Path tempDir = createTempDir();
         final Settings finalSettings =
-                Settings.builder().put("path.home", tempDir).put(buildKerberosRealmSettings("kerb1", false, tempDir)).build();
+                Settings.builder().put("path.home", tempDir).put(buildKerberosRealmSettings("kerb1", false, tempDir, false)).build();
         final BootstrapContext context = new BootstrapContext(finalSettings, null);
         final KerberosRealmBootstrapCheck kerbRealmBootstrapCheck =
                 new KerberosRealmBootstrapCheck(TestEnvironment.newEnvironment(finalSettings));
@@ -94,10 +133,16 @@ public class KerberosRealmBootstrapCheckTests extends ESTestCase {
         assertThat(result.isSuccess(), is(true));
     }
 
-    private Settings buildKerberosRealmSettings(final String name, final boolean missingKeytab, final Path tempDir) throws IOException {
+    private Settings buildKerberosRealmSettings(final String name, final boolean missingKeytab, final Path tempDir,
+            final boolean withNoPermissions) throws IOException {
         final Settings.Builder builder = Settings.builder();
         if (missingKeytab == false) {
-            KerberosTestCase.writeKeyTab(tempDir.resolve(name + ".keytab"), null);
+            final Set<PosixFilePermission> filePerms = PosixFilePermissions.fromString((withNoPermissions) ? "---------" : "r--------");
+            final FileAttribute<Set<PosixFilePermission>> fileAttributes = PosixFilePermissions.asFileAttribute(filePerms);
+            try (SeekableByteChannel byteChannel = Files.newByteChannel(tempDir.resolve(name + ".keytab"),
+                    EnumSet.of(StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE), fileAttributes)) {
+                byteChannel.write(ByteBuffer.wrap(randomByteArrayOfLength(10)));
+            }
         }
         builder.put(KerberosTestCase.buildKerberosRealmSettings(tempDir.resolve(name + ".keytab").toString()));
         return realm(name, KerberosRealmSettings.TYPE, builder).build();

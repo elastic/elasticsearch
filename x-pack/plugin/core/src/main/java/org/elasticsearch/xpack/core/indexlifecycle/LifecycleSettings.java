@@ -50,5 +50,5 @@ public class LifecycleSettings {
     public static final Setting<String> LIFECYCLE_STEP_INFO_SETTING = Setting.simpleString(LIFECYCLE_STEP_INFO, Setting.Property.Dynamic,
             Setting.Property.IndexScope, Setting.Property.NotCopyableOnResize, Setting.Property.InternalIndex);
     public static final Setting<Boolean> LIFECYCLE_SKIP_SETTING = Setting.boolSetting(LIFECYCLE_SKIP, false,
-        Setting.Property.Dynamic, Setting.Property.IndexScope, Setting.Property.InternalIndex);
+        Setting.Property.Dynamic, Setting.Property.IndexScope);
 }

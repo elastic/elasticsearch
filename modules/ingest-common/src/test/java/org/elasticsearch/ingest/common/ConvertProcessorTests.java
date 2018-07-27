@@ -19,11 +19,6 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.ingest.RandomDocumentPicks;
-import org.elasticsearch.test.ESTestCase;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -31,12 +26,17 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.ingest.RandomDocumentPicks;
+import org.elasticsearch.test.ESTestCase;
+
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.elasticsearch.ingest.common.ConvertProcessor.Type;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class ConvertProcessorTests extends ESTestCase {
 
@@ -138,6 +138,7 @@ public class ConvertProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue(fieldName, Long.class), equalTo(10L));
     }
 
+    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/32370")
     public void testConvertLongHexError() {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         String value = "0x" + randomAlphaOfLengthBetween(1, 10);

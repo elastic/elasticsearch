@@ -29,16 +29,14 @@ public class EsTieredMergePolicyTests extends ESTestCase {
         assertEquals(
                 new TieredMergePolicy().getMaxMergedSegmentMB(),
                 policy.regularMergePolicy.getMaxMergedSegmentMB(), 0d);
-        // TODO: fix when incorporating https://issues.apache.org/jira/browse/LUCENE-8398, the first divisor must be a double
-        assertEquals(Long.MAX_VALUE / 1024 / 1024.0, policy.forcedMergePolicy.getMaxMergedSegmentMB(), 0d);
+        assertEquals(Long.MAX_VALUE / 1024.0 / 1024.0, policy.forcedMergePolicy.getMaxMergedSegmentMB(), 0d);
     }
 
     public void testSetMaxMergedSegmentMB() {
         EsTieredMergePolicy policy = new EsTieredMergePolicy();
         policy.setMaxMergedSegmentMB(10 * 1024);
         assertEquals(10 * 1024, policy.regularMergePolicy.getMaxMergedSegmentMB(), 0d);
-        // TODO: fix when incorporating https://issues.apache.org/jira/browse/LUCENE-8398, the first divisor must be a double
-        assertEquals(Long.MAX_VALUE / 1024 / 1024.0, policy.forcedMergePolicy.getMaxMergedSegmentMB(), 0d);
+        assertEquals(Long.MAX_VALUE / 1024.0 / 1024.0, policy.forcedMergePolicy.getMaxMergedSegmentMB(), 0d);
     }
 
     public void testSetForceMergeDeletesPctAllowed() {
@@ -70,11 +68,5 @@ public class EsTieredMergePolicyTests extends ESTestCase {
         EsTieredMergePolicy policy = new EsTieredMergePolicy();
         policy.setSegmentsPerTier(42);
         assertEquals(42, policy.regularMergePolicy.getSegmentsPerTier(), 0);
-    }
-
-    public void testSetReclaimDeletesWeight() {
-        EsTieredMergePolicy policy = new EsTieredMergePolicy();
-        policy.setReclaimDeletesWeight(42);
-        assertEquals(42, policy.regularMergePolicy.getReclaimDeletesWeight(), 0);
     }
 }

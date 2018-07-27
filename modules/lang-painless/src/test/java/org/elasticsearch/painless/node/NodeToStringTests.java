@@ -20,21 +20,21 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.lookup.PainlessLookup;
-import org.elasticsearch.painless.lookup.PainlessCast;
-import org.elasticsearch.painless.lookup.PainlessField;
-import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.lookup.PainlessMethod;
-import org.elasticsearch.painless.lookup.PainlessClass;
 import org.elasticsearch.painless.FeatureTest;
 import org.elasticsearch.painless.GenericElasticsearchScript;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.ScriptClassInfo;
-import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.antlr.Walker;
+import org.elasticsearch.painless.lookup.PainlessCast;
+import org.elasticsearch.painless.lookup.PainlessClass;
+import org.elasticsearch.painless.lookup.PainlessField;
+import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -49,7 +49,7 @@ import static org.elasticsearch.painless.node.SSource.MainMethodReserved;
  * Tests {@link Object#toString} implementations on all extensions of {@link ANode}.
  */
 public class NodeToStringTests extends ESTestCase {
-    private final PainlessLookup painlessLookup = new PainlessLookupBuilder(Whitelist.BASE_WHITELISTS).build();
+    private final PainlessLookup painlessLookup = PainlessLookupBuilder.buildFromWhitelists(Whitelist.BASE_WHITELISTS);
 
     public void testEAssignment() {
         assertToString(
@@ -460,7 +460,7 @@ public class NodeToStringTests extends ESTestCase {
     public void testPSubField() {
         Location l = new Location(getTestName(), 0);
         PainlessClass s = painlessLookup.getPainlessStructFromJavaClass(Boolean.class);
-        PainlessField f = s.staticMembers.get("TRUE");
+        PainlessField f = s.staticFields.get("TRUE");
         PSubField node = new PSubField(l, f);
         node.prefix = new EStatic(l, "Boolean");
         assertEquals("(PSubField (EStatic Boolean) TRUE)", node.toString());
@@ -469,32 +469,28 @@ public class NodeToStringTests extends ESTestCase {
 
     public void testPSubListShortcut() {
         Location l = new Location(getTestName(), 0);
-        PainlessClass s = painlessLookup.getPainlessStructFromJavaClass(List.class);
-        PSubListShortcut node = new PSubListShortcut(l, s, new EConstant(l, 1));
+        PSubListShortcut node = new PSubListShortcut(l, List.class, new EConstant(l, 1));
         node.prefix = new EVariable(l, "a");
         assertEquals("(PSubListShortcut (EVariable a) (EConstant Integer 1))", node.toString());
         assertEquals("(PSubNullSafeCallInvoke (PSubListShortcut (EVariable a) (EConstant Integer 1)))",
                 new PSubNullSafeCallInvoke(l, node).toString());
 
         l = new Location(getTestName(), 0);
-        s = painlessLookup.getPainlessStructFromJavaClass(List.class);
-        node = new PSubListShortcut(l, s, new EBinary(l, Operation.ADD, new EConstant(l, 1), new EConstant(l, 4)));
+        node = new PSubListShortcut(l, List.class, new EBinary(l, Operation.ADD, new EConstant(l, 1), new EConstant(l, 4)));
         node.prefix = new EVariable(l, "a");
         assertEquals("(PSubListShortcut (EVariable a) (EBinary (EConstant Integer 1) + (EConstant Integer 4)))", node.toString());
     }
 
     public void testPSubMapShortcut() {
         Location l = new Location(getTestName(), 0);
-        PainlessClass s = painlessLookup.getPainlessStructFromJavaClass(Map.class);
-        PSubMapShortcut node = new PSubMapShortcut(l, s, new EConstant(l, "cat"));
+        PSubMapShortcut node = new PSubMapShortcut(l, Map.class, new EConstant(l, "cat"));
         node.prefix = new EVariable(l, "a");
         assertEquals("(PSubMapShortcut (EVariable a) (EConstant String 'cat'))", node.toString());
         assertEquals("(PSubNullSafeCallInvoke (PSubMapShortcut (EVariable a) (EConstant String 'cat')))",
                 new PSubNullSafeCallInvoke(l, node).toString());
 
         l = new Location(getTestName(), 1);
-        s = painlessLookup.getPainlessStructFromJavaClass(Map.class);
-        node = new PSubMapShortcut(l, s, new EBinary(l, Operation.ADD, new EConstant(l, 1), new EConstant(l, 4)));
+        node = new PSubMapShortcut(l, Map.class, new EBinary(l, Operation.ADD, new EConstant(l, 1), new EConstant(l, 4)));
         node.prefix = new EVariable(l, "a");
         assertEquals("(PSubMapShortcut (EVariable a) (EBinary (EConstant Integer 1) + (EConstant Integer 4)))", node.toString());
     }

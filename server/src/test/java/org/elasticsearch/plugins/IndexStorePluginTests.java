@@ -106,7 +106,10 @@ public class IndexStorePluginTests extends ESTestCase {
 
         {
             final String allowedBuiltInTypes = String.join(",", randomSubsetOf(types));
-            final String allowedIndexStoreTypes = randomBoolean() ? allowedBuiltInTypes : String.join(",", allowedBuiltInTypes, "store");
+            final String allowedIndexStoreTypes =
+                    randomBoolean()
+                            ? allowedBuiltInTypes
+                            : allowedBuiltInTypes.isEmpty() ? "store" : String.join(",", allowedBuiltInTypes, "store");
             final Settings settings =
                     Settings.builder()
                             .put("node.allowed_index_store_types", allowedIndexStoreTypes)
@@ -121,8 +124,12 @@ public class IndexStorePluginTests extends ESTestCase {
 
         {
             final String allowedBuiltInTypes = String.join(",", randomSubsetOf(types));
-            final String allowedIndexStoreTypes = randomBoolean() ? allowedBuiltInTypes : String.join(",", allowedBuiltInTypes, "store");
-            final String allowedIndexStoreTypesAndNonExisting = String.join(allowedIndexStoreTypes, "non-existent");
+            final String allowedIndexStoreTypes =
+                    randomBoolean()
+                            ? allowedBuiltInTypes
+                            : allowedBuiltInTypes.isEmpty() ? "store" : String.join(",", allowedBuiltInTypes, "store");
+            final String allowedIndexStoreTypesAndNonExisting =
+                    allowedIndexStoreTypes.isEmpty() ? "non-existent" : String.join(",", allowedIndexStoreTypes, "non-existent");
             final Settings settings =
                     Settings.builder()
                             .put("node.allowed_index_store_types", allowedIndexStoreTypesAndNonExisting)
@@ -131,7 +138,7 @@ public class IndexStorePluginTests extends ESTestCase {
                             .build();
             // we should not be able to specify as allowed a store type that does not exist
             final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new MockNode(settings, plugins));
-            assertThat(e, hasToString(containsString("allowed index store type non-existent does not exist")));
+            assertThat(e, hasToString(containsString("allowed index store type [non-existent] does not exist")));
         }
     }
 

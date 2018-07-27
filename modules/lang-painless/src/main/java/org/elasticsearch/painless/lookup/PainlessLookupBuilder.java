@@ -40,8 +40,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.painless.lookup.PainlessLookupUtility.CONSTRUCTOR_NAME;
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.DEF_CLASS_NAME;
+import static org.elasticsearch.painless.lookup.PainlessLookupUtility.buildPainlessConstructorKey;
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.buildPainlessFieldKey;
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.buildPainlessMethodKey;
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
@@ -70,7 +70,7 @@ public final class PainlessLookupBuilder {
                 return false;
             }
 
-            PainlessMethodCacheKey that = (PainlessMethodCacheKey)object;
+            PainlessConstructorCacheKey that = (PainlessConstructorCacheKey)object;
 
             return Objects.equals(targetType, that.targetType) &&
                    Objects.equals(typeParameters, that.typeParameters);
@@ -376,7 +376,8 @@ public final class PainlessLookupBuilder {
                     "[[" + targetCanonicalClassName + "], " + typesToCanonicalTypeNames(typeParameters) + "] not found", nsme);
         }
 
-        PainlessConstructor painlessConstructor = painlessClassBuilder.constructors.get(typeParametersSize);
+        int painlessConstructorKey = buildPainlessConstructorKey(typeParametersSize);
+        PainlessConstructor painlessConstructor = painlessClassBuilder.constructors.get(painlessConstructorKey);
 
         if (painlessConstructor == null) {
             MethodHandle methodHandle;
@@ -395,7 +396,7 @@ public final class PainlessLookupBuilder {
                     key -> new PainlessConstructor(javaConstructor, typeParameters, methodHandle, methodType)
             );
 
-            painlessClassBuilder.constructors.put(typeParametersSize, painlessConstructor);
+            painlessClassBuilder.constructors.put(painlessConstructorKey, painlessConstructor);
         } else if (painlessConstructor.typeParameters.equals(typeParameters) == false){
             throw new IllegalArgumentException("cannot have constructors " +
                     "[[" + targetCanonicalClassName + "], " + typesToCanonicalTypeNames(typeParameters) + "] and " +

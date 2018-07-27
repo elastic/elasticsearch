@@ -337,6 +337,13 @@ public final class PainlessLookupUtility {
     }
 
     /**
+     * Constructs a painless constructor key used to lookup painless constructors from a painless class.
+     */
+    public static int buildPainlessConstructorKey(int constructorArity) {
+        return constructorArity;
+    }
+
+    /**
      * Constructs a painless method key used to lookup painless methods from a painless class.
      */
     public static String buildPainlessMethodKey(String methodName, int methodArity) {

@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.painless.lookup.PainlessClass;
+import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessField;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
@@ -57,7 +58,8 @@ public class PainlessDocGenerator {
     private static final Logger logger = ESLoggerFactory.getLogger(PainlessDocGenerator.class);
     private static final Comparator<PainlessField> FIELD_NAME = comparing(f -> f.name);
     private static final Comparator<PainlessMethod> METHOD_NAME = comparing(m -> m.name);
-    private static final Comparator<PainlessMethod> NUMBER_OF_ARGS = comparing(m -> m.arguments.size());
+    private static final Comparator<PainlessMethod> METHOD_NUMBER_OF_PARAMS = comparing(m -> m.arguments.size());
+    private static final Comparator<PainlessConstructor> CONSTRUCTOR_NUMBER_OF_PARAMS = comparing(m -> m.typeParameters.size());
 
     public static void main(String[] args) throws IOException {
         Path apiRootPath = PathUtils.get(args[0]);
@@ -103,12 +105,15 @@ public class PainlessDocGenerator {
 
                     Consumer<PainlessField> documentField = field -> PainlessDocGenerator.documentField(typeStream, field);
                     Consumer<PainlessMethod> documentMethod = method -> PainlessDocGenerator.documentMethod(typeStream, method);
+                    Consumer<PainlessConstructor> documentConstructor =
+                            constructor -> PainlessDocGenerator.documentConstructor(typeStream, constructor);
                     struct.staticFields.values().stream().sorted(FIELD_NAME).forEach(documentField);
                     struct.fields.values().stream().sorted(FIELD_NAME).forEach(documentField);
-                    struct.staticMethods.values().stream().sorted(METHOD_NAME.thenComparing(NUMBER_OF_ARGS)).forEach(documentMethod);
-                    struct.constructors.values().stream().sorted(NUMBER_OF_ARGS).forEach(documentMethod);
+                    struct.staticMethods.values().stream().sorted(
+                            METHOD_NAME.thenComparing(METHOD_NUMBER_OF_PARAMS)).forEach(documentMethod);
+                    struct.constructors.values().stream().sorted(CONSTRUCTOR_NUMBER_OF_PARAMS).forEach(documentConstructor);
                     Map<String, Class<?>> inherited = new TreeMap<>();
-                    struct.methods.values().stream().sorted(METHOD_NAME.thenComparing(NUMBER_OF_ARGS)).forEach(method -> {
+                    struct.methods.values().stream().sorted(METHOD_NAME.thenComparing(METHOD_NUMBER_OF_PARAMS)).forEach(method -> {
                         if (method.target == clazz) {
                             documentMethod(typeStream, method);
                         } else {
@@ -165,6 +170,41 @@ public class PainlessDocGenerator {
     }
 
     /**
+     * Document a constructor.
+     */
+    private static void documentConstructor(PrintStream stream, PainlessConstructor constructor) {
+        stream.print("* ++[[");
+        emitAnchor(stream, constructor);
+        stream.print("]]");
+
+        String javadocRoot = javadocRoot(constructor.javaConstructor.getDeclaringClass());
+        emitJavadocLink(stream, javadocRoot, constructor);
+        stream.print('[');
+
+        stream.print(constructorName(constructor));
+
+        stream.print("](");
+        boolean first = true;
+        for (Class<?> arg : constructor.typeParameters) {
+            if (first) {
+                first = false;
+            } else {
+                stream.print(", ");
+            }
+            emitType(stream, arg);
+        }
+        stream.print(")++");
+
+        if (javadocRoot.equals("java8")) {
+            stream.print(" (");
+            emitJavadocLink(stream, "java9", constructor);
+            stream.print("[java 9])");
+        }
+
+        stream.println();
+    }
+
+    /**
      * Document a method.
      */
     private static void documentMethod(PrintStream stream, PainlessMethod method) {
@@ -176,10 +216,8 @@ public class PainlessDocGenerator {
             stream.print("static ");
         }
 
-        if (false == method.name.equals("<init>")) {
-            emitType(stream, method.rtn);
-            stream.print(' ');
-        }
+        emitType(stream, method.rtn);
+        stream.print(' ');
 
         String javadocRoot = javadocRoot(method);
         emitJavadocLink(stream, javadocRoot, method);
@@ -217,6 +255,17 @@ public class PainlessDocGenerator {
     }
 
     /**
+     * Anchor text for a {@link PainlessConstructor}.
+     */
+    private static void emitAnchor(PrintStream stream, PainlessConstructor constructor) {
+        emitAnchor(stream, constructor.javaConstructor.getDeclaringClass());
+        stream.print('-');
+        stream.print(constructorName(constructor));
+        stream.print('-');
+        stream.print(constructor.typeParameters.size());
+    }
+
+    /**
      * Anchor text for a {@link PainlessMethod}.
      */
     private static void emitAnchor(PrintStream stream, PainlessMethod method) {
@@ -236,8 +285,12 @@ public class PainlessDocGenerator {
         stream.print(field.name);
     }
 
+    private static String constructorName(PainlessConstructor constructor) {
+        return PainlessLookupUtility.typeToCanonicalTypeName(constructor.javaConstructor.getDeclaringClass());
+    }
+
     private static String methodName(PainlessMethod method) {
-        return method.name.equals("<init>") ? PainlessLookupUtility.typeToCanonicalTypeName(method.target) : method.name;
+        return PainlessLookupUtility.typeToCanonicalTypeName(method.target);
     }
 
     /**
@@ -267,6 +320,34 @@ public class PainlessDocGenerator {
         } else {
             stream.print(canonicalClassName);
         }
+    }
+
+    /**
+     * Emit an external link to Javadoc for a {@link PainlessMethod}.
+     *
+     * @param root name of the root uri variable
+     */
+    private static void emitJavadocLink(PrintStream stream, String root, PainlessConstructor constructor) {
+        stream.print("link:{");
+        stream.print(root);
+        stream.print("-javadoc}/");
+        stream.print(classUrlPath(constructor.javaConstructor.getDeclaringClass()));
+        stream.print(".html#");
+        stream.print(constructorName(constructor));
+        stream.print("%2D");
+        boolean first = true;
+        for (Class<?> clazz: constructor.typeParameters) {
+            if (first) {
+                first = false;
+            } else {
+                stream.print("%2D");
+            }
+            stream.print(clazz.getName());
+            if (clazz.isArray()) {
+                stream.print(":A");
+            }
+        }
+        stream.print("%2D");
     }
 
     /**

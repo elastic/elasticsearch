@@ -34,6 +34,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -64,7 +65,7 @@ public class TransportNodesActionTests extends ESTestCase {
 
     private ClusterService clusterService;
     private CapturingTransport transport;
-    private TransportService transportService;
+    private MockTransportService transportService;
 
     public void testRequestIsSentToEachNode() throws Exception {
         TransportNodesAction action = getTestTransportNodesAction();
@@ -180,8 +181,9 @@ public class TransportNodesActionTests extends ESTestCase {
         super.setUp();
         transport = new CapturingTransport();
         clusterService = createClusterService(THREAD_POOL);
-        transportService = new TransportService(clusterService.getSettings(), transport, THREAD_POOL,
+        transportService = new MockTransportService(clusterService.getSettings(), transport, THREAD_POOL,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null, Collections.emptySet());
+        transport.bootstrapWithTransportService(transportService);
         transportService.start();
         transportService.acceptIncomingRequests();
         int numNodes = randomIntBetween(3, 10);

@@ -422,6 +422,17 @@ public final class MockTransportService extends TransportService {
         return transport().addSendBehavior(transportAddress, sendBehavior);
     }
 
+    /**
+     * Adds a send behavior that is the default send behavior.
+     *
+     * @return {@code true} if no default send behavior was registered
+     */
+    public boolean addSendBehavior(SendRequestBehavior behavior) {
+        SendRequestBehavior prior = transport().defaultSendRequest;
+        transport().defaultSendRequest = behavior;
+        return prior == null;
+    }
+
 
     /**
      * Adds a new connect behavior that is used for creating connections with the given transport service.
@@ -468,7 +479,18 @@ public final class MockTransportService extends TransportService {
     }
 
     /**
-     * Adds a new get connection behavior that is used for communication with the given transport service.
+     * Adds a get connection behavior that is the default get connection behavior.
+     *
+     * @return {@code true} if no default get connection behavior was registered.
+     */
+    public boolean addGetConnectionBehavior(GetConnectionBehavior behavior) {
+        GetConnectionBehavior prior = connectionManager().defaultGetConnectionBehavior;
+        connectionManager().defaultGetConnectionBehavior = behavior;
+        return prior == null;
+    }
+
+    /**
+     * Adds a node connected behavior that is used for the given transport service.
      *
      * @return {@code true} if no other node connected behavior was registered for any of the addresses bound by transport service.
      */
@@ -481,12 +503,23 @@ public final class MockTransportService extends TransportService {
     }
 
     /**
-     * Adds a get connection behavior that is used for communication with the given transport address.
+     * Adds a node connected behavior that is used for the given transport address.
      *
      * @return {@code true} if no other node connected behavior was registered for this address before.
      */
     public boolean addNodeConnectedBehavior(TransportAddress transportAddress, NodeConnectedBehavior behavior) {
         return connectionManager().addNodeConnectedBehavior(transportAddress, behavior);
+    }
+
+    /**
+     * Adds a node connected behavior that is the default node connected behavior.
+     *
+     * @return {@code true} if no default node connected behavior was registered.
+     */
+    public boolean addNodeConnectedBehavior(NodeConnectedBehavior behavior) {
+        NodeConnectedBehavior prior = connectionManager().defaultNodeConnectedBehavior;
+        connectionManager().defaultNodeConnectedBehavior = behavior;
+        return prior == null;
     }
 
     /**
@@ -512,6 +545,7 @@ public final class MockTransportService extends TransportService {
         private final ConcurrentHashMap<TransportAddress, GetConnectionBehavior> getConnectionBehaviors = new ConcurrentHashMap<>();
         private final ConcurrentHashMap<TransportAddress, NodeConnectedBehavior> nodeConnectedBehaviors = new ConcurrentHashMap<>();
         private volatile GetConnectionBehavior defaultGetConnectionBehavior = null;
+        private volatile NodeConnectedBehavior defaultNodeConnectedBehavior = null;
 
         private MockConnectionManager(ConnectionManager delegate, Settings settings, Transport transport, ThreadPool threadPool) {
             super(settings, transport, threadPool);
@@ -549,7 +583,7 @@ public final class MockTransportService extends TransportService {
 
         public boolean nodeConnected(DiscoveryNode node) {
             TransportAddress address = node.getAddress();
-            NodeConnectedBehavior behavior = nodeConnectedBehaviors.get(address);
+            NodeConnectedBehavior behavior = nodeConnectedBehaviors.getOrDefault(address, defaultNodeConnectedBehavior);
             if (behavior == null) {
                 return delegate.nodeConnected(node);
             } else {

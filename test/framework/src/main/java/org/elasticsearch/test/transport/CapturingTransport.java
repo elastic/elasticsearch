@@ -30,6 +30,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.transport.ConnectionManager;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.RequestHandlerRegistry;
@@ -80,6 +81,33 @@ public class CapturingTransport implements Transport {
 
     private ConcurrentMap<Long, Tuple<DiscoveryNode, String>> requests = new ConcurrentHashMap<>();
     private BlockingQueue<CapturedRequest> capturedRequests = ConcurrentCollections.newBlockingQueue();
+
+    public void bootstrapWithTransportService(MockTransportService transportService) {
+        transportService.addNodeConnectedBehavior((connectionManager, discoveryNode) -> true);
+        transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            DiscoveryNode node = connection.getNode();
+            requests.put(requestId, Tuple.tuple(node, action));
+            capturedRequests.add(new CapturedRequest(node, requestId, action, request));
+        });
+        transportService.addGetConnectionBehavior((connectionManager, discoveryNode) -> new Connection() {
+            @Override
+            public DiscoveryNode getNode() {
+                return discoveryNode;
+            }
+
+            @Override
+            public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
+                throws TransportException {
+                requests.put(requestId, Tuple.tuple(discoveryNode, action));
+                capturedRequests.add(new CapturedRequest(discoveryNode, requestId, action, request));
+            }
+
+            @Override
+            public void close() {
+
+            }
+        });
+    }
 
     /** returns all requests captured so far. Doesn't clear the captured request list. See {@link #clear()} */
     public CapturedRequest[] capturedRequests() {
@@ -260,10 +288,6 @@ public class CapturingTransport implements Transport {
     @Override
     public List<String> getLocalAddresses() {
         return Collections.emptyList();
-    }
-
-    public Connection getConnection(DiscoveryNode node) {
-        return openConnection(node, null);
     }
 
     @Override

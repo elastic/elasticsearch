@@ -48,7 +48,7 @@ public class ValidateDetectorAction extends Action<ValidateDetectorAction.Respon
         private Detector detector;
 
         public static Request parseRequest(XContentParser parser) {
-            Detector detector = Detector.CONFIG_PARSER.apply(parser, null).build();
+            Detector detector = Detector.STRICT_PARSER.apply(parser, null).build();
             return new Request(detector);
         }
 

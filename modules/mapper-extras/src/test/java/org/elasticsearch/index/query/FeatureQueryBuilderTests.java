@@ -45,12 +45,10 @@ public class FeatureQueryBuilderTests extends AbstractQueryTestCase<FeatureQuery
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
-        for (String type : getCurrentTypes()) {
-            mapperService.merge(type, new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(type,
-                    "my_feature_field", "type=feature",
-                    "my_negative_feature_field", "type=feature,positive_score_impact=false",
-                    "my_feature_vector_field", "type=feature_vector"))), MapperService.MergeReason.MAPPING_UPDATE);
-        }
+        mapperService.merge("_doc", new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef("_doc",
+            "my_feature_field", "type=feature",
+            "my_negative_feature_field", "type=feature,positive_score_impact=false",
+            "my_feature_vector_field", "type=feature_vector"))), MapperService.MergeReason.MAPPING_UPDATE);
     }
 
     @Override
@@ -87,7 +85,7 @@ public class FeatureQueryBuilderTests extends AbstractQueryTestCase<FeatureQuery
         if (mayUseNegativeField) {
             fields.add("my_negative_feature_field");
         }
-        
+
         final String field = randomFrom(fields);
         return new FeatureQueryBuilder(field, function);
     }
@@ -99,7 +97,6 @@ public class FeatureQueryBuilderTests extends AbstractQueryTestCase<FeatureQuery
     }
 
     public void testDefaultScoreFunction() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
                 "    \"feature\" : {\n" +
                 "        \"field\": \"my_feature_field\"\n" +
@@ -110,7 +107,6 @@ public class FeatureQueryBuilderTests extends AbstractQueryTestCase<FeatureQuery
     }
 
     public void testIllegalField() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
                 "    \"feature\" : {\n" +
                 "        \"field\": \"" + STRING_FIELD_NAME + "\"\n" +
@@ -121,7 +117,6 @@ public class FeatureQueryBuilderTests extends AbstractQueryTestCase<FeatureQuery
     }
 
     public void testIllegalCombination() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
                 "    \"feature\" : {\n" +
                 "        \"field\": \"my_negative_feature_field\",\n" +

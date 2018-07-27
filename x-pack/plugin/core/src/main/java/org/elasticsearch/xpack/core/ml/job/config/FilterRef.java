@@ -14,12 +14,9 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.MlParserType;
 
 import java.io.IOException;
-import java.util.EnumMap;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 
 public class FilterRef implements ToXContentObject, Writeable {
@@ -42,28 +39,22 @@ public class FilterRef implements ToXContentObject, Writeable {
     }
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
-    public static final ConstructingObjectParser<FilterRef, Void> METADATA_PARSER =
-            new ConstructingObjectParser<>(FILTER_REF_FIELD.getPreferredName(), true,
-                    a -> new FilterRef((String) a[0], (FilterType) a[1]));
-    public static final ConstructingObjectParser<FilterRef, Void> CONFIG_PARSER =
-            new ConstructingObjectParser<>(FILTER_REF_FIELD.getPreferredName(), false,
-                    a -> new FilterRef((String) a[0], (FilterType) a[1]));
-    public static final Map<MlParserType, ConstructingObjectParser<FilterRef, Void>> PARSERS = new EnumMap<>(MlParserType.class);
+    public static final ConstructingObjectParser<FilterRef, Void> LENIENT_PARSER = createParser(true);
+    public static final ConstructingObjectParser<FilterRef, Void> STRICT_PARSER = createParser(false);
 
-    static {
-        PARSERS.put(MlParserType.METADATA, METADATA_PARSER);
-        PARSERS.put(MlParserType.CONFIG, CONFIG_PARSER);
-        for (MlParserType parserType : MlParserType.values()) {
-            ConstructingObjectParser<FilterRef, Void> parser = PARSERS.get(parserType);
-            assert parser != null;
-            parser.declareString(ConstructingObjectParser.constructorArg(), FILTER_ID);
-            parser.declareField(ConstructingObjectParser.optionalConstructorArg(), p -> {
-                if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                    return FilterType.fromString(p.text());
-                }
-                throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-            }, FILTER_TYPE, ObjectParser.ValueType.STRING);
-        }
+    private static ConstructingObjectParser<FilterRef, Void> createParser(boolean ignoreUnknownFields) {
+        ConstructingObjectParser<FilterRef, Void> parser = new ConstructingObjectParser<>(FILTER_REF_FIELD.getPreferredName(),
+            ignoreUnknownFields, a -> new FilterRef((String) a[0], (FilterType) a[1]));
+
+        parser.declareString(ConstructingObjectParser.constructorArg(), FILTER_ID);
+        parser.declareField(ConstructingObjectParser.optionalConstructorArg(), p -> {
+            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
+                return FilterType.fromString(p.text());
+            }
+            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
+        }, FILTER_TYPE, ObjectParser.ValueType.STRING);
+
+        return parser;
     }
 
     private final String filterId;

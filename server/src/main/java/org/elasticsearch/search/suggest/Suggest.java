@@ -92,7 +92,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
     public Suggest(StreamInput in) throws IOException {
         // in older versions, Suggestion types were serialized as Streamable
-        if (in.getVersion().before(Version.V_6_4_0)) {
+        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
             final int size = in.readVInt();
             suggestions = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
@@ -105,8 +105,6 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                     case CompletionSuggestion.TYPE:
                         suggestion = new CompletionSuggestion(in);
                         break;
-                    case 2: // CompletionSuggestion.TYPE
-                        throw new IllegalArgumentException("Completion suggester 2.x is not supported anymore");
                     case PhraseSuggestion.TYPE:
                         suggestion = new PhraseSuggestion(in);
                         break;
@@ -162,7 +160,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         // in older versions, Suggestion types were serialized as Streamable
-        if (out.getVersion().before(Version.V_6_4_0)) {
+        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
             out.writeVInt(suggestions.size());
             for (Suggestion<?> command : suggestions) {
                 out.writeVInt(command.getWriteableType());

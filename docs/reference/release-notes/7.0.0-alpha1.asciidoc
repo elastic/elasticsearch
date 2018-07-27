@@ -22,3 +22,7 @@ Aggregations::
   instead of `NaN`.  This makes it consistent with the rest of the aggregations.  Note:
   this only applies to the REST response, the java objects continue to return `NaN` (also
   consistent with other aggregations)
+
+Suggesters::
+* Plugins can now define their own types of suggestions due to changes in how they are
+  serialized {pull}30284[#30284]

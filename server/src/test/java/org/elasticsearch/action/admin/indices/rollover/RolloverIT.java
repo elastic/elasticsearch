@@ -132,6 +132,17 @@ public class RolloverIT extends ESIntegTestCase {
             is(both(greaterThanOrEqualTo(beforeTime)).and(lessThanOrEqualTo(client().threadPool().absoluteTimeInMillis() + 1000L))));
     }
 
+    public void testRolloverWithNoWriteIndex() {
+        Boolean firstIsWriteIndex = randomFrom(false, null);
+        assertAcked(prepareCreate("index1").addAlias(new Alias("alias").writeIndex(firstIsWriteIndex)).get());
+        if (firstIsWriteIndex == null) {
+            assertAcked(prepareCreate("index2").addAlias(new Alias("alias").writeIndex(randomFrom(false, null))).get());
+        }
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+            () -> client().admin().indices().prepareRolloverIndex("alias").dryRun(randomBoolean()).get());
+        assertThat(exception.getMessage(), equalTo("source alias [alias] does not point to a write index"));
+    }
+
     public void testRolloverWithIndexSettings() throws Exception {
         Alias testAlias = new Alias("test_alias");
         boolean explicitWriteIndex = randomBoolean();

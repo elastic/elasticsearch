@@ -21,7 +21,7 @@ public class FIPS140PasswordHashingAlgorithmBootstrapCheckTests extends ESTestCa
     public void testPBKDF2AlgorithmIsAllowed() {
         {
             final Settings settings = Settings.builder()
-                    .put(Security.FIPS_MODE_ENABLED.getKey(), true)
+                    .put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true)
                     .put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), "PBKDF2_10000")
                     .build();
             final BootstrapCheck.BootstrapCheckResult result =
@@ -31,7 +31,7 @@ public class FIPS140PasswordHashingAlgorithmBootstrapCheckTests extends ESTestCa
 
         {
             final Settings settings = Settings.builder()
-                    .put(Security.FIPS_MODE_ENABLED.getKey(), true)
+                    .put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true)
                     .put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), "PBKDF2")
                     .build();
             final BootstrapCheck.BootstrapCheckResult result =
@@ -49,7 +49,7 @@ public class FIPS140PasswordHashingAlgorithmBootstrapCheckTests extends ESTestCa
     }
 
     private void runBCRYPTTest(final boolean fipsModeEnabled, final String passwordHashingAlgorithm) {
-        final Settings.Builder builder = Settings.builder().put(Security.FIPS_MODE_ENABLED.getKey(), fipsModeEnabled);
+        final Settings.Builder builder = Settings.builder().put(XPackSettings.FIPS_MODE_ENABLED.getKey(), fipsModeEnabled);
         if (passwordHashingAlgorithm != null) {
             builder.put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), passwordHashingAlgorithm);
         }

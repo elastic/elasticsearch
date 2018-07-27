@@ -126,7 +126,6 @@ final class IndexShardOperationPermits implements Closeable {
     <E extends Exception> void asyncBlockOperations(
             final long timeout, final TimeUnit timeUnit, final CheckedRunnable<E> onBlocked, final Consumer<Exception> onFailure) {
         delayOperations();
-
         threadPool.executor(ThreadPool.Names.GENERIC).execute(new AbstractRunnable() {
             @Override
             public void onFailure(final Exception e) {

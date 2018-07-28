@@ -176,7 +176,6 @@ import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
-import org.elasticsearch.xpack.security.authc.kerberos.KerberosRealmBootstrapCheck;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.SecuritySearchOperationListener;
@@ -306,8 +305,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 new PasswordHashingAlgorithmBootstrapCheck(),
                 new FIPS140SecureSettingsBootstrapCheck(settings, env),
                 new FIPS140JKSKeystoreBootstrapCheck(settings),
-                new FIPS140PasswordHashingAlgorithmBootstrapCheck(settings),
-                new KerberosRealmBootstrapCheck(env)));
+                new FIPS140PasswordHashingAlgorithmBootstrapCheck(settings)));
             checks.addAll(InternalRealms.getBootstrapChecks(settings, env));
             this.bootstrapChecks = Collections.unmodifiableList(checks);
             Automatons.updateMaxDeterminizedStates(settings);

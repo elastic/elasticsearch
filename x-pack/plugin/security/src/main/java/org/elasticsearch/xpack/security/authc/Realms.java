@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 
 
 /**
@@ -152,6 +153,7 @@ public class Realms extends AbstractComponent implements Iterable<Realm> {
         Settings realmsSettings = RealmSettings.get(settings);
         Set<String> internalTypes = new HashSet<>();
         List<Realm> realms = new ArrayList<>();
+        boolean isKerberosRealmConfigured = false;
         for (String name : realmsSettings.names()) {
             Settings realmSettings = realmsSettings.getAsSettings(name);
             String type = realmSettings.get("type");
@@ -177,6 +179,13 @@ public class Realms extends AbstractComponent implements Iterable<Realm> {
                             "] is an internal realm and therefore there can only be one such realm configured");
                 }
                 internalTypes.add(type);
+            }
+            if (KerberosRealmSettings.TYPE.equals(type)) {
+                if (isKerberosRealmConfigured) {
+                    throw new IllegalArgumentException(
+                            "multiple [" + type + "] realms are configured. [" + type + "] can only have one such realm configured");
+                }
+                isKerberosRealmConfigured = true;
             }
             realms.add(factory.create(config));
         }

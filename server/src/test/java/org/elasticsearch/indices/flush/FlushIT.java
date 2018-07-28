@@ -286,7 +286,6 @@ public class FlushIT extends ESIntegTestCase {
         assertThat(fullResult.successfulShards(), equalTo(numberOfReplicas + 1));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32436")
     public void testDoNotRenewSyncedFlushWhenAllSealed() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(between(2, 3));
         final int numberOfReplicas = internalCluster().numDataNodes() - 1;
@@ -311,7 +310,7 @@ public class FlushIT extends ESIntegTestCase {
         // Shards were updated, renew synced flush.
         final int moreDocs = between(1, 10);
         for (int i = 0; i < moreDocs; i++) {
-            index("test", "doc", Integer.toString(i));
+            index("test", "doc", "more-" + i);
         }
         final ShardsSyncedFlushResult thirdSeal = SyncedFlushUtil.attemptSyncedFlush(logger, internalCluster(), shardId);
         assertThat(thirdSeal.successfulShards(), equalTo(numberOfReplicas + 1));

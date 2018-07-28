@@ -517,15 +517,6 @@ public final class MockTransportService extends TransportService {
         return connectionManager().setDefaultNodeConnectedBehavior(behavior);
     }
 
-    /**
-     * Adds a new delegate transport that is used for communication with the given transport address.
-     *
-     * @return {@code true} if no other delegate was registered for this address before.
-     */
-    public boolean addDelegate(TransportAddress transportAddress, DelegateTransport transport) {
-        return transport().transports.put(transportAddress, transport) == null;
-    }
-
     public LookupTestTransport transport() {
         return (LookupTestTransport) transport;
     }

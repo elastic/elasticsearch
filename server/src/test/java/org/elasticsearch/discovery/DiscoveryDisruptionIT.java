@@ -37,6 +37,7 @@ import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.disruption.SlowClusterStateProcessing;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -176,6 +177,8 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
             }
             connection.sendRequest(requestId, action, request, options);
         });
+
+        nonMasterTransportService.addConnectBehavior(masterTransportService, Transport::openConnection);
 
         countDownLatch.await();
 

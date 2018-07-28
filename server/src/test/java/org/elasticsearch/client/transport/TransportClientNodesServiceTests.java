@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client.transport;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.liveness.LivenessResponse;
@@ -76,6 +77,7 @@ import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "")
 public class TransportClientNodesServiceTests extends ESTestCase {
 
     private static class TestIteration implements Closeable {

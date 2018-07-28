@@ -2376,15 +2376,12 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(sourceShard, targetShard);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32449")
     public void testDocStats() throws IOException {
         IndexShard indexShard = null;
         try {
             indexShard = newStartedShard();
             final long numDocs = randomIntBetween(2, 32); // at least two documents so we have docs to delete
-            // Delete at least numDocs/10 documents otherwise the number of deleted docs will be below 10%
-            // and forceMerge will refuse to expunge deletes
-            final long numDocsToDelete = randomIntBetween((int) Math.ceil(Math.nextUp(numDocs / 10.0)), Math.toIntExact(numDocs));
+            final long numDocsToDelete = randomLongBetween(1, numDocs);
             for (int i = 0; i < numDocs; i++) {
                 final String id = Integer.toString(i);
                 indexDoc(indexShard, "_doc", id);
@@ -2434,7 +2431,6 @@ public class IndexShardTests extends IndexShardTestCase {
 
             // merge them away
             final ForceMergeRequest forceMergeRequest = new ForceMergeRequest();
-            forceMergeRequest.onlyExpungeDeletes(randomBoolean());
             forceMergeRequest.maxNumSegments(1);
             indexShard.forceMerge(forceMergeRequest);
 

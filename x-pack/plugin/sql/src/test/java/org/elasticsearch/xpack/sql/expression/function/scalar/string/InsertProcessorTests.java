@@ -59,6 +59,9 @@ public class InsertProcessorTests extends AbstractWireSerializingTestCase<Insert
         assertEquals("fzr", new Insert(EMPTY, l("foobar"), l(2), l(4), l('z')).makeProcessorDefinition().asProcessor().process(null));
         assertEquals("CAR", new Insert(EMPTY, l("FOOBAR"), l(1), l(5), l("CA")).makeProcessorDefinition().asProcessor().process(null));
         assertEquals("z", new Insert(EMPTY, l('f'), l(1), l(10), l('z')).makeProcessorDefinition().asProcessor().process(null));
+        
+        assertEquals("bla", new Insert(EMPTY, l(""), l(1), l(10), l("bla")).makeProcessorDefinition().asProcessor().process(null));
+        assertEquals("", new Insert(EMPTY, l(""), l(2), l(10), l("bla")).makeProcessorDefinition().asProcessor().process(null));
     }
     
     public void testInsertInputsValidation() {

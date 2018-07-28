@@ -22,8 +22,7 @@ import static org.elasticsearch.xpack.sql.expression.function.scalar.script.Para
 import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate.formatTemplate;
 
 /**
- * A binary string function that abstracts away the second parameter of a binary string function and its result.
- * This class is the base for binary functions that have the first parameter a string, the second parameter a number
+ * Base class for binary functions that have the first parameter a string, the second parameter a number
  * or a string and the result can be a string or a number.
  */
 public abstract class BinaryStringFunction<T,R> extends BinaryScalarFunction {
@@ -33,11 +32,6 @@ public abstract class BinaryStringFunction<T,R> extends BinaryScalarFunction {
     }
 
     protected abstract BiFunction<String, T, R> operation();
-
-    @Override
-    public DataType dataType() {
-        return DataType.KEYWORD;
-    }
 
     @Override
     protected TypeResolution resolveType() {
@@ -82,7 +76,7 @@ public abstract class BinaryStringFunction<T,R> extends BinaryScalarFunction {
 
     @Override
     public int hashCode() {
-        return Objects.hash(left(), right(), operation());
+        return Objects.hash(left(), right());
     }
 
     @Override
@@ -92,7 +86,6 @@ public abstract class BinaryStringFunction<T,R> extends BinaryScalarFunction {
         }
         BinaryStringFunction<?,?> other = (BinaryStringFunction<?,?>) obj;
         return Objects.equals(other.left(), left())
-            && Objects.equals(other.right(), right())
-            && Objects.equals(other.operation(), operation());
+            && Objects.equals(other.right(), right());
     }
 }

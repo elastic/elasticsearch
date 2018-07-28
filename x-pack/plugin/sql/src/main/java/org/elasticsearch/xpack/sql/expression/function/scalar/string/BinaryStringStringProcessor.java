@@ -27,13 +27,6 @@ public class BinaryStringStringProcessor extends BinaryStringProcessor<BinaryStr
     }
 
     public enum BinaryStringStringOperation implements BiFunction<String, String, Number> {
-        //not implemented yet. Relies on soundex similarity for computation
-        //we do have a plugin that seems to provide this functionality
-        //https://github.com/elastic/elasticsearch/blob/v6.3.1/plugins/analysis-phonetic
-        //TODO: assess a possible algorithm implementation for soundex similarity and if we want to implement this function at all
-        DIFFERENCE((s,c) -> {
-            return 0;
-        }),
         POSITION((sub,str) -> {
             if (sub == null || str == null) return null;
             int pos = str.indexOf(sub);

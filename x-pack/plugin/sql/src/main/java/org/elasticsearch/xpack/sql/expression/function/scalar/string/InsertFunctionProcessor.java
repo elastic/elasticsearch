@@ -73,12 +73,13 @@ public class InsertFunctionProcessor implements Processor {
 
         int startInt = ((Number) start).intValue() - 1;
         int realStart = startInt < 0 ? 0 : startInt;
-        StringBuilder sb = new StringBuilder(source instanceof String ? (String) source : ((Character) source).toString());
-        String replString = (replacement instanceof String ? (String) replacement : ((Character) replacement).toString());
         
-        if (startInt > sb.length()) {
+        if (startInt > source.toString().length()) {
             return source;
         }
+        
+        StringBuilder sb = new StringBuilder(source.toString());
+        String replString = (replacement.toString());
 
         return sb.replace(realStart, 
                 realStart + ((Number) length).intValue(), 

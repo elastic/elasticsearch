@@ -24,4 +24,9 @@ public abstract class BinaryStringNumericFunction extends BinaryStringFunction<N
                 TypeResolution.TYPE_RESOLVED : 
                 new TypeResolution("'%s' requires second parameter to be a numeric type, received %s", functionName(), inputType);
     }
+    
+    @Override
+    public DataType dataType() {
+        return DataType.KEYWORD;
+    }
 }

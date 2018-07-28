@@ -48,8 +48,7 @@ public class ConcatFunctionProcessor extends BinaryProcessor {
             throw new SqlIllegalArgumentException("A string/char is required; received [{}]", source2);
         }
 
-        return (source1 instanceof Character ? source1.toString() : (String) source1)
-                .concat(source2 instanceof Character ? source2.toString() : (String) source2);
+        return source1.toString().concat(source2.toString());
     }
 
     @Override

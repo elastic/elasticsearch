@@ -78,6 +78,9 @@ SELECT SPACE("languages") s, COUNT(*) count, CAST(CHAR_LENGTH(SPACE("languages")
 selectConcatWithOrderBy
 SELECT first_name f, last_name l, CONCAT(first_name,last_name) cct FROM test_emp ORDER BY CONCAT(first_name,last_name) LIMIT 10;
 
+selectNestedConcatWithOrderBy
+SELECT first_name f, last_name l, CONCAT(first_name,CONCAT(' ',last_name)) cct FROM test_emp ORDER BY CONCAT(first_name,CONCAT(' ',last_name)) LIMIT 10;
+
 selectConcatWithGroupBy
 SELECT CONCAT(first_name,last_name) cct FROM test_emp GROUP BY CONCAT(first_name,last_name) ORDER BY CONCAT(first_name,last_name) LIMIT 1;
 

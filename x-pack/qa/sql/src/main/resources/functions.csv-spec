@@ -45,6 +45,22 @@ Arumugam   | Ossenbruggen | ArumugamOssenbruggen
 Bader      | Swan         | BaderSwan
 ;
 
+selectNestedConcatWithOrderBy
+SELECT first_name f, last_name l, CONCAT(first_name,CONCAT(' ',last_name)) cct FROM test_emp ORDER BY CONCAT(first_name,CONCAT(' ',last_name)) LIMIT 10;
+
+f:s        | l:s          | cct:s
+Adamantios | Portugali    | Adamantios Portugali
+Alain      | Chappelet    | Alain Chappelet
+Alejandro  | Brender      | Alejandro Brender
+Alejandro  | McAlpine     | Alejandro McAlpine
+Amabile    | Gomatam      | Amabile Gomatam
+Anneke     | Preusig      | Anneke Preusig
+Anoosh     | Peyn         | Anoosh Peyn
+Arif       | Merlo        | Arif Merlo
+Arumugam   | Ossenbruggen | Arumugam Ossenbruggen
+Bader      | Swan         | Bader Swan
+;
+
 selectConcatWithGroupBy
 SELECT CONCAT(first_name,last_name) cct FROM test_emp GROUP BY CONCAT(first_name,last_name) ORDER BY CONCAT(first_name,last_name) LIMIT 1;
 
@@ -55,7 +71,7 @@ AdamantiosPortugali
 selectAsciiOfConcatWithGroupByOrderByCount
 SELECT ASCII(CONCAT("first_name","last_name")) ascii, COUNT(*) count FROM "test_emp" GROUP BY ASCII(CONCAT("first_name","last_name")) ORDER BY ASCII(CONCAT("first_name","last_name")) DESC LIMIT 10;
 
-ascii: i | count: l  
+ascii:i  | count:l  
 90       | 2
 89       | 3
 88       | 1
@@ -71,7 +87,7 @@ ascii: i | count: l
 selectRepeatTwice
 SELECT "first_name" orig, REPEAT("first_name",2) reps FROM "test_emp" WHERE ASCII("first_name")=65 ORDER BY REPEAT("first_name",2) ASC LIMIT 10;
 
-orig: s    | reps: s  
+orig:s     | reps:s  
 Adamantios | AdamantiosAdamantios
 Alain      | AlainAlain
 Alejandro  | AlejandroAlejandro
@@ -86,7 +102,7 @@ Arumugam   | ArumugamArumugam
 selectInsertWithLcase
 SELECT "first_name" orig, INSERT("first_name",2,1000,LCASE("first_name")) modified FROM "test_emp" WHERE ASCII("first_name")=65 ORDER BY "first_name" ASC LIMIT 10;
 
-orig: s    | modified: s  
+orig:s     | modified:s  
 Adamantios | Aadamantios
 Alain      | Aalain
 Alejandro  | Aalejandro
@@ -101,7 +117,7 @@ Arumugam   | Aarumugam
 selectInsertWithLcaseAndLengthWithOrderBy
 SELECT "first_name" origFN, "last_name" origLN, INSERT(UCASE("first_name"),LENGTH("first_name")+1,123,LCASE("last_name")) modified FROM "test_emp" WHERE ASCII("first_name")=65 ORDER BY "first_name" ASC LIMIT 10;
 
-origFN: s  | origLN:s     | modified: s  
+origFN:s   | origLN:s     | modified:s  
 Adamantios | Portugali    | ADAMANTIOSportugali
 Alain      | Chappelet    | ALAINchappelet
 Alejandro  | Brender      | ALEJANDRObrender
@@ -116,7 +132,7 @@ Arumugam   | Ossenbruggen | ARUMUGAMossenbruggen
 selectInsertWithUcaseWithGroupByAndOrderBy
 SELECT INSERT(UCASE("first_name"),2,123000,INSERT(UCASE("last_name"),2,500,'')) modified, COUNT(*) count FROM "test_emp" WHERE ASCII("first_name")=65 GROUP BY INSERT(UCASE("first_name"),2,123000,INSERT(UCASE("last_name"),2,500,'')) ORDER BY INSERT(UCASE("first_name"),2,123000,INSERT(UCASE("last_name"),2,500,'')) ASC LIMIT 10;
 
-modified: s | count: l
+modified:s  | count:l
 AB          | 1
 AC          | 1
 AG          | 1
@@ -128,7 +144,7 @@ AP          | 3
 selectSubstringWithGroupBy
 SELECT SUBSTRING("first_name",1,2) modified, COUNT(*) count FROM "test_emp" WHERE ASCII("first_name")=65 GROUP BY SUBSTRING("first_name",1,2) ORDER BY SUBSTRING("first_name",1,2) ASC LIMIT 10;
 
-modified: s | count: l
+modified:s  | count:l
 Ad          | 1
 Al          | 3
 Am          | 1
@@ -139,7 +155,7 @@ Ar          | 2
 selectSubstringWithWhereCountAndGroupBy
 SELECT SUBSTRING("first_name",1,2) modified, COUNT(*) count FROM "test_emp" WHERE SUBSTRING("first_name",1,2)='Al' GROUP BY SUBSTRING("first_name",1,2) LIMIT 10;
 
-modified: s | count: l
+modified:s  | count:l
 Al          | 3
 ;
 
@@ -198,7 +214,7 @@ Bader          |Bader
 selectReplaceWithGroupBy
 SELECT REPLACE("first_name",'jan','_JAN_') modified, COUNT(*) count FROM "test_emp" GROUP BY REPLACE("first_name",'jan','_JAN_') ORDER BY REPLACE("first_name",'jan','_JAN_') LIMIT 10;
 
-   modified:s  |     count: l
+   modified:s  |     count:l
 ---------------+---------------
 Adamantios     |1
 Alain          |1

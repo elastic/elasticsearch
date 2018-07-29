@@ -14,10 +14,7 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
 
@@ -27,7 +24,7 @@ import java.util.List;
 public class TransportCcrStatsAction extends TransportTasksAction<
         ShardFollowNodeTask,
         CcrStatsAction.TasksRequest,
-        CcrStatsAction.TasksResponse, TransportCcrStatsAction.TaskResponse> {
+        CcrStatsAction.TasksResponse, CcrStatsAction.TaskResponse> {
 
     @Inject
     public TransportCcrStatsAction(
@@ -49,53 +46,23 @@ public class TransportCcrStatsAction extends TransportTasksAction<
     @Override
     protected CcrStatsAction.TasksResponse newResponse(
             final CcrStatsAction.TasksRequest request,
-            final List<TaskResponse> taskResponses,
+            final List<CcrStatsAction.TaskResponse> taskResponses,
             final List<TaskOperationFailure> taskOperationFailures,
             final List<FailedNodeException> failedNodeExceptions) {
         return new CcrStatsAction.TasksResponse(taskOperationFailures, failedNodeExceptions, taskResponses);
     }
 
     @Override
-    protected TaskResponse readTaskResponse(final StreamInput in) throws IOException {
-        return new TaskResponse(in);
+    protected CcrStatsAction.TaskResponse readTaskResponse(final StreamInput in) throws IOException {
+        return new CcrStatsAction.TaskResponse(in);
     }
 
     @Override
     protected void taskOperation(
-            final CcrStatsAction.TasksRequest request, final ShardFollowNodeTask task, final ActionListener<TaskResponse> listener) {
-        listener.onResponse(new TaskResponse(task.getFollowShardId(), task.getStatus()));
-    }
-
-    public static class TaskResponse implements Writeable {
-
-        private final ShardId followerShardId;
-
-        public ShardId followerShardId() {
-            return followerShardId;
-        }
-
-        private final ShardFollowNodeTask.Status status;
-
-        public ShardFollowNodeTask.Status status() {
-            return status;
-        }
-
-        private TaskResponse(final ShardId followerShardId, final ShardFollowNodeTask.Status status) {
-            this.followerShardId = followerShardId;
-            this.status = status;
-        }
-
-        private TaskResponse(final StreamInput in) throws IOException {
-            this.followerShardId = ShardId.readShardId(in);
-            this.status = new ShardFollowNodeTask.Status(in);
-        }
-
-        @Override
-        public void writeTo(final StreamOutput out) throws IOException {
-            followerShardId.writeTo(out);
-            status.writeTo(out);
-        }
-
+            final CcrStatsAction.TasksRequest request,
+            final ShardFollowNodeTask task,
+            final ActionListener<CcrStatsAction.TaskResponse> listener) {
+        listener.onResponse(new CcrStatsAction.TaskResponse(task.getFollowShardId(), task.getStatus()));
     }
 
 }

@@ -14,11 +14,13 @@ import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
 
 import java.io.IOException;
@@ -45,7 +47,7 @@ public class CcrStatsAction extends Action<CcrStatsAction.TasksResponse> {
 
     public static class TasksResponse extends BaseTasksResponse implements ToXContentObject {
 
-        private final List<TransportCcrStatsAction.TaskResponse> taskResponses;
+        private final List<TaskResponse> taskResponses;
 
         public TasksResponse() {
             this(Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
@@ -54,25 +56,25 @@ public class CcrStatsAction extends Action<CcrStatsAction.TasksResponse> {
         TasksResponse(
                 final List<TaskOperationFailure> taskFailures,
                 final List<? extends FailedNodeException> nodeFailures,
-                final List<TransportCcrStatsAction.TaskResponse> taskResponses) {
+                final List<TaskResponse> taskResponses) {
             super(taskFailures, nodeFailures);
             this.taskResponses = taskResponses;
         }
 
         @Override
         public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
-            final Map<String, Map<Integer, TransportCcrStatsAction.TaskResponse>> taskResponsesByIndex = new TreeMap<>();
-            for (final TransportCcrStatsAction.TaskResponse taskResponse : taskResponses) {
+            final Map<String, Map<Integer, TaskResponse>> taskResponsesByIndex = new TreeMap<>();
+            for (final TaskResponse taskResponse : taskResponses) {
                 taskResponsesByIndex.computeIfAbsent(
                         taskResponse.followerShardId().getIndexName(),
                         k -> new TreeMap<>()).put(taskResponse.followerShardId().getId(), taskResponse);
             }
             builder.startObject();
             {
-                for (final Map.Entry<String, Map<Integer, TransportCcrStatsAction.TaskResponse>> index : taskResponsesByIndex.entrySet()) {
+                for (final Map.Entry<String, Map<Integer, TaskResponse>> index : taskResponsesByIndex.entrySet()) {
                     builder.startObject(index.getKey());
                     {
-                        for (final Map.Entry<Integer, TransportCcrStatsAction.TaskResponse> shard : index.getValue().entrySet()) {
+                        for (final Map.Entry<Integer, TaskResponse> shard : index.getValue().entrySet()) {
                             builder.startObject(Integer.toString(shard.getKey()));
                             {
                                 final ShardFollowNodeTask.Status status = shard.getValue().status();
@@ -152,5 +154,37 @@ public class CcrStatsAction extends Action<CcrStatsAction.TasksResponse> {
 
     }
 
+
+    public static class TaskResponse implements Writeable {
+
+        private final ShardId followerShardId;
+
+        ShardId followerShardId() {
+            return followerShardId;
+        }
+
+        private final ShardFollowNodeTask.Status status;
+
+        ShardFollowNodeTask.Status status() {
+            return status;
+        }
+
+        TaskResponse(final ShardId followerShardId, final ShardFollowNodeTask.Status status) {
+            this.followerShardId = followerShardId;
+            this.status = status;
+        }
+
+        TaskResponse(final StreamInput in) throws IOException {
+            this.followerShardId = ShardId.readShardId(in);
+            this.status = new ShardFollowNodeTask.Status(in);
+        }
+
+        @Override
+        public void writeTo(final StreamOutput out) throws IOException {
+            followerShardId.writeTo(out);
+            status.writeTo(out);
+        }
+
+    }
 
 }

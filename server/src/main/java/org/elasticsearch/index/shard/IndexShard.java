@@ -192,7 +192,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     protected volatile ShardRouting shardRouting;
     protected volatile IndexShardState state;
-    protected volatile long primaryTerm;
+    protected volatile long clusterStatePrimaryTerm;
+    protected volatile long operationPrimaryTerm;
     protected final AtomicReference<Engine> currentEngineReference = new AtomicReference<>();
     final EngineFactory engineFactory;
 
@@ -315,7 +316,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         indexShardOperationPermits = new IndexShardOperationPermits(shardId, threadPool);
         searcherWrapper = indexSearcherWrapper;
-        primaryTerm = indexSettings.getIndexMetaData().primaryTerm(shardId.id());
+        clusterStatePrimaryTerm = indexSettings.getIndexMetaData().primaryTerm(shardId.id());
+        operationPrimaryTerm = clusterStatePrimaryTerm;
         refreshListeners = buildRefreshListeners();
         lastSearcherAccess.set(threadPool.relativeTimeInMillis());
         persistMetadata(path, indexSettings, shardRouting, null, logger);
@@ -367,8 +369,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Returns the primary term the index shard is on. See {@link org.elasticsearch.cluster.metadata.IndexMetaData#primaryTerm(int)}
      */
-    public long getPrimaryTerm() {
-        return this.primaryTerm;
+    public long getClusterStatePrimaryTerm() {
+        return this.clusterStatePrimaryTerm;
+    }
+
+    public long getOperationPrimaryTerm() {
+        return this.operationPrimaryTerm;
     }
 
     /**
@@ -431,7 +437,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             final CountDownLatch shardStateUpdated = new CountDownLatch(1);
 
             if (newRouting.primary()) {
-                if (newPrimaryTerm == primaryTerm) {
+                if (newPrimaryTerm == clusterStatePrimaryTerm) {
                     if (currentRouting.initializing() && currentRouting.isRelocationTarget() == false && newRouting.active()) {
                         // the master started a recovering primary, activate primary mode.
                         replicationTracker.activatePrimaryMode(getLocalCheckpoint());
@@ -454,10 +460,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     assert newRouting.initializing() == false :
                         "a started primary shard should never update its term; "
                             + "shard " + newRouting + ", "
-                            + "current term [" + primaryTerm + "], "
+                            + "current term [" + clusterStatePrimaryTerm + "], "
                             + "new term [" + newPrimaryTerm + "]";
-                    assert newPrimaryTerm > primaryTerm :
-                        "primary terms can only go up; current term [" + primaryTerm + "], new term [" + newPrimaryTerm + "]";
+                    assert newPrimaryTerm > clusterStatePrimaryTerm :
+                        "primary terms can only go up; current term [" + clusterStatePrimaryTerm + "], new term [" + newPrimaryTerm + "]";
                     /*
                      * Before this call returns, we are guaranteed that all future operations are delayed and so this happens before we
                      * increment the primary term. The latch is needed to ensure that we do not unblock operations before the primary term is
@@ -473,8 +479,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         TimeUnit.MINUTES,
                         () -> {
                             shardStateUpdated.await();
-                            assert primaryTerm == newPrimaryTerm :
-                                "shard term changed on primary. expected [" + newPrimaryTerm + "] but was [" + primaryTerm + "]";
+                            assert clusterStatePrimaryTerm == newPrimaryTerm :
+                                "shard term changed on primary. expected [" + newPrimaryTerm + "] but was [" + clusterStatePrimaryTerm + "]";
+                            assert operationPrimaryTerm < newPrimaryTerm;
+                            operationPrimaryTerm = newPrimaryTerm;
                             try {
                                 /*
                                  * If this shard was serving as a replica shard when another shard was promoted to primary then the state of
@@ -522,7 +530,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         },
                         e -> failShard("exception during primary term transition", e));
                     replicationTracker.activatePrimaryMode(getLocalCheckpoint());
-                    primaryTerm = newPrimaryTerm;
+                    clusterStatePrimaryTerm = newPrimaryTerm;
                 }
             }
             // set this last, once we finished updating all internal state.
@@ -657,21 +665,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public Engine.IndexResult applyIndexOperationOnPrimary(long version, VersionType versionType, SourceToParse sourceToParse,
                                                            long autoGeneratedTimestamp, boolean isRetry) throws IOException {
         assert versionType.validateVersionForWrites(version);
-        return applyIndexOperation(SequenceNumbers.UNASSIGNED_SEQ_NO, primaryTerm, version, versionType, autoGeneratedTimestamp,
+        return applyIndexOperation(SequenceNumbers.UNASSIGNED_SEQ_NO, operationPrimaryTerm, version, versionType, autoGeneratedTimestamp,
             isRetry, Engine.Operation.Origin.PRIMARY, sourceToParse);
     }
 
     public Engine.IndexResult applyIndexOperationOnReplica(long seqNo, long version, long autoGeneratedTimeStamp,
                                                            boolean isRetry, SourceToParse sourceToParse)
         throws IOException {
-        return applyIndexOperation(seqNo, primaryTerm, version, null, autoGeneratedTimeStamp, isRetry,
+        return applyIndexOperation(seqNo, operationPrimaryTerm, version, null, autoGeneratedTimeStamp, isRetry,
             Engine.Operation.Origin.REPLICA, sourceToParse);
     }
 
     private Engine.IndexResult applyIndexOperation(long seqNo, long opPrimaryTerm, long version, @Nullable VersionType versionType,
                                                    long autoGeneratedTimeStamp, boolean isRetry, Engine.Operation.Origin origin,
                                                    SourceToParse sourceToParse) throws IOException {
-        assert opPrimaryTerm <= this.primaryTerm : "op term [ " + opPrimaryTerm + " ] > shard term [" + this.primaryTerm + "]";
+        assert opPrimaryTerm <= this.operationPrimaryTerm: "op term [ " + opPrimaryTerm + " ] > shard term [" + this.operationPrimaryTerm
+            + "]";
         ensureWriteAllowed(origin);
         Engine.Index operation;
         try {
@@ -725,12 +734,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public Engine.NoOpResult markSeqNoAsNoop(long seqNo, String reason) throws IOException {
-        return markSeqNoAsNoop(seqNo, primaryTerm, reason, Engine.Operation.Origin.REPLICA);
+        return markSeqNoAsNoop(seqNo, operationPrimaryTerm, reason, Engine.Operation.Origin.REPLICA);
     }
 
     private Engine.NoOpResult markSeqNoAsNoop(long seqNo, long opPrimaryTerm, String reason,
                                               Engine.Operation.Origin origin) throws IOException {
-        assert opPrimaryTerm <= this.primaryTerm : "op term [ " + opPrimaryTerm + " ] > shard term [" + this.primaryTerm + "]";
+        assert opPrimaryTerm <= this.operationPrimaryTerm : "op term [ " + opPrimaryTerm + " ] > shard term [" + this.operationPrimaryTerm
+            + "]";
         long startTime = System.nanoTime();
         ensureWriteAllowed(origin);
         final Engine.NoOp noOp = new Engine.NoOp(seqNo, opPrimaryTerm, origin, startTime, reason);
@@ -748,17 +758,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public Engine.DeleteResult applyDeleteOperationOnPrimary(long version, String type, String id, VersionType versionType)
         throws IOException {
         assert versionType.validateVersionForWrites(version);
-        return applyDeleteOperation(SequenceNumbers.UNASSIGNED_SEQ_NO, primaryTerm, version, type, id, versionType,
+        return applyDeleteOperation(SequenceNumbers.UNASSIGNED_SEQ_NO, operationPrimaryTerm, version, type, id, versionType,
             Engine.Operation.Origin.PRIMARY);
     }
 
     public Engine.DeleteResult applyDeleteOperationOnReplica(long seqNo, long version, String type, String id) throws IOException {
-        return applyDeleteOperation(seqNo, primaryTerm, version, type, id, null, Engine.Operation.Origin.REPLICA);
+        return applyDeleteOperation(seqNo, operationPrimaryTerm, version, type, id, null, Engine.Operation.Origin.REPLICA);
     }
 
     private Engine.DeleteResult applyDeleteOperation(long seqNo, long opPrimaryTerm, long version, String type, String id,
                                                      @Nullable VersionType versionType, Engine.Operation.Origin origin) throws IOException {
-        assert opPrimaryTerm <= this.primaryTerm : "op term [ " + opPrimaryTerm + " ] > shard term [" + this.primaryTerm + "]";
+        assert opPrimaryTerm <= this.operationPrimaryTerm : "op term [ " + opPrimaryTerm + " ] > shard term [" + this.operationPrimaryTerm
+            + "]";
         ensureWriteAllowed(origin);
         // When there is a single type, the unique identifier is only composed of the _id,
         // so there is no way to differenciate foo#1 from bar#1. This is especially an issue
@@ -1211,7 +1222,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public void trimOperationOfPreviousPrimaryTerms(long aboveSeqNo) {
-        getEngine().trimOperationsFromTranslog(primaryTerm, aboveSeqNo);
+        getEngine().trimOperationsFromTranslog(operationPrimaryTerm, aboveSeqNo);
     }
 
     public Engine.Result applyTranslogOperation(Translog.Operation operation, Engine.Operation.Origin origin) throws IOException {
@@ -2177,7 +2188,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
             Collections.singletonList(refreshListeners),
             Collections.singletonList(new RefreshMetricUpdater(refreshMetric)),
-            indexSort, this::runTranslogRecovery, circuitBreakerService, replicationTracker, this::getPrimaryTerm);
+            indexSort, this::runTranslogRecovery, circuitBreakerService, replicationTracker, this::getOperationPrimaryTerm);
     }
 
     /**
@@ -2205,7 +2216,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * {@link IllegalStateException}. If permit acquisition is delayed, the listener will be invoked on the executor with the specified
      * name.
      *
-     * @param operationPrimaryTerm the operation primary term
+     * @param opPrimaryTerm        the operation primary term
      * @param globalCheckpoint     the global checkpoint associated with the request
      * @param onPermitAcquired     the listener for permit acquisition
      * @param executorOnDelay      the name of the executor to invoke the listener on if permit acquisition is delayed
@@ -2213,14 +2224,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *                             the tracing will capture the supplied object's {@link Object#toString()} value. Otherwise the object
      *                             isn't used
      */
-    public void acquireReplicaOperationPermit(final long operationPrimaryTerm, final long globalCheckpoint,
+    public void acquireReplicaOperationPermit(final long opPrimaryTerm, final long globalCheckpoint,
                                               final ActionListener<Releasable> onPermitAcquired, final String executorOnDelay,
                                               final Object debugInfo) {
         verifyNotClosed();
         verifyReplicationTarget();
-        if (operationPrimaryTerm > primaryTerm) {
+        if (opPrimaryTerm > clusterStatePrimaryTerm) {
             synchronized (primaryTermMutex) {
-                if (operationPrimaryTerm > primaryTerm) {
+                if (opPrimaryTerm > clusterStatePrimaryTerm) {
                     verifyNotClosed();
 
                     IndexShardState shardState = state();
@@ -2235,12 +2246,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
                     synchronized (mutex) {
                         final CountDownLatch termUpdated = new CountDownLatch(1);
-                        if (operationPrimaryTerm > primaryTerm) {
+                        if (opPrimaryTerm > clusterStatePrimaryTerm) {
                             indexShardOperationPermits.asyncBlockOperations(30, TimeUnit.MINUTES, () -> {
                                 termUpdated.await();
                                 // a primary promotion, or another primary term transition, might have been triggered concurrently to this
                                 // recheck under the operation permit if we can skip doing this work
-                                if (operationPrimaryTerm == primaryTerm) {
+                                if (opPrimaryTerm == clusterStatePrimaryTerm) {
+                                    assert operationPrimaryTerm < clusterStatePrimaryTerm;
+                                    operationPrimaryTerm = clusterStatePrimaryTerm;
                                     updateGlobalCheckpointOnReplica(globalCheckpoint, "primary term transition");
                                     final long currentGlobalCheckpoint = getGlobalCheckpoint();
                                     final long localCheckpoint;
@@ -2251,7 +2264,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                     }
                                     logger.trace(
                                         "detected new primary with primary term [{}], resetting local checkpoint from [{}] to [{}]",
-                                        operationPrimaryTerm,
+                                        opPrimaryTerm,
                                         getLocalCheckpoint(),
                                         localCheckpoint);
                                     getEngine().resetLocalCheckpoint(localCheckpoint);
@@ -2261,7 +2274,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                 }
                             }, e -> failShard("exception during primary term transition", e));
 
-                            primaryTerm = operationPrimaryTerm;
+                            clusterStatePrimaryTerm = opPrimaryTerm;
                             termUpdated.countDown();
                         }
                     }
@@ -2269,20 +2282,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
         }
 
-        assert operationPrimaryTerm <= primaryTerm
-                : "operation primary term [" + operationPrimaryTerm + "] should be at most [" + primaryTerm + "]";
+        assert opPrimaryTerm <= clusterStatePrimaryTerm
+                : "operation primary term [" + opPrimaryTerm + "] should be at most [" + clusterStatePrimaryTerm + "]";
         indexShardOperationPermits.acquire(
                 new ActionListener<Releasable>() {
                     @Override
                     public void onResponse(final Releasable releasable) {
-                        if (operationPrimaryTerm < primaryTerm) {
+                        if (opPrimaryTerm < operationPrimaryTerm) {
                             releasable.close();
                             final String message = String.format(
                                     Locale.ROOT,
                                     "%s operation primary term [%d] is too old (current [%d])",
                                     shardId,
-                                    operationPrimaryTerm,
-                                    primaryTerm);
+                                    opPrimaryTerm,
+                                    operationPrimaryTerm);
                             onPermitAcquired.onFailure(new IllegalStateException(message));
                         } else {
                             try {

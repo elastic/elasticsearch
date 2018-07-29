@@ -587,8 +587,6 @@ public class TransportReplicationActionTests extends ESTestCase {
 
     public void testPrimaryReference() throws Exception {
         final IndexShard shard = mock(IndexShard.class);
-        final long primaryTerm = 1 + randomInt(200);
-        when(shard.getPrimaryTerm()).thenReturn(primaryTerm);
 
         AtomicBoolean closed = new AtomicBoolean();
         Releasable releasable = () -> {
@@ -683,7 +681,7 @@ public class TransportReplicationActionTests extends ESTestCase {
 
 
         final IndexShard shard = mock(IndexShard.class);
-        when(shard.getPrimaryTerm()).thenReturn(primaryTerm);
+        when(shard.getClusterStatePrimaryTerm()).thenReturn(primaryTerm);
         when(shard.routingEntry()).thenReturn(routingEntry);
         when(shard.isPrimaryMode()).thenReturn(true);
         IndexShardRoutingTable shardRoutingTable = clusterService.state().routingTable().shardRoutingTable(shardId);
@@ -1201,7 +1199,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         doAnswer(invocation -> {
             long term = (Long)invocation.getArguments()[0];
             ActionListener<Releasable> callback = (ActionListener<Releasable>) invocation.getArguments()[2];
-            final long primaryTerm = indexShard.getPrimaryTerm();
+            final long primaryTerm = indexShard.getClusterStatePrimaryTerm();
             if (term < primaryTerm) {
                 throw new IllegalArgumentException(String.format(Locale.ROOT, "%s operation term [%d] is too old (current [%d])",
                     shardId, term, primaryTerm));
@@ -1221,7 +1219,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         });
         when(indexShard.isPrimaryMode()).thenAnswer(invocationOnMock -> isRelocated.get() == false);
         doThrow(new AssertionError("failed shard is not supported")).when(indexShard).failShard(anyString(), any(Exception.class));
-        when(indexShard.getPrimaryTerm()).thenAnswer(i ->
+        when(indexShard.getClusterStatePrimaryTerm()).thenAnswer(i ->
             clusterService.state().metaData().getIndexSafe(shardId.getIndex()).primaryTerm(shardId.id()));
         return indexShard;
     }

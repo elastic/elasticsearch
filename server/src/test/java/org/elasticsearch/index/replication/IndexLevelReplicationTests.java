@@ -240,16 +240,16 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             Collections.singletonMap("type", "{ \"type\": { \"properties\": { \"f\": { \"type\": \"keyword\"} }}}");
         try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetaData(2, mappings))) {
             shards.startAll();
-            long primaryPrimaryTerm = shards.getPrimary().getPrimaryTerm();
+            long primaryPrimaryTerm = shards.getPrimary().getClusterStatePrimaryTerm();
             List<IndexShard> replicas = shards.getReplicas();
             IndexShard replica1 = replicas.get(0);
             IndexShard replica2 = replicas.get(1);
 
             shards.promoteReplicaToPrimary(replica1, (shard, listener) -> {});
-            long newReplica1Term = replica1.getPrimaryTerm();
+            long newReplica1Term = replica1.getClusterStatePrimaryTerm();
             assertEquals(primaryPrimaryTerm + 1, newReplica1Term);
 
-            assertEquals(primaryPrimaryTerm, replica2.getPrimaryTerm());
+            assertEquals(primaryPrimaryTerm, replica2.getClusterStatePrimaryTerm());
 
             IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "1").source("{ \"f\": \"1\"}", XContentType.JSON);
             BulkShardRequest replicationRequest = indexOnPrimary(indexRequest, replica1);
@@ -278,7 +278,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             t1.join();
             t2.join();
 
-            assertEquals(newReplica1Term + 1, replica2.getPrimaryTerm());
+            assertEquals(newReplica1Term + 1, replica2.getClusterStatePrimaryTerm());
         }
     }
 
@@ -303,7 +303,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                             .source("{}", XContentType.JSON)
             );
             assertTrue(response.isFailed());
-            assertNoOpTranslogOperationForDocumentFailure(shards, 1, shards.getPrimary().getPrimaryTerm(), failureMessage);
+            assertNoOpTranslogOperationForDocumentFailure(shards, 1, shards.getPrimary().getClusterStatePrimaryTerm(), failureMessage);
             shards.assertAllEqual(0);
 
             // add some replicas
@@ -317,7 +317,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                             .source("{}", XContentType.JSON)
             );
             assertTrue(response.isFailed());
-            assertNoOpTranslogOperationForDocumentFailure(shards, 2, shards.getPrimary().getPrimaryTerm(), failureMessage);
+            assertNoOpTranslogOperationForDocumentFailure(shards, 2, shards.getPrimary().getClusterStatePrimaryTerm(), failureMessage);
             shards.assertAllEqual(0);
         }
     }

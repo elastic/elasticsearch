@@ -136,7 +136,7 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
                 }
             };
 
-            resync(shardId, indexShard.routingEntry().allocationId().getId(), indexShard.getPrimaryTerm(), wrappedSnapshot,
+            resync(shardId, indexShard.routingEntry().allocationId().getId(), indexShard.getOperationPrimaryTerm(), wrappedSnapshot,
                 startingSeqNo, maxSeqNo, resyncListener);
         } catch (Exception e) {
             try {

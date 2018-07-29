@@ -144,7 +144,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         switch (indexResult.getResultType()) {
             case SUCCESS:
                 IndexResponse response = new IndexResponse(primary.shardId(), indexRequest.type(), indexRequest.id(),
-                    indexResult.getSeqNo(), primary.getPrimaryTerm(), indexResult.getVersion(), indexResult.isCreated());
+                    indexResult.getSeqNo(), primary.getOperationPrimaryTerm(), indexResult.getVersion(), indexResult.isCreated());
                 return new BulkItemResultHolder(response, indexResult, bulkItemRequest);
             case FAILURE:
                 return new BulkItemResultHolder(null, indexResult, bulkItemRequest);
@@ -161,7 +161,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         switch (deleteResult.getResultType()) {
             case SUCCESS:
                 DeleteResponse response = new DeleteResponse(primary.shardId(), deleteRequest.type(), deleteRequest.id(),
-                    deleteResult.getSeqNo(), primary.getPrimaryTerm(), deleteResult.getVersion(), deleteResult.isFound());
+                    deleteResult.getSeqNo(), primary.getOperationPrimaryTerm(), deleteResult.getVersion(), deleteResult.isFound());
                 return new BulkItemResultHolder(response, deleteResult, bulkItemRequest);
             case FAILURE:
                 return new BulkItemResultHolder(null, deleteResult, bulkItemRequest);
@@ -300,7 +300,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             assert result instanceof Engine.IndexResult : result.getClass();
             final IndexRequest updateIndexRequest = translate.action();
             final IndexResponse indexResponse = new IndexResponse(primary.shardId(), updateIndexRequest.type(), updateIndexRequest.id(),
-                    result.getSeqNo(), primary.getPrimaryTerm(), result.getVersion(), ((Engine.IndexResult) result).isCreated());
+                    result.getSeqNo(), primary.getOperationPrimaryTerm(), result.getVersion(), ((Engine.IndexResult) result).isCreated());
             updateResponse = new UpdateResponse(indexResponse.getShardInfo(), indexResponse.getShardId(), indexResponse.getType(),
                     indexResponse.getId(), indexResponse.getSeqNo(), indexResponse.getPrimaryTerm(), indexResponse.getVersion(),
                     indexResponse.getResult());
@@ -320,7 +320,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             final DeleteRequest updateDeleteRequest = translate.action();
 
             final DeleteResponse deleteResponse = new DeleteResponse(primary.shardId(), updateDeleteRequest.type(), updateDeleteRequest.id(),
-                    result.getSeqNo(), primary.getPrimaryTerm(), result.getVersion(), ((Engine.DeleteResult) result).isFound());
+                    result.getSeqNo(), primary.getOperationPrimaryTerm(), result.getVersion(), ((Engine.DeleteResult) result).isFound());
 
             updateResponse = new UpdateResponse(deleteResponse.getShardInfo(), deleteResponse.getShardId(),
                     deleteResponse.getType(), deleteResponse.getId(), deleteResponse.getSeqNo(), deleteResponse.getPrimaryTerm(),
@@ -490,6 +490,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             switch (replicaItemExecutionMode(item, i)) {
                 case NORMAL:
                     final DocWriteResponse primaryResponse = item.getPrimaryResponse().getResponse();
+                    assert replica.getOperationPrimaryTerm() == primaryResponse.getPrimaryTerm();
                     operationResult = performOpOnReplica(primaryResponse, docWriteRequest, replica);
                     assert operationResult != null : "operation result must never be null when primary response has no failure";
                     location = syncOperationResultOrThrow(operationResult, location);

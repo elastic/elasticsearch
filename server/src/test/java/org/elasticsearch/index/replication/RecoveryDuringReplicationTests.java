@@ -432,7 +432,8 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 while ((next = snapshot.next()) != null) {
                     translogOperations++;
                     assertThat("unexpected op: " + next, (int)next.seqNo(), lessThan(initialDocs + extraDocs));
-                    assertThat("unexpected primaryTerm: " + next.primaryTerm(), next.primaryTerm(), is(oldPrimary.getPrimaryTerm()));
+                    assertThat("unexpected primaryTerm: " + next.primaryTerm(), next.primaryTerm(),
+                        is(oldPrimary.getClusterStatePrimaryTerm()));
                     final Translog.Source source = next.getSource();
                     assertThat(source.source.utf8ToString(), is("{ \"f\": \"normal\"}"));
                 }

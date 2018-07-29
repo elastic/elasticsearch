@@ -27,7 +27,6 @@ import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.DynamicTemplate.XContentFieldType;
 
 import java.io.IOException;
@@ -146,15 +145,13 @@ public class RootObjectMapper extends ObjectMapper {
                         if (formatter.toString().startsWith("epoch_")) {
                             throw new MapperParsingException("Epoch ["+ formatter +"] is not supported as dynamic date format");
                         }
-                        formatters.add(parseDateTimeFormatter(XContentMapValues
-                            .nodeStringValue(formatter, null)));
+                        formatters.add(parseDateTimeFormatter(formatter));
                     }
                     builder.dynamicDateTimeFormatter(formatters);
                 } else if ("none".equals(fieldNode.toString())) {
                     builder.dynamicDateTimeFormatter(Collections.emptyList());
                 } else {
-                    builder.dynamicDateTimeFormatter(Collections.singleton(parseDateTimeFormatter(XContentMapValues
-                        .nodeStringValue(fieldNode, null))));
+                    builder.dynamicDateTimeFormatter(Collections.singleton(parseDateTimeFormatter(fieldNode)));
                 }
                 return true;
             } else if (fieldName.equals("dynamic_templates")) {

@@ -162,7 +162,7 @@ public class DateFieldMapper extends FieldMapper {
                     builder.locale(LocaleUtils.parse(propNode.toString()));
                     iterator.remove();
                 } else if (propName.equals("format")) {
-                    builder.dateTimeFormatter(parseDateTimeFormatter(XContentMapValues.nodeStringValue(propNode, null)));
+                    builder.dateTimeFormatter(parseDateTimeFormatter(propNode));
                     iterator.remove();
                 } else if (TypeParsers.parseMultiField(builder, name, parserContext, propName, propNode)) {
                     iterator.remove();

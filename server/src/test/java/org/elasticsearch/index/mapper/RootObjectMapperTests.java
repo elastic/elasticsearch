@@ -182,7 +182,7 @@ public class RootObjectMapperTests extends ESSingleNodeTestCase {
         for (String m : Arrays.asList(mapping, dynamicMapping)) {
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                     () -> parser.parse("type", new CompressedXContent(m)));
-            assertEquals("Invalid format: [[test_format]]: Illegal pattern component: t", e.getMessage());
+            assertEquals("Invalid format: [[test_format]]: expected string value", e.getMessage());
         }
     }
 }

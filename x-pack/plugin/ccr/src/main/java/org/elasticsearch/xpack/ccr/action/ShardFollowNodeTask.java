@@ -68,15 +68,6 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private final BiConsumer<TimeValue, Runnable> scheduler;
     private final LongSupplier relativeTimeProvider;
 
-    private final ReleasableLock readLock;
-    private final ReleasableLock writeLock;
-
-    {
-        final ReadWriteLock lock = new ReentrantReadWriteLock();
-        this.readLock = new ReleasableLock(lock.readLock());
-        this.writeLock = new ReleasableLock(lock.writeLock());
-    }
-
     private volatile long leaderGlobalCheckpoint;
     private volatile long leaderMaxSeqNo;
     private volatile long lastRequestedSeqNo;
@@ -214,7 +205,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         final long startTime = relativeTimeProvider.getAsLong();
         innerSendShardChangesRequest(from, maxOperationCount,
                 response -> {
-                    try (ReleasableLock ignored = writeLock.acquire()) {
+                    synchronized (ShardFollowNodeTask.this) {
                         // noinspection NonAtomicOperationOnVolatileField
                         totalFetchTimeNanos += relativeTimeProvider.getAsLong() - startTime;
                         // noinspection NonAtomicOperationOnVolatileField
@@ -227,7 +218,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                     handleReadResponse(from, maxRequiredSeqNo, response);
                 },
                 e -> {
-                    try (ReleasableLock ignored = writeLock.acquire()) {
+                    synchronized (ShardFollowNodeTask.this) {
                         // noinspection NonAtomicOperationOnVolatileField
                         totalFetchTimeNanos += relativeTimeProvider.getAsLong() - startTime;
                         // noinspection NonAtomicOperationOnVolatileField
@@ -242,10 +233,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     }
 
     synchronized void innerHandleReadResponse(long from, long maxRequiredSeqNo, ShardChangesAction.Response response) {
-        try (ReleasableLock ignored = writeLock.acquire()) {
-            leaderGlobalCheckpoint = Math.max(leaderGlobalCheckpoint, response.getGlobalCheckpoint());
-            leaderMaxSeqNo = Math.max(leaderMaxSeqNo, response.getMaxSeqNo());
-        }
+        leaderGlobalCheckpoint = Math.max(leaderGlobalCheckpoint, response.getGlobalCheckpoint());
+        leaderMaxSeqNo = Math.max(leaderMaxSeqNo, response.getMaxSeqNo());
         final long newFromSeqNo;
         if (response.getOperations().length == 0) {
             newFromSeqNo = from;
@@ -291,7 +280,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         final long startTime = relativeTimeProvider.getAsLong();
         innerSendBulkShardOperationsRequest(operations,
                 response -> {
-                    try (ReleasableLock ignored = writeLock.acquire()) {
+                    synchronized (ShardFollowNodeTask.this) {
                         // noinspection NonAtomicOperationOnVolatileField
                         totalIndexTimeNanos += relativeTimeProvider.getAsLong() - startTime;
                         // noinspection NonAtomicOperationOnVolatileField
@@ -302,7 +291,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                     handleWriteResponse(response);
                 },
                 e -> {
-                    try (ReleasableLock ignored = writeLock.acquire()) {
+                    synchronized (ShardFollowNodeTask.this) {
                         // noinspection NonAtomicOperationOnVolatileField
                         totalIndexTimeNanos += relativeTimeProvider.getAsLong() - startTime;
                         // noinspection NonAtomicOperationOnVolatileField
@@ -314,10 +303,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     }
 
     private synchronized void handleWriteResponse(final BulkShardOperationsResponse response) {
-        try (ReleasableLock ignored = writeLock.acquire()) {
-            this.followerGlobalCheckpoint = Math.max(this.followerGlobalCheckpoint, response.getGlobalCheckpoint());
-            this.followerMaxSeqNo = Math.max(this.followerMaxSeqNo, response.getMaxSeqNo());
-        }
+        this.followerGlobalCheckpoint = Math.max(this.followerGlobalCheckpoint, response.getGlobalCheckpoint());
+        this.followerMaxSeqNo = Math.max(this.followerMaxSeqNo, response.getMaxSeqNo());
         numConcurrentWrites--;
         assert numConcurrentWrites >= 0;
         coordinateWrites();
@@ -394,28 +381,26 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     }
 
     @Override
-    public Status getStatus() {
-        try (ReleasableLock ignored = readLock.acquire()) {
-            return new Status(
-                    leaderGlobalCheckpoint,
-                    leaderMaxSeqNo,
-                    followerGlobalCheckpoint,
-                    followerMaxSeqNo,
-                    lastRequestedSeqNo,
-                    numConcurrentReads,
-                    numConcurrentWrites,
-                    buffer.size(),
-                    currentIndexMetadataVersion,
-                    totalFetchTimeNanos,
-                    numberOfSuccessfulFetches,
-                    numberOfFailedFetches,
-                    operationsReceived,
-                    totalTransferredBytes,
-                    totalIndexTimeNanos,
-                    numberOfSuccessfulBulkOperations,
-                    numberOfFailedBulkOperations,
-                    numberOfOperationsIndexed);
-        }
+    public synchronized Status getStatus() {
+        return new Status(
+                leaderGlobalCheckpoint,
+                leaderMaxSeqNo,
+                followerGlobalCheckpoint,
+                followerMaxSeqNo,
+                lastRequestedSeqNo,
+                numConcurrentReads,
+                numConcurrentWrites,
+                buffer.size(),
+                currentIndexMetadataVersion,
+                totalFetchTimeNanos,
+                numberOfSuccessfulFetches,
+                numberOfFailedFetches,
+                operationsReceived,
+                totalTransferredBytes,
+                totalIndexTimeNanos,
+                numberOfSuccessfulBulkOperations,
+                numberOfFailedBulkOperations,
+                numberOfOperationsIndexed);
     }
 
     public static class Status implements Task.Status {

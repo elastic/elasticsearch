@@ -16,6 +16,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.transport.NetworkExceptionHelper;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -36,6 +38,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.Queue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -380,6 +383,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     @Override
     public synchronized Status getStatus() {
         return new Status(
+                getFollowShardId().getId(),
                 leaderGlobalCheckpoint,
                 leaderMaxSeqNo,
                 followerGlobalCheckpoint,
@@ -404,6 +408,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
         public static final String NAME = "shard-follow-node-task-status";
 
+        static final ParseField SHARD_ID = new ParseField("shard_id");
         static final ParseField LEADER_GLOBAL_CHECKPOINT_FIELD = new ParseField("leader_global_checkpoint");
         static final ParseField LEADER_MAX_SEQ_NO_FIELD = new ParseField("leader_max_seq_no");
         static final ParseField FOLLOWER_GLOBAL_CHECKPOINT_FIELD = new ParseField("follower_global_checkpoint");
@@ -425,15 +430,15 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
         static final ConstructingObjectParser<Status, Void> PARSER = new ConstructingObjectParser<>(NAME,
             args -> new Status(
-                    (long) args[0],
+                    (int) args[0],
                     (long) args[1],
                     (long) args[2],
                     (long) args[3],
                     (long) args[4],
-                    (int) args[5],
+                    (long) args[5],
                     (int) args[6],
                     (int) args[7],
-                    (long) args[8],
+                    (int) args[8],
                     (long) args[9],
                     (long) args[10],
                     (long) args[11],
@@ -442,9 +447,11 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                     (long) args[14],
                     (long) args[15],
                     (long) args[16],
-                    (long) args[17]));
+                    (long) args[17],
+                    (long) args[18]));
 
         static {
+            PARSER.declareInt(ConstructingObjectParser.constructorArg(), SHARD_ID);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), LEADER_GLOBAL_CHECKPOINT_FIELD);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), LEADER_MAX_SEQ_NO_FIELD);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), FOLLOWER_GLOBAL_CHECKPOINT_FIELD);
@@ -463,6 +470,12 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_SUCCESSFUL_BULK_OPERATIONS_FIELD);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_FAILED_BULK_OPERATIONS_FIELD);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_OPERATIONS_INDEXED_FIELD);
+        }
+
+        private final int shardId;
+
+        public int getShardId() {
+            return shardId;
         }
 
         private final long leaderGlobalCheckpoint;
@@ -574,6 +587,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         }
 
         Status(
+                final int shardId,
                 final long leaderGlobalCheckpoint,
                 final long leaderMaxSeqNo,
                 final long followerGlobalCheckpoint,
@@ -592,6 +606,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 final long numberOfSuccessfulBulkOperations,
                 final long numberOfFailedBulkOperations,
                 final long numberOfOperationsIndexed) {
+            this.shardId = shardId;
             this.leaderGlobalCheckpoint = leaderGlobalCheckpoint;
             this.leaderMaxSeqNo = leaderMaxSeqNo;
             this.followerGlobalCheckpoint = followerGlobalCheckpoint;
@@ -613,6 +628,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         }
 
         public Status(final StreamInput in) throws IOException {
+            this.shardId = in.readVInt();
             this.leaderGlobalCheckpoint = in.readZLong();
             this.leaderMaxSeqNo = in.readZLong();
             this.followerGlobalCheckpoint = in.readZLong();
@@ -640,6 +656,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
+            out.writeVInt(shardId);
             out.writeZLong(leaderGlobalCheckpoint);
             out.writeZLong(leaderMaxSeqNo);
             out.writeZLong(followerGlobalCheckpoint);
@@ -664,6 +681,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
             builder.startObject();
             {
+                builder.field(SHARD_ID.getPreferredName(), shardId);
                 builder.field(LEADER_GLOBAL_CHECKPOINT_FIELD.getPreferredName(), leaderGlobalCheckpoint);
                 builder.field(LEADER_MAX_SEQ_NO_FIELD.getPreferredName(), leaderMaxSeqNo);
                 builder.field(FOLLOWER_GLOBAL_CHECKPOINT_FIELD.getPreferredName(), followerGlobalCheckpoint);
@@ -673,12 +691,21 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 builder.field(NUMBER_OF_CONCURRENT_WRITES_FIELD.getPreferredName(), numberOfConcurrentWrites);
                 builder.field(NUMBER_OF_QUEUED_WRITES_FIELD.getPreferredName(), numberOfQueuedWrites);
                 builder.field(INDEX_METADATA_VERSION_FIELD.getPreferredName(), indexMetadataVersion);
-                builder.field(TOTAL_FETCH_TIME_NANOS_FIELD.getPreferredName(), totalFetchTimeNanos);
+                builder.humanReadableField(
+                        TOTAL_FETCH_TIME_NANOS_FIELD.getPreferredName(),
+                        "total_fetch_time",
+                        new TimeValue(totalFetchTimeNanos, TimeUnit.NANOSECONDS));
                 builder.field(NUMBER_OF_SUCCESSFUL_FETCHES_FIELD.getPreferredName(), numberOfSuccessfulFetches);
                 builder.field(NUMBER_OF_FAILED_FETCHES_FIELD.getPreferredName(), numberOfFailedFetches);
                 builder.field(OPERATIONS_RECEIVED_FIELD.getPreferredName(), operationsReceived);
-                builder.field(TOTAL_TRANSFERRED_BYTES.getPreferredName(), totalTransferredBytes);
-                builder.field(TOTAL_INDEX_TIME_NANOS_FIELD.getPreferredName(), totalIndexTimeNanos);
+                builder.humanReadableField(
+                        TOTAL_TRANSFERRED_BYTES.getPreferredName(),
+                        "total_transferred",
+                        new ByteSizeValue(totalTransferredBytes, ByteSizeUnit.BYTES));
+                builder.humanReadableField(
+                        TOTAL_INDEX_TIME_NANOS_FIELD.getPreferredName(),
+                        "total_index_time",
+                        new TimeValue(totalIndexTimeNanos, TimeUnit.NANOSECONDS));
                 builder.field(NUMBER_OF_SUCCESSFUL_BULK_OPERATIONS_FIELD.getPreferredName(), numberOfSuccessfulBulkOperations);
                 builder.field(NUMBER_OF_FAILED_BULK_OPERATIONS_FIELD.getPreferredName(), numberOfFailedBulkOperations);
                 builder.field(NUMBER_OF_OPERATIONS_INDEXED_FIELD.getPreferredName(), numberOfOperationsIndexed);
@@ -696,7 +723,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             final Status that = (Status) o;
-            return leaderGlobalCheckpoint == that.leaderGlobalCheckpoint &&
+            return shardId == that.shardId &&
+                    leaderGlobalCheckpoint == that.leaderGlobalCheckpoint &&
                     leaderMaxSeqNo == that.leaderMaxSeqNo &&
                     followerGlobalCheckpoint == that.followerGlobalCheckpoint &&
                     followerMaxSeqNo == that.followerMaxSeqNo &&
@@ -717,6 +745,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         @Override
         public int hashCode() {
             return Objects.hash(
+                    shardId,
                     leaderGlobalCheckpoint,
                     leaderMaxSeqNo,
                     followerGlobalCheckpoint,

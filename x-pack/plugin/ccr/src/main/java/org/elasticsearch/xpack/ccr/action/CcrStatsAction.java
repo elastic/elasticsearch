@@ -15,9 +15,6 @@ import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
@@ -28,7 +25,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.concurrent.TimeUnit;
 
 public class CcrStatsAction extends Action<CcrStatsAction.TasksResponse> {
 
@@ -63,6 +59,7 @@ public class CcrStatsAction extends Action<CcrStatsAction.TasksResponse> {
 
         @Override
         public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
+            // sort by index name, then shard ID
             final Map<String, Map<Integer, TaskResponse>> taskResponsesByIndex = new TreeMap<>();
             for (final TaskResponse taskResponse : taskResponses) {
                 taskResponsesByIndex.computeIfAbsent(
@@ -72,45 +69,13 @@ public class CcrStatsAction extends Action<CcrStatsAction.TasksResponse> {
             builder.startObject();
             {
                 for (final Map.Entry<String, Map<Integer, TaskResponse>> index : taskResponsesByIndex.entrySet()) {
-                    builder.startObject(index.getKey());
+                    builder.startArray(index.getKey());
                     {
                         for (final Map.Entry<Integer, TaskResponse> shard : index.getValue().entrySet()) {
-                            builder.startObject(Integer.toString(shard.getKey()));
-                            {
-                                final ShardFollowNodeTask.Status status = shard.getValue().status();
-                                builder.field("leader_global_checkpoint", status.leaderGlobalCheckpoint());
-                                builder.field("leader_max_seq_no", status.leaderMaxSeqNo());
-                                builder.field("follower_global_checkpoint", status.followerGlobalCheckpoint());
-                                builder.field("follower_max_seq_no", status.followerMaxSeqNo());
-                                builder.field("last_requested_seq_no", status.lastRequestedSeqNo());
-                                builder.field("number_of_concurrent_reads", status.numberOfConcurrentReads());
-                                builder.field("number_of_concurrent_writes", status.numberOfConcurrentWrites());
-                                builder.field("number_of_queued_writes", status.numberOfQueuedWrites());
-                                builder.humanReadableField(
-                                        "total_fetch_time_millis",
-                                        "total_fetch_time",
-                                        new TimeValue(status.totalFetchTimeNanos(), TimeUnit.NANOSECONDS));
-                                builder.field("number_of_successful_fetches", status.numberOfSuccessfulFetches());
-                                builder.field("number_of_fetches", status.numberOfSuccessfulFetches() + status.numberOfFailedFetches());
-                                builder.field("operations_received", status.operationsReceived());
-                                builder.humanReadableField(
-                                        "total_transferred_bytes",
-                                        "total_transferred",
-                                        new ByteSizeValue(status.totalTransferredBytes(), ByteSizeUnit.BYTES));
-                                builder.humanReadableField(
-                                        "total_index_time_millis",
-                                        "total_index_time",
-                                        new TimeValue(status.totalIndexTimeNanos(), TimeUnit.NANOSECONDS));
-                                builder.field("number_of_successful_bulk_operations", status.numberOfSuccessfulBulkOperations());
-                                builder.field(
-                                        "number_of_bulk_operations",
-                                        status.numberOfSuccessfulBulkOperations() + status.numberOfFailedBulkOperations());
-                                builder.field("number_of_operations_indexed", status.numberOfOperationsIndexed());
-                            }
-                            builder.endObject();
+                            shard.getValue().status().toXContent(builder, params);
                         }
                     }
-                    builder.endObject();
+                    builder.endArray();
                 }
             }
             builder.endObject();

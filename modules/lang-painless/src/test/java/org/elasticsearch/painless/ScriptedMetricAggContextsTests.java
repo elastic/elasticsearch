@@ -22,8 +22,8 @@ package org.elasticsearch.painless;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.painless.spi.Whitelist;
-import org.elasticsearch.script.ScriptedMetricAggContexts;
 import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptedMetricAggContexts;
 
 import java.util.ArrayList;
 import java.util.Collections;

@@ -68,7 +68,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             return parsedScriptFields;
         }, DatafeedConfig.SCRIPT_FIELDS);
         PARSER.declareInt(Builder::setScrollSize, DatafeedConfig.SCROLL_SIZE);
-        PARSER.declareObject(Builder::setChunkingConfig, ChunkingConfig.CONFIG_PARSER, DatafeedConfig.CHUNKING_CONFIG);
+        PARSER.declareObject(Builder::setChunkingConfig, ChunkingConfig.STRICT_PARSER, DatafeedConfig.CHUNKING_CONFIG);
     }
 
     private final String id;

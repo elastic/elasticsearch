@@ -284,13 +284,14 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         public synchronized IndexShard addReplicaWithExistingPath(final ShardPath shardPath, final String nodeId) throws IOException {
             final ShardRouting shardRouting = TestShardRouting.newShardRouting(
-                shardId,
-                nodeId,
-                false, ShardRoutingState.INITIALIZING,
-                RecoverySource.PeerRecoverySource.INSTANCE);
+                    shardId,
+                    nodeId,
+                    false, ShardRoutingState.INITIALIZING,
+                    RecoverySource.PeerRecoverySource.INSTANCE);
 
             final IndexShard newReplica =
-                newShard(shardRouting, shardPath, indexMetaData, null, getEngineFactory(shardRouting), () -> {}, EMPTY_EVENT_LISTENER);
+                    newShard(shardRouting, shardPath, indexMetaData, null, null, getEngineFactory(shardRouting),
+                            () -> {}, EMPTY_EVENT_LISTENER);
             replicas.add(newReplica);
             updateAllocationIDsOnPrimary();
             return newReplica;

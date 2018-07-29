@@ -33,10 +33,12 @@ import java.util.Objects;
  *
  * A class is a set of methods and fields under a specific class name. A type is either a class or an array under a specific type name.
  * Note the distinction between class versus type is class means that no array classes will be be represented whereas type allows array
- * classes to be represented.  The set of available classes will always be a subset of the available types.
+ * classes to be represented. The set of available classes will always be a subset of the available types.
  *
  * Under ambiguous circumstances most variable names are prefixed with asm, java, or painless. If the variable value is the same for asm,
- * java, and painless, no prefix is used.
+ * java, and painless, no prefix is used. Target is used as a prefix to represent if a constructor, method, or field is being
+ * called/accessed on that specific class.  Parameter is often a postfix used to represent if a type is used as a parameter to a
+ * constructor, method, or field.
  *
  * <ul>
  *     <li> - javaClassName     (String)         - the fully qualified java class name where '$' tokens represent inner classes excluding
@@ -150,8 +152,8 @@ public final class PainlessLookupUtility {
 
         String canonicalTypeName = type.getCanonicalName();
 
-        if (canonicalTypeName.startsWith(def.class.getName())) {
-            canonicalTypeName = canonicalTypeName.replace(def.class.getName(), DEF_TYPE_NAME);
+        if (canonicalTypeName.startsWith(def.class.getCanonicalName())) {
+            canonicalTypeName = canonicalTypeName.replace(def.class.getCanonicalName(), DEF_CLASS_NAME);
         }
 
         return canonicalTypeName;
@@ -351,7 +353,7 @@ public final class PainlessLookupUtility {
     /**
      * The def type name as specified in the source for a script.
      */
-    public static final String DEF_TYPE_NAME = "def";
+    public static final String DEF_CLASS_NAME = "def";
 
     /**
      * The method name for all constructors.

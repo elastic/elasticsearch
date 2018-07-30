@@ -126,6 +126,7 @@ import org.elasticsearch.index.rankeval.RankEvalSpec;
 import org.elasticsearch.index.rankeval.RatedRequest;
 import org.elasticsearch.index.rankeval.RestRankEvalAction;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
+import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.action.search.RestSearchAction;
@@ -2578,6 +2579,25 @@ public class RequestConvertersTests extends ESTestCase {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         request.getEntity().writeTo(bos);
         assertThat(bos.toString("UTF-8"), is(body));
+    }
+
+    public void testSetIndexLifecyclePolicy() throws Exception {
+        SetIndexLifecyclePolicyRequest req = new SetIndexLifecyclePolicyRequest();
+        String policyName = randomAlphaOfLength(10);
+        String[] indices = rarely() ? null : randomIndicesNames(0, 10);
+        req.policy(policyName);
+        req.indices(indices);
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomMasterTimeout(req, expectedParams);
+        setRandomIndicesOptions(req::indicesOptions, req::indicesOptions, expectedParams);
+
+        Request request = RequestConverters.setIndexLifecyclePolicy(req);
+        assertThat(request.getMethod(), equalTo(HttpPut.METHOD_NAME));
+        String idxString = Strings.arrayToCommaDelimitedString(indices);
+        assertThat(request.getEndpoint(),
+            equalTo("/" + (idxString.isEmpty() ? "" : (idxString + "/")) +
+                "_lifecycle/" + policyName));
+        assertThat(request.getParameters(), equalTo(expectedParams));
     }
 
     /**

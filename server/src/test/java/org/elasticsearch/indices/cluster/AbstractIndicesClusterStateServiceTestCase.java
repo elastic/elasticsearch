@@ -74,6 +74,10 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         enableRandomFailures = randomBoolean();
     }
 
+    protected void disableRandomFailures() {
+        enableRandomFailures = false;
+    }
+
     protected void failRandomly() {
         if (enableRandomFailures && rarely()) {
             throw new RuntimeException("dummy test failure");

@@ -45,7 +45,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
@@ -93,7 +92,6 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -127,6 +125,7 @@ import org.elasticsearch.index.rankeval.RankEvalSpec;
 import org.elasticsearch.index.rankeval.RatedRequest;
 import org.elasticsearch.index.rankeval.RestRankEvalAction;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
+import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyRequest;
 import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
@@ -165,9 +164,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.StringJoiner;
-import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonMap;
@@ -2633,6 +2630,7 @@ public class RequestConvertersTests extends ESTestCase {
         assertThat(bos.toString("UTF-8"), is(body));
     }
 
+<<<<<<< HEAD
     public void testXPackDeleteWatch() {
         DeleteWatchRequest deleteWatchRequest = new DeleteWatchRequest();
         String watchId = randomAlphaOfLength(10);
@@ -2642,6 +2640,25 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertEquals("/_xpack/watcher/watch/" + watchId, request.getEndpoint());
         assertThat(request.getEntity(), nullValue());
+=======
+    public void testSetIndexLifecyclePolicy() throws Exception {
+        SetIndexLifecyclePolicyRequest req = new SetIndexLifecyclePolicyRequest();
+        String policyName = randomAlphaOfLength(10);
+        String[] indices = rarely() ? null : randomIndicesNames(0, 10);
+        req.policy(policyName);
+        req.indices(indices);
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomMasterTimeout(req, expectedParams);
+        setRandomIndicesOptions(req::indicesOptions, req::indicesOptions, expectedParams);
+
+        Request request = RequestConverters.setIndexLifecyclePolicy(req);
+        assertThat(request.getMethod(), equalTo(HttpPut.METHOD_NAME));
+        String idxString = Strings.arrayToCommaDelimitedString(indices);
+        assertThat(request.getEndpoint(),
+            equalTo("/" + (idxString.isEmpty() ? "" : (idxString + "/")) +
+                "_lifecycle/" + policyName));
+        assertThat(request.getParameters(), equalTo(expectedParams));
+>>>>>>> a314efc9200... Add high level rest client support for SetIndexLifecyclePolicy (#32443)
     }
 
     /**

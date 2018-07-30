@@ -41,9 +41,25 @@ import static java.util.Collections.emptySet;
 public final class XPackClient {
 
     private final RestHighLevelClient restHighLevelClient;
+<<<<<<< HEAD
 
     XPackClient(RestHighLevelClient restHighLevelClient) {
         this.restHighLevelClient = restHighLevelClient;
+=======
+    private final WatcherClient watcherClient;
+    private final LicenseClient licenseClient;
+    private final IndexLifecycleClient indexLifecycleClient;
+
+    XPackClient(RestHighLevelClient restHighLevelClient) {
+        this.restHighLevelClient = restHighLevelClient;
+        this.watcherClient = new WatcherClient(restHighLevelClient);
+        this.licenseClient = new LicenseClient(restHighLevelClient);
+        this.indexLifecycleClient = new IndexLifecycleClient(restHighLevelClient);
+    }
+
+    public WatcherClient watcher() {
+        return watcherClient;
+>>>>>>> a314efc9200... Add high level rest client support for SetIndexLifecyclePolicy (#32443)
     }
 
     /**
@@ -94,4 +110,29 @@ public final class XPackClient {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::xpackUsage, options,
             XPackUsageResponse::fromXContent, listener, emptySet());
     }
+<<<<<<< HEAD
+=======
+
+    /**
+     * A wrapper for the {@link RestHighLevelClient} that provides methods for
+     * accessing the Elastic Licensing APIs.
+     * <p>
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/licensing-apis.html">
+     * X-Pack APIs on elastic.co</a> for more information.
+     */
+    public LicenseClient license() {
+        return licenseClient;
+    }
+
+    /**
+     * A wrapper for the {@link RestHighLevelClient} that provides methods for
+     * accessing the Elastic Index Lifecycle APIs.
+     * <p>
+     * See the <a href="http://FILL-ME-IN-WE-HAVE-NO-DOCS-YET.com">
+     * X-Pack APIs on elastic.co</a> for more information.
+     */
+    public IndexLifecycleClient indexLifecycle() {
+        return this.indexLifecycleClient;
+    }
+>>>>>>> a314efc9200... Add high level rest client support for SetIndexLifecyclePolicy (#32443)
 }

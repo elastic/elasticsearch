@@ -29,6 +29,7 @@ import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.spi.Whitelist;
 
 import java.io.IOException;
@@ -71,52 +72,54 @@ public class PainlessDocGenerator {
             Files.newOutputStream(indexPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
             false, StandardCharsets.UTF_8.name())) {
             emitGeneratedWarning(indexStream);
-            List<PainlessClass> structs = PAINLESS_LOOKUP.getStructs().stream().sorted(comparing(t -> t.name)).collect(toList());
-            for (PainlessClass struct : structs) {
-                if (struct.clazz.isPrimitive()) {
+            List<Class<?>> classes = PAINLESS_LOOKUP.getStructs().stream().sorted(comparing(Class::getCanonicalName)).collect(toList());
+            for (Class<?> clazz : classes) {
+                PainlessClass struct = PAINLESS_LOOKUP.getPainlessStructFromJavaClass(clazz);
+                String canonicalClassName = PainlessLookupUtility.typeToCanonicalTypeName(clazz);
+
+                if (clazz.isPrimitive()) {
                     // Primitives don't have methods to reference
                     continue;
                 }
-                if ("def".equals(struct.name)) {
+                if (clazz == def.class) {
                     // def is special but doesn't have any methods all of its own.
                     continue;
                 }
                 indexStream.print("include::");
-                indexStream.print(struct.name);
+                indexStream.print(canonicalClassName);
                 indexStream.println(".asciidoc[]");
 
-                Path typePath = apiRootPath.resolve(struct.name + ".asciidoc");
-                logger.info("Writing [{}.asciidoc]", struct.name);
+                Path typePath = apiRootPath.resolve(canonicalClassName + ".asciidoc");
+                logger.info("Writing [{}.asciidoc]", canonicalClassName);
                 try (PrintStream typeStream = new PrintStream(
                         Files.newOutputStream(typePath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
                         false, StandardCharsets.UTF_8.name())) {
                     emitGeneratedWarning(typeStream);
                     typeStream.print("[[");
-                    emitAnchor(typeStream, struct.clazz);
+                    emitAnchor(typeStream, clazz);
                     typeStream.print("]]++");
-                    typeStream.print(struct.name);
+                    typeStream.print(canonicalClassName);
                     typeStream.println("++::");
 
                     Consumer<PainlessField> documentField = field -> PainlessDocGenerator.documentField(typeStream, field);
                     Consumer<PainlessMethod> documentMethod = method -> PainlessDocGenerator.documentMethod(typeStream, method);
-                    struct.staticMembers.values().stream().sorted(FIELD_NAME).forEach(documentField);
-                    struct.members.values().stream().sorted(FIELD_NAME).forEach(documentField);
+                    struct.staticFields.values().stream().sorted(FIELD_NAME).forEach(documentField);
+                    struct.fields.values().stream().sorted(FIELD_NAME).forEach(documentField);
                     struct.staticMethods.values().stream().sorted(METHOD_NAME.thenComparing(NUMBER_OF_ARGS)).forEach(documentMethod);
                     struct.constructors.values().stream().sorted(NUMBER_OF_ARGS).forEach(documentMethod);
-                    Map<String, PainlessClass> inherited = new TreeMap<>();
+                    Map<String, Class<?>> inherited = new TreeMap<>();
                     struct.methods.values().stream().sorted(METHOD_NAME.thenComparing(NUMBER_OF_ARGS)).forEach(method -> {
-                        if (method.target == struct.clazz) {
+                        if (method.target == clazz) {
                             documentMethod(typeStream, method);
                         } else {
-                            PainlessClass painlessClass = PAINLESS_LOOKUP.getPainlessStructFromJavaClass(method.target);
-                            inherited.put(painlessClass.name, painlessClass);
+                            inherited.put(canonicalClassName, method.target);
                         }
                     });
 
                     if (false == inherited.isEmpty()) {
                         typeStream.print("* Inherits methods from ");
                         boolean first = true;
-                        for (PainlessClass inheritsFrom : inherited.values()) {
+                        for (Class<?> inheritsFrom : inherited.values()) {
                             if (first) {
                                 first = false;
                             } else {
@@ -242,7 +245,7 @@ public class PainlessDocGenerator {
      an internal link with the text.
      */
     private static void emitType(PrintStream stream, Class<?> clazz) {
-        emitStruct(stream, PAINLESS_LOOKUP.getPainlessStructFromJavaClass(clazz));
+        emitStruct(stream, clazz);
         while ((clazz = clazz.getComponentType()) != null) {
             stream.print("[]");
         }
@@ -252,15 +255,17 @@ public class PainlessDocGenerator {
      * Emit a {@link PainlessClass}. If the {@linkplain PainlessClass} is primitive or def this just emits the name of the struct.
      * Otherwise this emits an internal link with the name.
      */
-    private static void emitStruct(PrintStream stream, PainlessClass struct) {
-        if (false == struct.clazz.isPrimitive() && false == struct.name.equals("def")) {
+    private static void emitStruct(PrintStream stream, Class<?> clazz) {
+        String canonicalClassName = PainlessLookupUtility.typeToCanonicalTypeName(clazz);
+
+        if (false == clazz.isPrimitive() && clazz != def.class) {
             stream.print("<<");
-            emitAnchor(stream, struct.clazz);
+            emitAnchor(stream, clazz);
             stream.print(',');
-            stream.print(struct.name);
+            stream.print(canonicalClassName);
             stream.print(">>");
         } else {
-            stream.print(struct.name);
+            stream.print(canonicalClassName);
         }
     }
 

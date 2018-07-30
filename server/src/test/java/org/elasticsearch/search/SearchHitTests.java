@@ -19,30 +19,6 @@
 
 package org.elasticsearch.search;
 
-import org.apache.lucene.search.Explanation;
-import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.InputStreamStreamInput;
-import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.SearchHit.NestedIdentity;
-import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
-import org.elasticsearch.search.fetch.subphase.highlight.HighlightFieldTests;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.RandomObjects;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -50,8 +26,30 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Predicate;
+
+import org.apache.lucene.search.Explanation;
+import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.InputStreamStreamInput;
+import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.get.GetResultTests;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.SearchHit.NestedIdentity;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightFieldTests;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.RandomObjects;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
@@ -63,8 +61,6 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class SearchHitTests extends ESTestCase {
 
-    private static Set<String> META_FIELDS = Sets.newHashSet("_uid", "_parent", "_routing", "_size", "_timestamp", "_ttl");
-
     public static SearchHit createTestItem(boolean withOptionalInnerHits) {
         int internalId = randomInt();
         String uid = randomAlphaOfLength(10);
@@ -75,18 +71,7 @@ public class SearchHitTests extends ESTestCase {
         }
         Map<String, DocumentField> fields = new HashMap<>();
         if (randomBoolean()) {
-            int size = randomIntBetween(0, 10);
-            for (int i = 0; i < size; i++) {
-                Tuple<List<Object>, List<Object>> values = RandomObjects.randomStoredFieldValues(random(),
-                        XContentType.JSON);
-                if (randomBoolean()) {
-                    String metaField = randomFrom(META_FIELDS);
-                    fields.put(metaField, new DocumentField(metaField, values.v1()));
-                } else {
-                    String fieldName = randomAlphaOfLengthBetween(5, 10);
-                    fields.put(fieldName, new DocumentField(fieldName, values.v1()));
-                }
-            }
+            fields = GetResultTests.randomDocumentFields(XContentType.JSON).v1();
         }
         SearchHit hit = new SearchHit(internalId, uid, type, nestedIdentity, fields);
         if (frequently()) {
@@ -109,7 +94,8 @@ public class SearchHitTests extends ESTestCase {
             int size = randomIntBetween(0, 5);
             Map<String, HighlightField> highlightFields = new HashMap<>(size);
             for (int i = 0; i < size; i++) {
-                highlightFields.put(randomAlphaOfLength(5), HighlightFieldTests.createTestItem());
+                HighlightField testItem = HighlightFieldTests.createTestItem();
+                highlightFields.put(testItem.getName(), testItem);
             }
             hit.highlightFields(highlightFields);
         }

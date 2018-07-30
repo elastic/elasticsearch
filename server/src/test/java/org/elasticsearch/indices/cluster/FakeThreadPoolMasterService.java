@@ -21,7 +21,6 @@ package org.elasticsearch.indices.cluster;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -45,7 +44,7 @@ import static org.mockito.Mockito.when;
 public class FakeThreadPoolMasterService extends MasterService {
 
     private final String name;
-    private final List<Runnable> tasks = new ArrayList<>();
+    private final List<Runnable> pendingTasks = new ArrayList<>();
     private final Consumer<Runnable> onTaskAvailableToRun;
     private boolean scheduledNextTask = false;
     private boolean taskInProgress = false;
@@ -76,22 +75,22 @@ public class FakeThreadPoolMasterService extends MasterService {
 
             @Override
             public void execute(Runnable command) {
-                tasks.add(command);
+                pendingTasks.add(command);
                 scheduleNextTaskIfNecessary();
             }
         };
     }
 
     private void scheduleNextTaskIfNecessary() {
-        if (taskInProgress == false && tasks.isEmpty() == false && scheduledNextTask == false) {
+        if (taskInProgress == false && pendingTasks.isEmpty() == false && scheduledNextTask == false) {
             scheduledNextTask = true;
             onTaskAvailableToRun.accept(() -> {
                 assert taskInProgress == false;
                 assert waitForPublish == false;
                 assert scheduledNextTask;
-                final int taskIndex = randomInt(tasks.size() - 1);
-                logger.debug("next master service task: choosing task {} of {}", taskIndex, tasks.size());
-                final Runnable task = tasks.remove(taskIndex);
+                final int taskIndex = randomInt(pendingTasks.size() - 1);
+                logger.debug("next master service task: choosing task {} of {}", taskIndex, pendingTasks.size());
+                final Runnable task = pendingTasks.remove(taskIndex);
                 taskInProgress = true;
                 scheduledNextTask = false;
                 task.run();

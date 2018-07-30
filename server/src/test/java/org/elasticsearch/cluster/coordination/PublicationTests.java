@@ -93,7 +93,7 @@ public class PublicationTests extends ESTestCase {
 
         boolean completed;
 
-        boolean success;
+        boolean committed;
 
         Map<DiscoveryNode, ActionListener<PublishWithJoinResponse>> pendingPublications = new HashMap<>();
         Map<DiscoveryNode, ActionListener<TransportResponse.Empty>> pendingCommits = new HashMap<>();
@@ -105,9 +105,9 @@ public class PublicationTests extends ESTestCase {
         }
 
         @Override
-        protected void onCompletion(boolean success) {
+        protected void onCompletion(boolean committed) {
             completed = true;
-            this.success = success;
+            this.committed = committed;
         }
 
         @Override
@@ -182,9 +182,9 @@ public class PublicationTests extends ESTestCase {
         });
 
         assertTrue(publication.completed);
-        assertTrue(publication.success);
+        assertTrue(publication.committed);
 
-        ackListener.await(0L, TimeUnit.SECONDS);
+        assertThat(ackListener.await(0L, TimeUnit.SECONDS).size(), equalTo(3));
     }
 
     public void testClusterStatePublishingWithFaultyNode() throws InterruptedException {
@@ -252,7 +252,7 @@ public class PublicationTests extends ESTestCase {
         }
 
         assertTrue(publication.completed);
-        assertTrue(publication.success);
+        assertTrue(publication.committed);
 
         publication.onFaultyNode(randomFrom(n1, n3)); // has no influence
 
@@ -278,7 +278,7 @@ public class PublicationTests extends ESTestCase {
                     e.getValue().onFailure(new TransportException(new Exception("dummy failure")));
                 }
                 assertTrue(publication.completed);
-                assertFalse(publication.success);
+                assertFalse(publication.committed);
             } else if (randomBoolean()) {
                 PublishResponse publishResponse = nodeResolver.apply(e.getKey()).coordinationState.handlePublishRequest(
                     publication.publishRequest);
@@ -289,10 +289,10 @@ public class PublicationTests extends ESTestCase {
         assertThat(publication.pendingCommits.keySet(), equalTo(Collections.emptySet()));
         assertNull(publication.applyCommit);
         assertTrue(publication.completed);
-        assertFalse(publication.success);
+        assertFalse(publication.committed);
 
         List<Tuple<DiscoveryNode, Throwable>> errors = ackListener.awaitErrors(0L, TimeUnit.SECONDS);
-        assertThat(errors.size(), equalTo(2)); // publication does not ack for the local node
+        assertThat(errors.size(), equalTo(3));
     }
 
     public void testClusterStatePublishingTimesOutAfterCommit() throws InterruptedException {
@@ -331,19 +331,8 @@ public class PublicationTests extends ESTestCase {
 
         publication.onTimeout();
         assertTrue(publication.completed);
-
-        if (committingNodes.contains(n1) == false) { // master needs to commit for publication to be successful
-            assertFalse(publication.success);
-            // some nodes might have already successfully acked the change, so we can't assert how many exceptions to expect
-            ackListener.awaitErrors(0L, TimeUnit.SECONDS);
-            return;
-        }
-
-        assertTrue(publication.success);
-
-        Set<DiscoveryNode> ackedNodes = new HashSet<>(committingNodes);
-        ackedNodes.remove(n1); // publication does not ack for the master node
-        assertEquals(ackedNodes, ackListener.await(0L, TimeUnit.SECONDS));
+        assertTrue(publication.committed);
+        assertEquals(committingNodes, ackListener.await(0L, TimeUnit.SECONDS));
 
         // check that acking still works after publication completed
         if (publishedToN3 == false) {
@@ -355,13 +344,10 @@ public class PublicationTests extends ESTestCase {
 
         Set<DiscoveryNode> nonCommittedNodes = Sets.difference(discoNodes, committingNodes);
         logger.info("Non-committed nodes: {}", nonCommittedNodes);
-        nonCommittedNodes.stream().collect(shuffle()).forEach(n -> {
-                if (n.equals(n1) == false || randomBoolean()) {
-                    publication.pendingCommits.get(n).onResponse(TransportResponse.Empty.INSTANCE);
-                }
-            });
+        nonCommittedNodes.stream().collect(shuffle()).forEach(n ->
+            publication.pendingCommits.get(n).onResponse(TransportResponse.Empty.INSTANCE));
 
-        assertEquals(Sets.newHashSet(n2, n3), ackListener.await(0L, TimeUnit.SECONDS)); // publication does not ack for the local node
+        assertEquals(discoNodes, ackListener.await(0L, TimeUnit.SECONDS));
     }
 
     public static <T> Collector<T, ?, Stream<T>> shuffle() {

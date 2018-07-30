@@ -16,7 +16,7 @@ public class FIPS140PasswordHashingAlgorithmBootstrapCheck implements BootstrapC
 
     private final boolean fipsModeEnabled;
 
-    FIPS140PasswordHashingAlgorithmBootstrapCheck(Settings settings) {
+    FIPS140PasswordHashingAlgorithmBootstrapCheck(final Settings settings) {
         this.fipsModeEnabled = Security.FIPS_MODE_ENABLED.get(settings);
     }
 
@@ -27,17 +27,15 @@ public class FIPS140PasswordHashingAlgorithmBootstrapCheck implements BootstrapC
      * @return the result of the bootstrap check
      */
     @Override
-    public BootstrapCheckResult check(BootstrapContext context) {
-        final String selectedAlgorithm = XPackSettings.PASSWORD_HASHING_ALGORITHM.get(context.settings);
-        if (selectedAlgorithm.toLowerCase(Locale.ROOT).startsWith("pbkdf2") == false) {
-            return BootstrapCheckResult.failure("Only PBKDF2 is allowed for password hashing in a FIPS-140 JVM. Please set the " +
-                "appropriate value for [ " + XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey() + " ] setting.");
+    public BootstrapCheckResult check(final BootstrapContext context) {
+        if (fipsModeEnabled) {
+            final String selectedAlgorithm = XPackSettings.PASSWORD_HASHING_ALGORITHM.get(context.settings);
+            if (selectedAlgorithm.toLowerCase(Locale.ROOT).startsWith("pbkdf2") == false) {
+                return BootstrapCheckResult.failure("Only PBKDF2 is allowed for password hashing in a FIPS-140 JVM. Please set the " +
+                        "appropriate value for [ " + XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey() + " ] setting.");
+            }
         }
         return BootstrapCheckResult.success();
     }
 
-    @Override
-    public boolean alwaysEnforce() {
-        return fipsModeEnabled;
-    }
 }

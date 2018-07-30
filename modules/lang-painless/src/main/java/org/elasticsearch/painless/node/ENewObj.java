@@ -66,7 +66,7 @@ public final class ENewObj extends AExpression {
         }
 
         PainlessClass struct = locals.getPainlessLookup().getPainlessStructFromJavaClass(actual);
-        constructor = struct.constructors.get(arguments.size());
+        constructor = struct.constructors.get(PainlessLookupUtility.buildPainlessConstructorKey(arguments.size()));
 
         if (constructor != null) {
             Class<?>[] types = new Class<?>[constructor.typeParameters.size()];

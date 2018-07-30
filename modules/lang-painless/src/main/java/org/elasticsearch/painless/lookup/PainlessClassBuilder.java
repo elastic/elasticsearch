@@ -24,7 +24,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 final class PainlessClassBuilder {
-    final Map<Integer, PainlessConstructor> constructors;
+    final Map<String, PainlessConstructor> constructors;
 
     final Map<String, PainlessMethod> staticMethods;
     final Map<String, PainlessMethod> methods;

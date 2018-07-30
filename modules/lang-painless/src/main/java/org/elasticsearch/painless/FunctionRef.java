@@ -86,7 +86,9 @@ public class FunctionRef {
      * @param call the right hand side of a method reference expression
      * @param numCaptures number of captured arguments
      */
-    public static FunctionRef getFunctionRef(PainlessLookup painlessLookup, Class<?> expected, String type, String call, int numCaptures) {
+    public static FunctionRef resolveFromLookup(
+            PainlessLookup painlessLookup, Class<?> expected, String type, String call, int numCaptures) {
+
         if ("new".equals(call)) {
             return new FunctionRef(expected, painlessLookup.getPainlessStructFromJavaClass(expected).functionalMethod,
                     lookup(painlessLookup, expected, type), numCaptures);

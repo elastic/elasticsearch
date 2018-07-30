@@ -376,7 +376,7 @@ public final class PainlessLookupBuilder {
                     "[[" + targetCanonicalClassName + "], " + typesToCanonicalTypeNames(typeParameters) + "] not found", nsme);
         }
 
-        int painlessConstructorKey = buildPainlessConstructorKey(typeParametersSize);
+        String painlessConstructorKey = buildPainlessConstructorKey(typeParametersSize);
         PainlessConstructor painlessConstructor = painlessClassBuilder.constructors.get(painlessConstructorKey);
 
         if (painlessConstructor == null) {

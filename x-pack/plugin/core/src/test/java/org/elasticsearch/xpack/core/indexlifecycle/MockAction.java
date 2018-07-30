@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -72,6 +73,11 @@ public class MockAction implements LifecycleAction {
     @Override
     public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
         return new ArrayList<>(steps);
+    }
+
+    @Override
+    public List<StepKey> toStepKeys(String phase) {
+        return steps.stream().map(Step::getKey).collect(Collectors.toList());
     }
 
     @Override

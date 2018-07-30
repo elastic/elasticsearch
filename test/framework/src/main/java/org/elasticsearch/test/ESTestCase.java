@@ -201,7 +201,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         System.setProperty("log4j2.disable.jmx", "true");
 
         // Enable Netty leak detection and monitor logger for logged leak errors
-        System.setProperty("io.netty.leakDetection.level", "advanced");
+        System.setProperty("io.netty.leakDetection.level", "paranoid");
         String leakLoggerName = "io.netty.util.ResourceLeakDetector";
         Logger leakLogger = LogManager.getLogger(leakLoggerName);
         Appender leakAppender = new AbstractAppender(leakLoggerName, null,

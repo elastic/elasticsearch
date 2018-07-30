@@ -121,7 +121,7 @@ integTestRunner {
 if (project.rootProject.vagrantSupported == false) {
     integTest.enabled = false
 } else {
-    project.sourceSets.test.output.dir(generatedResources, builtBy: copyKeytabToGeneratedResources)
+    project.sourceSets.test.output.dir(generatedResources)
     integTestCluster.dependsOn krb5AddPrincipals, krb5kdcFixture, copyKeytabToGeneratedResources
     integTest.finalizedBy project(':test:fixtures:krb5kdc-fixture').halt
 }

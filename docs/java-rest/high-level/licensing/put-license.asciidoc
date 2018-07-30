@@ -33,10 +33,9 @@ include-tagged::{doc-tests}/LicensingDocumentationIT.java[put-license-response]
 --------------------------------------------------
 <1> The status of the license
 <2> Make sure that the license is valid.
-<3> Check the acknowledge flag.
-<4> It should be true if license is acknowledge.
-<5> Otherwise we can see the acknowledge messages in `acknowledgeHeader()` and check
-component-specific messages in `acknowledgeMessages()`.
+<3> Check the acknowledge flag. It should be true if license is acknowledged.
+<4> Otherwise we can see the acknowledge messages in `acknowledgeHeader()`
+<5> and check component-specific messages in `acknowledgeMessages()`.
 
 [[java-rest-high-put-license-async]]
 ==== Asynchronous Execution

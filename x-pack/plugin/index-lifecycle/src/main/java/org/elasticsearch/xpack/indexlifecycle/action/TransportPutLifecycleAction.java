@@ -78,6 +78,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
                             throw new ResourceAlreadyExistsException("Lifecycle policy already exists: {}",
                                     request.getPolicy().getName());
                         }
+                        // NORELEASE Check if current step exists in new policy and if not move to next available step
                         SortedMap<String, LifecyclePolicyMetadata> newPolicies = new TreeMap<>(currentMetadata.getPolicyMetadatas());
 
                         Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()

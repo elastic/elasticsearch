@@ -6,7 +6,7 @@
 that runs the benchmarks)
 4. Run the benchmark with
 ```
-./graldew -p client/branchmark run --args 'params go here'
+./gradlew -p client/benchmark run --args 'params go here'
 ```
 
 See below for some example invocations.

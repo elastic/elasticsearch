@@ -37,9 +37,8 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
         Step.StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
         int maxNumSegments = randomIntBetween(1, 10);
-        boolean bestCompression = randomBoolean();
 
-        return new SegmentCountStep(stepKey, nextStepKey, null, maxNumSegments, bestCompression);
+        return new SegmentCountStep(stepKey, nextStepKey, null, maxNumSegments);
     }
 
     @Override
@@ -47,9 +46,8 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
         int maxNumSegments = instance.getMaxNumSegments();
-        boolean bestCompression = instance.isBestCompression();
 
-        switch (between(0, 3)) {
+        switch (between(0, 2)) {
             case 0:
                 key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
                 break;
@@ -59,20 +57,16 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
             case 2:
                 maxNumSegments += 1;
                 break;
-            case 3:
-                bestCompression = !bestCompression;
-                break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new SegmentCountStep(key, nextKey, null, maxNumSegments, bestCompression);
+        return new SegmentCountStep(key, nextKey, null, maxNumSegments);
     }
 
     @Override
     public SegmentCountStep copyInstance(SegmentCountStep instance) {
-        return new SegmentCountStep(instance.getKey(), instance.getNextStepKey(),
-            null, instance.getMaxNumSegments(), instance.isBestCompression());
+        return new SegmentCountStep(instance.getKey(), instance.getNextStepKey(), null, instance.getMaxNumSegments());
     }
 
     public void testIsConditionMet() {
@@ -103,7 +97,6 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
 
         Step.StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
-        boolean bestCompression = randomBoolean();
 
         Mockito.doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
@@ -115,7 +108,7 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
         SetOnce<Boolean> conditionMetResult = new SetOnce<>();
         SetOnce<ToXContentObject> conditionInfo = new SetOnce<>();
 
-        SegmentCountStep step = new SegmentCountStep(stepKey, nextStepKey, client, maxNumSegments, bestCompression);
+        SegmentCountStep step = new SegmentCountStep(stepKey, nextStepKey, client, maxNumSegments);
         step.evaluateCondition(index, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject info) {
@@ -161,7 +154,6 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
 
         Step.StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
-        boolean bestCompression = randomBoolean();
 
         Mockito.doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
@@ -173,7 +165,7 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
         SetOnce<Boolean> conditionMetResult = new SetOnce<>();
         SetOnce<ToXContentObject> conditionInfo = new SetOnce<>();
 
-        SegmentCountStep step = new SegmentCountStep(stepKey, nextStepKey, client, maxNumSegments, bestCompression);
+        SegmentCountStep step = new SegmentCountStep(stepKey, nextStepKey, client, maxNumSegments);
         step.evaluateCondition(index, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject info) {
@@ -203,7 +195,6 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
         Step.StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
         int maxNumSegments = randomIntBetween(3, 10);
-        boolean bestCompression = randomBoolean();
 
         Mockito.doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
@@ -214,7 +205,7 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
 
         SetOnce<Boolean> exceptionThrown = new SetOnce<>();
 
-        SegmentCountStep step = new SegmentCountStep(stepKey, nextStepKey, client, maxNumSegments, bestCompression);
+        SegmentCountStep step = new SegmentCountStep(stepKey, nextStepKey, client, maxNumSegments);
         step.evaluateCondition(index, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject info) {

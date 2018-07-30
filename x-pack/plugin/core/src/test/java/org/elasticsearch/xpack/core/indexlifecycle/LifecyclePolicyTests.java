@@ -10,6 +10,7 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -20,12 +21,15 @@ import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -211,5 +215,284 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                 () -> policy.isActionSafe(new StepKey("first_phase", "non_existant_action", randomAlphaOfLength(10))));
         assertEquals("Action [non_existant_action] in phase [first_phase]  does not exist in policy [" + policy.getName() + "]",
                 exception.getMessage());
+
+        assertTrue(policy.isActionSafe(new StepKey("new", randomAlphaOfLength(10), randomAlphaOfLength(10))));
+    }
+
+    public void testGetNextValidStep() {
+        List<String> orderedPhases = Arrays.asList("phase_1", "phase_2", "phase_3", "phase_4", "phase_5");
+        Map<String, List<String>> orderedActionNamesForPhases = new HashMap<>();
+        List<String> actionNamesforPhase = new ArrayList<>();
+        actionNamesforPhase.add("action_1");
+        actionNamesforPhase.add("action_2");
+        actionNamesforPhase.add("action_3");
+        actionNamesforPhase.add("action_4");
+        orderedActionNamesForPhases.put("phase_1", actionNamesforPhase);
+        orderedActionNamesForPhases.put("phase_2", actionNamesforPhase);
+        orderedActionNamesForPhases.put("phase_3", actionNamesforPhase);
+        orderedActionNamesForPhases.put("phase_4", actionNamesforPhase);
+        orderedActionNamesForPhases.put("phase_5", actionNamesforPhase);
+        LifecycleType lifecycleType = new ControllableLifecycleType(orderedPhases, orderedActionNamesForPhases);
+
+        // create a policy which has only phases 1,2, and 4 and within them has
+        // actions 1 and 3 which both contain steps 1, 2, and 3.
+        Map<String, Phase> phases = new HashMap<>();
+        for (int p = 1; p <= 4; p++) {
+            if (p == 3) {
+                continue;
+            }
+            String phaseName = "phase_" + p;
+            Map<String, LifecycleAction> actions = new HashMap<>();
+
+            for (int a = 1; a <= 3; a++) {
+                if (a == 2) {
+                    continue;
+                }
+                String actionName = "action_" + a;
+                List<Step> steps = new ArrayList<>();
+                for (int s = 1; s <= 3; s++) {
+                    String stepName = "step_" + s;
+                    steps.add(new MockStep(new StepKey(phaseName, actionName, stepName), null));
+                }
+                NamedMockAction action = new NamedMockAction(actionName, steps);
+                actions.put(action.getWriteableName(), action);
+            }
+
+            Phase phase = new Phase(phaseName, TimeValue.ZERO, actions);
+            phases.put(phase.getName(), phase);
+        }
+        LifecyclePolicy policy = new LifecyclePolicy(lifecycleType, lifecycleName, phases);
+
+        // step still exists
+        StepKey currentStep = new StepKey(randomFrom("phase_1", "phase_2", "phase_4"), randomFrom("action_1", "action_3"),
+                randomFrom("step_1", "step_2", "step_3"));
+        StepKey nextStep = policy.getNextValidStep(currentStep);
+        assertNotNull(nextStep);
+        assertEquals(currentStep, nextStep);
+
+        // current action exists but step does not
+        currentStep = new StepKey("phase_1", "action_1", "step_missing");
+        nextStep = policy.getNextValidStep(currentStep);
+        assertNotNull(nextStep);
+        assertEquals(new StepKey("phase_1", "action_3", "step_1"), nextStep);
+
+        // current action exists but step does not and action is last in phase
+        currentStep = new StepKey("phase_1", "action_3", "step_missing");
+        nextStep = policy.getNextValidStep(currentStep);
+        assertNotNull(nextStep);
+        assertEquals(new StepKey("phase_1", PhaseAfterStep.NAME, PhaseAfterStep.NAME), nextStep);
+
+        // current action exists but step does not and action is last in the
+        // last phase
+        currentStep = new StepKey("phase_4", "action_3", "step_missing");
+        nextStep = policy.getNextValidStep(currentStep);
+        assertNotNull(nextStep);
+        assertEquals(TerminalPolicyStep.KEY, nextStep);
+
+        // current action no longer exists
+        currentStep = new StepKey("phase_1", "action_2", "step_2");
+        nextStep = policy.getNextValidStep(currentStep);
+        assertNotNull(nextStep);
+        assertEquals(new StepKey("phase_1", "action_3", "step_1"), nextStep);
+
+        // current action no longer exists and action was last in phase
+        currentStep = new StepKey("phase_1", "action_4", "step_2");
+        nextStep = policy.getNextValidStep(currentStep);
+        assertNotNull(nextStep);
+        assertEquals(new StepKey("phase_1", PhaseAfterStep.NAME, PhaseAfterStep.NAME), nextStep);
+
+        // current action no longer exists and action was last in the last phase
+        currentStep = new StepKey("phase_4", "action_4", "step_2");
+        nextStep = policy.getNextValidStep(currentStep);
+        assertNotNull(nextStep);
+        assertEquals(TerminalPolicyStep.KEY, nextStep);
+
+        // current phase no longer exists
+        currentStep = new StepKey("phase_3", "action_2", "step_2");
+        nextStep = policy.getNextValidStep(currentStep);
+        assertNotNull(nextStep);
+        assertEquals(new StepKey("phase_2", PhaseAfterStep.NAME, PhaseAfterStep.NAME), nextStep);
+
+        // current phase no longer exists and was last phase
+        currentStep = new StepKey("phase_5", "action_2", "step_2");
+        nextStep = policy.getNextValidStep(currentStep);
+        assertNotNull(nextStep);
+        assertEquals(TerminalPolicyStep.KEY, nextStep);
+
+        // create a new policy where only phase 2 exists and within it has
+        // actions 1 and 3 which both contain steps 1, 2, and 3.
+        phases = new HashMap<>();
+        String phaseName = "phase_2";
+        Map<String, LifecycleAction> actions = new HashMap<>();
+
+        for (int a = 1; a <= 3; a++) {
+            if (a == 2) {
+                continue;
+            }
+            String actionName = "action_" + a;
+            List<Step> steps = new ArrayList<>();
+            for (int s = 1; s <= 3; s++) {
+                String stepName = "step_" + s;
+                steps.add(new MockStep(new StepKey(phaseName, actionName, stepName), null));
+            }
+            NamedMockAction action = new NamedMockAction(actionName, steps);
+            actions.put(action.getWriteableName(), action);
+        }
+
+        Phase phase = new Phase(phaseName, TimeValue.ZERO, actions);
+        phases.put(phase.getName(), phase);
+        policy = new LifecyclePolicy(lifecycleType, lifecycleName, phases);
+
+        // current phase no longer exists and was first phase
+        currentStep = new StepKey("phase_1", "action_2", "step_2");
+        nextStep = policy.getNextValidStep(currentStep);
+        assertNotNull(nextStep);
+        assertEquals(InitializePolicyContextStep.KEY, nextStep);
+
+    }
+
+    private static class NamedMockAction extends MockAction {
+
+        private final String name;
+
+        NamedMockAction(String name, List<Step> steps) {
+            super(steps, true);
+            this.name = name;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return name;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+    }
+
+    private static class ControllableLifecycleType implements LifecycleType {
+
+        private final List<String> orderedPhaseNames;
+        private final Map<String, List<String>> orderedActionNamesForPhases;
+
+        ControllableLifecycleType(List<String> orderedPhases, Map<String, List<String>> orderedActionNamesForPhases) {
+            this.orderedPhaseNames = orderedPhases;
+            this.orderedActionNamesForPhases = orderedActionNamesForPhases;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return "controllable_lifecycle_type";
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+        }
+
+        @Override
+        public List<Phase> getOrderedPhases(Map<String, Phase> phases) {
+            return orderedPhaseNames.stream().map(n -> phases.get(n)).filter(Objects::nonNull).collect(Collectors.toList());
+        }
+
+        @Override
+        public String getNextPhaseName(String currentPhaseName, Map<String, Phase> phases) {
+            int index = orderedPhaseNames.indexOf(currentPhaseName);
+            if (index < 0) {
+                throw new IllegalArgumentException(
+                        "[" + currentPhaseName + "] is not a valid phase for lifecycle type [" + getWriteableName() + "]");
+            } else if (index == orderedPhaseNames.size() - 1) {
+                return null;
+            } else {
+             // Find the next phase after `index` that exists in `phases` and return it
+                while (++index < orderedPhaseNames.size()) {
+                    String phaseName = orderedPhaseNames.get(index);
+                    if (phases.containsKey(phaseName)) {
+                        return phaseName;
+                    }
+                }
+                // if we have exhausted VALID_PHASES and haven't found a matching
+                // phase in `phases` return null indicating there is no next phase
+                // available
+                return null;
+            }
+        }
+
+        @Override
+        public String getPreviousPhaseName(String currentPhaseName, Map<String, Phase> phases) {
+            int index = orderedPhaseNames.indexOf(currentPhaseName);
+            if (index < 0) {
+                throw new IllegalArgumentException(
+                        "[" + currentPhaseName + "] is not a valid phase for lifecycle type [" + getWriteableName() + "]");
+            } else if (index == orderedPhaseNames.size() - 1) {
+                return null;
+            } else {
+             // Find the previous phase before `index` that exists in `phases` and return it
+                while (--index >= 0) {
+                    String phaseName = orderedPhaseNames.get(index);
+                    if (phases.containsKey(phaseName)) {
+                        return phaseName;
+                    }
+                }
+                // if we have exhausted VALID_PHASES and haven't found a matching
+                // phase in `phases` return null indicating there is no next phase
+                // available
+                return null;
+            }
+        }
+
+        @Override
+        public List<LifecycleAction> getOrderedActions(Phase phase) {
+            List<String> orderedActionNames = orderedActionNamesForPhases.get(phase.getName());
+            if (orderedActionNames == null) {
+                throw new IllegalArgumentException(
+                        "[" + phase.getName() + "] is not a valid phase for lifecycle type [" + getWriteableName() + "]");
+            }
+
+            return orderedActionNames.stream().map(n -> phase.getActions().get(n)).filter(Objects::nonNull).collect(Collectors.toList());
+        }
+
+        @Override
+        public String getNextActionName(String currentActionName, Phase phase) {
+            List<String> orderedActionNames = orderedActionNamesForPhases.get(phase.getName());
+            if (orderedActionNames == null) {
+                throw new IllegalArgumentException(
+                        "[" + phase.getName() + "] is not a valid phase for lifecycle type [" + getWriteableName() + "]");
+            }
+
+            int index = orderedActionNames.indexOf(currentActionName);
+            if (index < 0) {
+                throw new IllegalArgumentException("[" + currentActionName + "] is not a valid action for phase [" + phase.getName()
+                        + "] in lifecycle type [" + getWriteableName() + "]");
+            } else {
+                // Find the next action after `index` that exists in the phase and return it
+                while (++index < orderedActionNames.size()) {
+                    String actionName = orderedActionNames.get(index);
+                    if (phase.getActions().containsKey(actionName)) {
+                        return actionName;
+                    }
+                }
+                // if we have exhausted `validActions` and haven't found a matching
+                // action in the Phase return null indicating there is no next
+                // action available
+                return null;
+            }
+        }
+
+        @Override
+        public void validate(Collection<Phase> phases) {
+            phases.forEach(phase -> {
+                if (orderedPhaseNames.contains(phase.getName()) == false) {
+                    throw new IllegalArgumentException("Timeseries lifecycle does not support phase [" + phase.getName() + "]");
+                }
+                List<String> allowedActions = orderedActionNamesForPhases.get(phase.getName());
+                phase.getActions().forEach((actionName, action) -> {
+                    if (allowedActions.contains(actionName) == false) {
+                        throw new IllegalArgumentException(
+                                "invalid action [" + actionName + "] " + "defined in phase [" + phase.getName() + "]");
+                    }
+                });
+            });
+        }
     }
 }

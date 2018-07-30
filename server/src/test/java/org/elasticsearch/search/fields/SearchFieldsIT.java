@@ -96,7 +96,6 @@ public class SearchFieldsIT extends ESIntegTestCase {
     public static class CustomScriptPlugin extends MockScriptPlugin {
 
         @Override
-        @SuppressWarnings("unchecked")
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
 
@@ -143,7 +142,6 @@ public class SearchFieldsIT extends ESIntegTestCase {
             return scripts;
         }
 
-        @SuppressWarnings("unchecked")
         static Object fieldsScript(Map<String, Object> vars, String fieldName) {
             Map<?, ?> fields = (Map) vars.get("_fields");
             FieldLookup fieldLookup = (FieldLookup) fields.get(fieldName);
@@ -156,7 +154,6 @@ public class SearchFieldsIT extends ESIntegTestCase {
             return XContentMapValues.extractValue(path, source);
         }
 
-        @SuppressWarnings("unchecked")
         static Object docScript(Map<String, Object> vars, String fieldName) {
             Map<?, ?> doc = (Map) vars.get("doc");
             ScriptDocValues<?> values = (ScriptDocValues<?>) doc.get(fieldName);

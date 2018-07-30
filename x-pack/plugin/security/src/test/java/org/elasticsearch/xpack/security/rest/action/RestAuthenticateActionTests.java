@@ -58,7 +58,6 @@ public class RestAuthenticateActionTests extends SecurityIntegTestCase {
         assertThat(response.getStatusLine().getStatusCode(), is(200));
         ObjectPath objectPath = ObjectPath.createFromResponse(response);
         assertThat(objectPath.evaluate("username").toString(), equalTo(SecuritySettingsSource.TEST_USER_NAME));
-        @SuppressWarnings("unchecked")
         List<String> roles = objectPath.evaluate("roles");
         assertThat(roles.size(), is(1));
         assertThat(roles, contains(SecuritySettingsSource.TEST_ROLE));

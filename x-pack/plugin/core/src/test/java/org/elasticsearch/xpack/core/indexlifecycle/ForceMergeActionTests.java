@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -29,19 +28,14 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
 
     @Override
     protected ForceMergeAction createTestInstance() {
-        return new ForceMergeAction(randomIntBetween(1, 100), randomBoolean());
+        return new ForceMergeAction(randomIntBetween(1, 100));
     }
 
     @Override
     protected ForceMergeAction mutateInstance(ForceMergeAction instance) {
         int maxNumSegments = instance.getMaxNumSegments();
-        boolean bestCompression = instance.isBestCompression();
-        if (randomBoolean()) {
-            maxNumSegments = maxNumSegments + randomIntBetween(1, 10);
-        } else {
-            bestCompression = !bestCompression;
-        }
-        return new ForceMergeAction(maxNumSegments, bestCompression);
+        maxNumSegments = maxNumSegments + randomIntBetween(1, 10);
+        return new ForceMergeAction(maxNumSegments);
     }
 
     @Override
@@ -58,7 +52,7 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
     }
 
     public void testInvalidNegativeSegmentNumber() {
-        Exception r = expectThrows(IllegalArgumentException.class, () -> new ForceMergeAction(randomIntBetween(-10, 0), false));
+        Exception r = expectThrows(IllegalArgumentException.class, () -> new ForceMergeAction(randomIntBetween(-10, 0)));
         assertThat(r.getMessage(), equalTo("[max_num_segments] must be a positive integer"));
     }
 
@@ -69,16 +63,7 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
         List<Step> steps = instance.toSteps(null, phase, nextStepKey);
         assertNotNull(steps);
         int nextFirstIndex = 0;
-        if (instance.isBestCompression()) {
-            Settings expectedSettings = Settings.builder().put("index.codec", "best_compression").build();
-            assertEquals(3, steps.size());
-            UpdateSettingsStep firstStep = (UpdateSettingsStep)  steps.get(0);
-            assertThat(firstStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, "best_compression")));
-            assertThat(firstStep.getSettings(), equalTo(expectedSettings));
-            nextFirstIndex = 1;
-        } else {
-            assertEquals(2, steps.size());
-        }
+        assertEquals(2, steps.size());
         ForceMergeStep firstStep = (ForceMergeStep)  steps.get(nextFirstIndex);
         SegmentCountStep secondStep = (SegmentCountStep) steps.get(nextFirstIndex + 1);
         assertThat(firstStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, ForceMergeStep.NAME)));

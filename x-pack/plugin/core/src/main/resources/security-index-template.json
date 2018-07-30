@@ -91,6 +91,41 @@
             }
           }
         },
+        "applications": {
+          "type": "object",
+          "properties": {
+            "application": {
+              "type": "keyword"
+            },
+            "privileges": {
+              "type": "keyword"
+            },
+            "resources": {
+              "type": "keyword"
+            }
+          }
+        },
+        "application" : {
+          "type" : "keyword"
+        },
+        "global": {
+          "type": "object",
+          "properties": {
+            "application": {
+              "type": "object",
+              "properties": {
+                "manage": {
+                  "type": "object",
+                  "properties": {
+                    "applications": {
+                      "type": "keyword"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
         "name" : {
           "type" : "keyword"
         },
@@ -101,6 +136,9 @@
           "type" : "keyword"
         },
         "type" : {
+          "type" : "keyword"
+        },
+        "actions" : {
           "type" : "keyword"
         },
         "expiration_time" : {

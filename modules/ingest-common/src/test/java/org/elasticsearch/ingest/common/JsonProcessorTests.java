@@ -146,7 +146,6 @@ public class JsonProcessorTests extends ESTestCase {
         assertThat(exception.getMessage(), equalTo("field [field] not present as part of path [field]"));
     }
 
-    @SuppressWarnings("unchecked")
     public void testAddToRoot() throws Exception {
         String processorTag = randomAlphaOfLength(3);
         String randomTargetField = randomAlphaOfLength(2);

@@ -28,8 +28,7 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
 
     @Before
     public void setup() {
-        phaseName = randomAlphaOfLength(20); // NORELEASE we need to randomise the phase name rather 
-                                             // than use the same name for all instances
+        phaseName = randomAlphaOfLength(20);
     }
 
     @Override

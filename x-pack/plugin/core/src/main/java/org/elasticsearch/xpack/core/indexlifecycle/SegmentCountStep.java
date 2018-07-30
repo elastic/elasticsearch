@@ -27,48 +27,28 @@ public class SegmentCountStep extends AsyncWaitStep {
     public static final String NAME = "segment-count";
 
     private final int maxNumSegments;
-    private final boolean bestCompression;
 
-    public SegmentCountStep(StepKey key, StepKey nextStepKey, Client client, int maxNumSegments, boolean bestCompression) {
+    public SegmentCountStep(StepKey key, StepKey nextStepKey, Client client, int maxNumSegments) {
         super(key, nextStepKey, client);
         this.maxNumSegments = maxNumSegments;
-        this.bestCompression = bestCompression;
     }
 
     public int getMaxNumSegments() {
         return maxNumSegments;
     }
 
-    public boolean isBestCompression() {
-        return bestCompression;
-    }
-
     @Override
     public void evaluateCondition(Index index, Listener listener) {
         getClient().admin().indices().segments(new IndicesSegmentsRequest(index.getName()), ActionListener.wrap(response -> {
             long numberShardsLeftToMerge = StreamSupport.stream(response.getIndices().get(index.getName()).spliterator(), false)
-                    .filter(iss -> Arrays.stream(iss.getShards()).anyMatch(p -> {
-                    boolean hasRightAmountOfSegments = p.getSegments().size() <= maxNumSegments;
-                    if (bestCompression) {
-//                        // TODO(talevy): discuss
-//                        boolean allUsingCorrectCompression = p.getSegments().stream().anyMatch(s ->
-//                            Lucene50StoredFieldsFormat.Mode.BEST_COMPRESSION.equals(
-//                                Lucene50StoredFieldsFormat.Mode.BEST_COMPRESSION.toString().equals(
-//                                    s.getAttributes().get(Lucene50StoredFieldsFormat.MODE_KEY)))
-//                        );
-                        boolean allUsingCorrectCompression = true;
-                            return (hasRightAmountOfSegments && allUsingCorrectCompression) == false;
-                    } else {
-                            return hasRightAmountOfSegments == false;
-                    }
-                    })).count();
+                    .filter(iss -> Arrays.stream(iss.getShards()).anyMatch(p -> p.getSegments().size() > maxNumSegments)).count();
             listener.onResponse(numberShardsLeftToMerge == 0, new Info(numberShardsLeftToMerge));
         }, listener::onFailure));
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), maxNumSegments, bestCompression);
+        return Objects.hash(super.hashCode(), maxNumSegments);
     }
 
     @Override
@@ -81,8 +61,7 @@ public class SegmentCountStep extends AsyncWaitStep {
         }
         SegmentCountStep other = (SegmentCountStep) obj;
         return super.equals(obj)
-            && Objects.equals(maxNumSegments, other.maxNumSegments)
-            && Objects.equals(bestCompression, other.bestCompression);
+            && Objects.equals(maxNumSegments, other.maxNumSegments);
     }
 
     public static class Info implements ToXContentObject {

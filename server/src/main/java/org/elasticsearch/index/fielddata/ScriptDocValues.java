@@ -155,7 +155,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         private static final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger(Dates.class));
 
-        private static final ZoneId JAVA_TIME_UTC = ZoneId.of("UTC");
+        private static final ZoneId JAVA_TIME_UTC = ZoneId.of("UTC").normalized();
 
         private final SortedNumericDocValues in;
 

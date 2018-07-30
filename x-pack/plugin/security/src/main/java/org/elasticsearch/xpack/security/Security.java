@@ -1062,7 +1062,9 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 License license = LicenseService.getLicense(state.metaData());
                 if (license != null &&
                     FIPS140LicenseBootstrapCheck.ALLOWED_LICENSE_OPERATION_MODES.contains(license.operationMode()) == false) {
-                    throw new IllegalStateException("License operation mode [" + license.operationMode() + "] is not valid for FIPS");
+                    throw new IllegalStateException("FIPS mode cannot be used with a [" + license.operationMode() +
+                        "] license. It is only allowed with a Platinum or Trial license.");
+
                 }
             }
         }

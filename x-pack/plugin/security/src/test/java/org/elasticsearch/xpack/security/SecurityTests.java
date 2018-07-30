@@ -308,7 +308,7 @@ public class SecurityTests extends ESTestCase {
         } else {
             IllegalStateException e = expectThrows(IllegalStateException.class,
                 () -> new Security.ValidateLicenseForFIPS(true).accept(node, state));
-            assertThat(e.getMessage(), containsString("is not valid for FIPS"));
+            assertThat(e.getMessage(), containsString("FIPS mode cannot be used"));
         }
     }
 

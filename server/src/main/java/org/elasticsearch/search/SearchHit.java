@@ -602,16 +602,24 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
         for (String metadatafield : MapperService.getAllMetaFields()) {
             if (metadatafield.equals(Fields._ID) == false && metadatafield.equals(Fields._INDEX) == false
                     && metadatafield.equals(Fields._TYPE) == false) {
-                parser.declareField((map, field) -> {
-                    @SuppressWarnings("unchecked")
-                    Map<String, DocumentField> fieldMap = (Map<String, DocumentField>) map.computeIfAbsent(Fields.FIELDS,
-                            v -> new HashMap<String, DocumentField>());
-                    fieldMap.put(field.getName(), field);
-                }, (p, c) -> {
-                    List<Object> values = new ArrayList<>();
-                    values.add(parseFieldsValue(p));
-                    return new DocumentField(metadatafield, values);
-                }, new ParseField(metadatafield), ValueType.VALUE);
+                if (metadatafield.equals(IgnoredFieldMapper.NAME)) {
+                    parser.declareObjectArray((map, list) -> {
+                            @SuppressWarnings("unchecked")
+                            Map<String, DocumentField> fieldMap = (Map<String, DocumentField>) map.computeIfAbsent(Fields.FIELDS,
+                                v -> new HashMap<String, DocumentField>());
+                            DocumentField field = new DocumentField(metadatafield, list);
+                            fieldMap.put(field.getName(), field);
+                        }, (p, c) -> parseFieldsValue(p),
+                        new ParseField(metadatafield));
+                } else {
+                    parser.declareField((map, field) -> {
+                            @SuppressWarnings("unchecked")
+                            Map<String, DocumentField> fieldMap = (Map<String, DocumentField>) map.computeIfAbsent(Fields.FIELDS,
+                                v -> new HashMap<String, DocumentField>());
+                            fieldMap.put(field.getName(), field);
+                        }, (p, c) -> new DocumentField(metadatafield, Collections.singletonList(parseFieldsValue(p))),
+                        new ParseField(metadatafield), ValueType.VALUE);
+                }
             }
         }
     }
@@ -957,5 +965,10 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
         public int hashCode() {
             return Objects.hash(field, offset, child);
         }
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
     }
 }

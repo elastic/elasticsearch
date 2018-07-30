@@ -209,7 +209,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
      * initializing primary.
      */
     public void testInitializingPrimaryRemovesInitializingReplicaWithSameAID() {
-        disalbeRandomFailures();
+        disableRandomFailures();
         String index = "index_" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
         ClusterState state = ClusterStateCreationUtils.state(index, randomBoolean(),
             ShardRoutingState.STARTED, ShardRoutingState.INITIALIZING);

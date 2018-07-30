@@ -74,7 +74,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         enableRandomFailures = randomBoolean();
     }
 
-    protected void disalbeRandomFailures() {
+    protected void disableRandomFailures() {
         enableRandomFailures = false;
     }
 

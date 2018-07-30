@@ -42,7 +42,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
 
     public void testMultipleReaderWriter() throws Exception {
         int concurrency = randomIntBetween(2, 8);
-        TestRun testRun = createTestRun(0, 0, 1024);
+        TestRun testRun = createTestRun(0, 0, between(1, 1024));
         ShardFollowNodeTask task = createShardFollowTask(concurrency, testRun);
         startAndAssertAndStopTask(task, testRun);
     }

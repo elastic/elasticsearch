@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
+import com.carrotsearch.hppc.LongHashSet;
+import com.carrotsearch.hppc.LongSet;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
@@ -72,6 +74,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 followerGroup.assertAllEqual(indexedDocIds.size() - deleteDocIds.size());
             });
             shardFollowTask.markAsCompleted();
+            assertConsistentHistoryBetweenLeaderAndFollower(leaderGroup, followerGroup);
         }
     }
 
@@ -107,6 +110,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             leaderGroup.assertAllEqual(docCount);
             assertBusy(() -> followerGroup.assertAllEqual(docCount));
             shardFollowTask.markAsCompleted();
+            assertConsistentHistoryBetweenLeaderAndFollower(leaderGroup, followerGroup);
         }
     }
 
@@ -141,12 +145,23 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
 
     private ShardFollowNodeTask createShardFollowTask(ReplicationGroup leaderGroup, ReplicationGroup followerGroup) {
         ShardFollowTask params = new ShardFollowTask(null, new ShardId("follow_index", "", 0),
-            new ShardId("leader_index", "", 0), 1024, 1, Long.MAX_VALUE, 1, 10240,
+            new ShardId("leader_index", "", 0), between(1, 64), between(1, 8), Long.MAX_VALUE, between(1, 4), 10240,
             TimeValue.timeValueMillis(10), TimeValue.timeValueMillis(10), Collections.emptyMap());
 
         BiConsumer<TimeValue, Runnable> scheduler = (delay, task) -> threadPool.schedule(delay, ThreadPool.Names.GENERIC, task);
         AtomicBoolean stopped = new AtomicBoolean(false);
+        LongSet fetchOperations = new LongHashSet();
         return new ShardFollowNodeTask(1L, "type", ShardFollowTask.NAME, "description", null, Collections.emptyMap(), params, scheduler) {
+            @Override
+            protected synchronized void onOperationsFetched(Translog.Operation[] operations) {
+                super.onOperationsFetched(operations);
+                for (Translog.Operation operation : operations) {
+                    if (fetchOperations.add(operation.seqNo()) == false) {
+                        throw new AssertionError("Operation [" + operation + " ] was fetched already");
+                    }
+                }
+            }
+
             @Override
             protected void innerUpdateMapping(LongConsumer handler, Consumer<Exception> errorHandler) {
                 // noop, as mapping updates are not tested
@@ -208,6 +223,13 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             }
 
         };
+    }
+
+    private void assertConsistentHistoryBetweenLeaderAndFollower(ReplicationGroup leader, ReplicationGroup follower) throws IOException {
+        int totalOps = leader.getPrimary().estimateNumberOfHistoryOperations("test", 0);
+        for (IndexShard followingShard : follower) {
+            assertThat(followingShard.estimateNumberOfHistoryOperations("test", 0), equalTo(totalOps));
+        }
     }
 
     class CCRAction extends ReplicationAction<BulkShardOperationsRequest, BulkShardOperationsRequest, BulkShardOperationsResponse> {

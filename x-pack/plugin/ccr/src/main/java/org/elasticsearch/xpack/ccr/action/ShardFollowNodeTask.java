@@ -105,11 +105,12 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         while (hasReadBudget() && lastRequestedSeqno < leaderGlobalCheckpoint) {
             numConcurrentReads++;
             long from = lastRequestedSeqno + 1;
-            // -1 is needed, because maxRequiredSeqno is inclusive
-            long maxRequiredSeqno = Math.min(leaderGlobalCheckpoint, (from + maxBatchOperationCount) - 1);
-            LOGGER.trace("{}[{}] read [{}/{}]", params.getFollowShardId(), numConcurrentReads, maxRequiredSeqno, maxBatchOperationCount);
-            sendShardChangesRequest(from, maxBatchOperationCount, maxRequiredSeqno);
-            lastRequestedSeqno = maxRequiredSeqno;
+            // -1 is needed, because maxRequiredSeqNo is inclusive
+            long maxRequiredSeqNo = Math.min(leaderGlobalCheckpoint, from + maxBatchOperationCount - 1);
+            int requestBatchSize = Math.toIntExact(maxRequiredSeqNo - from + 1);
+            LOGGER.trace("{}[{}] read [{}/{}]", params.getFollowShardId(), numConcurrentReads, maxRequiredSeqNo, requestBatchSize);
+            sendShardChangesRequest(from, requestBatchSize, maxRequiredSeqNo);
+            lastRequestedSeqno = maxRequiredSeqNo;
         }
 
         if (numConcurrentReads == 0 && hasReadBudget()) {
@@ -186,7 +187,13 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         maybeUpdateMapping(response.getIndexMetadataVersion(), () -> innerHandleReadResponse(from, maxRequiredSeqNo, response));
     }
 
+    /** Called when some operations are fetched from the leading */
+    protected void onOperationsFetched(Translog.Operation[] operations) {
+
+    }
+
     synchronized void innerHandleReadResponse(long from, long maxRequiredSeqNo, ShardChangesAction.Response response) {
+        onOperationsFetched(response.getOperations());
         leaderGlobalCheckpoint = Math.max(leaderGlobalCheckpoint, response.getGlobalCheckpoint());
         final long newFromSeqNo;
         if (response.getOperations().length == 0) {

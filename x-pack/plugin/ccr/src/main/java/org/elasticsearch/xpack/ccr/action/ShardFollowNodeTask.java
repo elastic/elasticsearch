@@ -103,14 +103,20 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             params.getFollowShardId(), lastRequestedSeqno, leaderGlobalCheckpoint);
         final int maxBatchOperationCount = params.getMaxBatchOperationCount();
         while (hasReadBudget() && lastRequestedSeqno < leaderGlobalCheckpoint) {
+            final long from = lastRequestedSeqno + 1;
+            final long maxRequiredSeqNo = Math.min(leaderGlobalCheckpoint, from + maxBatchOperationCount - 1);
+            final int requestBatchCount;
+            if (numConcurrentReads == 0) {
+                // If this is the only request, we can treat it as a peek read.
+                requestBatchCount = maxBatchOperationCount;
+            } else {
+                requestBatchCount = Math.toIntExact(maxRequiredSeqNo - from + 1);
+            }
+            assert 0 < requestBatchCount && requestBatchCount <= maxBatchOperationCount : "request_batch_count=" + requestBatchCount;
+            LOGGER.trace("{}[{} ongoing reads] read from_seqno={} max_required_seqno={} batch_count={}",
+                params.getFollowShardId(), numConcurrentReads, from, maxRequiredSeqNo, requestBatchCount);
             numConcurrentReads++;
-            long from = lastRequestedSeqno + 1;
-            int requestBatchSize = Math.min(Math.toIntExact(leaderGlobalCheckpoint - from + 1), maxBatchOperationCount);
-            assert 0 < requestBatchSize && requestBatchSize <= maxBatchOperationCount : "request_size=" + requestBatchSize;
-            long maxRequiredSeqNo = from + requestBatchSize - 1;
-            LOGGER.trace("{}[{} ongoing reads] read from={} max_required={} batch_size={}",
-                params.getFollowShardId(), numConcurrentReads, from, maxRequiredSeqNo, requestBatchSize);
-            sendShardChangesRequest(from, requestBatchSize, maxRequiredSeqNo);
+            sendShardChangesRequest(from, requestBatchCount, maxRequiredSeqNo);
             lastRequestedSeqno = maxRequiredSeqNo;
         }
 

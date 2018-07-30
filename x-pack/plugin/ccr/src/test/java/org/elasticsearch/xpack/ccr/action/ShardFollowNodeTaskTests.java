@@ -46,16 +46,16 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
 
     public void testCoordinateReads() {
         ShardFollowNodeTask task = createShardFollowTask(8, between(8, 20), between(1, 20), Integer.MAX_VALUE, Long.MAX_VALUE);
-        startTask(task, 60, -1);
-
+        startTask(task, 3, -1);
         task.coordinateReads();
-        assertThat(shardChangesRequests.size(), equalTo(8));
+        assertThat(shardChangesRequests, contains(new long[]{0L, 8L})); // treat this a peak request
+        shardChangesRequests.clear();
+        task.innerHandleReadResponse(0, 5L, generateShardChangesResponse(0, 5L, 0L, 60L));
         assertThat(shardChangesRequests, contains(new long[][]{
-            {0L, 8L}, {8L, 8L}, {16L, 8L}, {24L, 8L}, {32L, 8L}, {40L, 8L}, {48L, 8L}, {56L, 5L}}
+            {6L, 8L}, {14L, 8L}, {22L, 8L}, {30L, 8L}, {38L, 8L}, {46L, 8L}, {54L, 7L}}
         ));
-
         ShardFollowNodeTask.Status status = task.getStatus();
-        assertThat(status.getNumberOfConcurrentReads(), equalTo(8));
+        assertThat(status.getNumberOfConcurrentReads(), equalTo(7));
         assertThat(status.getLastRequestedSeqno(), equalTo(60L));
     }
 

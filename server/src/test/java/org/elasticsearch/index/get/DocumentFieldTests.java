@@ -26,9 +26,10 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.ParentFieldMapper;
-import org.elasticsearch.index.mapper.RoutingFieldMapper;
-import org.elasticsearch.index.mapper.UidFieldMapper;
+import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.IndexFieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 
@@ -100,14 +101,17 @@ public class DocumentFieldTests extends ESTestCase {
 
     public static Tuple<DocumentField, DocumentField> randomDocumentField(XContentType xContentType) {
         if (randomBoolean()) {
-            String fieldName = randomFrom(ParentFieldMapper.NAME, RoutingFieldMapper.NAME, UidFieldMapper.NAME);
-            DocumentField documentField = new DocumentField(fieldName, Collections.singletonList(randomAlphaOfLengthBetween(3, 10)));
+            String metaField = randomValueOtherThanMany(field -> field.equals(TypeFieldMapper.NAME)
+                    || field.equals(IndexFieldMapper.NAME) || field.equals(IdFieldMapper.NAME),
+                () -> randomFrom(MapperService.getAllMetaFields()));
+            DocumentField documentField = new DocumentField(metaField, Collections.singletonList(randomAlphaOfLengthBetween(3, 10)));
             return Tuple.tuple(documentField, documentField);
+        } else {
+            String fieldName = randomAlphaOfLengthBetween(3, 10);
+            Tuple<List<Object>, List<Object>> tuple = RandomObjects.randomStoredFieldValues(random(), xContentType);
+            DocumentField input = new DocumentField(fieldName, tuple.v1());
+            DocumentField expected = new DocumentField(fieldName, tuple.v2());
+            return Tuple.tuple(input, expected);
         }
-        String fieldName = randomAlphaOfLengthBetween(3, 10);
-        Tuple<List<Object>, List<Object>> tuple = RandomObjects.randomStoredFieldValues(random(), xContentType);
-        DocumentField input = new DocumentField(fieldName, tuple.v1());
-        DocumentField expected = new DocumentField(fieldName, tuple.v2());
-        return Tuple.tuple(input, expected);
     }
 }

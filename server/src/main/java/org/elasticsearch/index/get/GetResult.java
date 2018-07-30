@@ -20,6 +20,7 @@
 package org.elasticsearch.index.get;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.document.DocumentField;
@@ -226,10 +227,8 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
                 }
             }
         }
-
         for (DocumentField field : metaFields) {
-            Object value = field.getValue();
-            builder.field(field.getName(), value);
+            builder.field(field.getName(), field.<Object>getValue());
         }
 
         builder.field(FOUND, exists);
@@ -399,7 +398,12 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, type, id, version, exists, fields, sourceAsMap());
+        return Objects.hash(version, exists, index, type, id, fields, sourceAsMap());
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
     }
 }
 

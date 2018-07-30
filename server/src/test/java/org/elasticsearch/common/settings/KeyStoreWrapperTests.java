@@ -103,9 +103,8 @@ public class KeyStoreWrapperTests extends ESTestCase {
         KeyStoreWrapper keystore = KeyStoreWrapper.create();
         keystore.save(env.configFile(), new char[0]);
         final KeyStoreWrapper loadedkeystore = KeyStoreWrapper.load(env.configFile());
-        final Exception exception = expectThrows(Exception.class,
+        final SecurityException exception = expectThrows(SecurityException.class,
             () -> loadedkeystore.decrypt(new char[]{'i', 'n', 'v', 'a', 'l', 'i', 'd'}));
-        exception.printStackTrace();
         assertThat(exception.getMessage(), containsString("Keystore has been corrupted or tampered with"));
     }
 

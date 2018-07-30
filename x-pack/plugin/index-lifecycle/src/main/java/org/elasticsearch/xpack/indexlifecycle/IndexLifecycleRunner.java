@@ -185,8 +185,7 @@ public class IndexLifecycleRunner {
 
         Step nextStep = stepRegistry.getStep(indexPolicySetting, nextStepKey);
         if (nextStep == null) {
-            // stepRegistry may not be up-to-date with latest policies/steps in cluster-state
-            return currentState;
+            throw new IllegalArgumentException("step [" + nextStepKey + "] with policy [" + indexPolicySetting + "] does not exist");
         }
 
         return IndexLifecycleRunner.moveClusterStateToNextStep(idxMeta.getIndex(), currentState, currentStepKey, nextStepKey, nowSupplier);

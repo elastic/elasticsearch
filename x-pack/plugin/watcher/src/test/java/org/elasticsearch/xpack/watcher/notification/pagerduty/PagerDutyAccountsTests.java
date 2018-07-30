@@ -24,6 +24,7 @@ import java.util.HashSet;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -76,7 +77,9 @@ public class PagerDutyAccountsTests extends ESTestCase {
 
         HttpRequest request = argumentCaptor.getValue();
         ObjectPath source = ObjectPath.createFromXContent(JsonXContent.jsonXContent, new BytesArray(request.body()));
-        assertThat(source.evaluate("contexts"), notNullValue());
+        assertThat(source.evaluate("contexts"), nullValue());
+        assertThat(source.evaluate("links"), notNullValue());
+        assertThat(source.evaluate("images"), notNullValue());
     }
 
     private void addAccountSettings(String name, Settings.Builder builder) {

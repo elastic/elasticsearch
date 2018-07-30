@@ -13,8 +13,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.authc.support.CharArrays;
 
 import java.io.IOException;
@@ -25,7 +23,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Request object to put a native user.
  */
-public class PutUserRequest extends ActionRequest implements UserRequest, WriteRequest<PutUserRequest>, ToXContentObject {
+public class PutUserRequest extends ActionRequest implements UserRequest, WriteRequest<PutUserRequest> {
 
     private String username;
     private String[] roles;
@@ -177,28 +175,6 @@ public class PutUserRequest extends ActionRequest implements UserRequest, WriteR
         }
         refreshPolicy.writeTo(out);
         out.writeBoolean(enabled);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        if (password != null) {
-            byte[] charBytes = CharArrays.toUtf8Bytes(password);
-            builder.field("password").utf8Value(charBytes, 0, charBytes.length);
-        }
-        if (roles != null) {
-            builder.field("roles", roles);
-        }
-        if (fullName != null) {
-            builder.field("full_name", fullName);
-        }
-        if (email != null) {
-            builder.field("email", email);
-        }
-        if (metadata != null) {
-            builder.field("metadata", metadata);
-        }
-        return builder.endObject();
     }
 
     private static char[] readCharArrayFromStream(StreamInput in) throws IOException {

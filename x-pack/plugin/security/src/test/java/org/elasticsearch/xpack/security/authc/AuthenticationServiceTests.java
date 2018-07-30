@@ -49,6 +49,7 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportMessage;
+import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
@@ -88,6 +89,7 @@ import static org.elasticsearch.test.SecurityTestsUtils.assertAuthenticationExce
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authenticationError;
 import static org.elasticsearch.xpack.security.authc.TokenServiceTests.mockGetTokenFromId;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -618,6 +620,47 @@ public class AuthenticationServiceTests extends ESTestCase {
         }
     }
 
+    public void testRealmAuthenticateTerminatingAuthenticationProcess() throws Exception {
+        final AuthenticationToken token = mock(AuthenticationToken.class);
+        when(secondRealm.token(threadContext)).thenReturn(token);
+        when(secondRealm.supports(token)).thenReturn(true);
+        final boolean terminateWithNoException = rarely();
+        final boolean throwElasticsearchSecurityException = (terminateWithNoException == false) && randomBoolean();
+        final boolean withAuthenticateHeader = throwElasticsearchSecurityException && randomBoolean();
+        Exception throwE = new Exception("general authentication error");
+        final String basicScheme = "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"";
+        String selectedScheme = randomFrom(basicScheme, "Negotiate IOJoj");
+        if (throwElasticsearchSecurityException) {
+            throwE = new ElasticsearchSecurityException("authentication error", RestStatus.UNAUTHORIZED);
+            if (withAuthenticateHeader) {
+                ((ElasticsearchSecurityException) throwE).addHeader("WWW-Authenticate", selectedScheme);
+            }
+        }
+        mockAuthenticate(secondRealm, token, (terminateWithNoException) ? null : throwE, true);
+
+        ElasticsearchSecurityException e =
+                expectThrows(ElasticsearchSecurityException.class, () -> authenticateBlocking("_action", message, null));
+        if (terminateWithNoException) {
+            assertThat(e.getMessage(), is("terminate authc process"));
+            assertThat(e.getHeader("WWW-Authenticate"), contains(basicScheme));
+        } else {
+            if (throwElasticsearchSecurityException) {
+                assertThat(e.getMessage(), is("authentication error"));
+                if (withAuthenticateHeader) {
+                    assertThat(e.getHeader("WWW-Authenticate"), contains(selectedScheme));
+                } else {
+                    assertThat(e.getHeader("WWW-Authenticate"), contains(basicScheme));
+                }
+            } else {
+                assertThat(e.getMessage(), is("error attempting to authenticate request"));
+                assertThat(e.getHeader("WWW-Authenticate"), contains(basicScheme));
+            }
+        }
+        verify(auditTrail).authenticationFailed(secondRealm.name(), token, "_action", message);
+        verify(auditTrail).authenticationFailed(token, "_action", message);
+        verifyNoMoreInteractions(auditTrail);
+    }
+
     public void testRealmAuthenticateThrowingException() throws Exception {
         AuthenticationToken token = mock(AuthenticationToken.class);
         when(secondRealm.token(threadContext)).thenReturn(token);
@@ -993,6 +1036,19 @@ public class AuthenticationServiceTests extends ESTestCase {
                 listener.onResponse(AuthenticationResult.notHandled());
             } else {
                 listener.onResponse(AuthenticationResult.success(user));
+            }
+            return null;
+        }).when(realm).authenticate(eq(token), any(ActionListener.class));
+    }
+
+    @SuppressWarnings("unchecked")
+    private void mockAuthenticate(Realm realm, AuthenticationToken token, Exception e, boolean terminate) {
+        doAnswer((i) -> {
+            ActionListener<AuthenticationResult> listener = (ActionListener<AuthenticationResult>) i.getArguments()[1];
+            if (terminate) {
+                listener.onResponse(AuthenticationResult.terminate("terminate authc process", e));
+            } else {
+                listener.onResponse(AuthenticationResult.unsuccessful("unsuccessful, but continue authc process", e));
             }
             return null;
         }).when(realm).authenticate(eq(token), any(ActionListener.class));

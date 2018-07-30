@@ -65,6 +65,9 @@ public class ExpectedReciprocalRank implements EvaluationMetric {
 
     public static final String NAME = "expected_reciprocal_rank";
 
+    /**
+     * @param maxRelevance the highest expected relevance in the data
+     */
     public ExpectedReciprocalRank(int maxRelevance) {
         this(maxRelevance, null, DEFAULT_K);
     }

@@ -68,7 +68,7 @@ public final class PField extends AStoreable {
             sub = new PSubDefField(location, value);
         } else {
             PainlessClass struct = locals.getPainlessLookup().getPainlessStructFromJavaClass(prefix.actual);
-            PainlessField field = prefix instanceof EStatic ? struct.staticMembers.get(value) : struct.members.get(value);
+            PainlessField field = prefix instanceof EStatic ? struct.staticFields.get(value) : struct.fields.get(value);
 
             if (field != null) {
                 sub = new PSubField(location, field);
@@ -92,11 +92,11 @@ public final class PField extends AStoreable {
                     index.analyze(locals);
 
                     if (Map.class.isAssignableFrom(prefix.actual)) {
-                        sub = new PSubMapShortcut(location, struct, index);
+                        sub = new PSubMapShortcut(location, prefix.actual, index);
                     }
 
                     if (List.class.isAssignableFrom(prefix.actual)) {
-                        sub = new PSubListShortcut(location, struct, index);
+                        sub = new PSubListShortcut(location, prefix.actual, index);
                     }
                 }
             }

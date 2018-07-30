@@ -48,18 +48,6 @@ public class PluginBuildPlugin extends BuildPlugin {
     @Override
     public void apply(Project project) {
         super.apply(project)
-        project.plugins.withType(ShadowPlugin).whenPluginAdded {
-            /*
-             * We've not tested these plugins together and we're fairly sure
-             * they aren't going to work properly as is *and* we're not really
-             * sure *why* you'd want to shade stuff in plugins. So we throw an
-             * exception here to make you come and read this comment. If you
-             * have a need for shadow while building plugins then know that you
-             * are probably going to have to fight with gradle for a while....
-             */
-            throw new InvalidUserDataException('elasticsearch.esplugin is not '
-                    + 'compatible with com.github.johnrengelman.shadow');
-        }
         configureDependencies(project)
         // this afterEvaluate must happen before the afterEvaluate added by integTest creation,
         // so that the file name resolution for installing the plugin will be setup
@@ -153,8 +141,13 @@ public class PluginBuildPlugin extends BuildPlugin {
                 include(buildProperties.descriptorOutput.name)
             }
             from pluginMetadata // metadata (eg custom security policy)
-            from project.jar // this plugin's jar
-            from project.configurations.runtime - project.configurations.compileOnly // the dep jars
+            /*
+             * If the plugin is using the shadow plugin then we need to bundle
+             * "shadow" things rather than the default jar and dependencies so
+             * we don't hit jar hell.
+             */
+            from { project.plugins.hasPlugin(ShadowPlugin) ? project.shadowJar : project.jar }
+            from { project.plugins.hasPlugin(ShadowPlugin) ? project.configurations.shadow : project.configurations.runtime - project.configurations.compileOnly }
             // extra files for the plugin to go into the zip
             from('src/main/packaging') // TODO: move all config/bin/_size/etc into packaging
             from('src/main') {

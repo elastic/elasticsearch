@@ -31,11 +31,7 @@ import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBoundsTests;
 import org.joda.time.DateTimeZone;
-import org.junit.Assume;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -141,7 +137,6 @@ public class DateHistogramTests extends BaseAggregationTestCase<DateHistogramAgg
     }
 
     public void testRewriteTimeZone() throws IOException {
-        Assume.assumeTrue(getCurrentTypes().length > 0); // we need mappings
         FormatDateTimeFormatter format = Joda.forPattern("strict_date_optional_time");
 
         try (Directory dir = newDirectory();

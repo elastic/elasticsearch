@@ -23,10 +23,12 @@ import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
 import org.objectweb.asm.Type;
+import org.objectweb.asm.commons.Method;
 
 import java.util.HashMap;
 import java.util.List;
@@ -39,7 +41,7 @@ public final class EMapInit extends AExpression {
     private final List<AExpression> keys;
     private final List<AExpression> values;
 
-    private PainlessMethod constructor = null;
+    private PainlessConstructor constructor = null;
     private PainlessMethod method = null;
 
     public EMapInit(Location location, List<AExpression> keys, List<AExpression> values) {
@@ -68,8 +70,8 @@ public final class EMapInit extends AExpression {
 
         actual = HashMap.class;
 
-        constructor = locals.getPainlessLookup().getPainlessStructFromJavaClass(actual).constructors
-                .get(PainlessLookupUtility.buildPainlessMethodKey("<init>", 0));
+        constructor = locals.getPainlessLookup().getPainlessStructFromJavaClass(actual).constructors.get(
+                PainlessLookupUtility.buildPainlessConstructorKey(0));
 
         if (constructor == null) {
             throw createError(new IllegalStateException("Illegal tree structure."));
@@ -111,7 +113,8 @@ public final class EMapInit extends AExpression {
 
         writer.newInstance(MethodWriter.getType(actual));
         writer.dup();
-        writer.invokeConstructor(Type.getType(constructor.target), constructor.method);
+        writer.invokeConstructor(
+                    Type.getType(constructor.javaConstructor.getDeclaringClass()), Method.getMethod(constructor.javaConstructor));
 
         for (int index = 0; index < keys.size(); ++index) {
             AExpression key = keys.get(index);

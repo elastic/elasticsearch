@@ -20,13 +20,16 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.lookup.PainlessClass;
+import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.objectweb.asm.Type;
 
 import java.lang.invoke.MethodType;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Modifier;
+import java.util.List;
 
 import static org.elasticsearch.painless.WriterConstants.CLASS_NAME;
 import static org.objectweb.asm.Opcodes.H_INVOKEINTERFACE;
@@ -59,8 +62,10 @@ public class FunctionRef {
 
     /** interface method */
     public final PainlessMethod interfaceMethod;
-    /** delegate method */
-    public final PainlessMethod delegateMethod;
+    /** delegate method type parameters */
+    public final List<Class<?>> delegateTypeParameters;
+    /** delegate method return type */
+    public final Class<?> delegateReturnType;
 
     /** factory method type descriptor */
     public final String factoryDescriptor;
@@ -80,9 +85,47 @@ public class FunctionRef {
      * @param call the right hand side of a method reference expression
      * @param numCaptures number of captured arguments
      */
-    public FunctionRef(PainlessLookup painlessLookup, Class<?> expected, String type, String call, int numCaptures) {
-        this(expected, painlessLookup.getPainlessStructFromJavaClass(expected).functionalMethod,
-                lookup(painlessLookup, expected, type, call, numCaptures > 0), numCaptures);
+    public static FunctionRef resolveFromLookup(
+            PainlessLookup painlessLookup, Class<?> expected, String type, String call, int numCaptures) {
+
+        if ("new".equals(call)) {
+            return new FunctionRef(expected, painlessLookup.getPainlessStructFromJavaClass(expected).functionalMethod,
+                    lookup(painlessLookup, expected, type), numCaptures);
+        } else {
+            return new FunctionRef(expected, painlessLookup.getPainlessStructFromJavaClass(expected).functionalMethod,
+                    lookup(painlessLookup, expected, type, call, numCaptures > 0), numCaptures);
+        }
+    }
+
+    /**
+     * Creates a new FunctionRef (already resolved)
+     * @param expected functional interface type to implement
+     * @param interfaceMethod functional interface method
+     * @param delegateConstructor implementation constructor
+     * @param numCaptures number of captured arguments
+     */
+    public FunctionRef(Class<?> expected, PainlessMethod interfaceMethod, PainlessConstructor delegateConstructor, int numCaptures) {
+        Constructor<?> javaConstructor = delegateConstructor.javaConstructor;
+        MethodType delegateMethodType = delegateConstructor.methodType;
+
+        interfaceMethodName = interfaceMethod.name;
+        factoryMethodType = MethodType.methodType(expected,
+                delegateMethodType.dropParameterTypes(numCaptures, delegateMethodType.parameterCount()));
+        interfaceMethodType = interfaceMethod.methodType.dropParameterTypes(0, 1);
+
+        delegateClassName = javaConstructor.getDeclaringClass().getName();
+        isDelegateInterface = false;
+        delegateInvokeType = H_NEWINVOKESPECIAL;
+        delegateMethodName = PainlessLookupUtility.CONSTRUCTOR_NAME;
+        this.delegateMethodType = delegateMethodType.dropParameterTypes(0, numCaptures);
+
+        this.interfaceMethod = interfaceMethod;
+        delegateTypeParameters = delegateConstructor.typeParameters;
+        delegateReturnType = void.class;
+
+        factoryDescriptor = factoryMethodType.toMethodDescriptorString();
+        interfaceType = Type.getMethodType(interfaceMethodType.toMethodDescriptorString());
+        delegateType = Type.getMethodType(this.delegateMethodType.toMethodDescriptorString());
     }
 
     /**
@@ -112,9 +155,7 @@ public class FunctionRef {
             isDelegateInterface = delegateMethod.target.isInterface();
         }
 
-        if ("<init>".equals(delegateMethod.name)) {
-            delegateInvokeType = H_NEWINVOKESPECIAL;
-        } else if (Modifier.isStatic(delegateMethod.modifiers)) {
+        if (Modifier.isStatic(delegateMethod.modifiers)) {
             delegateInvokeType = H_INVOKESTATIC;
         } else if (delegateMethod.target.isInterface()) {
             delegateInvokeType = H_INVOKEINTERFACE;
@@ -126,7 +167,8 @@ public class FunctionRef {
         this.delegateMethodType = delegateMethodType.dropParameterTypes(0, numCaptures);
 
         this.interfaceMethod = interfaceMethod;
-        this.delegateMethod = delegateMethod;
+        delegateTypeParameters = delegateMethod.arguments;
+        delegateReturnType = delegateMethod.rtn;
 
         factoryDescriptor = factoryMethodType.toMethodDescriptorString();
         interfaceType = Type.getMethodType(interfaceMethodType.toMethodDescriptorString());
@@ -151,11 +193,35 @@ public class FunctionRef {
         isDelegateInterface = false;
 
         this.interfaceMethod = null;
-        delegateMethod = null;
+        delegateTypeParameters = null;
+        delegateReturnType = null;
 
         factoryDescriptor = null;
         interfaceType = null;
         delegateType = null;
+    }
+
+    /**
+     * Looks up {@code type} from the whitelist, and returns a matching constructor.
+     */
+    private static PainlessConstructor lookup(PainlessLookup painlessLookup, Class<?> expected, String type) {
+        // check its really a functional interface
+        // for e.g. Comparable
+        PainlessMethod method = painlessLookup.getPainlessStructFromJavaClass(expected).functionalMethod;
+        if (method == null) {
+            throw new IllegalArgumentException("Cannot convert function reference [" + type + "::new] " +
+                    "to [" + PainlessLookupUtility.typeToCanonicalTypeName(expected) + "], not a functional interface");
+        }
+
+        // lookup requested constructor
+        PainlessClass struct = painlessLookup.getPainlessStructFromJavaClass(painlessLookup.getJavaClassFromPainlessType(type));
+        PainlessConstructor impl = struct.constructors.get(PainlessLookupUtility.buildPainlessConstructorKey(method.arguments.size()));
+
+        if (impl == null) {
+            throw new IllegalArgumentException("Unknown reference [" + type + "::new] matching [" + expected + "]");
+        }
+
+        return impl;
     }
 
     /**
@@ -174,27 +240,22 @@ public class FunctionRef {
         // lookup requested method
         PainlessClass struct = painlessLookup.getPainlessStructFromJavaClass(painlessLookup.getJavaClassFromPainlessType(type));
         final PainlessMethod impl;
-        // ctor ref
-        if ("new".equals(call)) {
-            impl = struct.constructors.get(PainlessLookupUtility.buildPainlessMethodKey("<init>", method.arguments.size()));
-        } else {
-            // look for a static impl first
-            PainlessMethod staticImpl =
-                    struct.staticMethods.get(PainlessLookupUtility.buildPainlessMethodKey(call, method.arguments.size()));
-            if (staticImpl == null) {
-                // otherwise a virtual impl
-                final int arity;
-                if (receiverCaptured) {
-                    // receiver captured
-                    arity = method.arguments.size();
-                } else {
-                    // receiver passed
-                    arity = method.arguments.size() - 1;
-                }
-                impl = struct.methods.get(PainlessLookupUtility.buildPainlessMethodKey(call, arity));
+        // look for a static impl first
+        PainlessMethod staticImpl =
+                struct.staticMethods.get(PainlessLookupUtility.buildPainlessMethodKey(call, method.arguments.size()));
+        if (staticImpl == null) {
+            // otherwise a virtual impl
+            final int arity;
+            if (receiverCaptured) {
+                // receiver captured
+                arity = method.arguments.size();
             } else {
-                impl = staticImpl;
+                // receiver passed
+                arity = method.arguments.size() - 1;
             }
+            impl = struct.methods.get(PainlessLookupUtility.buildPainlessMethodKey(call, arity));
+        } else {
+            impl = staticImpl;
         }
         if (impl == null) {
             throw new IllegalArgumentException("Unknown reference [" + type + "::" + call + "] matching " +

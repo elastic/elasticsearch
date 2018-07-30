@@ -36,7 +36,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
     public void testSetIndexLifecyclePolicy() throws Exception {
         String policy = randomAlphaOfLength(10);
 
-        // TODO: convert this to using the high level client once there are APIs for it
+        // TODO: NORELEASE convert this to using the high level client once there are APIs for it
         String jsonString = "{\n" +
             "   \"policy\": {\n" +
             "     \"type\": \"timeseries\",\n" +

@@ -451,7 +451,6 @@ public class LuceneTests extends ESTestCase {
                     fail("index should have failed");
                 } catch (Exception ignored) { }
             }
-            // TODO: add rolled back docs
         }
         try (DirectoryReader unwrapped = DirectoryReader.open(writer)) {
             DirectoryReader reader = Lucene.wrapAllDocsLive(unwrapped);

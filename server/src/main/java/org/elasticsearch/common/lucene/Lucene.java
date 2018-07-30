@@ -66,6 +66,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
@@ -79,7 +80,6 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -880,20 +880,23 @@ public class Lucene {
             super(in, new SubReaderWrapper() {
                 @Override
                 public LeafReader wrap(LeafReader leaf) {
-                    try {
-                        SegmentReader segmentReader = segmentReader(leaf);
-                        SegmentCommitInfo si = segmentReader.getSegmentInfo();
-                        // TODO: Replace this by hard live bits in LUCENE-8425 and add tests for rolled back
-                        if (si.getDelCount() == 0) {
-                            return new LeafReaderWithLiveDocs(segmentReader, null, segmentReader.maxDoc());
-                        } else {
-                            Bits hardLiveBits = si.info.getCodec().liveDocsFormat().readLiveDocs(si.info.dir, si, IOContext.READ);
-                            int numDocs = si.info.maxDoc() - si.getDelCount();
-                            return new LeafReaderWithLiveDocs(segmentReader, hardLiveBits, numDocs);
-                        }
-                    } catch (IOException ex) {
-                        throw new UncheckedIOException(ex);
+                    SegmentReader segmentReader = segmentReader(leaf);
+                    Bits hardLiveDocs = segmentReader.getHardLiveDocs();
+                    if (hardLiveDocs == null) {
+                        return new LeafReaderWithLiveDocs(leaf, null, leaf.maxDoc());
                     }
+                    final int numDocs;
+                    if (hardLiveDocs instanceof FixedBitSet) {
+                        numDocs = ((FixedBitSet) hardLiveDocs).cardinality();
+                    } else {
+                        int bits = 0;
+                        for (int i = 0; i < hardLiveDocs.length(); i++) {
+                            if (hardLiveDocs.get(i))
+                                bits++;
+                        }
+                        numDocs = bits;
+                    }
+                    return new LeafReaderWithLiveDocs(segmentReader, hardLiveDocs, numDocs);
                 }
             });
         }

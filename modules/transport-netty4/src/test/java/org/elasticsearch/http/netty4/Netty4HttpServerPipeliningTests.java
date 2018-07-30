@@ -240,37 +240,43 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
 
         @Override
         public void run() {
-            final String uri;
-            if (pipelinedRequest != null && pipelinedRequest.last() instanceof FullHttpRequest) {
-                uri = ((FullHttpRequest) pipelinedRequest.last()).uri();
-            } else {
-                uri = fullHttpRequest.uri();
-            }
-
-            final ByteBuf buffer = Unpooled.copiedBuffer(uri, StandardCharsets.UTF_8);
-
-            final DefaultFullHttpResponse httpResponse = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK, buffer);
-            httpResponse.headers().add(HttpHeaderNames.CONTENT_LENGTH, buffer.readableBytes());
-
-            final boolean slow = uri.matches("/slow/\\d+");
-            if (slow) {
-                try {
-                    Thread.sleep(scaledRandomIntBetween(500, 1000));
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
+            try {
+                final String uri;
+                if (pipelinedRequest != null && pipelinedRequest.last() instanceof FullHttpRequest) {
+                    uri = ((FullHttpRequest) pipelinedRequest.last()).uri();
+                } else {
+                    uri = fullHttpRequest.uri();
                 }
-            } else {
-                assert uri.matches("/\\d+");
-            }
 
-            final ChannelPromise promise = ctx.newPromise();
-            final Object msg;
-            if (pipelinedRequest != null) {
-                msg = pipelinedRequest.createHttpResponse(httpResponse, promise);
-            } else {
-                msg = httpResponse;
+                final ByteBuf buffer = Unpooled.copiedBuffer(uri, StandardCharsets.UTF_8);
+
+                final FullHttpResponse httpResponse = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK, buffer);
+                httpResponse.headers().add(HttpHeaderNames.CONTENT_LENGTH, buffer.readableBytes());
+
+                final boolean slow = uri.matches("/slow/\\d+");
+                if (slow) {
+                    try {
+                        Thread.sleep(scaledRandomIntBetween(500, 1000));
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                } else {
+                    assert uri.matches("/\\d+");
+                }
+
+                final ChannelPromise promise = ctx.newPromise();
+                final Object msg;
+                if (pipelinedRequest != null) {
+                    msg = pipelinedRequest.createHttpResponse(httpResponse, promise);
+                } else {
+                    msg = httpResponse;
+                }
+                ctx.writeAndFlush(msg, promise);
+            } finally {
+                if (pipelinedRequest != null) {
+                    pipelinedRequest.release();
+                }
             }
-            ctx.writeAndFlush(msg, promise);
         }
 
     }

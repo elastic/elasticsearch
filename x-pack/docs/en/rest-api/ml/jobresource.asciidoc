@@ -106,7 +106,8 @@ An analysis configuration object has the following properties:
 
 `bucket_span`::
   (time units) The size of the interval that the analysis is aggregated into,
-  typically between `5m` and `1h`. The default value is `5m`.
+  typically between `5m` and `1h`. The default value is `5m`. For more 
+  information about time units, see <<time-units,Common options>>.
 
 `categorization_field_name`::
   (string) If this property is specified, the values of the specified field will
@@ -160,8 +161,7 @@ no analysis can occur and an error is returned.
   (time units) The size of the window in which to expect data that is out of
   time order. The default value is 0 (no latency). If you specify a non-zero
   value, it must be greater than or equal to one second. For more information
-  about time units, see
-  {ref}/common-options.html#time-units[Time Units].
+  about time units, see <<time-units,Common options>>.
 +
 --
 NOTE: Latency is only applicable when you send data by using
@@ -434,17 +434,20 @@ A rule has the following properties:
   as usual. This action is suitable when certain values are expected to be
   consistently anomalous and they affect the model in a way that negatively
   impacts the rest of the results.
+  
 `scope`::
-  (object) An optional scope of series where the rule applies. By default the scope
-  includes all series. Scoping is allowed for any of the partition/by/over fields.
-  To add a scope for a field add the field name as a key in the scope object and
-  set its value to an object with properties:
-    `filter_id`::
-      (string) The id of the <<ml-filter-resource,filter>> to be used.
-    `filter_type`::
-      (string) Either `include` (the rule applies for values in the filter)
-      or `exclude` (the rule applies for values not in the filter). Defaults
-      to `include`.
+  (object) An optional scope of series where the rule applies. By default, the 
+  scope includes all series. Scoping is allowed for any of the fields that are 
+  also specified in `by_field_name`, `over_field_name`, or `partition_field_name`.
+  To add a scope for a field, add the field name as a key in the scope object and
+  set its value to an object with the following properties:  
+`filter_id`:::
+  (string) The id of the <<ml-filter-resource,filter>> to be used.
+
+`filter_type`:::
+  (string) Either `include` (the rule applies for values in the filter)
+  or `exclude` (the rule applies for values not in the filter). Defaults
+  to `include`.    
 
 `conditions`::
   (array) An optional array of numeric conditions when the rule applies.
@@ -511,8 +514,7 @@ Specifying a string is recommended for clarity. If you specify a byte size unit
 of `b` or `kb` and the number does not equate to a discrete number of megabytes,
 it is rounded down to the closest MiB. The minimum valid value is 1 MiB. If you
 specify a value less than 1 MiB, an error occurs. For more information about
-supported byte size units, see
-{ref}/common-options.html#byte-units[Byte size units].
+supported byte size units, see <<byte-units,Common options>>.
 
 If your `elasticsearch.yml` file contains an `xpack.ml.max_model_memory_limit`
 setting, an error occurs when you try to create jobs that have

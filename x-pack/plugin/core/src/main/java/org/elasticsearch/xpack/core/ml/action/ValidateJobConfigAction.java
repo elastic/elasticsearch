@@ -55,7 +55,7 @@ extends Action<ValidateJobConfigAction.Request, ValidateJobConfigAction.Response
         private Job job;
 
         public static Request parseRequest(XContentParser parser) {
-            Job.Builder job = Job.CONFIG_PARSER.apply(parser, null);
+            Job.Builder job = Job.STRICT_PARSER.apply(parser, null);
             // When jobs are PUT their ID must be supplied in the URL - assume this will
             // be valid unless an invalid job ID is specified in the JSON to be validated
             job.setId(job.getId() != null ? job.getId() : "ok");

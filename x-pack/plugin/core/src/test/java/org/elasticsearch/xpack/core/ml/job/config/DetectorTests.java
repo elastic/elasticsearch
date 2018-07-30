@@ -182,7 +182,7 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
 
     @Override
     protected Detector doParseInstance(XContentParser parser) {
-        return Detector.CONFIG_PARSER.apply(parser, null).build();
+        return Detector.STRICT_PARSER.apply(parser, null).build();
     }
 
     public void testVerifyFieldNames_givenInvalidChars() {

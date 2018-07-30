@@ -94,7 +94,7 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
 
         /**
          * Temporary method that allows turning a {@link NodeView} into a {@link DiscoveryNode}. This representation will never be used in
-         * practice, because in >= 6.4 a consumer of the response will only be able to retrieve a representation of {@link NodeView}
+         * practice, because in 6.4 and above a consumer of the response will only be able to retrieve a representation of {@link NodeView}
          * objects.
          *
          * Effectively this will be used to hold the state of the object in 6.x so there is no need to have 2 backing objects that

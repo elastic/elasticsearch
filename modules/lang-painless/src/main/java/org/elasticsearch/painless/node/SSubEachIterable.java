@@ -81,7 +81,7 @@ final class SSubEachIterable extends AStatement {
 
             if (method == null) {
                 throw createError(new IllegalArgumentException("Unable to create iterator for the type " +
-                        "[" + PainlessLookupUtility.anyTypeToPainlessTypeName(expression.actual) + "]."));
+                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(expression.actual) + "]."));
             }
         }
 
@@ -132,6 +132,6 @@ final class SSubEachIterable extends AStatement {
 
     @Override
     public String toString() {
-        return singleLineToString(PainlessLookupUtility.anyTypeToPainlessTypeName(variable.clazz), variable.name, expression, block);
+        return singleLineToString(PainlessLookupUtility.typeToCanonicalTypeName(variable.clazz), variable.name, expression, block);
     }
 }

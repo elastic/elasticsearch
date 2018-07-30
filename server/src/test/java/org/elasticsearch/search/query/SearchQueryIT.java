@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.query;
 
+import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.English;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -26,13 +27,16 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -1858,4 +1862,78 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 1);
     }
 
+    public void testNestedQueryWithFieldAlias() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("_doc")
+                    .startObject("properties")
+                        .startObject("section")
+                            .field("type", "nested")
+                            .startObject("properties")
+                                .startObject("distance")
+                                    .field("type", "long")
+                                .endObject()
+                                .startObject("route_length_miles")
+                                    .field("type", "alias")
+                                    .field("path", "section.distance")
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject();
+        assertAcked(prepareCreate("index").addMapping("_doc", mapping));
+
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+            .startObject("section")
+                .field("distance", 42)
+            .endObject()
+        .endObject();
+
+        index("index", "_doc", "1", source);
+        refresh();
+
+        QueryBuilder nestedQuery = QueryBuilders.nestedQuery("section",
+            QueryBuilders.termQuery("section.route_length_miles", 42),
+            ScoreMode.Max);
+        SearchResponse searchResponse = client().prepareSearch("index").setQuery(nestedQuery).get();
+        assertHitCount(searchResponse, 1);
+    }
+
+   public void testFieldAliasesForMetaFields() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("id-alias")
+                            .field("type", "alias")
+                            .field("path", "_id")
+                        .endObject()
+                        .startObject("routing-alias")
+                            .field("type", "alias")
+                            .field("path", "_routing")
+                        .endObject()
+                    .endObject()
+            .endObject()
+        .endObject();
+        assertAcked(prepareCreate("test").addMapping("type", mapping));
+
+        IndexRequestBuilder indexRequest = client().prepareIndex("test", "type")
+            .setId("1")
+            .setRouting("custom")
+            .setSource("field", "value");
+        indexRandom(true, false, indexRequest);
+
+        SearchResponse searchResponse = client().prepareSearch()
+            .setQuery(termQuery("routing-alias", "custom"))
+            .addDocValueField("id-alias")
+            .get();
+        assertHitCount(searchResponse, 1L);
+
+        SearchHit hit = searchResponse.getHits().getAt(0);
+        assertEquals(2, hit.getFields().size());
+        assertTrue(hit.getFields().containsKey("id-alias"));
+
+        DocumentField field = hit.getFields().get("id-alias");
+        assertThat(field.getValue().toString(), equalTo("1"));
+   }
 }

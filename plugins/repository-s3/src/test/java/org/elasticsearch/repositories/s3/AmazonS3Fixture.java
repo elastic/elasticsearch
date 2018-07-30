@@ -18,6 +18,14 @@
  */
 package org.elasticsearch.repositories.s3;
 
+import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpHead;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpPut;
+import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.test.fixture.AbstractHttpFixture;
 import com.amazonaws.util.DateUtils;
 
 import org.elasticsearch.common.Strings;
@@ -26,20 +34,26 @@ import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
-import org.elasticsearch.test.fixture.AbstractHttpFixture;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
+import java.util.Properties;
+import java.util.Random;
+import java.util.concurrent.TimeUnit;
 
+import static com.carrotsearch.randomizedtesting.generators.RandomStrings.randomAsciiAlphanumOfLength;
+import static com.carrotsearch.randomizedtesting.generators.RandomStrings.randomAsciiAlphanumOfLengthBetween;
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static java.util.Objects.requireNonNull;
 
 /**
  * {@link AmazonS3Fixture} emulates an AWS S3 service
@@ -47,63 +61,79 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  * he implementation is based on official documentation available at https://docs.aws.amazon.com/AmazonS3/latest/API/.
  */
 public class AmazonS3Fixture extends AbstractHttpFixture {
+    private static final String AUTH = "AUTH";
+    private static final String NON_AUTH = "NON_AUTH";
+
+    private static final String EC2_PROFILE = "ec2Profile";
+
+    private final Properties properties;
+    private final Random random;
 
     /** List of the buckets stored on this test server **/
     private final Map<String, Bucket> buckets = ConcurrentCollections.newConcurrentMap();
 
     /** Request handlers for the requests made by the S3 client **/
     private final PathTrie<RequestHandler> handlers;
-    private final String permanentBucketName;
-    private final String temporaryBucketName;
 
     /**
      * Creates a {@link AmazonS3Fixture}
      */
-    private AmazonS3Fixture(final String workingDir, final String permanentBucketName, final String temporaryBucketName) {
+    private AmazonS3Fixture(final String workingDir, Properties properties) {
         super(workingDir);
-        this.permanentBucketName = permanentBucketName;
-        this.temporaryBucketName = temporaryBucketName;
+        this.properties = properties;
+        this.random = new Random(Long.parseUnsignedLong(requireNonNull(properties.getProperty("tests.seed")), 16));
 
-        this.buckets.put(permanentBucketName, new Bucket(permanentBucketName));
-        this.buckets.put(temporaryBucketName, new Bucket(temporaryBucketName));
-        this.handlers = defaultHandlers(buckets);
+        new Bucket("s3Fixture.permanent", false);
+        new Bucket("s3Fixture.temporary", true);
+        final Bucket ec2Bucket = new Bucket("s3Fixture.ec2",
+            randomAsciiAlphanumOfLength(random, 10), randomAsciiAlphanumOfLength(random, 10));
+
+        final Bucket ecsBucket = new Bucket("s3Fixture.ecs",
+            randomAsciiAlphanumOfLength(random, 10), randomAsciiAlphanumOfLength(random, 10));
+
+        this.handlers = defaultHandlers(buckets, ec2Bucket, ecsBucket);
+    }
+
+    private static String nonAuthPath(Request request) {
+        return nonAuthPath(request.getMethod(), request.getPath());
+    }
+
+    private static String nonAuthPath(String method, String path) {
+        return NON_AUTH + " " + method + " " + path;
+    }
+
+    private static String authPath(Request request) {
+        return authPath(request.getMethod(), request.getPath());
+    }
+
+    private static String authPath(String method, String path) {
+        return AUTH + " " + method + " " + path;
     }
 
     @Override
     protected Response handle(final Request request) throws IOException {
-        final RequestHandler handler = handlers.retrieve(request.getMethod() + " " + request.getPath(), request.getParameters());
+        final String nonAuthorizedPath = nonAuthPath(request);
+        final RequestHandler nonAuthorizedHandler = handlers.retrieve(nonAuthorizedPath, request.getParameters());
+        if (nonAuthorizedHandler != null) {
+            return nonAuthorizedHandler.handle(request);
+        }
+
+        final String authorizedPath = authPath(request);
+        final RequestHandler handler = handlers.retrieve(authorizedPath, request.getParameters());
         if (handler != null) {
-            final String authorization = request.getHeader("Authorization");
-            final String permittedBucket;
-            if (authorization.contains("s3_integration_test_permanent_access_key")) {
-                final String sessionToken = request.getHeader("x-amz-security-token");
-                if (sessionToken != null) {
-                    return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Unexpected session token", "");
-                }
-                permittedBucket = permanentBucketName;
-            } else if (authorization.contains("s3_integration_test_temporary_access_key")) {
-                final String sessionToken = request.getHeader("x-amz-security-token");
-                if (sessionToken == null) {
-                    return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "No session token", "");
-                }
-                if (sessionToken.equals("s3_integration_test_temporary_session_token") == false) {
-                    return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Bad session token", "");
-                }
-                permittedBucket = temporaryBucketName;
-            } else {
+            final String bucketName = request.getParam("bucket");
+            if (bucketName == null) {
                 return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Bad access key", "");
             }
-
-            final String bucket = request.getParam("bucket");
-            if (bucket != null && permittedBucket.equals(bucket) == false) {
-                // allow a null bucket to support the multi-object-delete API which
-                // passes the bucket name in the host header instead of the URL.
-                if (buckets.containsKey(bucket)) {
-                    return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Bad bucket", "");
-                } else {
-                    return newBucketNotFoundError(request.getId(), bucket);
-                }
+            final Bucket bucket = buckets.get(bucketName);
+            if (bucket == null) {
+                return newBucketNotFoundError(request.getId(), bucketName);
             }
+            final Response authResponse = authenticateBucket(request, bucket);
+            if (authResponse != null) {
+                return authResponse;
+            }
+
             return handler.handle(request);
 
         } else {
@@ -111,24 +141,49 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         }
     }
 
-    public static void main(final String[] args) throws Exception {
-        if (args == null || args.length != 3) {
-            throw new IllegalArgumentException(
-                "AmazonS3Fixture <working directory> <bucket for permanent creds> <bucket for temporary creds>");
+    private Response authenticateBucket(Request request, Bucket bucket) {
+        final String authorization = request.getHeader("Authorization");
+        if (authorization == null) {
+            return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Bad access key", "");
         }
+        if (authorization.contains(bucket.key)) {
+            final String sessionToken = request.getHeader("x-amz-security-token");
+            if (bucket.token == null) {
+                if (sessionToken != null) {
+                    return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Unexpected session token", "");
+                }
+            } else {
+                if (sessionToken == null) {
+                    return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "No session token", "");
+                }
+                if (sessionToken.equals(bucket.token) == false) {
+                    return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Bad session token", "");
+                }
+            }
+        }
+        return null;
+    }
 
-        final AmazonS3Fixture fixture = new AmazonS3Fixture(args[0], args[1], args[2]);
+    public static void main(final String[] args) throws Exception {
+        if (args == null || args.length != 2) {
+            throw new IllegalArgumentException("AmazonS3Fixture <working directory> <property file>");
+        }
+        final Properties properties = new Properties();
+        try (InputStream is = Files.newInputStream(PathUtils.get(args[1]))) {
+            properties.load(is);
+        }
+        final AmazonS3Fixture fixture = new AmazonS3Fixture(args[0], properties);
         fixture.listen();
     }
 
     /** Builds the default request handlers **/
-    private static PathTrie<RequestHandler> defaultHandlers(final Map<String, Bucket> buckets) {
+    private PathTrie<RequestHandler> defaultHandlers(final Map<String, Bucket> buckets, final Bucket ec2Bucket, final Bucket ecsBucket) {
         final PathTrie<RequestHandler> handlers = new PathTrie<>(RestUtils.REST_DECODER);
 
         // HEAD Object
         //
         // https://docs.aws.amazon.com/AmazonS3/latest/API/RESTObjectHEAD.html
-        objectsPaths("HEAD /{bucket}").forEach(path ->
+        objectsPaths(authPath(HttpHead.METHOD_NAME, "/{bucket}")).forEach(path ->
             handlers.insert(path, (request) -> {
                 final String bucketName = request.getParam("bucket");
 
@@ -150,7 +205,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         // PUT Object
         //
         // https://docs.aws.amazon.com/AmazonS3/latest/API/RESTObjectPUT.html
-        objectsPaths("PUT /{bucket}").forEach(path ->
+        objectsPaths(authPath(HttpPut.METHOD_NAME, "/{bucket}")).forEach(path ->
             handlers.insert(path, (request) -> {
                 final String destBucketName = request.getParam("bucket");
 
@@ -200,7 +255,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         // DELETE Object
         //
         // https://docs.aws.amazon.com/AmazonS3/latest/API/RESTObjectDELETE.html
-        objectsPaths("DELETE /{bucket}").forEach(path ->
+        objectsPaths(authPath(HttpDelete.METHOD_NAME, "/{bucket}")).forEach(path ->
             handlers.insert(path, (request) -> {
                 final String bucketName = request.getParam("bucket");
 
@@ -218,7 +273,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         // GET Object
         //
         // https://docs.aws.amazon.com/AmazonS3/latest/API/RESTObjectGET.html
-        objectsPaths("GET /{bucket}").forEach(path ->
+        objectsPaths(authPath(HttpGet.METHOD_NAME, "/{bucket}")).forEach(path ->
             handlers.insert(path, (request) -> {
                 final String bucketName = request.getParam("bucket");
 
@@ -239,7 +294,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         // HEAD Bucket
         //
         // https://docs.aws.amazon.com/AmazonS3/latest/API/RESTBucketHEAD.html
-        handlers.insert("HEAD /{bucket}", (request) -> {
+        handlers.insert(authPath(HttpHead.METHOD_NAME, "/{bucket}"), (request) -> {
             String bucket = request.getParam("bucket");
             if (Strings.hasText(bucket) && buckets.containsKey(bucket)) {
                 return new Response(RestStatus.OK.getStatus(), TEXT_PLAIN_CONTENT_TYPE, EMPTY_BYTE);
@@ -251,7 +306,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         // GET Bucket (List Objects) Version 1
         //
         // https://docs.aws.amazon.com/AmazonS3/latest/API/RESTBucketGET.html
-        handlers.insert("GET /{bucket}/", (request) -> {
+        handlers.insert(authPath(HttpGet.METHOD_NAME, "/{bucket}/"), (request) -> {
             final String bucketName = request.getParam("bucket");
 
             final Bucket bucket = buckets.get(bucketName);
@@ -269,7 +324,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         // Delete Multiple Objects
         //
         // https://docs.aws.amazon.com/AmazonS3/latest/API/multiobjectdeleteapi.html
-        handlers.insert("POST /", (request) -> {
+        handlers.insert(nonAuthPath(HttpPost.METHOD_NAME, "/"), (request) -> {
             final List<String> deletes = new ArrayList<>();
             final List<String> errors = new ArrayList<>();
 
@@ -292,7 +347,12 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
 
                                 boolean found = false;
                                 for (Bucket bucket : buckets.values()) {
-                                    if (bucket.objects.remove(objectName) != null) {
+                                    if (bucket.objects.containsKey(objectName)) {
+                                        final Response authResponse = authenticateBucket(request, bucket);
+                                        if (authResponse != null) {
+                                            return authResponse;
+                                        }
+                                        bucket.objects.remove(objectName);
                                         found = true;
                                     }
                                 }
@@ -311,23 +371,87 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
             return newInternalError(request.getId(), "Something is wrong with this POST multiple deletes request");
         });
 
+        // non-authorized requests
+
+        TriFunction<String, String, String, Response> credentialResponseFunction = (profileName, key, token) -> {
+            final Date expiration = new Date(new Date().getTime() + TimeUnit.DAYS.toMillis(1));
+            final String response = "{"
+                 + "\"AccessKeyId\": \"" + key + "\","
+                 + "\"Expiration\": \"" + DateUtils.formatISO8601Date(expiration) + "\","
+                 + "\"RoleArn\": \"" + randomAsciiAlphanumOfLengthBetween(random, 1, 20) + "\","
+                 + "\"SecretAccessKey\": \"" + randomAsciiAlphanumOfLengthBetween(random, 1, 20) + "\","
+                 + "\"Token\": \"" + token + "\""
+                 + "}";
+
+            final Map<String, String> headers = new HashMap<>(contentType("application/json"));
+            return new Response(RestStatus.OK.getStatus(), headers, response.getBytes(UTF_8));
+        };
+
+        // GET
+        //
+        // http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html
+        handlers.insert(nonAuthPath(HttpGet.METHOD_NAME, "/latest/meta-data/iam/security-credentials/"), (request) -> {
+            final String response = EC2_PROFILE;
+
+            final Map<String, String> headers = new HashMap<>(contentType("text/plain"));
+            return new Response(RestStatus.OK.getStatus(), headers, response.getBytes(UTF_8));
+        });
+
+        // GET
+        //
+        // http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html
+        handlers.insert(nonAuthPath(HttpGet.METHOD_NAME, "/latest/meta-data/iam/security-credentials/{profileName}"), (request) -> {
+            final String profileName = request.getParam("profileName");
+            if (EC2_PROFILE.equals(profileName) == false) {
+                return new Response(RestStatus.NOT_FOUND.getStatus(), new HashMap<>(), "unknown profile".getBytes(UTF_8));
+            }
+            return credentialResponseFunction.apply(profileName, ec2Bucket.key, ec2Bucket.token);
+        });
+
+        // GET
+        //
+        // https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-iam-roles.html
+        handlers.insert(nonAuthPath(HttpGet.METHOD_NAME, "/ecs_credentials_endpoint"),
+            (request) -> credentialResponseFunction.apply("CPV_ECS", ecsBucket.key, ecsBucket.token));
+
+
         return handlers;
+    }
+
+    private static String prop(Properties properties, String propertyName) {
+        return requireNonNull(properties.getProperty(propertyName),
+            "property '" + propertyName + "' is missing");
     }
 
     /**
      * Represents a S3 bucket.
      */
-    static class Bucket {
+    class Bucket {
 
         /** Bucket name **/
         final String name;
 
+        final String key;
+
+        final String token;
+
         /** Blobs contained in the bucket **/
         final Map<String, byte[]> objects;
 
-        Bucket(final String name) {
-            this.name = Objects.requireNonNull(name);
+        private Bucket(final String prefix, final boolean tokenRequired) {
+            this(prefix, prop(properties, prefix + "_key"),
+                tokenRequired ? prop(properties, prefix + "_session_token") : null);
+        }
+
+        private Bucket(final String prefix, final String key, final String token) {
+            this.name = prop(properties, prefix + "_bucket_name");
+            this.key = key;
+            this.token = token;
+
             this.objects = ConcurrentCollections.newConcurrentMap();
+            if (buckets.put(name, this) != null) {
+                throw new IllegalArgumentException("bucket " + name + " is already registered");
+            }
         }
     }
 

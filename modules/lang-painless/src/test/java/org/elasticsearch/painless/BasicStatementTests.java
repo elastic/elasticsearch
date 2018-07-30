@@ -2,6 +2,9 @@ package org.elasticsearch.painless;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -21,10 +24,6 @@ import java.util.Collections;
  * specific language governing permissions and limitations
  * under the License.
  */
-
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 public class BasicStatementTests extends ScriptTestCase {
 

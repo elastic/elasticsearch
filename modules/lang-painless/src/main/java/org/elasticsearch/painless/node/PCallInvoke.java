@@ -73,7 +73,7 @@ public final class PCallInvoke extends AExpression {
         PainlessClass struct = locals.getPainlessLookup().getPainlessStructFromJavaClass(prefix.actual);
 
         if (prefix.actual.isPrimitive()) {
-            struct = locals.getPainlessLookup().getPainlessStructFromJavaClass(PainlessLookupUtility.getBoxedAnyType(prefix.actual));
+            struct = locals.getPainlessLookup().getPainlessStructFromJavaClass(PainlessLookupUtility.typeToBoxedType(prefix.actual));
         }
 
         String methodKey = PainlessLookupUtility.buildPainlessMethodKey(name, arguments.size());
@@ -84,8 +84,8 @@ public final class PCallInvoke extends AExpression {
         } else if (prefix.actual == def.class) {
             sub = new PSubDefCall(location, name, arguments);
         } else {
-            throw createError(new IllegalArgumentException(
-                "Unknown call [" + name + "] with [" + arguments.size() + "] arguments on type [" + struct.name + "]."));
+            throw createError(new IllegalArgumentException("Unknown call [" + name + "] with [" + arguments.size() + "] arguments " +
+                    "on type [" + PainlessLookupUtility.typeToCanonicalTypeName(prefix.actual) + "]."));
         }
 
         if (nullSafe) {

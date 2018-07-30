@@ -153,7 +153,6 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
         assertEquals(0, common.refresh.getListeners());
     }
 
-    @SuppressWarnings("unchecked")
     public void testUuidOnRootStatsIndices() {
         String uuid = createIndex("test").indexUUID();
         IndicesStatsResponse rsp = client().admin().indices().prepareStats().get();

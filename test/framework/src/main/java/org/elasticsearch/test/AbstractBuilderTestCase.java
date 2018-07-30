@@ -31,7 +31,6 @@ import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -40,7 +39,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
@@ -83,7 +81,9 @@ import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -94,37 +94,47 @@ import static java.util.stream.Collectors.toList;
 public abstract class AbstractBuilderTestCase extends ESTestCase {
 
     public static final String STRING_FIELD_NAME = "mapped_string";
+    public static final String STRING_ALIAS_FIELD_NAME = "mapped_string_alias";
     protected static final String STRING_FIELD_NAME_2 = "mapped_string_2";
     protected static final String INT_FIELD_NAME = "mapped_int";
+    protected static final String INT_ALIAS_FIELD_NAME = "mapped_int_field_alias";
     protected static final String INT_RANGE_FIELD_NAME = "mapped_int_range";
     protected static final String DOUBLE_FIELD_NAME = "mapped_double";
     protected static final String BOOLEAN_FIELD_NAME = "mapped_boolean";
     protected static final String DATE_FIELD_NAME = "mapped_date";
+    protected static final String DATE_ALIAS_FIELD_NAME = "mapped_date_alias";
     protected static final String DATE_RANGE_FIELD_NAME = "mapped_date_range";
     protected static final String OBJECT_FIELD_NAME = "mapped_object";
     protected static final String GEO_POINT_FIELD_NAME = "mapped_geo_point";
+    protected static final String GEO_POINT_ALIAS_FIELD_NAME = "mapped_geo_point_alias";
     protected static final String GEO_SHAPE_FIELD_NAME = "mapped_geo_shape";
-    protected static final String[] MAPPED_FIELD_NAMES = new String[]{STRING_FIELD_NAME, INT_FIELD_NAME, INT_RANGE_FIELD_NAME,
-            DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_FIELD_NAME, DATE_RANGE_FIELD_NAME, OBJECT_FIELD_NAME, GEO_POINT_FIELD_NAME,
-            GEO_SHAPE_FIELD_NAME};
-    protected static final String[] MAPPED_LEAF_FIELD_NAMES = new String[]{STRING_FIELD_NAME, INT_FIELD_NAME, INT_RANGE_FIELD_NAME,
-            DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_FIELD_NAME, DATE_RANGE_FIELD_NAME,  GEO_POINT_FIELD_NAME, };
+    protected static final String[] MAPPED_FIELD_NAMES = new String[]{STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME,
+        INT_FIELD_NAME, INT_RANGE_FIELD_NAME, DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_FIELD_NAME,
+        DATE_RANGE_FIELD_NAME, OBJECT_FIELD_NAME, GEO_POINT_FIELD_NAME, GEO_POINT_ALIAS_FIELD_NAME,
+        GEO_SHAPE_FIELD_NAME};
+    protected static final String[] MAPPED_LEAF_FIELD_NAMES = new String[]{STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME,
+        INT_FIELD_NAME, INT_RANGE_FIELD_NAME, DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME,
+        DATE_FIELD_NAME, DATE_RANGE_FIELD_NAME,  GEO_POINT_FIELD_NAME, GEO_POINT_ALIAS_FIELD_NAME};
+
+    private static final Map<String, String> ALIAS_TO_CONCRETE_FIELD_NAME = new HashMap<>();
+    static {
+        ALIAS_TO_CONCRETE_FIELD_NAME.put(STRING_ALIAS_FIELD_NAME, STRING_FIELD_NAME);
+        ALIAS_TO_CONCRETE_FIELD_NAME.put(INT_ALIAS_FIELD_NAME, INT_FIELD_NAME);
+        ALIAS_TO_CONCRETE_FIELD_NAME.put(DATE_ALIAS_FIELD_NAME, DATE_FIELD_NAME);
+        ALIAS_TO_CONCRETE_FIELD_NAME.put(GEO_POINT_ALIAS_FIELD_NAME, GEO_POINT_FIELD_NAME);
+    }
 
     protected static Version indexVersionCreated;
 
     private static ServiceHolder serviceHolder;
+    private static ServiceHolder serviceHolderWithNoType;
     private static int queryNameId = 0;
     private static Settings nodeSettings;
     private static Index index;
-    private static String[] currentTypes;
-    protected static String[] randomTypes;
+    private static Index indexWithNoType;
 
     protected static Index getIndex() {
         return index;
-    }
-
-    protected static String[] getCurrentTypes() {
-        return currentTypes;
     }
 
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -137,40 +147,12 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
     @BeforeClass
     public static void beforeClass() {
         nodeSettings = Settings.builder()
-                .put("node.name", AbstractQueryTestCase.class.toString())
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                .build();
+            .put("node.name", AbstractQueryTestCase.class.toString())
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .build();
 
-        index = new Index(randomAlphaOfLengthBetween(1, 10), "_na_");
-
-        // Set a single type in the index
-        switch (random().nextInt(3)) {
-        case 0:
-            currentTypes = new String[0]; // no types
-            break;
-        default:
-            currentTypes = new String[] { "_doc" };
-            break;
-        }
-        randomTypes = getRandomTypes();
-    }
-
-    private static String[] getRandomTypes() {
-        String[] types;
-        if (currentTypes.length > 0 && randomBoolean()) {
-            int numberOfQueryTypes = randomIntBetween(1, currentTypes.length);
-            types = new String[numberOfQueryTypes];
-            for (int i = 0; i < numberOfQueryTypes; i++) {
-                types[i] = randomFrom(currentTypes);
-            }
-        } else {
-            if (randomBoolean()) {
-                types = new String[]{MetaData.ALL};
-            } else {
-                types = new String[0];
-            }
-        }
-        return types;
+        index = new Index(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLength(10));
+        indexWithNoType = new Index(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLength(10));
     }
 
     @Override
@@ -194,27 +176,37 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
     protected Settings indexSettings() {
         // we have to prefer CURRENT since with the range of versions we support it's rather unlikely to get the current actually.
         indexVersionCreated = randomBoolean() ? Version.CURRENT
-                : VersionUtils.randomVersionBetween(random(), null, Version.CURRENT);
+                : VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.CURRENT);
         return Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, indexVersionCreated)
             .build();
     }
 
+    protected static String expectedFieldName(String builderFieldName) {
+        return ALIAS_TO_CONCRETE_FIELD_NAME.getOrDefault(builderFieldName, builderFieldName);
+    }
+
     @AfterClass
     public static void afterClass() throws Exception {
-        IOUtils.close(serviceHolder);
+        org.apache.lucene.util.IOUtils.close(serviceHolder);
+        org.apache.lucene.util.IOUtils.close(serviceHolderWithNoType);
         serviceHolder = null;
+        serviceHolderWithNoType = null;
     }
 
     @Before
     public void beforeTest() throws IOException {
         if (serviceHolder == null) {
-            serviceHolder = new ServiceHolder(nodeSettings, indexSettings(), getPlugins(), this);
+            serviceHolder = new ServiceHolder(nodeSettings, indexSettings(), getPlugins(), this, true);
         }
         serviceHolder.clientInvocationHandler.delegate = this;
+        if (serviceHolderWithNoType == null) {
+            serviceHolderWithNoType = new ServiceHolder(nodeSettings, indexSettings(), getPlugins(), this, false);
+        }
+        serviceHolderWithNoType.clientInvocationHandler.delegate = this;
     }
 
-    protected static SearchContext getSearchContext(String[] types, QueryShardContext context) {
+    protected static SearchContext getSearchContext(QueryShardContext context) {
         TestSearchContext testSearchContext = new TestSearchContext(context) {
             @Override
             public MapperService mapperService() {
@@ -227,13 +219,13 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             }
 
         };
-        testSearchContext.getQueryShardContext().setTypes(types);
         return testSearchContext;
     }
 
     @After
     public void afterTest() {
         serviceHolder.clientInvocationHandler.delegate = null;
+        serviceHolderWithNoType.clientInvocationHandler.delegate = null;
     }
 
     /**
@@ -255,6 +247,13 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
      */
     protected static QueryShardContext createShardContext(IndexReader reader) {
         return serviceHolder.createShardContext(reader);
+    }
+
+    /**
+     * @return a new {@link QueryShardContext} based on an index with no type registered
+     */
+    protected static QueryShardContext createShardContextWithNoType() {
+        return serviceHolderWithNoType.createShardContext(null);
     }
 
     /**
@@ -308,8 +307,11 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         private final Client client;
         private final long nowInMillis = randomNonNegativeLong();
 
-        ServiceHolder(Settings nodeSettings, Settings indexSettings,
-                      Collection<Class<? extends Plugin>> plugins, AbstractBuilderTestCase testCase) throws IOException {
+        ServiceHolder(Settings nodeSettings,
+                        Settings indexSettings,
+                        Collection<Class<? extends Plugin>> plugins,
+                        AbstractBuilderTestCase testCase,
+                        boolean registerType) throws IOException {
             Environment env = InternalSettingsPreparer.prepareEnvironment(nodeSettings);
             PluginsService pluginsService;
             pluginsService = new PluginsService(nodeSettings, null, env.modulesFile(), env.pluginsFile(), plugins);
@@ -356,27 +358,31 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 }
             });
 
-            for (String type : currentTypes) {
-                mapperService.merge(type, new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(type,
-                        STRING_FIELD_NAME, "type=text",
-                        STRING_FIELD_NAME_2, "type=keyword",
-                        INT_FIELD_NAME, "type=integer",
-                        INT_RANGE_FIELD_NAME, "type=integer_range",
-                        DOUBLE_FIELD_NAME, "type=double",
-                        BOOLEAN_FIELD_NAME, "type=boolean",
-                        DATE_FIELD_NAME, "type=date",
-                        DATE_RANGE_FIELD_NAME, "type=date_range",
-                        OBJECT_FIELD_NAME, "type=object",
-                        GEO_POINT_FIELD_NAME, "type=geo_point",
-                        GEO_SHAPE_FIELD_NAME, "type=geo_shape"
+            if (registerType) {
+                mapperService.merge("_doc", new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef("_doc",
+                    STRING_FIELD_NAME, "type=text",
+                    STRING_FIELD_NAME_2, "type=keyword",
+                    STRING_ALIAS_FIELD_NAME, "type=alias,path=" + STRING_FIELD_NAME,
+                    INT_FIELD_NAME, "type=integer",
+                    INT_ALIAS_FIELD_NAME, "type=alias,path=" + INT_FIELD_NAME,
+                    INT_RANGE_FIELD_NAME, "type=integer_range",
+                    DOUBLE_FIELD_NAME, "type=double",
+                    BOOLEAN_FIELD_NAME, "type=boolean",
+                    DATE_FIELD_NAME, "type=date",
+                    DATE_ALIAS_FIELD_NAME, "type=alias,path=" + DATE_FIELD_NAME,
+                    DATE_RANGE_FIELD_NAME, "type=date_range",
+                    OBJECT_FIELD_NAME, "type=object",
+                    GEO_POINT_FIELD_NAME, "type=geo_point",
+                    GEO_POINT_ALIAS_FIELD_NAME, "type=alias,path=" + GEO_POINT_FIELD_NAME,
+                    GEO_SHAPE_FIELD_NAME, "type=geo_shape"
                 ))), MapperService.MergeReason.MAPPING_UPDATE);
                 // also add mappings for two inner field in the object field
-                mapperService.merge(type, new CompressedXContent("{\"properties\":{\"" + OBJECT_FIELD_NAME + "\":{\"type\":\"object\","
-                                + "\"properties\":{\"" + DATE_FIELD_NAME + "\":{\"type\":\"date\"},\"" +
-                                INT_FIELD_NAME + "\":{\"type\":\"integer\"}}}}}"),
-                        MapperService.MergeReason.MAPPING_UPDATE);
+                mapperService.merge("_doc", new CompressedXContent("{\"properties\":{\"" + OBJECT_FIELD_NAME + "\":{\"type\":\"object\","
+                        + "\"properties\":{\"" + DATE_FIELD_NAME + "\":{\"type\":\"date\"},\"" +
+                        INT_FIELD_NAME + "\":{\"type\":\"integer\"}}}}}"),
+                    MapperService.MergeReason.MAPPING_UPDATE);
+                testCase.initializeAdditionalMappings(mapperService);
             }
-            testCase.initializeAdditionalMappings(mapperService);
         }
 
         @Override
@@ -395,5 +401,4 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             return new ScriptModule(Settings.EMPTY, scriptPlugins);
         }
     }
-
 }

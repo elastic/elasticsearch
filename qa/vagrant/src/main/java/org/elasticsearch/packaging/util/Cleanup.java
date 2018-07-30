@@ -27,11 +27,9 @@ import java.util.List;
 
 import static org.elasticsearch.packaging.util.FileUtils.getTempDir;
 import static org.elasticsearch.packaging.util.FileUtils.lsGlob;
-import static org.elasticsearch.packaging.util.Platforms.isAptGet;
 import static org.elasticsearch.packaging.util.Platforms.isDPKG;
 import static org.elasticsearch.packaging.util.Platforms.isRPM;
 import static org.elasticsearch.packaging.util.Platforms.isSystemd;
-import static org.elasticsearch.packaging.util.Platforms.isYUM;
 
 public class Cleanup {
 
@@ -100,19 +98,14 @@ public class Cleanup {
         final Shell sh = new Shell();
 
         if (isRPM()) {
-            sh.runIgnoreExitCode("rpm --quiet -e elasticsearch elasticsearch-oss");
-        }
-
-        if (isYUM()) {
-            sh.runIgnoreExitCode("yum remove -y elasticsearch elasticsearch-oss");
+            // Doing rpm erase on both packages in one command will remove neither since both cannot be installed
+            // this may leave behind config files in /etc/elasticsearch, but a later step in this cleanup will get them
+            sh.runIgnoreExitCode("rpm --quiet -e elasticsearch");
+            sh.runIgnoreExitCode("rpm --quiet -e elasticsearch-oss");
         }
 
         if (isDPKG()) {
             sh.runIgnoreExitCode("dpkg --purge elasticsearch elasticsearch-oss");
-        }
-
-        if (isAptGet()) {
-            sh.runIgnoreExitCode("apt-get --quiet --yes purge elasticsearch elasticsearch-oss");
         }
     }
 }

@@ -259,13 +259,14 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         public synchronized IndexShard addReplicaWithExistingPath(final ShardPath shardPath, final String nodeId) throws IOException {
             final ShardRouting shardRouting = TestShardRouting.newShardRouting(
-                shardId,
-                nodeId,
-                false, ShardRoutingState.INITIALIZING,
-                RecoverySource.PeerRecoverySource.INSTANCE);
+                    shardId,
+                    nodeId,
+                    false, ShardRoutingState.INITIALIZING,
+                    RecoverySource.PeerRecoverySource.INSTANCE);
 
             final IndexShard newReplica =
-                    newShard(shardRouting, shardPath, indexMetaData, null, getEngineFactory(shardRouting), () -> {}, EMPTY_EVENT_LISTENER);
+                    newShard(shardRouting, shardPath, indexMetaData, null, null, getEngineFactory(shardRouting),
+                            () -> {}, EMPTY_EVENT_LISTENER);
             replicas.add(newReplica);
             updateAllocationIDsOnPrimary();
             return newReplica;
@@ -341,8 +342,11 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             IndexShard replica,
             BiFunction<IndexShard, DiscoveryNode, RecoveryTarget> targetSupplier,
             boolean markAsRecovering) throws IOException {
-            ESIndexLevelReplicationTestCase.this.recoverReplica(replica, primary, targetSupplier, markAsRecovering, activeIds(),
-                routingTable(Function.identity()));
+            final IndexShardRoutingTable routingTable = routingTable(Function.identity());
+            final Set<String> inSyncIds = activeIds();
+            ESIndexLevelReplicationTestCase.this.recoverUnstartedReplica(replica, primary, targetSupplier, markAsRecovering, inSyncIds,
+                routingTable);
+            ESIndexLevelReplicationTestCase.this.startReplicaAfterRecovery(replica, primary, inSyncIds, routingTable);
         }
 
         public synchronized DiscoveryNode getPrimaryNode() {

@@ -434,17 +434,20 @@ A rule has the following properties:
   as usual. This action is suitable when certain values are expected to be
   consistently anomalous and they affect the model in a way that negatively
   impacts the rest of the results.
+  
 `scope`::
-  (object) An optional scope of series where the rule applies. By default the scope
-  includes all series. Scoping is allowed for any of the partition/by/over fields.
-  To add a scope for a field add the field name as a key in the scope object and
-  set its value to an object with properties:
-    `filter_id`::
-      (string) The id of the <<ml-filter-resource,filter>> to be used.
-    `filter_type`::
-      (string) Either `include` (the rule applies for values in the filter)
-      or `exclude` (the rule applies for values not in the filter). Defaults
-      to `include`.
+  (object) An optional scope of series where the rule applies. By default, the 
+  scope includes all series. Scoping is allowed for any of the fields that are 
+  also specified in `by_field_name`, `over_field_name`, or `partition_field_name`.
+  To add a scope for a field, add the field name as a key in the scope object and
+  set its value to an object with the following properties:  
+`filter_id`:::
+  (string) The id of the <<ml-filter-resource,filter>> to be used.
+
+`filter_type`:::
+  (string) Either `include` (the rule applies for values in the filter)
+  or `exclude` (the rule applies for values not in the filter). Defaults
+  to `include`.    
 
 `conditions`::
   (array) An optional array of numeric conditions when the rule applies.

@@ -107,7 +107,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             final long maxRequiredSeqNo = Math.min(leaderGlobalCheckpoint, from + maxBatchOperationCount - 1);
             final int requestBatchCount;
             if (numConcurrentReads == 0) {
-                // If this is the only request, we can treat it as a peek read.
+                // This is the only request, we can optimistically fetch more documents if possible but not enforce max_required_seqno.
                 requestBatchCount = maxBatchOperationCount;
             } else {
                 requestBatchCount = Math.toIntExact(maxRequiredSeqNo - from + 1);

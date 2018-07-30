@@ -52,6 +52,7 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -474,13 +475,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     if (resyncStarted == false) {
                         throw new IllegalStateException("cannot start resync while it's already in progress");
                     }
-                    indexShardOperationPermits.asyncBlockOperations(
-                        30,
-                        TimeUnit.MINUTES,
+                    bumpPrimaryTerm(newPrimaryTerm,
                         () -> {
-                            shardStateUpdated.await();
                             assert pendingPrimaryTerm == newPrimaryTerm :
-                                "shard term changed on primary. expected [" + newPrimaryTerm + "] but was [" + pendingPrimaryTerm + "]";
+                                "shard term changed on primary. expected [" + newPrimaryTerm + "] but was [" + pendingPrimaryTerm + "]" +
+                                ", current routing: " + currentRouting + ", new routing: " + newRouting;
                             assert operationPrimaryTerm < newPrimaryTerm;
                             operationPrimaryTerm = newPrimaryTerm;
                             try {
@@ -527,10 +526,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             } catch (final AlreadyClosedException e) {
                                 // okay, the index was deleted
                             }
-                        },
-                        e -> failShard("exception during primary term transition", e));
+                        });
                     replicationTracker.activatePrimaryMode(getLocalCheckpoint());
-                    pendingPrimaryTerm = newPrimaryTerm;
                 }
             }
             // set this last, once we finished updating all internal state.
@@ -2215,7 +2212,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         indexShardOperationPermits.acquire(onPermitAcquired, executorOnDelay, false, debugInfo);
     }
 
-    private final Object primaryTermMutex = new Object();
+    private <E extends Exception> void bumpPrimaryTerm(long newPrimaryTerm, final CheckedRunnable<E> onBlocked) {
+        assert Thread.holdsLock(mutex);
+        assert newPrimaryTerm > pendingPrimaryTerm;
+        assert operationPrimaryTerm <= pendingPrimaryTerm;
+        final CountDownLatch termUpdated = new CountDownLatch(1);
+        indexShardOperationPermits.asyncBlockOperations(30, TimeUnit.MINUTES, () -> {
+                assert operationPrimaryTerm <= pendingPrimaryTerm;
+                onBlocked.run();
+                assert operationPrimaryTerm <= pendingPrimaryTerm;
+            },
+            e -> failShard("exception during primary term transition", e));
+        pendingPrimaryTerm = newPrimaryTerm;
+        termUpdated.countDown();
+    }
 
     /**
      * Acquire a replica operation permit whenever the shard is ready for indexing (see
@@ -2238,10 +2248,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         verifyNotClosed();
         verifyReplicationTarget();
         if (opPrimaryTerm > pendingPrimaryTerm) {
-            synchronized (primaryTermMutex) {
+            synchronized (mutex) {
                 if (opPrimaryTerm > pendingPrimaryTerm) {
-                    verifyNotClosed();
-
                     IndexShardState shardState = state();
                     // only roll translog and update primary term if shard has made it past recovery
                     // Having a new primary term here means that the old primary failed and that there is a new primary, which again
@@ -2252,39 +2260,32 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         throw new IndexShardNotStartedException(shardId, shardState);
                     }
 
-                    synchronized (mutex) {
-                        final CountDownLatch termUpdated = new CountDownLatch(1);
-                        if (opPrimaryTerm > pendingPrimaryTerm) {
-                            indexShardOperationPermits.asyncBlockOperations(30, TimeUnit.MINUTES, () -> {
-                                termUpdated.await();
-                                // a primary promotion, or another primary term transition, might have been triggered concurrently to this
-                                // recheck under the operation permit if we can skip doing this work
-                                if (opPrimaryTerm == pendingPrimaryTerm) {
-                                    assert operationPrimaryTerm < pendingPrimaryTerm;
-                                    operationPrimaryTerm = pendingPrimaryTerm;
-                                    updateGlobalCheckpointOnReplica(globalCheckpoint, "primary term transition");
-                                    final long currentGlobalCheckpoint = getGlobalCheckpoint();
-                                    final long localCheckpoint;
-                                    if (currentGlobalCheckpoint == SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                                        localCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
-                                    } else {
-                                        localCheckpoint = currentGlobalCheckpoint;
-                                    }
-                                    logger.trace(
-                                        "detected new primary with primary term [{}], resetting local checkpoint from [{}] to [{}]",
-                                        opPrimaryTerm,
-                                        getLocalCheckpoint(),
-                                        localCheckpoint);
-                                    getEngine().resetLocalCheckpoint(localCheckpoint);
-                                    getEngine().rollTranslogGeneration();
+                    if (opPrimaryTerm > pendingPrimaryTerm) {
+                        bumpPrimaryTerm(opPrimaryTerm, () -> {
+                            // a primary promotion, or another primary term transition, might have been triggered concurrently to this
+                            // recheck under the operation permit if we can skip doing this work
+                            if (opPrimaryTerm == pendingPrimaryTerm) {
+                                assert operationPrimaryTerm < pendingPrimaryTerm;
+                                operationPrimaryTerm = pendingPrimaryTerm;
+                                updateGlobalCheckpointOnReplica(globalCheckpoint, "primary term transition");
+                                final long currentGlobalCheckpoint = getGlobalCheckpoint();
+                                final long localCheckpoint;
+                                if (currentGlobalCheckpoint == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                                    localCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
                                 } else {
-                                    logger.trace("a primary promotion or concurrent primary term transition has made this reset obsolete");
+                                    localCheckpoint = currentGlobalCheckpoint;
                                 }
-                            }, e -> failShard("exception during primary term transition", e));
-
-                            pendingPrimaryTerm = opPrimaryTerm;
-                            termUpdated.countDown();
-                        }
+                                logger.trace(
+                                    "detected new primary with primary term [{}], resetting local checkpoint from [{}] to [{}]",
+                                    opPrimaryTerm,
+                                    getLocalCheckpoint(),
+                                    localCheckpoint);
+                                getEngine().resetLocalCheckpoint(localCheckpoint);
+                                getEngine().rollTranslogGeneration();
+                            } else {
+                                logger.trace("a primary promotion or concurrent primary term transition has made this reset obsolete");
+                            }
+                        });
                     }
                 }
             }

@@ -22,8 +22,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
-
-import static org.elasticsearch.xpack.core.indexlifecycle.ObjectParserUtils.convertListToMapValues;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Represents set of {@link LifecycleAction}s which should be executed at a
@@ -36,8 +36,8 @@ public class Phase implements ToXContentObject, Writeable {
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<Phase, String> PARSER = new ConstructingObjectParser<>("phase", false,
-            (a, name) -> new Phase(name, (TimeValue) a[0],
-        convertListToMapValues(LifecycleAction::getWriteableName, (List<LifecycleAction>) a[1])));
+            (a, name) -> new Phase(name, (TimeValue) a[0], ((List<LifecycleAction>) a[1]).stream()
+                    .collect(Collectors.toMap(LifecycleAction::getWriteableName, Function.identity()))));
     static {
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
                 (p, c) -> TimeValue.parseTimeValue(p.text(), AFTER_FIELD.getPreferredName()), AFTER_FIELD, ValueType.VALUE);

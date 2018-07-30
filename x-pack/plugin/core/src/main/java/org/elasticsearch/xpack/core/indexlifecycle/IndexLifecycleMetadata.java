@@ -38,10 +38,11 @@ public class IndexLifecycleMetadata implements XPackMetaDataCustom {
     public static final IndexLifecycleMetadata EMPTY = new IndexLifecycleMetadata(Collections.emptySortedMap(), OperationMode.RUNNING);
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<IndexLifecycleMetadata, Void> PARSER = new ConstructingObjectParser<>(
-            TYPE, a -> new IndexLifecycleMetadata(
-                    ObjectParserUtils.convertListToMapValues(LifecyclePolicyMetadata::getName, (List<LifecyclePolicyMetadata>) a[0]),
-                        OperationMode.valueOf((String) a[1])));
+    public static final ConstructingObjectParser<IndexLifecycleMetadata, Void> PARSER = new ConstructingObjectParser<>(TYPE,
+            a -> new IndexLifecycleMetadata(
+                    ((List<LifecyclePolicyMetadata>) a[0]).stream()
+                            .collect(Collectors.toMap(LifecyclePolicyMetadata::getName, Function.identity())),
+                    OperationMode.valueOf((String) a[1])));
     static {
         PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, n) -> LifecyclePolicyMetadata.parse(p, n),
                 v -> {

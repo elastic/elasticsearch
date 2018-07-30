@@ -19,12 +19,13 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
+import org.elasticsearch.painless.spi.Whitelist;
+
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-
-import org.elasticsearch.painless.lookup.PainlessLookup;
-import org.elasticsearch.painless.spi.Whitelist;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
@@ -37,7 +38,7 @@ import static org.hamcrest.Matchers.startsWith;
  */
 public class BaseClassTests extends ScriptTestCase {
 
-    private final PainlessLookup painlessLookup = new PainlessLookup(Whitelist.BASE_WHITELISTS);
+    private final PainlessLookup painlessLookup = PainlessLookupBuilder.buildFromWhitelists(Whitelist.BASE_WHITELISTS);
 
     public abstract static class Gets {
 

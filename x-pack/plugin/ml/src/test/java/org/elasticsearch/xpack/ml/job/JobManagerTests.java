@@ -21,7 +21,6 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
@@ -94,7 +93,7 @@ public class JobManagerTests extends ESTestCase {
         Job job = buildJobBuilder("foo").build();
         MlMetadata mlMetadata = new MlMetadata.Builder().putJob(job, false).build();
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
-                .metaData(MetaData.builder().putCustom(MLMetadataField.TYPE, mlMetadata)).build();
+                .metaData(MetaData.builder().putCustom(MlMetadata.TYPE, mlMetadata)).build();
 
         assertEquals(job, JobManager.getJobOrThrowIfUnknown("foo", cs));
     }
@@ -105,7 +104,7 @@ public class JobManagerTests extends ESTestCase {
             mlMetadata.putJob(buildJobBuilder(Integer.toString(i)).build(), false);
         }
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-                .metaData(MetaData.builder().putCustom(MLMetadataField.TYPE, mlMetadata.build())).build();
+                .metaData(MetaData.builder().putCustom(MlMetadata.TYPE, mlMetadata.build())).build();
 
         JobManager jobManager = createJobManager();
         QueryPage<Job> result = jobManager.expandJobs("_all", true, clusterState);
@@ -161,7 +160,7 @@ public class JobManagerTests extends ESTestCase {
         MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
         mlMetadata.putJob(buildJobBuilder("foo").build(), false);
         ClusterState clusterState = ClusterState.builder(new ClusterName("name"))
-                .metaData(MetaData.builder().putCustom(MLMetadataField.TYPE, mlMetadata.build())).build();
+                .metaData(MetaData.builder().putCustom(MlMetadata.TYPE, mlMetadata.build())).build();
 
         jobManager.putJob(putJobRequest, analysisRegistry, clusterState, new ActionListener<PutJobAction.Response>() {
             @Override
@@ -215,7 +214,7 @@ public class JobManagerTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
                 .metaData(MetaData.builder()
                         .putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build())
-                        .putCustom(MLMetadataField.TYPE, mlMetadata.build()))
+                        .putCustom(MlMetadata.TYPE, mlMetadata.build()))
                 .build();
         when(clusterService.state()).thenReturn(clusterState);
 
@@ -267,7 +266,7 @@ public class JobManagerTests extends ESTestCase {
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
                 .metaData(MetaData.builder()
-                        .putCustom(MLMetadataField.TYPE, mlMetadata.build()))
+                        .putCustom(MlMetadata.TYPE, mlMetadata.build()))
                 .build();
         when(clusterService.state()).thenReturn(clusterState);
 
@@ -297,7 +296,7 @@ public class JobManagerTests extends ESTestCase {
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
                 .metaData(MetaData.builder()
-                        .putCustom(MLMetadataField.TYPE, mlMetadata.build()))
+                        .putCustom(MlMetadata.TYPE, mlMetadata.build()))
                 .build();
         when(clusterService.state()).thenReturn(clusterState);
 
@@ -331,7 +330,7 @@ public class JobManagerTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
                 .metaData(MetaData.builder()
                         .putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build())
-                        .putCustom(MLMetadataField.TYPE, mlMetadata.build()))
+                        .putCustom(MlMetadata.TYPE, mlMetadata.build()))
                 .build();
         when(clusterService.state()).thenReturn(clusterState);
 
@@ -370,7 +369,7 @@ public class JobManagerTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
                 .metaData(MetaData.builder()
                         .putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build())
-                        .putCustom(MLMetadataField.TYPE, mlMetadata.build()))
+                        .putCustom(MlMetadata.TYPE, mlMetadata.build()))
                 .build();
         when(clusterService.state()).thenReturn(clusterState);
 

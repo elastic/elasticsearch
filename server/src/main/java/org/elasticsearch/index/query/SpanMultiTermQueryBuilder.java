@@ -44,6 +44,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
@@ -202,14 +203,18 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
                     multiTermQueryBuilder.getClass().getName() + ", should be " + MultiTermQuery.class.getName()
                     + " but was " + subQuery.getClass().getName());
             }
+
+            PrefixQueryBuilder prefixBuilder = (PrefixQueryBuilder) multiTermQueryBuilder;
+            MappedFieldType fieldType = context.fieldMapper(prefixBuilder.fieldName());
+            String fieldName = fieldType != null ? fieldType.name() : prefixBuilder.fieldName();
+
             if (context.getIndexSettings().getIndexVersionCreated().before(Version.V_6_4_0)) {
                 /**
                  * Indices created in this version do not index positions on the prefix field
                  * so we cannot use it to match positional queries. Instead, we explicitly create the prefix
                  * query on the main field to avoid the rewrite.
                  */
-                PrefixQueryBuilder prefixBuilder = (PrefixQueryBuilder) multiTermQueryBuilder;
-                PrefixQuery prefixQuery = new PrefixQuery(new Term(prefixBuilder.fieldName(), prefixBuilder.value()));
+                PrefixQuery prefixQuery = new PrefixQuery(new Term(fieldName, prefixBuilder.value()));
                 if (prefixBuilder.rewrite() != null) {
                     MultiTermQuery.RewriteMethod rewriteMethod =
                         QueryParsers.parseRewriteMethod(prefixBuilder.rewrite(), null, LoggingDeprecationHandler.INSTANCE);
@@ -218,15 +223,14 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
                 subQuery = prefixQuery;
                 spanQuery = new SpanMultiTermQueryWrapper<>(prefixQuery);
             } else {
-                String origFieldName = ((PrefixQueryBuilder) multiTermQueryBuilder).fieldName();
-                SpanTermQuery spanTermQuery = new SpanTermQuery(((TermQuery) subQuery).getTerm());
                 /**
                  * Prefixes are indexed in a different field so we mask the term query with the original field
                  * name. This is required because span_near and span_or queries don't work across different field.
                  * The masking is safe because the prefix field is indexed using the same content than the original field
                  * and the prefix analyzer preserves positions.
                  */
-                spanQuery = new FieldMaskingSpanQuery(spanTermQuery, origFieldName);
+                SpanTermQuery spanTermQuery = new SpanTermQuery(((TermQuery) subQuery).getTerm());
+                spanQuery = new FieldMaskingSpanQuery(spanTermQuery, fieldName);
             }
         } else {
             if (subQuery instanceof MultiTermQuery == false) {

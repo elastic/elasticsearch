@@ -79,7 +79,7 @@ public class AuditTrailTests extends SecurityIntegTestCase {
     public String configUsersRoles() {
         return super.configUsersRoles()
                 + ROLE_CAN_RUN_AS + ":" + AUTHENTICATE_USER + "\n"
-                + "kibana_user:" + EXECUTE_USER;
+                + "monitoring_user:" + EXECUTE_USER;
     }
 
     @Override

@@ -19,14 +19,11 @@
 
 package org.elasticsearch.test.rest;
 
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 
 import java.io.IOException;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
@@ -49,26 +46,31 @@ public class CreatedLocationHeaderIT extends ESRestTestCase {
     }
 
     public void testUpsert() throws IOException {
-        locationTestCase(client().performRequest("POST", "test/test/1/_update", emptyMap(), new StringEntity("{"
-                + "\"doc\": {\"test\": \"test\"},"
-                + "\"doc_as_upsert\": true}", ContentType.APPLICATION_JSON)));
+        Request request = new Request("POST", "test/test/1/_update");
+        request.setJsonEntity("{"
+            + "\"doc\": {\"test\": \"test\"},"
+            + "\"doc_as_upsert\": true}");
+        locationTestCase(client().performRequest(request));
     }
 
     private void locationTestCase(String method, String url) throws IOException {
-        locationTestCase(client().performRequest(method, url, emptyMap(),
-            new StringEntity("{\"test\": \"test\"}", ContentType.APPLICATION_JSON)));
+        final Request request = new Request(method, url);
+        request.setJsonEntity("{\"test\": \"test\"}");
+        locationTestCase(client().performRequest(request));
         // we have to delete the index otherwise the second indexing request will route to the single shard and not produce a 201
         final Response response = client().performRequest(new Request("DELETE", "test"));
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
-        locationTestCase(client().performRequest(method, url + "?routing=cat", emptyMap(),
-                new StringEntity("{\"test\": \"test\"}", ContentType.APPLICATION_JSON)));
+        final Request withRouting = new Request(method, url);
+        withRouting.addParameter("routing", "cat");
+        withRouting.setJsonEntity("{\"test\": \"test\"}");
+        locationTestCase(client().performRequest(withRouting));
     }
 
     private void locationTestCase(Response response) throws IOException {
         assertEquals(201, response.getStatusLine().getStatusCode());
         String location = response.getHeader("Location");
         assertThat(location, startsWith("/test/test/"));
-        Response getResponse = client().performRequest("GET", location);
+        Response getResponse = client().performRequest(new Request("GET", location));
         assertEquals(singletonMap("test", "test"), entityAsMap(getResponse).get("_source"));
     }
 

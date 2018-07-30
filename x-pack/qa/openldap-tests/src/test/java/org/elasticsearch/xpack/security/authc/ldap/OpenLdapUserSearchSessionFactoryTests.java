@@ -34,7 +34,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
-import static org.elasticsearch.test.OpenLdapTests.LDAPTRUST_PATH;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -45,22 +44,20 @@ public class OpenLdapUserSearchSessionFactoryTests extends ESTestCase {
 
     private Settings globalSettings;
     private ThreadPool threadPool;
-    private MockSecureSettings globalSecureSettings;
+    private static final String LDAPCACERT_PATH = "/ca.crt";
 
     @Before
     public void init() throws Exception {
-        Path keystore = getDataPath(LDAPTRUST_PATH);
+        Path caPath = getDataPath(LDAPCACERT_PATH);
         /*
          * Prior to each test we reinitialize the socket factory with a new SSLService so that we get a new SSLContext.
          * If we re-use a SSLContext, previously connected sessions can get re-established which breaks hostname
          * verification tests since a re-established connection does not perform hostname verification.
          */
-        globalSecureSettings = newSecureSettings("xpack.ssl.truststore.secure_password", "changeit");
         globalSettings = Settings.builder()
-                .put("path.home", createTempDir())
-                .put("xpack.ssl.truststore.path", keystore)
-                .setSecureSettings(globalSecureSettings)
-                .build();
+            .put("path.home", createTempDir())
+            .put("xpack.ssl.certificate_authorities", caPath)
+            .build();
         threadPool = new TestThreadPool("LdapUserSearchSessionFactoryTests");
     }
 
@@ -94,7 +91,6 @@ public class OpenLdapUserSearchSessionFactoryTests extends ESTestCase {
                 .put(globalSettings, false);
         builder.put(Settings.builder().put(config.settings(), false).normalizePrefix("xpack.security.authc.realms.oldap-test.").build());
         final MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.merge(globalSecureSettings);
         if (useSecureBindPassword) {
             secureSettings.setString("xpack.security.authc.realms.oldap-test.secure_bind_password", OpenLdapTests.PASSWORD);
         }

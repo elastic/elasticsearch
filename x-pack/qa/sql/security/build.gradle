@@ -1,8 +1,10 @@
 dependencies {
-  testCompile "org.elasticsearch.plugin:x-pack-core:${version}"
+  testCompile project(path: xpackModule('core'), configuration: 'shadow')
 }
 
 Project mainProject = project
+
+group = "${group}.x-pack.qa.sql.security"
 
 subprojects {
   // Use resources from the parent project in subprojects
@@ -18,7 +20,7 @@ subprojects {
   }
 
   dependencies {
-    testCompile "org.elasticsearch.plugin:x-pack-core:${version}"
+    testCompile project(path: xpackModule('core'), configuration: 'shadow')
   }
 
   integTestCluster {

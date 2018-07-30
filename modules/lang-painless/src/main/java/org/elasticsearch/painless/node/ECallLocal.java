@@ -19,12 +19,12 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.lookup.PainlessMethod;
-import org.elasticsearch.painless.lookup.PainlessMethodKey;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.lookup.PainlessMethod;
 
 import java.util.List;
 import java.util.Objects;
@@ -58,7 +58,7 @@ public final class ECallLocal extends AExpression {
 
     @Override
     void analyze(Locals locals) {
-        PainlessMethodKey methodKey = new PainlessMethodKey(name, arguments.size());
+        String methodKey = PainlessLookupUtility.buildPainlessMethodKey(name, arguments.size());
         method = locals.getMethod(methodKey);
 
         if (method == null) {

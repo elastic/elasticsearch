@@ -290,6 +290,7 @@ public class KeyStoreWrapperTests extends ESTestCase {
     }
 
     public void testBackcompatV1() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM as PBE is not available", inFipsJvm());
         Path configDir = env.configFile();
         SimpleFSDirectory directory = new SimpleFSDirectory(configDir);
         try (IndexOutput output = directory.createOutput("elasticsearch.keystore", IOContext.DEFAULT)) {
@@ -320,6 +321,7 @@ public class KeyStoreWrapperTests extends ESTestCase {
     }
 
     public void testBackcompatV2() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM as PBE is not available", inFipsJvm());
         Path configDir = env.configFile();
         SimpleFSDirectory directory = new SimpleFSDirectory(configDir);
         byte[] fileBytes = new byte[20];

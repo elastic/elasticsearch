@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.core.watcher.execution;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapperResult;
 import org.elasticsearch.xpack.core.watcher.condition.Condition;
 import org.elasticsearch.xpack.core.watcher.history.WatchRecord;
@@ -18,6 +20,7 @@ import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.joda.time.DateTime;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -43,6 +46,7 @@ public abstract class WatchExecutionContext {
     private Transform.Result transformResult;
     private ConcurrentMap<String, ActionWrapperResult> actionsResults = ConcurrentCollections.newConcurrentMap();
     private String nodeId;
+    private String user;
 
     public WatchExecutionContext(String watchId, DateTime executionTime, TriggerEvent triggerEvent, TimeValue defaultThrottlePeriod) {
         this.id = new Wid(watchId, executionTime);
@@ -85,6 +89,7 @@ public abstract class WatchExecutionContext {
     public final void ensureWatchExists(CheckedSupplier<Watch, Exception> supplier) throws Exception {
         if (watch == null) {
             watch = supplier.get();
+            user = WatchExecutionContext.getUsernameFromWatch(watch);
         }
     }
 
@@ -136,6 +141,11 @@ public abstract class WatchExecutionContext {
     public String getNodeId() {
         return nodeId;
     }
+
+    /**
+     * @return The user that executes the watch, which will be stored in the watch history
+     */
+    public String getUser() { return user; }
 
     public void start() {
         assert phase == ExecutionPhase.AWAITS_EXECUTION;
@@ -242,5 +252,20 @@ public abstract class WatchExecutionContext {
 
     public WatchExecutionSnapshot createSnapshot(Thread executionThread) {
         return new WatchExecutionSnapshot(this, executionThread.getStackTrace());
+    }
+
+    /**
+     * Given a watch, this extracts and decodes the relevant auth header and returns the principal of the user that is
+     * executing the watch.
+     */
+    public static String getUsernameFromWatch(Watch watch) throws IOException {
+        if (watch != null && watch.status() != null && watch.status().getHeaders() != null) {
+            String header = watch.status().getHeaders().get(AuthenticationField.AUTHENTICATION_KEY);
+            if (header != null) {
+                Authentication auth = Authentication.decode(header);
+                return auth.getUser().principal();
+            }
+        }
+        return null;
     }
 }

@@ -105,10 +105,11 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         while (hasReadBudget() && lastRequestedSeqno < leaderGlobalCheckpoint) {
             numConcurrentReads++;
             long from = lastRequestedSeqno + 1;
-            // -1 is needed, because maxRequiredSeqNo is inclusive
-            long maxRequiredSeqNo = Math.min(leaderGlobalCheckpoint, from + maxBatchOperationCount - 1);
-            int requestBatchSize = Math.toIntExact(maxRequiredSeqNo - from + 1);
-            LOGGER.trace("{}[{}] read [{}/{}]", params.getFollowShardId(), numConcurrentReads, maxRequiredSeqNo, requestBatchSize);
+            int requestBatchSize = Math.min(Math.toIntExact(leaderGlobalCheckpoint - from + 1), maxBatchOperationCount);
+            assert 0 < requestBatchSize && requestBatchSize <= maxBatchOperationCount : "request_size=" + requestBatchSize;
+            long maxRequiredSeqNo = from + requestBatchSize - 1;
+            LOGGER.trace("{}[{} ongoing reads] read from={} max_required={} batch_size={}",
+                params.getFollowShardId(), numConcurrentReads, from, maxRequiredSeqNo, requestBatchSize);
             sendShardChangesRequest(from, requestBatchSize, maxRequiredSeqNo);
             lastRequestedSeqno = maxRequiredSeqNo;
         }

@@ -24,7 +24,7 @@ import java.util.Collections;
 import java.util.Map;
 
 public final class PainlessClass {
-    public final Map<Integer, PainlessConstructor> constructors;
+    public final Map<String, PainlessConstructor> constructors;
 
     public final Map<String, PainlessMethod> staticMethods;
     public final Map<String, PainlessMethod> methods;
@@ -37,7 +37,7 @@ public final class PainlessClass {
 
     public final PainlessMethod functionalMethod;
 
-    PainlessClass(Map<Integer, PainlessConstructor> constructors,
+    PainlessClass(Map<String, PainlessConstructor> constructors,
             Map<String, PainlessMethod> staticMethods, Map<String, PainlessMethod> methods,
             Map<String, PainlessField> staticFields, Map<String, PainlessField> fields,
             Map<String, MethodHandle> getterMethodHandles, Map<String, MethodHandle> setterMethodHandles,

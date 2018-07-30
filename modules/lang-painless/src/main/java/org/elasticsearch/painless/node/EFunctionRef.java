@@ -90,7 +90,7 @@ public final class EFunctionRef extends AExpression implements ILambda {
                     }
                 } else {
                     // whitelist lookup
-                    ref = FunctionRef.getFunctionRef(locals.getPainlessLookup(), expected, type, call, 0);
+                    ref = FunctionRef.resolveFromLookup(locals.getPainlessLookup(), expected, type, call, 0);
                 }
 
             } catch (IllegalArgumentException e) {

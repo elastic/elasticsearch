@@ -77,7 +77,7 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
             // static case
             if (captured.clazz != def.class) {
                 try {
-                    ref = FunctionRef.getFunctionRef(locals.getPainlessLookup(), expected,
+                    ref = FunctionRef.resolveFromLookup(locals.getPainlessLookup(), expected,
                             PainlessLookupUtility.typeToCanonicalTypeName(captured.clazz), call, 1);
 
                     // check casts between the interface method and the delegate method are legal

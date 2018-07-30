@@ -66,7 +66,6 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
@@ -885,16 +884,11 @@ public class Lucene {
                     if (hardLiveDocs == null) {
                         return new LeafReaderWithLiveDocs(leaf, null, leaf.maxDoc());
                     }
-                    final int numDocs;
-                    if (hardLiveDocs instanceof FixedBitSet) {
-                        numDocs = ((FixedBitSet) hardLiveDocs).cardinality();
-                    } else {
-                        int bits = 0;
-                        for (int i = 0; i < hardLiveDocs.length(); i++) {
-                            if (hardLiveDocs.get(i))
-                                bits++;
+                    int numDocs = 0;
+                    for (int i = 0; i < hardLiveDocs.length(); i++) {
+                        if (hardLiveDocs.get(i)) {
+                            numDocs++;
                         }
-                        numDocs = bits;
                     }
                     return new LeafReaderWithLiveDocs(segmentReader, hardLiveDocs, numDocs);
                 }

@@ -46,6 +46,8 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.apache.lucene.geo.GeoUtils.orient;
+
 /**
  * The {@link PolygonBuilder} implements the groundwork to create polygons. This contains
  * Methods to wrap polygons at the dateline and building shapes from the data held by the
@@ -683,13 +685,13 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
         final int prev = (top + length - 1) % length;
         final int next = (top + 1) % length;
 
-        // This duplicates the functionality of org.apache.lucene.geo.Polygon2D#orient which is, at time of writing, private.
-        // TODO make Lucene's method public and then use it here instead.
-        final double determinant
-            = (points[offset + next].x - points[offset + top].x) * (points[offset + prev].y - points[offset + top].y)
-            - (points[offset + prev].x - points[offset + top].x) * (points[offset + next].y - points[offset + top].y);
-        assert determinant != 0.0;
-        return determinant < 0.0;
+        final int determinantSign = orient(
+            points[offset + prev].x, points[offset + prev].y,
+            points[offset + top].x, points[offset + top].y,
+            points[offset + next].x, points[offset + next].y);
+
+        assert determinantSign != 0;
+        return determinantSign < 0;
     }
 
     /**

@@ -2584,7 +2584,7 @@ public class RequestConvertersTests extends ESTestCase {
     public void testSetIndexLifecyclePolicy() throws Exception {
         SetIndexLifecyclePolicyRequest req = new SetIndexLifecyclePolicyRequest();
         String policyName = randomAlphaOfLength(10);
-        String[] indices = randomIndicesNames(0, 10);
+        String[] indices = rarely() ? null : randomIndicesNames(0, 10);
         req.policy(policyName);
         req.indices(indices);
         Map<String, String> expectedParams = new HashMap<>();

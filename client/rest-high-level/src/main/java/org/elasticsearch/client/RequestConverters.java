@@ -1142,9 +1142,10 @@ final class RequestConverters {
     }
 
     static Request setIndexLifecyclePolicy(SetIndexLifecyclePolicyRequest setPolicyRequest) {
+        String[] indices = setPolicyRequest.indices() == null ? Strings.EMPTY_ARRAY : setPolicyRequest.indices();
         Request request = new Request(HttpPut.METHOD_NAME,
             new EndpointBuilder()
-                .addCommaSeparatedPathParts(setPolicyRequest.indices())
+                .addCommaSeparatedPathParts(indices)
                 .addPathPartAsIs("_lifecycle")
                 .addPathPart(setPolicyRequest.policy())
             .build());

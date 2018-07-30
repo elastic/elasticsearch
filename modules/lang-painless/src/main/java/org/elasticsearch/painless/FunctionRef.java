@@ -93,12 +93,12 @@ public class FunctionRef {
      * @param numCaptures number of captured arguments
      */
     public FunctionRef(Class<?> expected, PainlessMethod interfaceMethod, PainlessMethod delegateMethod, int numCaptures) {
-        MethodType delegateMethodType = delegateMethod.getMethodType();
+        MethodType delegateMethodType = delegateMethod.methodType;
 
         interfaceMethodName = interfaceMethod.name;
         factoryMethodType = MethodType.methodType(expected,
                 delegateMethodType.dropParameterTypes(numCaptures, delegateMethodType.parameterCount()));
-        interfaceMethodType = interfaceMethod.getMethodType().dropParameterTypes(0, 1);
+        interfaceMethodType = interfaceMethod.methodType.dropParameterTypes(0, 1);
 
         // the Painless$Script class can be inferred if owner is null
         if (delegateMethod.target == null) {
@@ -142,7 +142,7 @@ public class FunctionRef {
         interfaceMethodName = interfaceMethod.name;
         factoryMethodType = MethodType.methodType(expected,
             delegateMethodType.dropParameterTypes(numCaptures, delegateMethodType.parameterCount()));
-        interfaceMethodType = interfaceMethod.getMethodType().dropParameterTypes(0, 1);
+        interfaceMethodType = interfaceMethod.methodType.dropParameterTypes(0, 1);
 
         delegateClassName = CLASS_NAME;
         delegateInvokeType = H_INVOKESTATIC;

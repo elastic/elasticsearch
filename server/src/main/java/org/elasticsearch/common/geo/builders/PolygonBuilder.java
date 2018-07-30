@@ -690,7 +690,12 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
             points[offset + top].x, points[offset + top].y,
             points[offset + next].x, points[offset + next].y);
 
-        assert determinantSign != 0;
+        if (determinantSign == 0) {
+            // Points are collinear, but `top` is not in the middle if so, so the edges either side of `top` are intersecting.
+            throw new InvalidShapeException("Cannot determine orientation: edges adjacent to ("
+                + points[offset + top].x + "," + points[offset +top].y + ") coincide");
+        }
+
         return determinantSign < 0;
     }
 

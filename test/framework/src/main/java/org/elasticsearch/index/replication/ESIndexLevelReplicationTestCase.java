@@ -234,7 +234,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             activeIds.add(primary.routingEntry().allocationId().getId());
             ShardRouting startedRoutingEntry = ShardRoutingHelper.moveToStarted(primary.routingEntry());
             IndexShardRoutingTable routingTable = routingTable(shr -> shr == primary.routingEntry() ? startedRoutingEntry : shr);
-            primary.updateShardState(startedRoutingEntry, primary.getClusterStatePrimaryTerm(), null,
+            primary.updateShardState(startedRoutingEntry, primary.getPendingPrimaryTerm(), null,
                 currentClusterStateVersion.incrementAndGet(), activeIds, routingTable, Collections.emptySet());
             for (final IndexShard replica : replicas) {
                 recoverReplica(replica);
@@ -432,7 +432,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         private void updateAllocationIDsOnPrimary() throws IOException {
 
-            primary.updateShardState(primary.routingEntry(), primary.getClusterStatePrimaryTerm(), null, currentClusterStateVersion.incrementAndGet(),
+            primary.updateShardState(primary.routingEntry(), primary.getPendingPrimaryTerm(), null, currentClusterStateVersion.incrementAndGet(),
                 activeIds(), routingTable(Function.identity()), Collections.emptySet());
         }
     }
@@ -534,7 +534,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 IndexShard replica = replicationGroup.replicas.stream()
                         .filter(s -> replicaRouting.isSameAllocation(s.routingEntry())).findFirst().get();
                 replica.acquireReplicaOperationPermit(
-                        replicationGroup.primary.getClusterStatePrimaryTerm(),
+                        replicationGroup.primary.getPendingPrimaryTerm(),
                         globalCheckpoint,
                         new ActionListener<Releasable>() {
                             @Override
@@ -612,7 +612,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         @Override
         protected void performOnReplica(BulkShardRequest request, IndexShard replica) throws Exception {
-            executeShardBulkOnReplica(request, replica, getPrimaryShard().getClusterStatePrimaryTerm(), getPrimaryShard().getGlobalCheckpoint());
+            executeShardBulkOnReplica(request, replica, getPrimaryShard().getPendingPrimaryTerm(), getPrimaryShard().getGlobalCheckpoint());
         }
     }
 
@@ -671,7 +671,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
      * indexes the given requests on the supplied replica shard
      */
     void indexOnReplica(BulkShardRequest request, ReplicationGroup group, IndexShard replica) throws Exception {
-        indexOnReplica(request, group, replica, group.primary.getClusterStatePrimaryTerm());
+        indexOnReplica(request, group, replica, group.primary.getPendingPrimaryTerm());
     }
 
     void indexOnReplica(BulkShardRequest request, ReplicationGroup group, IndexShard replica, long term) throws Exception {
@@ -682,7 +682,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
      * Executes the delete request on the given replica shard.
      */
     void deleteOnReplica(BulkShardRequest request, ReplicationGroup group, IndexShard replica) throws Exception {
-        executeShardBulkOnReplica(request, replica, group.primary.getClusterStatePrimaryTerm(), group.primary.getGlobalCheckpoint());
+        executeShardBulkOnReplica(request, replica, group.primary.getPendingPrimaryTerm(), group.primary.getGlobalCheckpoint());
     }
 
     class GlobalCheckpointSync extends ReplicationAction<

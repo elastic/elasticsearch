@@ -433,7 +433,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                     translogOperations++;
                     assertThat("unexpected op: " + next, (int)next.seqNo(), lessThan(initialDocs + extraDocs));
                     assertThat("unexpected primaryTerm: " + next.primaryTerm(), next.primaryTerm(),
-                        is(oldPrimary.getClusterStatePrimaryTerm()));
+                        is(oldPrimary.getPendingPrimaryTerm()));
                     final Translog.Source source = next.getSource();
                     assertThat(source.source.utf8ToString(), is("{ \"f\": \"normal\"}"));
                 }

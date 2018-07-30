@@ -241,16 +241,16 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             Collections.singletonMap("type", "{ \"type\": { \"properties\": { \"f\": { \"type\": \"keyword\"} }}}");
         try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetaData(2, mappings))) {
             shards.startAll();
-            long primaryPrimaryTerm = shards.getPrimary().getClusterStatePrimaryTerm();
+            long primaryPrimaryTerm = shards.getPrimary().getPendingPrimaryTerm();
             List<IndexShard> replicas = shards.getReplicas();
             IndexShard replica1 = replicas.get(0);
             IndexShard replica2 = replicas.get(1);
 
             shards.promoteReplicaToPrimary(replica1, (shard, listener) -> {});
-            long newReplica1Term = replica1.getClusterStatePrimaryTerm();
+            long newReplica1Term = replica1.getPendingPrimaryTerm();
             assertEquals(primaryPrimaryTerm + 1, newReplica1Term);
 
-            assertEquals(primaryPrimaryTerm, replica2.getClusterStatePrimaryTerm());
+            assertEquals(primaryPrimaryTerm, replica2.getPendingPrimaryTerm());
 
             IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "1").source("{ \"f\": \"1\"}", XContentType.JSON);
             BulkShardRequest replicationRequest = indexOnPrimary(indexRequest, replica1);
@@ -279,7 +279,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             t1.join();
             t2.join();
 
-            assertEquals(newReplica1Term + 1, replica2.getClusterStatePrimaryTerm());
+            assertEquals(newReplica1Term + 1, replica2.getPendingPrimaryTerm());
         }
     }
 
@@ -288,7 +288,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             Collections.singletonMap("type", "{ \"type\": { \"properties\": { \"f\": { \"type\": \"keyword\"} }}}");
         try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetaData(1, mappings))) {
             shards.startAll();
-            long primaryPrimaryTerm = shards.getPrimary().getPrimaryTerm();
+            long primaryPrimaryTerm = shards.getPrimary().getPendingPrimaryTerm();
             IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "1").source("{ \"f\": \"1\"}", XContentType.JSON);
             BulkShardRequest replicationRequest = indexOnPrimary(indexRequest, shards.getPrimary());
 
@@ -321,7 +321,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             t1.join();
             t2.join();
 
-            assertEquals(primaryPrimaryTerm + 1, replica.getPrimaryTerm());
+            assertEquals(primaryPrimaryTerm + 1, replica.getPendingPrimaryTerm());
             if (successFullyIndexed.get()) {
                 try(Translog.Snapshot snapshot = getTranslog(replica).newSnapshot()) {
                     assertThat(snapshot.totalOperations(), equalTo(1));
@@ -353,7 +353,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                             .source("{}", XContentType.JSON)
             );
             assertTrue(response.isFailed());
-            assertNoOpTranslogOperationForDocumentFailure(shards, 1, shards.getPrimary().getClusterStatePrimaryTerm(), failureMessage);
+            assertNoOpTranslogOperationForDocumentFailure(shards, 1, shards.getPrimary().getPendingPrimaryTerm(), failureMessage);
             shards.assertAllEqual(0);
 
             // add some replicas
@@ -367,7 +367,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                             .source("{}", XContentType.JSON)
             );
             assertTrue(response.isFailed());
-            assertNoOpTranslogOperationForDocumentFailure(shards, 2, shards.getPrimary().getClusterStatePrimaryTerm(), failureMessage);
+            assertNoOpTranslogOperationForDocumentFailure(shards, 2, shards.getPrimary().getPendingPrimaryTerm(), failureMessage);
             shards.assertAllEqual(0);
         }
     }

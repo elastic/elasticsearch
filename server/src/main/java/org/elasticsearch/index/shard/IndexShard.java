@@ -192,7 +192,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     protected volatile ShardRouting shardRouting;
     protected volatile IndexShardState state;
-    protected volatile long clusterStatePrimaryTerm;
+    protected volatile long pendingPrimaryTerm;
     protected volatile long operationPrimaryTerm;
     protected final AtomicReference<Engine> currentEngineReference = new AtomicReference<>();
     final EngineFactory engineFactory;
@@ -316,8 +316,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         indexShardOperationPermits = new IndexShardOperationPermits(shardId, threadPool);
         searcherWrapper = indexSearcherWrapper;
-        clusterStatePrimaryTerm = indexSettings.getIndexMetaData().primaryTerm(shardId.id());
-        operationPrimaryTerm = clusterStatePrimaryTerm;
+        pendingPrimaryTerm = indexSettings.getIndexMetaData().primaryTerm(shardId.id());
+        operationPrimaryTerm = pendingPrimaryTerm;
         refreshListeners = buildRefreshListeners();
         lastSearcherAccess.set(threadPool.relativeTimeInMillis());
         persistMetadata(path, indexSettings, shardRouting, null, logger);
@@ -367,14 +367,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Returns the primary term the index shard is on. See {@link org.elasticsearch.cluster.metadata.IndexMetaData#primaryTerm(int)}
+     * USE THIS METHOD WITH CARE!
+     * Returns the primary term the index shard is supposed to be on. In case of primary promotion or when a replica learns about
+     * a new term due to a new primary, the term that's exposed here will not be the term that the shard internally uses to assign
+     * to operations. The shard will auto-correct its internal operation term, but this might take time.
+     * See {@link org.elasticsearch.cluster.metadata.IndexMetaData#primaryTerm(int)}
      */
-    public long getClusterStatePrimaryTerm() {
-        return this.clusterStatePrimaryTerm;
-    }
-
-    public long getOperationPrimaryTerm() {
-        return this.operationPrimaryTerm;
+    public long getPendingPrimaryTerm() {
+        return this.pendingPrimaryTerm;
     }
 
     /**
@@ -437,7 +437,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             final CountDownLatch shardStateUpdated = new CountDownLatch(1);
 
             if (newRouting.primary()) {
-                if (newPrimaryTerm == clusterStatePrimaryTerm) {
+                if (newPrimaryTerm == pendingPrimaryTerm) {
                     if (currentRouting.initializing() && currentRouting.isRelocationTarget() == false && newRouting.active()) {
                         // the master started a recovering primary, activate primary mode.
                         replicationTracker.activatePrimaryMode(getLocalCheckpoint());
@@ -460,10 +460,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     assert newRouting.initializing() == false :
                         "a started primary shard should never update its term; "
                             + "shard " + newRouting + ", "
-                            + "current term [" + clusterStatePrimaryTerm + "], "
+                            + "current term [" + pendingPrimaryTerm + "], "
                             + "new term [" + newPrimaryTerm + "]";
-                    assert newPrimaryTerm > clusterStatePrimaryTerm :
-                        "primary terms can only go up; current term [" + clusterStatePrimaryTerm + "], new term [" + newPrimaryTerm + "]";
+                    assert newPrimaryTerm > pendingPrimaryTerm :
+                        "primary terms can only go up; current term [" + pendingPrimaryTerm + "], new term [" + newPrimaryTerm + "]";
                     /*
                      * Before this call returns, we are guaranteed that all future operations are delayed and so this happens before we
                      * increment the primary term. The latch is needed to ensure that we do not unblock operations before the primary term is
@@ -479,8 +479,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         TimeUnit.MINUTES,
                         () -> {
                             shardStateUpdated.await();
-                            assert clusterStatePrimaryTerm == newPrimaryTerm :
-                                "shard term changed on primary. expected [" + newPrimaryTerm + "] but was [" + clusterStatePrimaryTerm + "]";
+                            assert pendingPrimaryTerm == newPrimaryTerm :
+                                "shard term changed on primary. expected [" + newPrimaryTerm + "] but was [" + pendingPrimaryTerm + "]";
                             assert operationPrimaryTerm < newPrimaryTerm;
                             operationPrimaryTerm = newPrimaryTerm;
                             try {
@@ -530,7 +530,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         },
                         e -> failShard("exception during primary term transition", e));
                     replicationTracker.activatePrimaryMode(getLocalCheckpoint());
-                    clusterStatePrimaryTerm = newPrimaryTerm;
+                    pendingPrimaryTerm = newPrimaryTerm;
                 }
             }
             // set this last, once we finished updating all internal state.
@@ -697,7 +697,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // can not raise an exception that may block any replication of previous operations to the
             // replicas
             verifyNotClosed(e);
-            return new Engine.IndexResult(e, version, seqNo);
+            return new Engine.IndexResult(e, version, opPrimaryTerm, seqNo);
         }
 
         return index(getEngine(), operation);
@@ -755,6 +755,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return engine.noOp(noOp);
     }
 
+    public Engine.IndexResult getFailedIndexResult(Exception e, long version) {
+        return new Engine.IndexResult(e, version, operationPrimaryTerm);
+    }
+
+    public Engine.DeleteResult getFailedDeleteResult(Exception e, long version) {
+        return new Engine.DeleteResult(e, version, operationPrimaryTerm);
+    }
+
     public Engine.DeleteResult applyDeleteOperationOnPrimary(long version, String type, String id, VersionType versionType)
         throws IOException {
         assert versionType.validateVersionForWrites(version);
@@ -785,7 +793,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 return new Engine.DeleteResult(update);
             }
         } catch (MapperParsingException | IllegalArgumentException | TypeMissingException e) {
-            return new Engine.DeleteResult(e, version, seqNo, false);
+            return new Engine.DeleteResult(e, version, operationPrimaryTerm, seqNo, false);
         }
         final Term uid = extractUidForDelete(type, id);
         final Engine.Delete delete = prepareDelete(type, id, uid, seqNo, opPrimaryTerm, version,
@@ -2188,7 +2196,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
             Collections.singletonList(refreshListeners),
             Collections.singletonList(new RefreshMetricUpdater(refreshMetric)),
-            indexSort, this::runTranslogRecovery, circuitBreakerService, replicationTracker, this::getOperationPrimaryTerm);
+            indexSort, this::runTranslogRecovery, circuitBreakerService, replicationTracker, () -> operationPrimaryTerm);
     }
 
     /**
@@ -2229,9 +2237,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                               final Object debugInfo) {
         verifyNotClosed();
         verifyReplicationTarget();
-        if (opPrimaryTerm > clusterStatePrimaryTerm) {
+        if (opPrimaryTerm > pendingPrimaryTerm) {
             synchronized (primaryTermMutex) {
-                if (opPrimaryTerm > clusterStatePrimaryTerm) {
+                if (opPrimaryTerm > pendingPrimaryTerm) {
                     verifyNotClosed();
 
                     IndexShardState shardState = state();
@@ -2246,14 +2254,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
                     synchronized (mutex) {
                         final CountDownLatch termUpdated = new CountDownLatch(1);
-                        if (opPrimaryTerm > clusterStatePrimaryTerm) {
+                        if (opPrimaryTerm > pendingPrimaryTerm) {
                             indexShardOperationPermits.asyncBlockOperations(30, TimeUnit.MINUTES, () -> {
                                 termUpdated.await();
                                 // a primary promotion, or another primary term transition, might have been triggered concurrently to this
                                 // recheck under the operation permit if we can skip doing this work
-                                if (opPrimaryTerm == clusterStatePrimaryTerm) {
-                                    assert operationPrimaryTerm < clusterStatePrimaryTerm;
-                                    operationPrimaryTerm = clusterStatePrimaryTerm;
+                                if (opPrimaryTerm == pendingPrimaryTerm) {
+                                    assert operationPrimaryTerm < pendingPrimaryTerm;
+                                    operationPrimaryTerm = pendingPrimaryTerm;
                                     updateGlobalCheckpointOnReplica(globalCheckpoint, "primary term transition");
                                     final long currentGlobalCheckpoint = getGlobalCheckpoint();
                                     final long localCheckpoint;
@@ -2274,7 +2282,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                 }
                             }, e -> failShard("exception during primary term transition", e));
 
-                            clusterStatePrimaryTerm = opPrimaryTerm;
+                            pendingPrimaryTerm = opPrimaryTerm;
                             termUpdated.countDown();
                         }
                     }
@@ -2282,8 +2290,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
         }
 
-        assert opPrimaryTerm <= clusterStatePrimaryTerm
-                : "operation primary term [" + opPrimaryTerm + "] should be at most [" + clusterStatePrimaryTerm + "]";
+        assert opPrimaryTerm <= pendingPrimaryTerm
+                : "operation primary term [" + opPrimaryTerm + "] should be at most [" + pendingPrimaryTerm + "]";
         indexShardOperationPermits.acquire(
                 new ActionListener<Releasable>() {
                     @Override

@@ -31,6 +31,6 @@ public class ModelPlotConfigTests extends AbstractSerializingTestCase<ModelPlotC
 
     @Override
     protected ModelPlotConfig doParseInstance(XContentParser parser) {
-        return ModelPlotConfig.CONFIG_PARSER.apply(parser, null);
+        return ModelPlotConfig.STRICT_PARSER.apply(parser, null);
     }
 }

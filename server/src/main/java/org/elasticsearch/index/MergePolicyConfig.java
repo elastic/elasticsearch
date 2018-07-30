@@ -115,7 +115,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
  */
 
 public final class MergePolicyConfig {
-    private final TieredMergePolicy mergePolicy = new TieredMergePolicy();
+    private final EsTieredMergePolicy mergePolicy = new EsTieredMergePolicy();
     private final Logger logger;
     private final boolean mergesEnabled;
 
@@ -150,7 +150,7 @@ public final class MergePolicyConfig {
             Property.Dynamic, Property.IndexScope);
     public static final Setting<Double> INDEX_MERGE_POLICY_RECLAIM_DELETES_WEIGHT_SETTING =
         Setting.doubleSetting("index.merge.policy.reclaim_deletes_weight", DEFAULT_RECLAIM_DELETES_WEIGHT, 0.0d,
-            Property.Dynamic, Property.IndexScope);
+            Property.Dynamic, Property.IndexScope, Property.Deprecated);
     public static final String INDEX_MERGE_ENABLED = "index.merge.enabled"; // don't convert to Setting<> and register... we only set this in tests and register via a plugin
 
 
@@ -176,15 +176,10 @@ public final class MergePolicyConfig {
         mergePolicy.setMaxMergeAtOnceExplicit(maxMergeAtOnceExplicit);
         mergePolicy.setMaxMergedSegmentMB(maxMergedSegment.getMbFrac());
         mergePolicy.setSegmentsPerTier(segmentsPerTier);
-        mergePolicy.setReclaimDeletesWeight(reclaimDeletesWeight);
         if (logger.isTraceEnabled()) {
             logger.trace("using [tiered] merge mergePolicy with expunge_deletes_allowed[{}], floor_segment[{}], max_merge_at_once[{}], max_merge_at_once_explicit[{}], max_merged_segment[{}], segments_per_tier[{}], reclaim_deletes_weight[{}]",
                 forceMergeDeletesPctAllowed, floorSegment, maxMergeAtOnce, maxMergeAtOnceExplicit, maxMergedSegment, segmentsPerTier, reclaimDeletesWeight);
         }
-    }
-
-    void setReclaimDeletesWeight(Double reclaimDeletesWeight) {
-        mergePolicy.setReclaimDeletesWeight(reclaimDeletesWeight);
     }
 
     void setSegmentsPerTier(Double segmentsPerTier) {

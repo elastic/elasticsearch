@@ -48,7 +48,7 @@ import java.util.List;
 import java.util.Random;
 
 import static com.carrotsearch.randomizedtesting.generators.RandomNumbers.randomIntBetween;
-import static com.carrotsearch.randomizedtesting.generators.RandomStrings.randomAsciiOfLength;
+import static com.carrotsearch.randomizedtesting.generators.RandomStrings.randomAsciiLettersOfLength;
 import static com.carrotsearch.randomizedtesting.generators.RandomStrings.randomUnicodeOfLengthBetween;
 import static java.util.Collections.singleton;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_UUID_NA_VALUE;
@@ -122,7 +122,7 @@ public final class RandomObjects {
                     expectedParsedValues.add(randomBoolean);
                     break;
                 case 7:
-                    String randomString = random.nextBoolean() ? RandomStrings.randomAsciiOfLengthBetween(random, 3, 10 ) :
+                    String randomString = random.nextBoolean() ? RandomStrings.randomAsciiLettersOfLengthBetween(random, 3, 10) :
                             randomUnicodeOfLengthBetween(random, 3, 10);
                     originalValues.add(randomString);
                     expectedParsedValues.add(randomString);
@@ -191,11 +191,11 @@ public final class RandomObjects {
         for (int i = 0; i < numFields; i++) {
             if (currentDepth < 5 && random.nextInt(100) >= 70) {
                 if (random.nextBoolean()) {
-                    builder.startObject(RandomStrings.randomAsciiOfLengthBetween(random, 6, 10));
+                    builder.startObject(RandomStrings.randomAsciiLettersOfLengthBetween(random, 6, 10));
                     addFields(random, builder, minNumFields, currentDepth + 1);
                     builder.endObject();
                 } else {
-                    builder.startArray(RandomStrings.randomAsciiOfLengthBetween(random, 6, 10));
+                    builder.startArray(RandomStrings.randomAsciiLettersOfLengthBetween(random, 6, 10));
                     int numElements = randomIntBetween(random, 1, 5);
                     boolean object = random.nextBoolean();
                     int dataType = -1;
@@ -214,7 +214,7 @@ public final class RandomObjects {
                     builder.endArray();
                 }
             } else {
-                builder.field(RandomStrings.randomAsciiOfLengthBetween(random, 6, 10),
+                builder.field(RandomStrings.randomAsciiLettersOfLengthBetween(random, 6, 10),
                         randomFieldValue(random, randomDataType(random)));
             }
         }
@@ -227,9 +227,9 @@ public final class RandomObjects {
     private static Object randomFieldValue(Random random, int dataType) {
         switch(dataType) {
             case 0:
-                return RandomStrings.randomAsciiOfLengthBetween(random, 3, 10);
+                return RandomStrings.randomAsciiLettersOfLengthBetween(random, 3, 10);
             case 1:
-                return RandomStrings.randomAsciiOfLengthBetween(random, 3, 10);
+                return RandomStrings.randomAsciiLettersOfLengthBetween(random, 3, 10);
             case 2:
                 return random.nextLong();
             case 3:
@@ -287,10 +287,10 @@ public final class RandomObjects {
      * @param random Random generator
      */
     private static Tuple<Failure, Failure> randomShardInfoFailure(Random random) {
-        String index = randomAsciiOfLength(random, 5);
-        String indexUuid = randomAsciiOfLength(random, 5);
+        String index = randomAsciiLettersOfLength(random, 5);
+        String indexUuid = randomAsciiLettersOfLength(random, 5);
         int shardId = randomIntBetween(random, 1, 10);
-        String nodeId = randomAsciiOfLength(random, 5);
+        String nodeId = randomAsciiLettersOfLength(random, 5);
         RestStatus status = randomFrom(random, RestStatus.INTERNAL_SERVER_ERROR, RestStatus.FORBIDDEN, RestStatus.NOT_FOUND);
         boolean primary = random.nextBoolean();
         ShardId shard = new ShardId(index, indexUuid, shardId);

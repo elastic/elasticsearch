@@ -153,7 +153,7 @@ public class Realms extends AbstractComponent implements Iterable<Realm> {
         Settings realmsSettings = RealmSettings.get(settings);
         Set<String> internalTypes = new HashSet<>();
         List<Realm> realms = new ArrayList<>();
-        boolean isKerberosRealmConfigured = false;
+        List<String> kerberosRealmNames = new ArrayList<>();
         for (String name : realmsSettings.names()) {
             Settings realmSettings = realmsSettings.getAsSettings(name);
             String type = realmSettings.get("type");
@@ -181,11 +181,11 @@ public class Realms extends AbstractComponent implements Iterable<Realm> {
                 internalTypes.add(type);
             }
             if (KerberosRealmSettings.TYPE.equals(type)) {
-                if (isKerberosRealmConfigured) {
-                    throw new IllegalArgumentException(
-                            "multiple [" + type + "] realms are configured. [" + type + "] can only have one such realm configured");
+                kerberosRealmNames.add(name);
+                if (kerberosRealmNames.size() > 1) {
+                    throw new IllegalArgumentException("multiple realms " + kerberosRealmNames.toString() + " configured of type [" + type
+                            + "], [" + type + "] can only have one such realm configured");
                 }
-                isKerberosRealmConfigured = true;
             }
             realms.add(factory.create(config));
         }

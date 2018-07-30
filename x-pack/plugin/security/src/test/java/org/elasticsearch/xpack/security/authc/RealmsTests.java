@@ -534,8 +534,8 @@ public class RealmsTests extends ESTestCase {
         Environment env = TestEnvironment.newEnvironment(settings);
         final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
                 () -> new Realms(settings, env, factories, licenseState, threadContext, reservedRealm));
-        assertThat(iae.getMessage(),
-                is(equalTo("multiple [kerberos] realms are configured. [kerberos] can only have one such realm configured")));
+        assertThat(iae.getMessage(), is(equalTo(
+                "multiple realms [realm_1, realm_2] configured of type [kerberos], [kerberos] can only have one such realm configured")));
     }
 
     static class DummyRealm extends Realm {

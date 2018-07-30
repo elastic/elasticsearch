@@ -11,7 +11,7 @@ The microbenchmark suite is also handy for ad-hoc microbenchmarks but please rem
 
 ## Getting Started
 
-Just run `./gradlew -p benchmarks run` from the project root
+Just run `gradlew -p benchmarks run` from the project root
 directory. It will build all microbenchmarks, execute them and print
 the result.
 
@@ -24,7 +24,7 @@ If you want to run a specific benchmark class like, say,
 `MemoryStatsBenchmark`, you can use `--args`:
 
 ```
-./gradlew -p benchmarks run --args 'MemoryStatsBenchmark'
+gradlew -p benchmarks run --args 'MemoryStatsBenchmark'
 ```
 
 Everything in the `'` gets sent on the command line to JMH.

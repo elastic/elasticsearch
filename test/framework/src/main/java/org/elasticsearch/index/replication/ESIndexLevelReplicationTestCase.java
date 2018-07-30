@@ -432,7 +432,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         private void updateAllocationIDsOnPrimary() throws IOException {
 
-            primary.updateShardState(primary.routingEntry(), primary.getPendingPrimaryTerm(), null, currentClusterStateVersion.incrementAndGet(),
+            primary.updateShardState(primary.routingEntry(), primary.getPendingPrimaryTerm(), null,
+                currentClusterStateVersion.incrementAndGet(),
                 activeIds(), routingTable(Function.identity()), Collections.emptySet());
         }
     }

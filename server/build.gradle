@@ -156,16 +156,6 @@ if (isEclipse) {
 compileJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
 compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
 
-// TODO: remove ScriptDocValuesMissingV6BehaviourTests in 7.0
-additionalTest('testScriptDocValuesMissingV6Behaviour'){
-  include '**/ScriptDocValuesMissingV6BehaviourTests.class'
-  systemProperty 'es.scripting.exception_for_missing_value', 'false'
-}
-test {
-  // these are tested explicitly in separate test tasks
-  exclude '**/*ScriptDocValuesMissingV6BehaviourTests.class'
-}
-
 forbiddenPatterns {
   exclude '**/*.json'
   exclude '**/*.jmx'

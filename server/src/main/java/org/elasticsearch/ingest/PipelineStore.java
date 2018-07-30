@@ -52,16 +52,13 @@ public class PipelineStore extends AbstractComponent implements ClusterStateAppl
 
     private final Pipeline.Factory factory = new Pipeline.Factory();
     private final Map<String, Processor.Factory> processorFactories;
+    private final PipelineHolder pipelines;
 
-    // Ideally this should be in IngestMetadata class, but we don't have the processor factories around there.
-    // We know of all the processor factories when a node with all its plugin have been initialized. Also some
-    // processor factories rely on other node services. Custom metadata is statically registered when classes
-    // are loaded, so in the cluster state we just save the pipeline config and here we keep the actual pipelines around.
-    volatile Map<String, Pipeline> pipelines = new HashMap<>();
-
-    public PipelineStore(Settings settings, Map<String, Processor.Factory> processorFactories) {
+    public PipelineStore(Settings settings, Map<String, Processor.Factory> processorFactories,
+        PipelineHolder pipelines) {
         super(settings);
         this.processorFactories = processorFactories;
+        this.pipelines = pipelines;
     }
 
     @Override
@@ -95,7 +92,7 @@ public class PipelineStore extends AbstractComponent implements ClusterStateAppl
                 exceptions.add(parseException);
             }
         }
-        this.pipelines = Collections.unmodifiableMap(pipelines);
+        this.pipelines.setPipelines(Collections.unmodifiableMap(pipelines));
         ExceptionsHelper.rethrowAndSuppress(exceptions);
     }
 
@@ -227,7 +224,11 @@ public class PipelineStore extends AbstractComponent implements ClusterStateAppl
      * Returns the pipeline by the specified id
      */
     public Pipeline get(String id) {
-        return pipelines.get(id);
+        return pipelines.getPipelines().get(id);
+    }
+
+    Map<String, Pipeline> pipelines() {
+        return pipelines.getPipelines();
     }
 
     public Map<String, Processor.Factory> getProcessorFactories() {

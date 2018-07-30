@@ -47,8 +47,9 @@ public class IngestService {
                          List<IngestPlugin> ingestPlugins) {
         BiFunction<Long, Runnable, ScheduledFuture<?>> scheduler =
             (delay, command) -> threadPool.schedule(TimeValue.timeValueMillis(delay), ThreadPool.Names.GENERIC, command);
+        PipelineHolder pipelines = new PipelineHolder();
         Processor.Parameters parameters = new Processor.Parameters(env, scriptService, analysisRegistry,
-            threadPool.getThreadContext(), threadPool::relativeTimeInMillis, scheduler);
+            threadPool.getThreadContext(), threadPool::relativeTimeInMillis, scheduler, pipelines);
         Map<String, Processor.Factory> processorFactories = new HashMap<>();
         for (IngestPlugin ingestPlugin : ingestPlugins) {
             Map<String, Processor.Factory> newProcessors = ingestPlugin.getProcessors(parameters);
@@ -58,7 +59,8 @@ public class IngestService {
                 }
             }
         }
-        this.pipelineStore = new PipelineStore(settings, Collections.unmodifiableMap(processorFactories));
+        this.pipelineStore =
+            new PipelineStore(settings, Collections.unmodifiableMap(processorFactories), pipelines);
         this.pipelineExecutionService = new PipelineExecutionService(pipelineStore, threadPool);
     }
 

@@ -93,14 +93,14 @@ public class PipelineStoreTests extends ESTestCase {
                 }
             };
         });
-        store = new PipelineStore(Settings.EMPTY, processorFactories);
+        store = new PipelineStore(Settings.EMPTY, processorFactories, new PipelineHolder());
     }
 
     public void testUpdatePipelines() {
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
         ClusterState previousClusterState = clusterState;
         store.innerUpdatePipelines(previousClusterState, clusterState);
-        assertThat(store.pipelines.size(), is(0));
+        assertThat(store.pipelines().size(), is(0));
 
         PipelineConfiguration pipeline = new PipelineConfiguration(
             "_id",new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"), XContentType.JSON
@@ -110,11 +110,11 @@ public class PipelineStoreTests extends ESTestCase {
             .metaData(MetaData.builder().putCustom(IngestMetadata.TYPE, ingestMetadata))
             .build();
         store.innerUpdatePipelines(previousClusterState, clusterState);
-        assertThat(store.pipelines.size(), is(1));
-        assertThat(store.pipelines.get("_id").getId(), equalTo("_id"));
-        assertThat(store.pipelines.get("_id").getDescription(), nullValue());
-        assertThat(store.pipelines.get("_id").getProcessors().size(), equalTo(1));
-        assertThat(store.pipelines.get("_id").getProcessors().get(0).getType(), equalTo("set"));
+        assertThat(store.pipelines().size(), is(1));
+        assertThat(store.pipelines().get("_id").getId(), equalTo("_id"));
+        assertThat(store.pipelines().get("_id").getDescription(), nullValue());
+        assertThat(store.pipelines().get("_id").getProcessors().size(), equalTo(1));
+        assertThat(store.pipelines().get("_id").getProcessors().get(0).getType(), equalTo("set"));
     }
 
     public void testPut() {

@@ -487,7 +487,10 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
         if (leaderIndex.getState() != IndexMetaData.State.OPEN || followIndex.getState() != IndexMetaData.State.OPEN) {
             throw new IllegalArgumentException("leader and follow index must be open");
         }
-
+        if (CcrSettings.CCR_FOLLOWING_INDEX_SETTING.get(followIndex.getSettings()) == false) {
+            throw new IllegalArgumentException("the following index [" + request.followerIndex + "] is not ready " +
+                "to follow; the setting [" + CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey() + "] must be enabled.");
+        }
         // Make a copy, remove settings that are allowed to be different and then compare if the settings are equal.
         Settings leaderSettings = filter(leaderIndex.getSettings());
         Settings followerSettings = filter(followIndex.getSettings());

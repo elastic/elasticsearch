@@ -9,6 +9,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -167,6 +168,23 @@ public class IndexLifecycleRunner {
         }
     }
 
+    /**
+     * This method is intended for handling moving to different steps from {@link TransportAction} executions.
+     * For this reason, it is reasonable to throw {@link IllegalArgumentException} when state is not as expected.
+     * @param indexName
+     *          The index whose step is to change
+     * @param currentState
+     *          The current {@link ClusterState}
+     * @param currentStepKey
+     *          The current {@link StepKey} found for the index in the current cluster state
+     * @param nextStepKey
+     *          The next step to move the index into
+     * @param nowSupplier
+     *          The current-time supplier for updating when steps changed
+     * @param stepRegistry
+     *          The steps registry to check a step-key's existence in the index's current policy
+     * @return The updated cluster state where the index moved to <code>nextStepKey</code>
+     */
     static ClusterState moveClusterStateToStep(String indexName, ClusterState currentState, StepKey currentStepKey,
                                                StepKey nextStepKey, LongSupplier nowSupplier,
                                                PolicyStepsRegistry stepRegistry) {

@@ -27,6 +27,7 @@ import org.elasticsearch.painless.spi.WhitelistMethod;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -356,10 +357,12 @@ public class PainlessLookupBuilder {
                         "[[" + targetCanonicalClassName + "], " + typesToCanonicalTypeNames(typeParameters) + "] not found", iae);
             }
 
+            MethodType methodType = methodHandle.type();
+
             painlessConstructor = painlessMethodCache.computeIfAbsent(
                     new PainlessMethodCacheKey(targetClass, CONSTRUCTOR_NAME, typeParameters),
                     key -> new PainlessMethod(CONSTRUCTOR_NAME, targetClass, null, void.class, typeParameters,
-                                              asmConstructor, javaConstructor.getModifiers(), methodHandle)
+                                              asmConstructor, javaConstructor.getModifiers(), methodHandle, methodType)
             );
 
             painlessClassBuilder.constructors.put(painlessMethodKey, painlessConstructor);
@@ -516,10 +519,12 @@ public class PainlessLookupBuilder {
                             "[" + methodName + "], " + typesToCanonicalTypeNames(typeParameters) + "] not found", iae);
                 }
 
+                MethodType methodType = methodHandle.type();
+
                 painlessMethod = painlessMethodCache.computeIfAbsent(
                         new PainlessMethodCacheKey(targetClass, methodName, typeParameters),
                         key -> new PainlessMethod(methodName, targetClass, null, returnType,
-                                typeParameters, asmMethod, javaMethod.getModifiers(), methodHandle));
+                                typeParameters, asmMethod, javaMethod.getModifiers(), methodHandle, methodType));
 
                 painlessClassBuilder.staticMethods.put(painlessMethodKey, painlessMethod);
             } else if ((painlessMethod.name.equals(methodName) && painlessMethod.rtn == returnType &&
@@ -557,10 +562,12 @@ public class PainlessLookupBuilder {
                     }
                 }
 
+                MethodType methodType = methodHandle.type();
+
                 painlessMethod = painlessMethodCache.computeIfAbsent(
                         new PainlessMethodCacheKey(targetClass, methodName, typeParameters),
                         key -> new PainlessMethod(methodName, targetClass, augmentedClass, returnType,
-                                typeParameters, asmMethod, javaMethod.getModifiers(), methodHandle));
+                                typeParameters, asmMethod, javaMethod.getModifiers(), methodHandle, methodType));
 
                 painlessClassBuilder.methods.put(painlessMethodKey, painlessMethod);
             } else if ((painlessMethod.name.equals(methodName) && painlessMethod.rtn == returnType &&

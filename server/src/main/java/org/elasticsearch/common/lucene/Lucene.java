@@ -884,6 +884,7 @@ public class Lucene {
                     if (hardLiveDocs == null) {
                         return new LeafReaderWithLiveDocs(leaf, null, leaf.maxDoc());
                     }
+                    // TODO: Avoid recalculate numDocs everytime.
                     int numDocs = 0;
                     for (int i = 0; i < hardLiveDocs.length(); i++) {
                         if (hardLiveDocs.get(i)) {

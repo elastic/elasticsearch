@@ -514,8 +514,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
             request,
             (int) ByteSizeUnit.MB.toBytes(1),
             Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), pNode.getName()).build());
-        primary.updateShardState(primary.routingEntry(), primary.getPendingPrimaryTerm(), null, currentClusterStateVersion.incrementAndGet(),
-            inSyncIds, routingTable, Collections.emptySet());
+        primary.updateShardState(primary.routingEntry(), primary.getPendingPrimaryTerm(), null,
+            currentClusterStateVersion.incrementAndGet(), inSyncIds, routingTable, Collections.emptySet());
         recovery.recoverToTarget();
         recoveryTarget.markAsDone();
     }
@@ -536,8 +536,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
         Set<String> inSyncIdsWithReplica = new HashSet<>(inSyncIds);
         inSyncIdsWithReplica.add(replica.routingEntry().allocationId().getId());
         // update both primary and replica shard state
-        primary.updateShardState(primary.routingEntry(), primary.getPendingPrimaryTerm(), null, currentClusterStateVersion.incrementAndGet(),
-            inSyncIdsWithReplica, newRoutingTable, Collections.emptySet());
+        primary.updateShardState(primary.routingEntry(), primary.getPendingPrimaryTerm(), null,
+            currentClusterStateVersion.incrementAndGet(), inSyncIdsWithReplica, newRoutingTable, Collections.emptySet());
         replica.updateShardState(replica.routingEntry().moveToStarted(), replica.getPendingPrimaryTerm(), null,
             currentClusterStateVersion.get(), inSyncIdsWithReplica, newRoutingTable, Collections.emptySet());
     }

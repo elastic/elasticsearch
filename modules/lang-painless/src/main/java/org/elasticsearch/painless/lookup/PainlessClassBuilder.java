@@ -19,52 +19,39 @@
 
 package org.elasticsearch.painless.lookup;
 
-import org.objectweb.asm.Type;
-
 import java.lang.invoke.MethodHandle;
 import java.util.HashMap;
 import java.util.Map;
 
 final class PainlessClassBuilder {
-    final String name;
-    final Class<?> clazz;
-    final Type type;
-
     final Map<String, PainlessMethod> constructors;
     final Map<String, PainlessMethod> staticMethods;
     final Map<String, PainlessMethod> methods;
 
-    final Map<String, PainlessField> staticMembers;
-    final Map<String, PainlessField> members;
+    final Map<String, PainlessField> staticFields;
+    final Map<String, PainlessField> fields;
 
-    final Map<String, MethodHandle> getters;
-    final Map<String, MethodHandle> setters;
+    final Map<String, MethodHandle> getterMethodHandles;
+    final Map<String, MethodHandle> setterMethodHandles;
 
     PainlessMethod functionalMethod;
 
-    PainlessClassBuilder(String name, Class<?> clazz, Type type) {
-        this.name = name;
-        this.clazz = clazz;
-        this.type = type;
-
+    PainlessClassBuilder() {
         constructors = new HashMap<>();
         staticMethods = new HashMap<>();
         methods = new HashMap<>();
 
-        staticMembers = new HashMap<>();
-        members = new HashMap<>();
+        staticFields = new HashMap<>();
+        fields = new HashMap<>();
 
-        getters = new HashMap<>();
-        setters = new HashMap<>();
+        getterMethodHandles = new HashMap<>();
+        setterMethodHandles = new HashMap<>();
 
         functionalMethod = null;
     }
 
     PainlessClass build() {
-        return new PainlessClass(name, clazz, type,
-            constructors, staticMethods, methods,
-            staticMembers, members,
-            getters, setters,
-            functionalMethod);
+        return new PainlessClass(constructors, staticMethods, methods, staticFields, fields,
+                getterMethodHandles, setterMethodHandles, functionalMethod);
     }
 }

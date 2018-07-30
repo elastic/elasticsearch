@@ -294,7 +294,6 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
     }
 
     public void testUnsupportedFields() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String unsupportedField = randomFrom(INT_FIELD_NAME, DOUBLE_FIELD_NAME, DATE_FIELD_NAME);
         MoreLikeThisQueryBuilder queryBuilder = new MoreLikeThisQueryBuilder(new String[] {unsupportedField}, new String[]{"some text"}, null)
                 .failOnUnsupportedField(true);

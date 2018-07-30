@@ -19,47 +19,38 @@
 
 package org.elasticsearch.painless.lookup;
 
-import org.objectweb.asm.Type;
-
 import java.lang.invoke.MethodHandle;
 import java.util.Collections;
 import java.util.Map;
 
 public final class PainlessClass {
-    public final String name;
-    public final Class<?> clazz;
-    public final Type type;
-
     public final Map<String, PainlessMethod> constructors;
     public final Map<String, PainlessMethod> staticMethods;
     public final Map<String, PainlessMethod> methods;
 
-    public final Map<String, PainlessField> staticMembers;
-    public final Map<String, PainlessField> members;
+    public final Map<String, PainlessField> staticFields;
+    public final Map<String, PainlessField> fields;
 
-    public final Map<String, MethodHandle> getters;
-    public final Map<String, MethodHandle> setters;
+    public final Map<String, MethodHandle> getterMethodHandles;
+    public final Map<String, MethodHandle> setterMethodHandles;
 
     public final PainlessMethod functionalMethod;
 
-    PainlessClass(String name, Class<?> clazz, Type type,
-                  Map<String, PainlessMethod> constructors, Map<String, PainlessMethod> staticMethods, Map<String, PainlessMethod> methods,
-                  Map<String, PainlessField> staticMembers, Map<String, PainlessField> members,
-                  Map<String, MethodHandle> getters, Map<String, MethodHandle> setters,
-                  PainlessMethod functionalMethod) {
-        this.name = name;
-        this.clazz = clazz;
-        this.type = type;
+    PainlessClass(Map<String, PainlessMethod> constructors,
+            Map<String, PainlessMethod> staticMethods, Map<String, PainlessMethod> methods,
+            Map<String, PainlessField> staticFields, Map<String, PainlessField> fields,
+            Map<String, MethodHandle> getterMethodHandles, Map<String, MethodHandle> setterMethodHandles,
+            PainlessMethod functionalMethod) {
 
         this.constructors = Collections.unmodifiableMap(constructors);
         this.staticMethods = Collections.unmodifiableMap(staticMethods);
         this.methods = Collections.unmodifiableMap(methods);
 
-        this.staticMembers = Collections.unmodifiableMap(staticMembers);
-        this.members = Collections.unmodifiableMap(members);
+        this.staticFields = Collections.unmodifiableMap(staticFields);
+        this.fields = Collections.unmodifiableMap(fields);
 
-        this.getters = Collections.unmodifiableMap(getters);
-        this.setters = Collections.unmodifiableMap(setters);
+        this.getterMethodHandles = Collections.unmodifiableMap(getterMethodHandles);
+        this.setterMethodHandles = Collections.unmodifiableMap(setterMethodHandles);
 
         this.functionalMethod = functionalMethod;
     }

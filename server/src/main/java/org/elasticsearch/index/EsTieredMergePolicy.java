@@ -52,7 +52,7 @@ final class EsTieredMergePolicy extends FilterMergePolicy {
 
     @Override
     public MergeSpecification findForcedDeletesMerges(SegmentInfos infos, MergeContext mergeContext) throws IOException {
-        return forcedMergePolicy.findForcedDeletesMerges(infos, mergeContext);    
+        return forcedMergePolicy.findForcedDeletesMerges(infos, mergeContext);
     }
 
     public void setForceMergeDeletesPctAllowed(double forceMergeDeletesPctAllowed) {
@@ -107,14 +107,5 @@ final class EsTieredMergePolicy extends FilterMergePolicy {
 
     public double getSegmentsPerTier() {
         return regularMergePolicy.getSegmentsPerTier();
-    }
-
-    public void setReclaimDeletesWeight(double reclaimDeletesWeight) {
-        regularMergePolicy.setReclaimDeletesWeight(reclaimDeletesWeight);
-        forcedMergePolicy.setReclaimDeletesWeight(reclaimDeletesWeight);
-    }
-
-    public double getReclaimDeletesWeight() {
-        return regularMergePolicy.getReclaimDeletesWeight();
     }
 }

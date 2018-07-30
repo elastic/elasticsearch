@@ -162,7 +162,7 @@ public class LogConfigurator {
 
         /*
          * Subclass the properties configurator to hack the new pattern in
-         * place of the so users don't have to change log4j2.properties in
+         * place so users don't have to change log4j2.properties in
          * a minor release. In 7.0 we'll remove this and force users to
          * change log4j2.properties. If they don't customize log4j2.properties
          * then they won't have to do anything anyway.

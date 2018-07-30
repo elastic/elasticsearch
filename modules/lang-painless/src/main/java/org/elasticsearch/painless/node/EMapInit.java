@@ -70,7 +70,8 @@ public final class EMapInit extends AExpression {
 
         actual = HashMap.class;
 
-        constructor = locals.getPainlessLookup().getPainlessStructFromJavaClass(actual).constructors.get(0);
+        constructor = locals.getPainlessLookup().getPainlessStructFromJavaClass(actual).constructors.get(
+                PainlessLookupUtility.buildPainlessConstructorKey(0));
 
         if (constructor == null) {
             throw createError(new IllegalStateException("Illegal tree structure."));

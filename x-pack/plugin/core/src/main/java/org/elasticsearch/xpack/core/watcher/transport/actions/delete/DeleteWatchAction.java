@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.core.watcher.transport.actions.delete;
 
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
+import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
 
 /**
  * This action deletes an watch from in memory, the scheduler and the index

@@ -425,11 +425,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     "a primary relocation is completed by the master, but primary mode is not active " + currentRouting;
 
                 changeState(IndexShardState.STARTED, "global state is [" + newRouting.state() + "]");
-            } else if (currentRouting.primary() && currentRouting.relocating() && replicationTracker.isPrimaryMode() == false &&
+            } else if (currentRouting.primary() && currentRouting.relocating() &&
+                operationPrimaryTerm == pendingPrimaryTerm &&
+                replicationTracker.isPrimaryMode() == false &&
                 (newRouting.relocating() == false || newRouting.equalsIgnoringMetaData(currentRouting) == false)) {
                 // if the shard is not in primary mode anymore (after primary relocation) we have to fail when any changes in shard routing occur (e.g. due to recovery
                 // failure / cancellation). The reason is that at the moment we cannot safely reactivate primary mode without risking two
                 // active primaries.
+                // We check for operationPrimaryTerm to be equal to pendingPrimaryTerm, which ensures that we have a fully baked primary,
+                // i.e. a primary that has has transitioned to primary mode. Assume for example an active replica, which then got a
+                // cluster state where it became promoted to relocating primary. This means that we asynchronously start the transition to
+                // primary in the background. A follow-up cluster state might then cancel relocation before we have completed the transition
+                // to primary, which would result in the shard to be failed if we did not check for the operationPrimaryTerm.
                 throw new IndexShardRelocatedException(shardId(), "Shard is marked as relocated, cannot safely move to state " + newRouting.state());
             }
             assert newRouting.active() == false || state == IndexShardState.STARTED || state == IndexShardState.CLOSED :
@@ -482,9 +489,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                 "shard term changed on primary. expected [" + newPrimaryTerm + "] but was [" + pendingPrimaryTerm + "]" +
                                 ", current routing: " + currentRouting + ", new routing: " + newRouting;
                             assert operationPrimaryTerm < newPrimaryTerm;
-                            operationPrimaryTerm = newPrimaryTerm;
                             try {
-                                replicationTracker.activatePrimaryMode(getLocalCheckpoint());
+                                synchronized (mutex) {
+                                    assert currentRouting.primary();
+                                    // do these updates under the mutex as this otherwise races with subsequent calls of updateShardState
+                                    operationPrimaryTerm = newPrimaryTerm;
+                                    replicationTracker.activatePrimaryMode(getLocalCheckpoint());
+                                }
                                 /*
                                  * If this shard was serving as a replica shard when another shard was promoted to primary then the state of
                                  * its local checkpoint tracker was reset during the primary term transition. In particular, the local
@@ -536,8 +547,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
             assert this.shardRouting.primary() == false ||
                 this.shardRouting.started() == false || // note that we use started and not active to avoid relocating shards
+                operationPrimaryTerm != pendingPrimaryTerm ||
                 this.replicationTracker.isPrimaryMode()
-                : "an started primary must be in primary mode " + this.shardRouting;
+                : "a started primary with non-pending operation term must be in primary mode " + this.shardRouting;
             shardStateUpdated.countDown();
         }
         if (currentRouting != null && currentRouting.active() == false && newRouting.active()) {

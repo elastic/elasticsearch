@@ -53,8 +53,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertIndexTemplateExists;
@@ -332,11 +330,6 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
     public static class PrivateCustomPlugin extends Plugin implements ClusterPlugin {
 
         public PrivateCustomPlugin() {}
-
-        @Override
-        public Map<String, Supplier<ClusterState.Custom>> getInitialClusterStateCustomSupplier() {
-            return Collections.singletonMap("test", () -> new TestCustom(1));
-        }
 
         @Override
         public List<NamedWriteableRegistry.Entry> getNamedWriteables() {

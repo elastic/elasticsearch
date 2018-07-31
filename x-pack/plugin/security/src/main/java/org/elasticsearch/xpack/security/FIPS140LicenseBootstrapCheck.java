@@ -37,9 +37,4 @@ final class FIPS140LicenseBootstrapCheck implements BootstrapCheck {
         }
         return BootstrapCheckResult.success();
     }
-
-    @Override
-    public boolean alwaysEnforce() {
-        return true;
-    }
 }

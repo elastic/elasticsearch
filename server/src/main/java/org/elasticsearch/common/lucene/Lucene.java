@@ -837,7 +837,8 @@ public class Lucene {
     }
 
     /**
-     * Wraps a directory reader to include all live docs.
+     * Wraps a directory reader to make all documents live except those were rolled back
+     * or hard-deleted due to non-aborting exceptions during indexing.
      * The wrapped reader can be used to query all documents.
      *
      * @param in the input directory reader
@@ -848,17 +849,21 @@ public class Lucene {
     }
 
     private static final class DirectoryReaderWithAllLiveDocs extends FilterDirectoryReader {
-        static final class SubReaderWithAllLiveDocs extends FilterLeafReader {
-            SubReaderWithAllLiveDocs(LeafReader in) {
+        static final class LeafReaderWithLiveDocs extends FilterLeafReader {
+            final Bits liveDocs;
+            final int numDocs;
+            LeafReaderWithLiveDocs(LeafReader in, Bits liveDocs, int  numDocs) {
                 super(in);
+                this.liveDocs = liveDocs;
+                this.numDocs = numDocs;
             }
             @Override
             public Bits getLiveDocs() {
-                return null;
+                return liveDocs;
             }
             @Override
             public int numDocs() {
-                return maxDoc();
+                return numDocs;
             }
             @Override
             public CacheHelper getCoreCacheHelper() {
@@ -869,14 +874,28 @@ public class Lucene {
                 return null; // Modifying liveDocs
             }
         }
+
         DirectoryReaderWithAllLiveDocs(DirectoryReader in) throws IOException {
-            super(in, new FilterDirectoryReader.SubReaderWrapper() {
+            super(in, new SubReaderWrapper() {
                 @Override
                 public LeafReader wrap(LeafReader leaf) {
-                    return new SubReaderWithAllLiveDocs(leaf);
+                    SegmentReader segmentReader = segmentReader(leaf);
+                    Bits hardLiveDocs = segmentReader.getHardLiveDocs();
+                    if (hardLiveDocs == null) {
+                        return new LeafReaderWithLiveDocs(leaf, null, leaf.maxDoc());
+                    }
+                    // TODO: Avoid recalculate numDocs everytime.
+                    int numDocs = 0;
+                    for (int i = 0; i < hardLiveDocs.length(); i++) {
+                        if (hardLiveDocs.get(i)) {
+                            numDocs++;
+                        }
+                    }
+                    return new LeafReaderWithLiveDocs(segmentReader, hardLiveDocs, numDocs);
                 }
             });
         }
+
         @Override
         protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
             return wrapAllDocsLive(in);

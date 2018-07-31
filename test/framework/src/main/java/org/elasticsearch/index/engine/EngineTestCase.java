@@ -49,6 +49,7 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
@@ -665,6 +666,19 @@ public abstract class EngineTestCase extends ESTestCase {
             ops.add(op);
         }
         return ops;
+    }
+
+    /**
+     * Partitions a list of operations into a multiple sub-lists, then shuffles each sub-list.
+     * This method shuffles operations in a more realistic way than {@link Randomness#shuffle(List)}.
+     */
+    public void realisticShuffleOperations(List<Engine.Operation> operations) {
+        int index = 0;
+        while (index < operations.size()) {
+            int to = Math.min(operations.size(), index + between(10, 20));
+            Randomness.shuffle(operations.subList(index, to)); // subList is a direct view
+            index = to;
+        }
     }
 
     public static void assertOpsOnReplica(

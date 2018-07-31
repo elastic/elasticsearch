@@ -61,7 +61,7 @@ import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.new
 
 public abstract class PeerFinder extends AbstractLifecycleComponent {
 
-    public static final String REQUEST_PEERS_ACTION_NAME = "internal:discovery/zen2/requestpeers";
+    public static final String REQUEST_PEERS_ACTION_NAME = "internal:discovery/requestpeers";
 
     // the time between attempts to find all peers
     public static final Setting<TimeValue> CONSENSUS_FIND_PEERS_DELAY_SETTING =

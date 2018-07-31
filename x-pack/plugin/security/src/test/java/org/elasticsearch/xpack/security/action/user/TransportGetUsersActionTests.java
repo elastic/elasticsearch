@@ -39,16 +39,12 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.AdditionalMatchers.aryEq;
 import static org.mockito.Matchers.any;
@@ -99,23 +95,10 @@ public class TransportGetUsersActionTests extends ESTestCase {
         GetUsersRequest request = new GetUsersRequest();
         request.usernames(anonymousUser.principal());
 
-        final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
-        final AtomicReference<GetUsersResponse> responseRef = new AtomicReference<>();
-        action.doExecute(mock(Task.class), request, new ActionListener<GetUsersResponse>() {
-            @Override
-            public void onResponse(GetUsersResponse response) {
-                responseRef.set(response);
-            }
+        final PlainActionFuture<GetUsersResponse> responseFut = new PlainActionFuture<>();
+        action.doExecute(mock(Task.class), request, responseFut);
 
-            @Override
-            public void onFailure(Exception e) {
-                throwableRef.set(e);
-            }
-        });
-
-        assertThat(throwableRef.get(), is(nullValue()));
-        assertThat(responseRef.get(), is(notNullValue()));
-        final User[] users = responseRef.get().users();
+        final User[] users = responseFut.actionGet().users();
         if (anonymousEnabled) {
             assertThat("expected array with anonymous but got: " + Arrays.toString(users), users, arrayContaining(anonymousUser));
         } else {
@@ -134,23 +117,11 @@ public class TransportGetUsersActionTests extends ESTestCase {
         GetUsersRequest request = new GetUsersRequest();
         request.usernames(randomFrom(SystemUser.INSTANCE.principal(), XPackUser.INSTANCE.principal()));
 
-        final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
-        final AtomicReference<GetUsersResponse> responseRef = new AtomicReference<>();
-        action.doExecute(mock(Task.class), request, new ActionListener<GetUsersResponse>() {
-            @Override
-            public void onResponse(GetUsersResponse response) {
-                responseRef.set(response);
-            }
+        final PlainActionFuture<GetUsersResponse> responseFut = new PlainActionFuture<>();
+        action.doExecute(mock(Task.class), request, responseFut);
 
-            @Override
-            public void onFailure(Exception e) {
-                throwableRef.set(e);
-            }
-        });
-
-        assertThat(throwableRef.get(), instanceOf(IllegalArgumentException.class));
-        assertThat(throwableRef.get().getMessage(), containsString("is internal"));
-        assertThat(responseRef.get(), is(nullValue()));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> responseFut.actionGet());
+        assertThat(e.getMessage(), containsString("is internal"));
         verifyZeroInteractions(usersStore);
     }
 
@@ -178,25 +149,10 @@ public class TransportGetUsersActionTests extends ESTestCase {
         GetUsersRequest request = new GetUsersRequest();
         request.usernames(names.toArray(new String[names.size()]));
 
-        final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
-        final AtomicReference<GetUsersResponse> responseRef = new AtomicReference<>();
-        action.doExecute(mock(Task.class), request, new ActionListener<GetUsersResponse>() {
-            @Override
-            public void onResponse(GetUsersResponse response) {
-                responseRef.set(response);
-            }
+        final PlainActionFuture<GetUsersResponse> responseFut = new PlainActionFuture<>();
+        action.doExecute(mock(Task.class), request, responseFut);
 
-            @Override
-            public void onFailure(Exception e) {
-                logger.warn("Request failed",  e);
-                throwableRef.set(e);
-            }
-        });
-
-        User[] users = responseRef.get().users();
-
-        assertThat(throwableRef.get(), is(nullValue()));
-        assertThat(responseRef.get(), is(notNullValue()));
+        User[] users = responseFut.actionGet().users();
         assertThat(users, arrayContaining(reservedUsers.toArray(new User[reservedUsers.size()])));
     }
 
@@ -225,19 +181,8 @@ public class TransportGetUsersActionTests extends ESTestCase {
             }
         }).when(usersStore).getUsers(eq(Strings.EMPTY_ARRAY), any(ActionListener.class));
 
-        final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
-        final AtomicReference<GetUsersResponse> responseRef = new AtomicReference<>();
-        action.doExecute(mock(Task.class), request, new ActionListener<GetUsersResponse>() {
-            @Override
-            public void onResponse(GetUsersResponse response) {
-                responseRef.set(response);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throwableRef.set(e);
-            }
-        });
+        final PlainActionFuture<GetUsersResponse> responseFut = new PlainActionFuture<>();
+        action.doExecute(mock(Task.class), request, responseFut);
 
         final List<User> expectedList = new ArrayList<>();
         PlainActionFuture<Collection<User>> userFuture = new PlainActionFuture<>();
@@ -245,9 +190,7 @@ public class TransportGetUsersActionTests extends ESTestCase {
         expectedList.addAll(userFuture.actionGet());
         expectedList.addAll(storeUsers);
 
-        assertThat(throwableRef.get(), is(nullValue()));
-        assertThat(responseRef.get(), is(notNullValue()));
-        assertThat(responseRef.get().users(), arrayContaining(expectedList.toArray(new User[expectedList.size()])));
+        assertThat(responseFut.actionGet().users(), arrayContaining(expectedList.toArray(new User[expectedList.size()])));
         verify(usersStore, times(1)).getUsers(aryEq(Strings.EMPTY_ARRAY), any(ActionListener.class));
     }
 
@@ -271,26 +214,13 @@ public class TransportGetUsersActionTests extends ESTestCase {
             return null;
         }).when(usersStore).getUsers(aryEq(storeUsernames), any(ActionListener.class));
 
-        final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
-        final AtomicReference<GetUsersResponse> responseRef = new AtomicReference<>();
-        action.doExecute(mock(Task.class), request, new ActionListener<GetUsersResponse>() {
-            @Override
-            public void onResponse(GetUsersResponse response) {
-                responseRef.set(response);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throwableRef.set(e);
-            }
-        });
+        final PlainActionFuture<GetUsersResponse> responseFut = new PlainActionFuture<>();
+        action.doExecute(mock(Task.class), request, responseFut);
 
         final List<User> expectedList = new ArrayList<>();
         expectedList.addAll(storeUsers);
 
-        assertThat(throwableRef.get(), is(nullValue()));
-        assertThat(responseRef.get(), is(notNullValue()));
-        assertThat(responseRef.get().users(), arrayContaining(expectedList.toArray(new User[expectedList.size()])));
+        assertThat(responseFut.actionGet().users(), arrayContaining(expectedList.toArray(new User[expectedList.size()])));
         if (storeUsers.size() > 1) {
             verify(usersStore, times(1)).getUsers(aryEq(storeUsernames), any(ActionListener.class));
         } else {
@@ -319,23 +249,11 @@ public class TransportGetUsersActionTests extends ESTestCase {
             return null;
         }).when(usersStore).getUsers(aryEq(storeUsernames), any(ActionListener.class));
 
-        final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
-        final AtomicReference<GetUsersResponse> responseRef = new AtomicReference<>();
-        action.doExecute(mock(Task.class), request, new ActionListener<GetUsersResponse>() {
-            @Override
-            public void onResponse(GetUsersResponse response) {
-                responseRef.set(response);
-            }
+        final PlainActionFuture<GetUsersResponse> responseFut = new PlainActionFuture<>();
+        action.doExecute(mock(Task.class), request, responseFut);
 
-            @Override
-            public void onFailure(Exception e) {
-                throwableRef.set(e);
-            }
-        });
-
-        assertThat(throwableRef.get(), is(notNullValue()));
-        assertThat(throwableRef.get(), is(sameInstance(e)));
-        assertThat(responseRef.get(), is(nullValue()));
+        Exception thrownE = expectThrows(Exception.class, () -> responseFut.actionGet());
+        assertThat(thrownE, is(sameInstance(e)));
         verify(usersStore, times(1)).getUsers(aryEq(storeUsernames), any(ActionListener.class));
     }
 

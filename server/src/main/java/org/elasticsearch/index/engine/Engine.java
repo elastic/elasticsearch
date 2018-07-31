@@ -819,6 +819,8 @@ public abstract class Engine implements Closeable {
                     } catch (IOException e) {
                         logger.trace(() -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
                     }
+                    segment.segmentSort = info.info.getIndexSort();
+                    segment.attributes = info.info.getAttributes();
                     segments.put(info.info.name, segment);
                 } else {
                     segment.committed = true;

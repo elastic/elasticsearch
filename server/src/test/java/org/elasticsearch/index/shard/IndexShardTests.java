@@ -64,7 +64,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -2392,9 +2391,7 @@ public class IndexShardTests extends IndexShardTestCase {
             indexShard = newStartedShard(
                 Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0).build());
             final long numDocs = randomIntBetween(2, 32); // at least two documents so we have docs to delete
-            // Delete at least numDocs/10 documents otherwise the number of deleted docs will be below 10%
-            // and forceMerge will refuse to expunge deletes
-            final long numDocsToDelete = randomIntBetween((int) Math.ceil(Math.nextUp(numDocs / 10.0)), Math.toIntExact(numDocs));
+            final long numDocsToDelete = randomLongBetween(1, numDocs);
             for (int i = 0; i < numDocs; i++) {
                 final String id = Integer.toString(i);
                 indexDoc(indexShard, "_doc", id);
@@ -2460,7 +2457,6 @@ public class IndexShardTests extends IndexShardTestCase {
 
             // merge them away
             final ForceMergeRequest forceMergeRequest = new ForceMergeRequest();
-            forceMergeRequest.onlyExpungeDeletes(randomBoolean());
             forceMergeRequest.maxNumSegments(1);
             indexShard.forceMerge(forceMergeRequest);
 
@@ -2979,6 +2975,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(breaker.getUsed(), greaterThan(preRefreshBytes));
 
         indexDoc(primary, "_doc", "4", "{\"foo\": \"potato\"}");
+        indexDoc(primary, "_doc", "5", "{\"foo\": \"potato\"}");
         // Forces a refresh with the INTERNAL scope
         ((InternalEngine) primary.getEngine()).writeIndexingBuffer();
 
@@ -3228,32 +3225,6 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(noopDoc.getField(SeqNoFieldMapper.TOMBSTONE_NAME).numericValue().longValue(), equalTo(1L));
         assertThat(noopDoc.getField(SourceFieldMapper.NAME).binaryValue(), equalTo(new BytesRef(reason)));
 
-        closeShards(shard);
-    }
-
-    public void testSearcherIncludesSoftDeletes() throws Exception {
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-            .build();
-        IndexMetaData metaData = IndexMetaData.builder("test")
-            .putMapping("test", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
-            .settings(settings)
-            .primaryTerm(0, 1).build();
-        IndexShard shard = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
-        recoverShardFromStore(shard);
-        indexDoc(shard, "test", "0", "{\"foo\" : \"bar\"}");
-        indexDoc(shard, "test", "1", "{\"foo\" : \"baz\"}");
-        deleteDoc(shard, "test", "0");
-        shard.refresh("test");
-        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-            IndexSearcher searchWithSoftDeletes = new IndexSearcher(Lucene.wrapAllDocsLive(searcher.getDirectoryReader()));
-            assertThat(searcher.searcher().search(new TermQuery(new Term("foo", "bar")), 10).totalHits, equalTo(0L));
-            assertThat(searchWithSoftDeletes.search(new TermQuery(new Term("foo", "bar")), 10).totalHits, equalTo(1L));
-            assertThat(searcher.searcher().search(new TermQuery(new Term("foo", "baz")), 10).totalHits, equalTo(1L));
-            assertThat(searchWithSoftDeletes.search(new TermQuery(new Term("foo", "baz")), 10).totalHits, equalTo(1L));
-        }
         closeShards(shard);
     }
 }

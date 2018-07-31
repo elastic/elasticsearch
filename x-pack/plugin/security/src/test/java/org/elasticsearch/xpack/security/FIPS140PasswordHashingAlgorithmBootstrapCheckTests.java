@@ -3,32 +3,60 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.security;
 
+import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackSettings;
 
+import java.util.Arrays;
+
+import static org.hamcrest.Matchers.equalTo;
+
 public class FIPS140PasswordHashingAlgorithmBootstrapCheckTests extends ESTestCase {
 
     public void testPBKDF2AlgorithmIsAllowed() {
-        Settings settings = Settings.builder().put("xpack.security.fips_mode.enabled", "true").build();
+        {
+            final Settings settings = Settings.builder()
+                    .put(Security.FIPS_MODE_ENABLED.getKey(), true)
+                    .put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), "PBKDF2_10000")
+                    .build();
+            final BootstrapCheck.BootstrapCheckResult result =
+                    new FIPS140PasswordHashingAlgorithmBootstrapCheck(settings).check(new BootstrapContext(settings, null));
+            assertFalse(result.isFailure());
+        }
 
-        settings = Settings.builder().put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), "PBKDF2_10000").build();
-        assertFalse(new FIPS140PasswordHashingAlgorithmBootstrapCheck(settings).check(new BootstrapContext(settings, null)).isFailure());
-
-        settings = Settings.builder().put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), "PBKDF2").build();
-        assertFalse(new FIPS140PasswordHashingAlgorithmBootstrapCheck(settings).check(new BootstrapContext(settings, null)).isFailure());
+        {
+            final Settings settings = Settings.builder()
+                    .put(Security.FIPS_MODE_ENABLED.getKey(), true)
+                    .put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), "PBKDF2")
+                    .build();
+            final BootstrapCheck.BootstrapCheckResult result =
+                    new FIPS140PasswordHashingAlgorithmBootstrapCheck(settings).check(new BootstrapContext(settings, null));
+            assertFalse(result.isFailure());
+        }
     }
 
-    public void testBCRYPTAlgorithmIsNotAllowed() {
-        Settings settings = Settings.builder().put("xpack.security.fips_mode.enabled", "true").build();
-        assertTrue(new FIPS140PasswordHashingAlgorithmBootstrapCheck(settings).check(new BootstrapContext(settings, null)).isFailure());
-        settings = Settings.builder().put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), "BCRYPT").build();
-        assertTrue(new FIPS140PasswordHashingAlgorithmBootstrapCheck(settings).check(new BootstrapContext(settings, null)).isFailure());
-
-        settings = Settings.builder().put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), "BCRYPT11").build();
-        assertTrue(new FIPS140PasswordHashingAlgorithmBootstrapCheck(settings).check(new BootstrapContext(settings, null)).isFailure());
+    public void testBCRYPTAlgorithmDependsOnFipsMode() {
+        for (final Boolean fipsModeEnabled : Arrays.asList(true, false)) {
+            for (final String passwordHashingAlgorithm : Arrays.asList(null, "BCRYPT", "BCRYPT11")) {
+                runBCRYPTTest(fipsModeEnabled, passwordHashingAlgorithm);
+            }
+        }
     }
+
+    private void runBCRYPTTest(final boolean fipsModeEnabled, final String passwordHashingAlgorithm) {
+        final Settings.Builder builder = Settings.builder().put(Security.FIPS_MODE_ENABLED.getKey(), fipsModeEnabled);
+        if (passwordHashingAlgorithm != null) {
+            builder.put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), passwordHashingAlgorithm);
+        }
+        final Settings settings = builder.build();
+        final BootstrapCheck.BootstrapCheckResult result =
+                new FIPS140PasswordHashingAlgorithmBootstrapCheck(settings).check(new BootstrapContext(settings, null));
+        assertThat(result.isFailure(), equalTo(fipsModeEnabled));
+    }
+
 }

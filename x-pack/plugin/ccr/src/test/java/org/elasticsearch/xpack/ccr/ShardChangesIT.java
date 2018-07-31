@@ -61,6 +61,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -160,7 +161,7 @@ public class ShardChangesIT extends ESIntegTestCase {
 
     public void testFollowIndex() throws Exception {
         final int numberOfPrimaryShards = randomIntBetween(1, 3);
-        final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards,
+        final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards, between(0, 1),
             singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
         assertAcked(client().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
         ensureYellow("index1");
@@ -218,7 +219,7 @@ public class ShardChangesIT extends ESIntegTestCase {
     }
 
     public void testSyncMappings() throws Exception {
-        final String leaderIndexSettings = getIndexSettings(2,
+        final String leaderIndexSettings = getIndexSettings(2, between(0, 1),
             singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
         assertAcked(client().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
         ensureYellow("index1");
@@ -255,7 +256,8 @@ public class ShardChangesIT extends ESIntegTestCase {
     }
 
     public void testFollowIndex_backlog() throws Exception {
-        String leaderIndexSettings = getIndexSettings(3, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        String leaderIndexSettings = getIndexSettings(between(1, 5), between(0, 1),
+            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
         assertAcked(client().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
         BulkProcessor.Listener listener = new BulkProcessor.Listener() {
             @Override
@@ -306,10 +308,10 @@ public class ShardChangesIT extends ESIntegTestCase {
 
     public void testFollowIndexAndCloseNode() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(3);
-        String leaderIndexSettings = getIndexSettings(3, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        String leaderIndexSettings = getIndexSettings(3, 1, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
         assertAcked(client().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
 
-        String followerIndexSettings = getIndexSettings(3, singletonMap(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), "true"));
+        String followerIndexSettings = getIndexSettings(3, 1, singletonMap(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), "true"));
         assertAcked(client().admin().indices().prepareCreate("index2").setSource(followerIndexSettings, XContentType.JSON));
         ensureGreen("index1", "index2");
 
@@ -366,13 +368,14 @@ public class ShardChangesIT extends ESIntegTestCase {
 
     public void testFollowIndexWithNestedField() throws Exception {
         final String leaderIndexSettings =
-            getIndexSettingsWithNestedMapping(1, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+            getIndexSettingsWithNestedMapping(1, between(0, 1), singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
         assertAcked(client().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
 
         final String followerIndexSettings =
-            getIndexSettingsWithNestedMapping(1, singletonMap(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), "true"));
+            getIndexSettingsWithNestedMapping(1, between(0, 1), singletonMap(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), "true"));
         assertAcked(client().admin().indices().prepareCreate("index2").setSource(followerIndexSettings, XContentType.JSON));
 
+        internalCluster().ensureAtLeastNumDataNodes(2);
         ensureGreen("index1", "index2");
 
         final FollowIndexAction.Request followRequest = createFollowRequest("index1", "index2");
@@ -428,8 +431,35 @@ public class ShardChangesIT extends ESIntegTestCase {
         expectThrows(IllegalArgumentException.class, () -> client().execute(FollowIndexAction.INSTANCE, followRequest3).actionGet());
     }
 
+    public void testValidateFollowingIndexSettings() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test-leader")
+            .setSettings(Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)));
+        // TODO: indexing should be optional but the current mapping logic requires for now.
+        client().prepareIndex("test-leader", "doc", "id").setSource("{\"f\": \"v\"}", XContentType.JSON).get();
+        assertAcked(client().admin().indices().prepareCreate("test-follower").get());
+        IllegalArgumentException followError = expectThrows(IllegalArgumentException.class, () -> client().execute(
+            FollowIndexAction.INSTANCE, createFollowRequest("test-leader", "test-follower")).actionGet());
+        assertThat(followError.getMessage(), equalTo("the following index [test-follower] is not ready to follow;" +
+            " the setting [index.xpack.ccr.following_index] must be enabled."));
+        // updating the `following_index` with an open index must not be allowed.
+        IllegalArgumentException updateError = expectThrows(IllegalArgumentException.class, () -> {
+            client().admin().indices().prepareUpdateSettings("test-follower")
+                .setSettings(Settings.builder().put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)).get();
+        });
+        assertThat(updateError.getMessage(), containsString("Can't update non dynamic settings " +
+            "[[index.xpack.ccr.following_index]] for open indices [[test-follower/"));
+        assertAcked(client().admin().indices().prepareClose("test-follower"));
+        assertAcked(client().admin().indices().prepareUpdateSettings("test-follower")
+            .setSettings(Settings.builder().put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)));
+        assertAcked(client().admin().indices().prepareOpen("test-follower"));
+        assertAcked(client().execute(FollowIndexAction.INSTANCE,
+            createFollowRequest("test-leader", "test-follower")).actionGet());
+        unfollowIndex("test-follower");
+    }
+
     public void testFollowIndex_lowMaxTranslogBytes() throws Exception {
-        final String leaderIndexSettings = getIndexSettings(1, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        final String leaderIndexSettings = getIndexSettings(1, between(0, 1),
+            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
         assertAcked(client().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
         ensureYellow("index1");
 
@@ -528,15 +558,16 @@ public class ShardChangesIT extends ESIntegTestCase {
         };
     }
 
-    private String getIndexSettings(final int numberOfPrimaryShards, final Map<String, String> additionalIndexSettings) throws IOException {
+    private String getIndexSettings(final int numberOfShards, final int numberOfReplicas,
+                                    final Map<String, String> additionalIndexSettings) throws IOException {
         final String settings;
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
             {
                 builder.startObject("settings");
                 {
-                    builder.field("index.number_of_shards", numberOfPrimaryShards);
-                    builder.field("index.number_of_replicas", 1);
+                    builder.field("index.number_of_shards", numberOfShards);
+                    builder.field("index.number_of_replicas", numberOfReplicas);
                     for (final Map.Entry<String, String> additionalSetting : additionalIndexSettings.entrySet()) {
                         builder.field(additionalSetting.getKey(), additionalSetting.getValue());
                     }
@@ -566,7 +597,7 @@ public class ShardChangesIT extends ESIntegTestCase {
         return settings;
     }
 
-    private String getIndexSettingsWithNestedMapping(final int numberOfPrimaryShards,
+    private String getIndexSettingsWithNestedMapping(final int numberOfShards, final int numberOfReplicas,
                                                      final Map<String, String> additionalIndexSettings) throws IOException {
         final String settings;
         try (XContentBuilder builder = jsonBuilder()) {
@@ -574,7 +605,8 @@ public class ShardChangesIT extends ESIntegTestCase {
             {
                 builder.startObject("settings");
                 {
-                    builder.field("index.number_of_shards", numberOfPrimaryShards);
+                    builder.field("index.number_of_shards", numberOfShards);
+                    builder.field("index.number_of_replicas", numberOfReplicas);
                     for (final Map.Entry<String, String> additionalSetting : additionalIndexSettings.entrySet()) {
                         builder.field(additionalSetting.getKey(), additionalSetting.getValue());
                     }

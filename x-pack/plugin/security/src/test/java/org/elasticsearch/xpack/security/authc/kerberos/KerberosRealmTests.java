@@ -162,7 +162,7 @@ public class KerberosRealmTests extends KerberosRealmTestCase {
                 expectedUsername + "@example.com", Collections.singletonMap("k1", "v1"), true);
         otherRealm.registerUser(lookupUser);
 
-        settings = Settings.builder().put(settings).putList("authorizing_realms", "other_realm").build();
+        settings = Settings.builder().put(settings).putList("authorization_realms", "other_realm").build();
         final KerberosRealm kerberosRealm = createKerberosRealm(Collections.singletonList(otherRealm), username);
         final User expectedUser = lookupUser;
         final byte[] decodedTicket = "base64encodedticket".getBytes(StandardCharsets.UTF_8);

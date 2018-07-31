@@ -122,7 +122,7 @@ public class KerberosRealmAuthenticateFailedTests extends KerberosRealmTestCase 
         final User lookupUser = new User(randomAlphaOfLength(5));
         otherRealm.registerUser(lookupUser);
 
-        settings = Settings.builder().put(settings).putList("authorizing_realms", "other_realm").build();
+        settings = Settings.builder().put(settings).putList("authorization_realms", "other_realm").build();
         final KerberosRealm kerberosRealm = createKerberosRealm(Collections.singletonList(otherRealm), username);
         final byte[] decodedTicket = "base64encodedticket".getBytes(StandardCharsets.UTF_8);
         final Path keytabPath = config.env().configFile().resolve(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(config.settings()));

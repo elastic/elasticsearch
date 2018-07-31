@@ -102,8 +102,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
     public TransportReindexAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver, ClusterService clusterService, ScriptService scriptService,
             AutoCreateIndex autoCreateIndex, Client client, TransportService transportService) {
-        super(settings, ReindexAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                ReindexRequest::new);
+        super(settings, ReindexAction.NAME, threadPool, transportService, actionFilters, ReindexRequest::new,
+            indexNameExpressionResolver);
         this.clusterService = clusterService;
         this.scriptService = scriptService;
         this.autoCreateIndex = autoCreateIndex;

@@ -43,7 +43,7 @@ public final class MonitoringTemplateUtils {
     /**
      * IDs of templates that can be used with {@linkplain #loadTemplate(String) loadTemplate}.
      */
-    public static final String[] TEMPLATE_IDS = { "alerts", "es", "kibana", "logstash", "beats" };
+    public static final String[] TEMPLATE_IDS = { "alerts", "es", "kibana", "logstash", "beats", "apm-server" };
 
     /**
      * IDs of templates that can be used with {@linkplain #createEmptyTemplate(String) createEmptyTemplate} that are not managed by a

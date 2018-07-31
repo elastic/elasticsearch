@@ -40,6 +40,7 @@ public class MonitoringTemplateUtilsTests extends ESTestCase {
         assertThat(templateName("kibana"), equalTo(".monitoring-kibana"));
         assertThat(templateName("logstash"), equalTo(".monitoring-logstash"));
         assertThat(templateName("beats"), equalTo(".monitoring-beats"));
+        assertThat(templateName("apm-server"), equalTo(".monitoring-apm-server"));
     }
 
     public void testOldTemplateName() {
@@ -96,6 +97,8 @@ public class MonitoringTemplateUtilsTests extends ESTestCase {
         final long timestamp = new DateTime(2017, 8, 3, 13, 47, 58, DateTimeZone.UTC).getMillis();
 
         DateTimeFormatter formatter = DateTimeFormat.forPattern("YYYY.MM.dd").withZoneUTC();
+        assertThat(indexName(formatter, MonitoredSystem.APM_SERVER, timestamp),
+                equalTo(".monitoring-apm-server-" + TEMPLATE_VERSION + "-2017.08.03"));
         assertThat(indexName(formatter, MonitoredSystem.ES, timestamp),
                 equalTo(".monitoring-es-" + TEMPLATE_VERSION + "-2017.08.03"));
         assertThat(indexName(formatter, MonitoredSystem.KIBANA, timestamp),
@@ -106,6 +109,8 @@ public class MonitoringTemplateUtilsTests extends ESTestCase {
                 equalTo(".monitoring-beats-" + TEMPLATE_VERSION + "-2017.08.03"));
 
         formatter = DateTimeFormat.forPattern("YYYY-dd-MM-HH.mm.ss").withZoneUTC();
+        assertThat(indexName(formatter, MonitoredSystem.APM_SERVER, timestamp),
+                equalTo(".monitoring-apm-server-" + TEMPLATE_VERSION + "-2017.08.03-13.47.58"));
         assertThat(indexName(formatter, MonitoredSystem.ES, timestamp),
                 equalTo(".monitoring-es-" + TEMPLATE_VERSION + "-2017-03-08-13.47.58"));
         assertThat(indexName(formatter, MonitoredSystem.KIBANA, timestamp),

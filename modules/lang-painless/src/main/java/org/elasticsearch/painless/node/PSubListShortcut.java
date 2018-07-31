@@ -57,8 +57,12 @@ final class PSubListShortcut extends AStoreable {
     void analyze(Locals locals) {
         String canonicalClassName = PainlessLookupUtility.typeToCanonicalTypeName(targetClass);
 
-        getter = locals.getPainlessLookup().lookupPainlessMethod(targetClass, false, "get", 1);
-        setter = locals.getPainlessLookup().lookupPainlessMethod(targetClass, false, "set", 2);
+        try {
+            getter = locals.getPainlessLookup().lookupPainlessMethod(targetClass, false, "get", 1);
+            setter = locals.getPainlessLookup().lookupPainlessMethod(targetClass, false, "set", 2);
+        } catch (IllegalArgumentException iae) {
+            throw createError(iae);
+        }
 
         if (getter != null && (getter.returnType == void.class || getter.typeParameters.size() != 1 ||
             getter.typeParameters.get(0) != int.class)) {

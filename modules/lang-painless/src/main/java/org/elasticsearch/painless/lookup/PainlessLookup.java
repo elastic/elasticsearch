@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.painless.lookup.PainlessLookupUtility.buildPainlessConstructorKey;
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.buildPainlessMethodKey;
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
 
@@ -64,6 +65,27 @@ public final class PainlessLookup {
         Objects.requireNonNull(painlessType);
 
         return PainlessLookupUtility.canonicalTypeNameToType(painlessType, canonicalClassNamesToClasses);
+    }
+
+    public PainlessConstructor lookupPainlessConstuctor(Class<?> targetClass, int constructorArity) {
+        Objects.requireNonNull(targetClass);
+
+        PainlessClass targetPainlessClass = classesToPainlessClasses.get(targetClass);
+        String painlessConstructorKey = buildPainlessConstructorKey(constructorArity);
+
+        if (targetPainlessClass == null) {
+            throw new IllegalArgumentException("target class [" + typeToCanonicalTypeName(targetClass) + "] " +
+                    "not found for constructor [" + painlessConstructorKey + "]");
+        }
+
+        PainlessConstructor painlessConstructor = targetPainlessClass.constructors.get(painlessConstructorKey);
+
+        if (painlessConstructor == null) {
+            throw new IllegalArgumentException(
+                    "constructor [" + typeToCanonicalTypeName(targetClass) + ", " + painlessConstructorKey + "] not found");
+        }
+
+        return painlessConstructor;
     }
 
     public PainlessMethod lookupPainlessMethod(Class<?> targetClass, boolean isStatic, String methodName, int methodArity) {

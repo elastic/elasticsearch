@@ -64,8 +64,8 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
     public static final String REQUEST_PEERS_ACTION_NAME = "internal:discovery/requestpeers";
 
     // the time between attempts to find all peers
-    public static final Setting<TimeValue> CONSENSUS_FIND_PEERS_DELAY_SETTING =
-        Setting.timeSetting("discovery.zen2.find_peers_delay",
+    public static final Setting<TimeValue> DISCOVERY_FIND_PEERS_INTERVAL_SETTING =
+        Setting.timeSetting("discovery.find_peers_interval",
             TimeValue.timeValueMillis(1000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
 
     private final TimeValue findPeersDelay;
@@ -85,7 +85,7 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
                FutureExecutor futureExecutor, TransportAddressConnector transportAddressConnector,
                Supplier<ExecutorService> executorServiceFactory) {
         super(settings);
-        findPeersDelay = CONSENSUS_FIND_PEERS_DELAY_SETTING.get(settings);
+        findPeersDelay = DISCOVERY_FIND_PEERS_INTERVAL_SETTING.get(settings);
         resolveTimeout = UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT.get(settings);
         this.transportService = transportService;
         this.hostsProvider = hostsProvider;

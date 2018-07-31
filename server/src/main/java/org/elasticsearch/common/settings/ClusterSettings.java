@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
+import org.elasticsearch.cluster.coordination.PeerFinder;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.OperationRouting;
@@ -423,6 +424,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     Node.BREAKER_TYPE_KEY,
                     OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
                     IndexGraveyard.SETTING_MAX_TOMBSTONES,
-                    EnableAssignmentDecider.CLUSTER_TASKS_ALLOCATION_ENABLE_SETTING
+                    EnableAssignmentDecider.CLUSTER_TASKS_ALLOCATION_ENABLE_SETTING,
+                    PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING
             )));
 }

@@ -77,8 +77,7 @@ public final class EMapInit extends AExpression {
             throw createError(new IllegalStateException("Illegal tree structure."));
         }
 
-        method = locals.getPainlessLookup().getPainlessStructFromJavaClass(actual).methods
-                .get(PainlessLookupUtility.buildPainlessMethodKey("put", 2));
+        method = locals.getPainlessLookup().lookupPainlessMethod(actual, false, "put", 2);
 
         if (method == null) {
             throw createError(new IllegalStateException("Illegal tree structure."));

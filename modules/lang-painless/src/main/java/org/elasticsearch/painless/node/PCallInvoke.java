@@ -67,11 +67,13 @@ public final class PCallInvoke extends AExpression {
         if (prefix.actual == def.class) {
             sub = new PSubDefCall(location, name, arguments);
         } else {
-            throw new IllegalArgumentException("blah");
-
-            /*PainlessMethod method
-                    locals.getPainlessLookup().lookupPainlessMethod(prefix.actual, prefix instanceof EStatic, name, arguments.size());
-            sub = new PSubCallInvoke(location, method, prefix.actual, arguments);*/
+            try {
+                PainlessMethod method =
+                        locals.getPainlessLookup().lookupPainlessMethod(prefix.actual, prefix instanceof EStatic, name, arguments.size());
+                sub = new PSubCallInvoke(location, method, prefix.actual, arguments);
+            } catch (IllegalArgumentException iae) {
+                throw createError(iae);
+            }
         }
 
         if (nullSafe) {

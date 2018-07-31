@@ -71,8 +71,7 @@ public final class EListInit extends AExpression {
             throw createError(new IllegalStateException("Illegal tree structure."));
         }
 
-        method = locals.getPainlessLookup().getPainlessStructFromJavaClass(actual).methods
-                .get(PainlessLookupUtility.buildPainlessMethodKey("add", 1));
+        method = locals.getPainlessLookup().lookupPainlessMethod(actual, false, "add", 1);
 
         if (method == null) {
             throw createError(new IllegalStateException("Illegal tree structure."));

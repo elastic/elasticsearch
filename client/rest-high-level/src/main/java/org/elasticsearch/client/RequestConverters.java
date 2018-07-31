@@ -110,6 +110,7 @@ import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyRequest;
 import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
+import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
@@ -137,7 +138,7 @@ final class RequestConverters {
     static Request cancelTasks(CancelTasksRequest cancelTasksRequest) {
         Request request = new Request(HttpPost.METHOD_NAME, "/_tasks/_cancel");
         Params params = new Params(request);
-        params.withTimeout(cancelTasksRequest.getTimeout())
+    params.withTimeout(cancelTasksRequest.getTimeout())
             .withTaskId(cancelTasksRequest.getTaskId())
             .withNodes(cancelTasksRequest.getNodes())
             .withParentTaskId(cancelTasksRequest.getParentTaskId())
@@ -1131,6 +1132,18 @@ final class RequestConverters {
         ContentType contentType = createContentType(putWatchRequest.xContentType());
         BytesReference source = putWatchRequest.getSource();
         request.setEntity(new ByteArrayEntity(source.toBytesRef().bytes, 0, source.length(), contentType));
+        return request;
+    }
+
+    static Request xPackWatcherDeleteWatch(DeleteWatchRequest deleteWatchRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("watcher")
+            .addPathPartAsIs("watch")
+            .addPathPart(deleteWatchRequest.getId())
+            .build();
+
+        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
         return request;
     }
 

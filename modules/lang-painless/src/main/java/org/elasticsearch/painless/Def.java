@@ -368,7 +368,7 @@ public final class Def {
              ref = new FunctionRef(clazz, interfaceMethod, call, handle.type(), captures.length);
          } else {
              // whitelist lookup
-             ref = new FunctionRef(painlessLookup, clazz, type, call, captures.length);
+             ref = FunctionRef.resolveFromLookup(painlessLookup, clazz, type, call, captures.length);
          }
          final CallSite callSite = LambdaBootstrap.lambdaBootstrap(
              methodHandlesLookup,
@@ -421,7 +421,7 @@ public final class Def {
             PainlessClass struct = painlessLookup.getPainlessStructFromJavaClass(clazz);
 
             if (struct != null) {
-                MethodHandle handle = struct.getters.get(name);
+                MethodHandle handle = struct.getterMethodHandles.get(name);
                 if (handle != null) {
                     return handle;
                 }
@@ -431,7 +431,7 @@ public final class Def {
                 struct = painlessLookup.getPainlessStructFromJavaClass(iface);
 
                 if (struct != null) {
-                    MethodHandle handle = struct.getters.get(name);
+                    MethodHandle handle = struct.getterMethodHandles.get(name);
                     if (handle != null) {
                         return handle;
                     }
@@ -492,7 +492,7 @@ public final class Def {
             PainlessClass struct = painlessLookup.getPainlessStructFromJavaClass(clazz);
 
             if (struct != null) {
-                MethodHandle handle = struct.setters.get(name);
+                MethodHandle handle = struct.setterMethodHandles.get(name);
                 if (handle != null) {
                     return handle;
                 }
@@ -502,7 +502,7 @@ public final class Def {
                 struct = painlessLookup.getPainlessStructFromJavaClass(iface);
 
                 if (struct != null) {
-                    MethodHandle handle = struct.setters.get(name);
+                    MethodHandle handle = struct.setterMethodHandles.get(name);
                     if (handle != null) {
                         return handle;
                     }

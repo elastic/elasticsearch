@@ -23,6 +23,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -102,9 +103,9 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
         PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         Optional<Tuple<DataCounts, ModelSizeStats>> stats = processManager.getStatistics(task);
         if (stats.isPresent()) {
-            PersistentTasksCustomMetaData.PersistentTask<?> pTask = MlMetadata.getJobTask(jobId, tasks);
+            PersistentTasksCustomMetaData.PersistentTask<?> pTask = MlTasks.getJobTask(jobId, tasks);
             DiscoveryNode node = state.nodes().get(pTask.getExecutorNode());
-            JobState jobState = MlMetadata.getJobState(jobId, tasks);
+            JobState jobState = MlTasks.getJobState(jobId, tasks);
             String assignmentExplanation = pTask.getAssignment().getExplanation();
             TimeValue openTime = durationToTimeValue(processManager.jobOpenTime(task));
             gatherForecastStats(jobId, forecastStats -> {
@@ -137,8 +138,8 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
             String jobId = jobIds.get(i);
             gatherForecastStats(jobId, forecastStats -> {
                 gatherDataCountsAndModelSizeStats(jobId, (dataCounts, modelSizeStats) -> {
-                    JobState jobState = MlMetadata.getJobState(jobId, tasks);
-                    PersistentTasksCustomMetaData.PersistentTask<?> pTask = MlMetadata.getJobTask(jobId, tasks);
+                    JobState jobState = MlTasks.getJobState(jobId, tasks);
+                    PersistentTasksCustomMetaData.PersistentTask<?> pTask = MlTasks.getJobTask(jobId, tasks);
                     String assignmentExplanation = null;
                     if (pTask != null) {
                         assignmentExplanation = pTask.getAssignment().getExplanation();

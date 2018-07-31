@@ -35,16 +35,16 @@ import java.util.Set;
  */
 final class PSubMapShortcut extends AStoreable {
 
-    private final PainlessClass struct;
+    private final Class<?> targetClass;
     private AExpression index;
 
     private PainlessMethod getter;
     private PainlessMethod setter;
 
-    PSubMapShortcut(Location location, PainlessClass struct, AExpression index) {
+    PSubMapShortcut(Location location, Class<?> targetClass, AExpression index) {
         super(location);
 
-        this.struct = Objects.requireNonNull(struct);
+        this.targetClass = Objects.requireNonNull(targetClass);
         this.index = Objects.requireNonNull(index);
     }
 
@@ -55,15 +55,18 @@ final class PSubMapShortcut extends AStoreable {
 
     @Override
     void analyze(Locals locals) {
+        PainlessClass struct = locals.getPainlessLookup().getPainlessStructFromJavaClass(targetClass);
+        String canonicalClassName = PainlessLookupUtility.typeToCanonicalTypeName(targetClass);
+
         getter = struct.methods.get(PainlessLookupUtility.buildPainlessMethodKey("get", 1));
         setter = struct.methods.get(PainlessLookupUtility.buildPainlessMethodKey("put", 2));
 
         if (getter != null && (getter.rtn == void.class || getter.arguments.size() != 1)) {
-            throw createError(new IllegalArgumentException("Illegal map get shortcut for type [" + struct.name + "]."));
+            throw createError(new IllegalArgumentException("Illegal map get shortcut for type [" + canonicalClassName + "]."));
         }
 
         if (setter != null && setter.arguments.size() != 2) {
-            throw createError(new IllegalArgumentException("Illegal map set shortcut for type [" + struct.name + "]."));
+            throw createError(new IllegalArgumentException("Illegal map set shortcut for type [" + canonicalClassName + "]."));
         }
 
         if (getter != null && setter != null &&
@@ -78,7 +81,7 @@ final class PSubMapShortcut extends AStoreable {
 
             actual = setter != null ? setter.arguments.get(1) : getter.rtn;
         } else {
-            throw createError(new IllegalArgumentException("Illegal map shortcut for type [" + struct.name + "]."));
+            throw createError(new IllegalArgumentException("Illegal map shortcut for type [" + canonicalClassName + "]."));
         }
     }
 

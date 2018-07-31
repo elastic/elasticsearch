@@ -66,7 +66,7 @@ public class SimpleKdcLdapServer {
      * @param orgName Org name for base dn
      * @param domainName domain name for base dn
      * @param ldiff for ldap directory.
-     * @throws Exception
+     * @throws Exception when KDC or Ldap server initialization fails
      */
     public SimpleKdcLdapServer(final Path workDir, final String orgName, final String domainName, final Path ldiff) throws Exception {
         this.workDir = workDir;
@@ -194,7 +194,7 @@ public class SimpleKdcLdapServer {
     /**
      * Stop Simple Kdc Server
      * 
-     * @throws PrivilegedActionException
+     * @throws PrivilegedActionException when privileged action threw exception
      */
     public synchronized void stop() throws PrivilegedActionException {
         AccessController.doPrivileged(new PrivilegedExceptionAction<Void>() {

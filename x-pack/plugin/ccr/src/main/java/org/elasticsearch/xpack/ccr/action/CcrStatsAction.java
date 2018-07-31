@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.ccr.action;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.TaskOperationFailure;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -83,21 +85,41 @@ public class CcrStatsAction extends Action<CcrStatsAction.TasksResponse> {
         }
     }
 
-    public static class TasksRequest extends BaseTasksRequest<TasksRequest> {
+    public static class TasksRequest extends BaseTasksRequest<TasksRequest> implements IndicesRequest {
 
-        private String indexName;
+        private String[] indices;
 
-        public void setIndexName(final String indexName) {
-            this.indexName = indexName;
+        @Override
+        public String[] indices() {
+            return indices;
+        }
+
+        public void setIndices(final String[] indices) {
+            this.indices = indices;
+        }
+
+        private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosed();
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return indicesOptions;
+        }
+
+        public void setIndicesOptions(final IndicesOptions indicesOptions) {
+            this.indicesOptions = indicesOptions;
         }
 
         @Override
         public boolean match(final Task task) {
-            if (task instanceof ShardFollowNodeTask) {
-                final ShardFollowNodeTask shardTask = (ShardFollowNodeTask) task;
-                return indexName.equals("") || indexName.equals("_all") || shardTask.getFollowShardId().getIndexName().equals(indexName);
-            }
-            return false;
+            /*
+             * This is a limitation of the current tasks API. When the transport action is executed, the tasks API invokes this match method
+             * to find the tasks on which to execute the task-level operation (see TransportTasksAction#nodeOperation and
+             * TransportTasksAction#taskOperation). If we do the matching here, then we can not match index patterns. Therefore, we defer
+             * deciding whether or not the task matches the request to the transport action (see TransportCcrStatsAction#taskOperation)
+             * where we can decide on the basis of the cluster state whether or not the task matches any of the index patterns in the
+             * request.
+             */
+            return task instanceof ShardFollowNodeTask;
         }
 
         @Override
@@ -108,13 +130,15 @@ public class CcrStatsAction extends Action<CcrStatsAction.TasksResponse> {
         @Override
         public void readFrom(final StreamInput in) throws IOException {
             super.readFrom(in);
-            indexName = in.readOptionalString();
+            indices = in.readStringArray();
+            indicesOptions = IndicesOptions.readIndicesOptions(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeOptionalString(indexName);
+            out.writeStringArray(indices);
+            indicesOptions.writeIndicesOptions(out);
         }
 
     }

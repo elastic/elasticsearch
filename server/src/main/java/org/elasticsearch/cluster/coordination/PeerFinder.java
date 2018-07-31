@@ -58,6 +58,7 @@ import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.new
 
 public abstract class PeerFinder extends AbstractLifecycleComponent {
 
+    // TODO can this class handle these requests?
     public static final String REQUEST_PEERS_ACTION_NAME = "internal:discovery/requestpeers";
 
     // the time between attempts to find all peers
@@ -195,7 +196,7 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
 
     private class ActivePeerFinder {
         boolean running;
-        final Map<DiscoveryNode, FoundPeer> foundPeers;
+        final Map<DiscoveryNode, FoundPeer> foundPeers; // TODO contemplate whether this needs periodic cleaning
         private final Set<TransportAddress> probedAddressesSinceLastWakeUp = new HashSet<>();
         private final AtomicBoolean resolveInProgress = new AtomicBoolean();
         private final AtomicReference<List<TransportAddress>> lastResolvedAddresses = new AtomicReference<>(Collections.emptyList());
@@ -221,6 +222,8 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
 
         private void handleWakeUp() {
             // Must not hold lock when calling out to Legislator to avoid a lock cycle
+            // TODO can we avoid calling out at all and just pass lastAcceptedNodes in? Need to be able to get a new value
+            // somehow on a wakeup.
             assert holdsLock() == false : "Peerfinder mutex is held in error";
             final DiscoveryNodes lastAcceptedNodes = getLastAcceptedNodes();
             synchronized (mutex) {
@@ -332,6 +335,7 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
 
                 logger.trace("startProbe({}) found disconnected {}, probing again", transportAddress, cachedNode);
                 connectedNodes.remove(transportAddress, cachedNode);
+                // TODO Should we also clean up foundPeers?
             } else {
                 logger.trace("startProbe({}) no cached node found, probing", transportAddress);
             }
@@ -380,6 +384,7 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
 
                 if (discoveryNode.equals(getLocalNode())) {
                     return;
+                    // TODO at the moment this puts the local node into foundPeers. Can we do without?
                 }
 
                 List<DiscoveryNode> knownNodes = new ArrayList<>(foundPeers.keySet());

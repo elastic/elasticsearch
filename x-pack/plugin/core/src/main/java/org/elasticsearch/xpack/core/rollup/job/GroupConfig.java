@@ -23,6 +23,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static java.util.Arrays.asList;
+
 /**
  * The configuration object for the groups section in the rollup config.
  * Basically just a wrapper for histo/date histo/terms objects
@@ -50,7 +52,7 @@ public class GroupConfig implements Writeable, ToXContentObject {
     static {
         PARSER.declareObject(GroupConfig.Builder::setDateHisto, (p,c) -> DateHistoGroupConfig.PARSER.apply(p,c).build(), DATE_HISTO);
         PARSER.declareObject(GroupConfig.Builder::setHisto, (p,c) -> HistoGroupConfig.PARSER.apply(p,c).build(), HISTO);
-        PARSER.declareObject(GroupConfig.Builder::setTerms, (p,c) -> TermsGroupConfig.PARSER.apply(p,c).build(), TERMS);
+        PARSER.declareObject(GroupConfig.Builder::setTerms, (p,c) -> TermsGroupConfig.fromXContent(p), TERMS);
     }
 
     private GroupConfig(DateHistoGroupConfig dateHisto, @Nullable HistoGroupConfig histo, @Nullable TermsGroupConfig terms) {
@@ -84,7 +86,7 @@ public class GroupConfig implements Writeable, ToXContentObject {
             fields.addAll(histo.getAllFields());
         }
         if (terms != null) {
-            fields.addAll(terms.getAllFields());
+            fields.addAll(asList(terms.getFields()));
         }
         return fields;
     }
@@ -100,7 +102,6 @@ public class GroupConfig implements Writeable, ToXContentObject {
         }
     }
 
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -113,9 +114,7 @@ public class GroupConfig implements Writeable, ToXContentObject {
             builder.endObject();
         }
         if (terms != null) {
-            builder.startObject(TERMS.getPreferredName());
-            terms.toXContent(builder, params);
-            builder.endObject();
+            builder.field(TERMS.getPreferredName(), terms);
         }
         builder.endObject();
         return builder;

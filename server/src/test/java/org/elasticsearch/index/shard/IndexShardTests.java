@@ -418,11 +418,8 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     /**
-     * This test makes sure that people can use the shard routing entry to check whether a shard was already promoted to
-     * a primary. Concretely this means, that when we publish the routing entry via {@link IndexShard#routingEntry()} the following
-     * should have happened
-     * 1) Internal state (ala ReplicationTracker) have been updated
-     * 2) Primary term is set to the new term
+     * This test makes sure that people can use the shard routing entry + take an operation permit to check whether a shard was already
+     * promoted to a primary.
      */
     public void testPublishingOrderOnPromotion() throws IOException, InterruptedException, BrokenBarrierException {
         final IndexShard indexShard = newShard(false);
@@ -439,7 +436,11 @@ public class IndexShardTests extends IndexShardTestCase {
             while(stop.get() == false) {
                 if (indexShard.routingEntry().primary()) {
                     assertThat(indexShard.getPendingPrimaryTerm(), equalTo(promotedTerm));
-                    assertThat(indexShard.getReplicationGroup(), notNullValue());
+                    final PlainActionFuture<Releasable> permitAcquiredFuture = new PlainActionFuture<>();
+                    indexShard.acquirePrimaryOperationPermit(permitAcquiredFuture, ThreadPool.Names.SAME, "bla");
+                    try (Releasable ignored = permitAcquiredFuture.actionGet()) {
+                        assertThat(indexShard.getReplicationGroup(), notNullValue());
+                    }
                 }
             }
         });
@@ -572,7 +573,10 @@ public class IndexShardTests extends IndexShardTestCase {
         assertEquals(0, indexShard.getActiveOperationsCount());
         if (indexShard.routingEntry().isRelocationTarget() == false) {
             try {
-                indexShard.acquireReplicaOperationPermit(primaryTerm, indexShard.getGlobalCheckpoint(), null, ThreadPool.Names.WRITE, "");
+                final PlainActionFuture<Releasable> permitAcquiredFuture = new PlainActionFuture<>();
+                indexShard.acquireReplicaOperationPermit(primaryTerm, indexShard.getGlobalCheckpoint(), permitAcquiredFuture,
+                    ThreadPool.Names.WRITE, "");
+                permitAcquiredFuture.actionGet();
                 fail("shard shouldn't accept operations as replica");
             } catch (IllegalStateException ignored) {
 

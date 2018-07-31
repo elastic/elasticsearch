@@ -943,7 +943,8 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addMapping("type", mapping));
         ensureGreen("test");
 
-        ZonedDateTime date = ZonedDateTime.of(1990, 12, 29, 0, 0, 0, 0, ZoneId.of("UTC"));
+        ZonedDateTime date = ZonedDateTime.of(1990, 12, 29, 0, 0, 0, 0,
+                                              ZoneId.of("UTC").normalized());
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.ROOT);
 
         index("test", "type", "1", "text_field", "foo", "date_field", formatter.format(date));

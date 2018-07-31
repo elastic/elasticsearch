@@ -70,7 +70,7 @@ public final class EMapInit extends AExpression {
         actual = HashMap.class;
 
         try {
-            constructor = locals.getPainlessLookup().lookupPainlessConstuctor(actual, 0);
+            constructor = locals.getPainlessLookup().lookupPainlessConstructor(actual, 0);
         } catch (IllegalArgumentException iae) {
             throw createError(iae);
         }

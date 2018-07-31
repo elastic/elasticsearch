@@ -64,7 +64,7 @@ public final class EListInit extends AExpression {
         actual = ArrayList.class;
 
         try {
-            constructor = locals.getPainlessLookup().lookupPainlessConstuctor(actual, 0);
+            constructor = locals.getPainlessLookup().lookupPainlessConstructor(actual, 0);
         } catch (IllegalArgumentException iae) {
             throw createError(iae);
         }

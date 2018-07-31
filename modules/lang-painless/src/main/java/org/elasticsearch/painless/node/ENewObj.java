@@ -65,7 +65,7 @@ public final class ENewObj extends AExpression {
         }
 
         try {
-            constructor = locals.getPainlessLookup().lookupPainlessConstuctor(actual, arguments.size());
+            constructor = locals.getPainlessLookup().lookupPainlessConstructor(actual, arguments.size());
         } catch (IllegalArgumentException iae) {
             throw createError(iae);
         }

@@ -75,7 +75,7 @@ public class PainlessDocGenerator {
             emitGeneratedWarning(indexStream);
             List<Class<?>> classes = PAINLESS_LOOKUP.getSortedClassesByCanonicalClassName();
             for (Class<?> clazz : classes) {
-                PainlessClass struct = PAINLESS_LOOKUP.getPainlessStructFromJavaClass(clazz);
+                PainlessClass struct = PAINLESS_LOOKUP.lookupPainlessClass(clazz);
                 String canonicalClassName = PainlessLookupUtility.typeToCanonicalTypeName(clazz);
 
                 if (clazz.isPrimitive()) {

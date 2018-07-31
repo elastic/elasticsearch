@@ -27,6 +27,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.buildPainlessConstructorKey;
+import static org.elasticsearch.painless.lookup.PainlessLookupUtility.buildPainlessFieldKey;
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.buildPainlessMethodKey;
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
 
@@ -51,10 +52,6 @@ public final class PainlessLookup {
         );
     }
 
-    public List<Class<?>> getSortedClassesByCanonicalClassName() {
-        return sortedClassesByCanonicalClassName;
-    }
-
     public boolean isValidCanonicalClassName(String canonicalClassName) {
         Objects.requireNonNull(canonicalClassName);
 
@@ -67,7 +64,15 @@ public final class PainlessLookup {
         return PainlessLookupUtility.canonicalTypeNameToType(painlessType, canonicalClassNamesToClasses);
     }
 
-    public PainlessConstructor lookupPainlessConstuctor(Class<?> targetClass, int constructorArity) {
+    public List<Class<?>> getSortedClassesByCanonicalClassName() {
+        return sortedClassesByCanonicalClassName;
+    }
+
+    public PainlessClass lookupPainlessClass(Class<?> targetClass) {
+        return classesToPainlessClasses.get(targetClass);
+    }
+
+    public PainlessConstructor lookupPainlessConstructor(Class<?> targetClass, int constructorArity) {
         Objects.requireNonNull(targetClass);
 
         PainlessClass targetPainlessClass = classesToPainlessClasses.get(targetClass);
@@ -116,7 +121,27 @@ public final class PainlessLookup {
         return painlessMethod;
     }
 
-    public PainlessClass getPainlessStructFromJavaClass(Class<?> clazz) {
-        return classesToPainlessClasses.get(clazz);
+    public PainlessField lookupPainlessField(Class<?> targetClass, boolean isStatic, String fieldName) {
+        Objects.requireNonNull(targetClass);
+        Objects.requireNonNull(fieldName);
+
+        PainlessClass targetPainlessClass = classesToPainlessClasses.get(targetClass);
+        String painlessFieldKey = buildPainlessFieldKey(fieldName);
+
+        if (targetPainlessClass == null) {
+            throw new IllegalArgumentException(
+                    "target class [" + typeToCanonicalTypeName(targetClass) + "] not found for field [" + painlessFieldKey + "]");
+        }
+
+        PainlessField painlessField = isStatic ?
+                targetPainlessClass.staticFields.get(painlessFieldKey) :
+                targetPainlessClass.fields.get(painlessFieldKey);
+
+        if (painlessField == null) {
+            throw new IllegalArgumentException(
+                    "field [" + typeToCanonicalTypeName(targetClass) + ", " + painlessFieldKey + "] not found");
+        }
+
+        return painlessField;
     }
 }

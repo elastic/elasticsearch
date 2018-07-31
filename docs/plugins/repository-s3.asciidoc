@@ -79,9 +79,9 @@ are marked as `Secure`.
 
 `endpoint`::
 
-    The s3 service endpoint to connect to. This will be automatically
-    figured out by the s3 client based on the bucket location, but
-    can be specified explicitly. See http://docs.aws.amazon.com/general/latest/gr/rande.html#s3_region.
+    The s3 service endpoint to connect to. Mandatory if you are using another 
+    region than `us-east-1`.
+    See http://docs.aws.amazon.com/general/latest/gr/rande.html#s3_region.
 
 `protocol`::
 

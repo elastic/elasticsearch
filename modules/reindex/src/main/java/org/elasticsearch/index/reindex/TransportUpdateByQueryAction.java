@@ -56,7 +56,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             IndexNameExpressionResolver indexNameExpressionResolver, Client client, TransportService transportService,
             ScriptService scriptService, ClusterService clusterService) {
         super(settings, UpdateByQueryAction.NAME, threadPool, transportService, actionFilters,
-                indexNameExpressionResolver, UpdateByQueryRequest::new);
+                UpdateByQueryRequest::new, indexNameExpressionResolver);
         this.client = client;
         this.scriptService = scriptService;
         this.clusterService = clusterService;

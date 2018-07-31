@@ -84,7 +84,7 @@ public class Loggers {
 
     /**
      * Get or build a logger.
-     * @deprecated Prefer {@link LogManager.getLogger}
+     * @deprecated Prefer {@link LogManager#getLogger}
      */
     @Deprecated
     public static Logger getLogger(String s) {
@@ -93,7 +93,7 @@ public class Loggers {
 
     /**
      * Get or build a logger.
-     * @deprecated Prefer {@link LogManager.getLogger}
+     * @deprecated Prefer {@link LogManager#getLogger}
      */
     @Deprecated
     public static Logger getLogger(Class<?> clazz) {

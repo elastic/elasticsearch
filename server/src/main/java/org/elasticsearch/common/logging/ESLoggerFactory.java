@@ -60,7 +60,7 @@ public final class ESLoggerFactory {
 
     /**
      * Get or build a logger.
-     * @deprecated Prefer {@link LogManager.getLogger}
+     * @deprecated Prefer {@link LogManager#getLogger}
      */
     @Deprecated
     public static Logger getLogger(Class<?> clazz) {
@@ -69,7 +69,7 @@ public final class ESLoggerFactory {
 
     /**
      * Get or build a logger.
-     * @deprecated Prefer {@link LogManager.getLogger}
+     * @deprecated Prefer {@link LogManager#getLogger}
      */
     @Deprecated
     public static Logger getLogger(String name) {
@@ -78,7 +78,7 @@ public final class ESLoggerFactory {
 
     /**
      * Get the root logger.
-     * @deprecated Prefer {@link LogManager.getRootLogger}
+     * @deprecated Prefer {@link LogManager#getRootLogger}
      */
     @Deprecated
     public static Logger getRootLogger() {

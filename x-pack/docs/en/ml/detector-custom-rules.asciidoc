@@ -16,7 +16,7 @@ Let us see how those can be configured by examples.
 
 ==== Specifying rule scope
 
-Let us assume we are configuring a job in order to DNS data exfiltration.
+Let us assume we are configuring a job in order to detect DNS data exfiltration.
 Our data contain fields "subdomain" and "highest_registered_domain".
 We can use a detector that looks like `high_info_content(subdomain) over highest_registered_domain`.
 If we run such a job it is possible that we discover a lot of anomalies on 
@@ -25,8 +25,8 @@ are not interested in such anomalies. Ideally, we could instruct the detector to
 skip results for domains that we consider safe. Using a rule with a scope allows 
 us to achieve this.
 
-First, we need to create a list with our safe domains. Those lists are called 
-`filters` in {ml}. Filters can be shared across jobs.
+First, we need to create a list of our safe domains. Those lists are called 
+_filters_ in {ml}. Filters can be shared across jobs.
 
 We create our filter using the {ref}/ml-put-filter.html[put filter API]:
 
@@ -40,8 +40,8 @@ PUT _xpack/ml/filters/safe_domains
 ----------------------------------
 // CONSOLE
 
-Now, we can create our job specifying a scope that uses the filter for the 
-`highest_registered_domain` field:
+Now, we can create our job specifying a scope that uses the `safe_domains` 
+filter for the `highest_registered_domain` field:
 
 [source,js]
 ----------------------------------
@@ -85,7 +85,9 @@ POST _xpack/ml/filters/safe_domains/_update
 // CONSOLE
 // TEST[setup:ml_filter_safe_domains]
 
-Note that we can provide scope for any of the partition/over/by fields.
+Note that we can use any of the `partition_field_name`, `over_field_name`, or 
+`by_field_name` fields in the `scope`.
+
 In the following example we scope multiple fields:
 
 [source,js]
@@ -210,9 +212,9 @@ Rules only affect results created after the rules were applied.
 Let us imagine that we have configured a job and it has been running
 for some time. After observing its results we decide that we can employ
 rules in order to get rid of some uninteresting results. We can use
-the update-job API to do so. However, the rule we added will only be in effect
-for any results created from the moment we added the rule onwards. Past results
-will remain unaffected.
+the {ref}/ml-update-job.html[update job API] to do so. However, the rule we 
+added will only be in effect for any results created from the moment we added 
+the rule onwards. Past results will remain unaffected.
 
 ==== Using rules VS filtering data
 

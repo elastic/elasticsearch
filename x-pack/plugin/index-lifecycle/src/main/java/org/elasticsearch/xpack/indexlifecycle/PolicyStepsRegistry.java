@@ -5,10 +5,12 @@
  */
 package org.elasticsearch.xpack.indexlifecycle;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.indexlifecycle.ErrorStep;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
@@ -23,6 +25,8 @@ import java.util.TreeMap;
 import java.util.function.LongSupplier;
 
 public class PolicyStepsRegistry {
+    private static final Logger logger = ESLoggerFactory.getLogger(PolicyStepsRegistry.class);
+
     // keeps track of existing policies in the cluster state
     private SortedMap<String, LifecyclePolicyMetadata> lifecyclePolicyMap;
     // keeps track of what the first step in a policy is
@@ -104,13 +108,9 @@ public class PolicyStepsRegistry {
         }
         Map<Step.StepKey, Step> steps = stepMap.get(policy);
         if (steps == null) {
-            throw new IllegalStateException("policy [" + policy + "] does not exist");
+            return null;
         }
-        Step step = steps.get(stepKey);
-        if (step == null) {
-            throw new IllegalStateException("step [" + stepKey + "] does not exist");
-        }
-        return step;
+        return steps.get(stepKey);
     }
 
     public Step getFirstStep(String policy) {

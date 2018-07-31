@@ -79,8 +79,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
     public void testGetStepUnknownPolicy() {
         String policyName = randomAlphaOfLengthBetween(2, 10);
         PolicyStepsRegistry registry = new PolicyStepsRegistry(null, null, Collections.emptyMap());
-        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> registry.getStep(policyName, MOCK_STEP_KEY));
-        assertThat(exception.getMessage(), equalTo("policy [" + policyName +"] does not exist"));
+        assertNull(registry.getStep(policyName, MOCK_STEP_KEY));
     }
 
     public void testGetStepUnknownStepKey() {
@@ -91,8 +90,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         PolicyStepsRegistry registry = new PolicyStepsRegistry(null, null, stepMap);
         Step.StepKey unknownStepKey = new Step.StepKey(MOCK_STEP_KEY.getPhase(),
             MOCK_STEP_KEY.getAction(),MOCK_STEP_KEY.getName() + "not");
-        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> registry.getStep(policyName, unknownStepKey));
-        assertThat(exception.getMessage(), equalTo("step [" + unknownStepKey +"] does not exist"));
+        assertNull(registry.getStep(policyName, unknownStepKey));
     }
 
     public void testUpdateFromNothingToSomethingToNothing() {

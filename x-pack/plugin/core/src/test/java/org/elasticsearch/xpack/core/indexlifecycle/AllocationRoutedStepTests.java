@@ -168,7 +168,7 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
 
         AllocationRoutedStep step = createRandomInstance();
         assertAllocateStatus(index, 2, 0, step, existingSettings, node1Settings, node2Settings, indexRoutingTable,
-                new ClusterStateWaitStep.Result(false, new AllocationRoutedStep.Info(1, true)));
+                new ClusterStateWaitStep.Result(false, new AllocationRoutedStep.Info(0, 1, true)));
     }
 
     public void testExecuteAllocateNotCompleteOnlyOneCopyAllocated() throws Exception {
@@ -204,7 +204,7 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
 
         AllocationRoutedStep step = new AllocationRoutedStep(randomStepKey(), randomStepKey(), true);
         assertAllocateStatus(index, 2, 0, step, existingSettings, node1Settings, node2Settings, indexRoutingTable,
-                new ClusterStateWaitStep.Result(false, new AllocationRoutedStep.Info(1, true)));
+                new ClusterStateWaitStep.Result(false, new AllocationRoutedStep.Info(0, 1, true)));
     }
 
     public void testExecuteAllocateUnassigned() throws Exception {
@@ -239,7 +239,7 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
 
         AllocationRoutedStep step = createRandomInstance();
         assertAllocateStatus(index, 2, 0, step, existingSettings, node1Settings, node2Settings, indexRoutingTable,
-                new ClusterStateWaitStep.Result(false, new AllocationRoutedStep.Info(-1, false)));
+                new ClusterStateWaitStep.Result(false, new AllocationRoutedStep.Info(0, -1, false)));
     }
 
     public void testExecuteIndexMissing() throws Exception {

@@ -58,14 +58,29 @@ public final class ESLoggerFactory {
         return new PrefixLogger((ExtendedLogger)logger, logger.getName(), prefix);
     }
 
+    /**
+     * Get or build a logger.
+     * @deprecated Prefer {@link LogManager.getLogger}
+     */
+    @Deprecated
     public static Logger getLogger(Class<?> clazz) {
         return getLogger(null, clazz);
     }
 
+    /**
+     * Get or build a logger.
+     * @deprecated Prefer {@link LogManager.getLogger}
+     */
+    @Deprecated
     public static Logger getLogger(String name) {
         return getLogger(null, name);
     }
 
+    /**
+     * Get or build a logger.
+     * @deprecated Prefer {@link LogManager.getRootLogger}
+     */
+    @Deprecated
     public static Logger getRootLogger() {
         return LogManager.getRootLogger();
     }

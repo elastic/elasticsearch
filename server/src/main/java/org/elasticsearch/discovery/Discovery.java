@@ -19,16 +19,7 @@
 
 package org.elasticsearch.discovery;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.unit.TimeValue;
-
-import java.io.IOException;
 
 /**
  * A pluggable module allowing to implement discovery of other nodes, publishing of the cluster

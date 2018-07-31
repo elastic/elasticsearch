@@ -56,7 +56,7 @@ public class ScriptDocValuesDatesTests extends ESTestCase {
     public void assertDateDocValues(boolean useJavaTime, String... expectedWarnings) throws IOException {
         final Function<Long, Object> datetimeCtor;
         if (useJavaTime) {
-            datetimeCtor = millis -> ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.of("UTC"));
+            datetimeCtor = millis -> ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.of("UTC").normalized());
         } else {
             datetimeCtor = millis -> new DateTime(millis, DateTimeZone.UTC);
         }

@@ -34,13 +34,7 @@ public abstract class AbstractComponent {
     protected final Settings settings;
 
     public AbstractComponent(Settings settings) {
-        this.logger = Loggers.getLogger(getClass(), settings);
-        this.deprecationLogger = new DeprecationLogger(logger);
-        this.settings = settings;
-    }
-
-    public AbstractComponent(Settings settings, Class<?> customClass) {
-        this.logger = LogManager.getLogger(customClass);
+        this.logger = LogManager.getLogger(getClass());
         this.deprecationLogger = new DeprecationLogger(logger);
         this.settings = settings;
     }

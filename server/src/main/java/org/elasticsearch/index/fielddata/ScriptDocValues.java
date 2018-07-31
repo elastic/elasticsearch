@@ -35,7 +35,6 @@ import java.io.IOException;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.time.Instant;
-import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.AbstractList;
@@ -46,7 +45,6 @@ import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
 
 import static org.elasticsearch.common.Booleans.parseBoolean;
-
 
 /**
  * Script level doc values, the assumption is that any implementation will

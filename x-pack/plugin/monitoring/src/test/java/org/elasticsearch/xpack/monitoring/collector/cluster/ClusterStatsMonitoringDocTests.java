@@ -354,6 +354,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     + (needToEnableTLS ? ",\"cluster_needs_tls\":true" : "")
                   + "},"
                   + "\"cluster_stats\":{"
+                    + "\"cluster_uuid\":\"_cluster\","
                     + "\"timestamp\":1451606400000,"
                     + "\"status\":\"red\","
                     + "\"indices\":{"

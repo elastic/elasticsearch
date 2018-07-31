@@ -2219,6 +2219,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final CountDownLatch termUpdated = new CountDownLatch(1);
         indexShardOperationPermits.asyncBlockOperations(30, TimeUnit.MINUTES, () -> {
                 assert operationPrimaryTerm <= pendingPrimaryTerm;
+                termUpdated.await();
                 onBlocked.run();
                 assert operationPrimaryTerm <= pendingPrimaryTerm;
             },

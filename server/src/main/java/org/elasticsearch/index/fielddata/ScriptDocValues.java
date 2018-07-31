@@ -36,6 +36,7 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.AbstractList;
 import java.util.Arrays;
@@ -155,8 +156,6 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         private static final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger(Dates.class));
 
-        private static final ZoneId JAVA_TIME_UTC = ZoneId.of("UTC").normalized();
-
         private final SortedNumericDocValues in;
 
         /**
@@ -244,7 +243,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
                     dates = new ZonedDateTime[count];
                 }
                 for (int i = 0; i < count; ++i) {
-                    dates[i] = ZonedDateTime.ofInstant(Instant.ofEpochMilli(in.nextValue()), JAVA_TIME_UTC);
+                    dates[i] = ZonedDateTime.ofInstant(Instant.ofEpochMilli(in.nextValue()), ZoneOffset.UTC);
                 }
             } else {
                 deprecated("The joda time api for doc values is deprecated. Use -Des.scripting.use_java_time=true" +

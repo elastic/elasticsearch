@@ -33,6 +33,7 @@ import java.security.PrivilegedAction;
 import java.security.ProtectionDomain;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.HashSet;
 import java.util.Set;
@@ -56,7 +57,7 @@ public class ScriptDocValuesDatesTests extends ESTestCase {
     public void assertDateDocValues(boolean useJavaTime, String... expectedWarnings) throws IOException {
         final Function<Long, Object> datetimeCtor;
         if (useJavaTime) {
-            datetimeCtor = millis -> ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.of("UTC").normalized());
+            datetimeCtor = millis -> ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneOffset.UTC);
         } else {
             datetimeCtor = millis -> new DateTime(millis, DateTimeZone.UTC);
         }

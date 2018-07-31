@@ -21,6 +21,8 @@ package org.elasticsearch.client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
+import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 
@@ -30,6 +32,13 @@ public class WatcherIT extends ESRestHighLevelClientTestCase {
 
     public void testPutWatch() throws Exception {
         String watchId = randomAlphaOfLength(10);
+        PutWatchResponse putWatchResponse = createWatch(watchId);
+        assertThat(putWatchResponse.isCreated(), is(true));
+        assertThat(putWatchResponse.getId(), is(watchId));
+        assertThat(putWatchResponse.getVersion(), is(1L));
+    }
+
+    private PutWatchResponse createWatch(String watchId) throws Exception {
         String json = "{ \n" +
             "  \"trigger\": { \"schedule\": { \"interval\": \"10h\" } },\n" +
             "  \"input\": { \"none\": {} },\n" +
@@ -37,10 +46,30 @@ public class WatcherIT extends ESRestHighLevelClientTestCase {
             "}";
         BytesReference bytesReference = new BytesArray(json);
         PutWatchRequest putWatchRequest = new PutWatchRequest(watchId, bytesReference, XContentType.JSON);
-        PutWatchResponse putWatchResponse = highLevelClient().xpack().watcher().putWatch(putWatchRequest, RequestOptions.DEFAULT);
-        assertThat(putWatchResponse.isCreated(), is(true));
-        assertThat(putWatchResponse.getId(), is(watchId));
-        assertThat(putWatchResponse.getVersion(), is(1L));
+        return highLevelClient().xpack().watcher().putWatch(putWatchRequest, RequestOptions.DEFAULT);
+    }
+
+    public void testDeleteWatch() throws Exception {
+        // delete watch that exists
+        {
+            String watchId = randomAlphaOfLength(10);
+            createWatch(watchId);
+            DeleteWatchResponse deleteWatchResponse = highLevelClient().xpack().watcher().deleteWatch(new DeleteWatchRequest(watchId),
+                RequestOptions.DEFAULT);
+            assertThat(deleteWatchResponse.getId(), is(watchId));
+            assertThat(deleteWatchResponse.getVersion(), is(2L));
+            assertThat(deleteWatchResponse.isFound(), is(true));
+        }
+
+        // delete watch that does not exist
+        {
+            String watchId = randomAlphaOfLength(10);
+            DeleteWatchResponse deleteWatchResponse = highLevelClient().xpack().watcher().deleteWatch(new DeleteWatchRequest(watchId),
+                RequestOptions.DEFAULT);
+            assertThat(deleteWatchResponse.getId(), is(watchId));
+            assertThat(deleteWatchResponse.getVersion(), is(1L));
+            assertThat(deleteWatchResponse.isFound(), is(false));
+        }
     }
 
 }

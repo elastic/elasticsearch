@@ -527,8 +527,7 @@ public final class IngestDocument {
 
     private static void appendValues(List<Object> list, Object value) {
         if (value instanceof List) {
-            List<?> valueList = (List<?>) value;
-            valueList.stream().forEach(list::add);
+            list.addAll((List<?>) value);
         } else {
             list.add(value);
         }

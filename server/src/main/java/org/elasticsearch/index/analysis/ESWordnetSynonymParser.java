@@ -29,7 +29,7 @@ import org.apache.lucene.util.CharsRefBuilder;
 import java.io.IOException;
 
 public class ESWordnetSynonymParser extends WordnetSynonymParser {
-    private static final Logger logger = LogManager.getLogger(ESSolrSynonymParser.class);
+    private static final Logger logger = LogManager.getLogger(ESWordnetSynonymParser.class);
 
     private final boolean lenient;
 

@@ -330,7 +330,7 @@ public class EvilLoggerTests extends ESTestCase {
 
         final int prefixes = 1 << 19; // to ensure enough markers that the GC should collect some when we force a GC below
         for (int i = 0; i < prefixes; i++) {
-            // this has the side effect of caching a marker with this prefixs
+            // this has the side effect of caching a marker with this prefix
             new PrefixLogger((ExtendedLogger) LogManager.getLogger("prefix" + i), "prefix" + i, "prefix" + i);
         }
 

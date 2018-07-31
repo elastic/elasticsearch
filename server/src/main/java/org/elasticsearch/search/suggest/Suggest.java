@@ -260,8 +260,10 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             name = in.readString();
             size = in.readVInt();
 
-            if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
-                innerReadFrom(in);
+            // this is a hack to work around slightly different serialization order of earlier versions of TermSuggestion
+            if (in.getVersion().before(Version.V_7_0_0_alpha1) && this instanceof TermSuggestion) {
+                TermSuggestion t = (TermSuggestion) this;
+                t.setSort(SortBy.readFromStream(in));
             }
 
             int entriesCount = in.readVInt();
@@ -291,10 +293,6 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         public Iterator<T> iterator() {
             return entries.iterator();
         }
-
-        // this remains for backwards compatibility
-        @Deprecated
-        protected void innerReadFrom(StreamInput in) throws IOException {}
 
         /**
          * @return The entries for this suggestion.
@@ -372,8 +370,10 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             out.writeString(name);
             out.writeVInt(size);
 
-            if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
-                innerWriteTo(out);
+            // this is a hack to work around slightly different serialization order in older versions of TermSuggestion
+            if (out.getVersion().before(Version.V_7_0_0_alpha1) && this instanceof TermSuggestion) {
+                TermSuggestion termSuggestion = (TermSuggestion) this;
+                termSuggestion.getSort().writeTo(out);
             }
 
             out.writeVInt(entries.size());
@@ -381,10 +381,6 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 entry.writeTo(out);
             }
         }
-
-        // this remains for backwards compatibility
-        @Deprecated
-        protected void innerWriteTo(StreamOutput out) throws IOException {}
 
         @Override
         public abstract String getWriteableName();

@@ -66,11 +66,6 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
         }
     }
 
-    @Override
-    protected void innerReadFrom(StreamInput in) throws IOException {
-        sort = SortBy.readFromStream(in);
-    }
-
     // Same behaviour as comparators in suggest module, but for SuggestedWord
     // Highest score first, then highest freq first, then lowest term first
     public static class Score implements Comparator<Suggestion.Entry.Option> {
@@ -117,6 +112,14 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
         return TYPE;
     }
 
+    public void setSort(SortBy sort) {
+        this.sort = sort;
+    }
+
+    public SortBy getSort() {
+        return sort;
+    }
+
     @Override
     protected Comparator<Option> sortComparator() {
         switch (sort) {
@@ -136,11 +139,6 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
         if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             sort.writeTo(out);
         }
-    }
-
-    @Override
-    protected void innerWriteTo(StreamOutput out) throws IOException {
-        sort.writeTo(out);
     }
 
     @Override

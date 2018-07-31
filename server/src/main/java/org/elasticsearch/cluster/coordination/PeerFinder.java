@@ -181,9 +181,9 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
     protected void doClose() {
     }
 
-    abstract DiscoveryNodes getLastAcceptedNodes();
+    protected abstract DiscoveryNodes getLastAcceptedNodes();
 
-    abstract void onMasterFoundByProbe(DiscoveryNode masterNode, long term);
+    protected abstract void onMasterFoundByProbe(DiscoveryNode masterNode, long term);
 
     public interface TransportAddressConnector {
         /**

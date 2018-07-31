@@ -114,6 +114,9 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         }
 
         private long addLong(long current, long other) {
+            if (current == -1 && other == -1) {
+                return 0;
+            }
             if (other == -1) {
                 return current;
             }
@@ -124,6 +127,9 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         }
 
         private double addDouble(double current, double other) {
+            if (current == -1 && other == -1) {
+                return 0;
+            }
             if (other == -1) {
                 return current;
             }

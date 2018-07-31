@@ -110,7 +110,7 @@ public class MonitoringTemplateUtilsTests extends ESTestCase {
 
         formatter = DateTimeFormat.forPattern("YYYY-dd-MM-HH.mm.ss").withZoneUTC();
         assertThat(indexName(formatter, MonitoredSystem.APM_SERVER, timestamp),
-                equalTo(".monitoring-apm-server-" + TEMPLATE_VERSION + "-2017.08.03-13.47.58"));
+                equalTo(".monitoring-apm-server-" + TEMPLATE_VERSION + "-2017-03-08-13.47.58"));
         assertThat(indexName(formatter, MonitoredSystem.ES, timestamp),
                 equalTo(".monitoring-es-" + TEMPLATE_VERSION + "-2017-03-08-13.47.58"));
         assertThat(indexName(formatter, MonitoredSystem.KIBANA, timestamp),

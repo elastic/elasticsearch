@@ -67,10 +67,9 @@ public class ConvertProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue(fieldName, Integer.class), equalTo(10));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32370")
     public void testConvertIntHexError() {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        String value = "0x" + randomAlphaOfLengthBetween(1, 10);
+        String value = "0xnotanumber";
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, value);
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), fieldName, fieldName, Type.INTEGER, false);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
@@ -138,10 +137,9 @@ public class ConvertProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue(fieldName, Long.class), equalTo(10L));
     }
 
-    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/32370")
     public void testConvertLongHexError() {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        String value = "0x" + randomAlphaOfLengthBetween(1, 10);
+        String value = "0xnotanumber";
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, value);
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), fieldName, fieldName, Type.LONG, false);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));

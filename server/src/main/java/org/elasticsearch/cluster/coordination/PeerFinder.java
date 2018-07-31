@@ -256,9 +256,6 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
                         -> UnicastZenPing.resolveHostsLists(executorService.get(), logger, hosts, limitPortCounts,
                         transportService, resolveTimeout)));
 
-                    // localNode is excluded from buildDynamicNodes
-                    providedAddresses.add(transportService.getLocalNode().getAddress());
-
                     lastConnectedAddresses.set(unmodifiableList(providedAddresses));
 
                     logger.trace("ActivePeerFinder#handleNextWakeUp(): probing resolved transport addresses {}", providedAddresses);

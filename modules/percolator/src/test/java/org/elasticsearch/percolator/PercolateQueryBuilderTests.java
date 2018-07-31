@@ -377,7 +377,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     }
 
     public void testFieldAlias() throws IOException {
-        assumeTrue("Test only runs when there is a single mapping type.", isSingleType());
+        assumeTrue("Test only runs on indexes that enforce a single mapping type.", isSingleType());
 
         QueryShardContext shardContext = createShardContext();
 

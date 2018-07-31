@@ -145,9 +145,11 @@ public final class SFunction extends AStatement {
             }
         }
 
+        int modifiers = Modifier.STATIC | Modifier.PRIVATE;
         org.objectweb.asm.commons.Method method = new org.objectweb.asm.commons.Method(name, MethodType.methodType(
                 PainlessLookupUtility.typeToJavaType(rtnType), paramClasses).toMethodDescriptorString());
-        this.method = new PainlessMethod(name, null, null, rtnType, paramTypes, method, Modifier.STATIC | Modifier.PRIVATE, null);
+        MethodType methodType = MethodType.methodType(PainlessLookupUtility.typeToJavaType(rtnType), paramClasses);
+        this.method = new PainlessMethod(name, null, null, rtnType, paramTypes, method, modifiers, null, methodType);
     }
 
     @Override

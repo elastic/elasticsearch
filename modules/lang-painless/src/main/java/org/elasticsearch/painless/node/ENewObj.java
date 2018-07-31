@@ -24,9 +24,10 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessClass;
+import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.objectweb.asm.Type;
+import org.objectweb.asm.commons.Method;
 
 import java.util.List;
 import java.util.Objects;
@@ -40,7 +41,7 @@ public final class ENewObj extends AExpression {
     private final String type;
     private final List<AExpression> arguments;
 
-    private PainlessMethod constructor;
+    private PainlessConstructor constructor;
 
     public ENewObj(Location location, String type, List<AExpression> arguments) {
         super(location);
@@ -65,16 +66,16 @@ public final class ENewObj extends AExpression {
         }
 
         PainlessClass struct = locals.getPainlessLookup().getPainlessStructFromJavaClass(actual);
-        constructor = struct.constructors.get(PainlessLookupUtility.buildPainlessMethodKey("<init>", arguments.size()));
+        constructor = struct.constructors.get(PainlessLookupUtility.buildPainlessConstructorKey(arguments.size()));
 
         if (constructor != null) {
-            Class<?>[] types = new Class<?>[constructor.arguments.size()];
-            constructor.arguments.toArray(types);
+            Class<?>[] types = new Class<?>[constructor.typeParameters.size()];
+            constructor.typeParameters.toArray(types);
 
-            if (constructor.arguments.size() != arguments.size()) {
+            if (constructor.typeParameters.size() != arguments.size()) {
                 throw createError(new IllegalArgumentException(
                         "When calling constructor on type [" + PainlessLookupUtility.typeToCanonicalTypeName(actual) + "] " +
-                        "expected [" + constructor.arguments.size() + "] arguments, but found [" + arguments.size() + "]."));
+                        "expected [" + constructor.typeParameters.size() + "] arguments, but found [" + arguments.size() + "]."));
             }
 
             for (int argument = 0; argument < arguments.size(); ++argument) {
@@ -107,7 +108,8 @@ public final class ENewObj extends AExpression {
             argument.write(writer, globals);
         }
 
-        writer.invokeConstructor(Type.getType(constructor.target), constructor.method);
+        writer.invokeConstructor(
+                    Type.getType(constructor.javaConstructor.getDeclaringClass()), Method.getMethod(constructor.javaConstructor));
     }
 
     @Override

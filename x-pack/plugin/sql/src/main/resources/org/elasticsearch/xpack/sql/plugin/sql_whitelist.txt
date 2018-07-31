@@ -27,6 +27,6 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
   String insert(String, int, int, String)
   String substring(String, int, int)
   String replace(String, String, String)
-  Integer locate(String,String)
-  Integer locate(String,String,Integer)
+  Integer locate(String, String)
+  Integer locate(String, String, Integer)
 }

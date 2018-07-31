@@ -14,6 +14,10 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.BinaryStrin
 import java.io.IOException;
 import java.util.function.BiFunction;
 
+/**
+ * Processor class covering string manipulating functions that have the first parameter as string,
+ * second parameter as numeric and a string result.
+ */
 public class BinaryStringNumericProcessor extends BinaryStringProcessor<BinaryStringNumericOperation, Number, String> {
     
     public static final String NAME = "sn";

@@ -223,7 +223,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             }
 
             logger.info("--> promoting replica to primary " + replica1.routingEntry());
-            shards.promoteReplicaToPrimary(replica1);
+            shards.promoteReplicaToPrimary(replica1).get();
             indexRequest = new IndexRequest(index.getName(), "type", "1").source("{ \"f\": \"2\"}", XContentType.JSON);
             shards.index(indexRequest);
             shards.refresh("test");
@@ -459,7 +459,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             // Make sure that peer-recovery transfers all but non-overridden operations.
             IndexShard replica3 = shards.addReplica();
             logger.info("--> Promote replica2 as the primary");
-            shards.promoteReplicaToPrimary(replica2);
+            shards.promoteReplicaToPrimary(replica2).get();
             logger.info("--> Recover replica3 from replica2");
             recoverReplica(replica3, replica2, true);
             try (Translog.Snapshot snapshot = getTranslog(replica3).newSnapshot()) {

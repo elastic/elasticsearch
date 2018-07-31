@@ -491,7 +491,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             assert operationPrimaryTerm < newPrimaryTerm;
                             try {
                                 synchronized (mutex) {
-                                    assert currentRouting.primary();
+                                    assert shardRouting.primary();
                                     // do these updates under the mutex as this otherwise races with subsequent calls of updateShardState
                                     operationPrimaryTerm = newPrimaryTerm;
                                     replicationTracker.activatePrimaryMode(getLocalCheckpoint());

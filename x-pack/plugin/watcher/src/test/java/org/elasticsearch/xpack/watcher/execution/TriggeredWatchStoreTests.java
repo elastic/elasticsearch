@@ -7,15 +7,16 @@ package org.elasticsearch.xpack.watcher.execution;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClearScrollResponse;
-import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequest;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
@@ -79,7 +80,6 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 public class TriggeredWatchStoreTests extends ESTestCase {
@@ -95,12 +95,14 @@ public class TriggeredWatchStoreTests extends ESTestCase {
 
     @Before
     public void init() {
+        Settings settings = Settings.builder().put("node.name", randomAlphaOfLength(10)).build();
         client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(client.threadPool()).thenReturn(threadPool);
+        when(client.settings()).thenReturn(settings);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         parser = mock(TriggeredWatch.Parser.class);
-        triggeredWatchStore = new TriggeredWatchStore(Settings.EMPTY, client, parser);
+        triggeredWatchStore = new TriggeredWatchStore(settings, client, parser);
     }
 
     public void testFindTriggeredWatchesEmptyCollection() {
@@ -174,14 +176,11 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         csBuilder.routingTable(routingTableBuilder.build());
         ClusterState cs = csBuilder.build();
 
-        RefreshResponse refreshResponse = mockRefreshResponse(1, 1);
-        AdminClient adminClient = mock(AdminClient.class);
-        when(client.admin()).thenReturn(adminClient);
-        IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
-        when(adminClient.indices()).thenReturn(indicesAdminClient);
-        PlainActionFuture<RefreshResponse> future = PlainActionFuture.newFuture();
-        when(indicesAdminClient.refresh(any())).thenReturn(future);
-        future.onResponse(refreshResponse);
+        doAnswer(invocation -> {
+            ActionListener<RefreshResponse> listener = (ActionListener<RefreshResponse>) invocation.getArguments()[2];
+            listener.onResponse(mockRefreshResponse(1, 1));
+            return null;
+        }).when(client).execute(eq(RefreshAction.INSTANCE), any(), any());
 
         SearchResponse searchResponse1 = mock(SearchResponse.class);
         when(searchResponse1.getSuccessfulShards()).thenReturn(1);
@@ -194,9 +193,11 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         SearchHits hits = new SearchHits(new SearchHit[]{hit}, 1, 1.0f);
         when(searchResponse1.getHits()).thenReturn(hits);
         when(searchResponse1.getScrollId()).thenReturn("_scrollId");
-        PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
-        when(client.search(any(SearchRequest.class))).thenReturn(searchFuture);
-        searchFuture.onResponse(searchResponse1);
+        doAnswer(invocation -> {
+            ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[2];
+            listener.onResponse(searchResponse1);
+            return null;
+        }).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
 
         // First return a scroll response with a single hit and then with no hits
         hit = new SearchHit(0, "second_foo", new Text(TriggeredWatchStoreField.DOC_TYPE), null);
@@ -209,24 +210,27 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         SearchResponse searchResponse3 = new SearchResponse(InternalSearchResponse.empty(), "_scrollId2", 1, 1, 0, 1, null, null);
 
         doAnswer(invocation -> {
-            SearchScrollRequest request = (SearchScrollRequest) invocation.getArguments()[0];
-            PlainActionFuture<SearchResponse> searchScrollFuture = PlainActionFuture.newFuture();
+            SearchScrollRequest request = (SearchScrollRequest) invocation.getArguments()[1];
+            ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[2];
             if (request.scrollId().equals("_scrollId")) {
-                searchScrollFuture.onResponse(searchResponse2);
+                listener.onResponse(searchResponse2);
             } else if (request.scrollId().equals("_scrollId1")) {
-                searchScrollFuture.onResponse(searchResponse3);
+                listener.onResponse(searchResponse3);
             } else {
-                searchScrollFuture.onFailure(new ElasticsearchException("test issue"));
+                listener.onFailure(new ElasticsearchException("test issue"));
             }
-            return searchScrollFuture;
-        }).when(client).searchScroll(any());
+            return null;
+        }).when(client).execute(eq(SearchScrollAction.INSTANCE), any(), any());
 
         TriggeredWatch triggeredWatch = mock(TriggeredWatch.class);
         when(parser.parse(eq("_id"), eq(1L), any(BytesReference.class))).thenReturn(triggeredWatch);
 
-        PlainActionFuture<ClearScrollResponse> clearScrollResponseFuture = PlainActionFuture.newFuture();
-        when(client.clearScroll(any())).thenReturn(clearScrollResponseFuture);
-        clearScrollResponseFuture.onResponse(new ClearScrollResponse(true, 1));
+        doAnswer(invocation -> {
+            ActionListener<ClearScrollResponse> listener = (ActionListener<ClearScrollResponse>) invocation.getArguments()[2];
+            listener.onResponse(new ClearScrollResponse(true, 1));
+            return null;
+
+        }).when(client).execute(eq(ClearScrollAction.INSTANCE), any(), any());
 
         assertThat(TriggeredWatchStore.validate(cs), is(true));
         DateTime now = DateTime.now(UTC);
@@ -251,10 +255,10 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         assertThat(triggeredWatches, notNullValue());
         assertThat(triggeredWatches, hasSize(watches.size()));
 
-        verify(client.admin().indices(), times(1)).refresh(any());
-        verify(client, times(1)).search(any(SearchRequest.class));
-        verify(client, times(2)).searchScroll(any());
-        verify(client, times(1)).clearScroll(any());
+        verify(client, times(1)).execute(eq(RefreshAction.INSTANCE), any(), any());
+        verify(client, times(1)).execute(eq(SearchAction.INSTANCE), any(), any());
+        verify(client, times(2)).execute(eq(SearchScrollAction.INSTANCE), any(), any());
+        verify(client, times(1)).execute(eq(ClearScrollAction.INSTANCE), any(), any());
     }
 
     // the elasticsearch migration helper is doing reindex using aliases, so we have to
@@ -332,7 +336,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         assertThat(TriggeredWatchStore.validate(cs), is(true));
         Watch watch = mock(Watch.class);
         triggeredWatchStore.findTriggeredWatches(Collections.singletonList(watch), cs);
-        verifyZeroInteractions(client);
+        verify(client, times(0)).execute(any(), any(), any());
     }
 
     public void testIndexNotFoundButInMetaData() {
@@ -344,13 +348,11 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         ClusterState cs = csBuilder.build();
         Watch watch = mock(Watch.class);
 
-        AdminClient adminClient = mock(AdminClient.class);
-        when(client.admin()).thenReturn(adminClient);
-        IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
-        when(adminClient.indices()).thenReturn(indicesAdminClient);
-        PlainActionFuture<RefreshResponse> future = PlainActionFuture.newFuture();
-        when(indicesAdminClient.refresh(any())).thenReturn(future);
-        future.onFailure(new IndexNotFoundException(TriggeredWatchStoreField.INDEX_NAME));
+        doAnswer(invocation -> {
+            ActionListener<RefreshResponse> listener = (ActionListener<RefreshResponse>) invocation.getArguments()[2];
+            listener.onFailure(new IndexNotFoundException(TriggeredWatchStoreField.INDEX_NAME));
+            return null;
+        }).when(client).execute(eq(RefreshAction.INSTANCE), any(), any());
 
         Collection<TriggeredWatch> triggeredWatches = triggeredWatchStore.findTriggeredWatches(Collections.singletonList(watch), cs);
         assertThat(triggeredWatches, hasSize(0));

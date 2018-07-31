@@ -218,6 +218,8 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
     private static final Logger logger = Loggers.getLogger(Watcher.class);
     private WatcherIndexingListener listener;
     private HttpClient httpClient;
+    private TriggeredWatchStore triggeredWatchStore;
+    private HistoryStore historyStore;
 
     protected final Settings settings;
     protected final boolean transportClient;
@@ -330,7 +332,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         final InputRegistry inputRegistry = new InputRegistry(settings, inputFactories);
         inputFactories.put(ChainInput.TYPE, new ChainInputFactory(settings, inputRegistry));
 
-        final HistoryStore historyStore = new HistoryStore(settings, client);
+        historyStore = new HistoryStore(settings, client);
 
         // schedulers
         final Set<Schedule.Parser> scheduleParsers = new HashSet<>();
@@ -352,7 +354,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         final TriggerService triggerService = new TriggerService(settings, triggerEngines);
 
         final TriggeredWatch.Parser triggeredWatchParser = new TriggeredWatch.Parser(settings, triggerService);
-        final TriggeredWatchStore triggeredWatchStore = new TriggeredWatchStore(settings, client, triggeredWatchParser);
+        triggeredWatchStore = new TriggeredWatchStore(settings, client, triggeredWatchParser);
 
         final WatcherSearchTemplateService watcherSearchTemplateService =
                 new WatcherSearchTemplateService(settings, scriptService, xContentRegistry);
@@ -427,6 +429,8 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         settings.add(Setting.simpleString("xpack.watcher.transform.search.default_timeout", Setting.Property.NodeScope));
         settings.add(Setting.simpleString("xpack.watcher.execution.scroll.timeout", Setting.Property.NodeScope));
         settings.add(WatcherLifeCycleService.SETTING_REQUIRE_MANUAL_START);
+        settings.addAll(TriggeredWatchStore.getSettings());
+        settings.addAll(HistoryStore.getSettings());
 
         // notification services
         settings.addAll(SlackService.getSettings());
@@ -620,7 +624,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
 
     @Override
     public void close() throws IOException {
-        IOUtils.closeWhileHandlingException(httpClient);
+        IOUtils.closeWhileHandlingException(httpClient, triggeredWatchStore, historyStore);
     }
 
     /**

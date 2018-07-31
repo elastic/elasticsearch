@@ -91,6 +91,10 @@ public class XPackSettings {
         }
     }, Setting.Property.NodeScope);
 
+    /** Setting for enabling or disabling FIPS mode. Defaults to false */
+    public static final Setting<Boolean> FIPS_MODE_ENABLED =
+        Setting.boolSetting("xpack.security.fips_mode.enabled", false, Property.NodeScope);
+
     /** Setting for enabling or disabling sql. Defaults to true. */
     public static final Setting<Boolean> SQL_ENABLED = Setting.boolSetting("xpack.sql.enabled", true, Setting.Property.NodeScope);
 

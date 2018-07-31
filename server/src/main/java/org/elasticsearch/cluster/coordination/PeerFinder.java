@@ -348,7 +348,8 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
                     return;
                 }
 
-                final FoundPeer foundPeer = getFoundPeer(discoveryNode);
+                final FoundPeer foundPeer = foundPeers.computeIfAbsent(discoveryNode, FoundPeer::new);
+                assert foundPeer.discoveryNode.equals(discoveryNode);
 
                 if (foundPeer.peersRequestedThisRound) {
                     return;
@@ -412,13 +413,6 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
                         }
                     });
             }
-        }
-
-        private FoundPeer getFoundPeer(DiscoveryNode discoveryNode) {
-            // no synchronisation required: computeIfAbsent is atomic as foundPeers is a newConcurrentMap()
-            FoundPeer foundPeer = foundPeers.computeIfAbsent(discoveryNode, FoundPeer::new);
-            assert foundPeer.discoveryNode.equals(discoveryNode);
-            return foundPeer;
         }
 
         class FoundPeer {

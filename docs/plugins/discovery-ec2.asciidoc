@@ -122,8 +122,8 @@ Defaults to `private_ip`.
     Defaults to `10s`.
 
 *All* secure settings of this plugin are {ref}/secure-settings.html#reloadable-secure-settings[reloadable].
-After you reload the settings, the hosts provider, during dynamic nodes refresh,
-will be using an aws sdk client with the latest settings from the keystore.
+After you reload the settings, an aws sdk client with the latest settings
+from the keystore will be used.
 
 [IMPORTANT]
 .Binding the network host

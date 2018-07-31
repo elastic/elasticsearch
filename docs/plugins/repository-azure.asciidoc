@@ -38,8 +38,8 @@ unless you set an explicit one in the
 
 Both `account` and `key` storage settings are
 {ref}/secure-settings.html#reloadable-secure-settings[reloadable]. After you
-reload the settings, the internal azure clients, used to transfer the snapshot
-contents, will utilize the latest settings from the keystore.
+reload the settings, the internal azure clients, which are used to transfer the
+snapshot, will utilize the latest settings from the keystore.
 
 NOTE: In progress snapshot/restore jobs will not be preempted by a *reload*
 of the storage secure settings. They will complete using the client as it was built

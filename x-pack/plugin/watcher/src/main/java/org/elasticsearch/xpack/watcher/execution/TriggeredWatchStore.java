@@ -112,7 +112,7 @@ public class TriggeredWatchStore extends AbstractComponent implements Closeable 
     public void close() throws IOException {
         bulkProcessor.flush();
         try {
-            if (bulkProcessor.awaitClose(30, TimeUnit.SECONDS) == false) {
+            if (bulkProcessor.awaitClose(10, TimeUnit.SECONDS) == false) {
                 logger.warn("triggered watch store failed to delete triggered watches after waiting for 10s");
             }
         } catch (InterruptedException e) {

@@ -9,6 +9,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -64,8 +65,11 @@ public class IndexLifecycleRunner {
         }
         Step currentStep = getCurrentStep(stepRegistry, policy, indexSettings);
         if (currentStep == null) {
-            throw new IllegalStateException(
-                "current step for index [" + indexMetaData.getIndex().getName() + "] with policy [" + policy + "] is not recognized");
+            // This may happen in the case that there is invalid ilm-step index settings or the stepRegistry is out of
+            // sync with the current cluster state
+            logger.warn("current step [" + getCurrentStepKey(indexSettings) + "] for index [" + indexMetaData.getIndex().getName()
+                + "] with policy [" + policy + "] is not recognized");
+            return;
         }
         logger.debug("running policy with current-step[" + currentStep.getKey() + "]");
         if (currentStep instanceof TerminalPolicyStep) {
@@ -164,6 +168,23 @@ public class IndexLifecycleRunner {
         }
     }
 
+    /**
+     * This method is intended for handling moving to different steps from {@link TransportAction} executions.
+     * For this reason, it is reasonable to throw {@link IllegalArgumentException} when state is not as expected.
+     * @param indexName
+     *          The index whose step is to change
+     * @param currentState
+     *          The current {@link ClusterState}
+     * @param currentStepKey
+     *          The current {@link StepKey} found for the index in the current cluster state
+     * @param nextStepKey
+     *          The next step to move the index into
+     * @param nowSupplier
+     *          The current-time supplier for updating when steps changed
+     * @param stepRegistry
+     *          The steps registry to check a step-key's existence in the index's current policy
+     * @return The updated cluster state where the index moved to <code>nextStepKey</code>
+     */
     static ClusterState moveClusterStateToStep(String indexName, ClusterState currentState, StepKey currentStepKey,
                                                StepKey nextStepKey, LongSupplier nowSupplier,
                                                PolicyStepsRegistry stepRegistry) {
@@ -180,10 +201,9 @@ public class IndexLifecycleRunner {
             throw new IllegalArgumentException("index [" + indexName + "] is not on current step [" + currentStepKey + "]");
         }
 
-        try {
-            stepRegistry.getStep(indexPolicySetting, nextStepKey);
-        } catch (IllegalStateException e) {
-            throw new IllegalArgumentException(e.getMessage());
+        Step nextStep = stepRegistry.getStep(indexPolicySetting, nextStepKey);
+        if (nextStep == null) {
+            throw new IllegalArgumentException("step [" + nextStepKey + "] with policy [" + indexPolicySetting + "] does not exist");
         }
 
         return IndexLifecycleRunner.moveClusterStateToNextStep(idxMeta.getIndex(), currentState, currentStepKey, nextStepKey, nowSupplier);
@@ -358,7 +378,7 @@ public class IndexLifecycleRunner {
             return true;
         }
     }
-    
+
     private static boolean isActionChanged(StepKey stepKey, LifecyclePolicy currentPolicy, LifecyclePolicy newPolicy) {
         LifecycleAction currentAction = getActionFromPolicy(currentPolicy, stepKey.getPhase(), stepKey.getAction());
         LifecycleAction newAction = getActionFromPolicy(newPolicy, stepKey.getPhase(), stepKey.getAction());
@@ -385,7 +405,7 @@ public class IndexLifecycleRunner {
      * state where it is able to deal with the policy being updated to
      * <code>newPolicy</code>. If any of these indexes is not in a state wheree
      * it can deal with the update the method will return <code>false</code>.
-     * 
+     *
      * @param policyName
      *            the name of the policy being updated
      * @param newPolicy

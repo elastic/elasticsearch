@@ -332,18 +332,13 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
     public void testRunPolicyWithNoStepsInRegistry() {
         String policyName = "cluster_state_action_policy";
-        StepKey stepKey = new StepKey("phase", "action", "cluster_state_action_step");
         ClusterService clusterService = mock(ClusterService.class);
         IndexLifecycleRunner runner = new IndexLifecycleRunner(new PolicyStepsRegistry(), clusterService, () -> 0L);
         IndexMetaData indexMetaData = IndexMetaData.builder("my_index").settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-
-        IllegalStateException exception = expectThrows(IllegalStateException.class,
-            () -> runner.runPolicy(policyName, indexMetaData, null, randomBoolean()));
-        assertEquals("current step for index [my_index] with policy [cluster_state_action_policy] is not recognized",
-            exception.getMessage());
+        // verify that no exception is thrown
+        runner.runPolicy(policyName, indexMetaData, null, randomBoolean());
         Mockito.verifyZeroInteractions(clusterService);
-
     }
 
     public void testRunPolicyUnknownStepType() {
@@ -524,13 +519,8 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                 .put(LifecycleSettings.LIFECYCLE_ACTION, "action_1")
                 .put(LifecycleSettings.LIFECYCLE_STEP, "step_3")
                 .build();
-        IllegalStateException exception = expectThrows(IllegalStateException.class,
-                () -> IndexLifecycleRunner.getCurrentStep(registry, policyName, invalidIndexSettings));
-        assertEquals("step [{\"phase\":\"phase_1\",\"action\":\"action_1\",\"name\":\"step_3\"}] does not exist", exception.getMessage());
-
-        exception = expectThrows(IllegalStateException.class,
-                () -> IndexLifecycleRunner.getCurrentStep(registry, "policy_does_not_exist", invalidIndexSettings));
-        assertEquals("policy [policy_does_not_exist] does not exist", exception.getMessage());
+        assertNull(IndexLifecycleRunner.getCurrentStep(registry, policyName, invalidIndexSettings));
+        assertNull(IndexLifecycleRunner.getCurrentStep(registry, "policy_does_not_exist", invalidIndexSettings));
     }
 
     public void testMoveClusterStateToNextStep() {
@@ -688,7 +678,8 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             () -> IndexLifecycleRunner.moveClusterStateToStep(indexName, clusterState, currentStepKey,
                 nextStepKey, () -> now, stepRegistry));
         assertThat(exception.getMessage(),
-            equalTo("step [{\"phase\":\"next_phase\",\"action\":\"next_action\",\"name\":\"next_step\"}] does not exist"));
+            equalTo("step [{\"phase\":\"next_phase\",\"action\":\"next_action\",\"name\":\"next_step\"}] " +
+                "with policy [my_policy] does not exist"));
     }
 
     public void testMoveClusterStateToErrorStep() throws IOException {

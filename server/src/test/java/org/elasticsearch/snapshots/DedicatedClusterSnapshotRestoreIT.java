@@ -165,24 +165,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         return Arrays.asList(MockRepository.Plugin.class, TestCustomMetaDataPlugin.class);
     }
 
-    public void testClusterStateHasCustoms() throws Exception {
-        ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().all().get();
-        assertNotNull(clusterStateResponse.getState().custom(SnapshotsInProgress.TYPE));
-        assertNotNull(clusterStateResponse.getState().custom(RestoreInProgress.TYPE));
-        assertNotNull(clusterStateResponse.getState().custom(SnapshotDeletionsInProgress.TYPE));
-        internalCluster().ensureAtLeastNumDataNodes(2);
-        if (randomBoolean()) {
-            internalCluster().fullRestart();
-        } else {
-            internalCluster().rollingRestart();
-        }
-
-        clusterStateResponse = client().admin().cluster().prepareState().all().get();
-        assertNotNull(clusterStateResponse.getState().custom(SnapshotsInProgress.TYPE));
-        assertNotNull(clusterStateResponse.getState().custom(RestoreInProgress.TYPE));
-        assertNotNull(clusterStateResponse.getState().custom(SnapshotDeletionsInProgress.TYPE));
-    }
-
     public void testRestorePersistentSettings() throws Exception {
         logger.info("--> start 2 nodes");
         internalCluster().startNode();

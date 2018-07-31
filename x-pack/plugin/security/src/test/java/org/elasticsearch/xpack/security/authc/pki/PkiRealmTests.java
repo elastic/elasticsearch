@@ -70,7 +70,7 @@ public class PkiRealmTests extends ESTestCase {
                 .put("path.home", createTempDir())
                 .build();
         licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isAuthorizingRealmAllowed()).thenReturn(true);
+        when(licenseState.isAuthorizationRealmAllowed()).thenReturn(true);
     }
 
     public void testTokenSupport() {
@@ -350,7 +350,7 @@ public class PkiRealmTests extends ESTestCase {
         otherRealm.registerUser(lookupUser);
 
         final Settings realmSettings = Settings.builder()
-            .putList("authorizing_realms", "other_realm")
+            .putList("authorization_realms", "other_realm")
             .build();
         final UserRoleMapper roleMapper = buildRoleMapper(Collections.emptySet(), token.dn());
         final PkiRealm pkiRealm = buildRealm(roleMapper, realmSettings, otherRealm);

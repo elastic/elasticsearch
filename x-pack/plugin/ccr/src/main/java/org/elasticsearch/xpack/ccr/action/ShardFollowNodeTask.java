@@ -103,13 +103,21 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             params.getFollowShardId(), lastRequestedSeqno, leaderGlobalCheckpoint);
         final int maxBatchOperationCount = params.getMaxBatchOperationCount();
         while (hasReadBudget() && lastRequestedSeqno < leaderGlobalCheckpoint) {
+            final long from = lastRequestedSeqno + 1;
+            final long maxRequiredSeqNo = Math.min(leaderGlobalCheckpoint, from + maxBatchOperationCount - 1);
+            final int requestBatchCount;
+            if (numConcurrentReads == 0) {
+                // This is the only request, we can optimistically fetch more documents if possible but not enforce max_required_seqno.
+                requestBatchCount = maxBatchOperationCount;
+            } else {
+                requestBatchCount = Math.toIntExact(maxRequiredSeqNo - from + 1);
+            }
+            assert 0 < requestBatchCount && requestBatchCount <= maxBatchOperationCount : "request_batch_count=" + requestBatchCount;
+            LOGGER.trace("{}[{} ongoing reads] read from_seqno={} max_required_seqno={} batch_count={}",
+                params.getFollowShardId(), numConcurrentReads, from, maxRequiredSeqNo, requestBatchCount);
             numConcurrentReads++;
-            long from = lastRequestedSeqno + 1;
-            // -1 is needed, because maxRequiredSeqno is inclusive
-            long maxRequiredSeqno = Math.min(leaderGlobalCheckpoint, (from + maxBatchOperationCount) - 1);
-            LOGGER.trace("{}[{}] read [{}/{}]", params.getFollowShardId(), numConcurrentReads, maxRequiredSeqno, maxBatchOperationCount);
-            sendShardChangesRequest(from, maxBatchOperationCount, maxRequiredSeqno);
-            lastRequestedSeqno = maxRequiredSeqno;
+            sendShardChangesRequest(from, requestBatchCount, maxRequiredSeqNo);
+            lastRequestedSeqno = maxRequiredSeqNo;
         }
 
         if (numConcurrentReads == 0 && hasReadBudget()) {
@@ -186,7 +194,13 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         maybeUpdateMapping(response.getIndexMetadataVersion(), () -> innerHandleReadResponse(from, maxRequiredSeqNo, response));
     }
 
+    /** Called when some operations are fetched from the leading */
+    protected void onOperationsFetched(Translog.Operation[] operations) {
+
+    }
+
     synchronized void innerHandleReadResponse(long from, long maxRequiredSeqNo, ShardChangesAction.Response response) {
+        onOperationsFetched(response.getOperations());
         leaderGlobalCheckpoint = Math.max(leaderGlobalCheckpoint, response.getGlobalCheckpoint());
         final long newFromSeqNo;
         if (response.getOperations().length == 0) {

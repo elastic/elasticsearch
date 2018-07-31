@@ -30,11 +30,13 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.time.CompoundDateTimeFormatter;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Locale;
 
 import static org.elasticsearch.cluster.routing.allocation.AbstractAllocationDecision.discoveryNodeToXContent;
@@ -189,7 +191,8 @@ public final class ClusterAllocationExplanation implements ToXContentObject, Wri
 
         builder.startObject("unassigned_info");
         builder.field("reason", unassignedInfo.getReason());
-        builder.field("at", UnassignedInfo.DATE_TIME_FORMATTER.printer().print(unassignedInfo.getUnassignedTimeInMillis()));
+        CompoundDateTimeFormatter formatter = UnassignedInfo.DATE_TIME_FORMATTER;
+        builder.field("at", formatter.format(Instant.ofEpochMilli(unassignedInfo.getUnassignedTimeInMillis())));
         if (unassignedInfo.getNumFailedAllocations() >  0) {
             builder.field("failed_allocation_attempts", unassignedInfo.getNumFailedAllocations());
         }

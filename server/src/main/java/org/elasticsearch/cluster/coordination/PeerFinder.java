@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.cluster.ClusterState.VotingConfiguration;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -53,7 +52,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.cluster.coordination.RunnableUtils.labelRunnable;
@@ -95,16 +93,6 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
     }
 
     public Iterable<DiscoveryNode> getFoundPeers() {
-        // getFoundPeersSet() is synchronised so we don't have to
-        return getFoundPeersSet();
-    }
-
-    public boolean foundQuorumFrom(VotingConfiguration votingConfiguration) {
-        // getFoundPeersSet() is synchronised so we don't have to
-        return votingConfiguration.hasQuorum(getFoundPeersSet().stream().map(DiscoveryNode::getId).collect(Collectors.toSet()));
-    }
-
-    Set<DiscoveryNode> getFoundPeersSet() {
         synchronized (mutex) {
             return getActivePeerFinder().foundPeers.keySet();
         }

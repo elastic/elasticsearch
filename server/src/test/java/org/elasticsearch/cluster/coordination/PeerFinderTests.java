@@ -480,7 +480,7 @@ public class PeerFinderTests extends ESTestCase {
     }
 
     private void assertFoundPeers(DiscoveryNode... expectedNodes) {
-        assertThat(peerFinder.getFoundPeersSet(),
+        assertThat(peerFinder.getFoundPeers(),
             equalTo(Stream.concat(Arrays.stream(expectedNodes), Stream.of(localNode)).collect(Collectors.toSet())));
     }
 

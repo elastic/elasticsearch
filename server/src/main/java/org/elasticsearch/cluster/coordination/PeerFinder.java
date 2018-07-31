@@ -196,7 +196,7 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
     private class ActivePeerFinder {
         private boolean running;
         private final Map<DiscoveryNode, FoundPeer> foundPeers;
-        private final Set<TransportAddress> probedAddresses = new HashSet<>();
+        private final Set<TransportAddress> probedAddressesSinceLastWakeUp = new HashSet<>();
         private final AtomicBoolean resolveInProgress = new AtomicBoolean();
         private final AtomicReference<List<TransportAddress>> lastResolvedAddresses = new AtomicReference<>(Collections.emptyList());
         private final Map<TransportAddress, DiscoveryNode> connectedNodes = newConcurrentMap();
@@ -238,7 +238,7 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
             for (final FoundPeer foundPeer : foundPeers.values()) {
                 foundPeer.peersRequestedThisRound = false;
             }
-            probedAddresses.clear();
+            probedAddressesSinceLastWakeUp.clear();
 
             logger.trace("ActivePeerFinder#handleWakeUp(): probing found peers {}", foundPeers.keySet());
             foundPeers.keySet().forEach(this::startProbe);
@@ -315,7 +315,7 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
                 return;
             }
 
-            if (probedAddresses.add(transportAddress) == false) {
+            if (probedAddressesSinceLastWakeUp.add(transportAddress) == false) {
                 logger.trace("startProbe({}) already probed this round", transportAddress);
                 return;
             }

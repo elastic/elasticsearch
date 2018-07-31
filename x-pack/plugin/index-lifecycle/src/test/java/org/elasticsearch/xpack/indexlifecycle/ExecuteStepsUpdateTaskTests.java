@@ -94,7 +94,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         policyMap.put(mixedPolicyName, new LifecyclePolicyMetadata(mixedPolicy, Collections.emptyMap()));
         policyMap.put(allClusterPolicyName, new LifecyclePolicyMetadata(allClusterPolicy, Collections.emptyMap()));
         policyMap.put(invalidPolicyName, new LifecyclePolicyMetadata(invalidPolicy, Collections.emptyMap()));
-        policyStepsRegistry = new PolicyStepsRegistry();
+        policyStepsRegistry = new PolicyStepsRegistry(Collections.emptySortedMap(), Collections.emptyMap(), Collections.emptyMap(), null);
 
         IndexMetaData indexMetadata = IndexMetaData.builder(randomAlphaOfLength(5))
             .settings(settings(Version.CURRENT)

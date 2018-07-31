@@ -23,10 +23,10 @@ public interface LifecycleType extends NamedWriteable {
      * Returns the next phase thats available after
      * <code>currentPhaseName</code>. Note that <code>currentPhaseName</code>
      * does not need to exist in <code>phases</code>.
-     * 
+     *
      * If the current {@link Phase} is the last phase in the {@link Policy} this
      * method will return <code>null</code>.
-     * 
+     *
      * If the phase is not valid for the lifecycle type an
      * {@link IllegalArgumentException} will be thrown.
      */
@@ -36,10 +36,10 @@ public interface LifecycleType extends NamedWriteable {
      * Returns the previous phase thats available before
      * <code>currentPhaseName</code>. Note that <code>currentPhaseName</code>
      * does not need to exist in <code>phases</code>.
-     * 
+     *
      * If the current {@link Phase} is the first phase in the {@link Policy}
      * this method will return <code>null</code>.
-     * 
+     *
      * If the phase is not valid for the lifecycle type an
      * {@link IllegalArgumentException} will be thrown.
      */
@@ -51,10 +51,10 @@ public interface LifecycleType extends NamedWriteable {
      * Returns the name of the next phase that is available in the phases after
      * <code>currentActionName</code>. Note that <code>currentActionName</code>
      * does not need to exist in the {@link Phase}.
-     * 
+     *
      * If the current action is the last action in the phase this method will
      * return <code>null</code>.
-     * 
+     *
      * If the action is not valid for the phase an
      * {@link IllegalArgumentException} will be thrown.
      */
@@ -64,11 +64,16 @@ public interface LifecycleType extends NamedWriteable {
     /**
      * validates whether the specified <code>phases</code> are valid for this
      * policy instance.
-     * 
+     *
      * @param phases
      *            the phases to verify validity against
      * @throws IllegalArgumentException
      *             if a specific phase or lack of a specific phase is invalid.
      */
     void validate(Collection<Phase> phases);
+
+    /**
+     * @return this type's valid actions and their step creators
+     */
+    Map<String, StepsFactory.ActionStepsCreator<?>> getActionStepsCreators();
 }

@@ -32,8 +32,14 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.indexlifecycle.AllocateAction;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
+import org.elasticsearch.xpack.core.indexlifecycle.ReadOnlyAction;
 import org.elasticsearch.xpack.core.indexlifecycle.RolloverAction;
+import org.elasticsearch.xpack.core.indexlifecycle.Step;
+import org.elasticsearch.xpack.core.indexlifecycle.StepsFactory;
+import org.elasticsearch.xpack.core.indexlifecycle.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.indexlifecycle.action.DeleteLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction;
@@ -71,7 +77,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
@@ -133,8 +141,9 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
         if (enabled == false || transportClientMode) {
             return emptyList();
         }
+        StepsFactory stepsFactory  = new StepsFactory(TimeseriesLifecycleType.INSTANCE.getActionStepsCreators());
         indexLifecycleInitialisationService
-            .set(new IndexLifecycleService(settings, client, clusterService, getClock(), System::currentTimeMillis));
+            .set(new IndexLifecycleService(settings, client, clusterService, getClock(), System::currentTimeMillis, stepsFactory));
         return Collections.singletonList(indexLifecycleInitialisationService.get());
     }
 

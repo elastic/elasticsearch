@@ -18,15 +18,41 @@ import java.util.ListIterator;
 import java.util.Map;
 import java.util.function.LongSupplier;
 
-public class StepsGenerator {
-    private static final Logger LOGGER = ESLoggerFactory.getLogger(StepsGenerator.class);
+public class StepsFactory {
+    private static final Logger LOGGER = ESLoggerFactory.getLogger(StepsFactory.class);
 
-    private final Map<String, ActionStepsGenerator<?>> actionStepGenerators;
+    private final Map<String, ActionStepsCreator<?>> actionStepsCreators;
 
-    public StepsGenerator(Map<String, ActionStepsGenerator<?>> actionStepGenerators) {
-        this.actionStepGenerators = actionStepGenerators;
+    public StepsFactory(Map<String, ActionStepsCreator<?>> actionStepsCreators) {
+        this.actionStepsCreators = actionStepsCreators;
     }
 
+    /**
+     * This method is used to compile this policy into its execution plan built out
+     * of {@link Step} instances. The order of the {@link Phase}s and {@link LifecycleAction}s is
+     * determined by the {@link LifecycleType} associated with this policy.
+     *
+     * The order of the policy will have this structure:
+     *
+     * - initialize policy context step
+     * - phase-1 phase-after-step
+     * - ... phase-1 action steps
+     * - phase-2 phase-after-step
+     * - ...
+     * - terminal policy step
+     *
+     * We first initialize the policy's context and ensure that the index has proper settings set.
+     * Then we begin each phase's after-step along with all its actions as steps. Finally, we have
+     * a terminal step to inform us that this policy's steps are all complete. Each phase's `after`
+     * step is associated with the previous phase's phase. For example, the warm phase's `after` is
+     * associated with the hot phase so that it is clear that we haven't stepped into the warm phase
+     * just yet (until this step is complete).
+     *
+     * @param client The Elasticsearch Client to use during execution of {@link AsyncActionStep}
+     *               and {@link AsyncWaitStep} steps.
+     * @param nowSupplier The supplier of the current time for {@link PhaseAfterStep} steps.
+     * @return The list of {@link Step} objects in order of their execution.
+     */
     public List<Step> createSteps(LifecyclePolicy policy, Client client, LongSupplier nowSupplier) {
         LifecycleType type = policy.getType();
         List<Step> steps = new ArrayList<>();
@@ -61,7 +87,7 @@ public class StepsGenerator {
             // add steps for each action, in reverse
             while (actionIterator.hasPrevious()) {
                 LifecycleAction action = actionIterator.previous();
-                ActionStepsGenerator<?> actionStepsGenerator = actionStepGenerators.get(action.getWriteableName());
+                ActionStepsCreator<?> actionStepsGenerator = actionStepsCreators.get(action.getWriteableName());
                 List<Step> actionSteps = actionStepsGenerator.createSteps(action, client, phase.getName(), lastStepKey);
                 ListIterator<Step> actionStepsIterator = actionSteps.listIterator(actionSteps.size());
                 while (actionStepsIterator.hasPrevious()) {
@@ -93,12 +119,13 @@ public class StepsGenerator {
         return steps;
     }
 
-    public static abstract class ActionStepsGenerator<A extends LifecycleAction> {
+    @FunctionalInterface
+    public interface ActionStepsCreator<A extends LifecycleAction> {
 
-        protected abstract List<Step> doCreateSteps(A action, Client client, String phaseName, StepKey nextStepKey);
+        List<Step> doCreateSteps(A action, Client client, String phaseName, StepKey nextStepKey);
 
         @SuppressWarnings("unchecked")
-        public final List<Step> createSteps(LifecycleAction action, Client client, String phaseName, StepKey nextStepKey) {
+        default List<Step> createSteps(LifecycleAction action, Client client, String phaseName, StepKey nextStepKey) {
             return doCreateSteps((A) action, client, phaseName, nextStepKey);
         }
     }

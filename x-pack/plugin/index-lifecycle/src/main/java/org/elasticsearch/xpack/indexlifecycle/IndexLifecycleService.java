@@ -26,12 +26,15 @@ import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 import org.elasticsearch.xpack.core.indexlifecycle.ShrinkAction;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
+import org.elasticsearch.xpack.core.indexlifecycle.StepsFactory;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 
 import java.io.Closeable;
 import java.time.Clock;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.LongSupplier;
 
 /**
@@ -51,14 +54,15 @@ public class IndexLifecycleService extends AbstractComponent
     private SchedulerEngine.Job scheduledJob;
     private IndexLifecycleRunner lifecycleRunner;
 
-    public IndexLifecycleService(Settings settings, Client client, ClusterService clusterService, Clock clock, LongSupplier nowSupplier) {
+    public IndexLifecycleService(Settings settings, Client client, ClusterService clusterService, Clock clock, LongSupplier nowSupplier,
+                                 StepsFactory stepsFactory) {
         super(settings);
         this.client = client;
         this.clusterService = clusterService;
         this.clock = clock;
         this.nowSupplier = nowSupplier;
         this.scheduledJob = null;
-        this.policyRegistry = new PolicyStepsRegistry();
+        this.policyRegistry = new PolicyStepsRegistry(new TreeMap<>(), new HashMap<>(), new HashMap<>(), stepsFactory);
         this.lifecycleRunner = new IndexLifecycleRunner(policyRegistry, clusterService, nowSupplier);
         clusterService.addStateApplier(this);
         clusterService.addListener(this);

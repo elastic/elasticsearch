@@ -140,7 +140,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
                 throw new IllegalArgumentException("lifecycle type[" + TYPE + "] does not support phase[" + phase.getName() + "]");
         }
     }
-    
+
     @Override
     public String getNextActionName(String currentActionName, Phase phase) {
         List<String> orderedActionNames;
@@ -199,5 +199,19 @@ public class TimeseriesLifecycleType implements LifecycleType {
                 }
             });
         });
+    }
+
+    @Override
+    public Map<String, StepsFactory.ActionStepsCreator<?>> getActionStepsCreators() {
+        // NORELEASE (talevy): migrate toSteps away from each LifecycleAction
+        Map<String, StepsFactory.ActionStepsCreator<?>> actionStepsCreators = new HashMap<>();
+        actionStepsCreators.put(AllocateAction.NAME, LifecycleAction::<AllocateAction>toSteps);
+        actionStepsCreators.put(DeleteAction.NAME, LifecycleAction::<DeleteAction>toSteps);
+        actionStepsCreators.put(ForceMergeAction.NAME, LifecycleAction::<ForceMergeAction>toSteps);
+        actionStepsCreators.put(ReadOnlyAction.NAME, LifecycleAction::<ReadOnlyAction>toSteps);
+        actionStepsCreators.put(ReplicasAction.NAME, LifecycleAction::<ReplicasAction>toSteps);
+        actionStepsCreators.put(RolloverAction.NAME, LifecycleAction::<RolloverAction>toSteps);
+        actionStepsCreators.put(ShrinkAction.NAME, LifecycleAction::<ShrinkAction>toSteps);
+        return actionStepsCreators;
     }
 }

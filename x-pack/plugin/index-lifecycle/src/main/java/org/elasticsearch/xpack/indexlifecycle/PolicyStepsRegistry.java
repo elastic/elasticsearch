@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.ErrorStep;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
-import org.elasticsearch.xpack.core.indexlifecycle.StepsGenerator;
+import org.elasticsearch.xpack.core.indexlifecycle.StepsFactory;
 
 import java.util.HashMap;
 import java.util.List;
@@ -34,20 +34,14 @@ public class PolicyStepsRegistry {
     private Map<String, Step> firstStepMap;
     // keeps track of a mapping from policy/step-name to respective Step
     private Map<String, Map<Step.StepKey, Step>> stepMap;
-    private final StepsGenerator stepsGenerator;
-
-    public PolicyStepsRegistry() {
-        this.lifecyclePolicyMap = new TreeMap<>();
-        this.firstStepMap = new HashMap<>();
-        this.stepMap = new HashMap<>();
-    }
+    private final StepsFactory stepsFactory;
 
     PolicyStepsRegistry(SortedMap<String, LifecyclePolicyMetadata> lifecyclePolicyMap,
-            Map<String, Step> firstStepMap, Map<String, Map<Step.StepKey, Step>> stepMap, StepsGenerator stepsGenerator) {
+            Map<String, Step> firstStepMap, Map<String, Map<Step.StepKey, Step>> stepMap, StepsFactory stepsFactory) {
         this.lifecyclePolicyMap = lifecyclePolicyMap;
         this.firstStepMap = firstStepMap;
         this.stepMap = stepMap;
-        this.stepsGenerator = stepsGenerator;
+        this.stepsFactory = stepsFactory;
     }
 
     SortedMap<String, LifecyclePolicyMetadata> getLifecyclePolicyMap() {
@@ -76,7 +70,7 @@ public class PolicyStepsRegistry {
                 LifecyclePolicySecurityClient policyClient = new LifecyclePolicySecurityClient(client, ClientHelper.INDEX_LIFECYCLE_ORIGIN,
                         policyMetadata.getHeaders());
                 lifecyclePolicyMap.put(policyMetadata.getName(), policyMetadata);
-                List<Step> policyAsSteps = stepsGenerator.createSteps(policyMetadata.getPolicy(), policyClient, nowSupplier);
+                List<Step> policyAsSteps = stepsFactory.createSteps(policyMetadata.getPolicy(), policyClient, nowSupplier);
                 if (policyAsSteps.isEmpty() == false) {
                     firstStepMap.put(policyMetadata.getName(), policyAsSteps.get(0));
                     stepMap.put(policyMetadata.getName(), new HashMap<>());

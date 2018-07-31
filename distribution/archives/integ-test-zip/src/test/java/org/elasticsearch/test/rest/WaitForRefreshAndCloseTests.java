@@ -19,25 +19,20 @@
 
 package org.elasticsearch.test.rest;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.ResponseListener;
+import org.elasticsearch.client.Request;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-
-import static java.util.Collections.emptyMap;
 
 /**
  * Tests that wait for refresh is fired if the index is closed.
@@ -46,13 +41,14 @@ public class WaitForRefreshAndCloseTests extends ESRestTestCase {
     @Before
     public void setupIndex() throws IOException {
         try {
-            client().performRequest("DELETE", indexName());
+            client().performRequest(new Request("DELETE", indexName()));
         } catch (ResponseException e) {
             // If we get an error, it should be because the index doesn't exist
             assertEquals(404, e.getResponse().getStatusLine().getStatusCode());
         }
-        client().performRequest("PUT", indexName(), emptyMap(),
-            new StringEntity("{\"settings\":{\"refresh_interval\":-1}}", ContentType.APPLICATION_JSON));
+        Request request = new Request("PUT", indexName());
+        request.setJsonEntity("{\"settings\":{\"refresh_interval\":-1}}");
+        client().performRequest(request);
     }
 
     @After
@@ -69,17 +65,20 @@ public class WaitForRefreshAndCloseTests extends ESRestTestCase {
     }
 
     public void testIndexAndThenClose() throws Exception {
-        closeWhileListenerEngaged(start("PUT", "", new StringEntity("{\"test\":\"test\"}", ContentType.APPLICATION_JSON)));
+        closeWhileListenerEngaged(start("PUT", "", "{\"test\":\"test\"}"));
     }
 
     public void testUpdateAndThenClose() throws Exception {
-        client().performRequest("PUT", docPath(), emptyMap(), new StringEntity("{\"test\":\"test\"}", ContentType.APPLICATION_JSON));
-        closeWhileListenerEngaged(start("POST", "/_update",
-            new StringEntity("{\"doc\":{\"name\":\"test\"}}", ContentType.APPLICATION_JSON)));
+        Request request = new Request("PUT", docPath());
+        request.setJsonEntity("{\"test\":\"test\"}");
+        client().performRequest(request);
+        closeWhileListenerEngaged(start("POST", "/_update", "{\"doc\":{\"name\":\"test\"}}"));
     }
 
     public void testDeleteAndThenClose() throws Exception {
-        client().performRequest("PUT", docPath(), emptyMap(), new StringEntity("{\"test\":\"test\"}", ContentType.APPLICATION_JSON));
+        Request request = new Request("PUT", docPath());
+        request.setJsonEntity("{\"test\":\"test\"}");
+        client().performRequest(request);
         closeWhileListenerEngaged(start("DELETE", "", null));
     }
 
@@ -88,7 +87,7 @@ public class WaitForRefreshAndCloseTests extends ESRestTestCase {
         assertBusy(() -> {
             Map<String, Object> stats;
             try {
-                stats = entityAsMap(client().performRequest("GET", indexName() + "/_stats/refresh"));
+                stats = entityAsMap(client().performRequest(new Request("GET", indexName() + "/_stats/refresh")));
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -105,18 +104,19 @@ public class WaitForRefreshAndCloseTests extends ESRestTestCase {
         });
 
         // Close the index. That should flush the listener.
-        client().performRequest("POST", indexName() + "/_close");
+        client().performRequest(new Request("POST", indexName() + "/_close"));
 
         // The request shouldn't fail. It certainly shouldn't hang.
         future.get();
     }
 
-    private ActionFuture<String> start(String method, String path, HttpEntity body) {
+    private ActionFuture<String> start(String method, String path, String body) {
         PlainActionFuture<String> future = new PlainActionFuture<>();
-        Map<String, String> params = new HashMap<>();
-        params.put("refresh", "wait_for");
-        params.put("error_trace", "");
-        client().performRequestAsync(method, docPath() + path, params, body, new ResponseListener() {
+        Request request = new Request(method, docPath() + path);
+        request.addParameter("refresh", "wait_for");
+        request.addParameter("error_trace", "");
+        request.setJsonEntity(body);
+        client().performRequestAsync(request, new ResponseListener() {
             @Override
             public void onSuccess(Response response) {
                 try {

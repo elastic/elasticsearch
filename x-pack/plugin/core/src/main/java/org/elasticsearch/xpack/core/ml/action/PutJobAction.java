@@ -42,7 +42,7 @@ public class PutJobAction extends Action<PutJobAction.Response> {
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
 
         public static Request parseRequest(String jobId, XContentParser parser) {
-            Job.Builder jobBuilder = Job.CONFIG_PARSER.apply(parser, null);
+            Job.Builder jobBuilder = Job.STRICT_PARSER.apply(parser, null);
             if (jobBuilder.getId() == null) {
                 jobBuilder.setId(jobId);
             } else if (!Strings.isNullOrEmpty(jobId) && !jobId.equals(jobBuilder.getId())) {

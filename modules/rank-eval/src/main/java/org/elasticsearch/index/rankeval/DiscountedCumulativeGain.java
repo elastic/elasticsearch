@@ -126,8 +126,6 @@ public class DiscountedCumulativeGain implements EvaluationMetric {
     @Override
     public EvalQueryQuality evaluate(String taskId, SearchHit[] hits,
             List<RatedDocument> ratedDocs) {
-        List<Integer> allRatings = ratedDocs.stream().mapToInt(RatedDocument::getRating).boxed()
-                .collect(Collectors.toList());
         List<RatedSearchHit> ratedHits = joinHitsWithRatings(hits, ratedDocs);
         List<Integer> ratingsInSearchHits = new ArrayList<>(ratedHits.size());
         int unratedResults = 0;
@@ -144,6 +142,8 @@ public class DiscountedCumulativeGain implements EvaluationMetric {
         double idcg = 0;
 
         if (normalize) {
+            List<Integer> allRatings = ratedDocs.stream().mapToInt(RatedDocument::getRating).boxed()
+                    .collect(Collectors.toList());
             Collections.sort(allRatings, Comparator.nullsLast(Collections.reverseOrder()));
             idcg = computeDCG(allRatings.subList(0, Math.min(ratingsInSearchHits.size(), allRatings.size())));
             if (idcg != 0) {

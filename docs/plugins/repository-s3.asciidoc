@@ -13,8 +13,8 @@ include::install_remove.asciidoc[]
 ==== Getting started with AWS
 
 The plugin provides a repository type named `s3` which may be used when creating a repository.
-The repository defaults to using
-http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html[IAM Role]
+The repository defaults to using https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-iam-roles.html[ECS IAM Role] or
+http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html[EC2 IAM Role]
 credentials for authentication. The only mandatory setting is the bucket name:
 
 [source,js]

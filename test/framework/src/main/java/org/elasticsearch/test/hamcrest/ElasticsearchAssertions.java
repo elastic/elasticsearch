@@ -49,6 +49,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
@@ -685,7 +687,6 @@ public class ElasticsearchAssertions {
     /**
      * Compares two lists recursively, but using arrays comparisons for byte[] through Arrays.equals(byte[], byte[])
      */
-    @SuppressWarnings("unchecked")
     private static void assertListEquals(List<Object> expected, List<Object> actual) {
         assertEquals(expected.size(), actual.size());
         Iterator<Object> actualIterator = actual.iterator();

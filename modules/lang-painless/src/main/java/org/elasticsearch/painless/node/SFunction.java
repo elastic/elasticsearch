@@ -136,7 +136,7 @@ public final class SFunction extends AStatement {
             try {
                 Class<?> paramType = painlessLookup.getJavaClassFromPainlessType(this.paramTypeStrs.get(param));
 
-                paramClasses[param] = PainlessLookupUtility.painlessDefTypeToJavaObjectType(paramType);
+                paramClasses[param] = PainlessLookupUtility.typeToJavaType(paramType);
                 paramTypes.add(paramType);
                 parameters.add(new Parameter(location, paramNameStrs.get(param), paramType));
             } catch (IllegalArgumentException exception) {
@@ -145,9 +145,11 @@ public final class SFunction extends AStatement {
             }
         }
 
+        int modifiers = Modifier.STATIC | Modifier.PRIVATE;
         org.objectweb.asm.commons.Method method = new org.objectweb.asm.commons.Method(name, MethodType.methodType(
-                PainlessLookupUtility.painlessDefTypeToJavaObjectType(rtnType), paramClasses).toMethodDescriptorString());
-        this.method = new PainlessMethod(name, null, null, rtnType, paramTypes, method, Modifier.STATIC | Modifier.PRIVATE, null);
+                PainlessLookupUtility.typeToJavaType(rtnType), paramClasses).toMethodDescriptorString());
+        MethodType methodType = MethodType.methodType(PainlessLookupUtility.typeToJavaType(rtnType), paramClasses);
+        this.method = new PainlessMethod(name, null, null, rtnType, paramTypes, method, modifiers, null, methodType);
     }
 
     @Override

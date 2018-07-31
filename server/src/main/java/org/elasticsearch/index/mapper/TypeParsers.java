@@ -230,7 +230,9 @@ public class TypeParsers {
                 } else {
                     throw new MapperParsingException("no type specified for property [" + multiFieldName + "]");
                 }
-                if (type.equals(ObjectMapper.CONTENT_TYPE) || type.equals(ObjectMapper.NESTED_CONTENT_TYPE)) {
+                if (type.equals(ObjectMapper.CONTENT_TYPE)
+                        || type.equals(ObjectMapper.NESTED_CONTENT_TYPE)
+                        || type.equals(FieldAliasMapper.CONTENT_TYPE)) {
                     throw new MapperParsingException("Type [" + type + "] cannot be used in multi field");
                 }
 

@@ -34,6 +34,7 @@ The scenarios in this section describe some best practices for generating useful
 * <<ml-configuring-categories>>
 * <<ml-configuring-pop>>
 * <<ml-configuring-transform>>
+* <<ml-configuring-detector-custom-rules>>
 
 :edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ml/customurl.asciidoc
 include::customurl.asciidoc[]
@@ -49,3 +50,6 @@ include::populations.asciidoc[]
 
 :edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ml/transforms.asciidoc
 include::transforms.asciidoc[]
+
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ml/detector-custom-rules.asciidoc
+include::detector-custom-rules.asciidoc[]

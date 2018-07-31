@@ -35,9 +35,6 @@ import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
-import javax.net.SocketFactory;
-import javax.net.ssl.HandshakeCompletedListener;
-import javax.net.ssl.SSLSocket;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.SocketTimeoutException;
@@ -46,6 +43,10 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
+
+import javax.net.SocketFactory;
+import javax.net.ssl.HandshakeCompletedListener;
+import javax.net.ssl.SSLSocket;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -119,7 +120,6 @@ public class SimpleSecurityNioTransportTests extends AbstractSimpleTransportTest
 
     @Override
     protected void closeConnectionChannel(Transport transport, Transport.Connection connection) throws IOException {
-        @SuppressWarnings("unchecked")
         TcpTransport.NodeChannels channels = (TcpTransport.NodeChannels) connection;
         CloseableChannel.closeChannels(channels.getChannels().subList(0, randomIntBetween(1, channels.getChannels().size())), true);
     }

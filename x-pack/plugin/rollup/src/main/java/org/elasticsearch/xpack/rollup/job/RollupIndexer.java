@@ -425,7 +425,8 @@ public abstract class RollupIndexer {
         assert lowerBound <= maxBoundary;
         final RangeQueryBuilder query = new RangeQueryBuilder(fieldName)
                 .gte(lowerBound)
-                .lt(maxBoundary);
+                .lt(maxBoundary)
+                .format("epoch_millis");
         return query;
     }
 }

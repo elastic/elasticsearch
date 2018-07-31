@@ -1,23 +1,36 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 
-package org.elasticsearch.xpack.core.indexlifecycle.action;
+package org.elasticsearch.protocol.xpack.indexlifecycle;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.test.AbstractStreamableTestCase;
-import org.elasticsearch.xpack.core.indexlifecycle.action.SetPolicyForIndexAction.Request;
 
 import java.io.IOException;
 import java.util.Arrays;
 
-public class SetPolicyForIndexRequestTests extends AbstractStreamableTestCase<SetPolicyForIndexAction.Request> {
+public class SetIndexLifecyclePolicyRequestTests extends AbstractStreamableTestCase<SetIndexLifecyclePolicyRequest> {
 
     @Override
-    protected Request createTestInstance() {
-        Request request = new Request(randomAlphaOfLength(20), generateRandomStringArray(20, 20, false));
+    protected SetIndexLifecyclePolicyRequest createTestInstance() {
+        SetIndexLifecyclePolicyRequest request = new SetIndexLifecyclePolicyRequest(randomAlphaOfLength(20),
+            generateRandomStringArray(20, 20, false));
         if (randomBoolean()) {
             IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
                     randomBoolean(), randomBoolean(), randomBoolean());
@@ -27,12 +40,12 @@ public class SetPolicyForIndexRequestTests extends AbstractStreamableTestCase<Se
     }
 
     @Override
-    protected Request createBlankInstance() {
-        return new Request();
+    protected SetIndexLifecyclePolicyRequest createBlankInstance() {
+        return new SetIndexLifecyclePolicyRequest();
     }
 
     @Override
-    protected Request mutateInstance(Request instance) throws IOException {
+    protected SetIndexLifecyclePolicyRequest mutateInstance(SetIndexLifecyclePolicyRequest instance) throws IOException {
         String[] indices = instance.indices();
         IndicesOptions indicesOptions = instance.indicesOptions();
         String policy = instance.policy();
@@ -51,25 +64,25 @@ public class SetPolicyForIndexRequestTests extends AbstractStreamableTestCase<Se
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        Request newRequest = new Request(policy, indices);
+        SetIndexLifecyclePolicyRequest newRequest = new SetIndexLifecyclePolicyRequest(policy, indices);
         newRequest.indicesOptions(indicesOptions);
         return newRequest;
     }
 
     public void testNullIndices() {
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-                () -> new Request(randomAlphaOfLength(20), (String[]) null));
+                () -> new SetIndexLifecyclePolicyRequest(randomAlphaOfLength(20), (String[]) null));
         assertEquals("indices cannot be null", exception.getMessage());
     }
 
     public void testNullPolicy() {
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-                () -> new Request(null, generateRandomStringArray(20, 20, false)));
+                () -> new SetIndexLifecyclePolicyRequest(null, generateRandomStringArray(20, 20, false)));
         assertEquals("policy cannot be null", exception.getMessage());
     }
 
     public void testValidate() {
-        Request request = createTestInstance();
+        SetIndexLifecyclePolicyRequest request = createTestInstance();
         assertNull(request.validate());
     }
 }

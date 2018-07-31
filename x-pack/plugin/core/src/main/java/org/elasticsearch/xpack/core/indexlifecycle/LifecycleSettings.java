@@ -32,23 +32,23 @@ public class LifecycleSettings {
     public static final Setting<String> LIFECYCLE_NAME_SETTING = Setting.simpleString(LIFECYCLE_NAME,
         Setting.Property.Dynamic, Setting.Property.IndexScope);
     public static final Setting<String> LIFECYCLE_PHASE_SETTING = Setting.simpleString(LIFECYCLE_PHASE,
-        Setting.Property.Dynamic, Setting.Property.IndexScope);
+        Setting.Property.Dynamic, Setting.Property.IndexScope, Setting.Property.InternalIndex);
     public static final Setting<String> LIFECYCLE_ACTION_SETTING = Setting.simpleString(LIFECYCLE_ACTION,
-            Setting.Property.Dynamic, Setting.Property.IndexScope);
+            Setting.Property.Dynamic, Setting.Property.IndexScope, Setting.Property.InternalIndex);
     public static final Setting<String> LIFECYCLE_STEP_SETTING = Setting.simpleString(LIFECYCLE_STEP,
-        Setting.Property.Dynamic, Setting.Property.IndexScope);
+        Setting.Property.Dynamic, Setting.Property.IndexScope, Setting.Property.InternalIndex);
     public static final Setting<String> LIFECYCLE_FAILED_STEP_SETTING = Setting.simpleString(LIFECYCLE_FAILED_STEP,
-            Setting.Property.Dynamic, Setting.Property.IndexScope);
+            Setting.Property.Dynamic, Setting.Property.IndexScope, Setting.Property.InternalIndex);
     public static final Setting<Long> LIFECYCLE_INDEX_CREATION_DATE_SETTING = Setting.longSetting(LIFECYCLE_INDEX_CREATION_DATE,
-        -1L, -1L, Setting.Property.Dynamic, Setting.Property.IndexScope);
+        -1L, -1L, Setting.Property.Dynamic, Setting.Property.IndexScope, Setting.Property.InternalIndex);
     public static final Setting<Long> LIFECYCLE_PHASE_TIME_SETTING = Setting.longSetting(LIFECYCLE_PHASE_TIME,
-        -1L, -1L, Setting.Property.Dynamic, Setting.Property.IndexScope);
+        -1L, -1L, Setting.Property.Dynamic, Setting.Property.IndexScope, Setting.Property.InternalIndex);
     public static final Setting<Long> LIFECYCLE_ACTION_TIME_SETTING = Setting.longSetting(LIFECYCLE_ACTION_TIME,
-        -1L, -1L, Setting.Property.Dynamic, Setting.Property.IndexScope);
+        -1L, -1L, Setting.Property.Dynamic, Setting.Property.IndexScope, Setting.Property.InternalIndex);
     public static final Setting<Long> LIFECYCLE_STEP_TIME_SETTING = Setting.longSetting(LIFECYCLE_STEP_TIME,
-        -1L, -1L, Setting.Property.Dynamic, Setting.Property.IndexScope);
+        -1L, -1L, Setting.Property.Dynamic, Setting.Property.IndexScope, Setting.Property.InternalIndex);
     public static final Setting<String> LIFECYCLE_STEP_INFO_SETTING = Setting.simpleString(LIFECYCLE_STEP_INFO, Setting.Property.Dynamic,
-            Setting.Property.IndexScope, Setting.Property.NotCopyableOnResize);
+            Setting.Property.IndexScope, Setting.Property.NotCopyableOnResize, Setting.Property.InternalIndex);
     public static final Setting<Boolean> LIFECYCLE_SKIP_SETTING = Setting.boolSetting(LIFECYCLE_SKIP, false,
         Setting.Property.Dynamic, Setting.Property.IndexScope);
 }

@@ -11,17 +11,30 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper.UserData;
 import org.ietf.jgss.GSSException;
 
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.SeekableByteChannel;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.FileAttribute;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Arrays;
+import java.util.EnumSet;
+import java.util.Set;
 
 import javax.security.auth.login.LoginException;
 
@@ -31,6 +44,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.AdditionalMatchers.aryEq;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -94,4 +108,44 @@ public class KerberosRealmTests extends KerberosRealmTestCase {
         assertThat(future.actionGet(), is(nullValue()));
     }
 
+    public void testKerberosRealmWithInvalidKeytabPathConfigurations() throws IOException {
+        final String keytabPathCase = randomFrom("keytabPathAsDirectory", "keytabFileDoesNotExist", "keytabPathWithNoReadPermissions");
+        final String expectedErrorMessage;
+        final String keytabPath;
+        final Set<PosixFilePermission> filePerms;
+        switch (keytabPathCase) {
+        case "keytabPathAsDirectory":
+            final String dirName = randomAlphaOfLength(5);
+            Files.createDirectory(dir.resolve(dirName));
+            keytabPath = dir.resolve(dirName).toString();
+            expectedErrorMessage = "configured service key tab file [" + keytabPath + "] is a directory";
+            break;
+        case "keytabFileDoesNotExist":
+            keytabPath = dir.resolve(randomAlphaOfLength(5) + ".keytab").toString();
+            expectedErrorMessage = "configured service key tab file [" + keytabPath + "] does not exist";
+            break;
+        case "keytabPathWithNoReadPermissions":
+            filePerms = PosixFilePermissions.fromString("---------");
+            final String keytabFileName = randomAlphaOfLength(5) + ".keytab";
+            final FileAttribute<Set<PosixFilePermission>> fileAttributes = PosixFilePermissions.asFileAttribute(filePerms);
+            try (SeekableByteChannel byteChannel = Files.newByteChannel(dir.resolve(keytabFileName),
+                    EnumSet.of(StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE), fileAttributes)) {
+                byteChannel.write(ByteBuffer.wrap(randomByteArrayOfLength(10)));
+            }
+            keytabPath = dir.resolve(keytabFileName).toString();
+            expectedErrorMessage = "configured service key tab file [" + keytabPath + "] must have read permission";
+            break;
+        default:
+            throw new IllegalArgumentException("Unknown test case :" + keytabPathCase);
+        }
+
+        settings = KerberosTestCase.buildKerberosRealmSettings(keytabPath, 100, "10m", true, randomBoolean());
+        config = new RealmConfig("test-kerb-realm", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
+                new ThreadContext(globalSettings));
+        mockNativeRoleMappingStore = roleMappingStore(Arrays.asList("user"));
+        mockKerberosTicketValidator = mock(KerberosTicketValidator.class);
+        final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
+                () -> new KerberosRealm(config, mockNativeRoleMappingStore, mockKerberosTicketValidator, threadPool, null));
+        assertThat(iae.getMessage(), is(equalTo(expectedErrorMessage)));
+    }
 }

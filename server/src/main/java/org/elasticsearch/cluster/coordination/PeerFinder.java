@@ -198,7 +198,7 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
         private final Map<DiscoveryNode, FoundPeer> foundPeers;
         private final Set<TransportAddress> probedAddresses = new HashSet<>();
         private final AtomicBoolean resolveInProgress = new AtomicBoolean();
-        private final AtomicReference<List<TransportAddress>> lastConnectedAddresses = new AtomicReference<>(Collections.emptyList());
+        private final AtomicReference<List<TransportAddress>> lastResolvedAddresses = new AtomicReference<>(Collections.emptyList());
         private final Map<TransportAddress, DiscoveryNode> connectedNodes = newConcurrentMap();
 
         ActivePeerFinder() {
@@ -261,7 +261,7 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
                             -> UnicastZenPing.resolveHostsLists(executorService.get(), logger, hosts, limitPortCounts,
                             transportService, resolveTimeout)));
 
-                        lastConnectedAddresses.set(unmodifiableList(providedAddresses));
+                        lastResolvedAddresses.set(unmodifiableList(providedAddresses));
 
                         logger.trace("ActivePeerFinder#handleNextWakeUp(): probing resolved transport addresses {}", providedAddresses);
                         synchronized (mutex) {
@@ -282,7 +282,7 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
                 });
             }
 
-            final List<TransportAddress> transportAddresses = lastConnectedAddresses.get();
+            final List<TransportAddress> transportAddresses = lastResolvedAddresses.get();
             logger.trace("ActivePeerFinder#handleNextWakeUp(): probing supplied transport addresses {}", transportAddresses);
             transportAddresses.forEach(this::startProbe);
 

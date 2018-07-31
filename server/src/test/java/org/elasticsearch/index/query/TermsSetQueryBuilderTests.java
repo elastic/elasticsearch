@@ -263,7 +263,7 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
     }
 
     public void testFieldAlias() {
-        assumeTrue("Test runs only when there is a single mapping type.", isSingleType());
+        assumeTrue("Test only runs on indexes that enforce a single mapping type.", isSingleType());
 
         List<String> randomTerms = Arrays.asList(generateRandomStringArray(5, 10, false, false));
         TermsSetQueryBuilder queryBuilder = new TermsSetQueryBuilder(STRING_ALIAS_FIELD_NAME, randomTerms)

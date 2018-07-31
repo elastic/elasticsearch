@@ -385,7 +385,7 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
                 List<DiscoveryNode> knownNodes = new ArrayList<>(foundPeers.keySet());
 
                 transportService.sendRequest(discoveryNode, REQUEST_PEERS_ACTION_NAME,
-                    new PeersRequest(getLocalNode(), new ArrayList<>(knownNodes)),
+                    new PeersRequest(getLocalNode(), knownNodes),
                     new TransportResponseHandler<PeersResponse>() {
 
                         @Override

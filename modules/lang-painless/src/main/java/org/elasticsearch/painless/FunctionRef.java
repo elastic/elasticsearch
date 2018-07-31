@@ -109,24 +109,24 @@ public class FunctionRef {
         Constructor<?> javaConstructor = delegateConstructor.javaConstructor;
         MethodType delegateMethodType = delegateConstructor.methodType;
 
-        interfaceMethodName = interfaceMethod.javaMethod.getName();
-        factoryMethodType = MethodType.methodType(expected,
+        this.interfaceMethodName = interfaceMethod.javaMethod.getName();
+        this.factoryMethodType = MethodType.methodType(expected,
                 delegateMethodType.dropParameterTypes(numCaptures, delegateMethodType.parameterCount()));
-        interfaceMethodType = interfaceMethod.methodType.dropParameterTypes(0, 1);
+        this.interfaceMethodType = interfaceMethod.methodType.dropParameterTypes(0, 1);
 
-        delegateClassName = javaConstructor.getDeclaringClass().getName();
-        isDelegateInterface = false;
-        delegateInvokeType = H_NEWINVOKESPECIAL;
-        delegateMethodName = PainlessLookupUtility.CONSTRUCTOR_NAME;
+        this.delegateClassName = javaConstructor.getDeclaringClass().getName();
+        this.isDelegateInterface = false;
+        this.delegateInvokeType = H_NEWINVOKESPECIAL;
+        this.delegateMethodName = PainlessLookupUtility.CONSTRUCTOR_NAME;
         this.delegateMethodType = delegateMethodType.dropParameterTypes(0, numCaptures);
 
         this.interfaceMethod = interfaceMethod;
-        delegateTypeParameters = delegateConstructor.typeParameters;
-        delegateReturnType = void.class;
+        this.delegateTypeParameters = delegateConstructor.typeParameters;
+        this.delegateReturnType = void.class;
 
-        factoryDescriptor = factoryMethodType.toMethodDescriptorString();
-        interfaceType = Type.getMethodType(interfaceMethodType.toMethodDescriptorString());
-        delegateType = Type.getMethodType(this.delegateMethodType.toMethodDescriptorString());
+        this.factoryDescriptor = factoryMethodType.toMethodDescriptorString();
+        this.interfaceType = Type.getMethodType(interfaceMethodType.toMethodDescriptorString());
+        this.delegateType = Type.getMethodType(this.delegateMethodType.toMethodDescriptorString());
     }
 
     /**
@@ -139,32 +139,32 @@ public class FunctionRef {
     public FunctionRef(Class<?> expected, PainlessMethod interfaceMethod, PainlessMethod delegateMethod, int numCaptures) {
         MethodType delegateMethodType = delegateMethod.methodType;
 
-        interfaceMethodName = interfaceMethod.javaMethod.getName();
-        factoryMethodType = MethodType.methodType(expected,
+        this.interfaceMethodName = interfaceMethod.javaMethod.getName();
+        this.factoryMethodType = MethodType.methodType(expected,
                 delegateMethodType.dropParameterTypes(numCaptures, delegateMethodType.parameterCount()));
-        interfaceMethodType = interfaceMethod.methodType.dropParameterTypes(0, 1);
+        this.interfaceMethodType = interfaceMethod.methodType.dropParameterTypes(0, 1);
 
-        delegateClassName = delegateMethod.javaMethod.getDeclaringClass().getName();
-        isDelegateInterface = delegateMethod.javaMethod.getDeclaringClass().isInterface();
+        this.delegateClassName = delegateMethod.javaMethod.getDeclaringClass().getName();
+        this.isDelegateInterface = delegateMethod.javaMethod.getDeclaringClass().isInterface();
 
         if (Modifier.isStatic(delegateMethod.javaMethod.getModifiers())) {
-            delegateInvokeType = H_INVOKESTATIC;
+            this.delegateInvokeType = H_INVOKESTATIC;
         } else if (delegateMethod.javaMethod.getDeclaringClass().isInterface()) {
-            delegateInvokeType = H_INVOKEINTERFACE;
+            this.delegateInvokeType = H_INVOKEINTERFACE;
         } else {
-            delegateInvokeType = H_INVOKEVIRTUAL;
+            this.delegateInvokeType = H_INVOKEVIRTUAL;
         }
 
-        delegateMethodName = delegateMethod.javaMethod.getName();
+        this.delegateMethodName = delegateMethod.javaMethod.getName();
         this.delegateMethodType = delegateMethodType.dropParameterTypes(0, numCaptures);
 
         this.interfaceMethod = interfaceMethod;
-        delegateTypeParameters = delegateMethod.typeParameters;
-        delegateReturnType = delegateMethod.returnType;
+        this.delegateTypeParameters = delegateMethod.typeParameters;
+        this.delegateReturnType = delegateMethod.returnType;
 
-        factoryDescriptor = factoryMethodType.toMethodDescriptorString();
-        interfaceType = Type.getMethodType(interfaceMethodType.toMethodDescriptorString());
-        delegateType = Type.getMethodType(this.delegateMethodType.toMethodDescriptorString());
+        this.factoryDescriptor = factoryMethodType.toMethodDescriptorString();
+        this.interfaceType = Type.getMethodType(interfaceMethodType.toMethodDescriptorString());
+        this.delegateType = Type.getMethodType(this.delegateMethodType.toMethodDescriptorString());
     }
 
     /**
@@ -177,25 +177,25 @@ public class FunctionRef {
     public FunctionRef(Class<?> expected, PainlessMethod interfaceMethod, LocalMethod delegateMethod, int numCaptures) {
         MethodType delegateMethodType = delegateMethod.methodType;
 
-        interfaceMethodName = interfaceMethod.javaMethod.getName();
-        factoryMethodType = MethodType.methodType(expected,
+        this.interfaceMethodName = interfaceMethod.javaMethod.getName();
+        this.factoryMethodType = MethodType.methodType(expected,
                 delegateMethodType.dropParameterTypes(numCaptures, delegateMethodType.parameterCount()));
-        interfaceMethodType = interfaceMethod.methodType.dropParameterTypes(0, 1);
+        this.interfaceMethodType = interfaceMethod.methodType.dropParameterTypes(0, 1);
 
-        delegateClassName = CLASS_NAME;
-        isDelegateInterface = false;
-        delegateInvokeType = H_INVOKESTATIC;
+        this.delegateClassName = CLASS_NAME;
+        this.isDelegateInterface = false;
+        this.delegateInvokeType = H_INVOKESTATIC;
 
-        delegateMethodName = delegateMethod.name;
+        this.delegateMethodName = delegateMethod.name;
         this.delegateMethodType = delegateMethodType.dropParameterTypes(0, numCaptures);
 
         this.interfaceMethod = interfaceMethod;
-        delegateTypeParameters = delegateMethod.typeParameters;
-        delegateReturnType = delegateMethod.returnType;
+        this.delegateTypeParameters = delegateMethod.typeParameters;
+        this.delegateReturnType = delegateMethod.returnType;
 
-        factoryDescriptor = factoryMethodType.toMethodDescriptorString();
-        interfaceType = Type.getMethodType(interfaceMethodType.toMethodDescriptorString());
-        delegateType = Type.getMethodType(this.delegateMethodType.toMethodDescriptorString());
+        this.factoryDescriptor = factoryMethodType.toMethodDescriptorString();
+        this.interfaceType = Type.getMethodType(interfaceMethodType.toMethodDescriptorString());
+        this.delegateType = Type.getMethodType(this.delegateMethodType.toMethodDescriptorString());
     }
 
     /**
@@ -204,24 +204,24 @@ public class FunctionRef {
      */
     public FunctionRef(Class<?> expected,
                        PainlessMethod interfaceMethod, String delegateMethodName, MethodType delegateMethodType, int numCaptures) {
-        interfaceMethodName = interfaceMethod.javaMethod.getName();
-        factoryMethodType = MethodType.methodType(expected,
+        this.interfaceMethodName = interfaceMethod.javaMethod.getName();
+        this.factoryMethodType = MethodType.methodType(expected,
             delegateMethodType.dropParameterTypes(numCaptures, delegateMethodType.parameterCount()));
-        interfaceMethodType = interfaceMethod.methodType.dropParameterTypes(0, 1);
+        this.interfaceMethodType = interfaceMethod.methodType.dropParameterTypes(0, 1);
 
-        delegateClassName = CLASS_NAME;
-        delegateInvokeType = H_INVOKESTATIC;
+        this.delegateClassName = CLASS_NAME;
+        this.delegateInvokeType = H_INVOKESTATIC;
         this.delegateMethodName = delegateMethodName;
         this.delegateMethodType = delegateMethodType.dropParameterTypes(0, numCaptures);
-        isDelegateInterface = false;
+        this.isDelegateInterface = false;
 
         this.interfaceMethod = null;
-        delegateTypeParameters = null;
-        delegateReturnType = null;
+        this.delegateTypeParameters = null;
+        this.delegateReturnType = null;
 
-        factoryDescriptor = null;
-        interfaceType = null;
-        delegateType = null;
+        this.factoryDescriptor = null;
+        this.interfaceType = null;
+        this.delegateType = null;
     }
 
     /**

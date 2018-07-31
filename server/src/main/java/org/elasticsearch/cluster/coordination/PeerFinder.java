@@ -54,7 +54,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import static java.util.Collections.unmodifiableList;
-import static org.elasticsearch.cluster.coordination.RunnableUtils.labelRunnable;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
 public abstract class PeerFinder extends AbstractLifecycleComponent {
@@ -249,29 +248,55 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
             masterNodes.forEach(e -> startProbe(e.value));
 
             if (resolveInProgress.compareAndSet(false, true)) {
-                executorService.get().execute(labelRunnable(() -> {
-                    // No synchronisation required for most of this
-                    List<TransportAddress> providedAddresses
-                        = new ArrayList<>(hostsProvider.buildDynamicHosts((hosts, limitPortCounts)
-                        -> UnicastZenPing.resolveHostsLists(executorService.get(), logger, hosts, limitPortCounts,
-                        transportService, resolveTimeout)));
-
-                    lastConnectedAddresses.set(unmodifiableList(providedAddresses));
-
-                    logger.trace("ActivePeerFinder#handleNextWakeUp(): probing resolved transport addresses {}", providedAddresses);
-                    synchronized (mutex) {
-                        providedAddresses.forEach(ActivePeerFinder.this::startProbe);
+                transportService.getThreadPool().generic().execute(new AbstractRunnable() {
+                    @Override
+                    public void onFailure(Exception e) {
                     }
 
-                    resolveInProgress.set(false);
-                }, "PeerFinder resolving unicast hosts list"));
+                    @Override
+                    protected void doRun() {
+                        // No synchronisation required for most of this
+                        List<TransportAddress> providedAddresses
+                            = new ArrayList<>(hostsProvider.buildDynamicHosts((hosts, limitPortCounts)
+                            -> UnicastZenPing.resolveHostsLists(executorService.get(), logger, hosts, limitPortCounts,
+                            transportService, resolveTimeout)));
+
+                        lastConnectedAddresses.set(unmodifiableList(providedAddresses));
+
+                        logger.trace("ActivePeerFinder#handleNextWakeUp(): probing resolved transport addresses {}", providedAddresses);
+                        synchronized (mutex) {
+                            providedAddresses.forEach(ActivePeerFinder.this::startProbe);
+                        }
+                    }
+
+                    @Override
+                    public void onAfter() {
+                        super.onAfter();
+                        resolveInProgress.set(false);
+                    }
+
+                    @Override
+                    public String toString() {
+                        return "PeerFinder resolving unicast hosts list";
+                    }
+                });
             }
 
             final List<TransportAddress> transportAddresses = lastConnectedAddresses.get();
             logger.trace("ActivePeerFinder#handleNextWakeUp(): probing supplied transport addresses {}", transportAddresses);
             transportAddresses.forEach(this::startProbe);
 
-            futureExecutor.schedule(labelRunnable(this::handleWakeUp, "ActivePeerFinder::handleWakeUp"), findPeersDelay);
+            futureExecutor.schedule(new Runnable() {
+                @Override
+                public void run() {
+                    handleWakeUp();
+                }
+
+                @Override
+                public String toString() {
+                    return "ActivePeerFinder::handleWakeUp";
+                }
+            }, findPeersDelay);
         }
 
         void startProbe(DiscoveryNode discoveryNode) {

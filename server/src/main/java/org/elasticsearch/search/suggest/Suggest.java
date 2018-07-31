@@ -260,6 +260,10 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             name = in.readString();
             size = in.readVInt();
 
+            if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+                innerReadFrom(in);
+            }
+
             int entriesCount = in.readVInt();
             entries.clear();
             for (int i = 0; i < entriesCount; i++) {
@@ -287,6 +291,10 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         public Iterator<T> iterator() {
             return entries.iterator();
         }
+
+        // this remains for backwards compatibility
+        @Deprecated
+        protected void innerReadFrom(StreamInput in) throws IOException {}
 
         /**
          * @return The entries for this suggestion.
@@ -364,11 +372,19 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             out.writeString(name);
             out.writeVInt(size);
 
+            if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+                innerWriteTo(out);
+            }
+
             out.writeVInt(entries.size());
             for (Entry<?> entry : entries) {
                 entry.writeTo(out);
             }
         }
+
+        // this remains for backwards compatibility
+        @Deprecated
+        protected void innerWriteTo(StreamOutput out) throws IOException {}
 
         @Override
         public abstract String getWriteableName();

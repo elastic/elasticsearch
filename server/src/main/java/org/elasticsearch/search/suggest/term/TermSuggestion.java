@@ -19,6 +19,7 @@
 package org.elasticsearch.search.suggest.term;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -59,6 +60,14 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
 
     public TermSuggestion(StreamInput in) throws IOException {
         super(in);
+
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            sort = SortBy.readFromStream(in);
+        }
+    }
+
+    @Override
+    protected void innerReadFrom(StreamInput in) throws IOException {
         sort = SortBy.readFromStream(in);
     }
 
@@ -123,6 +132,14 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            sort.writeTo(out);
+        }
+    }
+
+    @Override
+    protected void innerWriteTo(StreamOutput out) throws IOException {
         sort.writeTo(out);
     }
 

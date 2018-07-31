@@ -484,6 +484,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             assert operationPrimaryTerm < newPrimaryTerm;
                             operationPrimaryTerm = newPrimaryTerm;
                             try {
+                                replicationTracker.activatePrimaryMode(getLocalCheckpoint());
                                 /*
                                  * If this shard was serving as a replica shard when another shard was promoted to primary then the state of
                                  * its local checkpoint tracker was reset during the primary term transition. In particular, the local
@@ -528,7 +529,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                 // okay, the index was deleted
                             }
                         });
-                    replicationTracker.activatePrimaryMode(getLocalCheckpoint());
                 }
             }
             // set this last, once we finished updating all internal state.

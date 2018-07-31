@@ -40,6 +40,6 @@ final class FIPS140LicenseBootstrapCheck implements BootstrapCheck {
 
     @Override
     public boolean alwaysEnforce() {
-        return isInFipsMode;
+        return true;
     }
 }

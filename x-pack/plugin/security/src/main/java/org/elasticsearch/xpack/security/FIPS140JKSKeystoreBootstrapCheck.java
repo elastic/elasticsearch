@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.core.XPackSettings;
 
 
 public class FIPS140JKSKeystoreBootstrapCheck implements BootstrapCheck {
@@ -15,7 +16,7 @@ public class FIPS140JKSKeystoreBootstrapCheck implements BootstrapCheck {
     private final boolean fipsModeEnabled;
 
     FIPS140JKSKeystoreBootstrapCheck(Settings settings) {
-        this.fipsModeEnabled = Security.FIPS_MODE_ENABLED.get(settings);
+        this.fipsModeEnabled = XPackSettings.FIPS_MODE_ENABLED.get(settings);
     }
 
     /**

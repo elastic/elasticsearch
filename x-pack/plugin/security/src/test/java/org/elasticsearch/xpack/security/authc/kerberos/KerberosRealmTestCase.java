@@ -107,7 +107,6 @@ public abstract class KerberosRealmTestCase extends ESTestCase {
                 is(equalTo(KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER_PREFIX + outToken)));
     }
 
-
     protected KerberosRealm createKerberosRealm(final String... userForRoleMapping) {
         return createKerberosRealm(Collections.emptyList(), userForRoleMapping);
     }

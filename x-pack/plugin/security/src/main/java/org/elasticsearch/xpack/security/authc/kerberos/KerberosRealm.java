@@ -199,12 +199,7 @@ public final class KerberosRealm extends Realm implements CachingRealm {
         }
 
         if (delegatedRealms.hasDelegation()) {
-            delegatedRealms.resolve(username, ActionListener.wrap(result -> {
-                if (result.isAuthenticated() && userPrincipalNameToUserCache != null) {
-                    userPrincipalNameToUserCache.put(username, result.getUser());
-                }
-                listener.onResponse(result);
-            }, listener::onFailure));
+            delegatedRealms.resolve(username, listener);
         } else {
             final User user = (userPrincipalNameToUserCache != null) ? userPrincipalNameToUserCache.get(username) : null;
             if (user != null) {

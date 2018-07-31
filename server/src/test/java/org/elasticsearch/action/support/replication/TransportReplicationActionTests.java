@@ -25,6 +25,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -371,8 +372,11 @@ public class TransportReplicationActionTests extends ESTestCase {
     public void testClosedIndexOnReroute() throws InterruptedException {
         final String index = "test";
         // no replicas in oder to skip the replication part
-        setState(clusterService, new ClusterStateChanges(xContentRegistry(), threadPool).closeIndices(state(index, true,
-            ShardRoutingState.UNASSIGNED), new CloseIndexRequest(index)));
+        ClusterStateChanges clusterStateChanges = new ClusterStateChanges(xContentRegistry(), threadPool);
+        setState(clusterService, clusterStateChanges.closeIndices(
+            clusterStateChanges.createIndex(clusterService.state(), new CreateIndexRequest(index)),
+            new CloseIndexRequest(index)));
+        assertThat(clusterService.state().metaData().indices().get(index).getState(), equalTo(IndexMetaData.State.CLOSE));
         logger.debug("--> using initial state:\n{}", clusterService.state());
         Request request = new Request(new ShardId("test", "_na_", 0)).timeout("1ms");
         PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();

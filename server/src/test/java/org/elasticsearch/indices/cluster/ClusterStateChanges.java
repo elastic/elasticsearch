@@ -296,14 +296,14 @@ public class ClusterStateChanges extends AbstractComponent {
             assertNull(nextMasterTaskToRun.get());
         } else {
             assertNotNull(nextMasterTaskToRun.get());
-            nextMasterTaskToRun.get().run();
+            nextMasterTaskToRun.getAndSet(null).run();
             ClusterState firstClusterState = lastClusterStateRef.get();
             for (int i = 1; i < entries.size(); i++) {
-                nextMasterTaskToRun.get().run();
+                nextMasterTaskToRun.getAndSet(null).run();
                 assertSame(firstClusterState, lastClusterStateRef.get()); // due to batching, only the first actually does something
             }
         }
-        nextMasterTaskToRun.set(null);
+        assertNull(nextMasterTaskToRun.get());
         return lastClusterStateRef.get();
     }
 
@@ -317,8 +317,8 @@ public class ClusterStateChanges extends AbstractComponent {
             throw new RuntimeException(e);
         }
         assertNotNull(nextMasterTaskToRun.get());
-        nextMasterTaskToRun.get().run();
-        nextMasterTaskToRun.set(null);
+        nextMasterTaskToRun.getAndSet(null).run();
+        assertNull(nextMasterTaskToRun.get());
         return lastClusterStateRef.get();
     }
 

@@ -77,7 +77,7 @@ public final class ESLoggerFactory {
     }
 
     /**
-     * Get or build a logger.
+     * Get the root logger.
      * @deprecated Prefer {@link LogManager.getRootLogger}
      */
     @Deprecated

@@ -6,8 +6,12 @@
 that runs the benchmarks)
 4. Run the benchmark with
 ```
-./gradlew -p client/benchmark run --args 'params go here'
+./gradlew -p client/benchmark run --args ' params go here'
 ```
+
+Everything in the `'` gets sent on the command line to JMH. The leading ` `
+inside the `'`s is important. Without it parameters are sometimes sent to
+gradle.
 
 See below for some example invocations.
 

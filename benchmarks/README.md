@@ -24,10 +24,12 @@ If you want to run a specific benchmark class like, say,
 `MemoryStatsBenchmark`, you can use `--args`:
 
 ```
-gradlew -p benchmarks run --args 'MemoryStatsBenchmark'
+gradlew -p benchmarks run --args ' MemoryStatsBenchmark'
 ```
 
-Everything in the `'` gets sent on the command line to JMH.
+Everything in the `'` gets sent on the command line to JMH. The leading ` `
+inside the `'`s is important. Without it parameters are sometimes sent to
+gradle.
 
 ## Adding Microbenchmarks
 

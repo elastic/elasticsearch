@@ -20,6 +20,7 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.api.Augmentation;
+import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.script.ScriptException;
 import org.objectweb.asm.Handle;
 import org.objectweb.asm.Opcodes;
@@ -74,12 +75,12 @@ public final class WriterConstants {
     public static final Type STACK_OVERFLOW_ERROR_TYPE   = Type.getType(StackOverflowError.class);
     public static final Type EXCEPTION_TYPE              = Type.getType(Exception.class);
     public static final Type PAINLESS_EXPLAIN_ERROR_TYPE = Type.getType(PainlessExplainError.class);
-    public static final Method PAINLESS_EXPLAIN_ERROR_GET_HEADERS_METHOD = getAsmMethod(Map.class, "getHeaders", Definition.class);
+    public static final Method PAINLESS_EXPLAIN_ERROR_GET_HEADERS_METHOD = getAsmMethod(Map.class, "getHeaders", PainlessLookup.class);
 
     public static final Type OBJECT_TYPE = Type.getType(Object.class);
     public static final Type BITSET_TYPE = Type.getType(BitSet.class);
 
-    public static final Type DEFINITION_TYPE = Type.getType(Definition.class);
+    public static final Type DEFINITION_TYPE = Type.getType(PainlessLookup.class);
 
     public static final Type COLLECTIONS_TYPE = Type.getType(Collections.class);
     public static final Method EMPTY_MAP_METHOD = getAsmMethod(Map.class, "emptyMap");
@@ -103,10 +104,10 @@ public final class WriterConstants {
     public static final Type AUGMENTATION_TYPE = Type.getType(Augmentation.class);
 
     /**
-     * A Method instance for {@linkplain Pattern#compile}. This isn't available from Definition because we intentionally don't add it there
-     * so that the script can't create regexes without this syntax. Essentially, our static regex syntax has a monopoly on building regexes
-     * because it can do it statically. This is both faster and prevents the script from doing something super slow like building a regex
-     * per time it is run.
+     * A Method instance for {@linkplain Pattern#compile}. This isn't available from PainlessLookup because we intentionally don't add it
+     * there so that the script can't create regexes without this syntax. Essentially, our static regex syntax has a monopoly on building
+     * regexes because it can do it statically. This is both faster and prevents the script from doing something super slow like building a
+     * regex per time it is run.
      */
     public static final Method PATTERN_COMPILE = getAsmMethod(Pattern.class, "compile", String.class, int.class);
     public static final Method PATTERN_MATCHER = getAsmMethod(Matcher.class, "matcher", CharSequence.class);
@@ -118,7 +119,7 @@ public final class WriterConstants {
     static final Handle DEF_BOOTSTRAP_HANDLE = new Handle(Opcodes.H_INVOKESTATIC, CLASS_TYPE.getInternalName(), "$bootstrapDef",
             DEF_BOOTSTRAP_METHOD.getDescriptor(), false);
     public static final Type DEF_BOOTSTRAP_DELEGATE_TYPE = Type.getType(DefBootstrap.class);
-    public static final Method DEF_BOOTSTRAP_DELEGATE_METHOD = getAsmMethod(CallSite.class, "bootstrap", Definition.class,
+    public static final Method DEF_BOOTSTRAP_DELEGATE_METHOD = getAsmMethod(CallSite.class, "bootstrap", PainlessLookup.class,
             MethodHandles.Lookup.class, String.class, MethodType.class, int.class, int.class, Object[].class);
 
     public static final Type DEF_UTIL_TYPE = Type.getType(Def.class);

@@ -45,9 +45,10 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestResponseListener;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -379,7 +380,7 @@ public class RestIndicesAction extends AbstractCatAction {
             table.addCell(primaryStats.getDocs() == null ? null : primaryStats.getDocs().getDeleted());
 
             table.addCell(indexMetaData.getCreationDate());
-            table.addCell(new DateTime(indexMetaData.getCreationDate(), DateTimeZone.UTC));
+            table.addCell(ZonedDateTime.ofInstant(Instant.ofEpochMilli(indexMetaData.getCreationDate()), ZoneOffset.UTC));
 
             table.addCell(totalStats.getStore() == null ? null : totalStats.getStore().size());
             table.addCell(primaryStats.getStore() == null ? null : primaryStats.getStore().size());

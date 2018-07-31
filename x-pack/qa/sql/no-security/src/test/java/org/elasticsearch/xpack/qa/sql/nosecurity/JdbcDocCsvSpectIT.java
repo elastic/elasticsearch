@@ -11,7 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.xpack.qa.sql.jdbc.CsvTestUtils.CsvTestCase;
 import org.elasticsearch.xpack.qa.sql.jdbc.DataLoader;
-import org.elasticsearch.xpack.qa.sql.jdbc.JdbcAssert;
+import org.elasticsearch.xpack.qa.sql.jdbc.JdbcTestUtils;
 import org.elasticsearch.xpack.qa.sql.jdbc.SpecBaseIntegrationTestCase;
 import org.elasticsearch.xpack.qa.sql.jdbc.SqlSpecTestCase;
 
@@ -68,8 +68,8 @@ public class JdbcDocCsvSpectIT extends SpecBaseIntegrationTestCase {
         //
         // uncomment this to printout the result set and create new CSV tests
         //
-        //JdbcTestUtils.logLikeCLI(elastic, log);
-        JdbcAssert.assertResultSets(expected, elastic, log, true);
+        JdbcTestUtils.logLikeCLI(elastic, log);
+        //JdbcAssert.assertResultSets(expected, elastic, log, true);
     }
 
     @Override

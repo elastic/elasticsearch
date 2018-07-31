@@ -39,6 +39,15 @@ integTestCluster {
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
 }
 
+// remove when https://github.com/elastic/elasticsearch/issues/31305 is fixed
+if (rootProject.ext.compilerJavaVersion.isJava11()) {
+  integTestRunner {
+    systemProperty 'tests.rest.blacklist', [
+            'plugins/ingest-attachment/line_164',
+            'plugins/ingest-attachment/line_117'
+    ].join(',')
+  }
+}
 // Build the cluster with all plugins
 
 project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { subproj ->
@@ -370,9 +379,9 @@ buildRestTests.setups['exams'] = '''
           refresh: true
           body: |
             {"index":{}}
-            {"grade": 100}
+            {"grade": 100, "weight": 2}
             {"index":{}}
-            {"grade": 50}'''
+            {"grade": 50, "weight": 3}'''
 
 buildRestTests.setups['stored_example_script'] = '''
   # Simple script to load a field. Not really a good example, but a simple one.

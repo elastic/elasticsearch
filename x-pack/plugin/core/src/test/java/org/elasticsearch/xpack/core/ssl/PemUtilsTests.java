@@ -53,6 +53,7 @@ public class PemUtilsTests extends ESTestCase {
     }
 
     public void testReadEncryptedPKCS8Key() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, PBE KeySpec is not available", inFipsJvm());
         Key key = getKeyFromKeystore("RSA");
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));

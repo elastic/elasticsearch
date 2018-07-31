@@ -80,6 +80,7 @@ public class TermsGroupConfig implements Writeable, ToXContentFragment {
             TermsValuesSourceBuilder vsBuilder
                     = new TermsValuesSourceBuilder(RollupField.formatIndexerAggName(f, TermsAggregationBuilder.NAME));
             vsBuilder.field(f);
+            vsBuilder.missingBucket(true);
             return vsBuilder;
         }).collect(Collectors.toList());
     }

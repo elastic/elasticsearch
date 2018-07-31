@@ -63,7 +63,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         long docsInPrimaryShards = 100;
         long docsInShards = 200;
 
-        final Condition condition = createTestCondition();
+        final Condition<?> condition = createTestCondition();
         evaluateConditions(Sets.newHashSet(condition), createMetaData(), createIndicesStatResponse(docsInShards, docsInPrimaryShards));
         final ArgumentCaptor<Condition.Stats> argument = ArgumentCaptor.forClass(Condition.Stats.class);
         verify(condition).evaluate(argument.capture());
@@ -89,7 +89,7 @@ public class TransportRolloverActionTests extends ESTestCase {
             .creationDate(System.currentTimeMillis() - TimeValue.timeValueHours(3).getMillis())
             .settings(settings)
             .build();
-        final Set<Condition> conditions = Sets.newHashSet(maxDocsCondition, maxAgeCondition, maxSizeCondition);
+        final Set<Condition<?>> conditions = Sets.newHashSet(maxDocsCondition, maxAgeCondition, maxSizeCondition);
         Map<String, Boolean> results = evaluateConditions(conditions,
             new DocsStats(matchMaxDocs, 0L, ByteSizeUnit.MB.toBytes(120)), metaData);
         assertThat(results.size(), equalTo(3));
@@ -117,7 +117,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         MaxAgeCondition maxAgeCondition = new MaxAgeCondition(TimeValue.timeValueHours(randomIntBetween(1, 3)));
         MaxSizeCondition maxSizeCondition = new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong()));
 
-        Set<Condition> conditions = Sets.newHashSet(maxDocsCondition, maxAgeCondition, maxSizeCondition);
+        Set<Condition<?>> conditions = Sets.newHashSet(maxDocsCondition, maxAgeCondition, maxSizeCondition);
         final Settings settings = Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
@@ -285,8 +285,8 @@ public class TransportRolloverActionTests extends ESTestCase {
             .build();
     }
 
-    private static Condition createTestCondition() {
-        final Condition condition = mock(Condition.class);
+    private static Condition<?> createTestCondition() {
+        final Condition<?> condition = mock(Condition.class);
         when(condition.evaluate(any())).thenReturn(new Condition.Result(condition, true));
         return condition;
     }

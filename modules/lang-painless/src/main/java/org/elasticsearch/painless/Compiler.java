@@ -21,6 +21,7 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.painless.antlr.Walker;
+import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.node.SSource;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.objectweb.asm.util.Printer;
@@ -70,26 +71,26 @@ final class Compiler {
      */
     static final class Loader extends SecureClassLoader {
         private final AtomicInteger lambdaCounter = new AtomicInteger(0);
-        private final Definition definition;
+        private final PainlessLookup painlessLookup;
 
         /**
          * @param parent The parent ClassLoader.
          */
-        Loader(ClassLoader parent, Definition definition) {
+        Loader(ClassLoader parent, PainlessLookup painlessLookup) {
             super(parent);
 
-            this.definition = definition;
+            this.painlessLookup = painlessLookup;
         }
 
         /**
          * Will check to see if the {@link Class} has already been loaded when
-         * the {@link Definition} was initially created.  Allows for {@link Whitelist}ed
+         * the {@link PainlessLookup} was initially created.  Allows for {@link Whitelist}ed
          * classes to be loaded from other modules/plugins without a direct relationship
          * to the module's/plugin's {@link ClassLoader}.
          */
         @Override
         public Class<?> findClass(String name) throws ClassNotFoundException {
-            Class<?> found = definition.getClassFromBinaryName(name);
+            Class<?> found = painlessLookup.getClassFromBinaryName(name);
 
             return found != null ? found : super.findClass(name);
         }
@@ -135,10 +136,10 @@ final class Compiler {
 
     /**
      * Return a new {@link Loader} for a script using the
-     * {@link Compiler}'s specified {@link Definition}.
+     * {@link Compiler}'s specified {@link PainlessLookup}.
      */
     public Loader createLoader(ClassLoader parent) {
-        return new Loader(parent, definition);
+        return new Loader(parent, painlessLookup);
     }
 
     /**
@@ -149,16 +150,16 @@ final class Compiler {
     /**
      * The whitelist the script will use.
      */
-    private final Definition definition;
+    private final PainlessLookup painlessLookup;
 
     /**
      * Standard constructor.
      * @param base The class/interface the script is guaranteed to derive/implement.
-     * @param definition The whitelist the script will use.
+     * @param painlessLookup The whitelist the script will use.
      */
-    Compiler(Class<?> base, Definition definition) {
+    Compiler(Class<?> base, PainlessLookup painlessLookup) {
         this.base = base;
-        this.definition = definition;
+        this.painlessLookup = painlessLookup;
     }
 
     /**
@@ -176,10 +177,10 @@ final class Compiler {
                 " plugin if a script longer than this length is a requirement.");
         }
 
-        ScriptClassInfo scriptClassInfo = new ScriptClassInfo(definition, base);
-        SSource root = Walker.buildPainlessTree(scriptClassInfo, reserved, name, source, settings, definition,
+        ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, base);
+        SSource root = Walker.buildPainlessTree(scriptClassInfo, reserved, name, source, settings, painlessLookup,
                 null);
-        root.analyze(definition);
+        root.analyze(painlessLookup);
         root.write();
 
         try {
@@ -187,7 +188,7 @@ final class Compiler {
             clazz.getField("$NAME").set(null, name);
             clazz.getField("$SOURCE").set(null, source);
             clazz.getField("$STATEMENTS").set(null, root.getStatements());
-            clazz.getField("$DEFINITION").set(null, definition);
+            clazz.getField("$DEFINITION").set(null, painlessLookup);
 
             return clazz.getConstructors()[0];
         } catch (Exception exception) { // Catch everything to let the user know this is something caused internally.
@@ -208,10 +209,10 @@ final class Compiler {
                 " plugin if a script longer than this length is a requirement.");
         }
 
-        ScriptClassInfo scriptClassInfo = new ScriptClassInfo(definition, base);
-        SSource root = Walker.buildPainlessTree(scriptClassInfo, new MainMethodReserved(), name, source, settings, definition,
+        ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, base);
+        SSource root = Walker.buildPainlessTree(scriptClassInfo, new MainMethodReserved(), name, source, settings, painlessLookup,
                 debugStream);
-        root.analyze(definition);
+        root.analyze(painlessLookup);
         root.write();
 
         return root.getBytes();

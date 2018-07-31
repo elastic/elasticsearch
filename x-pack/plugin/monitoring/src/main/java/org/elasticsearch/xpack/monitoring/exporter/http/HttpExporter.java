@@ -34,6 +34,8 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
+import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
+import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
@@ -50,6 +52,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * {@code HttpExporter} uses the low-level {@link RestClient} to connect to a user-specified set of nodes for exporting Monitoring
@@ -253,6 +256,30 @@ public class HttpExporter extends Exporter {
     }
 
     /**
+     * Adds a validator for the {@link #SSL_SETTING} to prevent dynamic updates when secure settings also exist within that setting
+     * groups (ssl context).
+     * Because it is not possible to re-read the secure settings during a dynamic update, we cannot rebuild the {@link SSLIOSessionStrategy}
+     * (see {@link #configureSecurity(RestClientBuilder, Config, SSLService)} if this exporter has been configured with secure settings
+     */
+    public static void registerSettingValidators(ClusterService clusterService) {
+        clusterService.getClusterSettings().addAffixUpdateConsumer(SSL_SETTING,
+            (ignoreKey, ignoreSettings) -> {
+            // no-op update. We only care about the validator
+            },
+            (namespace, settings) -> {
+                final List<String> secureSettings = SSLConfigurationSettings.withoutPrefix()
+                    .getSecureSettingsInUse(settings)
+                    .stream()
+                    .map(Setting::getKey)
+                    .collect(Collectors.toList());
+                if (secureSettings.isEmpty() == false) {
+                    throw new IllegalStateException("Cannot dynamically update SSL settings for the exporter [" + namespace
+                        + "] as it depends on the secure setting(s) [" + Strings.collectionToCommaDelimitedString(secureSettings) + "]");
+                }
+            });
+    }
+
+    /**
      * Create a {@link RestClientBuilder} from the HTTP Exporter's {@code config}.
      *
      * @param config The HTTP Exporter's configuration
@@ -443,8 +470,20 @@ public class HttpExporter extends Exporter {
      * @throws SettingsException if any setting causes issues
      */
     private static void configureSecurity(final RestClientBuilder builder, final Config config, final SSLService sslService) {
-        final Settings sslSettings = SSL_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
-        final SSLIOSessionStrategy sslStrategy = sslService.sslIOSessionStrategy(sslSettings);
+        final Setting<Settings> concreteSetting = SSL_SETTING.getConcreteSettingForNamespace(config.name());
+        final Settings sslSettings = concreteSetting.get(config.settings());
+        final SSLIOSessionStrategy sslStrategy;
+        if (SSLConfigurationSettings.withoutPrefix().getSecureSettingsInUse(sslSettings).isEmpty()) {
+            // This configuration does not use secure settings, so it is possible that is has been dynamically updated.
+            // We need to load a new SSL strategy in case these settings differ from the ones that the SSL service was configured with.
+            sslStrategy = sslService.sslIOSessionStrategy(sslSettings);
+        } else {
+            // This configuration uses secure settings. We cannot load a new SSL strategy, as the secure settings have already been closed.
+            // Due to #registerSettingValidators we know that the settings not been dynamically updated, and the pre-configured strategy
+            // is still the correct configuration for use in this exporter.
+            final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration(concreteSetting.getKey());
+            sslStrategy = sslService.sslIOSessionStrategy(sslConfiguration);
+        }
         final CredentialsProvider credentialsProvider = createCredentialsProvider(config);
         List<String> hostList = HOST_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
         // sending credentials in plaintext!

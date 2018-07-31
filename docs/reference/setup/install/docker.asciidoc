@@ -8,17 +8,12 @@ A list of all published Docker images and tags can be found in
 https://www.docker.elastic.co[www.docker.elastic.co]. The source code can be found
 on https://github.com/elastic/elasticsearch-docker/tree/{branch}[GitHub].
 
-==== Image types
-
 These images are free to use under the Elastic license. They contain open source 
 and free commercial features and access to paid commercial features.  
 {xpack-ref}/license-management.html[Start a 30-day trial] to try out all of the 
 paid commercial features. See the 
 https://www.elastic.co/subscriptions[Subscriptions] page for information about 
 Elastic license levels.
-
-Alternatively, you can download `-oss` images, which contain only features that 
-are available under the Apache 2.0 license.
 
 ==== Pulling the image
 
@@ -34,13 +29,16 @@ endif::[]
 
 ifeval::["{release-state}"!="unreleased"]
 
-Docker images can be retrieved with the following commands:
+For example, the Docker image can be retrieved with the following command:
 
 ["source","sh",subs="attributes"]
 --------------------------------------------
 docker pull {docker-repo}:{version}
-docker pull {docker-repo}-oss:{version}
 --------------------------------------------
+
+Alternatively, you can download other Docker images that contain only features 
+that are available under the Apache 2.0 license from 
+https://www.docker.elastic.co[www.docker.elastic.co]. 
 
 endif::[]
 

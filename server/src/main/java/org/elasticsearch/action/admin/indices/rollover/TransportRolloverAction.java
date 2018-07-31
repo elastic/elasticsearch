@@ -132,7 +132,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                             new RolloverResponse(sourceIndexName, rolloverIndexName, conditionResults, true, false, false, false));
                         return;
                     }
-                    List<Condition> metConditions =  rolloverRequest.getConditions().values().stream()
+                    List<Condition<?>> metConditions =  rolloverRequest.getConditions().values().stream()
                         .filter(condition -> conditionResults.get(condition.toString())).collect(Collectors.toList());
                     if (conditionResults.size() == 0 || metConditions.size() > 0) {
                         CreateIndexClusterStateUpdateRequest updateRequest = prepareCreateIndexRequest(unresolvedName, rolloverIndexName,
@@ -221,7 +221,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         }
     }
 
-    static Map<String, Boolean> evaluateConditions(final Collection<Condition> conditions,
+    static Map<String, Boolean> evaluateConditions(final Collection<Condition<?>> conditions,
                                                    final DocsStats docsStats, final IndexMetaData metaData) {
         final long numDocs = docsStats == null ? 0 : docsStats.getCount();
         final long indexSize = docsStats == null ? 0 : docsStats.getTotalSizeInBytes();
@@ -231,7 +231,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             .collect(Collectors.toMap(result -> result.condition.toString(), result -> result.matched));
     }
 
-    static Map<String, Boolean> evaluateConditions(final Collection<Condition> conditions, final IndexMetaData metaData,
+    static Map<String, Boolean> evaluateConditions(final Collection<Condition<?>> conditions, final IndexMetaData metaData,
                                                     final IndicesStatsResponse statsResponse) {
         return evaluateConditions(conditions, statsResponse.getPrimaries().getDocs(), metaData);
     }

@@ -19,11 +19,11 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.PainlessMethod;
 
 import java.util.Set;
 
@@ -34,10 +34,10 @@ final class PSubShortcut extends AStoreable {
 
     private final String value;
     private final String type;
-    private final Method getter;
-    private final Method setter;
+    private final PainlessMethod getter;
+    private final PainlessMethod setter;
 
-    PSubShortcut(Location location, String value, String type, Method getter, Method setter) {
+    PSubShortcut(Location location, String value, String type, PainlessMethod getter, PainlessMethod setter) {
         super(location);
 
         this.value = value;

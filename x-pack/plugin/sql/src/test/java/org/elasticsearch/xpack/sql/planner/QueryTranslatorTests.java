@@ -139,4 +139,14 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("date", rq.field());
         assertEquals(DateTime.parse("1969-05-13T12:34:56Z"), rq.lower());
     }
+    
+    public void testLikeConstructsNotSupported() {
+        LogicalPlan p = plan("SELECT LTRIM(keyword) lt FROM test WHERE LTRIM(keyword) LIKE '%a%'");
+        assertTrue(p instanceof Project);
+        p = ((Project) p).child();
+        assertTrue(p instanceof Filter);
+        Expression condition = ((Filter) p).condition();
+        SqlIllegalArgumentException ex = expectThrows(SqlIllegalArgumentException.class, () -> QueryTranslator.toQuery(condition, false));
+        assertEquals("Scalar function (LTRIM(keyword)) not allowed (yet) as arguments for LIKE", ex.getMessage());
+    }
 }

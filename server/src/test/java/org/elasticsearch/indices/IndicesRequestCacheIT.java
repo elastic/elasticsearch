@@ -30,11 +30,11 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.joda.time.chrono.ISOChronology;
-import org.joda.time.format.DateTimeFormat;
 
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHistogram;
@@ -255,7 +255,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
                 .setSettings(settings).get());
         assertAcked(client.admin().indices().prepareCreate("index-3").addMapping("type", "d", "type=date")
                 .setSettings(settings).get());
-        DateTime now = new DateTime(ISOChronology.getInstanceUTC());
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         indexRandom(true, client.prepareIndex("index-1", "type", "1").setSource("d", now),
                 client.prepareIndex("index-1", "type", "2").setSource("d", now.minusDays(1)),
                 client.prepareIndex("index-1", "type", "3").setSource("d", now.minusDays(2)),
@@ -456,9 +456,9 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
             .setSettings(settings)
             .addAlias(new Alias("last_week").filter(QueryBuilders.rangeQuery("created_at").gte("now-7d/d")))
             .get());
-        DateTime now = new DateTime(DateTimeZone.UTC);
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         client.prepareIndex("index", "type", "1").setRouting("1").setSource("created_at",
-            DateTimeFormat.forPattern("YYYY-MM-dd").print(now)).get();
+            DateTimeFormatter.ISO_LOCAL_DATE.format(now)).get();
         refresh();
 
         assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),

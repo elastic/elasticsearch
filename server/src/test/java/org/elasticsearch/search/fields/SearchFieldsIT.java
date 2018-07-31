@@ -28,8 +28,9 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -49,7 +50,12 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableDateTime;
+import org.joda.time.base.BaseDateTime;
+import org.joda.time.format.DateTimeFormat;
+import org.joda.time.format.DateTimeFormatter;
 
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -90,7 +96,6 @@ public class SearchFieldsIT extends ESIntegTestCase {
     public static class CustomScriptPlugin extends MockScriptPlugin {
 
         @Override
-        @SuppressWarnings("unchecked")
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
 
@@ -137,7 +142,6 @@ public class SearchFieldsIT extends ESIntegTestCase {
             return scripts;
         }
 
-        @SuppressWarnings("unchecked")
         static Object fieldsScript(Map<String, Object> vars, String fieldName) {
             Map<?, ?> fields = (Map) vars.get("_fields");
             FieldLookup fieldLookup = (FieldLookup) fields.get(fieldName);
@@ -150,7 +154,6 @@ public class SearchFieldsIT extends ESIntegTestCase {
             return XContentMapValues.extractValue(path, source);
         }
 
-        @SuppressWarnings("unchecked")
         static Object docScript(Map<String, Object> vars, String fieldName) {
             Map<?, ?> doc = (Map) vars.get("doc");
             ScriptDocValues<?> values = (ScriptDocValues<?>) doc.get(fieldName);
@@ -546,6 +549,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
         client().admin().indices().preparePutMapping().setType("type1").setSource(mapping, XContentType.JSON).execute().actionGet();
 
+        ZonedDateTime date = ZonedDateTime.of(2012, 3, 22, 0, 0, 0, 0, ZoneOffset.UTC);
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("byte_field", (byte) 1)
                 .field("short_field", (short) 2)
@@ -553,7 +557,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .field("long_field", 4L)
                 .field("float_field", 5.0f)
                 .field("double_field", 6.0d)
-                .field("date_field", Joda.forPattern("dateOptionalTime").printer().print(new DateTime(2012, 3, 22, 0, 0, DateTimeZone.UTC)))
+                .field("date_field", DateFormatters.forPattern("dateOptionalTime").format(date))
                 .field("boolean_field", true)
                 .field("binary_field", Base64.getEncoder().encodeToString("testing text".getBytes("UTF-8")))
                 .endObject()).execute().actionGet();
@@ -578,7 +582,6 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(fields, equalTo(newHashSet("byte_field", "short_field", "integer_field", "long_field",
                 "float_field", "double_field", "date_field", "boolean_field", "binary_field")));
 
-
         SearchHit searchHit = searchResponse.getHits().getAt(0);
         assertThat(searchHit.getFields().get("byte_field").getValue().toString(), equalTo("1"));
         assertThat(searchHit.getFields().get("short_field").getValue().toString(), equalTo("2"));
@@ -586,7 +589,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(searchHit.getFields().get("long_field").getValue(), equalTo((Object) 4L));
         assertThat(searchHit.getFields().get("float_field").getValue(), equalTo((Object) 5.0f));
         assertThat(searchHit.getFields().get("double_field").getValue(), equalTo((Object) 6.0d));
-        String dateTime = Joda.forPattern("dateOptionalTime").printer().print(new DateTime(2012, 3, 22, 0, 0, DateTimeZone.UTC));
+        String dateTime = DateFormatters.forPattern("dateOptionalTime").format(date);
         assertThat(searchHit.getFields().get("date_field").getValue(), equalTo((Object) dateTime));
         assertThat(searchHit.getFields().get("boolean_field").getValue(), equalTo((Object) Boolean.TRUE));
         assertThat(searchHit.getFields().get("binary_field").getValue(), equalTo(new BytesArray("testing text" .getBytes("UTF8"))));
@@ -756,7 +759,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
         client().admin().indices().preparePutMapping().setType("type1").setSource(mapping, XContentType.JSON).execute().actionGet();
 
-        ReadableDateTime date = new DateTime(2012, 3, 22, 0, 0, DateTimeZone.UTC);
+        ZonedDateTime date = ZonedDateTime.of(2012, 3, 22, 0, 0, 0, 0, ZoneOffset.UTC);
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("text_field", "foo")
                 .field("keyword_field", "foo")
@@ -766,7 +769,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .field("long_field", 4L)
                 .field("float_field", 5.0f)
                 .field("double_field", 6.0d)
-                .field("date_field", Joda.forPattern("dateOptionalTime").printer().print(date))
+                .field("date_field", DateFormatters.forPattern("dateOptionalTime").format(date))
                 .field("boolean_field", true)
                 .field("binary_field", new byte[] {42, 100})
                 .field("ip_field", "::1")
@@ -802,7 +805,8 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).getFields().get("long_field").getValue(), equalTo((Object) 4L));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("float_field").getValue(), equalTo((Object) 5.0));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("double_field").getValue(), equalTo((Object) 6.0d));
-        assertThat(searchResponse.getHits().getAt(0).getFields().get("date_field").getValue(), equalTo(date));
+        BaseDateTime dateField = searchResponse.getHits().getAt(0).getFields().get("date_field").getValue();
+        assertThat(dateField.getMillis(), equalTo(date.toInstant().toEpochMilli()));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("boolean_field").getValue(), equalTo((Object) true));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("text_field").getValue(), equalTo("foo"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("keyword_field").getValue(), equalTo("foo"));
@@ -839,7 +843,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).getFields().get("float_field").getValue(), equalTo((Object) 5.0));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("double_field").getValue(), equalTo((Object) 6.0d));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("date_field").getValue(),
-                equalTo(Joda.forPattern("dateOptionalTime").printer().print(date)));
+                equalTo(DateFormatters.forPattern("dateOptionalTime").format(date)));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("boolean_field").getValue(), equalTo((Object) true));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("text_field").getValue(), equalTo("foo"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("keyword_field").getValue(), equalTo("foo"));
@@ -869,7 +873,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).getFields().get("float_field").getValue(), equalTo("5.0"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("double_field").getValue(), equalTo("6.0"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("date_field").getValue(),
-                equalTo(Joda.forPattern("epoch_millis").printer().print(date)));
+                equalTo(DateFormatters.forPattern("epoch_millis").format(date)));
     }
 
     public void testScriptFields() throws Exception {
@@ -910,6 +914,163 @@ public class SearchFieldsIT extends ESIntegTestCase {
             assertThat(fields.get("ml").getValues(), equalTo(Arrays.<Object> asList((long) id, id + 1L)));
             assertThat(fields.get("md").getValues(), equalTo(Arrays.<Object> asList((double) id, id + 1d)));
         }
+    }
+
+    public void testDocValueFieldsWithFieldAlias() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startObject("_source")
+                        .field("enabled", false)
+                    .endObject()
+                    .startObject("properties")
+                        .startObject("text_field")
+                            .field("type", "text")
+                            .field("fielddata", true)
+                        .endObject()
+                        .startObject("date_field")
+                            .field("type", "date")
+                            .field("format", "yyyy-MM-dd")
+                        .endObject()
+                        .startObject("text_field_alias")
+                            .field("type", "alias")
+                            .field("path", "text_field")
+                        .endObject()
+                        .startObject("date_field_alias")
+                            .field("type", "alias")
+                            .field("path", "date_field")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject();
+        assertAcked(prepareCreate("test").addMapping("type", mapping));
+        ensureGreen("test");
+
+        DateTime date = new DateTime(1990, 12, 29, 0, 0, DateTimeZone.UTC);
+        DateTimeFormatter formatter = DateTimeFormat.forPattern("yyyy-MM-dd");
+
+        index("test", "type", "1", "text_field", "foo", "date_field", formatter.print(date));
+        refresh("test");
+
+        SearchRequestBuilder builder = client().prepareSearch().setQuery(matchAllQuery())
+                .addDocValueField("text_field_alias")
+                .addDocValueField("date_field_alias", "use_field_mapping")
+                .addDocValueField("date_field");
+        SearchResponse searchResponse = builder.execute().actionGet();
+
+        assertNoFailures(searchResponse);
+        assertHitCount(searchResponse, 1);
+        SearchHit hit = searchResponse.getHits().getAt(0);
+
+        Map<String, DocumentField> fields = hit.getFields();
+        assertThat(fields.keySet(), equalTo(newHashSet("text_field_alias", "date_field_alias", "date_field")));
+
+        DocumentField textFieldAlias = fields.get("text_field_alias");
+        assertThat(textFieldAlias.getName(), equalTo("text_field_alias"));
+        assertThat(textFieldAlias.getValue(), equalTo("foo"));
+
+        DocumentField dateFieldAlias = fields.get("date_field_alias");
+        assertThat(dateFieldAlias.getName(), equalTo("date_field_alias"));
+        assertThat(dateFieldAlias.getValue(),
+            equalTo("1990-12-29"));
+
+        DocumentField dateField = fields.get("date_field");
+        assertThat(dateField.getName(), equalTo("date_field"));
+
+        ReadableDateTime fetchedDate = dateField.getValue();
+        assertThat(fetchedDate, equalTo(date));
+    }
+
+
+    public void testStoredFieldsWithFieldAlias() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("field1")
+                            .field("type", "text")
+                            .field("store", true)
+                        .endObject()
+                        .startObject("field2")
+                            .field("type", "text")
+                            .field("store", false)
+                        .endObject()
+                        .startObject("field1-alias")
+                            .field("type", "alias")
+                            .field("path", "field1")
+                        .endObject()
+                        .startObject("field2-alias")
+                            .field("type", "alias")
+                            .field("path", "field2")
+                        .endObject()
+                    .endObject()
+            .endObject()
+        .endObject();
+        assertAcked(prepareCreate("test").addMapping("type", mapping));
+
+        index("test", "type", "1", "field1", "value1", "field2", "value2");
+        refresh("test");
+
+        SearchResponse searchResponse = client().prepareSearch()
+            .setQuery(matchAllQuery())
+            .addStoredField("field1-alias")
+            .addStoredField("field2-alias")
+            .get();
+        assertHitCount(searchResponse, 1L);
+
+        SearchHit hit = searchResponse.getHits().getAt(0);
+        assertEquals(1, hit.getFields().size());
+        assertTrue(hit.getFields().containsKey("field1-alias"));
+
+        DocumentField field = hit.getFields().get("field1-alias");
+        assertThat(field.getValue().toString(), equalTo("value1"));
+    }
+
+    public void testWildcardStoredFieldsWithFieldAlias() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("field1")
+                            .field("type", "text")
+                            .field("store", true)
+                        .endObject()
+                        .startObject("field2")
+                            .field("type", "text")
+                            .field("store", false)
+                        .endObject()
+                        .startObject("field1-alias")
+                            .field("type", "alias")
+                            .field("path", "field1")
+                        .endObject()
+                        .startObject("field2-alias")
+                            .field("type", "alias")
+                            .field("path", "field2")
+                        .endObject()
+                    .endObject()
+            .endObject()
+        .endObject();
+        assertAcked(prepareCreate("test").addMapping("type", mapping));
+
+        index("test", "type", "1", "field1", "value1", "field2", "value2");
+        refresh("test");
+
+        SearchResponse searchResponse = client().prepareSearch()
+            .setQuery(matchAllQuery())
+            .addStoredField("field*")
+            .get();
+        assertHitCount(searchResponse, 1L);
+
+        SearchHit hit = searchResponse.getHits().getAt(0);
+        assertEquals(2, hit.getFields().size());
+        assertTrue(hit.getFields().containsKey("field1"));
+        assertTrue(hit.getFields().containsKey("field1-alias"));
+
+        DocumentField field = hit.getFields().get("field1");
+        assertThat(field.getValue().toString(), equalTo("value1"));
+
+        DocumentField fieldAlias = hit.getFields().get("field1-alias");
+        assertThat(fieldAlias.getValue().toString(), equalTo("value1"));
     }
 
     public void testLoadMetadata() throws Exception {

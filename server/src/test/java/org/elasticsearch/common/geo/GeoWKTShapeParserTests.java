@@ -18,12 +18,6 @@
  */
 package org.elasticsearch.common.geo;
 
-import org.locationtech.jts.geom.Coordinate;
-import org.locationtech.jts.geom.LineString;
-import org.locationtech.jts.geom.LinearRing;
-import org.locationtech.jts.geom.MultiLineString;
-import org.locationtech.jts.geom.Point;
-import org.locationtech.jts.geom.Polygon;
 import org.apache.lucene.geo.GeoTestUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
@@ -50,6 +44,12 @@ import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.LineString;
+import org.locationtech.jts.geom.LinearRing;
+import org.locationtech.jts.geom.MultiLineString;
+import org.locationtech.jts.geom.Point;
+import org.locationtech.jts.geom.Polygon;
 import org.locationtech.spatial4j.exception.InvalidShapeException;
 import org.locationtech.spatial4j.shape.Rectangle;
 import org.locationtech.spatial4j.shape.Shape;
@@ -69,7 +69,7 @@ import static org.hamcrest.Matchers.hasToString;
  */
 public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
 
-    private static XContentBuilder toWKTContent(ShapeBuilder builder, boolean generateMalformed)
+    private static XContentBuilder toWKTContent(ShapeBuilder<?, ?> builder, boolean generateMalformed)
             throws IOException {
         String wkt = builder.toWKT();
         if (generateMalformed) {
@@ -84,12 +84,12 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         return XContentFactory.jsonBuilder().value(wkt);
     }
 
-    private void assertExpected(Shape expected, ShapeBuilder builder) throws IOException {
+    private void assertExpected(Shape expected, ShapeBuilder<?, ?> builder) throws IOException {
         XContentBuilder xContentBuilder = toWKTContent(builder, false);
         assertGeometryEquals(expected, xContentBuilder);
     }
 
-    private void assertMalformed(ShapeBuilder builder) throws IOException {
+    private void assertMalformed(ShapeBuilder<?, ?> builder) throws IOException {
         XContentBuilder xContentBuilder = toWKTContent(builder, true);
         assertValidException(xContentBuilder, ElasticsearchParseException.class);
     }
@@ -114,7 +114,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
             coordinates.add(new Coordinate(p.lon(), p.lat()));
             shapes[i] = SPATIAL_CONTEXT.makePoint(p.lon(), p.lat());
         }
-        ShapeCollection expected = shapeCollection(shapes);
+        ShapeCollection<?> expected = shapeCollection(shapes);
         assertExpected(expected, new MultiPointBuilder(coordinates));
         assertMalformed(new MultiPointBuilder(coordinates));
     }
@@ -314,7 +314,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         Mapper.BuilderContext mockBuilderContext = new Mapper.BuilderContext(indexSettings, new ContentPath());
         final GeoShapeFieldMapper mapperBuilder = new GeoShapeFieldMapper.Builder("test").ignoreZValue(true).build(mockBuilderContext);
 
-        ShapeBuilder shapeBuilder = ShapeParser.parse(parser, mapperBuilder);
+        ShapeBuilder<?, ?> shapeBuilder = ShapeParser.parse(parser, mapperBuilder);
         assertEquals(shapeBuilder.numDimensions(), 3);
     }
 

@@ -20,7 +20,6 @@
 package org.elasticsearch.repositories.azure;
 
 import com.microsoft.azure.storage.LocationMode;
-import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -30,76 +29,76 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
-import java.net.URISyntaxException;
-
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
 public class AzureRepositorySettingsTests extends ESTestCase {
 
-    private AzureRepository azureRepository(Settings settings) throws StorageException, IOException, URISyntaxException {
+    private AzureRepository azureRepository(Settings settings) {
         Settings internalSettings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
             .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths())
             .put(settings)
             .build();
-        return new AzureRepository(new RepositoryMetaData("foo", "azure", internalSettings),
+        final AzureRepository azureRepository = new AzureRepository(new RepositoryMetaData("foo", "azure", internalSettings),
             TestEnvironment.newEnvironment(internalSettings), NamedXContentRegistry.EMPTY, mock(AzureStorageService.class));
+        assertThat(azureRepository.getBlobStore(), is(nullValue()));
+        return azureRepository;
     }
 
-    public void testReadonlyDefault() throws StorageException, IOException, URISyntaxException {
+    public void testReadonlyDefault() {
         assertThat(azureRepository(Settings.EMPTY).isReadOnly(), is(false));
     }
 
-    public void testReadonlyDefaultAndReadonlyOn() throws StorageException, IOException, URISyntaxException {
+    public void testReadonlyDefaultAndReadonlyOn() {
         assertThat(azureRepository(Settings.builder()
             .put("readonly", true)
             .build()).isReadOnly(), is(true));
     }
 
-    public void testReadonlyWithPrimaryOnly() throws StorageException, IOException, URISyntaxException {
+    public void testReadonlyWithPrimaryOnly() {
         assertThat(azureRepository(Settings.builder()
             .put(AzureRepository.Repository.LOCATION_MODE_SETTING.getKey(), LocationMode.PRIMARY_ONLY.name())
             .build()).isReadOnly(), is(false));
     }
 
-    public void testReadonlyWithPrimaryOnlyAndReadonlyOn() throws StorageException, IOException, URISyntaxException {
+    public void testReadonlyWithPrimaryOnlyAndReadonlyOn() {
         assertThat(azureRepository(Settings.builder()
             .put(AzureRepository.Repository.LOCATION_MODE_SETTING.getKey(), LocationMode.PRIMARY_ONLY.name())
             .put("readonly", true)
             .build()).isReadOnly(), is(true));
     }
 
-    public void testReadonlyWithSecondaryOnlyAndReadonlyOn() throws StorageException, IOException, URISyntaxException {
+    public void testReadonlyWithSecondaryOnlyAndReadonlyOn() {
         assertThat(azureRepository(Settings.builder()
             .put(AzureRepository.Repository.LOCATION_MODE_SETTING.getKey(), LocationMode.SECONDARY_ONLY.name())
             .put("readonly", true)
             .build()).isReadOnly(), is(true));
     }
 
-    public void testReadonlyWithSecondaryOnlyAndReadonlyOff() throws StorageException, IOException, URISyntaxException {
+    public void testReadonlyWithSecondaryOnlyAndReadonlyOff() {
         assertThat(azureRepository(Settings.builder()
             .put(AzureRepository.Repository.LOCATION_MODE_SETTING.getKey(), LocationMode.SECONDARY_ONLY.name())
             .put("readonly", false)
             .build()).isReadOnly(), is(false));
     }
 
-    public void testReadonlyWithPrimaryAndSecondaryOnlyAndReadonlyOn() throws StorageException, IOException, URISyntaxException {
+    public void testReadonlyWithPrimaryAndSecondaryOnlyAndReadonlyOn() {
         assertThat(azureRepository(Settings.builder()
             .put(AzureRepository.Repository.LOCATION_MODE_SETTING.getKey(), LocationMode.PRIMARY_THEN_SECONDARY.name())
             .put("readonly", true)
             .build()).isReadOnly(), is(true));
     }
 
-    public void testReadonlyWithPrimaryAndSecondaryOnlyAndReadonlyOff() throws StorageException, IOException, URISyntaxException {
+    public void testReadonlyWithPrimaryAndSecondaryOnlyAndReadonlyOff() {
         assertThat(azureRepository(Settings.builder()
             .put(AzureRepository.Repository.LOCATION_MODE_SETTING.getKey(), LocationMode.PRIMARY_THEN_SECONDARY.name())
             .put("readonly", false)
             .build()).isReadOnly(), is(false));
     }
 
-    public void testChunkSize() throws StorageException, IOException, URISyntaxException {
+    public void testChunkSize() {
         // default chunk size
         AzureRepository azureRepository = azureRepository(Settings.EMPTY);
         assertEquals(AzureStorageService.MAX_CHUNK_SIZE, azureRepository.chunkSize());

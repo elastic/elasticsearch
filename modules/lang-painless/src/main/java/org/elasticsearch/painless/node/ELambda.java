@@ -20,15 +20,15 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.def;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.node.SFunction.FunctionReserved;
 import org.objectweb.asm.Opcodes;
 
@@ -103,7 +103,7 @@ public final class ELambda extends AExpression implements ILambda {
     void analyze(Locals locals) {
         Class<?> returnType;
         List<String> actualParamTypeStrs;
-        Method interfaceMethod;
+        PainlessMethod interfaceMethod;
         // inspect the target first, set interface method if we know it.
         if (expected == null) {
             interfaceMethod = null;
@@ -120,15 +120,15 @@ public final class ELambda extends AExpression implements ILambda {
             }
         } else {
             // we know the method statically, infer return type and any unknown/def types
-            interfaceMethod = locals.getDefinition().getPainlessStructFromJavaClass(expected).functionalMethod;
+            interfaceMethod = locals.getPainlessLookup().getPainlessStructFromJavaClass(expected).functionalMethod;
             if (interfaceMethod == null) {
-                throw createError(new IllegalArgumentException("Cannot pass lambda to [" + Definition.ClassToName(expected) +
-                                                               "], not a functional interface"));
+                throw createError(new IllegalArgumentException("Cannot pass lambda to " +
+                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(expected) + "], not a functional interface"));
             }
             // check arity before we manipulate parameters
             if (interfaceMethod.arguments.size() != paramTypeStrs.size())
                 throw new IllegalArgumentException("Incorrect number of parameters for [" + interfaceMethod.name +
-                                                   "] in [" + Definition.ClassToName(expected) + "]");
+                        "] in [" + PainlessLookupUtility.typeToCanonicalTypeName(expected) + "]");
             // for method invocation, its allowed to ignore the return value
             if (interfaceMethod.rtn == void.class) {
                 returnType = def.class;
@@ -140,7 +140,7 @@ public final class ELambda extends AExpression implements ILambda {
             for (int i = 0; i < paramTypeStrs.size(); i++) {
                 String paramType = paramTypeStrs.get(i);
                 if (paramType == null) {
-                    actualParamTypeStrs.add(Definition.ClassToName(interfaceMethod.arguments.get(i)));
+                    actualParamTypeStrs.add(PainlessLookupUtility.typeToCanonicalTypeName(interfaceMethod.arguments.get(i)));
                 } else {
                     actualParamTypeStrs.add(paramType);
                 }
@@ -162,16 +162,16 @@ public final class ELambda extends AExpression implements ILambda {
         List<String> paramTypes = new ArrayList<>(captures.size() + actualParamTypeStrs.size());
         List<String> paramNames = new ArrayList<>(captures.size() + paramNameStrs.size());
         for (Variable var : captures) {
-            paramTypes.add(Definition.ClassToName(var.clazz));
+            paramTypes.add(PainlessLookupUtility.typeToCanonicalTypeName(var.clazz));
             paramNames.add(var.name);
         }
         paramTypes.addAll(actualParamTypeStrs);
         paramNames.addAll(paramNameStrs);
 
         // desugar lambda body into a synthetic method
-        desugared = new SFunction(reserved, location, Definition.ClassToName(returnType), name,
-                                            paramTypes, paramNames, statements, true);
-        desugared.generateSignature(locals.getDefinition());
+        desugared = new SFunction(reserved, location, PainlessLookupUtility.typeToCanonicalTypeName(returnType), name,
+                                  paramTypes, paramNames, statements, true);
+        desugared.generateSignature(locals.getPainlessLookup());
         desugared.analyze(Locals.newLambdaScope(locals.getProgramScope(), returnType,
                                                 desugared.parameters, captures.size(), reserved.getMaxLoopCounter()));
 

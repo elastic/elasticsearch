@@ -17,28 +17,27 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
-import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
 import org.elasticsearch.xpack.ml.job.process.CountingInputStream;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutoDetectResultProcessor;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.ForecastParams;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.DataToProcessWriter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.DataToProcessWriterFactory;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -46,7 +45,6 @@ import java.io.InputStream;
 import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.Collections;
-import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
@@ -206,30 +204,29 @@ public class AutodetectCommunicator implements Closeable {
         }
     }
 
-    public void writeUpdateProcessMessage(UpdateParams updateParams, List<ScheduledEvent> scheduledEvents,
-                                          BiConsumer<Void, Exception> handler) {
+    public void writeUpdateProcessMessage(UpdateProcessMessage update, BiConsumer<Void, Exception> handler) {
         submitOperation(() -> {
-            if (updateParams.getModelPlotConfig() != null) {
-                autodetectProcess.writeUpdateModelPlotMessage(updateParams.getModelPlotConfig());
+            if (update.getModelPlotConfig() != null) {
+                autodetectProcess.writeUpdateModelPlotMessage(update.getModelPlotConfig());
             }
 
             // Filters have to be written before detectors
-            if (updateParams.getFilter() != null) {
-                autodetectProcess.writeUpdateFiltersMessage(Collections.singletonList(updateParams.getFilter()));
+            if (update.getFilter() != null) {
+                autodetectProcess.writeUpdateFiltersMessage(Collections.singletonList(update.getFilter()));
             }
 
             // Add detector rules
-            if (updateParams.getDetectorUpdates() != null) {
-                for (JobUpdate.DetectorUpdate update : updateParams.getDetectorUpdates()) {
-                    if (update.getRules() != null) {
-                        autodetectProcess.writeUpdateDetectorRulesMessage(update.getDetectorIndex(), update.getRules());
+            if (update.getDetectorUpdates() != null) {
+                for (JobUpdate.DetectorUpdate detectorUpdate : update.getDetectorUpdates()) {
+                    if (detectorUpdate.getRules() != null) {
+                        autodetectProcess.writeUpdateDetectorRulesMessage(detectorUpdate.getDetectorIndex(), detectorUpdate.getRules());
                     }
                 }
             }
 
             // Add scheduled events; null means there's no update but an empty list means we should clear any events in the process
-            if (scheduledEvents != null) {
-                autodetectProcess.writeUpdateScheduledEventsMessage(scheduledEvents, job.getAnalysisConfig().getBucketSpan());
+            if (update.getScheduledEvents() != null) {
+                autodetectProcess.writeUpdateScheduledEventsMessage(update.getScheduledEvents(), job.getAnalysisConfig().getBucketSpan());
             }
 
             return null;

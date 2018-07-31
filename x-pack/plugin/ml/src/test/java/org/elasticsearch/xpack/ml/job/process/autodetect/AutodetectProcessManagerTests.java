@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import java.io.ByteArrayInputStream;
@@ -489,8 +490,15 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         JobTask jobTask = mock(JobTask.class);
         when(jobTask.getJobId()).thenReturn("foo");
         UpdateParams updateParams = UpdateParams.builder("foo").modelPlotConfig(modelConfig).detectorUpdates(detectorUpdates).build();
+
         manager.writeUpdateProcessMessage(jobTask, updateParams, e -> {});
-        verify(communicator).writeUpdateProcessMessage(same(updateParams), eq(null), any());
+
+        ArgumentCaptor<UpdateProcessMessage> captor = ArgumentCaptor.forClass(UpdateProcessMessage.class);
+        verify(communicator).writeUpdateProcessMessage(captor.capture(), any());
+
+        UpdateProcessMessage updateProcessMessage = captor.getValue();
+        assertThat(updateProcessMessage.getModelPlotConfig(), equalTo(modelConfig));
+        assertThat(updateProcessMessage.getDetectorUpdates(), equalTo(detectorUpdates));
     }
 
     public void testJobHasActiveAutodetectProcess() {

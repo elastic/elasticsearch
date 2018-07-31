@@ -17,18 +17,6 @@
  * under the License.
  */
 
-buildscript {
-  repositories {
-    maven {
-      url 'https://plugins.gradle.org/m2/'
-    }
-  }
-  dependencies {
-    classpath 'com.github.jengelman.gradle.plugins:shadow:2.0.4'
-  }
-}
-
-
 apply plugin: 'elasticsearch.build'
 // build an uberjar with all benchmarks
 apply plugin: 'com.github.johnrengelman.shadow'

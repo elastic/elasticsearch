@@ -19,13 +19,14 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.MethodKey;
-import org.elasticsearch.painless.Definition.def;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.lookup.def;
+import org.objectweb.asm.Type;
 
 import java.util.HashMap;
 import java.util.List;
@@ -38,8 +39,8 @@ public final class EMapInit extends AExpression {
     private final List<AExpression> keys;
     private final List<AExpression> values;
 
-    private Method constructor = null;
-    private Method method = null;
+    private PainlessMethod constructor = null;
+    private PainlessMethod method = null;
 
     public EMapInit(Location location, List<AExpression> keys, List<AExpression> values) {
         super(location);
@@ -67,13 +68,15 @@ public final class EMapInit extends AExpression {
 
         actual = HashMap.class;
 
-        constructor = locals.getDefinition().getPainlessStructFromJavaClass(actual).constructors.get(new MethodKey("<init>", 0));
+        constructor = locals.getPainlessLookup().getPainlessStructFromJavaClass(actual).constructors
+                .get(PainlessLookupUtility.buildPainlessMethodKey("<init>", 0));
 
         if (constructor == null) {
             throw createError(new IllegalStateException("Illegal tree structure."));
         }
 
-        method = locals.getDefinition().getPainlessStructFromJavaClass(actual).methods.get(new MethodKey("put", 2));
+        method = locals.getPainlessLookup().getPainlessStructFromJavaClass(actual).methods
+                .get(PainlessLookupUtility.buildPainlessMethodKey("put", 2));
 
         if (method == null) {
             throw createError(new IllegalStateException("Illegal tree structure."));
@@ -108,7 +111,7 @@ public final class EMapInit extends AExpression {
 
         writer.newInstance(MethodWriter.getType(actual));
         writer.dup();
-        writer.invokeConstructor(constructor.owner.type, constructor.method);
+        writer.invokeConstructor(Type.getType(constructor.target), constructor.method);
 
         for (int index = 0; index < keys.size(); ++index) {
             AExpression key = keys.get(index);

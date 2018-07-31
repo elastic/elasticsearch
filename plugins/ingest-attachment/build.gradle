@@ -25,10 +25,20 @@ esplugin {
 versions << [
   'tika': '1.18',
   'pdfbox': '2.0.9',
-  'bouncycastle': '1.55',
+  'bouncycastle': '1.59',
   'poi': '3.17',
   'mime4j': '0.8.1'
 ]
+
+if (rootProject.ext.compilerJavaVersion.isJava11()) {
+  // disabled until https://github.com/elastic/elasticsearch/issues/31456 is fixed.
+  integTestRunner {
+    systemProperty 'tests.rest.blacklist', [
+            'ingest_attachment/20_attachment_processor/Test indexed chars are configurable',
+            'ingest_attachment/20_attachment_processor/Test indexed chars are configurable per document'
+    ].join(',')
+  }
+}
 
 dependencies {
   // mandatory for tika

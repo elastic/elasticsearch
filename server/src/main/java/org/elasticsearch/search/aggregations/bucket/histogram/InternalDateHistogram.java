@@ -424,7 +424,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
                     iter.add(new InternalDateHistogram.Bucket(key, 0, keyed, format, reducedEmptySubAggs));
                     key = nextKey(key).longValue();
                 }
-                assert key == nextBucket.key;
+                assert key == nextBucket.key : "key: " + key + ", nextBucket.key: " + nextBucket.key;
             }
             lastBucket = iter.next();
         }

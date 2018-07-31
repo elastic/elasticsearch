@@ -167,8 +167,7 @@ public class ClusterModuleTests extends ModuleTestCase {
 
     public void testShardsAllocatorFactoryNull() {
         Settings settings = Settings.builder().put(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), "bad").build();
-        NullPointerException e = expectThrows(NullPointerException.class, () ->
-            newClusterModuleWithShardsAllocator(settings, "bad", () -> null));
+        expectThrows(NullPointerException.class, () -> newClusterModuleWithShardsAllocator(settings, "bad", () -> null));
     }
 
     // makes sure that the allocation deciders are setup in the correct order, such that the

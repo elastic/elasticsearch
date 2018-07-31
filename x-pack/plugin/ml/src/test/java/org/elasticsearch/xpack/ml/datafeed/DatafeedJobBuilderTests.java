@@ -67,8 +67,8 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         }).when(jobProvider).dataCounts(any(), any(), any());
 
         doAnswer(invocationOnMock -> {
-            @SuppressWarnings("rawtypes")
-            Consumer consumer = (Consumer) invocationOnMock.getArguments()[3];
+            @SuppressWarnings("unchecked")
+            Consumer<ResourceNotFoundException> consumer = (Consumer<ResourceNotFoundException>) invocationOnMock.getArguments()[3];
             consumer.accept(new ResourceNotFoundException("dummy"));
             return null;
         }).when(jobProvider).bucketsViaInternalClient(any(), any(), any(), any());
@@ -153,8 +153,8 @@ public class DatafeedJobBuilderTests extends ESTestCase {
 
         Exception error = new RuntimeException("error");
         doAnswer(invocationOnMock -> {
-            @SuppressWarnings("rawtypes")
-            Consumer consumer = (Consumer) invocationOnMock.getArguments()[3];
+            @SuppressWarnings("unchecked")
+            Consumer<Exception> consumer = (Consumer<Exception>) invocationOnMock.getArguments()[3];
             consumer.accept(error);
             return null;
         }).when(jobProvider).bucketsViaInternalClient(any(), any(), any(), any());
@@ -176,11 +176,11 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         }).when(jobProvider).dataCounts(any(), any(), any());
 
         doAnswer(invocationOnMock -> {
-            @SuppressWarnings("rawtypes")
-            Consumer consumer = (Consumer) invocationOnMock.getArguments()[2];
+            @SuppressWarnings("unchecked")
+            Consumer<QueryPage<Bucket>> consumer = (Consumer<QueryPage<Bucket>>) invocationOnMock.getArguments()[2];
             Bucket bucket = mock(Bucket.class);
             when(bucket.getTimestamp()).thenReturn(new Date(latestBucketTimestamp));
-            QueryPage<Bucket> bucketQueryPage = new QueryPage(Collections.singletonList(bucket), 1, Bucket.RESULTS_FIELD);
+            QueryPage<Bucket> bucketQueryPage = new QueryPage<Bucket>(Collections.singletonList(bucket), 1, Bucket.RESULTS_FIELD);
             consumer.accept(bucketQueryPage);
             return null;
         }).when(jobProvider).bucketsViaInternalClient(any(), any(), any(), any());

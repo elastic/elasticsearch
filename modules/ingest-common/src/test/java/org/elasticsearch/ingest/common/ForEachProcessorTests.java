@@ -19,13 +19,6 @@
 
 package org.elasticsearch.ingest.common;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
 import org.elasticsearch.ingest.CompoundProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
@@ -33,6 +26,14 @@ import org.elasticsearch.ingest.TestProcessor;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.Matchers.equalTo;
@@ -54,7 +55,8 @@ public class ForEachProcessorTests extends ESTestCase {
         );
         processor.execute(ingestDocument);
 
-        List result = ingestDocument.getFieldValue("values", List.class);
+        @SuppressWarnings("unchecked")
+        List<String> result = ingestDocument.getFieldValue("values", List.class);
         assertThat(result.get(0), equalTo("FOO"));
         assertThat(result.get(1), equalTo("BAR"));
         assertThat(result.get(2), equalTo("BAZ"));
@@ -204,12 +206,12 @@ public class ForEachProcessorTests extends ESTestCase {
         ), false);
         processor.execute(ingestDocument);
 
-        List result = ingestDocument.getFieldValue("values", List.class);
+        List<?> result = ingestDocument.getFieldValue("values", List.class);
         assertThat(result.get(0), equalTo("STRING"));
         assertThat(result.get(1), equalTo(1));
         assertThat(result.get(2), equalTo(null));
 
-        List errors = ingestDocument.getFieldValue("errors", List.class);
+        List<?> errors = ingestDocument.getFieldValue("errors", List.class);
         assertThat(errors.size(), equalTo(2));
     }
 
@@ -230,7 +232,7 @@ public class ForEachProcessorTests extends ESTestCase {
         ForEachProcessor forEachProcessor = new ForEachProcessor("_tag", "values", processor, false);
         forEachProcessor.execute(ingestDocument);
 
-        List result = ingestDocument.getFieldValue("values", List.class);
+        List<?> result = ingestDocument.getFieldValue("values", List.class);
         assertThat(result.get(0), equalTo("new_value"));
         assertThat(result.get(1), equalTo("new_value"));
         assertThat(result.get(2), equalTo("new_value"));
@@ -263,13 +265,13 @@ public class ForEachProcessorTests extends ESTestCase {
                 "_tag", "values1", new ForEachProcessor("_tag", "_ingest._value.values2", testProcessor, false), false);
         processor.execute(ingestDocument);
 
-        List result = ingestDocument.getFieldValue("values1.0.values2", List.class);
+        List<?> result = ingestDocument.getFieldValue("values1.0.values2", List.class);
         assertThat(result.get(0), equalTo("ABC"));
         assertThat(result.get(1), equalTo("DEF"));
 
-        result = ingestDocument.getFieldValue("values1.1.values2", List.class);
-        assertThat(result.get(0), equalTo("GHI"));
-        assertThat(result.get(1), equalTo("JKL"));
+        List<?> result2 = ingestDocument.getFieldValue("values1.1.values2", List.class);
+        assertThat(result2.get(0), equalTo("GHI"));
+        assertThat(result2.get(1), equalTo("JKL"));
     }
 
     public void testIgnoreMissing() throws Exception {

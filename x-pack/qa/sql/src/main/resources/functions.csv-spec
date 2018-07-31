@@ -1,0 +1,30 @@
+bitLengthGroupByAndOrderBy
+SELECT BIT_LENGTH(first_name), COUNT(*) count FROM "test_emp" GROUP BY BIT_LENGTH(first_name) ORDER BY BIT_LENGTH(first_name) LIMIT 10;
+
+BIT_LENGTH(first_name):i|     count:l
+24                      |4
+32                      |11
+40                      |16
+48                      |24
+56                      |19
+64                      |14
+72                      |10
+80                      |1
+88                      |1
+;
+
+bitLengthOrderByFieldWithWhere
+SELECT BIT_LENGTH(first_name) len, first_name FROM "test_emp" WHERE BIT_LENGTH(first_name) > 64 ORDER BY first_name LIMIT 10;
+
+len:i          |  first_name:s
+80             |Adamantios
+72             |Alejandro
+72             |Alejandro
+72             |Chirstian
+72             |Cristinel
+72             |Duangkaew
+72             |Eberhardt
+72             |Margareta
+72             |Prasadram
+88             |Sreekrishna
+;

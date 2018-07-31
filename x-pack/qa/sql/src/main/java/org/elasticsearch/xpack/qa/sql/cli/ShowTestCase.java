@@ -48,6 +48,9 @@ public abstract class ShowTestCase extends CliIntegrationTestCase {
         assertThat(readLine(), containsString("----------"));
         assertThat(readLine(), RegexMatcher.matches("\\s*LOG\\s*\\|\\s*SCALAR\\s*"));
         assertThat(readLine(), RegexMatcher.matches("\\s*LOG10\\s*\\|\\s*SCALAR\\s*"));
+        assertThat(readLine(), RegexMatcher.matches("\\s*LCASE\\s*\\|\\s*SCALAR\\s*"));
+        assertThat(readLine(), RegexMatcher.matches("\\s*LENGTH\\s*\\|\\s*SCALAR\\s*"));
+        assertThat(readLine(), RegexMatcher.matches("\\s*LTRIM\\s*\\|\\s*SCALAR\\s*"));
         assertEquals("", readLine());
     }
 

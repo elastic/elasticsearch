@@ -313,6 +313,10 @@ public class MovFnWhitelistedFunctionTests extends ESTestCase {
         assertThat(actual, equalTo(Double.NaN));
     }
 
+    public void testStdDevNaNAvg() {
+        assertThat(MovingFunctions.stdDev(new double[] { 1.0, 2.0, 3.0 }, Double.NaN), equalTo(Double.NaN));
+    }
+
     public void testLinearMovAvg() {
 
         int numValues = randomIntBetween(1, 100);

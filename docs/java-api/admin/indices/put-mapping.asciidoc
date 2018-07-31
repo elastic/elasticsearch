@@ -2,17 +2,22 @@
 
 ==== Put Mapping
 
-The PUT mapping API allows you to add a new type while creating an index:
+You can add mappings for a new type at index creation time:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{client-tests}/IndicesDocumentationIT.java[index-with-mapping]
 --------------------------------------------------
 <1> <<java-admin-indices-create-index,Creates an index>> called `twitter`
-<2> It also adds a `tweet` mapping type.
+<2> Add a `tweet` type with a field called `message` that has the datatype `text`.
 
+There are several variants of the above `addMapping` method, some taking an
+`XContentBuilder` or a `Map` with the mapping definition as arguments. Make sure
+to check the javadocs to pick the simplest one for your use case.
 
-The PUT mapping API also allows to add a new type to an existing index:
+The PUT mapping API also allows to specify the mapping of a type after index
+creation. In this case you can provide the mapping as a String similar to the
+Rest API syntax:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

@@ -112,9 +112,9 @@ public class SnapshotShardFailure implements ShardOperationFailedException {
     }
 
     /**
-     * Returns REST status corresponding to this failure
+     * Returns {@link RestStatus} corresponding to this failure
      *
-     * @return REST STATUS
+     * @return REST status
      */
     @Override
     public RestStatus status() {

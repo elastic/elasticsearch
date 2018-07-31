@@ -119,6 +119,17 @@ GET hockey/_search
 ----------------------------------------------------------------
 // CONSOLE
 
+
+[float]
+===== Missing values
+
+`doc['field'].value` throws an exception if
+the field is missing in a document.
+
+To check if a document is missing a value, you can call
+`doc['field'].size() == 0`.
+
+
 [float]
 ==== Updating Fields with Painless
 

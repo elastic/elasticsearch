@@ -44,6 +44,7 @@ import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
@@ -89,12 +90,14 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -619,7 +622,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::get-mapping-request-indicesOptions
 
             // tag::get-mapping-execute
-            GetMappingsResponse getMappingResponse = client.indices().getMappings(request, RequestOptions.DEFAULT);
+            GetMappingsResponse getMappingResponse = client.indices().getMapping(request, RequestOptions.DEFAULT);
             // end::get-mapping-execute
 
             // tag::get-mapping-response
@@ -701,7 +704,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             });
 
             // tag::get-mapping-execute-async
-            client.indices().getMappingsAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            client.indices().getMappingAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::get-mapping-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
@@ -1235,6 +1238,81 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 
+    public void testGetIndex() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            Settings settings = Settings.builder().put("number_of_shards", 3).build();
+            String mappings = "{\"properties\":{\"field-1\":{\"type\":\"integer\"}}}";
+            CreateIndexResponse createIndexResponse = client.indices().create(
+                new CreateIndexRequest("index", settings).mapping("doc", mappings, XContentType.JSON),
+                RequestOptions.DEFAULT);
+            assertTrue(createIndexResponse.isAcknowledged());
+        }
+
+        // tag::get-index-request
+        GetIndexRequest request = new GetIndexRequest().indices("index"); // <1>
+        // end::get-index-request
+
+        // tag::get-index-request-indicesOptions
+        request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
+        // end::get-index-request-indicesOptions
+
+        // tag::get-index-request-includeDefaults
+        request.includeDefaults(true); // <1>
+        // end::get-index-request-includeDefaults
+
+        // tag::get-index-execute
+        GetIndexResponse getIndexResponse = client.indices().get(request, RequestOptions.DEFAULT);
+        // end::get-index-execute
+
+        // tag::get-index-response
+        ImmutableOpenMap<String, MappingMetaData> indexMappings = getIndexResponse.getMappings().get("index"); // <1>
+        Map<String, Object> indexTypeMappings = indexMappings.get("doc").getSourceAsMap(); // <2>
+        List<AliasMetaData> indexAliases = getIndexResponse.getAliases().get("index"); // <3>
+        String numberOfShardsString = getIndexResponse.getSetting("index", "index.number_of_shards"); // <4>
+        Settings indexSettings = getIndexResponse.getSettings().get("index"); // <5>
+        Integer numberOfShards = indexSettings.getAsInt("index.number_of_shards", null); // <6>
+        TimeValue time = getIndexResponse.defaultSettings().get("index")
+            .getAsTime("index.refresh_interval", null); // <7>
+        // end::get-index-response
+
+        assertEquals(
+            Collections.singletonMap("properties",
+                Collections.singletonMap("field-1", Collections.singletonMap("type", "integer"))),
+            indexTypeMappings
+        );
+        assertTrue(indexAliases.isEmpty());
+        assertEquals(IndexSettings.DEFAULT_REFRESH_INTERVAL, time);
+        assertEquals("3", numberOfShardsString);
+        assertEquals(Integer.valueOf(3), numberOfShards);
+
+        // tag::get-index-execute-listener
+        ActionListener<GetIndexResponse> listener =
+            new ActionListener<GetIndexResponse>() {
+                @Override
+                public void onResponse(GetIndexResponse getIndexResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+        // end::get-index-execute-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::get-index-execute-async
+        client.indices().getAsync(request, RequestOptions.DEFAULT, listener); // <1>
+        // end::get-index-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
     public void testForceMergeIndex() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -1266,7 +1344,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::force-merge-request-flush
 
             // tag::force-merge-execute
-            ForceMergeResponse forceMergeResponse = client.indices().forceMerge(request, RequestOptions.DEFAULT);
+            ForceMergeResponse forceMergeResponse = client.indices().forcemerge(request, RequestOptions.DEFAULT);
             // end::force-merge-execute
 
             // tag::force-merge-response
@@ -1291,14 +1369,14 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::force-merge-execute-listener
 
             // tag::force-merge-execute-async
-            client.indices().forceMergeAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            client.indices().forcemergeAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::force-merge-execute-async
         }
         {
             // tag::force-merge-notfound
             try {
                 ForceMergeRequest request = new ForceMergeRequest("does_not_exist");
-                client.indices().forceMerge(request, RequestOptions.DEFAULT);
+                client.indices().forcemerge(request, RequestOptions.DEFAULT);
             } catch (ElasticsearchException exception) {
                 if (exception.status() == RestStatus.NOT_FOUND) {
                     // <1>

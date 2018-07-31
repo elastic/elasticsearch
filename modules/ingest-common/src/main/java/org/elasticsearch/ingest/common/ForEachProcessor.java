@@ -63,7 +63,7 @@ public final class ForEachProcessor extends AbstractProcessor {
 
     @Override
     public void execute(IngestDocument ingestDocument) throws Exception {
-        List values = ingestDocument.getFieldValue(field, List.class, ignoreMissing);
+        List<?> values = ingestDocument.getFieldValue(field, List.class, ignoreMissing);
         if (values == null) {
             if (ignoreMissing) {
                 return;

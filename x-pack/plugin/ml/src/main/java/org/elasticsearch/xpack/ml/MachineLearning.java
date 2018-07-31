@@ -635,11 +635,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                         // TODO review these settings
                         .settings(Settings.builder()
                                 .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-                                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting)
-                                // Sacrifice durability for performance: in the event of power
-                                // failure we can lose the last 5 seconds of changes, but it's
-                                // much faster
-                                .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), "async"))
+                                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting))
                         .putMapping(ElasticsearchMappings.DOC_TYPE, Strings.toString(stateMapping))
                         .version(Version.CURRENT.id)
                         .build();

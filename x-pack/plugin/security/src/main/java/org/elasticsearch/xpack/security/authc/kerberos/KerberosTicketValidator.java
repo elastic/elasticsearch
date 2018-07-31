@@ -132,7 +132,7 @@ public class KerberosTicketValidator {
      * @param subject authenticated subject
      * @return a byte[] containing the token to be sent to the peer. null indicates
      *         that no token is generated.
-     * @throws PrivilegedActionException
+     * @throws PrivilegedActionException when privileged action threw exception
      * @see GSSContext#acceptSecContext(byte[], int, int)
      */
     private static byte[] acceptSecContext(final byte[] base64decodedTicket, final GSSContext gssContext, Subject subject)
@@ -148,7 +148,7 @@ public class KerberosTicketValidator {
      * @param gssManager {@link GSSManager}
      * @param subject logged in {@link Subject}
      * @return {@link GSSCredential} for particular mechanism
-     * @throws PrivilegedActionException
+     * @throws PrivilegedActionException when privileged action threw exception
      */
     private static GSSCredential createCredentials(final GSSManager gssManager, final Subject subject) throws PrivilegedActionException {
         return doAsWrapper(subject, (PrivilegedExceptionAction<GSSCredential>) () -> gssManager.createCredential(null,
@@ -163,7 +163,7 @@ public class KerberosTicketValidator {
      * @param action {@link PrivilegedExceptionAction} action for performing inside
      *            Subject.doAs
      * @return the value returned by the PrivilegedExceptionAction's run method
-     * @throws PrivilegedActionException
+     * @throws PrivilegedActionException when privileged action threw exception
      */
     private static <T> T doAsWrapper(final Subject subject, final PrivilegedExceptionAction<T> action) throws PrivilegedActionException {
         try {

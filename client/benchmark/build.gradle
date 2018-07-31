@@ -18,9 +18,6 @@
  */
 
 apply plugin: 'elasticsearch.build'
-// build an uberjar with all benchmarks
-apply plugin: 'com.github.johnrengelman.shadow'
-// have the shadow plugin provide the runShadow task
 apply plugin: 'application'
 
 group = 'org.elasticsearch.client'
@@ -31,7 +28,6 @@ build.dependsOn.remove('assemble')
 
 archivesBaseName = 'client-benchmarks'
 mainClassName = 'org.elasticsearch.client.benchmark.BenchmarkMain'
-
 
 // never try to invoke tests on the benchmark project - there aren't any
 test.enabled = false

@@ -84,8 +84,8 @@ public final class PCallInvoke extends AExpression {
         } else if (prefix.actual == def.class) {
             sub = new PSubDefCall(location, name, arguments);
         } else {
-            throw createError(new IllegalArgumentException(
-                "Unknown call [" + name + "] with [" + arguments.size() + "] arguments on type [" + struct.name + "]."));
+            throw createError(new IllegalArgumentException("Unknown call [" + name + "] with [" + arguments.size() + "] arguments " +
+                    "on type [" + PainlessLookupUtility.typeToCanonicalTypeName(prefix.actual) + "]."));
         }
 
         if (nullSafe) {

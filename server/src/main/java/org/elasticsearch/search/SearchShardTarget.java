@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search;
 
+import java.io.IOException;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Nullable;
@@ -30,8 +32,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.RemoteClusterAware;
 
-import java.io.IOException;
-
 /**
  * The target that the search request was executed on.
  */
@@ -39,7 +39,7 @@ public final class SearchShardTarget implements Writeable, Comparable<SearchShar
 
     private final Text nodeId;
     private final ShardId shardId;
-    //original indices and cluster alias are only needed in the coordinating node throughout the search request execution.
+    //original indices are only needed in the coordinating node throughout the search request execution.
     //no need to serialize them as part of SearchShardTarget.
     private final transient OriginalIndices originalIndices;
     private final String clusterAlias;

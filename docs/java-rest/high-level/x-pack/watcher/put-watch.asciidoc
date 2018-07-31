@@ -1,5 +1,5 @@
 [[java-rest-high-x-pack-watcher-put-watch]]
-=== X-Pack Info API
+=== X-Pack Put Watch API
 
 [[java-rest-high-x-pack-watcher-put-watch-execution]]
 ==== Execution
@@ -16,7 +16,7 @@ include-tagged::{doc-tests}/WatcherDocumentationIT.java[x-pack-put-watch-execute
 [[java-rest-high-x-pack-watcher-put-watch-response]]
 ==== Response
 
-The returned `XPackPutWatchResponse` contain `created`, `id`,
+The returned `PutWatchResponse` contains `created`, `id`,
 and `version` information.
 
 ["source","java",subs="attributes,callouts,macros"]
@@ -36,7 +36,7 @@ This request can be executed asynchronously:
 --------------------------------------------------
 include-tagged::{doc-tests}/WatcherDocumentationIT.java[x-pack-put-watch-execute-async]
 --------------------------------------------------
-<1> The `XPackPutWatchRequest` to execute and the `ActionListener` to use when
+<1> The `PutWatchRequest` to execute and the `ActionListener` to use when
 the execution completes
 
 The asynchronous method does not block and returns immediately. Once it is
@@ -44,7 +44,7 @@ completed the `ActionListener` is called back using the `onResponse` method
 if the execution successfully completed or using the `onFailure` method if
 it failed.
 
-A typical listener for `XPackPutWatchResponse` looks like:
+A typical listener for `PutWatchResponse` looks like:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

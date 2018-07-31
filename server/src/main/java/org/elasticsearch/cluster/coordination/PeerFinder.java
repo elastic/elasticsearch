@@ -194,8 +194,8 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
     }
 
     private class ActivePeerFinder {
-        private boolean running;
-        private final Map<DiscoveryNode, FoundPeer> foundPeers;
+        boolean running;
+        final Map<DiscoveryNode, FoundPeer> foundPeers;
         private final Set<TransportAddress> probedAddressesSinceLastWakeUp = new HashSet<>();
         private final AtomicBoolean resolveInProgress = new AtomicBoolean();
         private final AtomicReference<List<TransportAddress>> lastResolvedAddresses = new AtomicReference<>(Collections.emptyList());

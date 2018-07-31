@@ -291,7 +291,7 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
 
     static final class TestFuture extends BaseFuture<Object> {
         boolean futureDone(Object value) {
-            return set(value);
+            return complete(value);
         }
     }
 }

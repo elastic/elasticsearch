@@ -21,15 +21,16 @@ package org.elasticsearch.action;
 
 import org.elasticsearch.common.unit.TimeValue;
 
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 /**
- * An extension to {@link Future} allowing for simplified "get" operations.
+ * An extension to {@link Future} allowing for simplified "get" operations and extended async programming capabilities.
  *
  *
  */
-public interface ActionFuture<T> extends Future<T> {
+public interface ActionFuture<T> extends Future<T>, CompletionStage<T> {
 
     /**
      * Similar to {@link #get()}, just catching the {@link InterruptedException} and throwing

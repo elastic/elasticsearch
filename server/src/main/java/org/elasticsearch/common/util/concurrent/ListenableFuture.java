@@ -19,13 +19,10 @@
 
 package org.elasticsearch.common.util.concurrent;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.collect.Tuple;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.TimeUnit;
 
 /**
  * A future implementation that allows for the result to be passed to listeners waiting for
@@ -38,9 +35,6 @@ import java.util.concurrent.TimeUnit;
  */
 public final class ListenableFuture<V> extends BaseFuture<V> implements ActionListener<V> {
 
-    private volatile boolean done = false;
-    private final List<Tuple<ActionListener<V>, ExecutorService>> listeners = new ArrayList<>();
-
     /**
      * Adds a listener to this future. If the future has not yet completed, the listener will be
      * notified of a response or exception in a runnable submitted to the ExecutorService provided.
@@ -48,58 +42,20 @@ public final class ListenableFuture<V> extends BaseFuture<V> implements ActionLi
      * a different thread.
      */
     public void addListener(ActionListener<V> listener, ExecutorService executor) {
-        if (done) {
-            // run the callback directly, we don't hold the lock and don't need to fork!
-            notifyListener(listener, EsExecutors.newDirectExecutorService());
-        } else {
-            final boolean run;
-            // check done under lock since it could have been modified and protect modifications
-            // to the list under lock
-            synchronized (this) {
-                if (done) {
-                    run = true;
-                } else {
-                    listeners.add(new Tuple<>(listener, executor));
-                    run = false;
-                }
+        whenCompleteAsync((val, throwable) -> {
+            if (throwable == null) {
+                listener.onResponse(val);
+            } else {
+                assert throwable instanceof Exception : "Expected exception but was: " + throwable.getClass();
+                ExceptionsHelper.dieOnError(throwable);
+                listener.onFailure((Exception) throwable);
             }
-
-            if (run) {
-                // run the callback directly, we don't hold the lock and don't need to fork!
-                notifyListener(listener, EsExecutors.newDirectExecutorService());
-            }
-        }
-    }
-
-    @Override
-    protected synchronized void done() {
-        done = true;
-        listeners.forEach(t -> notifyListener(t.v1(), t.v2()));
-        // release references to any listeners as we no longer need them and will live
-        // much longer than the listeners in most cases
-        listeners.clear();
-    }
-
-    private void notifyListener(ActionListener<V> listener, ExecutorService executorService) {
-        try {
-            executorService.submit(() -> {
-                try {
-                    // call get in a non-blocking fashion as we could be on a network thread
-                    // or another thread like the scheduler, which we should never block!
-                    V value = FutureUtils.get(this, 0L, TimeUnit.NANOSECONDS);
-                    listener.onResponse(value);
-                } catch (Exception e) {
-                    listener.onFailure(e);
-                }
-            });
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+        }, executor);
     }
 
     @Override
     public void onResponse(V v) {
-        final boolean set = set(v);
+        final boolean set = complete(v);
         if (set == false) {
             throw new IllegalStateException("did not set value, value or exception already set?");
         }
@@ -107,7 +63,7 @@ public final class ListenableFuture<V> extends BaseFuture<V> implements ActionLi
 
     @Override
     public void onFailure(Exception e) {
-        final boolean set = setException(e);
+        final boolean set = completeExceptionally(e);
         if (set == false) {
             throw new IllegalStateException("did not set exception, value already set or exception already set?");
         }

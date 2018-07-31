@@ -85,7 +85,7 @@ public class PlainTransportFuture<V extends TransportResponse> extends BaseFutur
     public void handleResponse(V response) {
         try {
             handler.handleResponse(response);
-            set(response);
+            complete(response);
         } catch (Exception e) {
             handleException(new ResponseHandlerFailureTransportException(e));
         }
@@ -96,7 +96,7 @@ public class PlainTransportFuture<V extends TransportResponse> extends BaseFutur
         try {
             handler.handleException(exp);
         } finally {
-            setException(exp);
+            completeExceptionally(exp);
         }
     }
 

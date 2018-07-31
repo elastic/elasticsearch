@@ -118,13 +118,13 @@ public class PeerFinderTests extends ESTestCase {
         }
 
         @Override
-        DiscoveryNodes getLastAcceptedNodes() {
+        protected DiscoveryNodes getLastAcceptedNodes() {
             assert holdsLock() == false : "PeerFinder lock held in error";
             return lastAcceptedNodes;
         }
 
         @Override
-        void onMasterFoundByProbe(DiscoveryNode masterNode, long term) {
+        protected void onMasterFoundByProbe(DiscoveryNode masterNode, long term) {
             assert holdsLock() == false : "PeerFinder lock held in error";
             assertThat(discoveredMasterNode, nullValue());
             discoveredMasterNode = masterNode;

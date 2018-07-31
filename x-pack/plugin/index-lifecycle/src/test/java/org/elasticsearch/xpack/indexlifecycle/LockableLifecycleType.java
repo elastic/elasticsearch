@@ -15,6 +15,11 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * This {@link LifecycleType} is used for encapsulating test policies
+ * used in integration tests where the underlying {@link LifecycleAction}s are
+ * able to communicate with the test
+ */
 public class LockableLifecycleType implements LifecycleType {
     public static final String TYPE = "lockable";
     public static final LockableLifecycleType INSTANCE = new LockableLifecycleType();

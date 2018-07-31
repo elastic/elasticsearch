@@ -42,7 +42,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.discovery.ClusterStatePublisher;
+import org.elasticsearch.discovery.FailedToCommitClusterStateException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -791,7 +792,7 @@ public class MasterServiceTests extends ESTestCase {
                 .localNodeId(node1.getId())
                 .masterNodeId(node1.getId()))
             .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).build();
-        final AtomicReference<Discovery.Publisher> publisherRef = new AtomicReference<>();
+        final AtomicReference<ClusterStatePublisher> publisherRef = new AtomicReference<>();
         timedMasterService.setClusterStatePublisher((e, pl, al) -> publisherRef.get().publish(e, pl, al));
         timedMasterService.setClusterStateSupplier(() -> initialClusterState);
         timedMasterService.start();
@@ -801,7 +802,7 @@ public class MasterServiceTests extends ESTestCase {
             final CountDownLatch latch = new CountDownLatch(1);
 
             publisherRef.set((clusterChangedEvent, publishListener, ackListener) -> {
-                publishListener.onFailure(new Discovery.FailedToCommitClusterStateException("mock exception"));
+                publishListener.onFailure(new FailedToCommitClusterStateException("mock exception"));
             });
 
             timedMasterService.submitStateUpdateTask("test2", new AckedClusterStateUpdateTask<Void>(null, null) {

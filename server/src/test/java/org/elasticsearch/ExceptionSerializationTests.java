@@ -57,6 +57,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.UnknownNamedObjectException;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.discovery.FailedToCommitClusterStateException;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.RecoveryEngineException;
@@ -801,7 +802,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(137, org.elasticsearch.indices.TypeMissingException.class);
         ids.put(138, null);
         ids.put(139, null);
-        ids.put(140, org.elasticsearch.discovery.Discovery.FailedToCommitClusterStateException.class);
+        ids.put(140, FailedToCommitClusterStateException.class);
         ids.put(141, org.elasticsearch.index.query.QueryShardException.class);
         ids.put(142, ShardStateAction.NoLongerPrimaryShardException.class);
         ids.put(143, org.elasticsearch.script.ScriptException.class);

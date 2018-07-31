@@ -55,6 +55,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.DiscoveryStats;
+import org.elasticsearch.discovery.FailedToCommitClusterStateException;
 import org.elasticsearch.discovery.zen.PublishClusterStateAction.IncomingClusterStateListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;

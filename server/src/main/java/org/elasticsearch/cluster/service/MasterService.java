@@ -49,7 +49,9 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.discovery.ClusterStatePublisher;
 import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.discovery.FailedToCommitClusterStateException;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
@@ -71,7 +73,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
     public static final String MASTER_UPDATE_THREAD_NAME = "masterService#updateTask";
 
-    protected Discovery.Publisher clusterStatePublisher;
+    protected ClusterStatePublisher clusterStatePublisher;
 
     private java.util.function.Supplier<ClusterState> clusterStateSupplier;
 
@@ -93,7 +95,7 @@ public class MasterService extends AbstractLifecycleComponent {
         this.slowTaskLoggingThreshold = slowTaskLoggingThreshold;
     }
 
-    public synchronized void setClusterStatePublisher(Discovery.Publisher publisher) {
+    public synchronized void setClusterStatePublisher(ClusterStatePublisher publisher) {
         clusterStatePublisher = publisher;
     }
 
@@ -282,11 +284,11 @@ public class MasterService extends AbstractLifecycleComponent {
 
             @Override
             public void onFailure(Exception exception) {
-                if (exception instanceof Discovery.FailedToCommitClusterStateException) {
+                if (exception instanceof FailedToCommitClusterStateException) {
                     final long version = clusterChangedEvent.state().version();
                     logger.warn(() -> new ParameterizedMessage(
                         "failing [{}]: failed to commit cluster state version [{}]", clusterChangedEvent.source(), version), exception);
-                    taskOutputs.publishingFailed((Discovery.FailedToCommitClusterStateException) exception);
+                    taskOutputs.publishingFailed((FailedToCommitClusterStateException) exception);
                 } else {
                     handleException(clusterChangedEvent.source(), startTimeNS, clusterChangedEvent.state(), exception);
                 }
@@ -403,7 +405,7 @@ public class MasterService extends AbstractLifecycleComponent {
             this.executionResults = executionResults;
         }
 
-        public void publishingFailed(Discovery.FailedToCommitClusterStateException t) {
+        public void publishingFailed(FailedToCommitClusterStateException t) {
             nonFailedTasks.forEach(task -> task.listener.onFailure(task.source(), t));
         }
 

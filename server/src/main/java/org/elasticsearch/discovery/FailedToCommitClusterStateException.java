@@ -16,35 +16,27 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.discovery;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 
 /**
- * A pluggable module allowing to implement discovery of other nodes, publishing of the cluster
- * state to all nodes, electing a master of the cluster that raises cluster state change
- * events.
+ * Thrown when failing to publish a cluster state. See {@link ClusterStatePublisher} for more details.
  */
-public interface Discovery extends LifecycleComponent, ClusterStatePublisher {
+public class FailedToCommitClusterStateException extends ElasticsearchException {
 
-    /**
-     * @return stats about the discovery
-     */
-    DiscoveryStats stats();
+    public FailedToCommitClusterStateException(StreamInput in) throws IOException {
+        super(in);
+    }
 
-    /**
-     * Triggers the first join cycle
-     */
-    void startInitialJoin();
+    public FailedToCommitClusterStateException(String msg, Object... args) {
+        super(msg, args);
+    }
 
+    public FailedToCommitClusterStateException(String msg, Throwable cause, Object... args) {
+        super(msg, cause, args);
+    }
 }

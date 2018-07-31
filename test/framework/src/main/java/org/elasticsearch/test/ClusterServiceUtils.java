@@ -35,7 +35,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.discovery.ClusterStatePublisher;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
@@ -159,7 +159,7 @@ public class ClusterServiceUtils {
         return clusterService;
     }
 
-    public static Discovery.Publisher createClusterStatePublisher(ClusterApplier clusterApplier) {
+    public static ClusterStatePublisher createClusterStatePublisher(ClusterApplier clusterApplier) {
         return (event, publishListener, ackListener) ->
             clusterApplier.onNewClusterState("mock_publish_to_self[" + event.source() + "]", () -> event.state(),
                 new ClusterApplyListener() {

@@ -36,9 +36,7 @@ import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.Objects;
-import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 

@@ -155,7 +155,7 @@ public class SnapshotDisruptionIT extends AbstractDisruptionTestCase {
             Throwable cause = ex.getCause();
             assertThat(cause, instanceOf(MasterNotDiscoveredException.class));
             cause = cause.getCause();
-            assertThat(cause, instanceOf(Discovery.FailedToCommitClusterStateException.class));
+            assertThat(cause, instanceOf(FailedToCommitClusterStateException.class));
         }
     }
 

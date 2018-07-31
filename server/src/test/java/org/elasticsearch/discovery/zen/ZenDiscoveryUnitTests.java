@@ -44,7 +44,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.discovery.FailedToCommitClusterStateException;
 import org.elasticsearch.discovery.zen.PublishClusterStateActionTests.AssertingAckListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -304,7 +304,7 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
 
     private class AwaitingPublishListener implements ActionListener<Void> {
         private final CountDownLatch countDownLatch = new CountDownLatch(1);
-        private Discovery.FailedToCommitClusterStateException exception;
+        private FailedToCommitClusterStateException exception;
 
         @Override
         public void onResponse(Void aVoid) {
@@ -314,8 +314,8 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
 
         @Override
         public void onFailure(Exception e) {
-            assertThat(e, IsInstanceOf.instanceOf(Discovery.FailedToCommitClusterStateException.class));
-            exception = (Discovery.FailedToCommitClusterStateException) e;
+            assertThat(e, IsInstanceOf.instanceOf(FailedToCommitClusterStateException.class));
+            exception = (FailedToCommitClusterStateException) e;
             onResponse(null);
         }
 
@@ -323,7 +323,7 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             countDownLatch.await();
         }
 
-        public Discovery.FailedToCommitClusterStateException getException() {
+        public FailedToCommitClusterStateException getException() {
             return exception;
         }
     }

@@ -302,7 +302,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         when(mockNodeResponse.shardsStats()).thenReturn(new ShardStats[]{mockShardStats});
 
         final ClusterStatsResponse clusterStats = new ClusterStatsResponse(1451606400000L,
-                                                                            "Z7R4gXE2RvyLDG0ROIP_8g",
+                                                                            "_cluster",
                                                                             clusterName,
                                                                             singletonList(mockNodeResponse),
                                                                             emptyList());

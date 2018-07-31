@@ -417,7 +417,7 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
                                     }
                                 } else {
                                     foundMasterNode = false;
-                                    response.getDiscoveryNodes().stream().map(DiscoveryNode::getAddress)
+                                    response.getCandidateNodes().stream().map(DiscoveryNode::getAddress)
                                         .forEach(ActivePeerFinder.this::startProbe);
                                 }
                             }

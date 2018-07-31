@@ -201,12 +201,12 @@ public class MessagesTests extends ESTestCase {
             in -> {
                 final long term = in.getTerm();
                 if (randomBoolean()) {
-                    return new PeersResponse(in.getMasterNode(), in.getDiscoveryNodes(),
+                    return new PeersResponse(in.getMasterNode(), in.getCandidateNodes(),
                         randomValueOtherThan(term, ESTestCase::randomNonNegativeLong));
                 } else {
                     if (in.getMasterNode().isPresent()) {
                         if (randomBoolean()) {
-                            return new PeersResponse(Optional.of(createNode(randomAlphaOfLength(10))), in.getDiscoveryNodes(), term);
+                            return new PeersResponse(Optional.of(createNode(randomAlphaOfLength(10))), in.getCandidateNodes(), term);
                         } else {
                             return new PeersResponse(Optional.empty(), singletonList(createNode(randomAlphaOfLength(10))), term);
                         }
@@ -214,7 +214,7 @@ public class MessagesTests extends ESTestCase {
                         if (randomBoolean()) {
                             return new PeersResponse(Optional.of(createNode(randomAlphaOfLength(10))), emptyList(), term);
                         } else {
-                            return new PeersResponse(in.getMasterNode(), modifyDiscoveryNodesList(in.getDiscoveryNodes(), false), term);
+                            return new PeersResponse(in.getMasterNode(), modifyDiscoveryNodesList(in.getCandidateNodes(), false), term);
                         }
                     }
                 }

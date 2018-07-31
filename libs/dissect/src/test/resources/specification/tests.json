@@ -1,0 +1,363 @@
+[
+  {
+    "name": "When all the defined fields are captured by we have remaining data",
+    "tok": "level=%{level} ts=%{timestamp} caller=%{caller} msg=\"%{message}\"",
+    "msg": "level=info ts=2018-06-27T17:19:13.036579993Z caller=main.go:222 msg=\"Starting OK\" version=\"(version=2.3.1, branch=HEAD, revision=188ca45bd85ce843071e768d855722a9d9dabe03)\"}",
+    "expected": {
+      "caller": "main.go:222",
+      "level": "info",
+      "message": "Starting OK",
+      "timestamp": "2018-06-27T17:19:13.036579993Z"
+    },
+    "skip": false,
+    "fail": false,
+    "append": ""
+  },
+  {
+    "name": "Complex stack trace",
+    "tok": "%{day}-%{month}-%{year} %{hour} %{severity} [%{thread_id}] %{origin} %{message}",
+    "msg": "18-Apr-2018 06:53:20.411 INFO [http-nio-8080-exec-1] org.apache.coyote.http11.Http11Processor.service Error parsing HTTP request header\n Note: further occurrences of HTTP header parsing errors will be logged at DEBUG level.\n java.lang.IllegalArgumentException: Invalid character found in method name. HTTP method names must be tokens\n    at org.apache.coyote.http11.Http11InputBuffer.parseRequestLine(Http11InputBuffer.java:426)\n    at org.apache.coyote.http11.Http11Processor.service(Http11Processor.java:687)\n    at org.apache.coyote.AbstractProcessorLight.process(AbstractProcessorLight.java:66)\n    at org.apache.coyote.AbstractProtocol$ConnectionHandler.process(AbstractProtocol.java:790)\n    at org.apache.tomcat.util.net.NioEndpoint$SocketProcessor.doRun(NioEndpoint.java:1459)\n    at org.apache.tomcat.util.net.SocketProcessorBase.run(SocketProcessorBase.java:49)\n    at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)\n    at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)\n    at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:61)\n    at java.lang.Thread.run(Thread.java:748)",
+    "expected": {
+      "day": "18",
+      "hour": "06:53:20.411",
+      "message": "Error parsing HTTP request header\n Note: further occurrences of HTTP header parsing errors will be logged at DEBUG level.\n java.lang.IllegalArgumentException: Invalid character found in method name. HTTP method names must be tokens\n    at org.apache.coyote.http11.Http11InputBuffer.parseRequestLine(Http11InputBuffer.java:426)\n    at org.apache.coyote.http11.Http11Processor.service(Http11Processor.java:687)\n    at org.apache.coyote.AbstractProcessorLight.process(AbstractProcessorLight.java:66)\n    at org.apache.coyote.AbstractProtocol$ConnectionHandler.process(AbstractProtocol.java:790)\n    at org.apache.tomcat.util.net.NioEndpoint$SocketProcessor.doRun(NioEndpoint.java:1459)\n    at org.apache.tomcat.util.net.SocketProcessorBase.run(SocketProcessorBase.java:49)\n    at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)\n    at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)\n    at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:61)\n    at java.lang.Thread.run(Thread.java:748)",
+      "month": "Apr",
+      "origin": "org.apache.coyote.http11.Http11Processor.service",
+      "severity": "INFO",
+      "thread_id": "http-nio-8080-exec-1",
+      "year": "2018"
+    },
+    "skip": false,
+    "fail": false,
+    "append": ""
+  },
+  {
+    "name": "success when delimiter found at the beginning and end of the string",
+    "tok": "/var/log/%{key}.log",
+    "msg": "/var/log/foobar.log",
+    "expected": {
+      "key": "foobar"
+    },
+    "skip": false,
+    "fail": false,
+    "append": ""
+  },
+  {
+    "name": "fails when delimiter is not found at the beginning of the string",
+    "tok": "/var/log/%{key}.log",
+    "msg": "foobar",
+    "expected": null,
+    "skip": false,
+    "fail": true,
+    "append": ""
+  },
+  {
+    "name": "fails when delimiter is not found after the key",
+    "tok": "/var/log/%{key}.log",
+    "msg": "/var/log/foobar",
+    "expected": null,
+    "skip": false,
+    "fail": true,
+    "append": ""
+  },
+  {
+    "name": "simple dissect",
+    "tok": "%{key}",
+    "msg": "foobar",
+    "expected": {
+      "key": "foobar"
+    },
+    "skip": false,
+    "fail": false,
+    "append": ""
+  },
+  {
+    "name": "dissect two replacement",
+    "tok": "%{key1} %{key2}",
+    "msg": "foo bar",
+    "expected": {
+      "key1": "foo",
+      "key2": "bar"
+    },
+    "skip": false,
+    "fail": false,
+    "append": ""
+  },
+  {
+    "name": "fail on partial match",
+    "tok": "%{key1} %{key2} %{key3}",
+    "msg": "foo bar",
+    "expected": null,
+    "skip": false,
+    "fail": true,
+    "append": ""
+  },
+  {
+    "name": "one level dissect not end of string",
+    "tok": "/var/%{key}/log",
+    "msg": "/var/foobar/log",
+    "expected": {
+      "key": "foobar"
+    },
+    "skip": false,
+    "fail": false,
+    "append": ""
+  },
+  {
+    "name": "one level dissect",
+    "tok": "/var/%{key}",
+    "msg": "/var/foobar/log",
+    "expected": {
+      "key": "foobar/log"
+    },
+    "skip": false,
+    "fail": false,
+    "append": ""
+  },
+  {
+    "name": "multiple keys dissect end of string",
+    "tok": "/var/%{key}/log/%{key1}",
+    "msg": "/var/foobar/log/apache",
+    "expected": {
+      "key": "foobar",
+      "key1": "apache"
+    },
+    "skip": false,
+    "fail": false,
+    "append": ""
+  },
+  {
+    "name": "multiple keys not end of string",
+    "tok": "/var/%{key}/log/%{key1}.log",
+    "msg": "/var/foobar/log/apache.log",
+    "expected": {
+      "key": "foobar",
+      "key1": "apache"
+    },
+    "skip": false,
+    "fail": false,
+    "append": ""
+  },
+  {
+    "name": "append with order",
+    "tok": "%{+key/3} %{+key/1} %{+key/2}",
+    "msg": "1 2 3",
+    "expected": {
+      "key": "231"
+    },
+    "skip": false,
+    "fail": false,
+    "append": ""
+  },
+  {
+    "name": "append with order and separator",
+    "tok": "%{+key/3} %{+key/1} %{+key/2}",
+    "msg": "1 2 3",
+    "expected": {
+      "key": "2::3::1"
+    },
+    "skip": false,
+    "fail": false,
+    "append": "::"
+  },
+  {
+    "name": "append with order and right padding",
+    "tok": "%{+key/3} %{+key/1-\u003e} %{+key/2}",
+    "msg": "1 2              3",
+    "expected": {
+      "key": "231"
+    },
+    "skip": false,
+    "fail": false,
+    "append": ""
+  },
+  {
+    "name": "simple append",
+    "tok": "%{key}-%{+key}-%{+key}",
+    "msg": "1-2-3",
+    "expected": {
+      "key": "123"
+    },
+    "skip": false,
+    "fail": false,
+    "append": ""
+  },
+  {
+    "name": "simple append with separator",
+    "tok": "%{key}-%{+key}-%{+key}",
+    "msg": "1-2-3",
+    "expected": {
+      "key": "1,2,3"
+    },
+    "skip": false,
+    "fail": false,
+    "append": ","
+  },
+  {
+    "name": "reference field",
+    "tok": "%{*key} %{\u0026key}",
+    "msg": "hello world",
+    "expected": {
+      "hello": "world"
+    },
+    "skip": false,
+    "fail": false,
+    "append": ""
+  },
+  {
+    "name": "reference field alt order",
+    "tok": "%{\u0026key} %{*key}",
+    "msg": "hello world",
+    "expected": {
+      "world": "hello"
+    },
+    "skip": false,
+    "fail": false,
+    "append": ""
+  },
+  {
+    "name": "nameless skip field",
+    "tok": "%{} %{key}",
+    "msg": "hello world",
+    "expected": {
+      "key": "world"
+    },
+    "skip": false,
+    "fail": false,
+    "append": ""
+  },
+  {
+    "name": "named skip field",
+    "tok": "%{?skipme} %{key}",
+    "msg": "hello world",
+    "expected": {
+      "key": "world"
+    },
+    "skip": false,
+    "fail": false,
+    "append": ""
+  },
+  {
+    "name": "reference without pairing",
+    "tok": "%{key} %{\u0026key}",
+    "msg": "hello world",
+    "expected": null,
+    "skip": false,
+    "fail": true,
+    "append": ""
+  },
+  {
+    "name": "missing fields (consecutive delimiters)",
+    "tok": "%{name},%{addr1},%{addr2},%{addr3},%{city},%{zip}",
+    "msg": "Jane Doe,4321 Fifth Avenue,,,New York,87432",
+    "expected": {
+      "addr1": "4321 Fifth Avenue",
+      "addr2": "",
+      "addr3": "",
+      "city": "New York",
+      "name": "Jane Doe",
+      "zip": "87432"
+    },
+    "skip": false,
+    "fail": false,
+    "append": ""
+  },
+  {
+    "name": "missing fields with right padding (consecutive delimiters)",
+    "tok": "%{name},%{addr1-\u003e},%{city},%{zip}",
+    "msg": "Jane Doe,4321 Fifth Avenue,,,New York,87432",
+    "expected": {
+      "addr1": "4321 Fifth Avenue",
+      "city": "New York",
+      "name": "Jane Doe",
+      "zip": "87432"
+    },
+    "skip": false,
+    "fail": false,
+    "append": ""
+  },
+  {
+    "name": "ignore right padding",
+    "tok": "%{id} %{function-\u003e} %{server}",
+    "msg": "00000043 ViewReceive     machine-321",
+    "expected": {
+      "function": "ViewReceive",
+      "id": "00000043",
+      "server": "machine-321"
+    },
+    "skip": false,
+    "fail": false,
+    "append": ""
+  },
+  {
+    "name": "padding on the last key need a delimiter",
+    "tok": "%{id} %{function} %{server-\u003e} ",
+    "msg": "00000043 ViewReceive machine-321    ",
+    "expected": {
+      "function": "ViewReceive",
+      "id": "00000043",
+      "server": "machine-321"
+    },
+    "skip": false,
+    "fail": false,
+    "append": ""
+  },
+  {
+    "name": "ignore left padding",
+    "tok": "%{id-\u003e} %{function} %{server}",
+    "msg": "00000043    ViewReceive machine-321",
+    "expected": {
+      "function": "ViewReceive",
+      "id": "00000043",
+      "server": "machine-321"
+    },
+    "skip": false,
+    "fail": false,
+    "append": ""
+  },
+  {
+    "name": "when the delimiters contains `{` and `}`",
+    "tok": "{%{a}}{%{b}} %{rest}",
+    "msg": "{c}{d} anything",
+    "expected": {
+      "a": "c",
+      "b": "d",
+      "rest": "anything"
+    },
+    "skip": false,
+    "fail": false,
+    "append": ""
+  },
+  {
+    "name": "no keys defined",
+    "tok": "anything",
+    "msg": "anything",
+    "expected": null,
+    "skip": false,
+    "fail": true,
+    "append": ""
+  },
+  {
+    "name": "invalid key",
+    "tok": "%{some?thing}",
+    "msg": "anything",
+    "expected": null,
+    "skip": false,
+    "fail": true,
+    "append": ""
+  },
+  {
+    "name": "matches non-ascii",
+    "tok": "%{a}࿏%{b} %{c}",
+    "msg": "⟳༒࿏༒⟲ 子",
+    "expected": {
+      "a": "⟳༒",
+      "b": "༒⟲",
+      "c": "子"
+    },
+    "skip": false,
+    "fail": false,
+    "append": ""
+  }
+
+]

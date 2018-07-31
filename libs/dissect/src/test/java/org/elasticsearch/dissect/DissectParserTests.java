@@ -19,6 +19,8 @@
 
 package org.elasticsearch.dissect;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
@@ -26,6 +28,7 @@ import org.hamcrest.Matchers;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -88,11 +91,8 @@ public class DissectParserTests extends ESTestCase {
         assertBadKey("%{&+a_field}");
         assertMatch("%{a->}   %{b->}---%{c}", "foo            bar------------baz",
             Arrays.asList("a", "b", "c"), Arrays.asList("foo", "bar", "baz"));
-        //TODO: support '?' as a named skip key
-        //Logstash will match "%{?->}-%{a}" to "-----666", however '?' without a corresponding '&' is not allowed here, so the syntax is
-        //the same minus the '?' as tested below
-//        assertBadKey("%{?->}-%{a}", "?->");
-//        assertMatch("%{->}-%{a}", "-----666", Arrays.asList("a"), Arrays.asList("666"));
+        assertMatch("%{->}-%{a}", "-----666", Arrays.asList("a"), Arrays.asList("666"));
+        assertMatch("%{?skipme->}-%{a}", "-----666", Arrays.asList("a"), Arrays.asList("666"));
         assertMatch("%{a},%{b},%{c},%{d},%{e},%{f}", "111,,333,,555,666",
             Arrays.asList("a", "b", "c", "d", "e", "f"), Arrays.asList("111", "", "333", "", "555", "666"));
         assertMatch("%{a}.࿏.%{b}", "⟳༒.࿏.༒⟲", Arrays.asList("a", "b"), Arrays.asList("⟳༒", "༒⟲"));
@@ -135,8 +135,8 @@ public class DissectParserTests extends ESTestCase {
         //parallel arrays
         List<String> expectedKeys = new ArrayList<>();
         List<String> expectedValues = new ArrayList<>();
-        for (int i = 0; i< randomIntBetween(1,100);i++) {
-            String key = randomAsciiAlphanumOfLengthBetween(1,100);
+        for (int i = 0; i < randomIntBetween(1, 100); i++) {
+            String key = randomAsciiAlphanumOfLengthBetween(1, 100);
             String value = randomRealisticUnicodeOfCodepointLengthBetween(1, 100);
             String delimiter = Integer.toString(randomInt()); //int to ensures values and delimiters don't overlap, else validation can fail
             keyFirstPattern += "%{" + key + "}" + delimiter;
@@ -248,15 +248,15 @@ public class DissectParserTests extends ESTestCase {
     }
 
     public void testTrimmedEnd() {
-        assertMatch("%{a} %{b}", "foo bar          ", Arrays.asList("a", "b"), Arrays.asList("foo", "bar          "));
-        assertMatch("%{a} %{b->}", "foo bar          ", Arrays.asList("a", "b"), Arrays.asList("foo", "bar"));
+        assertMatch("%{a} %{b}", "foo bar", Arrays.asList("a", "b"), Arrays.asList("foo", "bar"));
+        assertMatch("%{a} %{b->} ", "foo bar        ", Arrays.asList("a", "b"), Arrays.asList("foo", "bar"));
         //only whitespace is trimmed in the absence of trailing characters
         assertMatch("%{a} %{b->}", "foo bar,,,,,,", Arrays.asList("a", "b"), Arrays.asList("foo", "bar,,,,,,"));
         //consecutive delimiters + right padding can be used to skip over the trailing delimiters
         assertMatch("%{a} %{b->},", "foo bar,,,,,,", Arrays.asList("a", "b"), Arrays.asList("foo", "bar"));
     }
 
-    public void testLeadingDelimiter(){
+    public void testLeadingDelimiter() {
         assertMatch(",,,%{a} %{b}", ",,,foo bar", Arrays.asList("a", "b"), Arrays.asList("foo", "bar"));
         assertMatch(",%{a} %{b}", ",,foo bar", Arrays.asList("a", "b"), Arrays.asList(",foo", "bar"));
     }
@@ -270,12 +270,17 @@ public class DissectParserTests extends ESTestCase {
         assertMiss("%{a}, %{b}", "foo,bar");
         assertMiss("x%{a},%{b}", "foo,bar");
         assertMiss("x%{},%{b}", "foo,bar");
+        assertMiss("leading_delimiter_long%{a}", "foo");
+        assertMiss("%{a}trailing_delimiter_long", "foo");
+        assertMiss("leading_delimiter_long%{a}trailing_delimiter_long", "foo");
+        assertMiss("%{a}x", "foo");
+        assertMiss("%{a},%{b}x", "foo,bar");
     }
 
     /**
      * Construction errors
      */
-    public void testBadPatternOrKey(){
+    public void testBadPatternOrKey() {
         assertBadPattern("");
         assertBadPattern("{}");
         assertBadPattern("%{*a} %{&b}");
@@ -290,7 +295,7 @@ public class DissectParserTests extends ESTestCase {
             Arrays.asList("Mar 16 00:01:25", "evita", "postfix/smtpd", "1713", "connect from camomile.cloud9.net[168.100.1.3]"), " ");
     }
 
-    public void testApacheLog(){
+    public void testApacheLog() {
         assertMatch("%{clientip} %{ident} %{auth} [%{timestamp}] \"%{verb} %{request} HTTP/%{httpversion}\" %{response} %{bytes}" +
                 " \"%{referrer}\" \"%{agent}\" %{->}",
             "31.184.238.164 - - [24/Jul/2014:05:35:37 +0530] \"GET /logs/access.log HTTP/1.0\" 200 69849 " +
@@ -303,21 +308,58 @@ public class DissectParserTests extends ESTestCase {
                     " (KHTML, like Gecko) Chrome/30.0.1599.12785 YaBrowser/13.12.1599.12785 Safari/537.36"));
     }
 
+    /**
+     * Shared specification between Beats, Logstash, and Ingest node
+     */
+    public void testJsonSpecification() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode rootNode = mapper.readTree(this.getClass().getResourceAsStream("/specification/tests.json"));
+        Iterator<JsonNode> tests = rootNode.elements();
+        while (tests.hasNext()) {
+            JsonNode test = tests.next();
+            boolean skip = test.path("skip").asBoolean();
+            if (!skip) {
+                String name = test.path("name").asText();
+                logger.debug("Running Json specification: " + name);
+                String pattern = test.path("tok").asText();
+                String input = test.path("msg").asText();
+                String append = test.path("append").asText();
+                boolean fail = test.path("fail").asBoolean();
+                Iterator<Map.Entry<String, JsonNode>> expected = test.path("expected").fields();
+                List<String> expectedKeys = new ArrayList<>();
+                List<String> expectedValues = new ArrayList<>();
+                expected.forEachRemaining(entry -> {
+                    expectedKeys.add(entry.getKey());
+                    expectedValues.add(entry.getValue().asText());
+                });
+                if (fail) {
+                    assertFail(pattern, input);
+                } else {
+                    assertMatch(pattern, input, expectedKeys, expectedValues, append);
+                }
+            }
+        }
+    }
+
+    private DissectException assertFail(String pattern, String input){
+        return expectThrows(DissectException.class, () -> new DissectParser(pattern, null).parse(input));
+    }
+
     private void assertMiss(String pattern, String input) {
-        DissectException e = expectThrows(DissectException.class, () -> new DissectParser(pattern, null).parse(input));
+        DissectException e = assertFail(pattern, input);
         assertThat(e.getMessage(), CoreMatchers.containsString("Unable to find match for dissect pattern"));
         assertThat(e.getMessage(), CoreMatchers.containsString(pattern));
         assertThat(e.getMessage(), input == null ? CoreMatchers.containsString("null") : CoreMatchers.containsString(input));
     }
 
     private void assertBadPattern(String pattern) {
-        DissectException e = expectThrows(DissectException.class, () -> new DissectParser(pattern, null));
+        DissectException e = assertFail(pattern, null);
         assertThat(e.getMessage(), CoreMatchers.containsString("Unable to parse pattern"));
         assertThat(e.getMessage(), CoreMatchers.containsString(pattern));
     }
 
     private void assertBadKey(String pattern, String key) {
-        DissectException e = expectThrows(DissectException.class, () -> new DissectParser(pattern, null));
+        DissectException e = assertFail(pattern, null);
         assertThat(e.getMessage(), CoreMatchers.containsString("Unable to parse key"));
         assertThat(e.getMessage(), CoreMatchers.containsString(key));
     }

@@ -27,6 +27,9 @@ dependencies {
             exclude group: 'org.elasticsearch', module: 'dissect'
         }
     }
+    testCompile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+    testCompile("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
+    testCompile("com.fasterxml.jackson.core:jackson-databind:${versions.jackson}")
 }
 
 forbiddenApisMain {

@@ -125,13 +125,12 @@ public final class DissectParser {
             String delimiter = matcher.group(2);
             matchPairs.add(new DissectPair(key, delimiter));
         }
-        if (matchPairs.isEmpty()) {
-            throw new DissectException.PatternParse(pattern, "Unable to find any keys or delimiters.");
-        }
         this.maxMatches = matchPairs.size();
         this.maxResults = Long.valueOf(matchPairs.stream()
             .filter(dissectPair -> !dissectPair.getKey().skip()).map(KEY_NAME).distinct().count()).intValue();
-
+        if (this.maxMatches == 0 || maxResults == 0) {
+            throw new DissectException.PatternParse(pattern, "Unable to find any keys or delimiters.");
+        }
         //append validation - look through all of the keys to see if there are any keys that need to participate in an append operation
         // but don't have the '+' defined
         Set<String> appendKeyNames = matchPairs.stream()
@@ -199,7 +198,8 @@ public final class DissectParser {
         DissectMatch dissectMatch = new DissectMatch(appendSeparator, maxMatches, maxResults, appendCount, referenceCount);
         Iterator<DissectPair> it = matchPairs.iterator();
         //ensure leading delimiter matches
-        if (inputString != null && leadingDelimiter.equals(inputString.substring(0, leadingDelimiter.length()))) {
+        if (inputString != null && inputString.length() > leadingDelimiter.length()
+            && leadingDelimiter.equals(inputString.substring(0, leadingDelimiter.length()))) {
             byte[] input = inputString.getBytes(StandardCharsets.UTF_8);
             //grab the first key/delimiter pair
             DissectPair dissectPair = it.next();
@@ -267,13 +267,15 @@ public final class DissectParser {
                 }
             }
             //the last key, grab the rest of the input (unless consecutive delimiters already grabbed the last key)
-            if (!dissectMatch.fullyMatched()) {
+            //and there is no trailing delimiter
+            if (!dissectMatch.fullyMatched() && delimiter.length == 0 ) {
                 byte[] value = Arrays.copyOfRange(input, valueStart, input.length);
                 String valueString = new String(value, StandardCharsets.UTF_8);
-                dissectMatch.add(key, (key.skipRightPadding() ? valueString.replaceFirst("\\s++$", "") : valueString));
+                dissectMatch.add(key, valueString);
             }
         }
         Map<String, String> results = dissectMatch.getResults();
+
         if (!dissectMatch.isValid(results)) {
             throw new DissectException.FindMatch(pattern, inputString);
         }

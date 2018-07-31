@@ -37,7 +37,7 @@
       reason:  "cluster stats including cluster_uuid at the top level is new in v6.5.0 and higher"
 
   - do:
-    cluster.stats: {}
+      cluster.stats: {}
 
   - is_true: cluster_uuid
   - is_true: timestamp

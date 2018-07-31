@@ -237,7 +237,7 @@ public class FunctionRef {
         }
 
         // lookup requested constructor
-        PainlessClass struct = painlessLookup.getPainlessStructFromJavaClass(painlessLookup.getJavaClassFromPainlessType(type));
+        PainlessClass struct = painlessLookup.getPainlessStructFromJavaClass(painlessLookup.canonicalTypeNameToType(type));
         PainlessConstructor impl = struct.constructors.get(PainlessLookupUtility.buildPainlessConstructorKey(method.typeParameters.size()));
 
         if (impl == null) {
@@ -261,7 +261,7 @@ public class FunctionRef {
         }
 
         // lookup requested method
-        PainlessClass struct = painlessLookup.getPainlessStructFromJavaClass(painlessLookup.getJavaClassFromPainlessType(type));
+        PainlessClass struct = painlessLookup.getPainlessStructFromJavaClass(painlessLookup.canonicalTypeNameToType(type));
         final PainlessMethod impl;
         // look for a static impl first
         PainlessMethod staticImpl =

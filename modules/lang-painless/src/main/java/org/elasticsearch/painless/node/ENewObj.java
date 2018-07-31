@@ -60,7 +60,7 @@ public final class ENewObj extends AExpression {
     @Override
     void analyze(Locals locals) {
         try {
-            actual = locals.getPainlessLookup().getJavaClassFromPainlessType(this.type);
+            actual = locals.getPainlessLookup().canonicalTypeNameToType(this.type);
         } catch (IllegalArgumentException exception) {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }

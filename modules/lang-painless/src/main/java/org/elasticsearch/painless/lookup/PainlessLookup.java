@@ -19,41 +19,82 @@
 
 package org.elasticsearch.painless.lookup;
 
-import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
-/**
- * The entire API for Painless.  Also used as a whitelist for checking for legal
- * methods and fields during at both compile-time and runtime.
- */
+import static org.elasticsearch.painless.lookup.PainlessLookupUtility.buildPainlessMethodKey;
+import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
+
 public final class PainlessLookup {
-
-    public Collection<Class<?>> getStructs() {
-        return classesToPainlessClasses.keySet();
-    }
 
     private final Map<String, Class<?>> canonicalClassNamesToClasses;
     private final Map<Class<?>, PainlessClass> classesToPainlessClasses;
 
+    private final List<Class<?>> sortedClassesByCanonicalClassName;
+
     PainlessLookup(Map<String, Class<?>> canonicalClassNamesToClasses, Map<Class<?>, PainlessClass> classesToPainlessClasses) {
+        Objects.requireNonNull(canonicalClassNamesToClasses);
+        Objects.requireNonNull(classesToPainlessClasses);
+
         this.canonicalClassNamesToClasses = Collections.unmodifiableMap(canonicalClassNamesToClasses);
         this.classesToPainlessClasses = Collections.unmodifiableMap(classesToPainlessClasses);
+
+        this.sortedClassesByCanonicalClassName = Collections.unmodifiableList(
+                classesToPainlessClasses.keySet().stream().sorted(
+                        Comparator.comparing(Class::getCanonicalName)
+                ).collect(Collectors.toList())
+        );
     }
 
-    public Class<?> getClassFromBinaryName(String painlessType) {
-        return canonicalClassNamesToClasses.get(painlessType.replace('$', '.'));
+    public List<Class<?>> getSortedClassesByCanonicalClassName() {
+        return sortedClassesByCanonicalClassName;
     }
 
-    public boolean isSimplePainlessType(String painlessType) {
-        return canonicalClassNamesToClasses.containsKey(painlessType);
+    public boolean isValidCanonicalClassName(String canonicalClassName) {
+        Objects.requireNonNull(canonicalClassName);
+
+        return canonicalClassNamesToClasses.containsKey(canonicalClassName);
+    }
+
+    public Class<?> canonicalTypeNameToType(String painlessType) {
+        Objects.requireNonNull(painlessType);
+
+        return PainlessLookupUtility.canonicalTypeNameToType(painlessType, canonicalClassNamesToClasses);
+    }
+
+    public PainlessMethod lookupPainlessMethod(Class<?> targetClass, boolean isStatic, String methodName, int methodArity) {
+        Objects.requireNonNull(targetClass);
+        Objects.requireNonNull(methodName);
+
+        if (targetClass.isPrimitive()) {
+            targetClass = PainlessLookupUtility.typeToBoxedType(targetClass);
+        }
+
+        PainlessClass targetPainlessClass = classesToPainlessClasses.get(targetClass);
+        String painlessMethodKey = buildPainlessMethodKey(methodName, methodArity);
+
+        if (targetPainlessClass == null) {
+            throw new IllegalArgumentException(
+                    "target class [" + typeToCanonicalTypeName(targetClass) + "] not found for method [" + painlessMethodKey + "]");
+        }
+
+        PainlessMethod painlessMethod = isStatic ?
+                targetPainlessClass.staticMethods.get(painlessMethodKey) :
+                targetPainlessClass.methods.get(painlessMethodKey);
+
+        if (painlessMethod == null) {
+            throw new IllegalArgumentException(
+                    "method [" + typeToCanonicalTypeName(targetClass) + ", " + painlessMethodKey + "] not found");
+        }
+
+        return painlessMethod;
     }
 
     public PainlessClass getPainlessStructFromJavaClass(Class<?> clazz) {
         return classesToPainlessClasses.get(clazz);
-    }
-
-    public Class<?> getJavaClassFromPainlessType(String painlessType) {
-        return PainlessLookupUtility.canonicalTypeNameToType(painlessType, canonicalClassNamesToClasses);
     }
 }

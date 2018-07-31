@@ -326,7 +326,7 @@ public final class Def {
       */
     static MethodHandle lookupReference(PainlessLookup painlessLookup, MethodHandles.Lookup methodHandlesLookup, String interfaceClass,
                                         Class<?> receiverClass, String name) throws Throwable {
-         Class<?> interfaceType = painlessLookup.getJavaClassFromPainlessType(interfaceClass);
+         Class<?> interfaceType = painlessLookup.canonicalTypeNameToType(interfaceClass);
          PainlessMethod interfaceMethod = painlessLookup.getPainlessStructFromJavaClass(interfaceType).functionalMethod;
          if (interfaceMethod == null) {
              throw new IllegalArgumentException("Class [" + interfaceClass + "] is not a functional interface");

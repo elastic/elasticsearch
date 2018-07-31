@@ -58,10 +58,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -235,36 +234,27 @@ public class MasterService extends AbstractLifecycleComponent {
         }
     }
 
-    protected void publish(ClusterChangedEvent clusterChangedEvent, TaskOutputs taskOutputs, long startTimeNS) {
-        final CountDownLatch latch = new CountDownLatch(1);
-        final AtomicReference<Exception> optionalException = new AtomicReference<>();
+    protected void publish(ClusterChangedEvent clusterChangedEvent, TaskOutputs taskOutputs, long startTimeNS) throws Exception {
+        CompletableFuture<Void> fut = new CompletableFuture<>();
         clusterStatePublisher.publish(clusterChangedEvent, new ActionListener<Void>() {
             @Override
             public void onResponse(Void aVoid) {
-                latch.countDown();
+                fut.complete(aVoid);
             }
 
             @Override
             public void onFailure(Exception e) {
-                optionalException.set(e);
-                latch.countDown();
+                fut.completeExceptionally(e);
             }
         }, taskOutputs.createAckListener(threadPool, clusterChangedEvent.state()));
 
+        final ActionListener<Void> publishListener = getPublishListener(clusterChangedEvent, taskOutputs, startTimeNS);
         // indefinitely wait for publication to complete
         try {
-            latch.await();
-            final ActionListener<Void> publishListener = getPublishListener(clusterChangedEvent, taskOutputs, startTimeNS);
-
-            if (optionalException.get() == null) {
-                publishListener.onResponse(null);
-            } else {
-                publishListener.onFailure(optionalException.get());
-            }
-        } catch (InterruptedException e) {
-            logger.debug(() -> new ParameterizedMessage(
-                "interrupted while publishing cluster state [{}]", clusterChangedEvent.source()), e);
-            Thread.currentThread().interrupt();
+            FutureUtils.get(fut);
+            publishListener.onResponse(null);
+        } catch (Exception e) {
+            publishListener.onFailure(e);
         }
     }
 

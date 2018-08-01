@@ -455,7 +455,7 @@ A rule has the following properties:
 +
 --
 NOTE: If your detector uses `lat_long`, `metric`, `rare`, or `freq_rare` 
-functions, you cannot specify `conditions` for your rule.
+functions, you can only specify `conditions` that apply to `time`.
 
   
 A condition has the following properties: 

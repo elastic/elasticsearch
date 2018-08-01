@@ -136,7 +136,9 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
 
         assertThat(warnings, containsInAnyOrder(
                 "getDate on numeric fields is deprecated. Use a date field to get dates.",
-                "getDates on numeric fields is deprecated. Use a date field to get dates."));
+                "getDates on numeric fields is deprecated. Use a date field to get dates.",
+                "The joda time api for doc values is deprecated. Use -Des.scripting.use_java_time=true" +
+                    " to use the java time api for date field doc values"));
     }
 
     private Longs wrap(long[][] values, Consumer<String> deprecationCallback) {

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.fielddata;
 
-
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
@@ -38,6 +37,9 @@ import org.joda.time.ReadableDateTime;
 import java.io.IOException;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.AbstractList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -45,6 +47,7 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
 
+import static org.elasticsearch.common.Booleans.parseBoolean;
 
 /**
  * Script level doc values, the assumption is that any implementation will
@@ -56,6 +59,7 @@ import java.util.function.UnaryOperator;
  * values form multiple documents.
  */
 public abstract class ScriptDocValues<T> extends AbstractList<T> {
+
     /**
      * Set the current doc ID.
      */
@@ -165,20 +169,20 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
 
         @Deprecated
-        public ReadableDateTime getDate() throws IOException {
+        public Object getDate() throws IOException {
             deprecated("getDate on numeric fields is deprecated. Use a date field to get dates.");
             if (dates == null) {
-                dates = new Dates(in);
+                dates = new Dates(in, deprecationCallback, false);
                 dates.setNextDocId(docId);
             }
             return dates.getValue();
         }
 
         @Deprecated
-        public List<ReadableDateTime> getDates() throws IOException {
+        public List<Object> getDates() throws IOException {
             deprecated("getDates on numeric fields is deprecated. Use a date field to get dates.");
             if (dates == null) {
-                dates = new Dates(in);
+                dates = new Dates(in, deprecationCallback, false);
                 dates.setNextDocId(docId);
             }
             return dates;
@@ -211,45 +215,57 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
     }
 
-    public static final class Dates extends ScriptDocValues<ReadableDateTime> {
-        protected static final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger(Dates.class));
+    public static final class Dates extends ScriptDocValues<Object> {
+
+        /** Whether scripts should expose dates as java time objects instead of joda time. */
+        private static final boolean USE_JAVA_TIME = parseBoolean(System.getProperty("es.scripting.use_java_time"), false);
 
         private static final ReadableDateTime EPOCH = new DateTime(0, DateTimeZone.UTC);
 
+        private static final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger(Dates.class));
+
         private final SortedNumericDocValues in;
+
         /**
-         * Callback for deprecated fields. In production this should always point to
-         * {@link #deprecationLogger} but tests will override it so they can test that
-         * we use the required permissions when calling it.
+         * Method call to add deprecation message. Normally this is
+         * {@link #deprecationLogger} but tests override.
          */
         private final Consumer<String> deprecationCallback;
+
         /**
-         * Values wrapped in {@link MutableDateTime}. Null by default an allocated on first usage so we allocate a reasonably size. We keep
-         * this array so we don't have allocate new {@link MutableDateTime}s on every usage. Instead we reuse them for every document.
+         * Whether java time or joda time should be used. This is normally {@link #USE_JAVA_TIME} but tests override it.
          */
-        private MutableDateTime[] dates;
+        private final boolean useJavaTime;
+
+        /**
+         * Values wrapped in a date time object. The concrete type depends on the system property {@code es.scripting.use_java_time}.
+         * When that system property is {@code false}, the date time objects are of type {@link MutableDateTime}. When the system
+         * property is {@code true}, the date time objects are of type {@link java.time.ZonedDateTime}.
+         */
+        private Object[] dates;
         private int count;
 
         /**
          * Standard constructor.
          */
         public Dates(SortedNumericDocValues in) {
-            this(in, deprecationLogger::deprecated);
+            this(in, message -> deprecationLogger.deprecatedAndMaybeLog("scripting_joda_time_deprecation", message), USE_JAVA_TIME);
         }
 
         /**
-         * Constructor for testing deprecation logging.
+         * Constructor for testing with a deprecation callback.
          */
-        Dates(SortedNumericDocValues in, Consumer<String> deprecationCallback) {
+        Dates(SortedNumericDocValues in, Consumer<String> deprecationCallback, boolean useJavaTime) {
             this.in = in;
             this.deprecationCallback = deprecationCallback;
+            this.useJavaTime = useJavaTime;
         }
 
         /**
          * Fetch the first field value or 0 millis after epoch if there are no
          * in.
          */
-        public ReadableDateTime getValue() {
+        public Object getValue() {
             if (count == 0) {
                 if (ScriptModule.EXCEPTION_FOR_MISSING_VALUE) {
                     throw new IllegalStateException("A document doesn't have a value for a field! " +
@@ -264,7 +280,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
          * Fetch the first value. Added for backwards compatibility with 5.x when date fields were {@link Longs}.
          */
         @Deprecated
-        public ReadableDateTime getDate() {
+        public Object getDate() {
             deprecated("getDate is no longer necessary on date fields as the value is now a date.");
             return getValue();
         }
@@ -273,13 +289,13 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
          * Fetch all the values. Added for backwards compatibility with 5.x when date fields were {@link Longs}.
          */
         @Deprecated
-        public List<ReadableDateTime> getDates() {
+        public List<Object> getDates() {
             deprecated("getDates is no longer necessary on date fields as the values are now dates.");
             return this;
         }
 
         @Override
-        public ReadableDateTime get(int index) {
+        public Object get(int index) {
             if (index >= count) {
                 throw new IndexOutOfBoundsException(
                         "attempted to fetch the [" + index + "] date when there are only ["
@@ -310,29 +326,24 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             if (count == 0) {
                 return;
             }
-            if (dates == null) {
-                // Happens for the document. We delay allocating dates so we can allocate it with a reasonable size.
-                dates = new MutableDateTime[count];
-                for (int i = 0; i < dates.length; i++) {
+            if (useJavaTime) {
+                if (dates == null || count > dates.length) {
+                    // Happens for the document. We delay allocating dates so we can allocate it with a reasonable size.
+                    dates = new ZonedDateTime[count];
+                }
+                for (int i = 0; i < count; ++i) {
+                    dates[i] = ZonedDateTime.ofInstant(Instant.ofEpochMilli(in.nextValue()), ZoneOffset.UTC);
+                }
+            } else {
+                deprecated("The joda time api for doc values is deprecated. Use -Des.scripting.use_java_time=true" +
+                           " to use the java time api for date field doc values");
+                if (dates == null || count > dates.length) {
+                    // Happens for the document. We delay allocating dates so we can allocate it with a reasonable size.
+                    dates = new MutableDateTime[count];
+                }
+                for (int i = 0; i < count; i++) {
                     dates[i] = new MutableDateTime(in.nextValue(), DateTimeZone.UTC);
                 }
-                return;
-            }
-            if (count > dates.length) {
-                // Happens when we move to a new document and it has more dates than any documents before it.
-                MutableDateTime[] backup = dates;
-                dates = new MutableDateTime[count];
-                System.arraycopy(backup, 0, dates, 0, backup.length);
-                for (int i = 0; i < backup.length; i++) {
-                    dates[i].setMillis(in.nextValue());
-                }
-                for (int i = backup.length; i < dates.length; i++) {
-                    dates[i] = new MutableDateTime(in.nextValue(), DateTimeZone.UTC);
-                }
-                return;
-            }
-            for (int i = 0; i < count; i++) {
-                dates[i] = new MutableDateTime(in.nextValue(), DateTimeZone.UTC);
             }
         }
 

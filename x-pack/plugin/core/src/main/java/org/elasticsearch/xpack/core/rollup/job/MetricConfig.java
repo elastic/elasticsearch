@@ -83,6 +83,12 @@ public class MetricConfig implements Writeable, ToXContentObject {
         if (metrics == null || metrics.isEmpty()) {
             throw new IllegalArgumentException("Metrics must be a non-null, non-empty array of strings");
         }
+        metrics.forEach(m -> {
+            if (RollupField.SUPPORTED_METRICS.contains(m) == false) {
+                throw new IllegalArgumentException("Unsupported metric [" + m + "]. " +
+                    "Supported metrics include: " + RollupField.SUPPORTED_METRICS);
+            }
+        });
         this.field = field;
         this.metrics = metrics;
     }

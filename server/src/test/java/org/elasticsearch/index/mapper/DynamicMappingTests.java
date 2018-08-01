@@ -625,11 +625,11 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
             .setSource(doc.dynamicMappingsUpdate().toString(), XContentType.JSON).get();
 
         defaultMapper = index.mapperService().documentMapper("type");
-        FieldMapper mapper = defaultMapper.mappers().getMapper("s_long");
-        assertThat(mapper.fieldType().typeName(), equalTo("long"));
+        Mapper mapper = defaultMapper.mappers().getMapper("s_long");
+        assertThat(mapper.typeName(), equalTo("long"));
 
         mapper = defaultMapper.mappers().getMapper("s_double");
-        assertThat(mapper.fieldType().typeName(), equalTo("float"));
+        assertThat(mapper.typeName(), equalTo("float"));
     }
 
     public void testNumericDetectionDefault() throws Exception {
@@ -652,7 +652,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
             .setSource(doc.dynamicMappingsUpdate().toString(), XContentType.JSON).get());
 
         defaultMapper = index.mapperService().documentMapper("type");
-        FieldMapper mapper = defaultMapper.mappers().getMapper("s_long");
+        Mapper mapper = defaultMapper.mappers().getMapper("s_long");
         assertThat(mapper, instanceOf(TextFieldMapper.class));
 
         mapper = defaultMapper.mappers().getMapper("s_double");

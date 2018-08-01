@@ -88,13 +88,17 @@ public class Authentication {
             throws IOException, IllegalArgumentException {
         assert ctx.getTransient(AuthenticationField.AUTHENTICATION_KEY) == null;
 
+        Authentication authentication = decode(header);
+        ctx.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
+        return authentication;
+    }
+
+    public static Authentication decode(String header) throws IOException {
         byte[] bytes = Base64.getDecoder().decode(header);
         StreamInput input = StreamInput.wrap(bytes);
         Version version = Version.readVersion(input);
         input.setVersion(version);
-        Authentication authentication = new Authentication(input);
-        ctx.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
-        return authentication;
+        return new Authentication(input);
     }
 
     /**

@@ -140,22 +140,6 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             this.shardFailures = shardFailures;
         }
 
-        private void ignoreVersion(String version) {
-            // ignore extra field
-        }
-
-        private void ignoreStartTime(String startTime) {
-            // ignore extra field
-        }
-
-        private void ignoreEndTime(String endTime) {
-            // ignore extra field
-        }
-
-        private void ignoreDurationInMillis(long durationInMillis) {
-            // ignore extra field
-        }
-
         public SnapshotInfo build() {
             SnapshotId snapshotId = new SnapshotId(snapshotName, snapshotUUID);
 
@@ -197,10 +181,6 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         int getSuccessfulShards() {
             return successfulShards;
         }
-
-        private void ignoreFailedShards(int failedShards) {
-            // ignore extra field
-        }
     }
 
     public static final ObjectParser<SnapshotInfoBuilder, Void> SNAPSHOT_INFO_PARSER =
@@ -222,14 +202,9 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         SNAPSHOT_INFO_PARSER.declareInt(SnapshotInfoBuilder::setVersion, new ParseField(VERSION_ID));
         SNAPSHOT_INFO_PARSER.declareObjectArray(SnapshotInfoBuilder::setShardFailures, SnapshotShardFailure.SNAPSHOT_SHARD_FAILURE_PARSER,
             new ParseField(FAILURES));
-        SNAPSHOT_INFO_PARSER.declareString(SnapshotInfoBuilder::ignoreVersion, new ParseField(VERSION));
-        SNAPSHOT_INFO_PARSER.declareString(SnapshotInfoBuilder::ignoreStartTime, new ParseField(START_TIME));
-        SNAPSHOT_INFO_PARSER.declareString(SnapshotInfoBuilder::ignoreEndTime, new ParseField(END_TIME));
-        SNAPSHOT_INFO_PARSER.declareLong(SnapshotInfoBuilder::ignoreDurationInMillis, new ParseField(DURATION_IN_MILLIS));
 
         SHARD_STATS_PARSER.declareInt(ShardStatsBuilder::setTotalShards, new ParseField(TOTAL));
         SHARD_STATS_PARSER.declareInt(ShardStatsBuilder::setSuccessfulShards, new ParseField(SUCCESSFUL));
-        SHARD_STATS_PARSER.declareInt(ShardStatsBuilder::ignoreFailedShards, new ParseField(FAILED));
     }
 
     private final SnapshotId snapshotId;

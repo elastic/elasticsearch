@@ -253,7 +253,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             MultiGetRequest multiGetRequest = new MultiGetRequest();
             multiGetRequest.add("index", "type", "id1");
             multiGetRequest.add("index", "type", "id2");
-            MultiGetResponse response = execute(multiGetRequest, highLevelClient()::multiGet, highLevelClient()::multiGetAsync);
+            MultiGetResponse response = execute(multiGetRequest, highLevelClient()::mget, highLevelClient()::mgetAsync);
             assertEquals(2, response.getResponses().length);
 
             assertTrue(response.getResponses()[0].isFailed());
@@ -285,7 +285,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             MultiGetRequest multiGetRequest = new MultiGetRequest();
             multiGetRequest.add("index", "type", "id1");
             multiGetRequest.add("index", "type", "id2");
-            MultiGetResponse response = execute(multiGetRequest, highLevelClient()::multiGet, highLevelClient()::multiGetAsync);
+            MultiGetResponse response = execute(multiGetRequest, highLevelClient()::mget, highLevelClient()::mgetAsync);
             assertEquals(2, response.getResponses().length);
 
             assertFalse(response.getResponses()[0].isFailed());

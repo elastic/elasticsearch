@@ -382,6 +382,7 @@ public class RollupResponseTranslator {
             });
         } else if (rolled instanceof StringTerms) {
             return unrollMultiBucket(rolled, original, currentTree, (bucket, bucketCount, subAggs) -> {
+
                 BytesRef key = new BytesRef(bucket.getKeyAsString().getBytes(StandardCharsets.UTF_8));
                 assert bucketCount >= 0;
                 //TODO expose getFormatter(), keyed upstream in Core

@@ -391,7 +391,6 @@ public abstract class RollupIndexer {
             }
             if (groupConfig.getTerms() != null) {
                 builders.addAll(groupConfig.getTerms().toBuilders());
-                metadata.putAll(groupConfig.getTerms().getMetadata());
             }
         }
 
@@ -401,6 +400,7 @@ public abstract class RollupIndexer {
             composite.setMetaData(metadata);
         }
         composite.size(config.getPageSize());
+
         return composite;
     }
 
@@ -424,7 +424,8 @@ public abstract class RollupIndexer {
         assert lowerBound <= maxBoundary;
         final RangeQueryBuilder query = new RangeQueryBuilder(fieldName)
                 .gte(lowerBound)
-                .lt(maxBoundary);
+                .lt(maxBoundary)
+                .format("epoch_millis");
         return query;
     }
 }

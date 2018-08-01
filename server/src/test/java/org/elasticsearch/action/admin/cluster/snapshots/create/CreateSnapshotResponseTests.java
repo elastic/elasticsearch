@@ -40,7 +40,7 @@ public class CreateSnapshotResponseTests extends AbstractXContentTestCase<Create
 
     @Override
     protected boolean supportsUnknownFields() {
-        return false;
+        return true;
     }
 
     @Override
@@ -63,9 +63,7 @@ public class CreateSnapshotResponseTests extends AbstractXContentTestCase<Create
 
         boolean globalState = randomBoolean();
 
-        CreateSnapshotResponse response = new CreateSnapshotResponse();
-        response.setSnapshotInfo(
+        return new CreateSnapshotResponse(
             new SnapshotInfo(snapshotId, indices, startTime, reason, endTime, totalShards, shardFailures, globalState));
-        return response;
     }
 }

@@ -35,11 +35,18 @@ import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.BuildInfo;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.LicenseInfo;
+import org.elasticsearch.protocol.xpack.XPackUsageRequest;
+import org.elasticsearch.protocol.xpack.XPackUsageResponse;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.EnumSet;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
 
 /**
  * Documentation for miscellaneous APIs in the high level java client.
@@ -92,8 +99,7 @@ public class MiscellaneousDocumentationIT extends ESRestHighLevelClientTestCase 
             //tag::x-pack-info-response
             BuildInfo build = response.getBuildInfo();                 // <1>
             LicenseInfo license = response.getLicenseInfo();           // <2>
-            assertEquals(XPackInfoResponse.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS,
-                    license.getExpiryDate());                          // <3>
+            assertThat(license.getExpiryDate(), is(greaterThan(Instant.now().toEpochMilli())));  // <3>
             FeatureSetsInfo features = response.getFeatureSetsInfo();  // <4>
             //end::x-pack-info-response
 
@@ -124,6 +130,50 @@ public class MiscellaneousDocumentationIT extends ESRestHighLevelClientTestCase 
             // tag::x-pack-info-execute-async
             client.xpack().infoAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::x-pack-info-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testXPackUsage() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            //tag::x-pack-usage-execute
+            XPackUsageRequest request = new XPackUsageRequest();
+            XPackUsageResponse response = client.xpack().usage(request, RequestOptions.DEFAULT);
+            //end::x-pack-usage-execute
+
+            //tag::x-pack-usage-response
+            Map<String, Map<String, Object>> usages = response.getUsages();
+            Map<String, Object> monitoringUsage = usages.get("monitoring");
+            assertThat(monitoringUsage.get("available"), is(true));
+            assertThat(monitoringUsage.get("enabled"), is(true));
+            assertThat(monitoringUsage.get("collection_enabled"), is(false));
+            //end::x-pack-usage-response
+        }
+        {
+            XPackUsageRequest request = new XPackUsageRequest();
+            // tag::x-pack-usage-execute-listener
+            ActionListener<XPackUsageResponse> listener = new ActionListener<XPackUsageResponse>() {
+                @Override
+                public void onResponse(XPackUsageResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::x-pack-usage-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::x-pack-usage-execute-async
+            client.xpack().usageAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::x-pack-usage-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

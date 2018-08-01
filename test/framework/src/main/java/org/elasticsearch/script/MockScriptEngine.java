@@ -88,6 +88,14 @@ public class MockScriptEngine implements ScriptEngine {
         } else if (context.instanceClazz.equals(ExecutableScript.class)) {
             ExecutableScript.Factory factory = mockCompiled::createExecutableScript;
             return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(IngestScript.class)) {
+            IngestScript.Factory factory = parameters -> new IngestScript(parameters) {
+                @Override
+                public void execute(Map<String, Object> ctx) {
+                    script.apply(ctx);
+                }
+            };
+            return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(TemplateScript.class)) {
             TemplateScript.Factory factory = vars -> {
                 // TODO: need a better way to implement all these new contexts

@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -28,7 +29,8 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCa
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition.FieldGrantExcludeGroup;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
-import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
@@ -51,6 +53,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isIndexDeleted;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isMoveFromRedToNonRed;
@@ -80,6 +83,7 @@ public class CompositeRolesStore extends AbstractComponent {
     private final FileRolesStore fileRolesStore;
     private final NativeRolesStore nativeRolesStore;
     private final ReservedRolesStore reservedRolesStore;
+    private final NativePrivilegeStore privilegeStore;
     private final XPackLicenseState licenseState;
     private final Cache<Set<String>, Role> roleCache;
     private final Set<String> negativeLookupCache;
@@ -88,7 +92,7 @@ public class CompositeRolesStore extends AbstractComponent {
     private final List<BiConsumer<Set<String>, ActionListener<Set<RoleDescriptor>>>> customRolesProviders;
 
     public CompositeRolesStore(Settings settings, FileRolesStore fileRolesStore, NativeRolesStore nativeRolesStore,
-                               ReservedRolesStore reservedRolesStore,
+                               ReservedRolesStore reservedRolesStore, NativePrivilegeStore privilegeStore,
                                List<BiConsumer<Set<String>, ActionListener<Set<RoleDescriptor>>>> rolesProviders,
                                ThreadContext threadContext, XPackLicenseState licenseState) {
         super(settings);
@@ -98,6 +102,7 @@ public class CompositeRolesStore extends AbstractComponent {
         fileRolesStore.addListener(this::invalidateAll);
         this.nativeRolesStore = nativeRolesStore;
         this.reservedRolesStore = reservedRolesStore;
+        this.privilegeStore = privilegeStore;
         this.licenseState = licenseState;
         CacheBuilder<Set<String>, Role> builder = CacheBuilder.builder();
         final int cacheSize = CACHE_SIZE_SETTING.get(settings);
@@ -117,31 +122,33 @@ public class CompositeRolesStore extends AbstractComponent {
         } else {
             final long invalidationCounter = numInvalidation.get();
             roleDescriptors(roleNames, ActionListener.wrap(
-                    (descriptors) -> {
-                        final Role role;
+                    descriptors -> {
+                        final Set<RoleDescriptor> effectiveDescriptors;
                         if (licenseState.isDocumentAndFieldLevelSecurityAllowed()) {
-                            role = buildRoleFromDescriptors(descriptors, fieldPermissionsCache);
+                            effectiveDescriptors = descriptors;
                         } else {
-                            final Set<RoleDescriptor> filtered = descriptors.stream()
+                            effectiveDescriptors = descriptors.stream()
                                     .filter((rd) -> rd.isUsingDocumentOrFieldLevelSecurity() == false)
                                     .collect(Collectors.toSet());
-                            role = buildRoleFromDescriptors(filtered, fieldPermissionsCache);
                         }
-
-                        if (role != null) {
-                            try (ReleasableLock ignored = readLock.acquire()) {
-                                /* this is kinda spooky. We use a read/write lock to ensure we don't modify the cache if we hold the write
-                                 * lock (fetching stats for instance - which is kinda overkill?) but since we fetching stuff in an async
-                                 * fashion we need to make sure that if the cache got invalidated since we started the request we don't
-                                 * put a potential stale result in the cache, hence the numInvalidation.get() comparison to the number of
-                                 * invalidation when we started. we just try to be on the safe side and don't cache potentially stale
-                                 * results*/
-                                if (invalidationCounter == numInvalidation.get()) {
-                                    roleCache.computeIfAbsent(roleNames, (s) -> role);
+                        logger.trace("Building role from descriptors [{}] for names [{}]", effectiveDescriptors, roleNames);
+                        buildRoleFromDescriptors(effectiveDescriptors, fieldPermissionsCache, privilegeStore, ActionListener.wrap(role -> {
+                            if (role != null) {
+                                try (ReleasableLock ignored = readLock.acquire()) {
+                                    /* this is kinda spooky. We use a read/write lock to ensure we don't modify the cache if we hold
+                                     * the write lock (fetching stats for instance - which is kinda overkill?) but since we fetching
+                                     * stuff in an async fashion we need to make sure that if the cache got invalidated since we
+                                     * started the request we don't put a potential stale result in the cache, hence the
+                                     * numInvalidation.get() comparison to the number of invalidation when we started. we just try to
+                                     * be on the safe side and don't cache potentially stale results
+                                     */
+                                    if (invalidationCounter == numInvalidation.get()) {
+                                        roleCache.computeIfAbsent(roleNames, (s) -> role);
+                                    }
                                 }
                             }
-                        }
-                        roleActionListener.onResponse(role);
+                            roleActionListener.onResponse(role);
+                        }, roleActionListener::onFailure));
                     },
                     roleActionListener::onFailure));
         }
@@ -238,25 +245,36 @@ public class CompositeRolesStore extends AbstractComponent {
         return Sets.difference(roleNames, foundNames);
     }
 
-    public static Role buildRoleFromDescriptors(Set<RoleDescriptor> roleDescriptors, FieldPermissionsCache fieldPermissionsCache) {
+    public static void buildRoleFromDescriptors(Collection<RoleDescriptor> roleDescriptors, FieldPermissionsCache fieldPermissionsCache,
+                                                NativePrivilegeStore privilegeStore, ActionListener<Role> listener) {
         if (roleDescriptors.isEmpty()) {
-            return Role.EMPTY;
+            listener.onResponse(Role.EMPTY);
+            return;
         }
+
         Set<String> clusterPrivileges = new HashSet<>();
+        final List<ConditionalClusterPrivilege> conditionalClusterPrivileges = new ArrayList<>();
         Set<String> runAs = new HashSet<>();
         Map<Set<String>, MergeableIndicesPrivilege> indicesPrivilegesMap = new HashMap<>();
+
+        // Keyed by application + resource
+        Map<Tuple<String, Set<String>>, Set<String>> applicationPrivilegesMap = new HashMap<>();
+
         List<String> roleNames = new ArrayList<>(roleDescriptors.size());
         for (RoleDescriptor descriptor : roleDescriptors) {
             roleNames.add(descriptor.getName());
             if (descriptor.getClusterPrivileges() != null) {
                 clusterPrivileges.addAll(Arrays.asList(descriptor.getClusterPrivileges()));
             }
+            if (descriptor.getConditionalClusterPrivileges() != null) {
+                conditionalClusterPrivileges.addAll(Arrays.asList(descriptor.getConditionalClusterPrivileges()));
+            }
             if (descriptor.getRunAs() != null) {
                 runAs.addAll(Arrays.asList(descriptor.getRunAs()));
             }
             IndicesPrivileges[] indicesPrivileges = descriptor.getIndicesPrivileges();
             for (IndicesPrivileges indicesPrivilege : indicesPrivileges) {
-                Set<String> key = Sets.newHashSet(indicesPrivilege.getIndices());
+                Set<String> key = newHashSet(indicesPrivilege.getIndices());
                 // if a index privilege is an explicit denial, then we treat it as non-existent since we skipped these in the past when
                 // merging
                 final boolean isExplicitDenial =
@@ -274,19 +292,44 @@ public class CompositeRolesStore extends AbstractComponent {
                     });
                 }
             }
+            for (RoleDescriptor.ApplicationResourcePrivileges appPrivilege : descriptor.getApplicationPrivileges()) {
+                Tuple<String, Set<String>> key = new Tuple<>(appPrivilege.getApplication(), newHashSet(appPrivilege.getResources()));
+                applicationPrivilegesMap.compute(key, (k, v) -> {
+                    if (v == null) {
+                        return newHashSet(appPrivilege.getPrivileges());
+                    } else {
+                        v.addAll(Arrays.asList(appPrivilege.getPrivileges()));
+                        return v;
+                    }
+                });
+            }
         }
 
-        final Set<String> clusterPrivs = clusterPrivileges.isEmpty() ? null : clusterPrivileges;
         final Privilege runAsPrivilege = runAs.isEmpty() ? Privilege.NONE : new Privilege(runAs, runAs.toArray(Strings.EMPTY_ARRAY));
-        Role.Builder builder = Role.builder(roleNames.toArray(new String[roleNames.size()]))
-                .cluster(ClusterPrivilege.get(clusterPrivs))
+        final Role.Builder builder = Role.builder(roleNames.toArray(new String[roleNames.size()]))
+                .cluster(clusterPrivileges, conditionalClusterPrivileges)
                 .runAs(runAsPrivilege);
         indicesPrivilegesMap.entrySet().forEach((entry) -> {
             MergeableIndicesPrivilege privilege = entry.getValue();
             builder.add(fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition), privilege.query,
                     IndexPrivilege.get(privilege.privileges), privilege.indices.toArray(Strings.EMPTY_ARRAY));
         });
-        return builder.build();
+
+        if (applicationPrivilegesMap.isEmpty()) {
+            listener.onResponse(builder.build());
+        } else {
+            final Set<String> applicationNames = applicationPrivilegesMap.keySet().stream()
+                    .map(Tuple::v1)
+                    .collect(Collectors.toSet());
+            final Set<String> applicationPrivilegeNames = applicationPrivilegesMap.values().stream()
+                    .flatMap(Collection::stream)
+                    .collect(Collectors.toSet());
+            privilegeStore.getPrivileges(applicationNames, applicationPrivilegeNames, ActionListener.wrap(appPrivileges -> {
+                applicationPrivilegesMap.forEach((key, names) ->
+                        builder.addApplicationPrivilege(ApplicationPrivilege.get(key.v1(), names, appPrivileges), key.v2()));
+                listener.onResponse(builder.build());
+            }, listener::onFailure));
+        }
     }
 
     public void invalidateAll() {
@@ -340,11 +383,11 @@ public class CompositeRolesStore extends AbstractComponent {
 
         MergeableIndicesPrivilege(String[] indices, String[] privileges, @Nullable String[] grantedFields, @Nullable String[] deniedFields,
                                   @Nullable BytesReference query) {
-            this.indices = Sets.newHashSet(Objects.requireNonNull(indices));
-            this.privileges = Sets.newHashSet(Objects.requireNonNull(privileges));
+            this.indices = newHashSet(Objects.requireNonNull(indices));
+            this.privileges = newHashSet(Objects.requireNonNull(privileges));
             this.fieldPermissionsDefinition = new FieldPermissionsDefinition(grantedFields, deniedFields);
             if (query != null) {
-                this.query = Sets.newHashSet(query);
+                this.query = newHashSet(query);
             }
         }
 

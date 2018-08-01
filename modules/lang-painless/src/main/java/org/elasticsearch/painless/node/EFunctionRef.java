@@ -23,6 +23,7 @@ import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Locals.LocalMethod;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
@@ -70,8 +71,7 @@ public final class EFunctionRef extends AExpression implements ILambda {
                         throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
                                 "to [" + PainlessLookupUtility.typeToCanonicalTypeName(expected) + "], not a functional interface");
                     }
-                    PainlessMethod delegateMethod =
-                            locals.getMethod(PainlessLookupUtility.buildPainlessMethodKey(call, interfaceMethod.arguments.size()));
+                    LocalMethod delegateMethod = locals.getMethod(Locals.buildLocalMethodKey(call, interfaceMethod.typeParameters.size()));
                     if (delegateMethod == null) {
                         throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
                                 "to [" + PainlessLookupUtility.typeToCanonicalTypeName(expected) + "], function not found");
@@ -79,14 +79,14 @@ public final class EFunctionRef extends AExpression implements ILambda {
                     ref = new FunctionRef(expected, interfaceMethod, delegateMethod, 0);
 
                     // check casts between the interface method and the delegate method are legal
-                    for (int i = 0; i < interfaceMethod.arguments.size(); ++i) {
-                        Class<?> from = interfaceMethod.arguments.get(i);
-                        Class<?> to = delegateMethod.arguments.get(i);
+                    for (int i = 0; i < interfaceMethod.typeParameters.size(); ++i) {
+                        Class<?> from = interfaceMethod.typeParameters.get(i);
+                        Class<?> to = delegateMethod.typeParameters.get(i);
                         AnalyzerCaster.getLegalCast(location, from, to, false, true);
                     }
 
-                    if (interfaceMethod.rtn != void.class) {
-                        AnalyzerCaster.getLegalCast(location, delegateMethod.rtn, interfaceMethod.rtn, false, true);
+                    if (interfaceMethod.returnType != void.class) {
+                        AnalyzerCaster.getLegalCast(location, delegateMethod.returnType, interfaceMethod.returnType, false, true);
                     }
                 } else {
                     // whitelist lookup

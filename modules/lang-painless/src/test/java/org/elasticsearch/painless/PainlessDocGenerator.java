@@ -56,9 +56,9 @@ public class PainlessDocGenerator {
 
     private static final PainlessLookup PAINLESS_LOOKUP = PainlessLookupBuilder.buildFromWhitelists(Whitelist.BASE_WHITELISTS);
     private static final Logger logger = ESLoggerFactory.getLogger(PainlessDocGenerator.class);
-    private static final Comparator<PainlessField> FIELD_NAME = comparing(f -> f.name);
-    private static final Comparator<PainlessMethod> METHOD_NAME = comparing(m -> m.name);
-    private static final Comparator<PainlessMethod> METHOD_NUMBER_OF_PARAMS = comparing(m -> m.arguments.size());
+    private static final Comparator<PainlessField> FIELD_NAME = comparing(f -> f.javaField.getName());
+    private static final Comparator<PainlessMethod> METHOD_NAME = comparing(m -> m.javaMethod.getName());
+    private static final Comparator<PainlessMethod> METHOD_NUMBER_OF_PARAMS = comparing(m -> m.typeParameters.size());
     private static final Comparator<PainlessConstructor> CONSTRUCTOR_NUMBER_OF_PARAMS = comparing(m -> m.typeParameters.size());
 
     public static void main(String[] args) throws IOException {
@@ -114,10 +114,10 @@ public class PainlessDocGenerator {
                     struct.constructors.values().stream().sorted(CONSTRUCTOR_NUMBER_OF_PARAMS).forEach(documentConstructor);
                     Map<String, Class<?>> inherited = new TreeMap<>();
                     struct.methods.values().stream().sorted(METHOD_NAME.thenComparing(METHOD_NUMBER_OF_PARAMS)).forEach(method -> {
-                        if (method.target == clazz) {
+                        if (method.targetClass == clazz) {
                             documentMethod(typeStream, method);
                         } else {
-                            inherited.put(canonicalClassName, method.target);
+                            inherited.put(canonicalClassName, method.targetClass);
                         }
                     });
 
@@ -147,17 +147,17 @@ public class PainlessDocGenerator {
         emitAnchor(stream, field);
         stream.print("]]");
 
-        if (Modifier.isStatic(field.modifiers)) {
+        if (Modifier.isStatic(field.javaField.getModifiers())) {
             stream.print("static ");
         }
 
-        emitType(stream, field.clazz);
+        emitType(stream, field.typeParameter);
         stream.print(' ');
 
         String javadocRoot = javadocRoot(field);
         emitJavadocLink(stream, javadocRoot, field);
         stream.print('[');
-        stream.print(field.name);
+        stream.print(field.javaField.getName());
         stream.print(']');
 
         if (javadocRoot.equals("java8")) {
@@ -212,11 +212,11 @@ public class PainlessDocGenerator {
         emitAnchor(stream, method);
         stream.print("]]");
 
-        if (null == method.augmentation && Modifier.isStatic(method.modifiers)) {
+        if (method.targetClass == method.javaMethod.getDeclaringClass() && Modifier.isStatic(method.javaMethod.getModifiers())) {
             stream.print("static ");
         }
 
-        emitType(stream, method.rtn);
+        emitType(stream, method.returnType);
         stream.print(' ');
 
         String javadocRoot = javadocRoot(method);
@@ -227,7 +227,7 @@ public class PainlessDocGenerator {
 
         stream.print("](");
         boolean first = true;
-        for (Class<?> arg : method.arguments) {
+        for (Class<?> arg : method.typeParameters) {
             if (first) {
                 first = false;
             } else {
@@ -269,20 +269,20 @@ public class PainlessDocGenerator {
      * Anchor text for a {@link PainlessMethod}.
      */
     private static void emitAnchor(PrintStream stream, PainlessMethod method) {
-        emitAnchor(stream, method.target);
+        emitAnchor(stream, method.targetClass);
         stream.print('-');
         stream.print(methodName(method));
         stream.print('-');
-        stream.print(method.arguments.size());
+        stream.print(method.typeParameters.size());
     }
 
     /**
      * Anchor text for a {@link PainlessField}.
      */
     private static void emitAnchor(PrintStream stream, PainlessField field) {
-        emitAnchor(stream, field.target);
+        emitAnchor(stream, field.javaField.getDeclaringClass());
         stream.print('-');
-        stream.print(field.name);
+        stream.print(field.javaField.getName());
     }
 
     private static String constructorName(PainlessConstructor constructor) {
@@ -290,7 +290,7 @@ public class PainlessDocGenerator {
     }
 
     private static String methodName(PainlessMethod method) {
-        return PainlessLookupUtility.typeToCanonicalTypeName(method.target);
+        return PainlessLookupUtility.typeToCanonicalTypeName(method.targetClass);
     }
 
     /**
@@ -359,16 +359,16 @@ public class PainlessDocGenerator {
         stream.print("link:{");
         stream.print(root);
         stream.print("-javadoc}/");
-        stream.print(classUrlPath(method.augmentation != null ? method.augmentation : method.target));
+        stream.print(classUrlPath(method.javaMethod.getDeclaringClass()));
         stream.print(".html#");
         stream.print(methodName(method));
         stream.print("%2D");
         boolean first = true;
-        if (method.augmentation != null) {
+        if (method.targetClass != method.javaMethod.getDeclaringClass()) {
             first = false;
-            stream.print(method.target.getName());
+            stream.print(method.javaMethod.getDeclaringClass().getName());
         }
-        for (Class<?> clazz: method.arguments) {
+        for (Class<?> clazz: method.typeParameters) {
             if (first) {
                 first = false;
             } else {
@@ -391,26 +391,26 @@ public class PainlessDocGenerator {
         stream.print("link:{");
         stream.print(root);
         stream.print("-javadoc}/");
-        stream.print(classUrlPath(field.target));
+        stream.print(classUrlPath(field.javaField.getDeclaringClass()));
         stream.print(".html#");
-        stream.print(field.javaName);
+        stream.print(field.javaField.getName());
     }
 
     /**
      * Pick the javadoc root for a {@link PainlessMethod}.
      */
     private static String javadocRoot(PainlessMethod method) {
-        if (method.augmentation != null) {
+        if (method.targetClass != method.javaMethod.getDeclaringClass()) {
             return "painless";
         }
-        return javadocRoot(method.target);
+        return javadocRoot(method.targetClass);
     }
 
     /**
      * Pick the javadoc root for a {@link PainlessField}.
      */
     private static String javadocRoot(PainlessField field) {
-        return javadocRoot(field.target);
+        return javadocRoot(field.javaField.getDeclaringClass());
     }
 
     /**

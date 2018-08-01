@@ -205,34 +205,6 @@ setup:
   - match: { my_timeseries_lifecycle.phases.delete.after: "30s" }
 
   - do:
-      acknowlege: true
-      xpack.index_lifecycle.put_lifecycle:
-        lifecycle: "blah_lifecycle"
-        body: |
-           {
-             "policy": {
-               "type": "timeseries",
-               "phases": {
-                 "warm": {
-                   "after": "1s",
-                   "actions": {
-                     "forcemerge": {
-                       "max_num_segments": 1
-                     }
-                   }
-                 },
-                 "delete": {
-                   "after": "3s",
-                   "actions": {
-                     "delete": {}
-                   }
-                 }
-               }
-             }
-           }
-
-
-  - do:
       indices.create:
         index: my_timeseries_index
         body:
@@ -247,9 +219,8 @@ setup:
   - match: { error.root_cause.0.reason: "Cannot delete policy [my_timeseries_lifecycle]. It is being used by at least one index [my_timeseries_index]" }
 
   - do:
-      xpack.index_lifecycle.set_policy:
+      xpack.index_lifecycle.remove_policy:
         index: my_timeseries_index
-        new_policy: "blah_lifecycle"
 
   - do:
       acknowledge: true

@@ -5,7 +5,8 @@
  */
 package org.elasticsearch.xpack.security.rest.action;
 
-import org.apache.http.message.BasicHeader;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
@@ -52,11 +53,12 @@ public class RestAuthenticateActionTests extends SecurityIntegTestCase {
     }
 
     public void testAuthenticateApi() throws Exception {
-        Response response = getRestClient().performRequest("GET", "/_xpack/security/_authenticate",
-                new BasicHeader("Authorization", basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
-                        new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()))));
-        assertThat(response.getStatusLine().getStatusCode(), is(200));
-        ObjectPath objectPath = ObjectPath.createFromResponse(response);
+        Request request = new Request("GET", "/_xpack/security/_authenticate");
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader("Authorization", basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
+                new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())));
+        request.setOptions(options);
+        ObjectPath objectPath = ObjectPath.createFromResponse(getRestClient().performRequest(request));
         assertThat(objectPath.evaluate("username").toString(), equalTo(SecuritySettingsSource.TEST_USER_NAME));
         List<String> roles = objectPath.evaluate("roles");
         assertThat(roles.size(), is(1));
@@ -65,7 +67,7 @@ public class RestAuthenticateActionTests extends SecurityIntegTestCase {
 
     public void testAuthenticateApiWithoutAuthentication() throws Exception {
         try {
-            Response response = getRestClient().performRequest("GET", "/_xpack/security/_authenticate");
+            Response response = getRestClient().performRequest(new Request("GET", "/_xpack/security/_authenticate"));
             if (anonymousEnabled) {
                 assertThat(response.getStatusLine().getStatusCode(), is(200));
                 ObjectPath objectPath = ObjectPath.createFromResponse(response);

@@ -35,9 +35,9 @@ PUT _snapshot/my_s3_repository
 ==== Client Settings
 
 The client used to connect to S3 has a number of settings available. Client setting names are of
-the form `s3.client.CLIENT_NAME.SETTING_NAME` and specified inside `elasticsearch.yml`.  The
-default client name looked up by a `s3` repository is called `default`, but can be customized
-with the repository setting `client`. For example:
+the form `s3.client.CLIENT_NAME.SETTING_NAME`. The default client name, which is looked up by
+an `s3` repository, is called `default`. It can be modified using the
+<<repository-s3-repository, repository setting>> `client`. For example:
 
 [source,js]
 ----
@@ -53,8 +53,11 @@ PUT _snapshot/my_s3_repository
 // CONSOLE
 // TEST[skip:we don't have s3 setup while testing this]
 
-Some settings are sensitive and must be stored in the {ref}/secure-settings.html[elasticsearch keystore].
-For example, to use explicit AWS access keys:
+Most client settings are specified inside `elasticsearch.yml`, but some are
+sensitive and must be stored in the {ref}/secure-settings.html[elasticsearch keystore].
+
+For example, before you start the node, run these commands to add AWS access
+key settings to the keystore:
 
 [source,sh]
 ----
@@ -62,8 +65,19 @@ bin/elasticsearch-keystore add s3.client.default.access_key
 bin/elasticsearch-keystore add s3.client.default.secret_key
 ----
 
-The following are the available client settings. Those that must be stored in the keystore
-are marked as `Secure`.
+*All* client secure settings of this plugin are
+{ref}/secure-settings.html#reloadable-secure-settings[reloadable]. After you
+reload the settings, the internal `s3` clients, used to transfer the snapshot
+contents, will utilize the latest settings from the keystore. Any existing `s3`
+repositories, as well as any newly created ones, will pick up the new values
+stored in the keystore.
+
+NOTE: In progress snapshot/restore tasks will not be preempted by a *reload*
+of the client's secure settings. The task will complete using the client as it
+was built when the operation started.
+
+The following is the list of all the available client settings.
+Those that must be stored in the keystore are marked as `Secure` and are *reloadable*.
 
 `access_key`::
 

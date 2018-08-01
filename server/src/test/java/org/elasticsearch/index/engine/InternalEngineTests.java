@@ -1978,7 +1978,7 @@ public class InternalEngineTests extends EngineTestCase {
         @Override
         public void append(LogEvent event) {
             final String formattedMessage = event.getMessage().getFormattedMessage();
-            if (event.getLevel() == Level.TRACE && event.getMarker().getName().contains("[index][0] ")) {
+            if (event.getLevel() == Level.TRACE && event.getMarker().getName().contains("[index][0]")) {
                 if (event.getLoggerName().endsWith(".IW") &&
                     formattedMessage.contains("IW: now apply all deletes")) {
                     sawIndexWriterMessage = true;

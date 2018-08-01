@@ -27,7 +27,7 @@ public class RestPutLifecycleAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "xpack_lifecycle_put_action";
+        return "index_lifecycle_put_action";
     }
 
     @Override

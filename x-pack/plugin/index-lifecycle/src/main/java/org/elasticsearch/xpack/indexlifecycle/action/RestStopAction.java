@@ -20,12 +20,12 @@ public class RestStopAction extends BaseRestHandler {
     public RestStopAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.POST,
-            IndexLifecycle.BASE_PATH + "_stop", this);
+            IndexLifecycle.BASE_PATH + "stop", this);
     }
 
     @Override
     public String getName() {
-        return "xpack_lifecycle_stop_action";
+        return "index_lifecycle_stop_action";
     }
 
     @Override

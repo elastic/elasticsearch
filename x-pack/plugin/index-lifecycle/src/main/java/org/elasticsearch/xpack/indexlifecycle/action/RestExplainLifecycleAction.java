@@ -28,7 +28,7 @@ public class RestExplainLifecycleAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "xpack_lifecycle_explain_action";
+        return "index_lifecycle_explain_action";
     }
 
     @Override

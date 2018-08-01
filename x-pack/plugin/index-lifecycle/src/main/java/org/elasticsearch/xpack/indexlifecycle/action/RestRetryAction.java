@@ -27,7 +27,7 @@ public class RestRetryAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "xpack_lifecycle_retry_action";
+        return "index_lifecycle_retry_action";
     }
 
     @Override

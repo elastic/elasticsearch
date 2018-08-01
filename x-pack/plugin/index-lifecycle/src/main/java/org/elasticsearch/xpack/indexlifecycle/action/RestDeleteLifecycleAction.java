@@ -26,7 +26,7 @@ public class RestDeleteLifecycleAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "xpack_lifecycle_delete_action";
+        return "index_lifecycle_delete_action";
     }
 
     @Override

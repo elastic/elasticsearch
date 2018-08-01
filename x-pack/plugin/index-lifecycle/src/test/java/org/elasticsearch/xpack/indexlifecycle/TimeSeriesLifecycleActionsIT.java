@@ -161,7 +161,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         lifecyclePolicy.toXContent(builder, null);
         final StringEntity entity = new StringEntity(
             "{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);
-        Request request = new Request("PUT", "_xpack/index_lifecycle/" + policy);
+        Request request = new Request("PUT", "_index_lifecycle/" + policy);
         request.setEntity(entity);
         client().performRequest(request);
     }

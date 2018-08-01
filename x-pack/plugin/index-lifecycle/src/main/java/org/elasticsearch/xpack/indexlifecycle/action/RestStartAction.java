@@ -20,12 +20,12 @@ public class RestStartAction extends BaseRestHandler {
     public RestStartAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.POST,
-            IndexLifecycle.BASE_PATH + "_start", this);
+            IndexLifecycle.BASE_PATH + "start", this);
     }
 
     @Override
     public String getName() {
-        return "xpack_lifecycle_start_action";
+        return "index_lifecycle_start_action";
     }
 
     @Override

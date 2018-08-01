@@ -19,12 +19,12 @@ public class RestGetStatusAction extends BaseRestHandler {
     public RestGetStatusAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.GET,
-            IndexLifecycle.BASE_PATH + "_status", this);
+            IndexLifecycle.BASE_PATH + "status", this);
     }
 
     @Override
     public String getName() {
-        return "xpack_lifecycle_get_operation_mode_action";
+        return "index_lifecycle_get_operation_mode_action";
     }
 
     @Override

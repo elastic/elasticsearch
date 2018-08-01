@@ -22,12 +22,12 @@ public class RestMoveToStepAction extends BaseRestHandler {
 
     public RestMoveToStepAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.POST, IndexLifecycle.BASE_PATH + "_move/{name}", this);
+        controller.registerHandler(RestRequest.Method.POST, IndexLifecycle.BASE_PATH + "/move/{name}", this);
     }
 
     @Override
     public String getName() {
-        return "xpack_lifecycle_move_to_step_action";
+        return "index_lifecycle_move_to_step_action";
     }
 
     @Override

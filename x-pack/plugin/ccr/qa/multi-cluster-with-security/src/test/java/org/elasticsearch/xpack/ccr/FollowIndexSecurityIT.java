@@ -76,7 +76,7 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
             createAndFollowIndex("leader_cluster:" + allowedIndex, allowedIndex);
             assertBusy(() -> verifyDocuments(client(), allowedIndex, numDocs));
             assertThat(countCcrNodeTasks(), equalTo(1));
-            assertOK(client().performRequest(new Request("POST", "/" + allowedIndex + "/_xpack/ccr/_unfollow")));
+            assertOK(client().performRequest(new Request("POST", "/" + allowedIndex + "/_ccr/unfollow")));
             // Make sure that there are no other ccr relates operations running:
             assertBusy(() -> {
                 Map<String, Object> clusterState = toMap(adminClient().performRequest(new Request("GET", "/_cluster/state")));
@@ -87,7 +87,7 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
 
             followIndex("leader_cluster:" + allowedIndex, allowedIndex);
             assertThat(countCcrNodeTasks(), equalTo(1));
-            assertOK(client().performRequest(new Request("POST", "/" + allowedIndex + "/_xpack/ccr/_unfollow")));
+            assertOK(client().performRequest(new Request("POST", "/" + allowedIndex + "/_ccr/unfollow")));
             // Make sure that there are no other ccr relates operations running:
             assertBusy(() -> {
                 Map<String, Object> clusterState = toMap(adminClient().performRequest(new Request("GET", "/_cluster/state")));
@@ -144,13 +144,13 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
     }
 
     private static void followIndex(String leaderIndex, String followIndex) throws IOException {
-        final Request request = new Request("POST", "/" + followIndex + "/_xpack/ccr/_follow");
+        final Request request = new Request("POST", "/" + followIndex + "/_ccr/follow");
         request.setJsonEntity("{\"leader_index\": \"" + leaderIndex + "\", \"idle_shard_retry_delay\": \"10ms\"}");
         assertOK(client().performRequest(request));
     }
 
     private static void createAndFollowIndex(String leaderIndex, String followIndex) throws IOException {
-        final Request request = new Request("POST", "/" + followIndex + "/_xpack/ccr/_create_and_follow");
+        final Request request = new Request("POST", "/" + followIndex + "/_ccr/create_and_follow");
         request.setJsonEntity("{\"leader_index\": \"" + leaderIndex + "\", \"idle_shard_retry_delay\": \"10ms\"}");
         assertOK(client().performRequest(request));
     }

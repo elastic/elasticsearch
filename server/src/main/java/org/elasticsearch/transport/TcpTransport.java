@@ -41,7 +41,6 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.compress.NotCompressedException;
-import org.elasticsearch.common.concurrent.CompletableContext;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -209,7 +208,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private final NamedWriteableRegistry namedWriteableRegistry;
 
     // this lock is here to make sure we close this transport and disconnect all the client nodes
-    // connections while no connect operations is going on... (this might help with 100% CPU when stopping the transport?)
+    // connections while no connect operations is going on
     private final ReadWriteLock closeLock = new ReentrantReadWriteLock();
     protected final boolean compress;
     private volatile BoundTransportAddress boundAddress;
@@ -344,12 +343,12 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
     }
 
-    public final class NodeChannels implements Connection {
+    public final class NodeChannels extends CloseableConnection {
         private final Map<TransportRequestOptions.Type, ConnectionProfile.ConnectionTypeHandle> typeMapping;
         private final List<TcpChannel> channels;
         private final DiscoveryNode node;
         private final Version version;
-        private final CompletableContext<Void> closeContext = new CompletableContext<>();
+        private final AtomicBoolean isClosing = new AtomicBoolean(false);
 
         NodeChannels(DiscoveryNode node, List<TcpChannel> channels, ConnectionProfile connectionProfile, Version handshakeVersion) {
             this.node = node;
@@ -411,13 +410,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
 
         @Override
-        public void addCloseListener(ActionListener<Void> listener) {
-            closeContext.addListener(ActionListener.toBiConsumer(listener));
-        }
-
-        @Override
         public void close() {
-            if (closeContext.complete(null)) {
+            if (isClosing.compareAndSet(false, true)) {
                 try {
                     if (lifecycle.stopped()) {
                         /* We set SO_LINGER timeout to 0 to ensure that when we shutdown the node we don't
@@ -440,7 +434,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                     boolean block = lifecycle.stopped() && Transports.isTransportThread(Thread.currentThread()) == false;
                     CloseableChannel.closeChannels(channels, block);
                 } finally {
-                    transportListener.onConnectionClosed(this);
+                    // Call the super method to trigger listeners
+                    super.close();
                 }
             }
         }
@@ -453,16 +448,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         @Override
         public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
             throws IOException, TransportException {
-            if (closeContext.isDone()) {
+            if (isClosing.get()) {
                 throw new NodeNotConnectedException(node, "connection already closed");
             }
             TcpChannel channel = channel(options.type());
             sendRequestToChannel(this.node, channel, requestId, action, request, options, getVersion(), (byte) 0);
-        }
-
-        @Override
-        public boolean isClosed() {
-            return closeContext.isDone();
         }
     }
 
@@ -546,17 +536,16 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 // At this point we should construct the connection, notify the transport service, and attach close listeners to the
                 // underlying channels.
                 nodeChannels = new NodeChannels(node, channels, connectionProfile, version);
-                transportListener.onConnectionOpened(nodeChannels);
                 final NodeChannels finalNodeChannels = nodeChannels;
-                final AtomicBoolean runOnce = new AtomicBoolean(false);
+                try {
+                    transportListener.onConnectionOpened(nodeChannels);
+                } finally {
+                    nodeChannels.addCloseListener(ActionListener.wrap(() -> transportListener.onConnectionClosed(finalNodeChannels)));
+                }
+
                 Consumer<TcpChannel> onClose = c -> {
                     assert c.isOpen() == false : "channel is still open when onClose is called";
-                    // we only need to disconnect from the nodes once since all other channels
-                    // will also try to run this we protect it from running multiple times.
-                    if (runOnce.compareAndSet(false, true)) {
-                        // TODO: Have lost the removal from connection manager
-                        IOUtils.closeWhileHandlingException(finalNodeChannels);
-                    }
+                    finalNodeChannels.close();
                 };
 
                 nodeChannels.channels.forEach(ch -> ch.addCloseListener(ActionListener.wrap(() -> onClose.accept(ch))));

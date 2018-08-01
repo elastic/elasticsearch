@@ -446,7 +446,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     }
 
                     @Override
-                    public void close() throws IOException {
+                    public void close() {
                         // no-op
                     }
                 };

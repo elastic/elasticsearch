@@ -232,7 +232,7 @@ public class StubbableTransport implements Transport {
         }
 
         @Override
-        public void close() throws IOException {
+        public void close() {
             connection.close();
         }
 

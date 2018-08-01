@@ -147,6 +147,8 @@ public interface Transport extends LifecycleComponent {
             return this;
         }
 
+        @Override
+        void close();
     }
 
     /**

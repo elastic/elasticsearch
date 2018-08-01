@@ -454,7 +454,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         }
 
         @Override
-        public void close() throws IOException {
+        public void close() {
             throw new UnsupportedOperationException();
         }
     }

@@ -453,7 +453,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
         }
 
         @Override
-        public void close() throws IOException {
+        public void close() {
             connection.close();
         }
 

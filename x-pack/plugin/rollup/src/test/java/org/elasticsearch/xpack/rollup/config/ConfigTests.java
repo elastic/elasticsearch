@@ -202,7 +202,7 @@ public class ConfigTests extends ESTestCase {
     }
 
     public void testEmptyHistoField() {
-        Exception e = expectThrows(IllegalArgumentException.class, () -> new HistogramGroupConfig(1L, null));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new HistogramGroupConfig(1L, (String[]) null));
         assertThat(e.getMessage(), equalTo("Fields must have at least one value"));
 
         e = expectThrows(IllegalArgumentException.class, () -> new HistogramGroupConfig(1L, new String[0]));

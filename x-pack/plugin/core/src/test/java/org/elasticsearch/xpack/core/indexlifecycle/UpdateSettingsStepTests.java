@@ -101,7 +101,7 @@ public class UpdateSettingsStepTests extends AbstractStepTestCase<UpdateSettings
                 @SuppressWarnings("unchecked")
                 ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
                 assertThat(request.settings(), equalTo(step.getSettings()));
-                assertThat(request.indices(), equalTo(indexMetaData.getIndex().getName()));
+                assertThat(request.indices(), equalTo(new String[] {indexMetaData.getIndex().getName()}));
                 listener.onResponse(response);
                 return null;
             }
@@ -149,7 +149,7 @@ public class UpdateSettingsStepTests extends AbstractStepTestCase<UpdateSettings
                 @SuppressWarnings("unchecked")
                 ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
                 assertThat(request.settings(), equalTo(step.getSettings()));
-                assertThat(request.indices(), equalTo(indexMetaData.getIndex().getName()));
+                assertThat(request.indices(), equalTo(new String[] {indexMetaData.getIndex().getName()}));
                 listener.onFailure(exception);
                 return null;
             }

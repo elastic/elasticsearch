@@ -31,28 +31,28 @@ import java.util.Optional;
 
 public class PeersResponse extends TransportResponse {
     private final Optional<DiscoveryNode> masterNode;
-    private final List<DiscoveryNode> candidateNodes;
+    private final List<DiscoveryNode> knownPeers;
     private final long term;
 
-    public PeersResponse(Optional<DiscoveryNode> masterNode, List<DiscoveryNode> candidateNodes, long term) {
-        assert masterNode.isPresent() == candidateNodes.isEmpty();
+    public PeersResponse(Optional<DiscoveryNode> masterNode, List<DiscoveryNode> knownPeers, long term) {
+        assert masterNode.isPresent() == knownPeers.isEmpty();
         this.masterNode = masterNode;
-        this.candidateNodes = candidateNodes;
+        this.knownPeers = knownPeers;
         this.term = term;
     }
 
     public PeersResponse(StreamInput in) throws IOException {
         masterNode = Optional.ofNullable(in.readOptionalWriteable(DiscoveryNode::new));
-        candidateNodes = in.readList(DiscoveryNode::new);
+        knownPeers = in.readList(DiscoveryNode::new);
         term = in.readLong();
-        assert masterNode.isPresent() == candidateNodes.isEmpty();
+        assert masterNode.isPresent() == knownPeers.isEmpty();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalWriteable(masterNode.orElse(null));
-        out.writeList(candidateNodes);
+        out.writeList(knownPeers);
         out.writeLong(term);
     }
 
@@ -60,8 +60,8 @@ public class PeersResponse extends TransportResponse {
         return masterNode;
     }
 
-    public List<DiscoveryNode> getCandidateNodes() {
-        return candidateNodes;
+    public List<DiscoveryNode> getKnownPeers() {
+        return knownPeers;
     }
 
     public long getTerm() {
@@ -72,7 +72,7 @@ public class PeersResponse extends TransportResponse {
     public String toString() {
         return "PeersResponse{" +
             "masterNode=" + masterNode +
-            ", candidateNodes=" + candidateNodes +
+            ", knownPeers=" + knownPeers +
             ", term=" + term +
             '}';
     }
@@ -84,11 +84,11 @@ public class PeersResponse extends TransportResponse {
         PeersResponse that = (PeersResponse) o;
         return term == that.term &&
             Objects.equals(masterNode, that.masterNode) &&
-            Objects.equals(candidateNodes, that.candidateNodes);
+            Objects.equals(knownPeers, that.knownPeers);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(masterNode, candidateNodes, term);
+        return Objects.hash(masterNode, knownPeers, term);
     }
 }

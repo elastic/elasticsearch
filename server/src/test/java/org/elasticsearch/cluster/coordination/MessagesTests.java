@@ -175,11 +175,11 @@ public class MessagesTests extends ESTestCase {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(initialPeersRequest,
             publishRequest -> copyWriteable(publishRequest, writableRegistry(), PeersRequest::new),
             in -> {
-                final List<DiscoveryNode> discoveryNodes = new ArrayList<>(in.getDiscoveryNodes());
+                final List<DiscoveryNode> discoveryNodes = new ArrayList<>(in.getKnownPeers());
                 if (randomBoolean()) {
                     return new PeersRequest(createNode(randomAlphaOfLength(10)), discoveryNodes);
                 } else {
-                    return new PeersRequest(in.getSourceNode(), modifyDiscoveryNodesList(in.getDiscoveryNodes(), true));
+                    return new PeersRequest(in.getSourceNode(), modifyDiscoveryNodesList(in.getKnownPeers(), true));
                 }
             });
     }
@@ -201,12 +201,12 @@ public class MessagesTests extends ESTestCase {
             in -> {
                 final long term = in.getTerm();
                 if (randomBoolean()) {
-                    return new PeersResponse(in.getMasterNode(), in.getCandidateNodes(),
+                    return new PeersResponse(in.getMasterNode(), in.getKnownPeers(),
                         randomValueOtherThan(term, ESTestCase::randomNonNegativeLong));
                 } else {
                     if (in.getMasterNode().isPresent()) {
                         if (randomBoolean()) {
-                            return new PeersResponse(Optional.of(createNode(randomAlphaOfLength(10))), in.getCandidateNodes(), term);
+                            return new PeersResponse(Optional.of(createNode(randomAlphaOfLength(10))), in.getKnownPeers(), term);
                         } else {
                             return new PeersResponse(Optional.empty(), singletonList(createNode(randomAlphaOfLength(10))), term);
                         }
@@ -214,7 +214,7 @@ public class MessagesTests extends ESTestCase {
                         if (randomBoolean()) {
                             return new PeersResponse(Optional.of(createNode(randomAlphaOfLength(10))), emptyList(), term);
                         } else {
-                            return new PeersResponse(in.getMasterNode(), modifyDiscoveryNodesList(in.getCandidateNodes(), false), term);
+                            return new PeersResponse(in.getMasterNode(), modifyDiscoveryNodesList(in.getKnownPeers(), false), term);
                         }
                     }
                 }

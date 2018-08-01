@@ -406,7 +406,7 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
                                     }
                                 } else {
                                     foundMasterNode = false;
-                                    response.getCandidateNodes().stream().map(DiscoveryNode::getAddress)
+                                    response.getKnownPeers().stream().map(DiscoveryNode::getAddress)
                                         .forEach(ActivePeerFinder.this::startProbe);
                                 }
                             }

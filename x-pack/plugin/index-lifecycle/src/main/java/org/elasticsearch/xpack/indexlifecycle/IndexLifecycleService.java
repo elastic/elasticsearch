@@ -32,9 +32,7 @@ import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import java.io.Closeable;
 import java.time.Clock;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.function.LongSupplier;
 
 /**
@@ -62,7 +60,7 @@ public class IndexLifecycleService extends AbstractComponent
         this.clock = clock;
         this.nowSupplier = nowSupplier;
         this.scheduledJob = null;
-        this.policyRegistry = new PolicyStepsRegistry(new TreeMap<>(), new HashMap<>(), new HashMap<>(), stepsFactory);
+        this.policyRegistry = new PolicyStepsRegistry(stepsFactory);
         this.lifecycleRunner = new IndexLifecycleRunner(policyRegistry, clusterService, nowSupplier);
         clusterService.addStateApplier(this);
         clusterService.addListener(this);

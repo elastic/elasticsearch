@@ -36,6 +36,10 @@ public class PolicyStepsRegistry {
     private Map<String, Map<Step.StepKey, Step>> stepMap;
     private final StepsFactory stepsFactory;
 
+    PolicyStepsRegistry(StepsFactory stepsFactory) {
+        this(new TreeMap<>(), new HashMap<>(), new HashMap<>(), stepsFactory);
+    }
+
     PolicyStepsRegistry(SortedMap<String, LifecyclePolicyMetadata> lifecyclePolicyMap,
             Map<String, Step> firstStepMap, Map<String, Map<Step.StepKey, Step>> stepMap, StepsFactory stepsFactory) {
         this.lifecyclePolicyMap = lifecyclePolicyMap;

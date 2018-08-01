@@ -33,13 +33,15 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.AllocateAction;
+import org.elasticsearch.xpack.core.indexlifecycle.DeleteAction;
+import org.elasticsearch.xpack.core.indexlifecycle.ForceMergeAction;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.ReadOnlyAction;
+import org.elasticsearch.xpack.core.indexlifecycle.ReplicasAction;
 import org.elasticsearch.xpack.core.indexlifecycle.RolloverAction;
-import org.elasticsearch.xpack.core.indexlifecycle.Step;
+import org.elasticsearch.xpack.core.indexlifecycle.ShrinkAction;
 import org.elasticsearch.xpack.core.indexlifecycle.StepsFactory;
-import org.elasticsearch.xpack.core.indexlifecycle.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.indexlifecycle.action.DeleteLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction;
@@ -141,10 +143,23 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
         if (enabled == false || transportClientMode) {
             return emptyList();
         }
-        StepsFactory stepsFactory  = new StepsFactory(TimeseriesLifecycleType.INSTANCE.getActionStepsCreators());
+        StepsFactory stepsFactory  = new StepsFactory(getActionStepsCreators());
         indexLifecycleInitialisationService
             .set(new IndexLifecycleService(settings, client, clusterService, getClock(), System::currentTimeMillis, stepsFactory));
         return Collections.singletonList(indexLifecycleInitialisationService.get());
+    }
+
+    Map<String, StepsFactory.ActionStepsCreator<?>> getActionStepsCreators() {
+        // NORELEASE (talevy): migrate toSteps away from each LifecycleAction
+        Map<String, StepsFactory.ActionStepsCreator<?>> actionStepsCreators = new HashMap<>();
+        actionStepsCreators.put(AllocateAction.NAME, LifecycleAction::<AllocateAction>toSteps);
+        actionStepsCreators.put(DeleteAction.NAME, LifecycleAction::<DeleteAction>toSteps);
+        actionStepsCreators.put(ForceMergeAction.NAME, LifecycleAction::<ForceMergeAction>toSteps);
+        actionStepsCreators.put(ReadOnlyAction.NAME, LifecycleAction::<ReadOnlyAction>toSteps);
+        actionStepsCreators.put(ReplicasAction.NAME, LifecycleAction::<ReplicasAction>toSteps);
+        actionStepsCreators.put(RolloverAction.NAME, LifecycleAction::<RolloverAction>toSteps);
+        actionStepsCreators.put(ShrinkAction.NAME, LifecycleAction::<ShrinkAction>toSteps);
+        return actionStepsCreators;
     }
 
     @Override

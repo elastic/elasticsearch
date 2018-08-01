@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -28,12 +27,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
-
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Mockito.mock;
 
 public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecyclePolicy> {
 
@@ -413,11 +407,6 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                     }
                 });
             });
-        }
-
-        @Override
-        public Map<String, StepsFactory.ActionStepsCreator<?>> getActionStepsCreators() {
-            return null;
         }
     }
 }

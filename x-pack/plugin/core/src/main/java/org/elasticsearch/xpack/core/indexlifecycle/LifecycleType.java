@@ -71,9 +71,4 @@ public interface LifecycleType extends NamedWriteable {
      *             if a specific phase or lack of a specific phase is invalid.
      */
     void validate(Collection<Phase> phases);
-
-    /**
-     * @return this type's valid actions and their step creators
-     */
-    Map<String, StepsFactory.ActionStepsCreator<?>> getActionStepsCreators();
 }

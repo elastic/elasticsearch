@@ -37,12 +37,6 @@ public class TestLifecycleType implements LifecycleType {
     }
 
     @Override
-    public Map<String, StepsFactory.ActionStepsCreator<?>> getActionStepsCreators() {
-        // not used in unit tests
-        return null;
-    }
-
-    @Override
     public List<Phase> getOrderedPhases(Map<String, Phase> phases) {
         return new ArrayList<>(phases.values());
     }

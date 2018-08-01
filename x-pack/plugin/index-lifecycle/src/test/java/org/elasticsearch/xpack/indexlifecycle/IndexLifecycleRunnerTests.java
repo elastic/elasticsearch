@@ -42,7 +42,6 @@ import org.elasticsearch.xpack.core.indexlifecycle.RandomStepInfo;
 import org.elasticsearch.xpack.core.indexlifecycle.RolloverAction;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
-import org.elasticsearch.xpack.core.indexlifecycle.StepsFactory;
 import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
 import org.elasticsearch.xpack.core.indexlifecycle.TestLifecycleType;
 import org.mockito.ArgumentMatcher;

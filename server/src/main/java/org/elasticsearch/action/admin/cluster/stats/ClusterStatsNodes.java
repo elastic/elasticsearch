@@ -83,7 +83,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
             if (nodeResponse.nodeStats().getFs() != null) {
                 // not using getTotal()
                 // get all paths and check ip/mount location
-                for (FsInfo.Path path : nodeResponse.nodeStats().getFs().getPaths()) {A
+                for (FsInfo.Path path : nodeResponse.nodeStats().getFs().getPaths()) {
                     if (!seenAddresses.add(new DuplicateNodeCheck(inetAddress, path.getMount()))) {
                         // if ip/mount are already checked, pass it.
                         continue;

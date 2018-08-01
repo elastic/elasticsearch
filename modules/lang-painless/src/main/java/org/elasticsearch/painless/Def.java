@@ -20,7 +20,6 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.Locals.LocalMethod;
-import org.elasticsearch.painless.lookup.PainlessClass;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
@@ -343,49 +342,31 @@ public final class Def {
      */
     static MethodHandle lookupGetter(PainlessLookup painlessLookup, Class<?> receiverClass, String name) {
         // first try whitelist
-        for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
-            PainlessClass struct = painlessLookup.lookupPainlessClass(clazz);
-
-            if (struct != null) {
-                MethodHandle handle = struct.getterMethodHandles.get(name);
-                if (handle != null) {
-                    return handle;
+        try {
+            return painlessLookup.lookupRuntimeGetter(receiverClass, name);
+        } catch (IllegalArgumentException iae) {
+            // special case: arrays, maps, and lists
+            if (receiverClass.isArray() && "length".equals(name)) {
+                // arrays expose .length as a read-only getter
+                return arrayLengthGetter(receiverClass);
+            } else if (Map.class.isAssignableFrom(receiverClass)) {
+                // maps allow access like mymap.key
+                // wire 'key' as a parameter, its a constant in painless
+                return MethodHandles.insertArguments(MAP_GET, 1, name);
+            } else if (List.class.isAssignableFrom(receiverClass)) {
+                // lists allow access like mylist.0
+                // wire '0' (index) as a parameter, its a constant. this also avoids
+                // parsing the same integer millions of times!
+                try {
+                    int index = Integer.parseInt(name);
+                    return MethodHandles.insertArguments(LIST_GET, 1, index);
+                } catch (NumberFormatException exception) {
+                    throw new IllegalArgumentException("Illegal list shortcut value [" + name + "].");
                 }
             }
 
-            for (final Class<?> iface : clazz.getInterfaces()) {
-                struct = painlessLookup.lookupPainlessClass(iface);
-
-                if (struct != null) {
-                    MethodHandle handle = struct.getterMethodHandles.get(name);
-                    if (handle != null) {
-                        return handle;
-                    }
-                }
-            }
+            throw iae;
         }
-        // special case: arrays, maps, and lists
-        if (receiverClass.isArray() && "length".equals(name)) {
-            // arrays expose .length as a read-only getter
-            return arrayLengthGetter(receiverClass);
-        } else if (Map.class.isAssignableFrom(receiverClass)) {
-            // maps allow access like mymap.key
-            // wire 'key' as a parameter, its a constant in painless
-            return MethodHandles.insertArguments(MAP_GET, 1, name);
-        } else if (List.class.isAssignableFrom(receiverClass)) {
-            // lists allow access like mylist.0
-            // wire '0' (index) as a parameter, its a constant. this also avoids
-            // parsing the same integer millions of times!
-            try {
-                int index = Integer.parseInt(name);
-                return MethodHandles.insertArguments(LIST_GET, 1, index);
-            } catch (NumberFormatException exception) {
-                throw new IllegalArgumentException( "Illegal list shortcut value [" + name + "].");
-            }
-        }
-
-        throw new IllegalArgumentException("Unable to find dynamic field [" + name + "] " +
-                                           "for class [" + receiverClass.getCanonicalName() + "].");
     }
 
     /**
@@ -414,46 +395,28 @@ public final class Def {
      */
     static MethodHandle lookupSetter(PainlessLookup painlessLookup, Class<?> receiverClass, String name) {
         // first try whitelist
-        for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
-            PainlessClass struct = painlessLookup.lookupPainlessClass(clazz);
-
-            if (struct != null) {
-                MethodHandle handle = struct.setterMethodHandles.get(name);
-                if (handle != null) {
-                    return handle;
+        try {
+            return painlessLookup.lookupRuntimeSetter(receiverClass, name);
+        } catch (IllegalArgumentException iae) {
+            // special case: maps, and lists
+            if (Map.class.isAssignableFrom(receiverClass)) {
+                // maps allow access like mymap.key
+                // wire 'key' as a parameter, its a constant in painless
+                return MethodHandles.insertArguments(MAP_PUT, 1, name);
+            } else if (List.class.isAssignableFrom(receiverClass)) {
+                // lists allow access like mylist.0
+                // wire '0' (index) as a parameter, its a constant. this also avoids
+                // parsing the same integer millions of times!
+                try {
+                    int index = Integer.parseInt(name);
+                    return MethodHandles.insertArguments(LIST_SET, 1, index);
+                } catch (final NumberFormatException exception) {
+                    throw new IllegalArgumentException("Illegal list shortcut value [" + name + "].");
                 }
             }
 
-            for (final Class<?> iface : clazz.getInterfaces()) {
-                struct = painlessLookup.lookupPainlessClass(iface);
-
-                if (struct != null) {
-                    MethodHandle handle = struct.setterMethodHandles.get(name);
-                    if (handle != null) {
-                        return handle;
-                    }
-                }
-            }
+            throw iae;
         }
-        // special case: maps, and lists
-        if (Map.class.isAssignableFrom(receiverClass)) {
-            // maps allow access like mymap.key
-            // wire 'key' as a parameter, its a constant in painless
-            return MethodHandles.insertArguments(MAP_PUT, 1, name);
-        } else if (List.class.isAssignableFrom(receiverClass)) {
-            // lists allow access like mylist.0
-            // wire '0' (index) as a parameter, its a constant. this also avoids
-            // parsing the same integer millions of times!
-            try {
-                int index = Integer.parseInt(name);
-                return MethodHandles.insertArguments(LIST_SET, 1, index);
-            } catch (final NumberFormatException exception) {
-                throw new IllegalArgumentException( "Illegal list shortcut value [" + name + "].");
-            }
-        }
-
-        throw new IllegalArgumentException("Unable to find dynamic field [" + name + "] " +
-                                           "for class [" + receiverClass.getCanonicalName() + "].");
     }
 
     /**

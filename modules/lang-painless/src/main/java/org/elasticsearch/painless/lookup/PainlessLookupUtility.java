@@ -152,7 +152,9 @@ public final class PainlessLookupUtility {
 
         String canonicalTypeName = type.getCanonicalName();
 
-        if (canonicalTypeName.startsWith(def.class.getCanonicalName())) {
+        if (canonicalTypeName == null) {
+            canonicalTypeName = ANONYMOUS_CLASS_NAME;
+        } else if (canonicalTypeName.startsWith(def.class.getCanonicalName())) {
             canonicalTypeName = canonicalTypeName.replace(def.class.getCanonicalName(), DEF_CLASS_NAME);
         }
 
@@ -356,6 +358,11 @@ public final class PainlessLookupUtility {
     public static String buildPainlessFieldKey(String fieldName) {
         return fieldName;
     }
+
+    /**
+     * The name for an anonymous class.
+     */
+    public static final String ANONYMOUS_CLASS_NAME = "$anonymous";
 
     /**
      * The def type name as specified in the source for a script.

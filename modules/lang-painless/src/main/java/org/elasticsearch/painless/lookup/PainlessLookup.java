@@ -19,16 +19,19 @@
 
 package org.elasticsearch.painless.lookup;
 
+import java.lang.invoke.MethodHandle;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.buildPainlessConstructorKey;
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.buildPainlessFieldKey;
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.buildPainlessMethodKey;
+import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToBoxedType;
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
 
 public final class PainlessLookup {
@@ -114,7 +117,7 @@ public final class PainlessLookup {
         Objects.requireNonNull(methodName);
 
         if (targetClass.isPrimitive()) {
-            targetClass = PainlessLookupUtility.typeToBoxedType(targetClass);
+            targetClass = typeToBoxedType(targetClass);
         }
 
         PainlessClass targetPainlessClass = classesToPainlessClasses.get(targetClass);
@@ -186,17 +189,50 @@ public final class PainlessLookup {
     }
 
     public PainlessMethod lookupRuntimePainlessMethod(Class<?> originalTargetClass, String methodName, int methodArity) {
-        String painlessMethodKey = PainlessLookupUtility.buildPainlessMethodKey(methodName, methodArity);
+        Objects.requireNonNull(originalTargetClass);
+        Objects.requireNonNull(methodName);
+
+        String painlessMethodKey = buildPainlessMethodKey(methodName, methodArity);
+        Function<PainlessClass, PainlessMethod> objectLookup = targetPainlessClass -> targetPainlessClass.methods.get(painlessMethodKey);
+        String notFoundErrorMessage =
+                "dynamic method [" + typeToCanonicalTypeName(originalTargetClass) + ", " + painlessMethodKey + "] not found";
+
+        return lookupRuntimePainlessObject(originalTargetClass, objectLookup, notFoundErrorMessage);
+    }
+
+    public MethodHandle lookupRuntimeGetter(Class<?> originalTargetClass, String getterName) {
+        Objects.requireNonNull(originalTargetClass);
+        Objects.requireNonNull(getterName);
+
+        Function<PainlessClass, MethodHandle> objectLookup = targetPainlessClass -> targetPainlessClass.getterMethodHandles.get(getterName);
+        String notFoundErrorMessage = "dynamic getter [" + typeToCanonicalTypeName(originalTargetClass) + ", " + getterName + "] not found";
+
+        return lookupRuntimePainlessObject(originalTargetClass, objectLookup, notFoundErrorMessage);
+    }
+
+    public MethodHandle lookupRuntimeSetter(Class<?> originalTargetClass, String setterName) {
+        Objects.requireNonNull(originalTargetClass);
+        Objects.requireNonNull(setterName);
+
+        Function<PainlessClass, MethodHandle> objectLookup = targetPainlessClass -> targetPainlessClass.setterMethodHandles.get(setterName);
+        String notFoundErrorMessage = "dynamic setter [" + typeToCanonicalTypeName(originalTargetClass) + ", " + setterName + "] not found";
+
+        return lookupRuntimePainlessObject(originalTargetClass, objectLookup, notFoundErrorMessage);
+    }
+
+    private <T> T lookupRuntimePainlessObject(
+            Class<?> originalTargetClass, Function<PainlessClass, T> objectLookup, String notFoundErrorMessage) {
+
         Class<?> currentTargetClass = originalTargetClass;
 
         while (currentTargetClass != null) {
             PainlessClass targetPainlessClass = classesToPainlessClasses.get(currentTargetClass);
 
             if (targetPainlessClass != null) {
-                PainlessMethod painlessMethod = targetPainlessClass.methods.get(painlessMethodKey);
+                T painlessObject = objectLookup.apply(targetPainlessClass);
 
-                if (painlessMethod != null) {
-                    return painlessMethod;
+                if (painlessObject != null) {
+                    return painlessObject;
                 }
             }
 
@@ -210,10 +246,10 @@ public final class PainlessLookup {
                 PainlessClass targetPainlessClass = classesToPainlessClasses.get(targetInterface);
 
                 if (targetPainlessClass != null) {
-                    PainlessMethod painlessMethod = targetPainlessClass.methods.get(painlessMethodKey);
+                    T painlessObject = objectLookup.apply(targetPainlessClass);
 
-                    if (painlessMethod != null) {
-                        return painlessMethod;
+                    if (painlessObject != null) {
+                        return painlessObject;
                     }
                 }
             }
@@ -221,7 +257,6 @@ public final class PainlessLookup {
             currentTargetClass = currentTargetClass.getSuperclass();
         }
 
-        throw new IllegalArgumentException(
-                "dynamic method [" + typeToCanonicalTypeName(originalTargetClass) + ", " + painlessMethodKey + "] not found");
+        throw new IllegalArgumentException(notFoundErrorMessage);
     }
 }

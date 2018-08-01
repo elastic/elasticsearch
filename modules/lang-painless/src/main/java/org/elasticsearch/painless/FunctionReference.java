@@ -225,7 +225,7 @@ public class FunctionReference {
     /** factory (CallSite) method signature */
     public final MethodType factoryMethodType;
 
-    public FunctionReference(
+    private FunctionReference(
             String interfaceMethodName, MethodType interfaceMethodType,
             String delegateClassName, boolean isDelegateInterface,
             int delegateInvokeType, String delegateMethodName, MethodType delegateMethodType,

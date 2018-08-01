@@ -55,7 +55,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testMisspelledFunction() {
-        assertEquals("1:8: Unknown function [COONT], did you mean any of [COUNT, COT]?", verify("SELECT COONT(bool) FROM test"));
+        assertEquals("1:8: Unknown function [COONT], did you mean any of [COUNT, COT, CONCAT]?", verify("SELECT COONT(bool) FROM test"));
     }
 
     public void testMissingColumnInGroupBy() {

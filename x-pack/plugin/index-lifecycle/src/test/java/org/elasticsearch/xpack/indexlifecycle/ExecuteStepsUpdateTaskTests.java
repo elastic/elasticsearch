@@ -104,10 +104,10 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
                 .put(LifecycleSettings.LIFECYCLE_STEP, "init"))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         index = indexMetadata.getIndex();
-
+        IndexLifecycleMetadata lifecycleMetadata = new IndexLifecycleMetadata(policyMap, OperationMode.RUNNING);
         MetaData metaData = MetaData.builder()
             .persistentSettings(settings(Version.CURRENT).build())
-            .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, OperationMode.RUNNING))
+            .putCustom(IndexLifecycleMetadata.TYPE, lifecycleMetadata)
             .put(IndexMetaData.builder(indexMetadata))
             .build();
         String nodeId = randomAlphaOfLength(10);
@@ -118,7 +118,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
             .metaData(metaData)
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
             .build();
-        policyStepsRegistry.update(clusterState, client, () -> 0L);
+        policyStepsRegistry.update(lifecycleMetadata, client, () -> 0L);
     }
 
     public void testExecuteAllUntilEndOfPolicy() throws IOException {

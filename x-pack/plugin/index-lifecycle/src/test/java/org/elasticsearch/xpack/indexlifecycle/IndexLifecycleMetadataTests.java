@@ -42,25 +42,7 @@ public class IndexLifecycleMetadataTests extends AbstractDiffableSerializationTe
 
     @Override
     protected IndexLifecycleMetadata createTestInstance() {
-        int numPolicies = randomInt(5);
-        SortedMap<String, LifecyclePolicyMetadata> policies = new TreeMap<>();
-        for (int i = 0; i < numPolicies; i++) {
-            int numberPhases = randomInt(5);
-            Map<String, Phase> phases = new HashMap<>(numberPhases);
-            for (int j = 0; j < numberPhases; j++) {
-                TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");
-                Map<String, LifecycleAction> actions = Collections.emptyMap();
-                if (randomBoolean()) {
-                    actions = Collections.singletonMap(DeleteAction.NAME, new DeleteAction());
-                }
-                String phaseName = randomAlphaOfLength(10);
-                phases.put(phaseName, new Phase(phaseName, after, actions));
-            }
-            String policyName = randomAlphaOfLength(10);
-            policies.put(policyName, new LifecyclePolicyMetadata(new LifecyclePolicy(TestLifecycleType.INSTANCE, policyName, phases),
-                    Collections.emptyMap()));
-        }
-        return new IndexLifecycleMetadata(policies, randomFrom(OperationMode.values()));
+        return createTestInstance(randomInt(5), randomFrom(OperationMode.values()));
     }
 
     @Override
@@ -123,4 +105,24 @@ public class IndexLifecycleMetadataTests extends AbstractDiffableSerializationTe
         assertEquals(MetaData.ALL_CONTEXTS, createTestInstance().context());
     }
 
+    public static IndexLifecycleMetadata createTestInstance(int numPolicies, OperationMode mode) {
+        SortedMap<String, LifecyclePolicyMetadata> policies = new TreeMap<>();
+        for (int i = 0; i < numPolicies; i++) {
+            int numberPhases = randomInt(5);
+            Map<String, Phase> phases = new HashMap<>(numberPhases);
+            for (int j = 0; j < numberPhases; j++) {
+                TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");
+                Map<String, LifecycleAction> actions = Collections.emptyMap();
+                if (randomBoolean()) {
+                    actions = Collections.singletonMap(DeleteAction.NAME, new DeleteAction());
+                }
+                String phaseName = randomAlphaOfLength(10);
+                phases.put(phaseName, new Phase(phaseName, after, actions));
+            }
+            String policyName = randomAlphaOfLength(10);
+            policies.put(policyName, new LifecyclePolicyMetadata(new LifecyclePolicy(TestLifecycleType.INSTANCE, policyName, phases),
+                Collections.emptyMap()));
+        }
+        return new IndexLifecycleMetadata(policies, mode);
+    }
 }

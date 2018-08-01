@@ -202,14 +202,18 @@ public class ConfigTests extends ESTestCase {
     }
 
     public void testEmptyHistoField() {
-        final String[] fields = randomBoolean() ? new String[0] : null;
-        Exception e = expectThrows(IllegalArgumentException.class, () -> new HistogramGroupConfig(1L, fields));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new HistogramGroupConfig(1L, null));
+        assertThat(e.getMessage(), equalTo("Fields must have at least one value"));
+
+        e = expectThrows(IllegalArgumentException.class, () -> new HistogramGroupConfig(1L, new String[0]));
         assertThat(e.getMessage(), equalTo("Fields must have at least one value"));
     }
 
     public void testBadHistoIntervals() {
-        final long interval = randomBoolean() ? 0L : -1L;
-        Exception e = expectThrows(IllegalArgumentException.class, () -> new HistogramGroupConfig(interval, "foo", "bar"));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new HistogramGroupConfig(0L, "foo", "bar"));
+        assertThat(e.getMessage(), equalTo("Interval must be a positive long"));
+
+        e = expectThrows(IllegalArgumentException.class, () -> new HistogramGroupConfig(-1L, "foo", "bar"));
         assertThat(e.getMessage(), equalTo("Interval must be a positive long"));
     }
 

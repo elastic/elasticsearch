@@ -40,15 +40,47 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.painless.lookup.PainlessLookupUtility.CONSTRUCTOR_NAME;
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.DEF_CLASS_NAME;
+import static org.elasticsearch.painless.lookup.PainlessLookupUtility.buildPainlessConstructorKey;
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.buildPainlessFieldKey;
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.buildPainlessMethodKey;
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToJavaType;
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typesToCanonicalTypeNames;
 
-public class PainlessLookupBuilder {
+public final class PainlessLookupBuilder {
+
+    private static class PainlessConstructorCacheKey {
+
+        private final Class<?> targetType;
+        private final List<Class<?>> typeParameters;
+
+        private PainlessConstructorCacheKey(Class<?> targetType, List<Class<?>> typeParameters) {
+            this.targetType = targetType;
+            this.typeParameters = Collections.unmodifiableList(typeParameters);
+        }
+
+        @Override
+        public boolean equals(Object object) {
+            if (this == object) {
+                return true;
+            }
+
+            if (object == null || getClass() != object.getClass()) {
+                return false;
+            }
+
+            PainlessConstructorCacheKey that = (PainlessConstructorCacheKey)object;
+
+            return Objects.equals(targetType, that.targetType) &&
+                   Objects.equals(typeParameters, that.typeParameters);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(targetType, typeParameters);
+        }
+    }
 
     private static class PainlessMethodCacheKey {
 
@@ -120,8 +152,9 @@ public class PainlessLookupBuilder {
         }
     }
 
-    private static final Map<PainlessMethodCacheKey, PainlessMethod> painlessMethodCache = new HashMap<>();
-    private static final Map<PainlessFieldCacheKey,  PainlessField>  painlessFieldCache  = new HashMap<>();
+    private static final Map<PainlessConstructorCacheKey, PainlessConstructor> painlessConstuctorCache = new HashMap<>();
+    private static final Map<PainlessMethodCacheKey,      PainlessMethod>      painlessMethodCache     = new HashMap<>();
+    private static final Map<PainlessFieldCacheKey,       PainlessField>       painlessFieldCache      = new HashMap<>();
 
     private static final Pattern CLASS_NAME_PATTERN  = Pattern.compile("^[_a-zA-Z][._a-zA-Z0-9]*$");
     private static final Pattern METHOD_NAME_PATTERN = Pattern.compile("^[_a-zA-Z][_a-zA-Z0-9]*$");
@@ -343,11 +376,10 @@ public class PainlessLookupBuilder {
                     "[[" + targetCanonicalClassName + "], " + typesToCanonicalTypeNames(typeParameters) + "] not found", nsme);
         }
 
-        String painlessMethodKey = buildPainlessMethodKey(CONSTRUCTOR_NAME, typeParametersSize);
-        PainlessMethod painlessConstructor = painlessClassBuilder.constructors.get(painlessMethodKey);
+        String painlessConstructorKey = buildPainlessConstructorKey(typeParametersSize);
+        PainlessConstructor painlessConstructor = painlessClassBuilder.constructors.get(painlessConstructorKey);
 
         if (painlessConstructor == null) {
-            org.objectweb.asm.commons.Method asmConstructor = org.objectweb.asm.commons.Method.getMethod(javaConstructor);
             MethodHandle methodHandle;
 
             try {
@@ -359,17 +391,16 @@ public class PainlessLookupBuilder {
 
             MethodType methodType = methodHandle.type();
 
-            painlessConstructor = painlessMethodCache.computeIfAbsent(
-                    new PainlessMethodCacheKey(targetClass, CONSTRUCTOR_NAME, typeParameters),
-                    key -> new PainlessMethod(CONSTRUCTOR_NAME, targetClass, null, void.class, typeParameters,
-                                              asmConstructor, javaConstructor.getModifiers(), methodHandle, methodType)
+            painlessConstructor = painlessConstuctorCache.computeIfAbsent(
+                    new PainlessConstructorCacheKey(targetClass, typeParameters),
+                    key -> new PainlessConstructor(javaConstructor, typeParameters, methodHandle, methodType)
             );
 
-            painlessClassBuilder.constructors.put(painlessMethodKey, painlessConstructor);
-        } else if (painlessConstructor.arguments.equals(typeParameters) == false){
+            painlessClassBuilder.constructors.put(painlessConstructorKey, painlessConstructor);
+        } else if (painlessConstructor.typeParameters.equals(typeParameters) == false){
             throw new IllegalArgumentException("cannot have constructors " +
                     "[[" + targetCanonicalClassName + "], " + typesToCanonicalTypeNames(typeParameters) + "] and " +
-                    "[[" + targetCanonicalClassName + "], " + typesToCanonicalTypeNames(painlessConstructor.arguments) + "] " +
+                    "[[" + targetCanonicalClassName + "], " + typesToCanonicalTypeNames(painlessConstructor.typeParameters) + "] " +
                     "with the same arity and different type parameters");
         }
     }
@@ -509,7 +540,6 @@ public class PainlessLookupBuilder {
             PainlessMethod painlessMethod = painlessClassBuilder.staticMethods.get(painlessMethodKey);
 
             if (painlessMethod == null) {
-                org.objectweb.asm.commons.Method asmMethod = org.objectweb.asm.commons.Method.getMethod(javaMethod);
                 MethodHandle methodHandle;
 
                 try {
@@ -523,19 +553,17 @@ public class PainlessLookupBuilder {
 
                 painlessMethod = painlessMethodCache.computeIfAbsent(
                         new PainlessMethodCacheKey(targetClass, methodName, typeParameters),
-                        key -> new PainlessMethod(methodName, targetClass, null, returnType,
-                                typeParameters, asmMethod, javaMethod.getModifiers(), methodHandle, methodType));
+                        key -> new PainlessMethod(javaMethod, targetClass, returnType, typeParameters, methodHandle, methodType));
 
                 painlessClassBuilder.staticMethods.put(painlessMethodKey, painlessMethod);
-            } else if ((painlessMethod.name.equals(methodName) && painlessMethod.rtn == returnType &&
-                    painlessMethod.arguments.equals(typeParameters)) == false) {
+            } else if (painlessMethod.returnType == returnType && painlessMethod.typeParameters.equals(typeParameters) == false) {
                 throw new IllegalArgumentException("cannot have static methods " +
                         "[[" + targetCanonicalClassName + "], [" + methodName + "], " +
                         "[" + typeToCanonicalTypeName(returnType) + "], " +
                         typesToCanonicalTypeNames(typeParameters) + "] and " +
                         "[[" + targetCanonicalClassName + "], [" + methodName + "], " +
-                        "[" + typeToCanonicalTypeName(painlessMethod.rtn) + "], " +
-                        typesToCanonicalTypeNames(painlessMethod.arguments) + "] " +
+                        "[" + typeToCanonicalTypeName(painlessMethod.returnType) + "], " +
+                        typesToCanonicalTypeNames(painlessMethod.typeParameters) + "] " +
                         "with the same arity and different return type or type parameters");
             }
         } else {
@@ -566,19 +594,17 @@ public class PainlessLookupBuilder {
 
                 painlessMethod = painlessMethodCache.computeIfAbsent(
                         new PainlessMethodCacheKey(targetClass, methodName, typeParameters),
-                        key -> new PainlessMethod(methodName, targetClass, augmentedClass, returnType,
-                                typeParameters, asmMethod, javaMethod.getModifiers(), methodHandle, methodType));
+                        key -> new PainlessMethod(javaMethod, targetClass, returnType, typeParameters, methodHandle, methodType));
 
                 painlessClassBuilder.methods.put(painlessMethodKey, painlessMethod);
-            } else if ((painlessMethod.name.equals(methodName) && painlessMethod.rtn == returnType &&
-                    painlessMethod.arguments.equals(typeParameters)) == false) {
+            } else if (painlessMethod.returnType == returnType && painlessMethod.typeParameters.equals(typeParameters) == false) {
                 throw new IllegalArgumentException("cannot have methods " +
                         "[[" + targetCanonicalClassName + "], [" + methodName + "], " +
                         "[" + typeToCanonicalTypeName(returnType) + "], " +
                         typesToCanonicalTypeNames(typeParameters) + "] and " +
                         "[[" + targetCanonicalClassName + "], [" + methodName + "], " +
-                        "[" + typeToCanonicalTypeName(painlessMethod.rtn) + "], " +
-                        typesToCanonicalTypeNames(painlessMethod.arguments) + "] " +
+                        "[" + typeToCanonicalTypeName(painlessMethod.returnType) + "], " +
+                        typesToCanonicalTypeNames(painlessMethod.typeParameters) + "] " +
                         "with the same arity and different return type or type parameters");
             }
         }
@@ -775,8 +801,8 @@ public class PainlessLookupBuilder {
             PainlessMethod newPainlessMethod = painlessMethodEntry.getValue();
             PainlessMethod existingPainlessMethod = targetPainlessClassBuilder.methods.get(painlessMethodKey);
 
-            if (existingPainlessMethod == null || existingPainlessMethod.target != newPainlessMethod.target &&
-                    existingPainlessMethod.target.isAssignableFrom(newPainlessMethod.target)) {
+            if (existingPainlessMethod == null || existingPainlessMethod.targetClass != newPainlessMethod.targetClass &&
+                    existingPainlessMethod.targetClass.isAssignableFrom(newPainlessMethod.targetClass)) {
                 targetPainlessClassBuilder.methods.put(painlessMethodKey, newPainlessMethod);
             }
         }
@@ -801,21 +827,21 @@ public class PainlessLookupBuilder {
 
     private void cacheRuntimeHandles(PainlessClassBuilder painlessClassBuilder) {
         for (PainlessMethod painlessMethod : painlessClassBuilder.methods.values()) {
-            String methodName = painlessMethod.name;
-            int typeParametersSize = painlessMethod.arguments.size();
+            String methodName = painlessMethod.javaMethod.getName();
+            int typeParametersSize = painlessMethod.typeParameters.size();
 
             if (typeParametersSize == 0 && methodName.startsWith("get") && methodName.length() > 3 &&
                     Character.isUpperCase(methodName.charAt(3))) {
                 painlessClassBuilder.getterMethodHandles.putIfAbsent(
-                        Character.toLowerCase(methodName.charAt(3)) + methodName.substring(4), painlessMethod.handle);
+                        Character.toLowerCase(methodName.charAt(3)) + methodName.substring(4), painlessMethod.methodHandle);
             } else if (typeParametersSize == 0 && methodName.startsWith("is") && methodName.length() > 2 &&
                     Character.isUpperCase(methodName.charAt(2))) {
                 painlessClassBuilder.getterMethodHandles.putIfAbsent(
-                        Character.toLowerCase(methodName.charAt(2)) + methodName.substring(3), painlessMethod.handle);
+                        Character.toLowerCase(methodName.charAt(2)) + methodName.substring(3), painlessMethod.methodHandle);
             } else if (typeParametersSize == 1 && methodName.startsWith("set") && methodName.length() > 3 &&
                     Character.isUpperCase(methodName.charAt(3))) {
                 painlessClassBuilder.setterMethodHandles.putIfAbsent(
-                        Character.toLowerCase(methodName.charAt(3)) + methodName.substring(4), painlessMethod.handle);
+                        Character.toLowerCase(methodName.charAt(3)) + methodName.substring(4), painlessMethod.methodHandle);
             }
         }
 

@@ -56,6 +56,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.lessThan;
@@ -319,9 +320,11 @@ public class EvilLoggerTests extends ESTestCase {
         assertThat(events.size(), equalTo(expectedLogLines + stackTraceLength));
         for (int i = 0; i < expectedLogLines; i++) {
             if (prefix == null) {
-                assertThat(events.get(i), startsWith("test"));
+                assertThat("Contents of [" + path + "] are wrong",
+                        events.get(i), startsWith("[" + getTestName() + "] test"));
             } else {
-                assertThat(events.get(i), startsWith("[" + prefix + "] test"));
+                assertThat("Contents of [" + path + "] are wrong",
+                        events.get(i), startsWith("[" + getTestName() + "][" + prefix + "] test"));
             }
         }
     }
@@ -355,6 +358,24 @@ public class EvilLoggerTests extends ESTestCase {
         } else {
             assertNull(System.getProperty("es.logs.node_name"));
         }
+    }
+
+    public void testNoNodeNameWarning() throws IOException, UserException {
+        setupLogging("no_node_name");
+
+        final String path =
+            System.getProperty("es.logs.base_path") +
+                System.getProperty("file.separator") +
+                System.getProperty("es.logs.cluster_name") + ".log";
+        final List<String> events = Files.readAllLines(PathUtils.get(path));
+        assertThat(events.size(), equalTo(2));
+        final String location = "org.elasticsearch.common.logging.LogConfigurator";
+        // the first message is a warning for unsupported configuration files
+        assertLogLine(events.get(0), Level.WARN, location, "\\[null\\] Some logging configurations have %marker but don't "
+                + "have %node_name. We will automatically add %node_name to the pattern to ease the migration for users "
+                + "who customize log4j2.properties but will stop this behavior in 7.0. You should manually replace "
+                + "`%node_name` with `\\[%node_name\\]%marker ` in these locations:");
+        assertThat(events.get(1), endsWith("no_node_name/log4j2.properties"));
     }
 
     private void setupLogging(final String config) throws IOException, UserException {

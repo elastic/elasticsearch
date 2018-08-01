@@ -82,6 +82,7 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
         assertOK(response);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32498")
     public void testLoginByKeytab() throws IOException, PrivilegedActionException {
         final String userPrincipalName = System.getProperty(TEST_USER_WITH_KEYTAB_KEY);
         final String keytabPath = System.getProperty(TEST_USER_WITH_KEYTAB_PATH_KEY);
@@ -91,6 +92,7 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
         executeRequestAndVerifyResponse(userPrincipalName, callbackHandler);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32498")
     public void testLoginByUsernamePassword() throws IOException, PrivilegedActionException {
         final String userPrincipalName = System.getProperty(TEST_USER_WITH_PWD_KEY);
         final String password = System.getProperty(TEST_USER_WITH_PWD_PASSWD_KEY);
@@ -98,6 +100,10 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
         final SpnegoHttpClientConfigCallbackHandler callbackHandler = new SpnegoHttpClientConfigCallbackHandler(userPrincipalName,
                 new SecureString(password.toCharArray()), enabledDebugLogs);
         executeRequestAndVerifyResponse(userPrincipalName, callbackHandler);
+    }
+
+    public void testSoDoesNotFailWithNoTests() {
+        // intentionally empty - this is just needed to ensure the build does not fail because we mute its only test.
     }
 
     private void executeRequestAndVerifyResponse(final String userPrincipalName,

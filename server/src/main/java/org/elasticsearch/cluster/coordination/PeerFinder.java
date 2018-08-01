@@ -200,7 +200,6 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
         ActivePeerFinder(DiscoveryNodes lastAcceptedNodes) {
             this.lastAcceptedNodes = lastAcceptedNodes;
             foundPeers = newConcurrentMap();
-            foundPeers.put(getLocalNode(), new FoundPeer(getLocalNode()));
         }
 
         void start() {
@@ -365,6 +364,10 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
                     return;
                 }
 
+                if (discoveryNode.equals(getLocalNode())) {
+                    return;
+                }
+
                 final FoundPeer foundPeer = foundPeers.computeIfAbsent(discoveryNode, FoundPeer::new);
                 assert foundPeer.discoveryNode.equals(discoveryNode);
 
@@ -372,11 +375,6 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
                     return;
                 }
                 foundPeer.peersRequestedThisRound = true;
-
-                if (discoveryNode.equals(getLocalNode())) {
-                    return;
-                    // TODO at the moment this puts the local node into foundPeers. Can we do without?
-                }
 
                 List<DiscoveryNode> knownNodes = new ArrayList<>(foundPeers.keySet());
 

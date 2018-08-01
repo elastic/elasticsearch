@@ -56,6 +56,7 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.coordination.PeerFinder.REQUEST_PEERS_ACTION_NAME;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -325,7 +326,7 @@ public class PeerFinderTests extends ESTestCase {
         final CapturedRequest[] capturedRequests = capturingTransport.getCapturedRequestsAndClear();
         assertThat(capturedRequests.length, is(1));
         final PeersRequest peersRequest = (PeersRequest) capturedRequests[0].request;
-        assertThat(peersRequest.getDiscoveryNodes(), containsInAnyOrder(localNode, otherNode));
+        assertThat(peersRequest.getDiscoveryNodes(), contains(otherNode));
     }
 
     public void testAddsReachablePeersFromResponse() {
@@ -477,7 +478,7 @@ public class PeerFinderTests extends ESTestCase {
 
     private void assertFoundPeers(DiscoveryNode... expectedNodes) {
         assertThat(peerFinder.getFoundPeers(),
-            equalTo(Stream.concat(Arrays.stream(expectedNodes), Stream.of(localNode)).collect(Collectors.toSet())));
+            equalTo(Arrays.stream(expectedNodes).collect(Collectors.toSet())));
     }
 
     private DiscoveryNode newDiscoveryNode(String nodeId) {

@@ -31,7 +31,7 @@ public class GetLicenseResponse extends ActionResponse {
         this.license = license;
     }
 
-    public String license() {
+    public String getLicenseDefinition() {
         return license;
     }
 

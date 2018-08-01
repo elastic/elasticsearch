@@ -1077,39 +1077,6 @@ public class RestHighLevelClient implements Closeable {
         return response.getStatusLine().getStatusCode() == 200;
     }
 
-    /** Converts an eniter response into a json sting
-     *
-     * This is useful for responses that we don't parse on the client side, but instead work as string
-     * such as in case of the license JSON
-     */
-    static String convertResponseToJson(Response response) throws IOException {
-        HttpEntity entity = response.getEntity();
-        if (entity == null) {
-            throw new IllegalStateException("Response body expected but not returned");
-        }
-        if (entity.getContentType() == null) {
-            throw new IllegalStateException("Elasticsearch didn't return the [Content-Type] header, unable to parse response body");
-        }
-        XContentType xContentType = XContentType.fromMediaTypeOrFormat(entity.getContentType().getValue());
-        if (xContentType == null) {
-            throw new IllegalStateException("Unsupported Content-Type: " + entity.getContentType().getValue());
-        }
-        if (xContentType == XContentType.JSON) {
-            // No changes is required
-            return Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8));
-        } else {
-            // Need to convert into JSON
-            try (InputStream stream = response.getEntity().getContent();
-                 XContentParser parser = XContentFactory.xContent(xContentType).createParser(NamedXContentRegistry.EMPTY,
-                     DeprecationHandler.THROW_UNSUPPORTED_OPERATION, stream)) {
-                parser.nextToken();
-                XContentBuilder builder = XContentFactory.jsonBuilder();
-                builder.copyCurrentStructure(parser);
-                return Strings.toString(builder);
-            }
-        }
-    }
-
     static List<NamedXContentRegistry.Entry> getDefaultNamedXContents() {
         Map<String, ContextParser<Object, ? extends Aggregation>> map = new HashMap<>();
         map.put(CardinalityAggregationBuilder.NAME, (p, c) -> ParsedCardinality.fromXContent(p, (String) c));

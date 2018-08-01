@@ -35,6 +35,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
@@ -117,7 +118,7 @@ public class LicensingDocumentationIT extends ESRestHighLevelClientTestCase {
             //end::get-license-execute
 
             //tag::get-license-response
-            String currentLicense = response.license(); // <1>
+            String currentLicense = response.getLicenseDefinition(); // <1>
             //end::get-license-response
 
             assertThat(currentLicense, containsString("trial"));
@@ -149,6 +150,19 @@ public class LicensingDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::get-license-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+        {
+            GetLicenseRequest request = new GetLicenseRequest();
+            RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
+            // Make sure that it still works in other formats
+            builder.addHeader("Accept", randomFrom("application/smile", "application/cbor"));
+            RequestOptions options = builder.build();
+            GetLicenseResponse response = client.xpack().license().getLicense(request, options);
+            String currentLicense = response.getLicenseDefinition();
+            assertThat(currentLicense, startsWith("{"));
+            assertThat(currentLicense, containsString("trial"));
+            assertThat(currentLicense, containsString("client_rest-high-level_integTestCluster"));
+            assertThat(currentLicense, endsWith("}"));
         }
     }
 }

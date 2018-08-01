@@ -19,16 +19,27 @@
 
 package org.elasticsearch.client;
 
+import org.apache.http.HttpEntity;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.GetLicenseResponse;
 import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.client.RestHighLevelClient.convertResponseToJson;
 
 /**
  * A wrapper for the {@link RestHighLevelClient} that provides methods for
@@ -87,4 +98,37 @@ public class LicenseClient {
             response -> new GetLicenseResponse(convertResponseToJson(response)), listener, emptySet());
     }
 
+
+    /** Converts an entire response into a json sting
+     *
+     * This is useful for responses that we don't parse on the client side, but instead work as string
+     * such as in case of the license JSON
+     */
+    static String convertResponseToJson(Response response) throws IOException {
+        HttpEntity entity = response.getEntity();
+        if (entity == null) {
+            throw new IllegalStateException("Response body expected but not returned");
+        }
+        if (entity.getContentType() == null) {
+            throw new IllegalStateException("Elasticsearch didn't return the [Content-Type] header, unable to parse response body");
+        }
+        XContentType xContentType = XContentType.fromMediaTypeOrFormat(entity.getContentType().getValue());
+        if (xContentType == null) {
+            throw new IllegalStateException("Unsupported Content-Type: " + entity.getContentType().getValue());
+        }
+        if (xContentType == XContentType.JSON) {
+            // No changes is required
+            return Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8));
+        } else {
+            // Need to convert into JSON
+            try (InputStream stream = response.getEntity().getContent();
+                 XContentParser parser = XContentFactory.xContent(xContentType).createParser(NamedXContentRegistry.EMPTY,
+                     DeprecationHandler.THROW_UNSUPPORTED_OPERATION, stream)) {
+                parser.nextToken();
+                XContentBuilder builder = XContentFactory.jsonBuilder();
+                builder.copyCurrentStructure(parser);
+                return Strings.toString(builder);
+            }
+        }
+    }
 }

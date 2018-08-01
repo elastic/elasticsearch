@@ -515,6 +515,10 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         return ioStats;
     }
 
+    public Path[] getPaths(){
+        return paths;
+    }
+
     @Override
     public Iterator<Path> iterator() {
         return Arrays.stream(paths).iterator();

@@ -1424,7 +1424,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         long expectedChecksum = in.getChecksum();
         long readChecksum = Integer.toUnsignedLong(in.readInt());
         if (readChecksum != expectedChecksum) {
-            throw new TranslogCorruptedException("translog stream is corrupted, expected: 0x" +
+            throw new TranslogCorruptedException(in.getPath(), "Checksum verification failed. Expected: 0x" +
                 Long.toHexString(expectedChecksum) + ", got: 0x" + Long.toHexString(readChecksum));
         }
     }
@@ -1447,7 +1447,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         try {
             final int opSize = in.readInt();
             if (opSize < 4) { // 4byte for the checksum
-                throw new TranslogCorruptedException("operation size must be at least 4 but was: " + opSize);
+                throw new TranslogCorruptedException(in.getPath(), "Operation size must be at least 4 but was: " + opSize);
             }
             in.resetDigest(); // size is not part of the checksum!
             if (in.markSupported()) { // if we can we validate the checksum first
@@ -1462,10 +1462,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             }
             operation = Translog.Operation.readOperation(in);
             verifyChecksum(in);
-        } catch (TranslogCorruptedException e) {
-            throw e;
         } catch (EOFException e) {
-            throw new TruncatedTranslogException("reached premature end of file, translog is truncated", e);
+            throw new TruncatedTranslogException(in.getPath(), "Reached premature end of file, translog is truncated", e);
         }
         return operation;
     }
@@ -1713,7 +1711,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         } catch (TranslogCorruptedException ex) {
             throw ex; // just bubble up.
         } catch (Exception ex) {
-            throw new TranslogCorruptedException("Translog at [" + location + "] is corrupted", ex);
+            throw new TranslogCorruptedException(location, "", ex);
         }
         return checkpoint;
     }

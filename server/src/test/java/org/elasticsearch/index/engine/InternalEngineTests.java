@@ -120,6 +120,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.SnapshotMatchers;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
+import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
@@ -694,7 +695,8 @@ public class InternalEngineTests extends EngineTestCase {
         //Consider having just one or at least avoid copy-pasting from TranslogTest.corruptTranslog
         corruptTranslogs(translogPath);
         EngineException ex = expectThrows(EngineException.class, engine::recoverFromTranslog);
-        assertThat(ex.getMessage(), containsString(translogPath.toString()));
+        assertThat(ex.getCause(), instanceOf(TranslogCorruptedException.class));
+        assertThat(ex.getCause().getMessage(), containsString(translogPath.toString()));
         IOUtils.close(store, engine);
     }
 

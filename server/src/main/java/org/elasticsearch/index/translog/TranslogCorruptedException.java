@@ -23,17 +23,22 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
+import java.nio.file.Path;
 
 public class TranslogCorruptedException extends ElasticsearchException {
-    public TranslogCorruptedException(String msg) {
-        super(msg);
+    public TranslogCorruptedException(Path path, String details) {
+        super(corruptedMessage(path, details));
     }
 
-    public TranslogCorruptedException(String msg, Throwable cause) {
-        super(msg, cause);
+    public TranslogCorruptedException(Path path, String details, Throwable cause) {
+        super(corruptedMessage(path, details), cause);
     }
 
-    public TranslogCorruptedException(StreamInput in) throws IOException{
+    private static String corruptedMessage(Path path, String details) {
+        return path == null ? "Translog is corrupted." : "Translog at location [" + path + "] is corrupted. " + details;
+    }
+
+    public TranslogCorruptedException(StreamInput in) throws IOException {
         super(in);
     }
 }

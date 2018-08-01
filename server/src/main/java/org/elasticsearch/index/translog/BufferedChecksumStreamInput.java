@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.FilterStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
@@ -35,14 +36,23 @@ public final class BufferedChecksumStreamInput extends FilterStreamInput {
     private static final int SKIP_BUFFER_SIZE = 1024;
     private byte[] skipBuffer;
     private final Checksum digest;
+    private final Path path;
 
     public BufferedChecksumStreamInput(StreamInput in) {
         super(in);
+        this.path = null;
         this.digest = new BufferedChecksum(new CRC32());
     }
 
-    public BufferedChecksumStreamInput(StreamInput in, BufferedChecksumStreamInput reuse) {
+    public BufferedChecksumStreamInput(StreamInput in, Path path) {
         super(in);
+        this.path = path;
+        this.digest = new BufferedChecksum(new CRC32());
+    }
+
+    public BufferedChecksumStreamInput(StreamInput in, Path path, BufferedChecksumStreamInput reuse) {
+        super(in);
+        this.path = path;
         if (reuse == null ) {
             this.digest = new BufferedChecksum(new CRC32());
         } else {
@@ -51,6 +61,8 @@ public final class BufferedChecksumStreamInput extends FilterStreamInput {
             this.skipBuffer = reuse.skipBuffer;
         }
     }
+
+
 
     public long getChecksum() {
         return this.digest.getValue();
@@ -114,4 +126,7 @@ public final class BufferedChecksumStreamInput extends FilterStreamInput {
         digest.reset();
     }
 
+    public Path getPath() {
+        return path;
+    }
 }

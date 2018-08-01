@@ -21,15 +21,17 @@ package org.elasticsearch.index.translog;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 
+import java.io.EOFException;
 import java.io.IOException;
+import java.nio.file.Path;
 
 public class TruncatedTranslogException extends TranslogCorruptedException {
 
-    public TruncatedTranslogException(String msg, Throwable cause) {
-        super(msg, cause);
-    }
-
     public TruncatedTranslogException(StreamInput in) throws IOException {
         super(in);
+    }
+
+    public TruncatedTranslogException(Path path, String details, Throwable cause) {
+        super(path, details, cause);
     }
 }

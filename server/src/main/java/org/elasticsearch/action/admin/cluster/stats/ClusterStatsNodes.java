@@ -65,7 +65,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
         this.fs = new FsInfo.Path();
         this.plugins = new HashSet<>();
 
-        Set<InetAddress> seenAddresses = new HashSet<>(nodeResponses.size());
+        Set<DuplicateNodeCheck> seenAddresses = new HashSet<>(nodeResponses.size());
         List<NodeInfo> nodeInfos = new ArrayList<>(nodeResponses.size());
         List<NodeStats> nodeStats = new ArrayList<>(nodeResponses.size());
         for (ClusterStatsNodeResponse nodeResponse : nodeResponses) {
@@ -78,11 +78,19 @@ public class ClusterStatsNodes implements ToXContentFragment {
             TransportAddress publishAddress =
                     nodeResponse.nodeInfo().getTransport().address().publishAddress();
             final InetAddress inetAddress = publishAddress.address().getAddress();
-            if (!seenAddresses.add(inetAddress)) {
-                continue;
-            }
+
+            // check that getFs() are not null
             if (nodeResponse.nodeStats().getFs() != null) {
-                this.fs.add(nodeResponse.nodeStats().getFs().getTotal());
+                // not using getTotal()
+                // get all paths and check ip/mount location
+                for (FsInfo.Path path : nodeResponse.nodeStats().getFs().getPaths()) {A
+                    if (!seenAddresses.add(new DuplicateNodeCheck(inetAddress, path.getMount()))) {
+                        // if ip/mount are already checked, pass it.
+                        continue;
+                    }
+                    // or add that path
+                    this.fs.add(path);
+                }
             }
         }
         this.counts = new Counts(nodeInfos);
@@ -589,4 +597,32 @@ public class ClusterStatsNodes implements ToXContentFragment {
 
     }
 
+    // #32528 add private class that check ipaddress / mount location
+    private class DuplicateNodeCheck{
+        // ipaddress
+        InetAddress inetAddress;
+        // mount location
+        String mount;
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            DuplicateNodeCheck that = (DuplicateNodeCheck) o;
+            // check each getHostAddress and mount location
+            return Objects.equals(inetAddress.getHostAddress(), that.inetAddress.getHostAddress()) &&
+                Objects.equals(mount, that.mount);
+        }
+
+        @Override
+        public int hashCode() {
+
+            return Objects.hash(inetAddress, mount);
+        }
+
+        public DuplicateNodeCheck(InetAddress inetAddress, String mount) {
+            this.inetAddress = inetAddress;
+            this.mount = mount;
+        }
+    }
 }

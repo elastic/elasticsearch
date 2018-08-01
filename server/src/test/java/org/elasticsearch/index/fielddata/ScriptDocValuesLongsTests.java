@@ -21,9 +21,6 @@ package org.elasticsearch.index.fielddata;
 
 import org.elasticsearch.index.fielddata.ScriptDocValues.Longs;
 import org.elasticsearch.test.ESTestCase;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.ReadableDateTime;
 
 import java.io.IOException;
 import java.security.AccessControlContext;
@@ -32,6 +29,9 @@ import java.security.PermissionCollection;
 import java.security.Permissions;
 import java.security.PrivilegedAction;
 import java.security.ProtectionDomain;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -73,13 +73,14 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
 
     public void testDates() throws IOException {
         long[][] values = new long[between(3, 10)][];
-        ReadableDateTime[][] dates = new ReadableDateTime[values.length][];
+        Object[][] dates = new Object[values.length][];
         for (int d = 0; d < values.length; d++) {
             values[d] = new long[randomBoolean() ? randomBoolean() ? 0 : 1 : between(2, 100)];
-            dates[d] = new ReadableDateTime[values[d].length];
+            dates[d] = new Object[values[d].length];
             for (int i = 0; i < values[d].length; i++) {
-                dates[d][i] = new DateTime(randomNonNegativeLong(), DateTimeZone.UTC);
-                values[d][i] = dates[d][i].getMillis();
+                values[d][i] = randomNonNegativeLong();
+                dates[d][i] = ZonedDateTime.ofInstant(Instant.ofEpochMilli(values[d][i]), ZoneOffset.UTC);
+
             }
         }
         Set<String> warnings = new HashSet<>();
@@ -106,7 +107,7 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
                 assertEquals(dates[d][i], longs.getDates().get(i));
             }
 
-            Exception e = expectThrows(UnsupportedOperationException.class, () -> longs.getDates().add(new DateTime()));
+            Exception e = expectThrows(UnsupportedOperationException.class, () -> longs.getDates().add(ZonedDateTime.now(ZoneOffset.UTC)));
             assertEquals("doc values are unmodifiable", e.getMessage());
         }
 
@@ -136,9 +137,7 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
 
         assertThat(warnings, containsInAnyOrder(
                 "getDate on numeric fields is deprecated. Use a date field to get dates.",
-                "getDates on numeric fields is deprecated. Use a date field to get dates.",
-                "The joda time api for doc values is deprecated. Use -Des.scripting.use_java_time=true" +
-                    " to use the java time api for date field doc values"));
+                "getDates on numeric fields is deprecated. Use a date field to get dates."));
     }
 
     private Longs wrap(long[][] values, Consumer<String> deprecationCallback) {

@@ -19,12 +19,14 @@
 
 package org.elasticsearch.index.translog;
 
+import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.store.NIOFSDirectory;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.index.engine.CombinedDeletionPolicy;
 
 import java.io.IOException;
@@ -52,6 +54,31 @@ import static org.hamcrest.Matchers.not;
  */
 public class TestTranslog {
     static final Pattern TRANSLOG_FILE_PATTERN = Pattern.compile("translog-(\\d+)\\.tlog");
+
+    /*TODO currently there are two methods for corrupting translog.
+    There are two differences:
+     1) corruptTranslogFiles method is expecting other index files, not only translog.
+     2) corruptTranslogFiles method sometimes does not corrupt translog at all.
+    //It would be nice to have single corruption method to be used in integration and unit tests*/
+    /**
+     * Randomly overwrite some bytes in the translog files
+     */
+    public static void corruptTranslogFilesReliably(Logger logger, Random random, Path directory) throws Exception {
+        Path[] files = FileSystemUtils.files(directory, "translog-*");
+        for (Path file : files) {
+            logger.info("--> corrupting {}...", file);
+            FileChannel f = FileChannel.open(file, StandardOpenOption.READ, StandardOpenOption.WRITE);
+            int corruptions = RandomizedTest.scaledRandomIntBetween(10, 50);
+            for (int i = 0; i < corruptions; i++) {
+                // note: with the current logic, this will sometimes be a no-op
+                long pos = RandomNumbers.randomIntBetween(random,0, (int) f.size());
+
+                ByteBuffer junk = ByteBuffer.wrap(new byte[]{(byte) random.nextInt()});
+                f.write(junk, pos);
+            }
+            f.close();
+        }
+    }
 
     /**
      * Corrupts some translog files (translog-N.tlog) from the given translog directories.

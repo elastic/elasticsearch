@@ -748,6 +748,7 @@ public class TranslogTests extends ESTestCase {
 
     }
 
+
     public void testTranslogChecksums() throws Exception {
         List<Translog.Location> locations = new ArrayList<>();
 
@@ -758,7 +759,7 @@ public class TranslogTests extends ESTestCase {
         }
         translog.sync();
 
-        corruptTranslogs(translogDir);
+        TestTranslog.corruptTranslogFilesReliably(logger, random(), translogDir);
 
         AtomicInteger corruptionsCaught = new AtomicInteger(0);
         try (Translog.Snapshot snapshot = translog.newSnapshot()) {
@@ -815,25 +816,6 @@ public class TranslogTests extends ESTestCase {
         }
     }
 
-
-    /**
-     * Randomly overwrite some bytes in the translog files
-     */
-    private void corruptTranslogs(Path directory) throws Exception {
-        Path[] files = FileSystemUtils.files(directory, "translog-*");
-        for (Path file : files) {
-            logger.info("--> corrupting {}...", file);
-            FileChannel f = FileChannel.open(file, StandardOpenOption.READ, StandardOpenOption.WRITE);
-            int corruptions = scaledRandomIntBetween(10, 50);
-            for (int i = 0; i < corruptions; i++) {
-                // note: with the current logic, this will sometimes be a no-op
-                long pos = randomIntBetween(0, (int) f.size());
-                ByteBuffer junk = ByteBuffer.wrap(new byte[]{randomByte()});
-                f.write(junk, pos);
-            }
-            f.close();
-        }
-    }
 
     private Term newUid(ParsedDocument doc) {
         return new Term("_id", Uid.encodeId(doc.id()));

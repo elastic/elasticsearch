@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -29,9 +29,9 @@ import static org.hamcrest.Matchers.equalTo;
 public class TransportStopDatafeedActionTests extends ESTestCase {
     public void testValidate() {
         PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
-        tasksBuilder.addTask(MLMetadataField.datafeedTaskId("foo"), StartDatafeedAction.TASK_NAME,
+        tasksBuilder.addTask(MlTasks.datafeedTaskId("foo"), StartDatafeedAction.TASK_NAME,
                 new StartDatafeedAction.DatafeedParams("foo", 0L), new PersistentTasksCustomMetaData.Assignment("node_id", ""));
-        tasksBuilder.updateTaskState(MLMetadataField.datafeedTaskId("foo"), DatafeedState.STARTED);
+        tasksBuilder.updateTaskState(MlTasks.datafeedTaskId("foo"), DatafeedState.STARTED);
         tasksBuilder.build();
 
         Job job = createDatafeedJob().build(new Date());
@@ -118,9 +118,9 @@ public class TransportStopDatafeedActionTests extends ESTestCase {
 
     public static void addTask(String datafeedId, long startTime, String nodeId, DatafeedState state,
                                PersistentTasksCustomMetaData.Builder taskBuilder) {
-        taskBuilder.addTask(MLMetadataField.datafeedTaskId(datafeedId), StartDatafeedAction.TASK_NAME,
+        taskBuilder.addTask(MlTasks.datafeedTaskId(datafeedId), StartDatafeedAction.TASK_NAME,
                 new StartDatafeedAction.DatafeedParams(datafeedId, startTime),
                 new PersistentTasksCustomMetaData.Assignment(nodeId, "test assignment"));
-        taskBuilder.updateTaskState(MLMetadataField.datafeedTaskId(datafeedId), state);
+        taskBuilder.updateTaskState(MlTasks.datafeedTaskId(datafeedId), state);
     }
 }

@@ -809,12 +809,12 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 fieldType1.setHasDocValues(true);
 
                 MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-                fieldType1.setName("another_long");
-                fieldType1.setHasDocValues(true);
+                fieldType2.setName("another_long");
+                fieldType2.setHasDocValues(true);
 
                 MappedFieldType fieldType3 = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
-                fieldType1.setName("another_double");
-                fieldType1.setHasDocValues(true);
+                fieldType3.setName("another_double");
+                fieldType3.setHasDocValues(true);
                 try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     ValueType[] valueTypes = new ValueType[]{ValueType.STRING, ValueType.LONG, ValueType.DOUBLE};

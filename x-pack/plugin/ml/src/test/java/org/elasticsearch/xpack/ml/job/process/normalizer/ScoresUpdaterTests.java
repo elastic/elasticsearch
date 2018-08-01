@@ -65,7 +65,6 @@ public class ScoresUpdaterTests extends ESTestCase {
     }
 
     @Before
-    @SuppressWarnings("unchecked")
     public void setUpMocks() throws IOException {
         MockitoAnnotations.initMocks(this);
 

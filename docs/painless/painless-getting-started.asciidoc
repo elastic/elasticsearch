@@ -123,21 +123,8 @@ GET hockey/_search
 [float]
 ===== Missing values
 
-If you request the value from a field `field` that isn’t in
-the document, `doc['field'].value` for this document returns:
-
-- `0` if a `field` has a numeric datatype (long, double etc.)
-- `false` is a `field` has a boolean datatype
-- epoch date if a `field` has a date datatype
-- `null` if a `field` has a string datatype
-- `null` if a `field` has a geo datatype
-- `""` if a `field` has a binary datatype
-
-IMPORTANT: Starting in 7.0, `doc['field'].value` throws an exception if
-the field is missing in a document. To enable this behavior now,
-set a {ref}/jvm-options.html[`jvm.option`]
-`-Des.scripting.exception_for_missing_value=true` on a node. If you do not enable
-this behavior, a deprecation warning is logged on start up.
+`doc['field'].value` throws an exception if
+the field is missing in a document.
 
 To check if a document is missing a value, you can call
 `doc['field'].size() == 0`.

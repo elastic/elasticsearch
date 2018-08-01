@@ -38,22 +38,17 @@ public class SpanTermQueryBuilderTests extends AbstractTermQueryTestCase<SpanTer
 
     @Override
     protected SpanTermQueryBuilder doCreateTestQueryBuilder() {
-        String fieldName = null;
-        Object value;
+        String fieldName = randomFrom(STRING_FIELD_NAME,
+            STRING_ALIAS_FIELD_NAME,
+            randomAlphaOfLengthBetween(1, 10));
 
-        if (randomBoolean()) {
-            fieldName = STRING_FIELD_NAME;
-        }
+        Object value;
         if (frequently()) {
             value = randomAlphaOfLengthBetween(1, 10);
         } else {
             // generate unicode string in 10% of cases
             JsonStringEncoder encoder = JsonStringEncoder.getInstance();
             value = new String(encoder.quoteAsString(randomUnicodeOfLength(10)));
-        }
-
-        if (fieldName == null) {
-            fieldName = randomAlphaOfLengthBetween(1, 10);
         }
         return createQueryBuilder(fieldName, value);
     }
@@ -67,7 +62,10 @@ public class SpanTermQueryBuilderTests extends AbstractTermQueryTestCase<SpanTer
     protected void doAssertLuceneQuery(SpanTermQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         assertThat(query, instanceOf(SpanTermQuery.class));
         SpanTermQuery spanTermQuery = (SpanTermQuery) query;
-        assertThat(spanTermQuery.getTerm().field(), equalTo(queryBuilder.fieldName()));
+
+        String expectedFieldName = expectedFieldName(queryBuilder.fieldName);
+        assertThat(spanTermQuery.getTerm().field(), equalTo(expectedFieldName));
+
         MappedFieldType mapper = context.getQueryShardContext().fieldMapper(queryBuilder.fieldName());
         if (mapper != null) {
             Term term = ((TermQuery) mapper.termQuery(queryBuilder.value(), null)).getTerm();

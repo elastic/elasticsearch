@@ -1,10 +1,17 @@
 [[install-elasticsearch]]
 == Installing Elasticsearch
 
-Elasticsearch can be run on your own hardware or using our hosted
-Elasticsearch Service on https://www.elastic.co/cloud[Elastic Cloud], which is
-available on AWS and GCP. You can
-https://www.elastic.co/cloud/elasticsearch-service/signup[try out the hosted service] for free.
+[float]
+=== Hosted Elasticsearch
+
+You can run Elasticsearch on your own hardware, or use our
+https://www.elastic.co/cloud/elasticsearch-service[hosted Elasticsearch Service]
+on Elastic Cloud. The Elasticsearch Service is available on both AWS and GCP.
+https://www.elastic.co/cloud/elasticsearch-service/signup[Try out the
+Elasticsearch Service for free].
+
+[float]
+=== Installing Elasticsearch Yourself
 
 Elasticsearch is provided in the following package formats:
 

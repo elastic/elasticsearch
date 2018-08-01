@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
+import org.elasticsearch.xpack.core.rollup.RollupField;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -111,7 +112,8 @@ public class HistoGroupConfigSerializingTests extends AbstractSerializingTestCas
         // Have to mock fieldcaps because the ctor's aren't public...
         FieldCapabilities fieldCaps = mock(FieldCapabilities.class);
         when(fieldCaps.isAggregatable()).thenReturn(true);
-        responseMap.put("my_field", Collections.singletonMap("long", fieldCaps));
+        String mappingType = randomFrom(RollupField.NUMERIC_FIELD_MAPPER_TYPES);
+        responseMap.put("my_field", Collections.singletonMap(mappingType, fieldCaps));
 
         HistoGroupConfig config = new HistoGroupConfig.Builder()
                 .setFields(Collections.singletonList("my_field"))

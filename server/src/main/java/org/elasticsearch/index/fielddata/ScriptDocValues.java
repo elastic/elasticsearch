@@ -172,7 +172,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         public Object getDate() throws IOException {
             deprecated("getDate on numeric fields is deprecated. Use a date field to get dates.");
             if (dates == null) {
-                dates = new Dates(in, deprecationCallback, false);
+                dates = new Dates(in, deprecationCallback, Dates.USE_JAVA_TIME);
                 dates.setNextDocId(docId);
             }
             return dates.getValue();
@@ -182,7 +182,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         public List<Object> getDates() throws IOException {
             deprecated("getDates on numeric fields is deprecated. Use a date field to get dates.");
             if (dates == null) {
-                dates = new Dates(in, deprecationCallback, false);
+                dates = new Dates(in, deprecationCallback, Dates.USE_JAVA_TIME);
                 dates.setNextDocId(docId);
             }
             return dates;
@@ -218,7 +218,8 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
     public static final class Dates extends ScriptDocValues<Object> {
 
         /** Whether scripts should expose dates as java time objects instead of joda time. */
-        private static final boolean USE_JAVA_TIME = parseBoolean(System.getProperty("es.scripting.use_java_time"), false);
+        // pkg private so Longs can access...
+        static final boolean USE_JAVA_TIME = parseBoolean(System.getProperty("es.scripting.use_java_time"), false);
 
         private static final ReadableDateTime EPOCH = new DateTime(0, DateTimeZone.UTC);
 

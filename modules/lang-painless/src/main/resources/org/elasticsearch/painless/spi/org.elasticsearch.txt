@@ -74,7 +74,7 @@ class org.elasticsearch.index.fielddata.ScriptDocValues$Longs {
   Long get(int)
   long getValue()
   List getValues()
-  org.joda.time.ReadableDateTime getDate()
+  Object getDate()
   List getDates()
 }
 
@@ -82,7 +82,7 @@ class org.elasticsearch.index.fielddata.ScriptDocValues$Dates {
   Object get(int)
   Object getValue()
   List getValues()
-  org.joda.time.ReadableDateTime getDate()
+  Object getDate()
   List getDates()
 }
 

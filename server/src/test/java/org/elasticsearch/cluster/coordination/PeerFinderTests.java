@@ -125,7 +125,7 @@ public class PeerFinderTests extends ESTestCase {
         }
     }
 
-    void updateLastAcceptedNodes(Consumer<DiscoveryNodes.Builder> onBuilder) {
+    private void updateLastAcceptedNodes(Consumer<DiscoveryNodes.Builder> onBuilder) {
         final Builder builder = DiscoveryNodes.builder(lastAcceptedNodes);
         onBuilder.accept(builder);
         lastAcceptedNodes = builder.build();

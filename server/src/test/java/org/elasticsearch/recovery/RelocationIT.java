@@ -58,6 +58,7 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.MockIndexEventListener;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -485,7 +486,7 @@ public class RelocationIT extends ESIntegTestCase {
 
     }
 
-    class RecoveryCorruption implements MockTransportService.SendRequestBehavior {
+    class RecoveryCorruption implements StubbableTransport.SendRequestBehavior {
 
         private final CountDownLatch corruptionCount;
 

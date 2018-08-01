@@ -93,7 +93,7 @@ public class CapturingTransport implements Transport {
     public TransportService createCapturingTransportService(Settings settings, ThreadPool threadPool, TransportInterceptor interceptor,
                                                             Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
                                                             @Nullable ClusterSettings clusterSettings, Set<String> taskHeaders) {
-        MockConnectionManager connectionManager = new MockConnectionManager(new ConnectionManager(settings, this, threadPool), settings,
+        StubbableConnectionManager connectionManager = new StubbableConnectionManager(new ConnectionManager(settings, this, threadPool), settings,
             this, threadPool);
         connectionManager.setDefaultNodeConnectedBehavior((cm, discoveryNode) -> true);
         connectionManager.setDefaultConnectBehavior((cm, discoveryNode) -> new Connection() {

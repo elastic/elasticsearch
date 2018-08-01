@@ -61,6 +61,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequest;
@@ -620,7 +621,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
     }
 
-    private class RecoveryActionBlocker implements MockTransportService.SendRequestBehavior {
+    private class RecoveryActionBlocker implements StubbableTransport.SendRequestBehavior {
         private final boolean dropRequests;
         private final String recoveryActionToBlock;
         private final CountDownLatch requestBlocked;
@@ -685,7 +686,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         MockTransportService blueMockTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, blueNodeName);
         MockTransportService redMockTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, redNodeName);
 
-        redMockTransportService.addSendBehavior(blueMockTransportService, new MockTransportService.SendRequestBehavior() {
+        redMockTransportService.addSendBehavior(blueMockTransportService, new StubbableTransport.SendRequestBehavior() {
             private final AtomicInteger count = new AtomicInteger();
 
             @Override

@@ -134,7 +134,6 @@ public interface Transport extends LifecycleComponent {
 
 
         default boolean isClosed() {
-            // TODO: should probably not be default
             return false;
         }
 

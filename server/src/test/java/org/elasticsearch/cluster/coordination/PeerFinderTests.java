@@ -326,7 +326,7 @@ public class PeerFinderTests extends ESTestCase {
         final CapturedRequest[] capturedRequests = capturingTransport.getCapturedRequestsAndClear();
         assertThat(capturedRequests.length, is(1));
         final PeersRequest peersRequest = (PeersRequest) capturedRequests[0].request;
-        assertThat(peersRequest.getDiscoveryNodes(), contains(otherNode));
+        assertThat(peersRequest.getKnownPeers(), contains(otherNode));
     }
 
     public void testAddsReachablePeersFromResponse() {

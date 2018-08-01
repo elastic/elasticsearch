@@ -138,7 +138,7 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
             assert peersRequest.getSourceNode().equals(getLocalNode()) == false;
             final ActivePeerFinder activePeerFinder = getActivePeerFinder();
             activePeerFinder.startProbe(peersRequest.getSourceNode().getAddress());
-            peersRequest.getDiscoveryNodes().stream().map(DiscoveryNode::getAddress).forEach(activePeerFinder::startProbe);
+            peersRequest.getKnownPeers().stream().map(DiscoveryNode::getAddress).forEach(activePeerFinder::startProbe);
             return new ArrayList<>(activePeerFinder.foundPeers.keySet());
         }
     }

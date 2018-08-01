@@ -30,28 +30,29 @@ import java.util.Objects;
 
 public class PeersRequest extends TransportRequest {
     private final DiscoveryNode sourceNode;
-    private final List<DiscoveryNode> discoveryNodes;
+    private final List<DiscoveryNode> knownPeers;
 
-    public PeersRequest(DiscoveryNode sourceNode, List<DiscoveryNode> discoveryNodes) {
+    public PeersRequest(DiscoveryNode sourceNode, List<DiscoveryNode> knownPeers) {
+        assert knownPeers.contains(sourceNode) == false : "local node is not a peer";
         this.sourceNode = sourceNode;
-        this.discoveryNodes = discoveryNodes;
+        this.knownPeers = knownPeers;
     }
 
     public PeersRequest(StreamInput in) throws IOException {
         super(in);
         sourceNode = new DiscoveryNode(in);
-        discoveryNodes = in.readList(DiscoveryNode::new);
+        knownPeers = in.readList(DiscoveryNode::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         sourceNode.writeTo(out);
-        out.writeList(discoveryNodes);
+        out.writeList(knownPeers);
     }
 
-    public List<DiscoveryNode> getDiscoveryNodes() {
-        return discoveryNodes;
+    public List<DiscoveryNode> getKnownPeers() {
+        return knownPeers;
     }
 
     public DiscoveryNode getSourceNode() {
@@ -62,7 +63,7 @@ public class PeersRequest extends TransportRequest {
     public String toString() {
         return "PeersRequest{" +
             "sourceNode=" + sourceNode +
-            ", discoveryNodes=" + discoveryNodes +
+            ", knownPeers=" + knownPeers +
             '}';
     }
 
@@ -72,11 +73,11 @@ public class PeersRequest extends TransportRequest {
         if (o == null || getClass() != o.getClass()) return false;
         PeersRequest that = (PeersRequest) o;
         return Objects.equals(sourceNode, that.sourceNode) &&
-            Objects.equals(discoveryNodes, that.discoveryNodes);
+            Objects.equals(knownPeers, that.knownPeers);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(sourceNode, discoveryNodes);
+        return Objects.hash(sourceNode, knownPeers);
     }
 }

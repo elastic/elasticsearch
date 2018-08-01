@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client.transport;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.liveness.LivenessResponse;
@@ -65,6 +64,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.transport.MockTransportService.createNewService;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -77,7 +77,6 @@ import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "")
 public class TransportClientNodesServiceTests extends ESTestCase {
 
     private static class TestIteration implements Closeable {
@@ -388,18 +387,22 @@ public class TransportClientNodesServiceTests extends ESTestCase {
 
                     transportClientNodesService.addTransportAddresses(remoteService.getLocalDiscoNode().getAddress());
                     assertEquals(1, transportClientNodesService.connectedNodes().size());
+                    assertTotalConnections(establishedConnections, 2);
                     assertClosedConnections(establishedConnections, 1);
 
                     transportClientNodesService.doSample();
+                    assertTotalConnections(establishedConnections, 3);
+                    assertOpenConnections(establishedConnections, 1);
                     assertClosedConnections(establishedConnections, 2);
+                    assertTotalConnections(reusedConnections, 1);
                     assertOpenConnections(reusedConnections, 1);
 
                     handler.blockRequest();
                     Thread thread = new Thread(transportClientNodesService::doSample);
                     thread.start();
 
-                    assertBusy(() ->  assertEquals(3, establishedConnections.size()));
-                    assertFalse("Temporary ping connection must be opened", establishedConnections.get(2).isClosed());
+                    assertBusy(() ->  assertEquals(4, establishedConnections.size()));
+                    assertFalse("Temporary ping connection must be opened", establishedConnections.get(3).isClosed());
 
                     handler.releaseRequest();
                     thread.join();
@@ -412,18 +415,18 @@ public class TransportClientNodesServiceTests extends ESTestCase {
         }
     }
 
+    private void assertTotalConnections(final List<MockConnection> connections, final int size) {
+        assertEquals("Expecting " + size + " total connections but got " + connections.size(), size, connections.size());
+    }
+
     private void assertClosedConnections(final List<MockConnection> connections, final int size) {
-        assertEquals("Expecting " + size + " closed connections but got " + connections.size(), size, connections.size());
-        connections.forEach(c -> assertConnection(c, true));
+        List<MockConnection> closed = connections.stream().filter(MockConnection::isClosed).collect(Collectors.toList());
+        assertEquals("Expecting " + size + " closed connections but got " + closed.size(), size, closed.size());
     }
 
     private void assertOpenConnections(final List<MockConnection> connections, final int size) {
-        assertEquals("Expecting " + size + " open connections but got " + connections.size(), size, connections.size());
-        connections.forEach(c -> assertConnection(c, false));
-    }
-
-    private static void assertConnection(final MockConnection connection, final boolean closed) {
-        assertEquals("Connection [" + connection + "] must be " + (closed ? "closed" : "open"), closed, connection.isClosed());
+        List<MockConnection> open = connections.stream().filter((c) -> c.isClosed() == false).collect(Collectors.toList());
+        assertEquals("Expecting " + size + " open connections but got " + open.size(), size, open.size());
     }
 
     class MockConnection implements Transport.Connection {

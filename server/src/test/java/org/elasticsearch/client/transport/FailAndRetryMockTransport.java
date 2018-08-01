@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client.transport;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.liveness.LivenessResponse;
 import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
@@ -29,6 +30,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
+import org.elasticsearch.common.concurrent.CompletableContext;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -42,6 +44,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportStats;
 
 import java.net.UnknownHostException;
@@ -77,6 +80,8 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
 
     @Override
     public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) {
+        CompletableContext<Void> closeContext = new CompletableContext<>();
+
         return new Connection() {
             @Override
             public DiscoveryNode getNode() {
@@ -96,6 +101,10 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
                         TransportResponseHandler transportResponseHandler = responseHandlers.onResponseReceived(requestId, listener);
                         ClusterState clusterState = getMockClusterState(node);
                         transportResponseHandler.handleResponse(new ClusterStateResponse(clusterName, clusterState, 0L));
+                    } else if (TransportService.HANDSHAKE_ACTION_NAME.equals(action)) {
+                        TransportResponseHandler transportResponseHandler = responseHandlers.onResponseReceived(requestId, listener);
+                        transportResponseHandler.handleResponse(new TransportService.HandshakeResponse(node, clusterName, node.getVersion()));
+
                     } else {
                         throw new UnsupportedOperationException("Mock transport does not understand action " + action);
                     }
@@ -127,12 +136,18 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
             }
 
             @Override
+            public void addCloseListener(ActionListener<Void> listener) {
+                closeContext.addListener(ActionListener.toBiConsumer(listener));
+            }
+
+            @Override
             public void close() {
+                closeContext.complete(null);
             }
 
             @Override
             public boolean isClosed() {
-                return false;
+                return closeContext.isDone();
             }
         };
     }

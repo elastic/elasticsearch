@@ -279,10 +279,6 @@ public final class Def {
                  String type = signature.substring(1, separator);
                  String call = signature.substring(separator+1, separator2);
                  int numCaptures = Integer.parseInt(signature.substring(separator2+1));
-                 Class<?> captures[] = new Class<?>[numCaptures];
-                 for (int capture = 0; capture < captures.length; capture++) {
-                     captures[capture] = callSiteType.parameterType(i + 1 + capture);
-                 }
                  MethodHandle filter;
                  Class<?> interfaceType = method.typeParameters.get(i - 1 - replaced);
                  if (signature.charAt(0) == 'S') {
@@ -294,11 +290,15 @@ public final class Def {
                                                       interfaceType,
                                                       type,
                                                       call,
-                                                      captures.length);
+                                                      numCaptures);
                  } else if (signature.charAt(0) == 'D') {
                      // the interface type is now known, but we need to get the implementation.
                      // this is dynamically based on the receiver type (and cached separately, underneath
                      // this cache). It won't blow up since we never nest here (just references)
+                     Class<?> captures[] = new Class<?>[numCaptures];
+                     for (int capture = 0; capture < captures.length; capture++) {
+                         captures[capture] = callSiteType.parameterType(i + 1 + capture);
+                     }
                      MethodType nestedType = MethodType.methodType(interfaceType, captures);
                      CallSite nested = DefBootstrap.bootstrap(painlessLookup,
                                                               localMethods,

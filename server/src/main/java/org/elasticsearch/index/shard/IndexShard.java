@@ -425,18 +425,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     "a primary relocation is completed by the master, but primary mode is not active " + currentRouting;
 
                 changeState(IndexShardState.STARTED, "global state is [" + newRouting.state() + "]");
-            } else if (currentRouting.primary() && currentRouting.relocating() &&
-                operationPrimaryTerm == pendingPrimaryTerm &&
-                replicationTracker.isPrimaryMode() == false &&
+            } else if (currentRouting.primary() && currentRouting.relocating() && replicationTracker.isRelocated() &&
                 (newRouting.relocating() == false || newRouting.equalsIgnoringMetaData(currentRouting) == false)) {
                 // if the shard is not in primary mode anymore (after primary relocation) we have to fail when any changes in shard routing occur (e.g. due to recovery
                 // failure / cancellation). The reason is that at the moment we cannot safely reactivate primary mode without risking two
                 // active primaries.
-                // We check for operationPrimaryTerm to be equal to pendingPrimaryTerm, which ensures that we have a fully baked primary,
-                // i.e. a primary that has has transitioned to primary mode. Assume for example an active replica, which then got a
-                // cluster state where it became promoted to relocating primary. This means that we asynchronously start the transition to
-                // primary in the background. A follow-up cluster state might then cancel relocation before we have completed the transition
-                // to primary, which would result in the shard to be failed if we did not check for the operationPrimaryTerm.
                 throw new IndexShardRelocatedException(shardId(), "Shard is marked as relocated, cannot safely move to state " + newRouting.state());
             }
             assert newRouting.active() == false || state == IndexShardState.STARTED || state == IndexShardState.CLOSED :
@@ -610,7 +603,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     consumer.accept(primaryContext);
                     synchronized (mutex) {
                         verifyRelocatingState();
-                        replicationTracker.completeRelocationHandoff(); // make changes to primaryMode flag only under mutex
+                        replicationTracker.completeRelocationHandoff(); // make changes to primaryMode and relocated flag only under mutex
                     }
                 } catch (final Exception e) {
                     try {
@@ -2113,10 +2106,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Returns whether the shard is in primary mode, i.e., in charge of replicating changes (see {@link ReplicationTracker}).
+     * Returns whether the shard is a relocated primary, i.e. not in charge anymore of replicating changes (see {@link ReplicationTracker}).
      */
-    public boolean isPrimaryMode() {
-        return replicationTracker.isPrimaryMode();
+    public boolean isRelocatedPrimary() {
+        assert shardRouting.primary() : "only call isRelocatedPrimary on primary shard";
+        return replicationTracker.isRelocated();
     }
 
     class ShardEventListener implements Engine.EventListener {

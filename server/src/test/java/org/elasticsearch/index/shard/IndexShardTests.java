@@ -1421,14 +1421,14 @@ public class IndexShardTests extends IndexShardTestCase {
             recoveryThread.start();
             latch.await();
             // recovery can only be finalized after we release the current primaryOperationLock
-            assertTrue(shard.isPrimaryMode());
+            assertFalse(shard.isRelocatedPrimary());
         }
         // recovery can be now finalized
         recoveryThread.join();
-        assertFalse(shard.isPrimaryMode());
+        assertTrue(shard.isRelocatedPrimary());
         try (Releasable ignored = acquirePrimaryOperationPermitBlockingly(shard)) {
             // lock can again be acquired
-            assertFalse(shard.isPrimaryMode());
+            assertTrue(shard.isRelocatedPrimary());
         }
 
         closeShards(shard);
@@ -1470,7 +1470,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
     public void testStressRelocated() throws Exception {
         final IndexShard shard = newStartedShard(true);
-        assertTrue(shard.isPrimaryMode());
+        assertFalse(shard.isRelocatedPrimary());
         IndexShardTestCase.updateRoutingEntry(shard, ShardRoutingHelper.relocate(shard.routingEntry(), "other_node"));
         final int numThreads = randomIntBetween(2, 4);
         Thread[] indexThreads = new Thread[numThreads];
@@ -1506,14 +1506,14 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(relocated.get(), equalTo(false));
         assertThat(shard.getActiveOperationsCount(), greaterThan(0));
         // ensure we only transition after pending operations completed
-        assertTrue(shard.isPrimaryMode());
+        assertFalse(shard.isRelocatedPrimary());
         // complete pending operations
         barrier.await();
         // complete recovery/relocation
         recoveryThread.join();
         // ensure relocated successfully once pending operations are done
         assertThat(relocated.get(), equalTo(true));
-        assertFalse(shard.isPrimaryMode());
+        assertTrue(shard.isRelocatedPrimary());
         assertThat(shard.getActiveOperationsCount(), equalTo(0));
 
         for (Thread indexThread : indexThreads) {
@@ -1577,7 +1577,7 @@ public class IndexShardTests extends IndexShardTestCase {
         cyclicBarrier.await();
         relocationThread.join();
         cancellingThread.join();
-        if (shard.isPrimaryMode() == false) {
+        if (shard.isRelocatedPrimary()) {
             logger.debug("shard was relocated successfully");
             assertThat(cancellingException.get(), instanceOf(IllegalIndexShardStateException.class));
             assertThat("current routing:" + shard.routingEntry(), shard.routingEntry().relocating(), equalTo(true));
@@ -1858,7 +1858,7 @@ public class IndexShardTests extends IndexShardTestCase {
         ShardRouting inRecoveryRouting = ShardRoutingHelper.relocate(origRouting, "some_node");
         IndexShardTestCase.updateRoutingEntry(shard, inRecoveryRouting);
         shard.relocated(primaryContext -> {});
-        assertFalse(shard.isPrimaryMode());
+        assertTrue(shard.isRelocatedPrimary());
         try {
             IndexShardTestCase.updateRoutingEntry(shard, origRouting);
             fail("Expected IndexShardRelocatedException");

@@ -983,7 +983,7 @@ public abstract class TransportReplicationAction<
         }
 
         public boolean isRelocated() {
-            return indexShard.isPrimaryMode() == false;
+            return indexShard.isRelocatedPrimary();
         }
 
         @Override

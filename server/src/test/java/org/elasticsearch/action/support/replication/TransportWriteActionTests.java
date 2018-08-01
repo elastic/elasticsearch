@@ -472,7 +472,7 @@ public class TransportWriteActionTests extends ESTestCase {
             }
             return routing;
         });
-        when(indexShard.isPrimaryMode()).thenAnswer(invocationOnMock -> isRelocated.get() == false);
+        when(indexShard.isRelocatedPrimary()).thenAnswer(invocationOnMock -> isRelocated.get());
         doThrow(new AssertionError("failed shard is not supported")).when(indexShard).failShard(anyString(), any(Exception.class));
         when(indexShard.getPendingPrimaryTerm()).thenAnswer(i ->
             clusterService.state().metaData().getIndexSafe(shardId.getIndex()).primaryTerm(shardId.id()));

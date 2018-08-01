@@ -683,7 +683,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         final IndexShard shard = mock(IndexShard.class);
         when(shard.getPendingPrimaryTerm()).thenReturn(primaryTerm);
         when(shard.routingEntry()).thenReturn(routingEntry);
-        when(shard.isPrimaryMode()).thenReturn(true);
+        when(shard.isRelocatedPrimary()).thenReturn(false);
         IndexShardRoutingTable shardRoutingTable = clusterService.state().routingTable().shardRoutingTable(shardId);
         Set<String> inSyncIds = randomBoolean() ? Collections.singleton(routingEntry.allocationId().getId()) :
             clusterService.state().metaData().index(index).inSyncAllocationIds(0);
@@ -1217,7 +1217,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             }
             return routing;
         });
-        when(indexShard.isPrimaryMode()).thenAnswer(invocationOnMock -> isRelocated.get() == false);
+        when(indexShard.isRelocatedPrimary()).thenAnswer(invocationOnMock -> isRelocated.get());
         doThrow(new AssertionError("failed shard is not supported")).when(indexShard).failShard(anyString(), any(Exception.class));
         when(indexShard.getPendingPrimaryTerm()).thenAnswer(i ->
             clusterService.state().metaData().getIndexSafe(shardId.getIndex()).primaryTerm(shardId.id()));

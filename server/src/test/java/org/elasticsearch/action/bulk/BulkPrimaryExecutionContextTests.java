@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class PrimaryExecutionContextTests extends ESTestCase {
+public class BulkPrimaryExecutionContextTests extends ESTestCase {
 
     public void testAbortedSkipped() {
         BulkShardRequest shardRequest = generateRandomRequest();
@@ -53,14 +53,15 @@ public class PrimaryExecutionContextTests extends ESTestCase {
             }
         }
 
-        PrimaryExecutionContext context = new PrimaryExecutionContext(shardRequest, null);
         ArrayList<DocWriteRequest<?>> visitedRequests = new ArrayList<>();
-        for (context.advance(); context.noMoreOperationsToExecute() == false; context.advance()) {
+        for (BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(shardRequest, null);
+             context.hasMoreOperationsToExecute();
+             context.advance()) {
             visitedRequests.add(context.getCurrent());
             context.setRequestToExecute(context.getCurrent());
             // using failures prevents caring about types
-            context.markOperationAsCompleted(new Engine.IndexResult(new ElasticsearchException("bla"), 1));
-            context.finalize(context.getExecutionResult());
+            context.markOperationAsExecuted(new Engine.IndexResult(new ElasticsearchException("bla"), 1));
+            context.markAsCompleted(context.getExecutionResult());
         }
 
         assertThat(visitedRequests, equalTo(nonAbortedRequests));
@@ -104,8 +105,8 @@ public class PrimaryExecutionContextTests extends ESTestCase {
         long translogGen = 0;
         long translogOffset = 0;
 
-        PrimaryExecutionContext context = new PrimaryExecutionContext(shardRequest, primary);
-        for (context.advance(); context.noMoreOperationsToExecute() == false; context.advance()) {
+        BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(shardRequest, primary);
+        for (;context.hasMoreOperationsToExecute(); context.advance()) {
             final Engine.Result result;
             final DocWriteRequest<?> current = context.getCurrent();
             final boolean failure = rarely();
@@ -149,8 +150,8 @@ public class PrimaryExecutionContextTests extends ESTestCase {
             if (failure == false) {
                 expectedLocation = location;
             }
-            context.markOperationAsCompleted(result);
-            context.finalize(context.getExecutionResult());
+            context.markOperationAsExecuted(result);
+            context.markAsCompleted(context.getExecutionResult());
         }
 
         assertThat(context.getLocationToSync(), equalTo(expectedLocation));

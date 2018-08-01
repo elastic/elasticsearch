@@ -21,6 +21,8 @@ dependencies {
 
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 
+    testCompile project(':test:netty')
+
     compile 'com.unboundid:unboundid-ldapsdk:3.2.0'
     compileOnly 'org.bouncycastle:bcprov-jdk15on:1.59'
     compileOnly 'org.bouncycastle:bcpkix-jdk15on:1.59'

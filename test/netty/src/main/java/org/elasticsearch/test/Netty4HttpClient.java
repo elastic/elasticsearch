@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.http.netty4;
+package org.elasticsearch.test;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
@@ -56,15 +56,12 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static io.netty.handler.codec.http.HttpHeaderNames.HOST;
-import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
-
 /**
  * Tiny helper to send http requests over netty.
  */
-class Netty4HttpClient implements Closeable {
+public class Netty4HttpClient implements Closeable {
 
-    static Collection<String> returnHttpResponseBodies(Collection<FullHttpResponse> responses) {
+    public static Collection<String> returnHttpResponseBodies(Collection<FullHttpResponse> responses) {
         List<String> list = new ArrayList<>(responses.size());
         for (FullHttpResponse response : responses) {
             list.add(response.content().toString(StandardCharsets.UTF_8));
@@ -72,7 +69,7 @@ class Netty4HttpClient implements Closeable {
         return list;
     }
 
-    static Collection<String> returnOpaqueIds(Collection<FullHttpResponse> responses) {
+    public static Collection<String> returnOpaqueIds(Collection<FullHttpResponse> responses) {
         List<String> list = new ArrayList<>(responses.size());
         for (HttpResponse response : responses) {
             list.add(response.headers().get(Task.X_OPAQUE_ID));
@@ -82,16 +79,16 @@ class Netty4HttpClient implements Closeable {
 
     private final Bootstrap clientBootstrap;
 
-    Netty4HttpClient() {
+    public Netty4HttpClient() {
         clientBootstrap = new Bootstrap().channel(NioSocketChannel.class).group(new NioEventLoopGroup());
     }
 
     public Collection<FullHttpResponse> get(SocketAddress remoteAddress, String... uris) throws InterruptedException {
         Collection<HttpRequest> requests = new ArrayList<>(uris.length);
         for (int i = 0; i < uris.length; i++) {
-            final HttpRequest httpRequest = new DefaultFullHttpRequest(HTTP_1_1, HttpMethod.GET, uris[i]);
-            httpRequest.headers().add(HOST, "localhost");
-            httpRequest.headers().add("X-Opaque-ID", String.valueOf(i));
+            final HttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, uris[i]);
+            httpRequest.headers().add(HttpHeaderNames.HOST, "localhost");
+            httpRequest.headers().add(Task.X_OPAQUE_ID, String.valueOf(i));
             requests.add(httpRequest);
         }
         return sendRequests(remoteAddress, requests);

@@ -1,0 +1,48 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.elasticsearch.gradle.precommit.PrecommitTasks
+
+description = "Contains utilities for use in tests that involve Netty."
+
+compileJava.options.compilerArgs << '-Xlint:-cast,-rawtypes,-try,-unchecked'
+
+dependencies {
+  compile "org.elasticsearch:elasticsearch:${version}"
+  compile "io.netty:netty-common:4.1.28.Final"
+  compile "io.netty:netty-transport:4.1.28.Final"
+  compile "io.netty:netty-buffer:4.1.28.Final"
+  compile "io.netty:netty-codec-http:4.1.28.Final"
+  compile "io.netty:netty-codec:4.1.28.Final"
+  compile "io.netty:netty-handler:4.1.28.Final"
+  compile "junit:junit:${versions.junit}"
+}
+
+test.enabled = false // No tests in this project
+
+jarHell.enabled = true // disabled by parent project
+
+// the main files are actually test files, so use the appropriate forbidden api sigs
+forbiddenApisMain {
+  signaturesURLs = [PrecommitTasks.getResource('/forbidden/all-signatures.txt'),
+                    PrecommitTasks.getResource('/forbidden/test-signatures.txt')]
+}
+
+//we aren't releasing this jar
+thirdPartyAudit.enabled = false

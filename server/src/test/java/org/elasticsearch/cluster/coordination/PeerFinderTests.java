@@ -127,6 +127,11 @@ public class PeerFinderTests extends ESTestCase {
             discoveredMasterNode = masterNode;
             discoveredMasterTerm = OptionalLong.of(term);
         }
+
+        @Override
+        protected PeersResponse onPeersRequestWhenInactive(DiscoveryNode sourceNode) {
+            throw new AssertionError("TODO");
+        }
     }
 
     private void updateLastAcceptedNodes(Consumer<DiscoveryNodes.Builder> onBuilder) {

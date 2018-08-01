@@ -50,6 +50,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
@@ -78,6 +79,7 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
 
     private final SetOnce<ExecutorService> executorService = new SetOnce<>();
     private Optional<ActivePeerFinder> peerFinder = Optional.empty();
+    private volatile long currentTerm;
 
     PeerFinder(Settings settings, TransportService transportService, UnicastHostsProvider hostsProvider,
                FutureExecutor futureExecutor, TransportAddressConnector transportAddressConnector,
@@ -90,6 +92,10 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
         this.futureExecutor = futureExecutor;
         this.transportAddressConnector = transportAddressConnector;
         this.executorServiceFactory = executorServiceFactory;
+
+        transportService.registerRequestHandler(REQUEST_PEERS_ACTION_NAME, Names.GENERIC, false, false,
+            PeersRequest::new,
+            (request, channel, task) -> channel.sendResponse(handlePeersRequest(request)));
     }
 
     public Iterable<DiscoveryNode> getFoundPeers() {
@@ -133,14 +139,18 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
         return activePeerFinder;
     }
 
-    public List<DiscoveryNode> handlePeersRequest(PeersRequest peersRequest) {
+    PeersResponse handlePeersRequest(PeersRequest peersRequest) {
         synchronized (mutex) {
             assert peersRequest.getSourceNode().equals(getLocalNode()) == false;
-            final ActivePeerFinder activePeerFinder = getActivePeerFinder();
-            activePeerFinder.startProbe(peersRequest.getSourceNode().getAddress());
-            peersRequest.getKnownPeers().stream().map(DiscoveryNode::getAddress).forEach(activePeerFinder::startProbe);
-            return new ArrayList<>(activePeerFinder.foundPeers.keySet());
+            if (isActive()) {
+                final ActivePeerFinder activePeerFinder = getActivePeerFinder();
+                activePeerFinder.startProbe(peersRequest.getSourceNode().getAddress());
+                peersRequest.getKnownPeers().stream().map(DiscoveryNode::getAddress).forEach(activePeerFinder::startProbe);
+                return new PeersResponse(Optional.empty(), new ArrayList<>(activePeerFinder.foundPeers.keySet()), currentTerm);
+            }
         }
+
+        return onPeersRequestWhenInactive(peersRequest.getSourceNode());
     }
 
     public boolean isActive() {
@@ -152,6 +162,11 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
                 return false;
             }
         }
+    }
+
+    public void setCurrentTerm(long currentTerm) {
+        // Volatile write, no synchronisation required
+        this.currentTerm = currentTerm;
     }
 
     private DiscoveryNode getLocalNode() {
@@ -177,7 +192,20 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
     protected void doClose() {
     }
 
+    /**
+     * Called on receipt of a PeersResponse from a node that believes it's an active leader, which this node should therefore try and join.
+     */
     protected abstract void onMasterFoundByProbe(DiscoveryNode masterNode, long term);
+
+    /**
+     * Called on receipt of a PeersRequest when there is no ActivePeerFinder, which mostly means that this node thinks there's an
+     * active leader. However, there's no synchronisation around this call so it's possible that it's called if there's no active
+     * leader, but we have not yet been activated. If so, this should respond indicating that there's no active leader, and no
+     * known peers.
+     *
+     * @param sourceNode The sender of the PeersRequest
+     */
+    protected abstract PeersResponse onPeersRequestWhenInactive(DiscoveryNode sourceNode);
 
     public interface TransportAddressConnector {
         /**

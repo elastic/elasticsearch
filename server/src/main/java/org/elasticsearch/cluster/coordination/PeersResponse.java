@@ -35,7 +35,7 @@ public class PeersResponse extends TransportResponse {
     private final long term;
 
     public PeersResponse(Optional<DiscoveryNode> masterNode, List<DiscoveryNode> knownPeers, long term) {
-        assert masterNode.isPresent() == knownPeers.isEmpty();
+        assert masterNode.isPresent() == knownPeers.isEmpty(); // TODO this should be failing now that the local node is not a known peer??
         this.masterNode = masterNode;
         this.knownPeers = knownPeers;
         this.term = term;
@@ -56,14 +56,25 @@ public class PeersResponse extends TransportResponse {
         out.writeLong(term);
     }
 
+    /**
+     * @return the node that is currently leading, according to the responding node.
+     */
     public Optional<DiscoveryNode> getMasterNode() {
         return masterNode;
     }
 
+    /**
+     * @return the collection of known peers of the responding node, or an empty collection if the responding node believes there
+     * is currently a leader.
+     */
     public List<DiscoveryNode> getKnownPeers() {
         return knownPeers;
     }
 
+    /**
+     * @return the current term of the responding node. If the responding node is the leader then this is the term in which it is
+     * currently leading.
+     */
     public long getTerm() {
         return term;
     }

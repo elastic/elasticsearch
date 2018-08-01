@@ -506,34 +506,5 @@ public class IncidentEvent implements ToXContentObject {
         ParseField LINKS = new ParseField("links");
         ParseField IMAGES = new ParseField("images");
         ParseField CUSTOM_DETAILS = new ParseField("custom_details");
-
-        /*
-          if (incidentKey != null) {
-            builder.field("dedup_key", incidentKey);
-        }
-
-        builder.startObject(Fields.PAYLOAD.getPreferredName());
-        {
-            builder.field("summary", description);
-
-            if (attachPayload && payload != null) {
-                builder.startObject("custom_details");
-                {
-                    builder.field(Fields.PAYLOAD.getPreferredName(), payload, params);
-                }
-                builder.endObject();
-            }
-
-            if (watchId != null) {
-                builder.field("source", watchId);
-            } else {
-                builder.field("source", "watcher");
-            }
-            // TODO externalize this into something user editable
-            builder.field("severity", "critical");
-        }
-        builder.endObject();
-         */
-
     }
 }

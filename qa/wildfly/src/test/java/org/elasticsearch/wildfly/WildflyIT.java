@@ -46,13 +46,28 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.ESTestCase.inFipsJvm;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class WildflyIT extends LuceneTestCase {
 
+    public void testSoThatSuiteDoesNotFail() {
+        // There's only one real test in this test suite, so simply suppressing it with assumeFalse() doesn't help. This
+        // no-op test allows the real test to be suppressed on FIPS JVMs.
+        // TODO remove when https://github.com/elastic/elasticsearch/issues/32534 fixed
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32534")
+    public void testThatCanBeMarkedAsAwaitsFix() {
+        // Don't want to @AwaitsFix the real test because it should still run on non-FIPS JVMs, but it's useful to have an @AwaitsFix
+        // so that the issue appears in the @AwaitsFix reports.
+        // TODO remove when https://github.com/elastic/elasticsearch/issues/32534 fixed
+    }
+
     public void testTransportClient() throws URISyntaxException, IOException {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/32534", inFipsJvm());
         try (CloseableHttpClient client = HttpClientBuilder.create().build()) {
             final String str = String.format(
                     Locale.ROOT,

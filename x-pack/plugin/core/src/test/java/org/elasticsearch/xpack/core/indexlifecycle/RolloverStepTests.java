@@ -12,7 +12,6 @@ import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
-import org.elasticsearch.action.admin.indices.rollover.RolloverIndexTestHelper;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.client.AdminClient;
@@ -22,6 +21,9 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.indexlifecycle.AsyncActionStep.Listener;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.junit.Before;
@@ -29,10 +31,13 @@ import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
+import java.io.IOException;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.xcontent.DeprecationHandler.THROW_UNSUPPORTED_OPERATION;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
@@ -97,6 +102,32 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
             instance.getMaxSize(), instance.getMaxAge(), instance.getMaxDocs());
     }
 
+    private static void assertRolloverIndexRequest(RolloverRequest request, String alias, Set<Condition<?>> expectedConditions) {
+        assertNotNull(request);
+        assertEquals(1, request.indices().length);
+        assertEquals(alias, request.indices()[0]);
+        assertEquals(alias, request.getAlias());
+        assertEquals(expectedConditions.size(), request.getConditions().size());
+        Set<Object> expectedConditionValues = expectedConditions.stream().map(Condition::value).collect(Collectors.toSet());
+        Set<Object> actualConditionValues = request.getConditions().values().stream()
+            .map(Condition::value).collect(Collectors.toSet());
+        assertEquals(expectedConditionValues, actualConditionValues);
+    }
+
+    private static RolloverResponse createMockResponse(RolloverRequest request, boolean rolledOver) throws IOException {
+        String json = "{\"new_index\": \"foo\"," +
+            "\"old_index\": \"bar\"," +
+            "\"dry_run\": " + request.isDryRun() + "," +
+            "\"rolled_over\":" + rolledOver + "," +
+            "\"conditions\": {}," +
+            "\"acknowledged\": true," +
+            "\"shards_acknowledged\": true}";
+        try (XContentParser parser = XContentType.JSON.xContent()
+                .createParser(NamedXContentRegistry.EMPTY, THROW_UNSUPPORTED_OPERATION, json)) {
+            return RolloverResponse.fromXContent(parser);
+        }
+    }
+
     public void testPerformAction() throws Exception {
         String alias = randomAlphaOfLength(5);
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10))
@@ -127,8 +158,8 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
                 if (step.getMaxDocs() != null) {
                     expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));
                 }
-                RolloverIndexTestHelper.assertRolloverIndexRequest(request, alias, expectedConditions);
-                listener.onResponse(RolloverIndexTestHelper.createMockResponse(request, true));
+                assertRolloverIndexRequest(request, alias, expectedConditions);
+                listener.onResponse(createMockResponse(request, true));
                 return null;
             }
 
@@ -184,8 +215,8 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
                 if (step.getMaxDocs() != null) {
                     expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));
                 }
-                RolloverIndexTestHelper.assertRolloverIndexRequest(request, alias, expectedConditions);
-                listener.onResponse(RolloverIndexTestHelper.createMockResponse(request, false));
+                assertRolloverIndexRequest(request, alias, expectedConditions);
+                listener.onResponse(createMockResponse(request, false));
                 return null;
             }
 
@@ -242,7 +273,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
                 if (step.getMaxDocs() != null) {
                     expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));
                 }
-                RolloverIndexTestHelper.assertRolloverIndexRequest(request, alias, expectedConditions);
+                assertRolloverIndexRequest(request, alias, expectedConditions);
                 listener.onFailure(exception);
                 return null;
             }

@@ -5035,7 +5035,7 @@ public class InternalEngineTests extends EngineTestCase {
             // index#0 -> index#1 -> delete#3 -> index#2 -> index#5 -> delete#4
             assertThat(seqNos, containsInAnyOrder(
                 Tuple.tuple(0L, 1L),   // 0 -> 1 - seq#0 should be updated once because of refresh
-                Tuple.tuple(1L, 3L),   // 1 -> 5 (deleted by #3, then updated by #5)
+                Tuple.tuple(1L, 5L),   // 1 -> 5 (deleted by #3, then updated by #5)
                 Tuple.tuple(2L, 3L),   // index#2 is stale by delete#3, thus should never be updated again.
                 Tuple.tuple(3L, null), // the first delete tombstone without updated_by_seqno
                 Tuple.tuple(3L, 5L),   // the second delete tombstone without updated_by_seqno
@@ -5073,26 +5073,12 @@ public class InternalEngineTests extends EngineTestCase {
         threadPool = spy(threadPool);
         AtomicLong clockTime = new AtomicLong();
         when(threadPool.relativeTimeInMillis()).thenAnswer(i -> clockTime.incrementAndGet());
-        List<Engine.Operation> operations = new ArrayList<>();
-        int numOps = scaledRandomIntBetween(10, 200);
-        for (int seqNo = 0; seqNo < numOps; seqNo++) {
-            String id = Integer.toString(between(1, 5));
-            if (randomBoolean()) {
-                ParsedDocument parseDoc = createParsedDoc(id, null);
-                operations.add(new Engine.Index(newUid(parseDoc), parseDoc, seqNo, primaryTerm.get(), 1, null,
-                    REPLICA, between(1, 10), IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, randomBoolean()));
-            } else {
-                operations.add(new Engine.Delete("test", id, newUid(id), seqNo, primaryTerm.get(), 1, null,
-                    REPLICA, between(1, 10)));
-            }
-        }
         Settings.Builder settings = Settings.builder()
             .put(defaultSettings.getSettings())
             .put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), TimeValue.timeValueMillis(between(0, 100)).getStringRep())
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
         final IndexMetaData indexMetaData = IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetaData);
-        realisticShuffleOperations(operations);
         long globalCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
         Map<Long, Engine.Operation> processedOps = new HashMap<>();
         SetOnce<IndexWriter> indexWriter = new SetOnce<>();
@@ -5103,6 +5089,9 @@ public class InternalEngineTests extends EngineTestCase {
         Set<Long> lastTombstones = Collections.emptySet();
         try (Store store = createStore();
              InternalEngine engine = createEngine(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE, indexWriterFactory)) {
+            List<Engine.Operation> operations = generateMultipleDocumentsHistory(true, VersionType.EXTERNAL, 1L,
+                10, 200, Arrays.asList("1", "2", "3", "4", "5"), false, () -> between(1, 100));
+            realisticShuffleOperations(operations);
             for (Engine.Operation op : operations) {
                 Set<Long> tombstones = engine.getDeletedTombstones().stream().map(del -> del.seqNo).collect(Collectors.toSet());
                 if (op instanceof Engine.Index) {
@@ -5113,13 +5102,11 @@ public class InternalEngineTests extends EngineTestCase {
                     engine.delete((Engine.Delete) op);
                 }
                 processedOps.put(op.seqNo(), op);
-                if (between(1, 20) == 1) {
+                if (randomInt(100) < 20) {
                     assertDocumentsForRollback(engine, globalCheckpoint, processedOps);
                 }
-                if (between(1, 5) == 1) {
-                    engine.maybePruneDeletes();
-                }
-                if (between(1, 20) == 1) {
+                // Trigger merge to reclaim some deleted documents
+                if (randomBoolean()) {
                     BooleanQuery retentionQuery = new BooleanQuery.Builder()
                         .add(LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, globalCheckpoint + 1, Long.MAX_VALUE),
                             BooleanClause.Occur.SHOULD)
@@ -5132,12 +5119,16 @@ public class InternalEngineTests extends EngineTestCase {
                         logger.debug("merge reclaim id={} seq={}", reclaimedOp.id(), reclaimedOp.seqNo());
                     }
                 }
-                globalCheckpoint = randomLongBetween(globalCheckpoint, engine.getLocalCheckpoint());
+                // Prune some delete tombstone
+                if (randomBoolean()) {
+                    engine.maybePruneDeletes();
+                }
                 Set<Long> prunedTombstone = Sets.difference(lastTombstones, tombstones);
                 for (long prunedSeqNo : prunedTombstone) {
                     logger.debug("prune tombstone id={} seq={}", processedOps.get(prunedSeqNo).id(), prunedSeqNo);
                 }
                 lastTombstones = tombstones;
+                globalCheckpoint = randomLongBetween(globalCheckpoint, engine.getLocalCheckpoint());
             }
             assertDocumentsForRollback(engine, globalCheckpoint, processedOps);
         }
@@ -5183,17 +5174,14 @@ public class InternalEngineTests extends EngineTestCase {
      */
     private void assertDocumentsForRollback(InternalEngine engine, long globalCheckpoint,
                                             Map<Long, Engine.Operation> processedOps) throws IOException {
-        List<Engine.Operation> rollbackOps = processedOps.values().stream()
-            .filter(op -> op.seqNo() > globalCheckpoint).collect(Collectors.toList());
-        Map<Long, Engine.Operation> previousCopies = new HashMap<>();
-        for (Engine.Operation op : rollbackOps) {
-            processedOps.values().stream().filter(target -> target.seqNo() < op.seqNo() && target.id().equals(op.id()))
-                .forEach(target -> {
-                    previousCopies.compute(op.seqNo(), (k, v) -> {
-                        if (v == null || v.seqNo() < target.seqNo()) return target;
-                        else return v;
-                    });
-                });
+        List<Engine.Operation> rollbackOps = new ArrayList<>();
+        Map<String, Engine.Operation> restoringVersions = new HashMap<>();
+        for (Engine.Operation op : processedOps.values()) {
+            if (op.seqNo() > globalCheckpoint) {
+                rollbackOps.add(op);
+            } else {
+                restoringVersions.compute(op.id(), (id, v) -> v == null || v.seqNo() < op.seqNo() ? op : v);
+            }
         }
         engine.refresh("test", Engine.SearcherScope.INTERNAL);
         try (Searcher engineSearcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
@@ -5201,29 +5189,29 @@ public class InternalEngineTests extends EngineTestCase {
             IndexSearcher searcher = new IndexSearcher(reader);
             searcher.setQueryCache(null);
             for (Engine.Operation rollbackOp : rollbackOps) {
-                Engine.Operation previousCopy = previousCopies.get(rollbackOp.seqNo());
-                if (previousCopy == null) {
+                Engine.Operation restoringVersion = restoringVersions.get(rollbackOp.id());
+                if (restoringVersion == null) {
                     continue;
                 }
                 BooleanQuery previousQuery = new BooleanQuery.Builder()
                     .add(new TermQuery(rollbackOp.uid()), BooleanClause.Occur.FILTER)
-                    .add(LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, 0, rollbackOp.seqNo() - 1), BooleanClause.Occur.FILTER)
+                    .add(LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, 0, globalCheckpoint), BooleanClause.Occur.FILTER)
                     .build();
                 TopDocs previousDocs = searcher.search(previousQuery, 1,
                     new Sort(new SortedNumericSortField(SeqNoFieldMapper.NAME, SortField.Type.LONG, true)));
                 // If the previous copy is an index, that copy must be retained
-                if (previousCopy instanceof Engine.Index) {
-                    assertThat("operation id=" + previousCopy.id() + " seq=" + previousCopy.seqNo() + " has been reclaimed",
-                        previousDocs.totalHits, greaterThanOrEqualTo(1L));
+                if (restoringVersion instanceof Engine.Index) {
+                    assertThat("restoring operation id=" + restoringVersion.id() + " seq=" + restoringVersion.seqNo() +
+                            " has been reclaimed", previousDocs.totalHits, greaterThanOrEqualTo(1L));
                     long foundSeqNo = readSeqNo(reader, previousDocs.scoreDocs[0].doc);
-                    assertThat("rollback id=" + rollbackOp.id() + " seq=" + rollbackOp.seqNo(), foundSeqNo, equalTo(previousCopy.seqNo()));
+                    assertThat("rollback id=" + rollbackOp.id() + " seq=" + rollbackOp.seqNo(), foundSeqNo, equalTo(restoringVersion.seqNo()));
                     // If the previous copy is a delete, either that copy or another delete or nothing is retained, but must not an index
                 } else {
                     if (previousDocs.totalHits > 0) {
                         long actualSeqNo = readSeqNo(reader, previousDocs.scoreDocs[0].doc);
                         Engine.Operation foundOp = processedOps.get(actualSeqNo);
                         assertThat("rollback id=" + rollbackOp.id() + " seq=" + rollbackOp.seqNo() + ", found seq=" + foundOp.seqNo()
-                            + ", expected seq=" + previousCopy.seqNo(), foundOp, instanceOf(Engine.Delete.class));
+                            + ", expected seq=" + restoringVersion.seqNo(), foundOp, instanceOf(Engine.Delete.class));
                     }
                 }
             }

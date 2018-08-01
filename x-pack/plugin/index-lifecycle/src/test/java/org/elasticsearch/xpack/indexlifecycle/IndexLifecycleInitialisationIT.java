@@ -7,32 +7,44 @@ package org.elasticsearch.xpack.indexlifecycle;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.indexlifecycle.DeleteAction;
-import org.elasticsearch.xpack.core.indexlifecycle.ForceMergeAction;
+import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateWaitStep;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecycleType;
+import org.elasticsearch.xpack.core.indexlifecycle.MockAction;
 import org.elasticsearch.xpack.core.indexlifecycle.Phase;
-import org.elasticsearch.xpack.core.indexlifecycle.TimeseriesLifecycleType;
+import org.elasticsearch.xpack.core.indexlifecycle.Step;
+import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
 import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction;
 import org.junit.Before;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.client.Requests.createIndexRequest;
@@ -83,7 +95,7 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateCompositeXPackPlugin.class, IndexLifecycle.class);
+        return Arrays.asList(LocalStateCompositeXPackPlugin.class, IndexLifecycle.class, TestILMPlugin.class);
     }
 
     @Override
@@ -95,17 +107,16 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
     public void init() {
         settings = Settings.builder().put(indexSettings()).put(SETTING_NUMBER_OF_SHARDS, 1)
             .put(SETTING_NUMBER_OF_REPLICAS, 0).put(LifecycleSettings.LIFECYCLE_NAME, "test").build();
-        Map<String, Phase> phases = new HashMap<>();
-
-        Map<String, LifecycleAction> warmPhaseActions = Collections.singletonMap(ForceMergeAction.NAME, new ForceMergeAction(10000));
-        phases.put("warm", new Phase("warm", TimeValue.timeValueSeconds(2), warmPhaseActions));
-
-        Map<String, LifecycleAction> deletePhaseActions = Collections.singletonMap(DeleteAction.NAME, new DeleteAction());
-        phases.put("delete", new Phase("delete", TimeValue.timeValueSeconds(3), deletePhaseActions));
-        lifecyclePolicy = new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, "test", phases);
+        List<Step> steps = new ArrayList<>();
+        Step.StepKey key = new Step.StepKey("mock", ObservableAction.NAME, ObservableClusterStateWaitStep.NAME);
+        steps.add(new ObservableClusterStateWaitStep(key, TerminalPolicyStep.KEY));
+        Map<String, LifecycleAction> actions = Collections.singletonMap(ObservableAction.NAME, new ObservableAction(steps, true));
+        Map<String, Phase> phases = Collections.singletonMap("mock", new Phase("mock", TimeValue.timeValueSeconds(0), actions));
+        lifecyclePolicy = new LifecyclePolicy(LockableLifecycleType.INSTANCE, "test", phases);
     }
 
     public void testSingleNodeCluster() throws Exception {
+        settings = Settings.builder().put(settings).put("index.lifecycle.test.complete", true).build();
         // start master node
         logger.info("Starting server1");
         final String server_1 = internalCluster().startNode();
@@ -122,13 +133,17 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
         RoutingNode routingNodeEntry1 = clusterState.getRoutingNodes().node(node1);
         assertThat(routingNodeEntry1.numberOfShardsWithState(STARTED), equalTo(1));
         assertBusy(() -> {
-            assertEquals(false, client().admin().indices().prepareExists("test").get().isExists());
+            assertEquals(true, client().admin().indices().prepareExists("test").get().isExists());
+        });
+        assertBusy(() -> {
+            GetSettingsResponse settingsResponse = client().admin().indices().prepareGetSettings("test").get();
+            String step = settingsResponse.getSetting("test", "index.lifecycle.step");
+            assertThat(step, equalTo(TerminalPolicyStep.KEY.getName()));
         });
     }
 
-    // NORELEASE re-enable when we re-visit integration testing
-    @AwaitsFix(bugUrl = "Fails because of timing")
     public void testMasterDedicatedDataDedicated() throws Exception {
+        settings = Settings.builder().put(settings).put("index.lifecycle.test.complete", true).build();
         // start master node
         logger.info("Starting sever1");
         internalCluster().startMasterOnlyNode();
@@ -151,12 +166,15 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
         assertThat(routingNodeEntry1.numberOfShardsWithState(STARTED), equalTo(1));
 
         assertBusy(() -> {
-            assertEquals(false, client().admin().indices().prepareExists("test").get().isExists());
+            assertEquals(true, client().admin().indices().prepareExists("test").get().isExists());
+        });
+        assertBusy(() -> {
+            GetSettingsResponse settingsResponse = client().admin().indices().prepareGetSettings("test").get();
+            String step = settingsResponse.getSetting("test", "index.lifecycle.step");
+            assertThat(step, equalTo(TerminalPolicyStep.KEY.getName()));
         });
     }
 
-    // NORELEASE re-enable when force merge action bug is fixed
-    @AwaitsFix(bugUrl = "Fails because force merge action expect shards to be assigned")
     public void testMasterFailover() throws Exception {
         // start one server
         logger.info("Starting sever1");
@@ -189,12 +207,33 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
+        // check step in progress in lifecycle
+        assertBusy(() -> {
+            GetSettingsResponse settingsResponse = client().admin().indices().prepareGetSettings("test").get();
+            String step = settingsResponse.getSetting("test", "index.lifecycle.step");
+            assertThat(step, equalTo(ObservableClusterStateWaitStep.NAME));
+        });
+
+
         logger.info("Closing server1");
         // kill the first server
         internalCluster().stopCurrentMasterNode();
 
+        // check that index lifecycle picked back up where it
         assertBusy(() -> {
-            assertEquals(false, client().admin().indices().prepareExists("test").get().isExists());
+            GetSettingsResponse settingsResponse = client().admin().indices().prepareGetSettings("test").get();
+            String step = settingsResponse.getSetting("test", "index.lifecycle.step");
+            assertThat(step, equalTo(ObservableClusterStateWaitStep.NAME));
+        });
+
+        // complete the step
+        client().admin().indices().prepareUpdateSettings("test")
+            .setSettings(Collections.singletonMap("index.lifecycle.test.complete", true)).get();
+
+        assertBusy(() -> {
+            GetSettingsResponse settingsResponse = client().admin().indices().prepareGetSettings("test").get();
+            String step = settingsResponse.getSetting("test", "index.lifecycle.step");
+            assertThat(step, equalTo(TerminalPolicyStep.KEY.getName()));
         });
     }
 
@@ -203,5 +242,87 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
         String nodeId = transportService.getLocalNode().getId();
         assertThat(nodeId, not(nullValue()));
         return nodeId;
+    }
+
+    public static class TestILMPlugin extends Plugin {
+        public TestILMPlugin() {
+        }
+
+        public List<Setting<?>> getSettings() {
+            final Setting<Boolean> COMPLETE_SETTING = Setting.boolSetting("index.lifecycle.test.complete", false,
+                Setting.Property.Dynamic, Setting.Property.IndexScope);
+            return Collections.singletonList(COMPLETE_SETTING);
+        }
+        public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+            return Arrays.asList(new NamedWriteableRegistry.Entry(LifecycleType.class, LockableLifecycleType.TYPE,
+                    (in) -> LockableLifecycleType.INSTANCE),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, ObservableAction.NAME, ObservableAction::readObservableAction),
+                new NamedWriteableRegistry.Entry(ObservableClusterStateWaitStep.class, ObservableClusterStateWaitStep.NAME,
+                    ObservableClusterStateWaitStep::new));
+        }
+    }
+
+    public static class ObservableClusterStateWaitStep extends ClusterStateWaitStep implements NamedWriteable {
+        public static final String NAME = "observable_cluster_state_action";
+
+        public ObservableClusterStateWaitStep(StepKey current, StepKey next) {
+            super(current, next);
+        }
+
+        public ObservableClusterStateWaitStep(StreamInput in) throws IOException {
+            this(new StepKey(in.readString(), in.readString(), in.readString()), readOptionalNextStepKey(in));
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(getKey().getPhase());
+            out.writeString(getKey().getAction());
+            out.writeString(getKey().getName());
+            boolean hasNextStep = getNextStepKey() != null;
+            out.writeBoolean(hasNextStep);
+            if (hasNextStep) {
+                out.writeString(getNextStepKey().getPhase());
+                out.writeString(getNextStepKey().getAction());
+                out.writeString(getNextStepKey().getName());
+            }
+        }
+
+        private static StepKey readOptionalNextStepKey(StreamInput in) throws IOException {
+            if (in.readBoolean()) {
+                return new StepKey(in.readString(), in.readString(), in.readString());
+            }
+            return null;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
+
+        @Override
+        public Result isConditionMet(Index index, ClusterState clusterState) {
+            boolean complete = clusterState.metaData().index("test").getSettings()
+                .getAsBoolean("index.lifecycle.test.complete", false);
+            return new Result(complete, null);
+        }
+    }
+
+    public static class ObservableAction extends MockAction {
+
+        ObservableAction(List<Step> steps, boolean safe) {
+            super(steps, safe);
+        }
+
+        public static ObservableAction readObservableAction(StreamInput in) throws IOException {
+            List<Step> steps = in.readList(ObservableClusterStateWaitStep::new);
+            boolean safe = in.readBoolean();
+            return new ObservableAction(steps, safe);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeList(getSteps().stream().map(s -> (ObservableClusterStateWaitStep) s).collect(Collectors.toList()));
+            out.writeBoolean(isSafeAction());
+        }
     }
 }

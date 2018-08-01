@@ -31,6 +31,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.Node;
 
 import java.util.Collections;
@@ -255,7 +256,12 @@ public final class IndexSettings {
         1000, 1, Property.Dynamic, Property.IndexScope);
 
     public static final Setting<String> DEFAULT_PIPELINE =
-        Setting.simpleString("index.default_pipeline", "", Property.Dynamic, Property.IndexScope);
+       new Setting<>("index.default_pipeline", IngestService.NOOP_PIPELINE_NAME, s -> {
+           if (s == null || s.isEmpty()) {
+               throw new IllegalArgumentException("Value for [index.default_pipeline] must be a non-empty string.");
+           }
+        return s;
+       }, Property.Dynamic, Property.IndexScope);
 
     private final Index index;
     private final Version version;

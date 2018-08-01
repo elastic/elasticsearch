@@ -105,6 +105,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
      * search for each query.  It then does some basic sanity checking of score and hits
      * to make sure the profiling doesn't interfere with the hits being returned
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32492")
     public void testProfileMatchesRegular() throws Exception {
         createIndex("test");
         ensureGreen();

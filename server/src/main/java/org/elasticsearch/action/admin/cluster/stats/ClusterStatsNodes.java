@@ -39,7 +39,6 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.plugins.PluginInfo;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -47,6 +46,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class ClusterStatsNodes implements ToXContentFragment {
@@ -65,7 +65,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
         this.fs = new FsInfo.Path();
         this.plugins = new HashSet<>();
 
-        Set<InetAddress> seenAddresses = new HashSet<>(nodeResponses.size());
+        Set<DuplicateNodeCheck> seenAddresses = new HashSet<>(nodeResponses.size());
         List<NodeInfo> nodeInfos = new ArrayList<>(nodeResponses.size());
         List<NodeStats> nodeStats = new ArrayList<>(nodeResponses.size());
         for (ClusterStatsNodeResponse nodeResponse : nodeResponses) {
@@ -77,12 +77,19 @@ public class ClusterStatsNodes implements ToXContentFragment {
             // now do the stats that should be deduped by hardware (implemented by ip deduping)
             TransportAddress publishAddress =
                     nodeResponse.nodeInfo().getTransport().address().publishAddress();
-            final InetAddress inetAddress = publishAddress.address().getAddress();
-            if (!seenAddresses.add(inetAddress)) {
-                continue;
-            }
+
+            // check that getFs() are not null
             if (nodeResponse.nodeStats().getFs() != null) {
-                this.fs.add(nodeResponse.nodeStats().getFs().getTotal());
+                // not using getTotal()
+                // get all paths and check ip/mount location
+                for (FsInfo.Path path : nodeResponse.nodeStats().getFs().getPaths()) {
+                    if (!seenAddresses.add(new DuplicateNodeCheck(publishAddress, path.getMount()))) {
+                        // if ip/mount are already checked, pass it.
+                        continue;
+                    }
+                    // or add that path
+                    this.fs.add(path);
+                }
             }
         }
         this.counts = new Counts(nodeInfos);
@@ -589,4 +596,29 @@ public class ClusterStatsNodes implements ToXContentFragment {
 
     }
 
+    // #32528 add private class that check ipaddress / mount location
+    private class DuplicateNodeCheck{
+        TransportAddress transportAddress;
+        String mount;
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            DuplicateNodeCheck that = (DuplicateNodeCheck) o;
+            return Objects.equals(transportAddress.getAddress(), that.transportAddress.getAddress()) &&
+                Objects.equals(mount, that.mount);
+        }
+
+        @Override
+        public int hashCode() {
+
+            return Objects.hash(transportAddress.getAddress(), mount);
+        }
+
+        private DuplicateNodeCheck(TransportAddress transportAddress, String mount) {
+            this.transportAddress = transportAddress;
+            this.mount = mount;
+        }
+    }
 }

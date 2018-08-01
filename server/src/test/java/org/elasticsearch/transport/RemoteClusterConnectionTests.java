@@ -436,6 +436,16 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     }
 
                     @Override
+                    public void addCloseListener(ActionListener<Void> listener) {
+                        // no-op
+                    }
+
+                    @Override
+                    public boolean isClosed() {
+                        return false;
+                    }
+
+                    @Override
                     public void close() throws IOException {
                         // no-op
                     }
@@ -1285,6 +1295,16 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
                         throws TransportException {
                         // no-op
+                    }
+
+                    @Override
+                    public void addCloseListener(ActionListener<Void> listener) {
+                        // no-op
+                    }
+
+                    @Override
+                    public boolean isClosed() {
+                        return false;
                     }
 
                     @Override

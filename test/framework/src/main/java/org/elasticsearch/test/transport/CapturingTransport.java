@@ -20,6 +20,7 @@
 package org.elasticsearch.test.transport;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Randomness;
@@ -93,8 +94,8 @@ public class CapturingTransport implements Transport {
     public TransportService createCapturingTransportService(Settings settings, ThreadPool threadPool, TransportInterceptor interceptor,
                                                             Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
                                                             @Nullable ClusterSettings clusterSettings, Set<String> taskHeaders) {
-        StubbableConnectionManager connectionManager = new StubbableConnectionManager(new ConnectionManager(settings, this, threadPool), settings,
-            this, threadPool);
+        StubbableConnectionManager connectionManager = new StubbableConnectionManager(new ConnectionManager(settings, this, threadPool),
+            settings, this, threadPool);
         connectionManager.setDefaultNodeConnectedBehavior((cm, discoveryNode) -> true);
         connectionManager.setDefaultConnectBehavior((cm, discoveryNode) -> new Connection() {
             @Override
@@ -107,6 +108,16 @@ public class CapturingTransport implements Transport {
                 throws TransportException {
                 requests.put(requestId, Tuple.tuple(discoveryNode, action));
                 capturedRequests.add(new CapturedRequest(discoveryNode, requestId, action, request));
+            }
+
+            @Override
+            public void addCloseListener(ActionListener<Void> listener) {
+
+            }
+
+            @Override
+            public boolean isClosed() {
+                return false;
             }
 
             @Override
@@ -242,6 +253,16 @@ public class CapturingTransport implements Transport {
                 throws TransportException {
                 requests.put(requestId, Tuple.tuple(node, action));
                 capturedRequests.add(new CapturedRequest(node, requestId, action, request));
+            }
+
+            @Override
+            public void addCloseListener(ActionListener<Void> listener) {
+
+            }
+
+            @Override
+            public boolean isClosed() {
+                return false;
             }
 
             @Override

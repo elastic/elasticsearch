@@ -430,7 +430,6 @@ public class TransportClientNodesServiceTests extends ESTestCase {
     }
 
     class MockConnection implements Transport.Connection {
-        private final AtomicBoolean closed = new AtomicBoolean(false);
         private final Transport.Connection connection;
 
         private MockConnection(Transport.Connection connection) {
@@ -455,9 +454,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
 
         @Override
         public void close() throws IOException {
-            if (closed.compareAndSet(false, true)) {
-                connection.close();
-            }
+            connection.close();
         }
 
         @Override
@@ -472,7 +469,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
 
         @Override
         public boolean isClosed() {
-            return closed.get();
+            return connection.isClosed();
         }
     }
 

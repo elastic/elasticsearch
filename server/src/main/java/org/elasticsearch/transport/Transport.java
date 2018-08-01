@@ -128,14 +128,9 @@ public interface Transport extends LifecycleComponent {
             return false;
         }
 
-        default void addCloseListener(ActionListener<Void> listener) {
-            throw new UnsupportedOperationException("Not supported");
-        }
+        void addCloseListener(ActionListener<Void> listener);
 
-
-        default boolean isClosed() {
-            return false;
-        }
+        boolean isClosed();
 
         /**
          * Returns the version of the node this connection was established with.
@@ -151,6 +146,7 @@ public interface Transport extends LifecycleComponent {
         default Object getCacheKey() {
             return this;
         }
+
     }
 
     /**

@@ -22,6 +22,7 @@ package org.elasticsearch.transport;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
@@ -131,6 +132,15 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
             throws TransportException {
             sendLocalRequest(requestId, action, request, options);
+        }
+
+        @Override
+        public void addCloseListener(ActionListener<Void> listener) {
+        }
+
+        @Override
+        public boolean isClosed() {
+            return false;
         }
 
         @Override

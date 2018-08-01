@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
@@ -241,6 +242,11 @@ public class NodeConnectionsServiceTests extends ESTestCase {
                 @Override
                 public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
                     throws TransportException {
+
+                }
+
+                @Override
+                public void addCloseListener(ActionListener<Void> listener) {
 
                 }
 

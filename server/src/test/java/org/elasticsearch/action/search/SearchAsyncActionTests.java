@@ -444,6 +444,16 @@ public class SearchAsyncActionTests extends ESTestCase {
         }
 
         @Override
+        public void addCloseListener(ActionListener<Void> listener) {
+
+        }
+
+        @Override
+        public boolean isClosed() {
+            return false;
+        }
+
+        @Override
         public void close() throws IOException {
             throw new UnsupportedOperationException();
         }

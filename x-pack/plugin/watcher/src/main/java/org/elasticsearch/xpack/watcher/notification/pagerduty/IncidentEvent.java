@@ -101,52 +101,52 @@ public class IncidentEvent implements ToXContentObject {
                 .path(PATH)
                 .proxy(proxy)
                 .setHeader("Accept", ACCEPT_HEADER)
-                .jsonBody(new ToXContent() {
-                    @Override
-                    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                        builder.field("routing_key", serviceKey);
-                        builder.field("event_action", eventType);
-                        if (incidentKey != null) {
-                            builder.field("dedup_key", incidentKey);
-                        }
-
-                        builder.startObject("payload");
-                        {
-                            builder.field("summary", description);
-
-                            if (attachPayload && payload != null) {
-                                builder.startObject("custom_details");
-                                {
-                                    builder.field(Fields.PAYLOAD.getPreferredName(), payload, params);
-                                }
-                                builder.endObject();
-                            }
-
-                            if (watchId != null) {
-                                builder.field("source", watchId);
-                            } else {
-                                builder.field("source", "watcher");
-                            }
-                            // TODO externalize this into something user editable
-                            builder.field("severity", "critical");
-                        }
-                        builder.endObject();
-
-                        if (client != null) {
-                            builder.field(Fields.CLIENT.getPreferredName(), client);
-                        }
-                        if (clientUrl != null) {
-                            builder.field(Fields.CLIENT_URL.getPreferredName(), clientUrl);
-                        }
-
-                        if (contexts != null && contexts.length > 0) {
-                            toXContentV2Contexts(builder, params, contexts);
-                        }
-
-                        return builder;
-                    }
-                })
+                .jsonBody((b, p) -> buildAPIXContent(b, p, serviceKey, payload, watchId))
                 .build();
+    }
+
+    public XContentBuilder buildAPIXContent(XContentBuilder builder, Params params, String serviceKey,
+                                            Payload payload, String watchId) throws IOException {
+        builder.field(Fields.ROUTING_KEY.getPreferredName(), serviceKey);
+        builder.field(Fields.EVENT_ACTION.getPreferredName(), eventType);
+        if (incidentKey != null) {
+            builder.field(Fields.DEDUP_KEY.getPreferredName(), incidentKey);
+        }
+
+        builder.startObject(Fields.PAYLOAD.getPreferredName());
+        {
+            builder.field(Fields.SUMMARY.getPreferredName(), description);
+
+            if (attachPayload && payload != null) {
+                builder.startObject(Fields.CUSTOM_DETAILS.getPreferredName());
+                {
+                    builder.field(Fields.PAYLOAD.getPreferredName(), payload, params);
+                }
+                builder.endObject();
+            }
+
+            if (watchId != null) {
+                builder.field(Fields.SOURCE.getPreferredName(), watchId);
+            } else {
+                builder.field(Fields.SOURCE.getPreferredName(), "watcher");
+            }
+            // TODO externalize this into something user editable
+            builder.field(Fields.SEVERITY.getPreferredName(), "critical");
+        }
+        builder.endObject();
+
+        if (client != null) {
+            builder.field(Fields.CLIENT.getPreferredName(), client);
+        }
+        if (clientUrl != null) {
+            builder.field(Fields.CLIENT_URL.getPreferredName(), clientUrl);
+        }
+
+        if (contexts != null && contexts.length > 0) {
+            toXContentV2Contexts(builder, params, contexts);
+        }
+
+        return builder;
     }
 
     /**
@@ -165,7 +165,7 @@ public class IncidentEvent implements ToXContentObject {
             }
         }
         if (links.isEmpty() == false) {
-            builder.startArray("links");
+            builder.startArray(Fields.LINKS.getPreferredName());
             {
                 for (IncidentEventContext link: links) {
                     link.toXContent(builder, params);
@@ -174,7 +174,7 @@ public class IncidentEvent implements ToXContentObject {
             builder.endArray();
         }
         if (images.isEmpty() == false) {
-            builder.startArray("images");
+            builder.startArray(Fields.IMAGES.getPreferredName());
             {
                 for (IncidentEventContext image: images) {
                     image.toXContent(builder, params);
@@ -496,8 +496,44 @@ public class IncidentEvent implements ToXContentObject {
         // we need to keep this for BWC
         ParseField CONTEXT_DEPRECATED = new ParseField("context");
 
-        ParseField SERVICE_KEY = new ParseField("service_key");
         ParseField PAYLOAD = new ParseField("payload");
-        ParseField DETAILS = new ParseField("details");
+        ParseField ROUTING_KEY = new ParseField("routing_key");
+        ParseField EVENT_ACTION = new ParseField("event_action");
+        ParseField DEDUP_KEY = new ParseField("dedup_key");
+        ParseField SUMMARY = new ParseField("summary");
+        ParseField SOURCE = new ParseField("source");
+        ParseField SEVERITY = new ParseField("severity");
+        ParseField LINKS = new ParseField("links");
+        ParseField IMAGES = new ParseField("images");
+        ParseField CUSTOM_DETAILS = new ParseField("custom_details");
+
+        /*
+          if (incidentKey != null) {
+            builder.field("dedup_key", incidentKey);
+        }
+
+        builder.startObject(Fields.PAYLOAD.getPreferredName());
+        {
+            builder.field("summary", description);
+
+            if (attachPayload && payload != null) {
+                builder.startObject("custom_details");
+                {
+                    builder.field(Fields.PAYLOAD.getPreferredName(), payload, params);
+                }
+                builder.endObject();
+            }
+
+            if (watchId != null) {
+                builder.field("source", watchId);
+            } else {
+                builder.field("source", "watcher");
+            }
+            // TODO externalize this into something user editable
+            builder.field("severity", "critical");
+        }
+        builder.endObject();
+         */
+
     }
 }

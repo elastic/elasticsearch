@@ -17,7 +17,7 @@ import org.elasticsearch.common.rounding.DateTimeUnit;
 import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
@@ -52,7 +52,7 @@ import static org.elasticsearch.common.xcontent.ObjectParser.ValueType;
  *     ]
  * }
  */
-public class DateHistogramGroupConfig implements Writeable, ToXContentFragment {
+public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
 
     private static final String NAME = "date_histogram";
     private static final String INTERVAL = "interval";

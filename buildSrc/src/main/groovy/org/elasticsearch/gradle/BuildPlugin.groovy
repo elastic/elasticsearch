@@ -405,6 +405,10 @@ class BuildPlugin implements Plugin<Project> {
             repos.mavenLocal()
         }
         repos.mavenCentral()
+        repos.maven {
+            name "elastic"
+            url "https://artifacts.elastic.co/maven"
+        }
         String luceneVersion = VersionProperties.lucene
         if (luceneVersion.contains('-snapshot')) {
             // extract the revision number from the version with a regex matcher

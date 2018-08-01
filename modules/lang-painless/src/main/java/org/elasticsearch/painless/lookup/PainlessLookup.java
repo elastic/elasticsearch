@@ -200,7 +200,7 @@ public final class PainlessLookup {
         return lookupRuntimePainlessObject(originalTargetClass, objectLookup, notFoundErrorMessage);
     }
 
-    public MethodHandle lookupRuntimeGetter(Class<?> originalTargetClass, String getterName) {
+    public MethodHandle lookupRuntimeGetterMethodHandle(Class<?> originalTargetClass, String getterName) {
         Objects.requireNonNull(originalTargetClass);
         Objects.requireNonNull(getterName);
 
@@ -210,7 +210,7 @@ public final class PainlessLookup {
         return lookupRuntimePainlessObject(originalTargetClass, objectLookup, notFoundErrorMessage);
     }
 
-    public MethodHandle lookupRuntimeSetter(Class<?> originalTargetClass, String setterName) {
+    public MethodHandle lookupRuntimeSetterMethodHandle(Class<?> originalTargetClass, String setterName) {
         Objects.requireNonNull(originalTargetClass);
         Objects.requireNonNull(setterName);
 

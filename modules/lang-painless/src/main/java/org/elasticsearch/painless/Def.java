@@ -343,7 +343,7 @@ public final class Def {
     static MethodHandle lookupGetter(PainlessLookup painlessLookup, Class<?> receiverClass, String name) {
         // first try whitelist
         try {
-            return painlessLookup.lookupRuntimeGetter(receiverClass, name);
+            return painlessLookup.lookupRuntimeGetterMethodHandle(receiverClass, name);
         } catch (IllegalArgumentException iae) {
             // special case: arrays, maps, and lists
             if (receiverClass.isArray() && "length".equals(name)) {
@@ -396,7 +396,7 @@ public final class Def {
     static MethodHandle lookupSetter(PainlessLookup painlessLookup, Class<?> receiverClass, String name) {
         // first try whitelist
         try {
-            return painlessLookup.lookupRuntimeSetter(receiverClass, name);
+            return painlessLookup.lookupRuntimeSetterMethodHandle(receiverClass, name);
         } catch (IllegalArgumentException iae) {
             // special case: maps, and lists
             if (Map.class.isAssignableFrom(receiverClass)) {

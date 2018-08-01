@@ -113,7 +113,7 @@ public class FunctionReference {
                 delegateMethodName = PainlessLookupUtility.CONSTRUCTOR_NAME;
                 delegateMethodType = painlessConstructor.methodType.dropParameterTypes(0, numCaptures);
 
-                delegateMethodReturnType = void.class;
+                delegateMethodReturnType = painlessConstructor.javaConstructor.getDeclaringClass();
                 delegateMethodParameters = painlessConstructor.typeParameters;
             } else {
                 PainlessMethod painlessMethod;
@@ -122,8 +122,11 @@ public class FunctionReference {
                     painlessMethod = painlessLookup.lookupPainlessMethod(typeName, true, methodName, typeParametersSize);
                 } catch (IllegalArgumentException staticIAE) {
                     try {
-                        painlessMethod = painlessLookup.lookupPainlessMethod(
-                                typeName, false, methodName, numCaptures > 0 ? typeParametersSize - 1 : typeParametersSize);
+                        if (numCaptures == 0) {
+                            --typeParametersSize;
+                        }
+
+                        painlessMethod = painlessLookup.lookupPainlessMethod(typeName, false, methodName, typeParametersSize);
                     } catch (IllegalArgumentException iae) {
                         throw new IllegalArgumentException("function reference [" + typeName + "::" + methodName + "] " +
                                 "matching [" + targetClassName + "] not found", iae);
@@ -148,7 +151,7 @@ public class FunctionReference {
                 delegateMethodParameters = painlessMethod.typeParameters;
             }
 
-            if (location != null) {
+            /*if (location != null) {
                 for (int typeParameter = 0; typeParameter < typeParametersSize; ++typeParameter) {
                     Class<?> from = interfaceMethod.typeParameters.get(typeParameter);
                     Class<?> to = delegateMethodParameters.get(numCaptures + typeParameter);
@@ -158,7 +161,7 @@ public class FunctionReference {
                 if (interfaceMethod.returnType != void.class) {
                     AnalyzerCaster.getLegalCast(location, delegateMethodReturnType, interfaceMethod.returnType, false, true);
                 }
-            }
+            }*/
 
             MethodType factoryMethodType = MethodType.methodType(targetClass,
                     delegateMethodType.dropParameterTypes(numCaptures, delegateMethodType.parameterCount()));

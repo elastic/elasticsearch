@@ -77,7 +77,7 @@ public final class PainlessLookup {
 
         Class<?> targetClass = canonicalTypeNameToType(targetClassName);
 
-        return lookupPainlessConstructor(targetClassName, constructorArity);
+        return lookupPainlessConstructor(targetClass, constructorArity);
     }
 
     public PainlessConstructor lookupPainlessConstructor(Class<?> targetClass, int constructorArity) {

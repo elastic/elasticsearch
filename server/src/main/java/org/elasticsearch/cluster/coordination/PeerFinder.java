@@ -431,7 +431,7 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
             }
         }
 
-        class FoundPeer {
+        private class FoundPeer {
             final DiscoveryNode discoveryNode;
             boolean peersRequestedThisRound;
 

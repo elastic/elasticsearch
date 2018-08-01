@@ -119,11 +119,11 @@ public class FunctionReference {
                 PainlessMethod painlessMethod;
 
                 try {
-                    painlessMethod = painlessLookup.lookupPainlessMethod(targetClassName, true, methodName, typeParametersSize);
+                    painlessMethod = painlessLookup.lookupPainlessMethod(typeName, true, methodName, typeParametersSize);
                 } catch (IllegalArgumentException staticIAE) {
                     try {
                         painlessMethod = painlessLookup.lookupPainlessMethod(
-                                targetClassName, false, methodName, numCaptures > 0 ? typeParametersSize - 1 : typeParametersSize);
+                                typeName, false, methodName, numCaptures > 0 ? typeParametersSize - 1 : typeParametersSize);
                     } catch (IllegalArgumentException iae) {
                         throw new IllegalArgumentException("function reference [" + typeName + "::" + methodName + "] " +
                                 "matching [" + targetClassName + "] not found", iae);

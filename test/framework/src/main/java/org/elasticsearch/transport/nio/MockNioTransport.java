@@ -151,8 +151,6 @@ public class MockNioTransport extends TcpTransport {
 
         @Override
         public MockSocketChannel createChannel(NioSelector selector, SocketChannel channel) throws IOException {
-            // Set linger time to 0 to avoid having a large number of channels in TIME_WAIT when running tests
-            channel.setOption(StandardSocketOptions.SO_LINGER, 0);
             MockSocketChannel nioChannel = new MockSocketChannel(profileName, channel, selector);
             Supplier<InboundChannelBuffer.Page> pageSupplier = () -> {
                 Recycler.V<byte[]> bytes = pageCacheRecycler.bytePage(false);
@@ -162,6 +160,7 @@ public class MockNioTransport extends TcpTransport {
             BytesChannelContext context = new BytesChannelContext(nioChannel, selector, (e) -> exceptionCaught(nioChannel, e),
                 readWriteHandler, new InboundChannelBuffer(pageSupplier));
             nioChannel.setContext(context);
+            nioChannel.setSoLinger(0);
             return nioChannel;
         }
 

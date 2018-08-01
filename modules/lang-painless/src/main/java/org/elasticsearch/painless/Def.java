@@ -168,52 +168,6 @@ public final class Def {
     }
 
     /**
-     * Looks up method entry for a dynamic method call.
-     * <p>
-     * A dynamic method call for variable {@code x} of type {@code def} looks like:
-     * {@code x.method(args...)}
-     * <p>
-     * This method traverses {@code recieverClass}'s class hierarchy (including interfaces)
-     * until it finds a matching whitelisted method. If one is not found, it throws an exception.
-     * Otherwise it returns the matching method.
-     * <p>
-     * @params painlessLookup the whitelist
-     * @param receiverClass Class of the object to invoke the method on.
-     * @param name Name of the method.
-     * @param arity arity of method
-     * @return matching method to invoke. never returns null.
-     * @throws IllegalArgumentException if no matching whitelisted method was found.
-     */
-    static PainlessMethod lookupMethodInternal(PainlessLookup painlessLookup, Class<?> receiverClass, String name, int arity) {
-        String key = PainlessLookupUtility.buildPainlessMethodKey(name, arity);
-        // check whitelist for matching method
-        for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
-            PainlessClass struct = painlessLookup.lookupPainlessClass(clazz);
-
-            if (struct != null) {
-                PainlessMethod method = struct.methods.get(key);
-                if (method != null) {
-                    return method;
-                }
-            }
-
-            for (Class<?> iface : clazz.getInterfaces()) {
-                struct = painlessLookup.lookupPainlessClass(iface);
-
-                if (struct != null) {
-                    PainlessMethod method = struct.methods.get(key);
-                    if (method != null) {
-                        return method;
-                    }
-                }
-            }
-        }
-
-        throw new IllegalArgumentException("Unable to find dynamic method [" + name + "] with [" + arity + "] arguments " +
-                                           "for class [" + receiverClass.getCanonicalName() + "].");
-    }
-
-    /**
      * Looks up handle for a dynamic method call, with lambda replacement
      * <p>
      * A dynamic method call for variable {@code x} of type {@code def} looks like:
@@ -241,7 +195,7 @@ public final class Def {
          int numArguments = callSiteType.parameterCount();
          // simple case: no lambdas
          if (recipeString.isEmpty()) {
-             return lookupMethodInternal(painlessLookup, receiverClass, name, numArguments - 1).methodHandle;
+             return painlessLookup.lookupRuntimePainlessMethod(receiverClass, name, numArguments - 1).methodHandle;
          }
 
          // convert recipe string to a bitset for convenience (the code below should be refactored...)
@@ -264,7 +218,7 @@ public final class Def {
 
          // lookup the method with the proper arity, then we know everything (e.g. interface types of parameters).
          // based on these we can finally link any remaining lambdas that were deferred.
-         PainlessMethod method = lookupMethodInternal(painlessLookup, receiverClass, name, arity);
+         PainlessMethod method = painlessLookup.lookupRuntimePainlessMethod(receiverClass, name, arity);
          MethodHandle handle = method.methodHandle;
 
          int replaced = 0;
@@ -337,7 +291,7 @@ public final class Def {
              throw new IllegalArgumentException("Class [" + interfaceClass + "] is not a functional interface");
             }
             int arity = interfaceMethod.typeParameters.size();
-            PainlessMethod implMethod = lookupMethodInternal(painlessLookup, receiverClass, name, arity);
+            PainlessMethod implMethod = painlessLookup.lookupRuntimePainlessMethod(receiverClass, name, arity);
             return lookupReferenceInternal(painlessLookup, localMethods, methodHandlesLookup,
                 interfaceType, PainlessLookupUtility.typeToCanonicalTypeName(implMethod.targetClass),
                 implMethod.javaMethod.getName(), 1);

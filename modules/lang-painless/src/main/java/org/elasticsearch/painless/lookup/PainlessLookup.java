@@ -184,4 +184,44 @@ public final class PainlessLookup {
 
         return functionalInterfacePainlessMethod;
     }
+
+    public PainlessMethod lookupRuntimePainlessMethod(Class<?> originalTargetClass, String methodName, int methodArity) {
+        String painlessMethodKey = PainlessLookupUtility.buildPainlessMethodKey(methodName, methodArity);
+        Class<?> currentTargetClass = originalTargetClass;
+
+        while (currentTargetClass != null) {
+            PainlessClass targetPainlessClass = classesToPainlessClasses.get(currentTargetClass);
+
+            if (targetPainlessClass != null) {
+                PainlessMethod painlessMethod = targetPainlessClass.methods.get(painlessMethodKey);
+
+                if (painlessMethod != null) {
+                    return painlessMethod;
+                }
+            }
+
+            currentTargetClass = currentTargetClass.getSuperclass();
+        }
+
+        currentTargetClass = originalTargetClass;
+
+        while (currentTargetClass != null) {
+            for (Class<?> targetInterface : currentTargetClass.getInterfaces()) {
+                PainlessClass targetPainlessClass = classesToPainlessClasses.get(targetInterface);
+
+                if (targetPainlessClass != null) {
+                    PainlessMethod painlessMethod = targetPainlessClass.methods.get(painlessMethodKey);
+
+                    if (painlessMethod != null) {
+                        return painlessMethod;
+                    }
+                }
+            }
+
+            currentTargetClass = currentTargetClass.getSuperclass();
+        }
+
+        throw new IllegalArgumentException(
+                "dynamic method [" + typeToCanonicalTypeName(originalTargetClass) + ", " + painlessMethodKey + "] not found");
+    }
 }

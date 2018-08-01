@@ -71,7 +71,7 @@ public final class EFunctionRef extends AExpression implements ILambda {
                         throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
                                 "to [" + PainlessLookupUtility.typeToCanonicalTypeName(expected) + "], not a functional interface");
                     }
-                    LocalMethod delegateMethod = locals.getMethod(Locals.buildLocalMethodKey(call, interfaceMethod.typeParameters.size()));
+                    LocalMethod delegateMethod = locals.getMethod(call, interfaceMethod.typeParameters.size());
                     if (delegateMethod == null) {
                         throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
                                 "to [" + PainlessLookupUtility.typeToCanonicalTypeName(expected) + "], function not found");

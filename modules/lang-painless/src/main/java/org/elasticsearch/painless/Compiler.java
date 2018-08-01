@@ -200,7 +200,7 @@ final class Compiler {
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
         SSource root = Walker.buildPainlessTree(scriptClassInfo, reserved, name, source, settings, painlessLookup,
                 null);
-        root.analyze(painlessLookup);
+        Object localMethods = root.analyze(painlessLookup);
         root.write();
 
         try {
@@ -209,6 +209,7 @@ final class Compiler {
             clazz.getField("$SOURCE").set(null, source);
             clazz.getField("$STATEMENTS").set(null, root.getStatements());
             clazz.getField("$DEFINITION").set(null, painlessLookup);
+            clazz.getField("$LOCALS").set(null, localMethods);
 
             return clazz.getConstructors()[0];
         } catch (Exception exception) { // Catch everything to let the user know this is something caused internally.

@@ -37,7 +37,6 @@ bin/elasticsearch-keystore add discovery.ec2.secret_key
 The following are the available discovery settings. All should be prefixed with `discovery.ec2.`.
 Those that must be stored in the keystore are marked as `Secure`.
 
-
 `access_key`::
 
     An ec2 access key. The `secret_key` setting must also be specified. (Secure)
@@ -121,6 +120,10 @@ Defaults to `private_ip`.
 
     How long the list of hosts is cached to prevent further requests to the AWS API.
     Defaults to `10s`.
+
+*All* secure settings of this plugin are {ref}/secure-settings.html#reloadable-secure-settings[reloadable].
+After you reload the settings, an aws sdk client with the latest settings
+from the keystore will be used.
 
 [IMPORTANT]
 .Binding the network host

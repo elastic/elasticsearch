@@ -52,6 +52,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.rollup.ConfigTestHelpers.randomHistogramGroupConfig;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -354,7 +355,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         });
 
         GroupConfig.Builder groupConfig = ConfigTestHelpers.getGroupConfig();
-        groupConfig.setHisto(ConfigTestHelpers.getHisto().setFields(Collections.singletonList("abc")).build());
+        groupConfig.setHisto(randomHistogramGroupConfig(random()));
 
         List<IndexRequest> docs = IndexerUtils.processBuckets(composite, "foo", new RollupJobStats(), groupConfig.build(), "foo");
         assertThat(docs.size(), equalTo(1));
@@ -383,7 +384,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         });
 
         GroupConfig.Builder groupConfig = ConfigTestHelpers.getGroupConfig();
-        groupConfig.setHisto(ConfigTestHelpers.getHisto().setFields(Collections.singletonList("abc")).build());
+        groupConfig.setHisto(randomHistogramGroupConfig(random()));
 
         List<IndexRequest> docs = IndexerUtils.processBuckets(composite, "foo", new RollupJobStats(), groupConfig.build(), "foo");
         assertThat(docs.size(), equalTo(1));

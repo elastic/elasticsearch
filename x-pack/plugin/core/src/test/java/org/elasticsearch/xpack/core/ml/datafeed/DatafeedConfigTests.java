@@ -140,7 +140,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
 
     @Override
     protected DatafeedConfig doParseInstance(XContentParser parser) {
-        return DatafeedConfig.CONFIG_PARSER.apply(parser, null).build();
+        return DatafeedConfig.STRICT_PARSER.apply(parser, null).build();
     }
 
     private static final String FUTURE_DATAFEED = "{\n" +
@@ -156,7 +156,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, FUTURE_DATAFEED);
         XContentParseException e = expectThrows(XContentParseException.class,
-                () -> DatafeedConfig.CONFIG_PARSER.apply(parser, null).build());
+                () -> DatafeedConfig.STRICT_PARSER.apply(parser, null).build());
         assertEquals("[6:5] [datafeed_config] unknown field [tomorrows_technology_today], parser not found", e.getMessage());
     }
 
@@ -164,7 +164,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, FUTURE_DATAFEED);
         // Unlike the config version of this test, the metadata parser should tolerate the unknown future field
-        assertNotNull(DatafeedConfig.METADATA_PARSER.apply(parser, null).build());
+        assertNotNull(DatafeedConfig.LENIENT_PARSER.apply(parser, null).build());
     }
 
     public void testCopyConstructor() {

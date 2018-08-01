@@ -23,6 +23,7 @@ import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Locals.LocalMethod;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
@@ -126,21 +127,21 @@ public final class ELambda extends AExpression implements ILambda {
                         "[" + PainlessLookupUtility.typeToCanonicalTypeName(expected) + "], not a functional interface"));
             }
             // check arity before we manipulate parameters
-            if (interfaceMethod.arguments.size() != paramTypeStrs.size())
-                throw new IllegalArgumentException("Incorrect number of parameters for [" + interfaceMethod.name +
+            if (interfaceMethod.typeParameters.size() != paramTypeStrs.size())
+                throw new IllegalArgumentException("Incorrect number of parameters for [" + interfaceMethod.javaMethod.getName() +
                         "] in [" + PainlessLookupUtility.typeToCanonicalTypeName(expected) + "]");
             // for method invocation, its allowed to ignore the return value
-            if (interfaceMethod.rtn == void.class) {
+            if (interfaceMethod.returnType == void.class) {
                 returnType = def.class;
             } else {
-                returnType = interfaceMethod.rtn;
+                returnType = interfaceMethod.returnType;
             }
             // replace any null types with the actual type
             actualParamTypeStrs = new ArrayList<>(paramTypeStrs.size());
             for (int i = 0; i < paramTypeStrs.size(); i++) {
                 String paramType = paramTypeStrs.get(i);
                 if (paramType == null) {
-                    actualParamTypeStrs.add(PainlessLookupUtility.typeToCanonicalTypeName(interfaceMethod.arguments.get(i)));
+                    actualParamTypeStrs.add(PainlessLookupUtility.typeToCanonicalTypeName(interfaceMethod.typeParameters.get(i)));
                 } else {
                     actualParamTypeStrs.add(paramType);
                 }
@@ -183,20 +184,22 @@ public final class ELambda extends AExpression implements ILambda {
         } else {
             defPointer = null;
             try {
-                ref = new FunctionRef(expected, interfaceMethod, desugared.method, captures.size());
+                LocalMethod localMethod =
+                        new LocalMethod(desugared.name, desugared.returnType, desugared.typeParameters, desugared.methodType);
+                ref = new FunctionRef(expected, interfaceMethod, localMethod, captures.size());
             } catch (IllegalArgumentException e) {
                 throw createError(e);
             }
 
             // check casts between the interface method and the delegate method are legal
-            for (int i = 0; i < interfaceMethod.arguments.size(); ++i) {
-                Class<?> from = interfaceMethod.arguments.get(i);
+            for (int i = 0; i < interfaceMethod.typeParameters.size(); ++i) {
+                Class<?> from = interfaceMethod.typeParameters.get(i);
                 Class<?> to = desugared.parameters.get(i + captures.size()).clazz;
                 AnalyzerCaster.getLegalCast(location, from, to, false, true);
             }
 
-            if (interfaceMethod.rtn != void.class) {
-                AnalyzerCaster.getLegalCast(location, desugared.rtnType, interfaceMethod.rtn, false, true);
+            if (interfaceMethod.returnType != void.class) {
+                AnalyzerCaster.getLegalCast(location, desugared.returnType, interfaceMethod.returnType, false, true);
             }
 
             actual = expected;

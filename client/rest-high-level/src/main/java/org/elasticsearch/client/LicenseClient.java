@@ -99,7 +99,8 @@ public class LicenseClient {
     }
 
 
-    /** Converts an entire response into a json sting
+    /**
+     * Converts an entire response into a json sting
      *
      * This is useful for responses that we don't parse on the client side, but instead work as string
      * such as in case of the license JSON

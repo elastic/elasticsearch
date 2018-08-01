@@ -95,6 +95,8 @@ public final class Messages {
             "Invalid detector rule: function {0} only supports conditions that apply to time";
     public static final String JOB_CONFIG_DETECTION_RULE_REQUIRES_SCOPE_OR_CONDITION =
             "Invalid detector rule: at least scope or a condition is required";
+    public static final String JOB_CONFIG_DETECTION_RULE_SCOPE_NO_AVAILABLE_FIELDS =
+            "Invalid detector rule: scope field ''{0}'' is invalid; detector has no available fields for scoping";
     public static final String JOB_CONFIG_DETECTION_RULE_SCOPE_HAS_INVALID_FIELD =
             "Invalid detector rule: scope field ''{0}'' is invalid; select from {1}";
     public static final String JOB_CONFIG_FIELDNAME_INCOMPATIBLE_FUNCTION = "field_name cannot be used with function ''{0}''";

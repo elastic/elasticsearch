@@ -65,6 +65,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -200,6 +201,8 @@ public abstract class ESTestCase extends LuceneTestCase {
         System.setProperty("log4j.shutdownHookEnabled", "false");
         System.setProperty("log4j2.disable.jmx", "true");
 
+        LogConfigurator.loadLog4jPlugins();
+
         // Enable Netty leak detection and monitor logger for logged leak errors
         System.setProperty("io.netty.leakDetection.level", "paranoid");
         String leakLoggerName = "io.netty.util.ResourceLeakDetector";
@@ -321,7 +324,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @Before
     public final void before()  {
-        logger.info("[{}]: before test", getTestName());
+        logger.info("{}before test", getTestParamsForLogging());
         assertNull("Thread context initialized twice", threadContext);
         if (enableWarningsCheck()) {
             this.threadContext = new ThreadContext(Settings.EMPTY);
@@ -350,7 +353,16 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
         ensureAllSearchContextsReleased();
         ensureCheckIndexPassed();
-        logger.info("[{}]: after test", getTestName());
+        logger.info("{}after test", getTestParamsForLogging());
+    }
+
+    private String getTestParamsForLogging() {
+        String name = getTestName();
+        int start = name.indexOf('{');
+        if (start < 0) return "";
+        int end = name.lastIndexOf('}');
+        if (end < 0) return "";
+        return "[" + name.substring(start + 1, end) + "] ";
     }
 
     private void ensureNoWarnings() throws IOException {

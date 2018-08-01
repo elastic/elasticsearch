@@ -10,7 +10,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsTestHelper;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
@@ -27,6 +26,9 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
@@ -39,8 +41,14 @@ import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
+import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.common.xcontent.DeprecationHandler.THROW_UNSUPPORTED_OPERATION;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.equalTo;
 
 public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSingleNodeAllocateStep> {
 
@@ -80,7 +88,18 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         return new SetSingleNodeAllocateStep(instance.getKey(), instance.getNextStepKey(), client);
     }
 
-    public void testPerformActionNoAttrs() {
+    public static void assertSettingsRequestContainsValueFrom(UpdateSettingsRequest request, String settingsKey,
+                                                              Set<String> acceptableValues, boolean assertOnlyKeyInSettings,
+                                                              String... expectedIndices) {
+        assertNotNull(request);
+        assertArrayEquals(expectedIndices, request.indices());
+        assertThat(request.settings().get(settingsKey), anyOf(acceptableValues.stream().map(e -> equalTo(e)).collect(Collectors.toList())));
+        if (assertOnlyKeyInSettings) {
+            assertEquals(1, request.settings().size());
+        }
+    }
+
+    public void testPerformActionNoAttrs() throws IOException {
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         Index index = indexMetaData.getIndex();
@@ -101,7 +120,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         assertNodeSelected(indexMetaData, index, validNodeNames, nodes);
     }
 
-    public void testPerformActionAttrsAllNodesValid() {
+    public void testPerformActionAttrsAllNodesValid() throws IOException {
         int numAttrs = randomIntBetween(1, 10);
         String[][] validAttrs = new String[numAttrs][2];
         for (int i = 0; i < numAttrs; i++) {
@@ -132,7 +151,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         assertNodeSelected(indexMetaData, index, validNodeNames, nodes);
     }
 
-    public void testPerformActionAttrsSomeNodesValid() {
+    public void testPerformActionAttrsSomeNodesValid() throws IOException {
         String[] validAttr = new String[] { "box_type", "valid" };
         String[] invalidAttr = new String[] { "box_type", "not_valid" };
         Settings.Builder indexSettings = settings(Version.CURRENT);
@@ -237,7 +256,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
                 UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
                 @SuppressWarnings("unchecked")
                 ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
-                UpdateSettingsTestHelper.assertSettingsRequestContainsValueFrom(request,
+                assertSettingsRequestContainsValueFrom(request,
                         IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_name", validNodeNames, true,
                         indexMetaData.getIndex().getName());
                 listener.onFailure(exception);
@@ -325,7 +344,8 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         Mockito.verifyZeroInteractions(client);
     }
 
-    private void assertNodeSelected(IndexMetaData indexMetaData, Index index, Set<String> validNodeNames, DiscoveryNodes.Builder nodes) {
+    private void assertNodeSelected(IndexMetaData indexMetaData, Index index,
+                                    Set<String> validNodeNames, DiscoveryNodes.Builder nodes) throws IOException {
         ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder().fPut(index.getName(),
                 indexMetaData);
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
@@ -340,6 +360,13 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
 
         Mockito.when(client.admin()).thenReturn(adminClient);
         Mockito.when(adminClient.indices()).thenReturn(indicesClient);
+
+        final UpdateSettingsResponse response;
+        try (XContentParser parser = XContentType.JSON.xContent()
+                .createParser(NamedXContentRegistry.EMPTY, THROW_UNSUPPORTED_OPERATION, "{\"acknowledged\": true}")) {
+            response = UpdateSettingsResponse.fromXContent(parser);
+        }
+
         Mockito.doAnswer(new Answer<Void>() {
 
             @Override
@@ -347,10 +374,10 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
                 UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
                 @SuppressWarnings("unchecked")
                 ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
-                UpdateSettingsTestHelper.assertSettingsRequestContainsValueFrom(request,
+                assertSettingsRequestContainsValueFrom(request,
                         IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_name", validNodeNames, true,
                         indexMetaData.getIndex().getName());
-                listener.onResponse(UpdateSettingsTestHelper.createMockResponse(true));
+                listener.onResponse(response);
                 return null;
             }
 

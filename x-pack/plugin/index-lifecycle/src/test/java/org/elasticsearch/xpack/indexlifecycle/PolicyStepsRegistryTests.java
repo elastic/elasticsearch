@@ -105,9 +105,10 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         }
         Map<String, LifecyclePolicyMetadata> policyMap = Collections.singletonMap(newPolicy.getName(),
                 new LifecyclePolicyMetadata(newPolicy, headers));
+        IndexLifecycleMetadata lifecycleMetadata = new IndexLifecycleMetadata(policyMap, OperationMode.RUNNING);
         MetaData metaData = MetaData.builder()
             .persistentSettings(settings(Version.CURRENT).build())
-            .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, OperationMode.RUNNING))
+            .putCustom(IndexLifecycleMetadata.TYPE, lifecycleMetadata)
             .build();
         String nodeId = randomAlphaOfLength(10);
         DiscoveryNode masterNode = DiscoveryNode.createLocal(settings(Version.CURRENT)
@@ -122,7 +123,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         PolicyStepsRegistry registry = new PolicyStepsRegistry();
 
         // add new policy
-        registry.update(currentState, client, () -> 0L);
+        registry.update(lifecycleMetadata, client, () -> 0L);
 
         assertThat(registry.getFirstStep(newPolicy.getName()), equalTo(policySteps.get(0)));
         assertThat(registry.getLifecyclePolicyMap().size(), equalTo(1));
@@ -140,18 +141,18 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         Map<String, LifecyclePolicyMetadata> registryPolicyMap = registry.getLifecyclePolicyMap();
         Map<String, Step> registryFirstStepMap = registry.getFirstStepMap();
         Map<String, Map<Step.StepKey, Step>> registryStepMap = registry.getStepMap();
-        registry.update(currentState, client, () -> 0L);
+        registry.update(lifecycleMetadata, client, () -> 0L);
         assertThat(registry.getLifecyclePolicyMap(), equalTo(registryPolicyMap));
         assertThat(registry.getFirstStepMap(), equalTo(registryFirstStepMap));
         assertThat(registry.getStepMap(), equalTo(registryStepMap));
 
         // remove policy
+        lifecycleMetadata = new IndexLifecycleMetadata(Collections.emptyMap(), OperationMode.RUNNING);
         currentState = ClusterState.builder(currentState)
             .metaData(
                 MetaData.builder(metaData)
-                    .putCustom(IndexLifecycleMetadata.TYPE,
-                        new IndexLifecycleMetadata(Collections.emptyMap(), OperationMode.RUNNING))).build();
-        registry.update(currentState, client, () -> 0L);
+                    .putCustom(IndexLifecycleMetadata.TYPE, lifecycleMetadata)).build();
+        registry.update(lifecycleMetadata, client, () -> 0L);
         assertTrue(registry.getLifecyclePolicyMap().isEmpty());
         assertTrue(registry.getFirstStepMap().isEmpty());
         assertTrue(registry.getStepMap().isEmpty());
@@ -169,9 +170,10 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         }
         Map<String, LifecyclePolicyMetadata> policyMap = Collections.singletonMap(newPolicy.getName(),
                 new LifecyclePolicyMetadata(newPolicy, headers));
+        IndexLifecycleMetadata lifecycleMetadata = new IndexLifecycleMetadata(policyMap, OperationMode.RUNNING);
         MetaData metaData = MetaData.builder()
             .persistentSettings(settings(Version.CURRENT).build())
-            .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, OperationMode.RUNNING))
+            .putCustom(IndexLifecycleMetadata.TYPE, lifecycleMetadata)
             .build();
         String nodeId = randomAlphaOfLength(10);
         DiscoveryNode masterNode = DiscoveryNode.createLocal(settings(Version.CURRENT)
@@ -183,18 +185,15 @@ public class PolicyStepsRegistryTests extends ESTestCase {
             .build();
         PolicyStepsRegistry registry = new PolicyStepsRegistry();
         // add new policy
-        registry.update(currentState, client, () -> 0L);
+        registry.update(lifecycleMetadata, client, () -> 0L);
 
         // swap out policy
         newPolicy = LifecyclePolicyTests.randomLifecyclePolicy(policyName);
+        lifecycleMetadata = new IndexLifecycleMetadata(Collections.singletonMap(policyName,
+                                                new LifecyclePolicyMetadata(newPolicy, Collections.emptyMap())), OperationMode.RUNNING);
         currentState = ClusterState.builder(currentState)
-            .metaData(
-                MetaData.builder(metaData)
-                    .putCustom(IndexLifecycleMetadata.TYPE,
-                                        new IndexLifecycleMetadata(Collections.singletonMap(policyName,
-                                                new LifecyclePolicyMetadata(newPolicy, Collections.emptyMap())), OperationMode.RUNNING)))
-                .build();
-        registry.update(currentState, client, () -> 0L);
+            .metaData(MetaData.builder(metaData).putCustom(IndexLifecycleMetadata.TYPE, lifecycleMetadata)).build();
+        registry.update(lifecycleMetadata, client, () -> 0L);
         // TODO(talevy): assert changes... right now we do not support updates to policies. will require internal cleanup
     }
 }

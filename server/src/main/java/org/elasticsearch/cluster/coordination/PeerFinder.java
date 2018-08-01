@@ -98,20 +98,16 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
         }
     }
 
-    public void activate() {
+    public void activate(final DiscoveryNodes lastAcceptedNodes) {
         if (lifecycle.started() == false) {
             logger.debug("ignoring activation, not started");
             return;
         }
 
-        // Must not hold lock when calling out to Legislator to avoid a lock cycle
-        assert holdsLock() == false : "Peerfinder mutex is held in error";
-        final DiscoveryNodes lastAcceptedNodes = getLastAcceptedNodes();
-
         synchronized (mutex) {
             assert peerFinder.isPresent() == false;
-            peerFinder = Optional.of(new ActivePeerFinder());
-            peerFinder.get().start(lastAcceptedNodes);
+            peerFinder = Optional.of(new ActivePeerFinder(lastAcceptedNodes));
+            peerFinder.get().start();
         }
     }
 
@@ -181,8 +177,6 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
     protected void doClose() {
     }
 
-    protected abstract DiscoveryNodes getLastAcceptedNodes();
-
     protected abstract void onMasterFoundByProbe(DiscoveryNode masterNode, long term);
 
     public interface TransportAddressConnector {
@@ -195,6 +189,7 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
     }
 
     private class ActivePeerFinder {
+        private final DiscoveryNodes lastAcceptedNodes;
         boolean running;
         final Map<DiscoveryNode, FoundPeer> foundPeers; // TODO contemplate whether this needs periodic cleaning
         private final Set<TransportAddress> probedAddressesSinceLastWakeUp = new HashSet<>();
@@ -202,16 +197,17 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
         private final AtomicReference<List<TransportAddress>> lastResolvedAddresses = new AtomicReference<>(Collections.emptyList());
         private final Map<TransportAddress, DiscoveryNode> connectedNodes = newConcurrentMap();
 
-        ActivePeerFinder() {
+        ActivePeerFinder(DiscoveryNodes lastAcceptedNodes) {
+            this.lastAcceptedNodes = lastAcceptedNodes;
             foundPeers = newConcurrentMap();
             foundPeers.put(getLocalNode(), new FoundPeer(getLocalNode()));
         }
 
-        void start(DiscoveryNodes lastAcceptedNodes) {
+        void start() {
             assert holdsLock() : "PeerFinder mutex not held";
             assert running == false;
             running = true;
-            handleWakeUpUnderLock(lastAcceptedNodes);
+            handleWakeUpUnderLock();
         }
 
         void stop() {
@@ -221,17 +217,12 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
         }
 
         private void handleWakeUp() {
-            // Must not hold lock when calling out to Legislator to avoid a lock cycle
-            // TODO can we avoid calling out at all and just pass lastAcceptedNodes in? Need to be able to get a new value
-            // somehow on a wakeup.
-            assert holdsLock() == false : "Peerfinder mutex is held in error";
-            final DiscoveryNodes lastAcceptedNodes = getLastAcceptedNodes();
             synchronized (mutex) {
-                handleWakeUpUnderLock(lastAcceptedNodes);
+                handleWakeUpUnderLock();
             }
         }
 
-        private void handleWakeUpUnderLock(DiscoveryNodes lastAcceptedNodes) {
+        private void handleWakeUpUnderLock() {
             assert holdsLock() : "PeerFinder mutex not held";
 
             if (running == false) {

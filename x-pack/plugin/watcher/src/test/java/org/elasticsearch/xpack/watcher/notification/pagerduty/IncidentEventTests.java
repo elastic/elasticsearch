@@ -114,7 +114,6 @@ public class IncidentEventTests extends ESTestCase {
                 }
             } else if (IncidentEvent.Fields.PAYLOAD.match(currentFieldName, parser.getDeprecationHandler())) {
                 // this is a nested object containing a few interesting bits
-                //actualPayload = new Payload.Simple(parser.map());
                 if (token != XContentParser.Token.START_OBJECT) {
                     fail("payload was not an object");
                 }

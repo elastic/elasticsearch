@@ -30,13 +30,13 @@ archivesBaseName = 'elasticsearch-benchmarks'
 test.enabled = false
 
 dependencies {
-    bundle("org.elasticsearch:elasticsearch:${version}") {
+    compile("org.elasticsearch:elasticsearch:${version}") {
         // JMH ships with the conflicting version 4.6. This prevents us from using jopt-simple in benchmarks (which should be ok) but allows
         // us to invoke the JMH uberjar as usual.
         exclude group: 'net.sf.jopt-simple', module: 'jopt-simple'
     }
-    bundle "org.openjdk.jmh:jmh-core:$versions.jmh"
-    bundle "org.openjdk.jmh:jmh-generator-annprocess:$versions.jmh"
+    compile "org.openjdk.jmh:jmh-core:$versions.jmh"
+    compile "org.openjdk.jmh:jmh-generator-annprocess:$versions.jmh"
     // Dependencies of JMH
     runtime 'net.sf.jopt-simple:jopt-simple:4.6'
     runtime 'org.apache.commons:commons-math3:3.2'
@@ -53,12 +53,6 @@ forbiddenApisMain.enabled = false
 // No licenses for our benchmark deps (we don't ship benchmarks)
 dependencyLicenses.enabled = false
 dependenciesInfo.enabled = false
-
-/*
- * Javadocs are a waste of time because we try to make them produce
- * nice output with shading.
- */
-javadoc.enabled = false
 
 thirdPartyAudit.excludes = [
         // these classes intentionally use JDK internal API (and this is ok since the project is maintained by Oracle employees)

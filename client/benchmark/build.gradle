@@ -33,26 +33,20 @@ mainClassName = 'org.elasticsearch.client.benchmark.BenchmarkMain'
 test.enabled = false
 
 dependencies {
-  bundle 'org.apache.commons:commons-math3:3.2'
+  compile 'org.apache.commons:commons-math3:3.2'
 
-  bundle("org.elasticsearch.client:elasticsearch-rest-client:${version}")
+  compile("org.elasticsearch.client:elasticsearch-rest-client:${version}")
   // bottleneck should be the client, not Elasticsearch
-  bundle project(path: ':client:client-benchmark-noop-api-plugin')
+  compile project(path: ':client:client-benchmark-noop-api-plugin')
   // for transport client
-  bundle("org.elasticsearch:elasticsearch:${version}")
-  bundle("org.elasticsearch.client:transport:${version}")
-  bundle project(path: ':modules:transport-netty4', configuration: 'runtime')
-  bundle project(path: ':modules:reindex', configuration: 'runtime')
-  bundle project(path: ':modules:lang-mustache', configuration: 'runtime')
-  bundle project(path: ':modules:percolator', configuration: 'runtime')
+  compile("org.elasticsearch:elasticsearch:${version}")
+  compile("org.elasticsearch.client:transport:${version}")
+  compile project(path: ':modules:transport-netty4', configuration: 'runtime')
+  compile project(path: ':modules:reindex', configuration: 'runtime')
+  compile project(path: ':modules:lang-mustache', configuration: 'runtime')
+  compile project(path: ':modules:percolator', configuration: 'runtime')
 }
 
 // No licenses for our benchmark deps (we don't ship benchmarks)
 dependencyLicenses.enabled = false
 dependenciesInfo.enabled = false
-
-/*
- * Javadocs are a waste of time because we try to make them produce
- * nice output with shading.
- */
-javadoc.enabled = false

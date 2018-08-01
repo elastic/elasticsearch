@@ -21,7 +21,7 @@ import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSou
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.rollup.RollupField;
-import org.elasticsearch.xpack.core.rollup.job.DateHistoGroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.IndexerState;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
@@ -208,7 +208,7 @@ public abstract class RollupIndexer {
 
                 // rounds the current time to its current bucket based on the date histogram interval.
                 // this is needed to exclude buckets that can still receive new documents.
-                DateHistoGroupConfig dateHisto = job.getConfig().getGroupConfig().getDateHisto();
+                DateHistogramGroupConfig dateHisto = job.getConfig().getGroupConfig().getDateHisto();
                 long rounded = dateHisto.createRounding().round(now);
                 if (dateHisto.getDelay() != null) {
                     // if the job has a delay we filter all documents that appear before it.
@@ -413,7 +413,7 @@ public abstract class RollupIndexer {
      */
     private QueryBuilder createBoundaryQuery(Map<String, Object> position) {
         assert maxBoundary < Long.MAX_VALUE;
-        DateHistoGroupConfig dateHisto = job.getConfig().getGroupConfig().getDateHisto();
+        DateHistogramGroupConfig dateHisto = job.getConfig().getGroupConfig().getDateHisto();
         String fieldName = dateHisto.getField();
         String rollupFieldName = fieldName + "."  + DateHistogramAggregationBuilder.NAME;
         long lowerBound = 0L;

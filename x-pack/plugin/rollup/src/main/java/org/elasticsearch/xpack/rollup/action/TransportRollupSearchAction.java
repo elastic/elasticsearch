@@ -56,7 +56,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.RollupJobCaps;
 import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
-import org.elasticsearch.xpack.core.rollup.job.DateHistoGroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 import org.elasticsearch.xpack.rollup.Rollup;
 import org.elasticsearch.xpack.rollup.RollupJobIdentifierUtils;
 import org.elasticsearch.xpack.rollup.RollupRequestTranslator;
@@ -328,10 +328,10 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
 
                         // If the cap is for a date_histo, and the query is a range, the timezones need to match
                         if (type.equals(DateHistogramAggregationBuilder.NAME) && timeZone != null) {
-                            boolean matchingTZ = ((String)agg.get(DateHistoGroupConfig.TIME_ZONE.getPreferredName()))
+                            boolean matchingTZ = ((String)agg.get(DateHistogramGroupConfig.TIME_ZONE))
                                 .equalsIgnoreCase(timeZone);
                             if (matchingTZ == false) {
-                                incompatibleTimeZones.add((String)agg.get(DateHistoGroupConfig.TIME_ZONE.getPreferredName()));
+                                incompatibleTimeZones.add((String)agg.get(DateHistogramGroupConfig.TIME_ZONE));
                             }
                             return matchingTZ;
                         }

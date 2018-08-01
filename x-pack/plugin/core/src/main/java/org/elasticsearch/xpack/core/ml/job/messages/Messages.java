@@ -92,7 +92,7 @@ public final class Messages {
     public static final String JOB_CONFIG_CATEGORIZATION_ANALYZER_REQUIRES_CATEGORIZATION_FIELD_NAME =
             "categorization_analyzer requires setting categorization_field_name";
     public static final String JOB_CONFIG_DETECTION_RULE_NOT_SUPPORTED_BY_FUNCTION =
-            "Invalid detector rule: function {0} does not support rules with conditions";
+            "Invalid detector rule: function {0} only supports conditions that apply to time";
     public static final String JOB_CONFIG_DETECTION_RULE_REQUIRES_SCOPE_OR_CONDITION =
             "Invalid detector rule: at least scope or a condition is required";
     public static final String JOB_CONFIG_DETECTION_RULE_SCOPE_HAS_INVALID_FIELD =

@@ -135,10 +135,12 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 String pipeline = indexRequest.getPipeline();
                 if (pipeline == null) {
                     IndexMetaData indexMetaData = indicesMetaData.get(indexRequest.index());
-                    if (indexMetaData != null) {
+                    if (indexMetaData == null) {
+                        indexRequest.setPipeline(IngestService.NOOP_PIPELINE_NAME);
+                    } else {
                         String defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(indexMetaData.getSettings());
+                        indexRequest.setPipeline(defaultPipeline);
                         if (IngestService.NOOP_PIPELINE_NAME.equals(defaultPipeline) == false) {
-                            indexRequest.setPipeline(defaultPipeline);
                             hasIndexRequestsWithPipelines = true;
                         }
                     }

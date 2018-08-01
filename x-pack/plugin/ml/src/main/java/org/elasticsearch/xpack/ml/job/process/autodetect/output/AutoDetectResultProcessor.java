@@ -485,7 +485,7 @@ public class AutoDetectResultProcessor {
      * @return The {@link FlushAcknowledgement} if the flush has completed or the parsing finished; {@code null} if the timeout expired
      */
     @Nullable
-    public FlushAcknowledgement waitForFlushAcknowledgement(String flushId, Duration timeout) {
+    public FlushAcknowledgement waitForFlushAcknowledgement(String flushId, Duration timeout) throws InterruptedException {
         return failed ? null : flushListener.waitForFlush(flushId, timeout);
     }
 

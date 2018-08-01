@@ -17,8 +17,12 @@ import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
+import static com.carrotsearch.randomizedtesting.generators.RandomNumbers.randomIntBetween;
+import static com.carrotsearch.randomizedtesting.generators.RandomStrings.randomAsciiAlphanumOfLengthBetween;
 
 public class ConfigTestHelpers {
 
@@ -49,7 +53,7 @@ public class ConfigTestHelpers {
             groupBuilder.setHisto(getHisto().build());
         }
         if (ESTestCase.randomBoolean()) {
-            groupBuilder.setTerms(getTerms().build());
+            groupBuilder.setTerms(randomTermsGroupConfig(ESTestCase.random()));
         }
         return groupBuilder;
     }
@@ -105,12 +109,6 @@ public class ConfigTestHelpers {
         return histoBuilder;
     }
 
-    public static TermsGroupConfig.Builder getTerms() {
-        TermsGroupConfig.Builder builder = new TermsGroupConfig.Builder();
-        builder.setFields(getFields());
-        return builder;
-    }
-
     public static  List<String> getFields() {
         return IntStream.range(0, ESTestCase.randomIntBetween(1, 10))
                 .mapToObj(n -> ESTestCase.randomAlphaOfLengthBetween(5, 10))
@@ -125,5 +123,22 @@ public class ConfigTestHelpers {
                 " " + (ESTestCase.randomBoolean() ? "*" : String.valueOf(ESTestCase.randomIntBetween(1, 12)))      + //month
                 " ?"                                                                         + //day of week
                 " " + (ESTestCase.randomBoolean() ? "*" : String.valueOf(ESTestCase.randomIntBetween(1970, 2199)));  //year
+    }
+
+    public static TermsGroupConfig randomTermsGroupConfig(final Random random) {
+        return new TermsGroupConfig(randomFields(random));
+    }
+
+    private static String[] randomFields(final Random random) {
+        final int numFields = randomIntBetween(random, 1, 10);
+        final String[] fields = new String[numFields];
+        for (int i = 0; i < numFields; i++) {
+            fields[i] = randomField(random);
+        }
+        return fields;
+    }
+
+    private static String randomField(final Random random) {
+        return randomAsciiAlphanumOfLengthBetween(random, 5, 10);
     }
 }

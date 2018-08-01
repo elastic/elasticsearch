@@ -41,6 +41,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
@@ -110,6 +111,7 @@ public class PeerFinderTests extends ESTestCase {
 
     static class TestPeerFinder extends PeerFinder {
         DiscoveryNode discoveredMasterNode;
+        OptionalLong discoveredMasterTerm = OptionalLong.empty();
 
         TestPeerFinder(Settings settings, TransportService transportService, UnicastHostsProvider hostsProvider,
                        FutureExecutor futureExecutor, TransportAddressConnector transportAddressConnector,
@@ -121,7 +123,9 @@ public class PeerFinderTests extends ESTestCase {
         protected void onMasterFoundByProbe(DiscoveryNode masterNode, long term) {
             assert holdsLock() == false : "PeerFinder lock held in error";
             assertThat(discoveredMasterNode, nullValue());
+            assertFalse(discoveredMasterTerm.isPresent());
             discoveredMasterNode = masterNode;
+            discoveredMasterTerm = OptionalLong.of(term);
         }
     }
 
@@ -368,6 +372,7 @@ public class PeerFinderTests extends ESTestCase {
         runAllRunnableTasks();
         assertFoundPeers(otherNode, discoveredMaster);
         assertThat(peerFinder.discoveredMasterNode, nullValue());
+        assertFalse(peerFinder.discoveredMasterTerm.isPresent());
     }
 
     public void testHandlesDiscoveryOfMasterFromResponseFromMaster() {
@@ -380,14 +385,16 @@ public class PeerFinderTests extends ESTestCase {
 
         assertFoundPeers(otherNode);
 
+        final long term = randomNonNegativeLong();
         respondToRequests(node -> {
             assertThat(node, is(otherNode));
-            return new PeersResponse(Optional.of(otherNode), emptyList(), randomNonNegativeLong());
+            return new PeersResponse(Optional.of(otherNode), emptyList(), term);
         });
 
         runAllRunnableTasks();
         assertFoundPeers(otherNode);
         assertThat(peerFinder.discoveredMasterNode, is(otherNode));
+        assertThat(peerFinder.discoveredMasterTerm, is(OptionalLong.of(term)));
     }
 
     public void testOnlyRequestsPeersOncePerRoundButDoesRetryNextRound() {

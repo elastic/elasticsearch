@@ -21,7 +21,6 @@ package org.elasticsearch.index.translog;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 
-import java.io.EOFException;
 import java.io.IOException;
 import java.nio.file.Path;
 

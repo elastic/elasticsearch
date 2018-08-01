@@ -31,6 +31,11 @@ public abstract class BinaryStringFunction<T,R> extends BinaryScalarFunction {
         super(location, left, right);
     }
 
+    /*
+     * the operation the binary function handles can receive one String argument, a number or String as second argument
+     * and it can return a number or a String. The BiFunction below is the base operation for the subsequent implementations.
+     * T is the second argument, R is the result of applying the operation.
+     */
     protected abstract BiFunction<String, T, R> operation();
 
     @Override

@@ -107,6 +107,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
+import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
@@ -1162,6 +1163,14 @@ final class RequestConverters {
             parameters.putParam("acknowledge", "true");
         }
         request.setJsonEntity(putLicenseRequest.getLicenseDefinition());
+        return request;
+    }
+
+    static Request deleteLicense(DeleteLicenseRequest deleteLicenseRequest) {
+        Request request = new Request(HttpDelete.METHOD_NAME, "/_xpack/license");
+        Params parameters = new Params(request);
+        parameters.withTimeout(deleteLicenseRequest.timeout());
+        parameters.withMasterTimeout(deleteLicenseRequest.masterNodeTimeout());
         return request;
     }
 

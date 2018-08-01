@@ -20,6 +20,8 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
+import org.elasticsearch.protocol.xpack.license.DeleteLicenseResponse;
 import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 
@@ -54,13 +56,34 @@ public class LicenseClient {
     }
 
     /**
-     * Asynchronously updates license for the cluster cluster.
+     * Asynchronously updates license for the cluster.
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      */
     public void putLicenseAsync(PutLicenseRequest request, RequestOptions options, ActionListener<PutLicenseResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::putLicense, options,
             PutLicenseResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Deletes license from the cluster.
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public DeleteLicenseResponse deleteLicense(DeleteLicenseRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::deleteLicense, options,
+            DeleteLicenseResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously deletes license from the cluster.
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void deleteLicenseAsync(DeleteLicenseRequest request, RequestOptions options, ActionListener<DeleteLicenseResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::deleteLicense, options,
+            DeleteLicenseResponse::fromXContent, listener, emptySet());
     }
 
 }

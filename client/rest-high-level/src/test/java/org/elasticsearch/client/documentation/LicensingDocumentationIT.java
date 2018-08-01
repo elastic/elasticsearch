@@ -24,6 +24,9 @@ import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.common.Booleans;
+import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
+import org.elasticsearch.protocol.xpack.license.DeleteLicenseResponse;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
@@ -42,7 +45,8 @@ import static org.hamcrest.Matchers.startsWith;
  */
 public class LicensingDocumentationIT extends ESRestHighLevelClientTestCase {
 
-    public void testPutLicense() throws Exception {
+    @SuppressWarnings("unchecked")
+    public void testLicense() throws Exception {
         RestHighLevelClient client = highLevelClient();
         String license = "{\"license\": {\"uid\":\"893361dc-9749-4997-93cb-802e3d7fa4a8\",\"type\":\"gold\"," +
             "\"issue_date_in_millis\":1411948800000,\"expiry_date_in_millis\":1914278399999,\"max_nodes\":1,\"issued_to\":\"issued_to\"," +
@@ -80,7 +84,7 @@ public class LicensingDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::put-license-execute-listener
             ActionListener<PutLicenseResponse> listener = new ActionListener<PutLicenseResponse>() {
                 @Override
-                public void onResponse(PutLicenseResponse indexResponse) {
+                public void onResponse(PutLicenseResponse putLicenseResponse) {
                     // <1>
                 }
 
@@ -99,6 +103,51 @@ public class LicensingDocumentationIT extends ESRestHighLevelClientTestCase {
             client.xpack().license().putLicenseAsync(
                     request, RequestOptions.DEFAULT, listener); // <1>
             // end::put-license-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+
+        // we cannot actually delete the license, otherwise the remaining tests won't work
+        if (Booleans.isTrue("true")) {
+            return;
+        }
+        {
+            //tag::delete-license-execute
+            DeleteLicenseRequest request = new DeleteLicenseRequest();
+
+            DeleteLicenseResponse response = client.xpack().license().deleteLicense(request, RequestOptions.DEFAULT);
+            //end::delete-license-execute
+
+            //tag::delete-license-response
+            boolean acknowledged = response.isAcknowledged(); // <1>
+            //end::delete-license-response
+
+            assertTrue(acknowledged);
+        }
+        {
+            DeleteLicenseRequest request = new DeleteLicenseRequest();
+            // tag::delete-license-execute-listener
+            ActionListener<DeleteLicenseResponse> listener = new ActionListener<DeleteLicenseResponse>() {
+                @Override
+                public void onResponse(DeleteLicenseResponse deleteLicenseResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::delete-license-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::delete-license-execute-async
+            client.xpack().license().deleteLicenseAsync(
+                request, RequestOptions.DEFAULT, listener); // <1>
+            // end::delete-license-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

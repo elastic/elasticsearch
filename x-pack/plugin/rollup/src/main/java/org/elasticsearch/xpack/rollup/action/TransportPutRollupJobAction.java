@@ -45,10 +45,12 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.PutRollupJobAction;
+import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 import org.elasticsearch.xpack.rollup.Rollup;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -89,6 +91,7 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
             return;
         }
 
+        validate(request);
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
 
         FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest()
@@ -113,6 +116,23 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
                 listener.onFailure(e);
             }
         });
+    }
+
+    static void validate(final PutRollupJobAction.Request request) {
+        final RollupJobConfig rollupJobConfig = request.getConfig();
+        if (rollupJobConfig != null) {
+            final List<MetricConfig> metricsConfigs = rollupJobConfig.getMetricsConfig();
+            if (metricsConfigs != null) {
+                for (MetricConfig metricConfig : metricsConfigs) {
+                    metricConfig.getMetrics().forEach(m -> {
+                        if (RollupField.SUPPORTED_METRICS.contains(m) == false) {
+                            throw new IllegalArgumentException("Unsupported metric [" + m + "]. " +
+                                "Supported metrics include: " + RollupField.SUPPORTED_METRICS);
+                        }
+                    });
+                }
+            }
+        }
     }
 
     private static RollupJob createRollupJob(RollupJobConfig config, ThreadPool threadPool) {

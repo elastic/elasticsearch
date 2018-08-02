@@ -1420,12 +1420,12 @@ public class RequestConvertersTests extends ESTestCase {
     public void testMultiSearchTemplate() throws Exception {
         final int numSearchRequests = randomIntBetween(1, 10);
         MultiSearchTemplateRequest multiSearchTemplateRequest = new MultiSearchTemplateRequest();
-        Map<String, String> expectedParams2 = new HashMap<>();
-        expectedParams2.put(RestSearchAction.TYPED_KEYS_PARAM, "true");
-        setRandomGroupShardFailures(multiSearchTemplateRequest::groupShardFailures, expectedParams2);
+        Map<String, String> expectedParams = new HashMap<>();
+        expectedParams.put(RestSearchAction.TYPED_KEYS_PARAM, "true");
+        setRandomGroupShardFailures(multiSearchTemplateRequest::groupShardFailures, expectedParams);
         if (randomBoolean()) {
             multiSearchTemplateRequest.maxConcurrentSearchRequests(randomIntBetween(1, 8));
-            expectedParams2.put("max_concurrent_searches", Integer.toString(multiSearchTemplateRequest.maxConcurrentSearchRequests()));
+            expectedParams.put("max_concurrent_searches", Integer.toString(multiSearchTemplateRequest.maxConcurrentSearchRequests()));
         }
 
         for (int i = 0; i < numSearchRequests; i++) {
@@ -1461,7 +1461,7 @@ public class RequestConvertersTests extends ESTestCase {
 
         assertEquals(HttpPost.METHOD_NAME, multiRequest.getMethod());
         assertEquals("/_msearch/template", multiRequest.getEndpoint());
-        assertEquals(expectedParams2, multiRequest.getParameters());
+        assertEquals(expectedParams, multiRequest.getParameters());
         List<SearchTemplateRequest> searchRequests = multiSearchTemplateRequest.requests();
         assertEquals(numSearchRequests, searchRequests.size());
 

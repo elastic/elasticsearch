@@ -21,12 +21,10 @@ package org.elasticsearch.painless.lookup;
 
 import java.lang.invoke.MethodHandle;
 import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
-import java.util.stream.Collectors;
+import java.util.Set;
 
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.buildPainlessConstructorKey;
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.buildPainlessFieldKey;
@@ -39,20 +37,12 @@ public final class PainlessLookup {
     private final Map<String, Class<?>> canonicalClassNamesToClasses;
     private final Map<Class<?>, PainlessClass> classesToPainlessClasses;
 
-    private final List<Class<?>> sortedClassesByCanonicalClassName;
-
     PainlessLookup(Map<String, Class<?>> canonicalClassNamesToClasses, Map<Class<?>, PainlessClass> classesToPainlessClasses) {
         Objects.requireNonNull(canonicalClassNamesToClasses);
         Objects.requireNonNull(classesToPainlessClasses);
 
         this.canonicalClassNamesToClasses = Collections.unmodifiableMap(canonicalClassNamesToClasses);
         this.classesToPainlessClasses = Collections.unmodifiableMap(classesToPainlessClasses);
-
-        this.sortedClassesByCanonicalClassName = Collections.unmodifiableList(
-                classesToPainlessClasses.keySet().stream().sorted(
-                        Comparator.comparing(Class::getCanonicalName)
-                ).collect(Collectors.toList())
-        );
     }
 
     public boolean isValidCanonicalClassName(String canonicalClassName) {
@@ -67,8 +57,8 @@ public final class PainlessLookup {
         return PainlessLookupUtility.canonicalTypeNameToType(painlessType, canonicalClassNamesToClasses);
     }
 
-    public List<Class<?>> getSortedClassesByCanonicalClassName() {
-        return sortedClassesByCanonicalClassName;
+    public Set<Class<?>> getClasses() {
+        return classesToPainlessClasses.keySet();
     }
 
     public PainlessClass lookupPainlessClass(Class<?> targetClass) {

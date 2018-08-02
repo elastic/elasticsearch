@@ -56,7 +56,11 @@ public class PlainListenableActionFuture<T> extends AdapterActionFuture<T, T> im
     public void addListener(final ActionListener<T> listener) {
         whenComplete((val, throwable) -> {
             if (throwable == null) {
-                listener.onResponse(val);
+                try {
+                    listener.onResponse(val);
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                }
             } else {
                 assert throwable instanceof Exception : "Expected exception but was: " + throwable.getClass();
                 ExceptionsHelper.dieOnError(throwable);

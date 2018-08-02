@@ -44,7 +44,11 @@ public final class ListenableFuture<V> extends BaseFuture<V> implements ActionLi
     public void addListener(ActionListener<V> listener, ExecutorService executor) {
         whenCompleteAsync((val, throwable) -> {
             if (throwable == null) {
-                listener.onResponse(val);
+                try {
+                    listener.onResponse(val);
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                }
             } else {
                 assert throwable instanceof Exception : "Expected exception but was: " + throwable.getClass();
                 ExceptionsHelper.dieOnError(throwable);

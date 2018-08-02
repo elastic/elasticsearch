@@ -494,26 +494,6 @@
                 },
                 "libbeat": {
                   "properties": {
-                    "config": {
-                      "properties": {
-                        "module": {
-                          "properties": {
-                            "running": {
-                              "type": "long"
-                            },
-                            "starts": {
-                              "type": "long"
-                            },
-                            "stops": {
-                              "type": "long"
-                            }
-                          }
-                        },
-                        "reloads": {
-                          "type": "long"
-                        }
-                      }
-                    },
                     "output": {
                       "properties": {
                         "events": {

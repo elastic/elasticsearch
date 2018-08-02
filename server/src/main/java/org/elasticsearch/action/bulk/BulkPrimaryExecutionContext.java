@@ -229,8 +229,7 @@ class BulkPrimaryExecutionContext {
         currentItemState = ItemProcessingState.EXECUTED;
         final DocWriteRequest docWriteRequest = getCurrentItem().request();
         markAsCompleted(new BulkItemResponse(getCurrentItem().id(), docWriteRequest.opType(),
-            // Make sure to use request.index() here, if you
-            // use docWriteRequest.index() it will use the
+            // Make sure to use request.index() here, if you use docWriteRequest.index() it will use the
             // concrete index instead of an alias if used!
             new BulkItemResponse.Failure(getCurrentItem().index(), docWriteRequest.type(), docWriteRequest.id(), cause)));
     }

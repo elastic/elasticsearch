@@ -56,6 +56,7 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.coordination.PeerFinder.REQUEST_PEERS_ACTION_NAME;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -318,6 +319,29 @@ public class PeerFinderTests extends ESTestCase {
         runAllRunnableTasks();
 
         assertFoundPeers(otherKnownNode);
+    }
+
+    public void testRespondsToRequestWhenActive() {
+        final DiscoveryNode sourceNode = newDiscoveryNode("request-source");
+
+        transportAddressConnector.reachableNodes.add(sourceNode);
+
+        peerFinder.activate(lastAcceptedNodes);
+        final PeersResponse peersResponse1 = peerFinder.handlePeersRequest(new PeersRequest(sourceNode, Collections.emptyList()));
+        assertFalse(peersResponse1.getMasterNode().isPresent());
+        assertThat(peersResponse1.getKnownPeers(), empty()); // sourceNode is not yet known
+        assertThat(peersResponse1.getTerm(), is(0L));
+
+        runAllRunnableTasks();
+
+        assertFoundPeers(sourceNode);
+
+        final long updatedTerm = randomNonNegativeLong();
+        peerFinder.setCurrentTerm(updatedTerm);
+        final PeersResponse peersResponse2 = peerFinder.handlePeersRequest(new PeersRequest(sourceNode, Collections.emptyList()));
+        assertFalse(peersResponse2.getMasterNode().isPresent());
+        assertThat(peersResponse2.getKnownPeers(), contains(sourceNode));
+        assertThat(peersResponse2.getTerm(), is(updatedTerm));
     }
 
     public void testRequestsPeersIncludingKnownPeersInRequest() {

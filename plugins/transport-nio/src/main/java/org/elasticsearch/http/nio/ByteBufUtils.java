@@ -72,6 +72,30 @@ class ByteBufUtils {
         return buffer.alloc() instanceof UnpooledByteBufAllocator;
     }
 
+    /**
+     * Contrary to {@link #isUnpooled(ByteBuf)} which assumes that the top-level buffer's allocator is used for any associated buffers,
+     * this implementation does a more thorough check by inspecting all components of a <code>CompositeByteBuf</code>.
+     *
+     * @param buffer A byte buffer instance. Must not be null.
+     * @return <code>true</code> iff this byte buffer and all its components have been allocated outside of Netty's buffer pool.
+     */
+    static boolean isBufferHierarchyUnpooled(final ByteBuf buffer) {
+        if (isUnpooled(buffer)) {
+            if (buffer instanceof CompositeByteBuf) {
+                CompositeByteBuf compositeBuffer = (CompositeByteBuf) buffer;
+                for(int i = 0; i < compositeBuffer.numComponents(); i++) {
+                    // access the internal component to avoid duplicating the buffer (see CompositeByteBuf#component(int))
+                    if (isBufferHierarchyUnpooled(compositeBuffer.internalComponent(i)) == false) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        } else {
+            return false;
+        }
+    }
+
     static BytesReference toBytesReference(final ByteBuf buffer) {
         return new ByteBufBytesReference(buffer, buffer.readableBytes());
     }

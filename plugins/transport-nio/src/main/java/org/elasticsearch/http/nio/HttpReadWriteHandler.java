@@ -142,6 +142,7 @@ public class HttpReadWriteHandler implements ReadWriteHandler {
     static FullHttpRequest httpRequest(HttpPipelinedRequest<FullHttpRequest> pipelinedRequest) {
         FullHttpRequest request = pipelinedRequest.getRequest();
         if (ByteBufUtils.isUnpooled(request.content())) {
+            assert ByteBufUtils.isBufferHierarchyUnpooled(request.content()) : "request body contains unpooled and pooled buffers";
             // if the buffer is unpooled its lifecycle is managed by the garbage collector instead of Netty's internal
             // memory pool. Thus we we can avoiding copying the request content buffer and use the original request instead.
             return request;

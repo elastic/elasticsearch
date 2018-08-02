@@ -61,6 +61,7 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelined
     static FullHttpRequest httpRequest(HttpPipelinedRequest<FullHttpRequest> msg) {
         FullHttpRequest request = msg.getRequest();
         if (Netty4Utils.isUnpooled(request.content())) {
+            assert Netty4Utils.isBufferHierarchyUnpooled(request.content()) : "request body contains unpooled and pooled buffers";
             // if the buffer is unpooled its lifecycle is managed by the garbage collector instead of Netty's internal
             // memory pool. Thus we we can avoiding copying the request content buffer and use the original request instead.
             return request;

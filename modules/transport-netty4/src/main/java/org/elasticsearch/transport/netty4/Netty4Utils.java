@@ -171,6 +171,30 @@ public class Netty4Utils {
     }
 
     /**
+     * Contrary to {@link #isUnpooled(ByteBuf)} which assumes that the top-level buffer's allocator is used for any associated buffers,
+     * this implementation does a more thorough check by inspecting all components of a <code>CompositeByteBuf</code>.
+     *
+     * @param buffer A byte buffer instance. Must not be null.
+     * @return <code>true</code> iff this byte buffer and all its components have been allocated outside of Netty's buffer pool.
+     */
+    public static boolean isBufferHierarchyUnpooled(final ByteBuf buffer) {
+        if (isUnpooled(buffer)) {
+            if (buffer instanceof CompositeByteBuf) {
+                CompositeByteBuf compositeBuffer = (CompositeByteBuf) buffer;
+                for(int i = 0; i < compositeBuffer.numComponents(); i++) {
+                    // access the internal component to avoid duplicating the buffer (see CompositeByteBuf#component(int))
+                    if (isBufferHierarchyUnpooled(compositeBuffer.internalComponent(i)) == false) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    /**
      * If the specified cause is an unrecoverable error, this method will rethrow the cause on a separate thread so that it can not be
      * caught and bubbles up to the uncaught exception handler.
      *

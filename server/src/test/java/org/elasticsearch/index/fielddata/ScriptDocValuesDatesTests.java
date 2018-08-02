@@ -23,29 +23,74 @@ import org.elasticsearch.index.fielddata.ScriptDocValues.Dates;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.joda.time.ReadableDateTime;
 
 import java.io.IOException;
+import java.security.AccessControlContext;
+import java.security.AccessController;
+import java.security.PermissionCollection;
+import java.security.Permissions;
+import java.security.PrivilegedAction;
+import java.security.ProtectionDomain;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public class ScriptDocValuesDatesTests extends ESTestCase {
-    public void test() throws IOException {
+
+    public void testJavaTime() throws IOException {
+        assertDateDocValues(true);
+    }
+
+    public void testJodaTimeBwc() throws IOException {
+        assertDateDocValues(false, "The joda time api for doc values is deprecated." +
+            " Use -Des.scripting.use_java_time=true to use the java time api for date field doc values");
+    }
+
+    public void assertDateDocValues(boolean useJavaTime, String... expectedWarnings) throws IOException {
+        final Function<Long, Object> datetimeCtor;
+        if (useJavaTime) {
+            datetimeCtor = millis -> ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneOffset.UTC);
+        } else {
+            datetimeCtor = millis -> new DateTime(millis, DateTimeZone.UTC);
+        }
         long[][] values = new long[between(3, 10)][];
-        ReadableDateTime[][] expectedDates = new ReadableDateTime[values.length][];
+        Object[][] expectedDates = new Object[values.length][];
         for (int d = 0; d < values.length; d++) {
             values[d] = new long[randomBoolean() ? randomBoolean() ? 0 : 1 : between(2, 100)];
-            expectedDates[d] = new ReadableDateTime[values[d].length];
+            expectedDates[d] = new Object[values[d].length];
             for (int i = 0; i < values[d].length; i++) {
-                expectedDates[d][i] = new DateTime(randomNonNegativeLong(), DateTimeZone.UTC);
-                values[d][i] = expectedDates[d][i].getMillis();
+                values[d][i] = randomNonNegativeLong();
+                expectedDates[d][i] = datetimeCtor.apply(values[d][i]);
             }
         }
-        Dates dates = wrap(values);
+
+        Set<String> warnings = new HashSet<>();
+        Dates dates = wrap(values, deprecationMessage -> {
+            warnings.add(deprecationMessage);
+            /* Create a temporary directory to prove we are running with the
+             * server's permissions. */
+            createTempDir();
+        }, useJavaTime);
+        // each call to get or getValue will be run with limited permissions, just as they are in scripts
+        PermissionCollection noPermissions = new Permissions();
+        AccessControlContext noPermissionsAcc = new AccessControlContext(
+            new ProtectionDomain[] {
+                new ProtectionDomain(null, noPermissions)
+            }
+        );
+
         for (int round = 0; round < 10; round++) {
             int d = between(0, values.length - 1);
             dates.setNextDocId(d);
             if (expectedDates[d].length > 0) {
-                assertEquals(expectedDates[d][0] , dates.getValue());
+                Object dateValue = AccessController.doPrivileged((PrivilegedAction<Object>) dates::getValue, noPermissionsAcc);
+                assertEquals(expectedDates[d][0] , dateValue);
             } else {
                 Exception e = expectThrows(IllegalStateException.class, () -> dates.getValue());
                 assertEquals("A document doesn't have a value for a field! " +
@@ -54,15 +99,16 @@ public class ScriptDocValuesDatesTests extends ESTestCase {
 
             assertEquals(values[d].length, dates.size());
             for (int i = 0; i < values[d].length; i++) {
-                assertEquals(expectedDates[d][i], dates.get(i));
+                final int ndx = i;
+                Object dateValue = AccessController.doPrivileged((PrivilegedAction<Object>) () -> dates.get(ndx), noPermissionsAcc);
+                assertEquals(expectedDates[d][i], dateValue);
             }
-
-            Exception e = expectThrows(UnsupportedOperationException.class, () -> dates.add(new DateTime()));
-            assertEquals("doc values are unmodifiable", e.getMessage());
         }
+
+        assertThat(warnings, containsInAnyOrder(expectedWarnings));
     }
 
-    private Dates wrap(long[][] values) {
+    private Dates wrap(long[][] values, Consumer<String> deprecationHandler, boolean useJavaTime) {
         return new Dates(new AbstractSortedNumericDocValues() {
             long[] current;
             int i;
@@ -81,6 +127,6 @@ public class ScriptDocValuesDatesTests extends ESTestCase {
             public long nextValue() {
                 return current[i++];
             }
-        });
+        }, deprecationHandler, useJavaTime);
     }
 }

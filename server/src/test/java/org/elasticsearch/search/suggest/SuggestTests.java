@@ -19,9 +19,14 @@
 
 package org.elasticsearch.search.suggest;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -30,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
@@ -37,6 +43,7 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,6 +51,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
@@ -214,5 +222,48 @@ public class SuggestTests extends ESTestCase {
         assertEquals(highlighted, option1.getHighlighted());
         assertTrue(option1.getScore() > 0.7f);
         assertTrue(option1.collateMatch());
+    }
+
+    public void testSerialization() throws IOException {
+        System.out.println("RELEASED VERSIONS [" + VersionUtils.allReleasedVersions() + "] first [" + VersionUtils.getFirstVersion() +
+            " ]");
+        System.out.println("UNRELEASED VERSIONS [" + VersionUtils.allUnreleasedVersions() + "]");
+        System.out.println("CURRENT VERSION [" + Version.CURRENT + " ] MINIMUM COMPAT VERSION [" +
+            Version.CURRENT.minimumCompatibilityVersion() + " ]");
+
+        final Version bwcVersion = VersionUtils.randomVersionBetween(random(),
+            Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT);
+
+        System.out.println("BWC VERSION [" + bwcVersion + "]");
+
+        final Suggest suggest = createTestItem();
+        final Suggest bwcSuggest;
+
+        NamedWriteableRegistry registry = new NamedWriteableRegistry
+            (new SearchModule(Settings.EMPTY, false, emptyList()).getNamedWriteables());
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(bwcVersion);
+            suggest.writeTo(out);
+            try (NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry)) {
+                in.setVersion(Version.CURRENT);
+                bwcSuggest = new Suggest(in);
+            }
+        }
+
+        assertEquals(suggest, bwcSuggest);
+
+        final Suggest backAgain;
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(Version.CURRENT);
+            bwcSuggest.writeTo(out);
+            try (NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry)) {
+                in.setVersion(bwcVersion);
+                backAgain = new Suggest(in);
+            }
+        }
+
+        assertEquals(suggest, backAgain);
     }
 }

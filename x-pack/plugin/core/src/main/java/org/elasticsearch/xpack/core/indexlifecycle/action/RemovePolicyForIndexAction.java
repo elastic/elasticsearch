@@ -26,7 +26,7 @@ import java.util.Objects;
 
 public class RemovePolicyForIndexAction extends Action<RemovePolicyForIndexAction.Response> {
     public static final RemovePolicyForIndexAction INSTANCE = new RemovePolicyForIndexAction();
-    public static final String NAME = "indices:admin/xpack/index_lifecycle/remove_policy";
+    public static final String NAME = "indices:admin/ilm/remove_policy";
 
     protected RemovePolicyForIndexAction() {
         super(NAME);

@@ -3,6 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.core;
 
 import org.elasticsearch.common.settings.Setting;
@@ -74,7 +75,7 @@ public class XPackSettings {
     /**
      * Setting for enabling or disabling the index lifecycle extension. Defaults to true.
      */
-    public static final Setting<Boolean> INDEX_LIFECYCLE_ENABLED = Setting.boolSetting("xpack.index_lifecycle.enabled", true,
+    public static final Setting<Boolean> INDEX_LIFECYCLE_ENABLED = Setting.boolSetting("xpack.ilm.enabled", true,
         Setting.Property.NodeScope);
 
     /** Setting for enabling or disabling TLS. Defaults to false. */

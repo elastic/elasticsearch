@@ -1,0 +1,68 @@
+---
+setup:
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+---
+"Test Changing Operation Modes":
+  - do:
+      ilm.get_status: {}
+  - match: { operation_mode: "RUNNING" }
+
+  - do:
+      acknowlege: true
+      ilm.put_lifecycle:
+        lifecycle: "my_timeseries_lifecycle"
+        body: |
+           {
+             "policy": {
+               "type": "timeseries",
+               "phases": {
+                 "warm": {
+                   "after": "10s",
+                   "actions": {
+                     "forcemerge": {
+                       "max_num_segments": 10000
+                     }
+                   }
+                 },
+                 "delete": {
+                   "after": "30s",
+                   "actions": {
+                     "delete": {}
+                   }
+                 }
+               }
+             }
+           }
+
+  - do:
+      ilm.get_status: {}
+  - match: { operation_mode: "RUNNING" }
+
+  - do:
+      acknowledge: true
+      ilm.stop: {}
+
+  - do:
+      ilm.get_status: {}
+  - match: { operation_mode: "STOPPING" }
+
+  - do:
+      acknowledge: true
+      ilm.start: {}
+
+  - do:
+      ilm.get_status: {}
+  - match: { operation_mode: "RUNNING" }
+
+  - do:
+      acknowledge: true
+      ilm.delete_lifecycle:
+        lifecycle: "my_timeseries_lifecycle"
+
+  - do:
+      catch: missing
+      ilm.get_lifecycle:
+        lifecycle: "my_timeseries_lifecycle"

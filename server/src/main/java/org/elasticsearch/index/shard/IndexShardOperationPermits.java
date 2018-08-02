@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.shard;
 
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -29,6 +28,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -307,6 +307,11 @@ final class IndexShardOperationPermits implements Closeable {
         } else {
             return TOTAL_PERMITS - availablePermits;
         }
+    }
+
+
+    synchronized boolean isBlocked() {
+        return queuedBlockOperations > 0;
     }
 
     /**

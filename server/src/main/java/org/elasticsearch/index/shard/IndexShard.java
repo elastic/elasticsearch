@@ -481,14 +481,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             assert pendingPrimaryTerm == newPrimaryTerm :
                                 "shard term changed on primary. expected [" + newPrimaryTerm + "] but was [" + pendingPrimaryTerm + "]" +
                                 ", current routing: " + currentRouting + ", new routing: " + newRouting;
-                            assert operationPrimaryTerm < newPrimaryTerm;
+                            assert operationPrimaryTerm == newPrimaryTerm;
                             try {
-                                synchronized (mutex) {
-                                    assert shardRouting.primary();
-                                    // do these updates under the mutex as this otherwise races with subsequent calls of updateShardState
-                                    operationPrimaryTerm = newPrimaryTerm;
-                                    replicationTracker.activatePrimaryMode(getLocalCheckpoint());
-                                }
+                                replicationTracker.activatePrimaryMode(getLocalCheckpoint());
                                 /*
                                  * If this shard was serving as a replica shard when another shard was promoted to primary then the state of
                                  * its local checkpoint tracker was reset during the primary term transition. In particular, the local
@@ -540,7 +535,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
             assert this.shardRouting.primary() == false ||
                 this.shardRouting.started() == false || // note that we use started and not active to avoid relocating shards
-                operationPrimaryTerm != pendingPrimaryTerm ||
+                this.indexShardOperationPermits.isBlocked() || // if permits are blocked, we are still transitioning
                 this.replicationTracker.isPrimaryMode()
                 : "a started primary with non-pending operation term must be in primary mode " + this.shardRouting;
             shardStateUpdated.countDown();
@@ -2227,8 +2222,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         indexShardOperationPermits.asyncBlockOperations(30, TimeUnit.MINUTES, () -> {
                 assert operationPrimaryTerm <= pendingPrimaryTerm;
                 termUpdated.await();
-                onBlocked.run();
-                assert operationPrimaryTerm <= pendingPrimaryTerm;
+                // indexShardOperationPermits doesn't guarantee that async submissions are executed
+                // in the order submitted. We need to guard against another term bump
+                if (operationPrimaryTerm < newPrimaryTerm) {
+                    operationPrimaryTerm = newPrimaryTerm;
+                    onBlocked.run();
+                }
             },
             e -> failShard("exception during primary term transition", e));
         pendingPrimaryTerm = newPrimaryTerm;
@@ -2270,11 +2269,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
                     if (opPrimaryTerm > pendingPrimaryTerm) {
                         bumpPrimaryTerm(opPrimaryTerm, () -> {
-                            // a primary promotion, or another primary term transition, might have been triggered concurrently to this
-                            // recheck under the operation permit if we can skip doing this work
-                            if (opPrimaryTerm == pendingPrimaryTerm) {
-                                assert operationPrimaryTerm < pendingPrimaryTerm;
-                                operationPrimaryTerm = pendingPrimaryTerm;
                                 updateGlobalCheckpointOnReplica(globalCheckpoint, "primary term transition");
                                 final long currentGlobalCheckpoint = getGlobalCheckpoint();
                                 final long localCheckpoint;
@@ -2290,9 +2284,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                     localCheckpoint);
                                 getEngine().resetLocalCheckpoint(localCheckpoint);
                                 getEngine().rollTranslogGeneration();
-                            } else {
-                                logger.trace("a primary promotion or concurrent primary term transition has made this reset obsolete");
-                            }
                         });
                     }
                 }

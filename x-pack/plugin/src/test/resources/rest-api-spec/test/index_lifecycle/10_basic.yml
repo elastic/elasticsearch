@@ -219,10 +219,8 @@ setup:
   - match: { error.root_cause.0.reason: "Cannot delete policy [my_timeseries_lifecycle]. It is being used by at least one index [my_timeseries_index]" }
 
   - do:
-      indices.put_settings:
+      xpack.index_lifecycle.remove_policy:
         index: my_timeseries_index
-        body:
-          index.lifecycle.name: ""
 
   - do:
       acknowledge: true

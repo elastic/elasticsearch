@@ -29,7 +29,7 @@ public class LifecycleSettings {
     public static final Setting<TimeValue> LIFECYCLE_POLL_INTERVAL_SETTING = Setting.positiveTimeSetting(LIFECYCLE_POLL_INTERVAL,
         TimeValue.timeValueSeconds(3), Setting.Property.Dynamic, Setting.Property.NodeScope);
     public static final Setting<String> LIFECYCLE_NAME_SETTING = Setting.simpleString(LIFECYCLE_NAME,
-        Setting.Property.Dynamic, Setting.Property.IndexScope);
+        Setting.Property.Dynamic, Setting.Property.IndexScope, Setting.Property.InternalIndex);
     public static final Setting<String> LIFECYCLE_PHASE_SETTING = Setting.simpleString(LIFECYCLE_PHASE,
         Setting.Property.Dynamic, Setting.Property.IndexScope, Setting.Property.InternalIndex);
     public static final Setting<String> LIFECYCLE_ACTION_SETTING = Setting.simpleString(LIFECYCLE_ACTION,

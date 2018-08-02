@@ -16,22 +16,22 @@ import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.JobManager;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 
 import java.util.stream.Collectors;
 
 public class TransportGetModelSnapshotsAction extends HandledTransportAction<GetModelSnapshotsAction.Request,
         GetModelSnapshotsAction.Response> {
 
-    private final JobProvider jobProvider;
+    private final JobResultsProvider jobResultsProvider;
     private final JobManager jobManager;
 
     @Inject
     public TransportGetModelSnapshotsAction(Settings settings, TransportService transportService,
-                                            ActionFilters actionFilters, JobProvider jobProvider, JobManager jobManager) {
+                                            ActionFilters actionFilters, JobResultsProvider jobResultsProvider, JobManager jobManager) {
         super(settings, GetModelSnapshotsAction.NAME, transportService, actionFilters,
             GetModelSnapshotsAction.Request::new);
-        this.jobProvider = jobProvider;
+        this.jobResultsProvider = jobResultsProvider;
         this.jobManager = jobManager;
     }
 
@@ -45,7 +45,7 @@ public class TransportGetModelSnapshotsAction extends HandledTransportAction<Get
 
         jobManager.getJobOrThrowIfUnknown(request.getJobId());
 
-        jobProvider.modelSnapshots(request.getJobId(), request.getPageParams().getFrom(), request.getPageParams().getSize(),
+        jobResultsProvider.modelSnapshots(request.getJobId(), request.getPageParams().getFrom(), request.getPageParams().getSize(),
                 request.getStart(), request.getEnd(), request.getSort(), request.getDescOrder(), request.getSnapshotId(),
                 page -> {
                     listener.onResponse(new GetModelSnapshotsAction.Response(clearQuantiles(page)));

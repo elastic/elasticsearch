@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.job.JobManager;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -40,16 +40,17 @@ public class TransportPostCalendarEventsAction extends HandledTransportAction<Po
         PostCalendarEventsAction.Response> {
 
     private final Client client;
-    private final JobProvider jobProvider;
+    private final JobResultsProvider jobResultsProvider;
     private final JobManager jobManager;
 
     @Inject
     public TransportPostCalendarEventsAction(Settings settings, TransportService transportService,
-                                             ActionFilters actionFilters, Client client, JobProvider jobProvider, JobManager jobManager) {
+                                             ActionFilters actionFilters, Client client,
+                                             JobResultsProvider jobResultsProvider, JobManager jobManager) {
         super(settings, PostCalendarEventsAction.NAME, transportService, actionFilters,
             PostCalendarEventsAction.Request::new);
         this.client = client;
-        this.jobProvider = jobProvider;
+        this.jobResultsProvider = jobResultsProvider;
         this.jobManager = jobManager;
     }
 
@@ -92,6 +93,6 @@ public class TransportPostCalendarEventsAction extends HandledTransportAction<Po
                 },
                 listener::onFailure);
 
-        jobProvider.calendar(request.getCalendarId(), calendarListener);
+        jobResultsProvider.calendar(request.getCalendarId(), calendarListener);
     }
 }

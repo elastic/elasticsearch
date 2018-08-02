@@ -47,6 +47,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
+/**
+ * This class manages node connections. The connection is opened by the underlying transport. Once the
+ * connection is opened, this class manages the connection. This includes keep-alive pings and closing
+ * the connection when the connection manager is closed.
+ */
 public class ConnectionManager implements Closeable {
 
     private final ConcurrentMap<DiscoveryNode, Transport.Connection> connectedNodes = ConcurrentCollections.newConcurrentMap();
@@ -79,6 +84,10 @@ public class ConnectionManager implements Closeable {
         this.connectionListener.listeners.remove(listener);
     }
 
+    /**
+     * Connects to a node with the given connection profile. If the node is already connected this method has no effect.
+     * Once a successful is established, it can be validated before being exposed.
+     */
     public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
                               CheckedBiConsumer<Transport.Connection, ConnectionProfile, IOException> connectionValidator)
         throws ConnectTransportException {
@@ -131,6 +140,14 @@ public class ConnectionManager implements Closeable {
         }
     }
 
+    /**
+     * Returns a connection for the given node if the node is connected.
+     * Connections returned from this method must not be closed. The lifecycle of this connection is
+     * maintained by this connection manager
+     *
+     * @throws NodeNotConnectedException if the node is not connected
+     * @see #connectToNode(DiscoveryNode, ConnectionProfile, CheckedBiConsumer)
+     */
     public Transport.Connection getConnection(DiscoveryNode node) {
         Transport.Connection connection = connectedNodes.get(node);
         if (connection == null) {
@@ -139,10 +156,16 @@ public class ConnectionManager implements Closeable {
         return connection;
     }
 
+    /**
+     * Returns {@code true} if the node is connected.
+     */
     public boolean nodeConnected(DiscoveryNode node) {
         return connectedNodes.containsKey(node);
     }
 
+    /**
+     * Disconnected from the given node, if not connected, will do nothing.
+     */
     public void disconnectFromNode(DiscoveryNode node) {
         Transport.Connection nodeChannels = connectedNodes.remove(node);
         if (nodeChannels != null) {

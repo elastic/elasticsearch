@@ -21,9 +21,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.indexlifecycle.AsyncActionStep.Listener;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.junit.Before;
@@ -31,13 +28,12 @@ import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
-import java.io.IOException;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.xcontent.DeprecationHandler.THROW_UNSUPPORTED_OPERATION;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
@@ -114,21 +110,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
         assertEquals(expectedConditionValues, actualConditionValues);
     }
 
-    private static RolloverResponse createMockResponse(RolloverRequest request, boolean rolledOver) throws IOException {
-        String json = "{\"new_index\": \"foo\"," +
-            "\"old_index\": \"bar\"," +
-            "\"dry_run\": " + request.isDryRun() + "," +
-            "\"rolled_over\":" + rolledOver + "," +
-            "\"conditions\": {}," +
-            "\"acknowledged\": true," +
-            "\"shards_acknowledged\": true}";
-        try (XContentParser parser = XContentType.JSON.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, THROW_UNSUPPORTED_OPERATION, json)) {
-            return RolloverResponse.fromXContent(parser);
-        }
-    }
-
-    public void testPerformAction() throws Exception {
+    public void testPerformAction() {
         String alias = randomAlphaOfLength(5);
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10))
             .settings(settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
@@ -159,7 +141,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
                     expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));
                 }
                 assertRolloverIndexRequest(request, alias, expectedConditions);
-                listener.onResponse(createMockResponse(request, true));
+                listener.onResponse(new RolloverResponse(null, null, Collections.emptyMap(), request.isDryRun(), true, true, true));
                 return null;
             }
 
@@ -186,7 +168,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
         Mockito.verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
     }
 
-    public void testPerformActionNotComplete() throws Exception {
+    public void testPerformActionNotComplete() {
         String alias = randomAlphaOfLength(5);
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10))
             .settings(settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
@@ -216,7 +198,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
                     expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));
                 }
                 assertRolloverIndexRequest(request, alias, expectedConditions);
-                listener.onResponse(createMockResponse(request, false));
+                listener.onResponse(new RolloverResponse(null, null, Collections.emptyMap(), request.isDryRun(), false, true, true));
                 return null;
             }
 
@@ -243,7 +225,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
         Mockito.verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
     }
 
-    public void testPerformActionFailure() throws Exception {
+    public void testPerformActionFailure() {
         String alias = randomAlphaOfLength(5);
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10))
             .settings(settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))

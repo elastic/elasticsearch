@@ -37,7 +37,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
     public void testOneMatch() {
         RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
         GroupConfig.Builder group = ConfigTestHelpers.getGroupConfig();
-        group.setDateHisto(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h"), null, null));
+        group.setDateHisto(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h")));
         job.setGroupConfig(group.build());
         RollupJobCaps cap = new RollupJobCaps(job.build());
         Set<RollupJobCaps> caps = singletonSet(cap);
@@ -52,7 +52,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
     public void testBiggerButCompatibleInterval() {
         RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
         GroupConfig.Builder group = ConfigTestHelpers.getGroupConfig();
-        group.setDateHisto(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h"), null, null));
+        group.setDateHisto(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h")));
         job.setGroupConfig(group.build());
         RollupJobCaps cap = new RollupJobCaps(job.build());
         Set<RollupJobCaps> caps = singletonSet(cap);
@@ -67,7 +67,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
     public void testIncompatibleInterval() {
         RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
         GroupConfig.Builder group = ConfigTestHelpers.getGroupConfig();
-        group.setDateHisto(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1d"), null, null));
+        group.setDateHisto(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1d")));
         job.setGroupConfig(group.build());
         RollupJobCaps cap = new RollupJobCaps(job.build());
         Set<RollupJobCaps> caps = singletonSet(cap);
@@ -100,7 +100,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
     public void testMetricOnlyAgg() {
         RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
         GroupConfig.Builder group = ConfigTestHelpers.getGroupConfig();
-        group.setDateHisto(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h"), null, null));
+        group.setDateHisto(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h")));
         job.setGroupConfig(group.build());
         job.setMetricsConfig(singletonList(new MetricConfig("bar", singletonList("max"))));
         RollupJobCaps cap = new RollupJobCaps(job.build());
@@ -115,7 +115,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
     public void testOneOfTwoMatchingCaps() {
         RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
         GroupConfig.Builder group = ConfigTestHelpers.getGroupConfig();
-        group.setDateHisto(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h"), null, null));
+        group.setDateHisto(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h")));
         job.setGroupConfig(group.build());
         RollupJobCaps cap = new RollupJobCaps(job.build());
         Set<RollupJobCaps> caps = singletonSet(cap);
@@ -132,7 +132,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
     public void testTwoJobsSameRollupIndex() {
         RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
         GroupConfig.Builder group = ConfigTestHelpers.getGroupConfig();
-        group.setDateHisto(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h"), null, null));
+        group.setDateHisto(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h")));
         group.setTerms(null);
         group.setHisto(null);
         job.setGroupConfig(group.build());
@@ -142,7 +142,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
 
         RollupJobConfig.Builder job2 = ConfigTestHelpers.getRollupJob("foo2");
         GroupConfig.Builder group2 = ConfigTestHelpers.getGroupConfig();
-        group2.setDateHisto(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h"), null, null));
+        group2.setDateHisto(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h")));
         group2.setTerms(null);
         group2.setHisto(null);
         job2.setGroupConfig(group.build());
@@ -162,7 +162,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
     public void testTwoJobsButBothPartialMatches() {
         RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
         GroupConfig.Builder group = ConfigTestHelpers.getGroupConfig();
-        group.setDateHisto(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h"), null, null));
+        group.setDateHisto(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h")));
         job.setGroupConfig(group.build());
         job.setMetricsConfig(singletonList(new MetricConfig("bar", singletonList("max"))));
         RollupJobCaps cap = new RollupJobCaps(job.build());
@@ -171,7 +171,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
 
         RollupJobConfig.Builder job2 = ConfigTestHelpers.getRollupJob("foo2");
         GroupConfig.Builder group2 = ConfigTestHelpers.getGroupConfig();
-        group2.setDateHisto(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h"), null, null));
+        group2.setDateHisto(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h")));
         job2.setGroupConfig(group.build());
         job.setMetricsConfig(singletonList(new MetricConfig("bar", singletonList("min"))));
         RollupJobCaps cap2 = new RollupJobCaps(job2.build());
@@ -190,7 +190,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
     public void testComparableDifferentDateIntervals() {
         RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
         GroupConfig.Builder group = ConfigTestHelpers.getGroupConfig();
-        group.setDateHisto(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h"), null, null))
+        group.setDateHisto(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h")))
                 .setHisto(null)
                 .setTerms(null);
         job.setGroupConfig(group.build());
@@ -198,7 +198,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
 
         RollupJobConfig.Builder job2 = ConfigTestHelpers.getRollupJob("foo2").setRollupIndex(job.getRollupIndex());
         GroupConfig.Builder group2 = ConfigTestHelpers.getGroupConfig();
-        group2.setDateHisto(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1d"), null, null))
+        group2.setDateHisto(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1d")))
                 .setHisto(null)
                 .setTerms(null);
         job2.setGroupConfig(group2.build());
@@ -219,7 +219,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
     public void testComparableDifferentDateIntervalsOnlyOneWorks() {
         RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
         GroupConfig.Builder group = ConfigTestHelpers.getGroupConfig();
-        group.setDateHisto(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h"), null, null))
+        group.setDateHisto(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h")))
                 .setHisto(null)
                 .setTerms(null);
         job.setGroupConfig(group.build());
@@ -227,7 +227,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
 
         RollupJobConfig.Builder job2 = ConfigTestHelpers.getRollupJob("foo2").setRollupIndex(job.getRollupIndex());
         GroupConfig.Builder group2 = ConfigTestHelpers.getGroupConfig();
-        group2.setDateHisto(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1d"), null, null))
+        group2.setDateHisto(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1d")))
                 .setHisto(null)
                 .setTerms(null);
         job2.setGroupConfig(group2.build());
@@ -248,7 +248,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
     public void testComparableNoHistoVsHisto() {
         RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
         GroupConfig.Builder group = ConfigTestHelpers.getGroupConfig();
-        group.setDateHisto(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h"), null, null))
+        group.setDateHisto(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h")))
                 .setHisto(null)
                 .setTerms(null);
         job.setGroupConfig(group.build());
@@ -256,7 +256,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
 
         RollupJobConfig.Builder job2 = ConfigTestHelpers.getRollupJob("foo2").setRollupIndex(job.getRollupIndex());
         GroupConfig.Builder group2 = ConfigTestHelpers.getGroupConfig();
-        group2.setDateHisto(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h"), null, null))
+        group2.setDateHisto(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h")))
                 .setHisto(new HistogramGroupConfig(100L, "bar"))
                 .setTerms(null);
         job2.setGroupConfig(group2.build());
@@ -278,7 +278,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
     public void testComparableNoTermsVsTerms() {
         RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
         GroupConfig.Builder group = ConfigTestHelpers.getGroupConfig();
-        group.setDateHisto(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h"), null, null))
+        group.setDateHisto(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h")))
                 .setHisto(null)
                 .setTerms(null);
         job.setGroupConfig(group.build());
@@ -286,7 +286,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
 
         RollupJobConfig.Builder job2 = ConfigTestHelpers.getRollupJob("foo2").setRollupIndex(job.getRollupIndex());
         GroupConfig.Builder group2 = ConfigTestHelpers.getGroupConfig();
-        group2.setDateHisto(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h"), null, null))
+        group2.setDateHisto(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h")))
                 .setHisto(null)
             .setTerms(new TermsGroupConfig("bar"));
         job2.setGroupConfig(group2.build());

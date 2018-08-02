@@ -172,21 +172,37 @@ public class ConfigTests extends ESTestCase {
 
     public void testEmptyDateHistoField() {
         Exception e = expectThrows(IllegalArgumentException.class,
-            () -> new DateHistogramGroupConfig(null, DateHistogramInterval.HOUR, null, null));
+            () -> new DateHistogramGroupConfig(null, DateHistogramInterval.HOUR));
         assertThat(e.getMessage(), equalTo("Field must be a non-null, non-empty string"));
 
-        e = expectThrows(IllegalArgumentException.class, () -> new DateHistogramGroupConfig("", DateHistogramInterval.HOUR, null, null));
+        e = expectThrows(IllegalArgumentException.class, () -> new DateHistogramGroupConfig("", DateHistogramInterval.HOUR));
         assertThat(e.getMessage(), equalTo("Field must be a non-null, non-empty string"));
     }
 
     public void testEmptyDateHistoInterval() {
-        Exception e = expectThrows(IllegalArgumentException.class, () -> new DateHistogramGroupConfig("foo", null, null, null));
-        assertThat(e.getMessage(), equalTo("Interval must be a non-null, non-empty string"));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new DateHistogramGroupConfig("foo", null));
+        assertThat(e.getMessage(), equalTo("Interval must be non-null"));
     }
 
     public void testNullTimeZone() {
         DateHistogramGroupConfig config = new DateHistogramGroupConfig("foo", DateHistogramInterval.HOUR, null, null);
         assertThat(config.getTimeZone(), equalTo(DateTimeZone.UTC.getID()));
+    }
+
+    public void testEmptyTimeZone() {
+        DateHistogramGroupConfig config = new DateHistogramGroupConfig("foo", DateHistogramInterval.HOUR, null, "");
+        assertThat(config.getTimeZone(), equalTo(DateTimeZone.UTC.getID()));
+    }
+
+    public void testDefaultTimeZone() {
+        DateHistogramGroupConfig config = new DateHistogramGroupConfig("foo", DateHistogramInterval.HOUR);
+        assertThat(config.getTimeZone(), equalTo(DateTimeZone.UTC.getID()));
+    }
+
+    public void testUnkownTimeZone() {
+        Exception e = expectThrows(IllegalArgumentException.class,
+            () -> new DateHistogramGroupConfig("foo", DateHistogramInterval.HOUR, null, "FOO"));
+        assertThat(e.getMessage(), equalTo("The datetime zone id 'FOO' is not recognised"));
     }
 
     public void testEmptyHistoField() {

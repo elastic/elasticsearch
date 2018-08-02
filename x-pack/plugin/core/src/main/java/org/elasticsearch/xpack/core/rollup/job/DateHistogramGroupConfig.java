@@ -75,21 +75,41 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
     private final DateHistogramInterval delay;
     private final String timeZone;
 
+    /**
+     * Create a new {@link DateHistogramGroupConfig} using the given field and interval parameters.
+     */
+    public DateHistogramGroupConfig(final String field, final DateHistogramInterval interval) {
+        this(field, interval, null, null);
+    }
+
+    /**
+     * Create a new {@link DateHistogramGroupConfig} using the given configuration parameters.
+     * <p>
+     *     The {@code field} and {@code interval} are required to compute the date histogram for the rolled up documents.
+     *     The {@code delay} is optional and can be set to {@code null}. It defines how long to wait before rolling up new documents.
+     *     The {@code timeZone} is optional and can be set to {@code null}. When configured, the time zone value  is resolved using
+     *     ({@link DateTimeZone#forID(String)} and must match a time zone identifier provided by the Joda Time library.
+     * </p>
+     * @param field the name of the date field to use for the date histogram (required)
+     * @param interval the interval to use for the date histogram (required)
+     * @param delay the time delay (optional)
+     * @param timeZone the id of time zone to use to calculate the date histogram (optional). When {@code null}, the UTC timezone is used.
+     */
     public DateHistogramGroupConfig(final String field,
                                     final DateHistogramInterval interval,
                                     final @Nullable DateHistogramInterval delay,
-                                    final String timeZone) {
+                                    final @Nullable String timeZone) {
         if (field == null || field.isEmpty()) {
             throw new IllegalArgumentException("Field must be a non-null, non-empty string");
         }
         if (interval == null) {
-            throw new IllegalArgumentException("Interval must be a non-null, non-empty string");
+            throw new IllegalArgumentException("Interval must be non-null");
         }
 
         this.interval = interval;
         this.field = field;
         this.delay = delay;
-        this.timeZone = timeZone != null ? timeZone : DEFAULT_TIMEZONE;
+        this.timeZone = (timeZone != null && timeZone.isEmpty() == false) ? timeZone : DEFAULT_TIMEZONE;
 
         // validate interval
         createRounding(this.interval.toString(), this.timeZone);

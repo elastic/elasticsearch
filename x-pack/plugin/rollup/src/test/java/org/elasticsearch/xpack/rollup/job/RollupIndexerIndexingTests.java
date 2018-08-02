@@ -93,7 +93,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
     public void testSimpleDateHisto() throws Exception {
         String rollupIndex = randomAlphaOfLength(10);
         String field = "the_histo";
-        DateHistogramGroupConfig dateHistoConfig = new DateHistogramGroupConfig(field, new DateHistogramInterval("1ms"), null, null);
+        DateHistogramGroupConfig dateHistoConfig = new DateHistogramGroupConfig(field, new DateHistogramInterval("1ms"));
         RollupJobConfig job = createJob(rollupIndex, new GroupConfig.Builder().setDateHisto(dateHistoConfig).build(),
                 Collections.emptyList());
         final List<Map<String, Object>> dataset = new ArrayList<>();
@@ -138,7 +138,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
     public void testDateHistoAndMetrics() throws Exception {
         String rollupIndex = randomAlphaOfLength(10);
         String field = "the_histo";
-        DateHistogramGroupConfig dateHistoConfig = new DateHistogramGroupConfig(field, new DateHistogramInterval("1h"), null, null);
+        DateHistogramGroupConfig dateHistoConfig = new DateHistogramGroupConfig(field, new DateHistogramInterval("1h"));
         MetricConfig config = new MetricConfig("counter", Arrays.asList("avg", "sum", "max", "min"));
         RollupJobConfig job = createJob(rollupIndex, new GroupConfig.Builder().setDateHisto(dateHistoConfig).build(),
                 Collections.singletonList(config));
@@ -406,7 +406,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
 
         String timeInterval = randomIntBetween(1, 10) + randomFrom("h", "m");
         DateHistogramGroupConfig dateHistoConfig =
-            new DateHistogramGroupConfig(timestampField, new DateHistogramInterval(timeInterval), null, null);
+            new DateHistogramGroupConfig(timestampField, new DateHistogramInterval(timeInterval));
         MetricConfig metricConfig = new MetricConfig(valueField, Collections.singletonList("avg"));
         RollupJobConfig job = createJob(rollupIndex, new GroupConfig.Builder().setDateHisto(dateHistoConfig).build(),
                 Collections.singletonList(metricConfig));

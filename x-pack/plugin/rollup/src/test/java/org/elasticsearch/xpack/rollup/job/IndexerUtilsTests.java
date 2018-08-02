@@ -97,7 +97,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
 
         // Setup the composite agg
         //TODO swap this over to DateHistoConfig.Builder once DateInterval is in
-        DateHistogramGroupConfig dateHistoGroupConfig = new DateHistogramGroupConfig(timestampField, DateHistogramInterval.DAY, null, null);
+        DateHistogramGroupConfig dateHistoGroupConfig = new DateHistogramGroupConfig(timestampField, DateHistogramInterval.DAY);
         CompositeAggregationBuilder compositeBuilder =
                 new CompositeAggregationBuilder(RollupIndexer.AGGREGATION_NAME, dateHistoGroupConfig.toBuilders());
         MetricConfig metricConfig = new MetricConfig("does_not_exist", singletonList("max"));

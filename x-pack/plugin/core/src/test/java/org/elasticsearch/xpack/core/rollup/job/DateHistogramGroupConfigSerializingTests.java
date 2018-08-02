@@ -125,6 +125,10 @@ public class DateHistogramGroupConfigSerializingTests extends AbstractSerializin
         assertThat(e.validationErrors().size(), equalTo(0));
     }
 
+    /**
+     * Tests that a DateHistogramGroupConfig can be serialized/deserialized correctly after
+     * the timezone was changed from DateTimeZone to String.
+     */
     public void testBwcSerialization() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
             final DateHistogramGroupConfig reference = ConfigTestHelpers.randomDateHistogramGroupConfig(random());
@@ -132,6 +136,7 @@ public class DateHistogramGroupConfigSerializingTests extends AbstractSerializin
             final BytesStreamOutput out = new BytesStreamOutput();
             reference.writeTo(out);
 
+            // previous way to deserialize a DateHistogramGroupConfig
             final StreamInput in = out.bytes().streamInput();
             DateHistogramInterval interval = new DateHistogramInterval(in);
             String field = in.readString();
@@ -147,6 +152,7 @@ public class DateHistogramGroupConfigSerializingTests extends AbstractSerializin
             final DateHistogramInterval delay = randomBoolean() ? ConfigTestHelpers.randomInterval() : null;
             final DateTimeZone timezone = randomDateTimeZone();
 
+            // previous way to serialize a DateHistogramGroupConfig
             final BytesStreamOutput out = new BytesStreamOutput();
             interval.writeTo(out);
             out.writeString(field);

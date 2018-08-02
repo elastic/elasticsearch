@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -55,6 +56,7 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
+import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentSet;
 
 public abstract class PeerFinder extends AbstractLifecycleComponent {
 
@@ -208,10 +210,8 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
     public interface TransportAddressConnector {
         /**
          * Identify the node at the given address and establish a full connection to it.
-         *
-         * @return The node to which we connected.
          */
-        DiscoveryNode connectTo(TransportAddress transportAddress) throws IOException;
+        void connectTo(TransportAddress transportAddress, ActionListener<DiscoveryNode> listener);
     }
 
     private class ActivePeerFinder {
@@ -220,6 +220,7 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
         private final AtomicBoolean resolveInProgress = new AtomicBoolean();
         private final AtomicReference<List<TransportAddress>> lastResolvedAddresses = new AtomicReference<>(Collections.emptyList());
         private final Set<TransportAddress> probedAddressesSinceLastWakeUp = new HashSet<>();
+        private final Set<TransportAddress> inFlightProbes = newConcurrentSet();
         private final Map<TransportAddress, DiscoveryNode> connectedNodes = newConcurrentMap();
         final Set<DiscoveryNode> peersRequestRecipientsSinceLastWakeUp = new HashSet<>();
 
@@ -250,6 +251,7 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
             assert holdsLock() : "PeerFinder mutex not held";
 
             if (running == false) {
+                logger.trace("ActivePeerFinder#handleWakeUp(): not running");
                 return;
             }
 
@@ -352,29 +354,51 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
                 logger.trace("startProbe({}) no cached node found, probing", transportAddress);
             }
 
-            executorService.get().execute(new AbstractRunnable() {
+            if (inFlightProbes.add(transportAddress)) {
+                logger.trace("startProbe({}) acquired probeLock", transportAddress);
+                executorService.get().execute(new AbstractRunnable() {
+                    @Override
+                    protected void doRun() {
+                        // No synchronisation required - transportAddressConnector is threadsafe
+                        transportAddressConnector.connectTo(transportAddress, new ActionListener<DiscoveryNode>() {
+                            @Override
+                            public void onResponse(DiscoveryNode remoteNode) {
+                                // No synchronisation required - connectedNodes, inFlightProbes, onProbeSuccess all threadsafe
+                                logger.trace("startProbe({}) found {}", transportAddress, remoteNode);
+                                final boolean removed = inFlightProbes.remove(transportAddress);
+                                assert removed;
+                                if (remoteNode.isMasterNode()) {
+                                    connectedNodes.put(remoteNode.getAddress(), remoteNode);
+                                    onProbeSuccess(remoteNode);
+                                }
+                            }
 
-                @Override
-                protected void doRun() throws Exception {
-                    // No synchronisation required - transportAddressConnector, connectedNodes, onProbeSuccess all threadsafe
-                    final DiscoveryNode remoteNode = transportAddressConnector.connectTo(transportAddress);
-                    if (remoteNode.isMasterNode()) {
-                        connectedNodes.put(remoteNode.getAddress(), remoteNode);
-                        onProbeSuccess(remoteNode);
+                            @Override
+                            public void onFailure(Exception e) {
+                                // No synchronisation required - inFlightProbes is threadsafe
+                                logger.debug(() -> new ParameterizedMessage("startProbe({}) failed", transportAddress), e);
+                                final boolean removed = inFlightProbes.remove(transportAddress);
+                                assert removed;
+                            }
+                        });
                     }
-                    // TODO prevent concurrent connection attempts to the same address
-                }
 
-                @Override
-                public void onFailure(Exception e) {
-                    logger.debug(() -> new ParameterizedMessage("Probing {} failed", transportAddress), e);
-                }
+                    @Override
+                    public void onFailure(Exception e) {
+                        // No synchronisation required - inFlightProbes is threadsafe
+                        logger.debug(() -> new ParameterizedMessage("startProbe({}) failed", transportAddress), e);
+                        final boolean removed = inFlightProbes.remove(transportAddress);
+                        assert removed;
+                    }
 
-                @Override
-                public String toString() {
-                    return "probe " + transportAddress;
-                }
-            });
+                    @Override
+                    public String toString() {
+                        return "probe " + transportAddress;
+                    }
+                });
+            } else {
+                logger.trace("startProbe({}) probeLock unavailable", transportAddress);
+            }
         }
 
         private void onProbeSuccess(final DiscoveryNode discoveryNode) {

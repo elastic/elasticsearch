@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.coordination.PeerFinder.TransportAddressConnector;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -28,7 +29,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.CapturingTransport.CapturedRequest;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -84,27 +84,51 @@ public class PeerFinderTests extends ESTestCase {
     private DiscoveryNodes lastAcceptedNodes;
     private TransportService transportService;
 
+    private static long CONNECTION_TIMEOUT_MILLIS = 30000;
+
     class MockTransportAddressConnector implements TransportAddressConnector {
         final Set<DiscoveryNode> reachableNodes = new HashSet<>();
         final Set<TransportAddress> unreachableAddresses = new HashSet<>();
+        final Set<TransportAddress> slowAddresses = new HashSet<>();
+        final Set<TransportAddress> inFlightConnectionAttempts = new HashSet<>();
 
         @Override
-        public DiscoveryNode connectTo(TransportAddress transportAddress) throws IOException {
+        public void connectTo(TransportAddress transportAddress, ActionListener<DiscoveryNode> listener) {
             assert localNode.getAddress().equals(transportAddress) == false : "should not probe local node";
 
-            if (unreachableAddresses.contains(transportAddress)) {
-                throw new IOException("cannot connect to " + transportAddress);
-            }
+            final boolean isNotInFlight = inFlightConnectionAttempts.add(transportAddress);
+            assertTrue(isNotInFlight);
 
-            for (final DiscoveryNode discoveryNode : reachableNodes) {
-                if (discoveryNode.getAddress().equals(transportAddress)) {
-                    disconnectedNodes.remove(discoveryNode);
-                    connectedNodes.add(discoveryNode);
-                    return discoveryNode;
+            final long connectResultTime = deterministicTaskQueue.getCurrentTimeMillis()
+                + (slowAddresses.contains(transportAddress) ? CONNECTION_TIMEOUT_MILLIS : 0);
+
+            deterministicTaskQueue.scheduleAt(connectResultTime, new Runnable() {
+                @Override
+                public void run() {
+                    if (unreachableAddresses.contains(transportAddress)) {
+                        assertTrue(inFlightConnectionAttempts.remove(transportAddress));
+                        listener.onFailure(new IOException("cannot connect to " + transportAddress));
+                        return;
+                    }
+
+                    for (final DiscoveryNode discoveryNode : reachableNodes) {
+                        if (discoveryNode.getAddress().equals(transportAddress)) {
+                            disconnectedNodes.remove(discoveryNode);
+                            connectedNodes.add(discoveryNode);
+                            assertTrue(inFlightConnectionAttempts.remove(transportAddress));
+                            listener.onResponse(discoveryNode);
+                            return;
+                        }
+                    }
+
+                    throw new AssertionError(transportAddress + " unknown");
                 }
-            }
 
-            throw new AssertionError(transportAddress + " unknown");
+                @Override
+                public String toString() {
+                    return "connection attempt to " + transportAddress;
+                }
+            });
         }
     }
 
@@ -553,6 +577,41 @@ public class PeerFinderTests extends ESTestCase {
         runAllRunnableTasks();
 
         assertFoundPeers();
+    }
+
+    public void testDoesNotMakeMultipleConcurrentConnectionAttemptsToOneAddress() {
+        final DiscoveryNode otherNode = newDiscoveryNode("node-from-hosts-list");
+        unicastHostsProvider.providedAddresses.add(otherNode.getAddress());
+        transportAddressConnector.unreachableAddresses.add(otherNode.getAddress());
+        transportAddressConnector.slowAddresses.add(otherNode.getAddress());
+
+        peerFinder.activate(lastAcceptedNodes);
+        runAllRunnableTasks();
+        assertFoundPeers();
+
+        deterministicTaskQueue.advanceTime();
+        runAllRunnableTasks(); // MockTransportAddressConnector verifies no multiple connection attempts
+        assertFoundPeers();
+
+        transportAddressConnector.slowAddresses.clear();
+        transportAddressConnector.unreachableAddresses.clear();
+        transportAddressConnector.reachableNodes.add(otherNode);
+
+        while (deterministicTaskQueue.getCurrentTimeMillis() < CONNECTION_TIMEOUT_MILLIS) {
+            assertFoundPeers();
+            deterministicTaskQueue.advanceTime();
+            runAllRunnableTasks();
+        }
+
+        // need to wait for the connection to timeout, then for another wakeup, before discovering the peer
+        final long expectedTime = CONNECTION_TIMEOUT_MILLIS + PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING.get(Settings.EMPTY).millis();
+
+        while (deterministicTaskQueue.getCurrentTimeMillis() < expectedTime) {
+            deterministicTaskQueue.advanceTime();
+            runAllRunnableTasks();
+        }
+
+        assertFoundPeers(otherNode);
     }
 
     public void testReconnectsToDisconnectedNodes() {

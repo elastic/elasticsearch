@@ -129,8 +129,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.clientWithOrigin;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 
-public class JobProvider {
-    private static final Logger LOGGER = Loggers.getLogger(JobProvider.class);
+public class JobResultsProvider {
+    private static final Logger LOGGER = Loggers.getLogger(JobResultsProvider.class);
 
     private static final int RECORDS_SIZE_PARAM = 10000;
     public static final int BUCKETS_FOR_ESTABLISHED_MEMORY_SIZE = 20;
@@ -139,7 +139,7 @@ public class JobProvider {
     private final Client client;
     private final Settings settings;
 
-    public JobProvider(Client client, Settings settings) {
+    public JobResultsProvider(Client client, Settings settings) {
         this.client = Objects.requireNonNull(client);
         this.settings = settings;
     }

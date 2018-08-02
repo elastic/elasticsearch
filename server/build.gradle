@@ -343,7 +343,7 @@ if (isEclipse == false || project.path == ":server-tests") {
 additionalTest('testScriptedMetricAggParamsV6Compatibility') {
   include '**/ScriptedMetricAggregatorAggStateV6CompatTests.class'
   include '**/InternalScriptedMetricAggStateV6CompatTests.class'
-  systemProperty 'es.aggregations.enableDeprecatedScriptedMetricAggParam', 'true'
+  systemProperty 'es.aggregations.enable_scripted_metric_agg_param', 'true'
 }
 
 test {

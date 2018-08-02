@@ -39,14 +39,14 @@ public class ScriptedMetricAggContexts {
     // Public for access from tests
     public static final String AGG_PARAM_DEPRECATION_WARNING =
         "params._agg/_aggs for scripted metric aggregations are deprecated, use state/states (not in params) instead. " +
-        "Set system property es.aggregations.enableDeprecatedScriptedMetricAggParam = false to disable this deprecated behavior.";
+        "Set system property es.aggregations.enable_scripted_metric_agg_param = false to disable this deprecated behavior.";
 
     public static boolean deprecatedAggParamEnabled() {
         boolean enabled = Boolean.parseBoolean(
-            System.getProperty("es.aggregations.enableDeprecatedScriptedMetricAggParam", "true"));
+            System.getProperty("es.aggregations.enable_scripted_metric_agg_param", "true"));
 
         if (enabled) {
-            DEPRECATION_LOGGER.deprecatedAndMaybeLog("enableDeprecatedScriptedMetricAggParams", AGG_PARAM_DEPRECATION_WARNING);
+            DEPRECATION_LOGGER.deprecatedAndMaybeLog("enable_scripted_metric_agg_param", AGG_PARAM_DEPRECATION_WARNING);
         }
 
         return enabled;

@@ -754,7 +754,7 @@ class BuildPlugin implements Plugin<Project> {
             systemProperty 'tests.security.manager', 'true'
             systemProperty 'jna.nosys', 'true'
             // TODO: remove this deprecation compatibility setting for 7.0
-            systemProperty 'es.aggregations.enableDeprecatedScriptedMetricAggParam', 'false'
+            systemProperty 'es.aggregations.enable_scripted_metric_agg_param', 'false'
             // TODO: remove setting logging level via system property
             systemProperty 'tests.logger.level', 'WARN'
             for (Map.Entry<String, String> property : System.properties.entrySet()) {

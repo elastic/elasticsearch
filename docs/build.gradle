@@ -39,7 +39,7 @@ integTestCluster {
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
 
   // TODO: remove this deprecation compatibility setting for 7.0
-  systemProperty 'es.aggregations.enableDeprecatedScriptedMetricAggParam', 'false'
+  systemProperty 'es.aggregations.enable_scripted_metric_agg_param', 'false'
 }
 
 // remove when https://github.com/elastic/elasticsearch/issues/31305 is fixed

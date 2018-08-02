@@ -51,7 +51,7 @@ import static org.hamcrest.Matchers.sameInstance;
 
 /**
  * This test verifies that the _agg param is added correctly when the system property
- * "es.aggregations.enableDeprecatedScriptedMetricAggParam" is set to true.
+ * "es.aggregations.enable_scripted_metric_agg_param" is set to true.
  */
 public class ScriptedMetricAggregatorAggStateV6CompatTests extends AggregatorTestCase {
 

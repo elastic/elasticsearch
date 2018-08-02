@@ -69,17 +69,14 @@ final class Compiler {
     /**
      * A secure class loader used to define Painless scripts.
      */
-    static final class Loader extends SecureClassLoader {
+    final class Loader extends SecureClassLoader {
         private final AtomicInteger lambdaCounter = new AtomicInteger(0);
-        private final PainlessLookup painlessLookup;
 
         /**
          * @param parent The parent ClassLoader.
          */
-        Loader(ClassLoader parent, PainlessLookup painlessLookup) {
+        Loader(ClassLoader parent) {
             super(parent);
-
-            this.painlessLookup = painlessLookup;
         }
 
         /**
@@ -90,7 +87,16 @@ final class Compiler {
          */
         @Override
         public Class<?> findClass(String name) throws ClassNotFoundException {
-            Class<?> found = painlessLookup.getClassFromBinaryName(name);
+            if (scriptClass.getName().equals(name)) {
+                return scriptClass;
+            }
+            if (factoryClass != null && factoryClass.getName().equals(name)) {
+                return factoryClass;
+            }
+            if (statefulFactoryClass != null && statefulFactoryClass.getName().equals(name)) {
+                return statefulFactoryClass;
+            }
+            Class<?> found = painlessLookup.canonicalTypeNameToType(name.replace('$', '.'));
 
             return found != null ? found : super.findClass(name);
         }
@@ -139,13 +145,23 @@ final class Compiler {
      * {@link Compiler}'s specified {@link PainlessLookup}.
      */
     public Loader createLoader(ClassLoader parent) {
-        return new Loader(parent, painlessLookup);
+        return new Loader(parent);
     }
 
     /**
-     * The class/interface the script is guaranteed to derive/implement.
+     * The class/interface the script will implement.
      */
-    private final Class<?> base;
+    private final Class<?> scriptClass;
+
+    /**
+     * The class/interface to create the {@code scriptClass} instance.
+     */
+    private final Class<?> factoryClass;
+
+    /**
+     * An optional class/interface to create the {@code factoryClass} instance.
+     */
+    private final Class<?> statefulFactoryClass;
 
     /**
      * The whitelist the script will use.
@@ -154,11 +170,15 @@ final class Compiler {
 
     /**
      * Standard constructor.
-     * @param base The class/interface the script is guaranteed to derive/implement.
+     * @param scriptClass The class/interface the script will implement.
+     * @param factoryClass An optional class/interface to create the {@code scriptClass} instance.
+     * @param statefulFactoryClass An optional class/interface to create the {@code factoryClass} instance.
      * @param painlessLookup The whitelist the script will use.
      */
-    Compiler(Class<?> base, PainlessLookup painlessLookup) {
-        this.base = base;
+    Compiler(Class<?> scriptClass, Class<?> factoryClass, Class<?> statefulFactoryClass, PainlessLookup painlessLookup) {
+        this.scriptClass = scriptClass;
+        this.factoryClass = factoryClass;
+        this.statefulFactoryClass = statefulFactoryClass;
         this.painlessLookup = painlessLookup;
     }
 
@@ -177,7 +197,7 @@ final class Compiler {
                 " plugin if a script longer than this length is a requirement.");
         }
 
-        ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, base);
+        ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
         SSource root = Walker.buildPainlessTree(scriptClassInfo, reserved, name, source, settings, painlessLookup,
                 null);
         root.analyze(painlessLookup);
@@ -209,7 +229,7 @@ final class Compiler {
                 " plugin if a script longer than this length is a requirement.");
         }
 
-        ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, base);
+        ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
         SSource root = Walker.buildPainlessTree(scriptClassInfo, new MainMethodReserved(), name, source, settings, painlessLookup,
                 debugStream);
         root.analyze(painlessLookup);

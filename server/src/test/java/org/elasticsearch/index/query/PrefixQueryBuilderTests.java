@@ -109,7 +109,6 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
     }
 
     public void testNumeric() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         PrefixQueryBuilder query = prefixQuery(INT_FIELD_NAME, "12*");
         QueryShardContext context = createShardContext();
         QueryShardException e = expectThrows(QueryShardException.class,

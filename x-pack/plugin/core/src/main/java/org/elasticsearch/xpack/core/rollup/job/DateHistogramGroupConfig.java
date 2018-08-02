@@ -67,7 +67,7 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
         PARSER.declareString(constructorArg(), new ParseField(FIELD));
         PARSER.declareField(constructorArg(), p -> new DateHistogramInterval(p.text()), new ParseField(INTERVAL), ValueType.STRING);
         PARSER.declareField(optionalConstructorArg(),  p -> new DateHistogramInterval(p.text()), new ParseField(DELAY), ValueType.STRING);
-        PARSER.declareString(constructorArg(), new ParseField(TIME_ZONE));
+        PARSER.declareString(optionalConstructorArg(), new ParseField(TIME_ZONE));
     }
 
     private final String field;

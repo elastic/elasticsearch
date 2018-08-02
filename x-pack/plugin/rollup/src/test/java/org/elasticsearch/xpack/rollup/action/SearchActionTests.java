@@ -71,6 +71,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.core.rollup.ConfigTestHelpers.randomHistogramGroupConfig;
 import static org.elasticsearch.xpack.core.rollup.RollupField.COUNT_FIELD;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -502,7 +503,7 @@ public class SearchActionTests extends ESTestCase {
         RollupJobConfig.Builder job2 = ConfigTestHelpers.getRollupJob("foo2").setRollupIndex(job.getRollupIndex());
         GroupConfig.Builder group2 = ConfigTestHelpers.getGroupConfig();
         group2.setDateHisto(group.getDateHisto())
-                .setHisto(ConfigTestHelpers.getHisto().build())
+                .setHisto(randomHistogramGroupConfig(random()))
                 .setTerms(null);
         job2.setGroupConfig(group2.build());
         RollupJobCaps cap2 = new RollupJobCaps(job2.build());

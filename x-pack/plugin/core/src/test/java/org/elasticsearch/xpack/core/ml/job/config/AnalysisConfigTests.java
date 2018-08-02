@@ -88,14 +88,6 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
             builder.setLatency(TimeValue.timeValueSeconds(randomIntBetween(1, 1_000_000)));
         }
         if (randomBoolean()) {
-            int numBucketSpans = randomIntBetween(0, 10);
-            List<TimeValue> multipleBucketSpans = new ArrayList<>();
-            for (int i = 2; i <= numBucketSpans; i++) {
-                multipleBucketSpans.add(TimeValue.timeValueSeconds(bucketSpan.getSeconds() * i));
-            }
-            builder.setMultipleBucketSpans(multipleBucketSpans);
-        }
-        if (randomBoolean()) {
             builder.setMultivariateByFields(randomBoolean());
         }
         if (randomBoolean()) {
@@ -253,28 +245,6 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         for (Detector detector : ac.getDetectors()) {
             assertEquals(expectedDetectorIndex++, detector.getDetectorIndex());
         }
-    }
-
-    public void testFieldConfiguration_singleDetector_PreSummarised() {
-        // Multiple detectors, pre-summarised
-        AnalysisConfig.Builder builder = createConfigBuilder();
-        builder.setSummaryCountFieldName("summaryCount");
-        AnalysisConfig ac = builder.build();
-
-        assertTrue(ac.analysisFields().contains("summaryCount"));
-        assertEquals("summaryCount", ac.getSummaryCountFieldName());
-
-        builder = createConfigBuilder();
-        builder.setBucketSpan(TimeValue.timeValueSeconds(1000));
-        builder.setMultipleBucketSpans(Arrays.asList(
-                TimeValue.timeValueSeconds(5000), TimeValue.timeValueSeconds(10000), TimeValue.timeValueSeconds(24000)));
-        ac = builder.build();
-        assertTrue(ac.getMultipleBucketSpans().contains(TimeValue.timeValueSeconds(5000)));
-        assertTrue(ac.getMultipleBucketSpans().contains(TimeValue.timeValueSeconds(10000)));
-        assertTrue(ac.getMultipleBucketSpans().contains(TimeValue.timeValueSeconds(24000)));
-
-        assertEquals(1, ac.getDetectors().size());
-        assertEquals(0, ac.getDetectors().get(0).getDetectorIndex());
     }
 
     public void testBuild_GivenMlCategoryUsedAsByFieldButNoCategorizationFieldName() {
@@ -693,58 +663,6 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         assertEquals(Messages.getMessage(Messages.JOB_CONFIG_FUNCTION_INCOMPATIBLE_PRESUMMARIZED, DetectorFunction.METRIC), e.getMessage());
     }
 
-    public void testMultipleBucketsConfig() {
-        AnalysisConfig.Builder ac = createValidConfig();
-        ac.setMultipleBucketSpans(Arrays.asList(
-                TimeValue.timeValueSeconds(10L),
-                TimeValue.timeValueSeconds(15L),
-                TimeValue.timeValueSeconds(20L),
-                TimeValue.timeValueSeconds(25L),
-                TimeValue.timeValueSeconds(30L),
-                TimeValue.timeValueSeconds(35L)));
-        List<Detector> detectors = new ArrayList<>();
-        Detector detector = new Detector.Builder("count", null).build();
-        detectors.add(detector);
-        ac.setDetectors(detectors);
-
-        ac.setBucketSpan(TimeValue.timeValueSeconds(4L));
-        ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, ac::build);
-        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_MULTIPLE_BUCKETSPANS_MUST_BE_MULTIPLE, "10s", "4s"), e.getMessage());
-
-        ac.setBucketSpan(TimeValue.timeValueSeconds(5L));
-        ac.build();
-
-        AnalysisConfig.Builder ac2 = createValidConfig();
-        ac2.setBucketSpan(TimeValue.timeValueSeconds(5L));
-        ac2.setDetectors(detectors);
-        ac2.setMultipleBucketSpans(Arrays.asList(
-                TimeValue.timeValueSeconds(10L),
-                TimeValue.timeValueSeconds(15L),
-                TimeValue.timeValueSeconds(20L),
-                TimeValue.timeValueSeconds(25L),
-                TimeValue.timeValueSeconds(30L)));
-        assertFalse(ac.equals(ac2));
-        ac2.setMultipleBucketSpans(Arrays.asList(
-                TimeValue.timeValueSeconds(10L),
-                TimeValue.timeValueSeconds(15L),
-                TimeValue.timeValueSeconds(20L),
-                TimeValue.timeValueSeconds(25L),
-                TimeValue.timeValueSeconds(30L),
-                TimeValue.timeValueSeconds(35L)));
-
-        ac.setBucketSpan(TimeValue.timeValueSeconds(222L));
-        ac.setMultipleBucketSpans(Collections.emptyList());
-        ac.build();
-
-        ac.setMultipleBucketSpans(Collections.singletonList(TimeValue.timeValueSeconds(222L)));
-        e = ESTestCase.expectThrows(ElasticsearchException.class, ac::build);
-        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_MULTIPLE_BUCKETSPANS_MUST_BE_MULTIPLE, "3.7m", "3.7m"), e.getMessage());
-
-        ac.setMultipleBucketSpans(Arrays.asList(TimeValue.timeValueSeconds(-444L), TimeValue.timeValueSeconds(-888L)));
-        e = ESTestCase.expectThrows(ElasticsearchException.class, ac::build);
-        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_MULTIPLE_BUCKETSPANS_MUST_BE_MULTIPLE, -444, "3.7m"), e.getMessage());
-    }
-
     public void testVerify_GivenCategorizationFiltersButNoCategorizationFieldName() {
         AnalysisConfig.Builder config = createValidConfig();
         config.setCategorizationFilters(Collections.singletonList("foo"));
@@ -838,7 +756,7 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
     @Override
     protected AnalysisConfig mutateInstance(AnalysisConfig instance) {
         AnalysisConfig.Builder builder = new AnalysisConfig.Builder(instance);
-        switch (between(0, 12)) {
+        switch (between(0, 11)) {
         case 0:
             List<Detector> detectors = new ArrayList<>(instance.getDetectors());
             Detector.Builder detector = new Detector.Builder();
@@ -849,7 +767,6 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
             break;
         case 1:
             builder.setBucketSpan(new TimeValue(instance.getBucketSpan().millis() + (between(1, 1000) * 1000)));
-            builder.setMultipleBucketSpans(Collections.emptyList());
             break;
         case 2:
             if (instance.getLatency() == null) {
@@ -939,16 +856,6 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
             }
             break;
         case 11:
-            List<TimeValue> multipleBucketSpans;
-            if (instance.getMultipleBucketSpans() == null) {
-                multipleBucketSpans = new ArrayList<>();
-            } else {
-                multipleBucketSpans = new ArrayList<>(instance.getMultipleBucketSpans());
-            }
-            multipleBucketSpans.add(new TimeValue(between(2, 10) * instance.getBucketSpan().millis()));
-            builder.setMultipleBucketSpans(multipleBucketSpans);
-            break;
-        case 12:
             boolean usePerPartitionNormalization = instance.getUsePerPartitionNormalization() == false;
             builder.setUsePerPartitionNormalization(usePerPartitionNormalization);
             if (usePerPartitionNormalization) {

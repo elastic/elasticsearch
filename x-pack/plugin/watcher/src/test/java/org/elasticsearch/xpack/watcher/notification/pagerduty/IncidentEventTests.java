@@ -5,10 +5,12 @@
  */
 package org.elasticsearch.xpack.watcher.notification.pagerduty;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.common.http.HttpProxy;
 
@@ -69,79 +71,42 @@ public class IncidentEventTests extends ESTestCase {
         XContentParser parser = createParser(jsonBuilder);
         parser.nextToken();
 
-        String actualServiceKey = null;
-        String actualWatchId = "watcher"; // hardcoded if the SOURCE is null
-        String actualDescription = null;
-        String actualEventType = null;
-        String actualIncidentKey = null;
-        String actualClient = null;
-        String actualClientUrl = null;
-        String actualSeverity = null;
-        List<IncidentEventContext> actualLinks = new ArrayList<>();
-        List<IncidentEventContext> actualImages = new ArrayList<>();
+        ObjectPath objectPath = ObjectPath.createFromXContent(jsonBuilder.contentType().xContent(), BytesReference.bytes(jsonBuilder));
+
+        String actualServiceKey = objectPath.evaluate(IncidentEvent.Fields.ROUTING_KEY.getPreferredName());
+        String actualWatchId = objectPath.evaluate(IncidentEvent.Fields.PAYLOAD.getPreferredName()
+            + "." + IncidentEvent.Fields.SOURCE.getPreferredName());
+        if (actualWatchId == null) {
+            actualWatchId = "watcher"; // hardcoded if the SOURCE is null
+        }
+        String actualDescription = objectPath.evaluate(IncidentEvent.Fields.PAYLOAD.getPreferredName()
+            + "." + IncidentEvent.Fields.SUMMARY.getPreferredName());
+        String actualEventType = objectPath.evaluate(IncidentEvent.Fields.EVENT_ACTION.getPreferredName());
+        String actualIncidentKey = objectPath.evaluate(IncidentEvent.Fields.DEDUP_KEY.getPreferredName());
+        String actualClient = objectPath.evaluate(IncidentEvent.Fields.CLIENT.getPreferredName());
+        String actualClientUrl = objectPath.evaluate(IncidentEvent.Fields.CLIENT_URL.getPreferredName());
+        String actualSeverity = objectPath.evaluate(IncidentEvent.Fields.PAYLOAD.getPreferredName()
+            + "." + IncidentEvent.Fields.SEVERITY.getPreferredName());
+        Map<String, Object> payloadDetails = objectPath.evaluate("payload.custom_details.payload");
         Payload actualPayload = null;
 
-        String currentFieldName = null;
-        XContentParser.Token token;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (IncidentEvent.Fields.ROUTING_KEY.match(currentFieldName, parser.getDeprecationHandler())) {
-                actualServiceKey = parser.text();
-            } else if (IncidentEvent.Fields.EVENT_ACTION.match(currentFieldName, parser.getDeprecationHandler())) {
-                actualEventType = parser.text();
-            } else if (IncidentEvent.Fields.DEDUP_KEY.match(currentFieldName, parser.getDeprecationHandler())) {
-                actualIncidentKey = parser.text();
-            } else if (IncidentEvent.Fields.CLIENT.match(currentFieldName, parser.getDeprecationHandler())) {
-                actualClient = parser.text();
-            } else if (IncidentEvent.Fields.CLIENT_URL.match(currentFieldName, parser.getDeprecationHandler())) {
-                actualClientUrl = parser.text();
-            } else if (IncidentEvent.Fields.LINKS.match(currentFieldName, parser.getDeprecationHandler())) {
-                // this is an array
-                if (token != XContentParser.Token.START_ARRAY) {
-                    fail("Links was not an array");
-                }
-                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                    actualLinks.add(IncidentEventContext.parse(parser));
-                }
-            } else if (IncidentEvent.Fields.IMAGES.match(currentFieldName, parser.getDeprecationHandler())) {
-                // this is an array
-                if (token != XContentParser.Token.START_ARRAY) {
-                    fail("Images was not an array");
-                }
-                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                    actualImages.add(IncidentEventContext.parse(parser));
-                }
-            } else if (IncidentEvent.Fields.PAYLOAD.match(currentFieldName, parser.getDeprecationHandler())) {
-                // this is a nested object containing a few interesting bits
-                if (token != XContentParser.Token.START_OBJECT) {
-                    fail("payload was not an object");
-                }
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (token == XContentParser.Token.FIELD_NAME) {
-                        currentFieldName = parser.currentName();
-                    } else if (IncidentEvent.Fields.SUMMARY.match(currentFieldName, parser.getDeprecationHandler())) {
-                        actualDescription = parser.text();
-                    } else if (IncidentEvent.Fields.SOURCE.match(currentFieldName, parser.getDeprecationHandler())) {
-                        actualWatchId = parser.text();
-                    } else if (IncidentEvent.Fields.SEVERITY.match(currentFieldName, parser.getDeprecationHandler())) {
-                        actualSeverity = parser.text();
-                    } else if (IncidentEvent.Fields.CUSTOM_DETAILS.match(currentFieldName, parser.getDeprecationHandler())) {
-                        // nested payload object is in here
-                        if (token != XContentParser.Token.START_OBJECT) {
-                            fail("custom_details was not an object");
-                        }
-                        parser.nextToken();
-                        Map<String, Object> mapped = parser.map();
-                        // the first entry is the payload
-                        actualPayload = new Payload.Simple((Map<String, Object>) mapped.get("payload"));
-                    } else {
-                        fail("an unexpected field was encountered inside payload: " + currentFieldName);
-                    }
-                }
-            } else {
-                // this case should not happen
-                fail("an unexpected field was encountered: " + currentFieldName);
+        if (payloadDetails != null) {
+            actualPayload = new Payload.Simple(payloadDetails);
+        }
+
+        List<IncidentEventContext> actualLinks = new ArrayList<>();
+        List<Map<String, String>> linkMap = (List<Map<String, String>>) objectPath.evaluate(IncidentEvent.Fields.LINKS.getPreferredName());
+        if (linkMap != null) {
+            for (Map<String, String> iecValue : linkMap) {
+                actualLinks.add(IncidentEventContext.link(iecValue.get("href"), iecValue.get("text")));
+            }
+        }
+
+        List<IncidentEventContext> actualImages = new ArrayList<>();
+        List<Map<String, String>> imgMap = (List<Map<String, String>>) objectPath.evaluate(IncidentEvent.Fields.IMAGES.getPreferredName());
+        if (imgMap != null) {
+            for (Map<String, String> iecValue : imgMap) {
+                actualImages.add(IncidentEventContext.image(iecValue.get("src"), iecValue.get("href"), iecValue.get("alt")));
             }
         }
 

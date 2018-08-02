@@ -24,17 +24,16 @@ import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Official documentation for this can be found at
  *
- * https://developer.pagerduty.com/documentation/howto/manually-trigger-an-incident/
- * https://developer.pagerduty.com/documentation/integration/events/trigger
- * https://developer.pagerduty.com/documentation/integration/events/acknowledge
- * https://developer.pagerduty.com/documentation/integration/events/resolve
+ * https://v2.developer.pagerduty.com/docs/send-an-event-events-api-v2
  */
 public class IncidentEvent implements ToXContentObject {
 
@@ -94,7 +93,7 @@ public class IncidentEvent implements ToXContentObject {
         return result;
     }
 
-    public HttpRequest createRequest(final String serviceKey, final Payload payload, final String watchId) throws IOException {
+    HttpRequest createRequest(final String serviceKey, final Payload payload, final String watchId) throws IOException {
         return HttpRequest.builder(HOST, -1)
                 .method(HttpMethod.POST)
                 .scheme(Scheme.HTTPS)
@@ -105,7 +104,7 @@ public class IncidentEvent implements ToXContentObject {
                 .build();
     }
 
-    public XContentBuilder buildAPIXContent(XContentBuilder builder, Params params, String serviceKey,
+    XContentBuilder buildAPIXContent(XContentBuilder builder, Params params, String serviceKey,
                                             Payload payload, String watchId) throws IOException {
         builder.field(Fields.ROUTING_KEY.getPreferredName(), serviceKey);
         builder.field(Fields.EVENT_ACTION.getPreferredName(), eventType);
@@ -155,32 +154,17 @@ public class IncidentEvent implements ToXContentObject {
     private void toXContentV2Contexts(XContentBuilder builder, ToXContent.Params params,
                                       IncidentEventContext[] contexts) throws IOException {
         // contexts can be either links or images, and the v2 api needs them separate
-        List<IncidentEventContext> links = new ArrayList<>();
-        List<IncidentEventContext> images = new ArrayList<>();
-        for (IncidentEventContext context: contexts) {
-            if (context.type == IncidentEventContext.Type.LINK) {
-                links.add(context);
-            } else if (context.type == IncidentEventContext.Type.IMAGE) {
-                images.add(context);
-            }
-        }
+        Map<IncidentEventContext.Type, List<IncidentEventContext>> groups = Arrays.stream(contexts)
+            .collect(Collectors.groupingBy(iec -> iec.type));
+
+        List<IncidentEventContext> links = groups.getOrDefault(IncidentEventContext.Type.LINK, Collections.emptyList());
         if (links.isEmpty() == false) {
-            builder.startArray(Fields.LINKS.getPreferredName());
-            {
-                for (IncidentEventContext link: links) {
-                    link.toXContent(builder, params);
-                }
-            }
-            builder.endArray();
+            builder.array(Fields.LINKS.getPreferredName(), links.toArray());
         }
+
+        List<IncidentEventContext> images = groups.getOrDefault(IncidentEventContext.Type.IMAGE, Collections.emptyList());
         if (images.isEmpty() == false) {
-            builder.startArray(Fields.IMAGES.getPreferredName());
-            {
-                for (IncidentEventContext image: images) {
-                    image.toXContent(builder, params);
-                }
-            }
-            builder.endArray();
+            builder.array(Fields.IMAGES.getPreferredName(), images.toArray());
         }
     }
 

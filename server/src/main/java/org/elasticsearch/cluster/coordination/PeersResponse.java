@@ -35,7 +35,7 @@ public class PeersResponse extends TransportResponse {
     private final long term;
 
     public PeersResponse(Optional<DiscoveryNode> masterNode, List<DiscoveryNode> knownPeers, long term) {
-        assert masterNode.isPresent() == knownPeers.isEmpty(); // TODO this should be failing now that the local node is not a known peer??
+        assert masterNode.isPresent() == false || knownPeers.isEmpty();
         this.masterNode = masterNode;
         this.knownPeers = knownPeers;
         this.term = term;
@@ -45,7 +45,7 @@ public class PeersResponse extends TransportResponse {
         masterNode = Optional.ofNullable(in.readOptionalWriteable(DiscoveryNode::new));
         knownPeers = in.readList(DiscoveryNode::new);
         term = in.readLong();
-        assert masterNode.isPresent() == knownPeers.isEmpty();
+        assert masterNode.isPresent() == false || knownPeers.isEmpty();
     }
 
     @Override

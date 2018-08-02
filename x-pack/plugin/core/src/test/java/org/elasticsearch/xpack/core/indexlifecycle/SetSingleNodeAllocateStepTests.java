@@ -26,9 +26,6 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
@@ -46,7 +43,6 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.xcontent.DeprecationHandler.THROW_UNSUPPORTED_OPERATION;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -361,12 +357,6 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         Mockito.when(client.admin()).thenReturn(adminClient);
         Mockito.when(adminClient.indices()).thenReturn(indicesClient);
 
-        final UpdateSettingsResponse response;
-        try (XContentParser parser = XContentType.JSON.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, THROW_UNSUPPORTED_OPERATION, "{\"acknowledged\": true}")) {
-            response = UpdateSettingsResponse.fromXContent(parser);
-        }
-
         Mockito.doAnswer(new Answer<Void>() {
 
             @Override
@@ -377,7 +367,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
                 assertSettingsRequestContainsValueFrom(request,
                         IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_name", validNodeNames, true,
                         indexMetaData.getIndex().getName());
-                listener.onResponse(response);
+                listener.onResponse(new UpdateSettingsResponse(true));
                 return null;
             }
 

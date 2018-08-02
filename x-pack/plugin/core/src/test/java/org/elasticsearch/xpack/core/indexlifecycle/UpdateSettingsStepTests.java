@@ -16,9 +16,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.indexlifecycle.AsyncActionStep.Listener;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.junit.Before;
@@ -26,7 +23,6 @@ import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
-import static org.elasticsearch.common.xcontent.DeprecationHandler.THROW_UNSUPPORTED_OPERATION;
 import static org.hamcrest.Matchers.equalTo;
 
 public class UpdateSettingsStepTests extends AbstractStepTestCase<UpdateSettingsStep> {
@@ -87,12 +83,6 @@ public class UpdateSettingsStepTests extends AbstractStepTestCase<UpdateSettings
         Mockito.when(client.admin()).thenReturn(adminClient);
         Mockito.when(adminClient.indices()).thenReturn(indicesClient);
 
-        final UpdateSettingsResponse response;
-        try (XContentParser parser = XContentType.JSON.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, THROW_UNSUPPORTED_OPERATION, "{\"acknowledged\": true}")) {
-            response = UpdateSettingsResponse.fromXContent(parser);
-        }
-
         Mockito.doAnswer(new Answer<Void>() {
 
             @Override
@@ -102,7 +92,7 @@ public class UpdateSettingsStepTests extends AbstractStepTestCase<UpdateSettings
                 ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
                 assertThat(request.settings(), equalTo(step.getSettings()));
                 assertThat(request.indices(), equalTo(new String[] {indexMetaData.getIndex().getName()}));
-                listener.onResponse(response);
+                listener.onResponse(new UpdateSettingsResponse(true));
                 return null;
             }
 

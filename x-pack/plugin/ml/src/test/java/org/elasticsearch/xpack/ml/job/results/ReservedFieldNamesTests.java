@@ -6,16 +6,18 @@
 package org.elasticsearch.xpack.ml.job.results;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.ReservedFieldNames;
 
 public class ReservedFieldNamesTests extends ESTestCase {
 
-    public void testIsValidFieldName() throws Exception {
+    public void testIsValidFieldName() {
         assertTrue(ReservedFieldNames.isValidFieldName("host"));
         assertTrue(ReservedFieldNames.isValidFieldName("host.actual"));
         assertFalse(ReservedFieldNames.isValidFieldName("actual.host"));
         assertFalse(ReservedFieldNames.isValidFieldName(AnomalyRecord.BUCKET_SPAN.getPreferredName()));
+        assertFalse(ReservedFieldNames.isValidFieldName(Job.ANALYSIS_CONFIG.getPreferredName()));
     }
 
 }

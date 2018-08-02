@@ -166,35 +166,35 @@ public final class PainlessLookupBuilder {
 
         try {
             for (Whitelist whitelist : whitelists) {
-                for (WhitelistClass whitelistClass : whitelist.whitelistStructs) {
+                for (WhitelistClass whitelistClass : whitelist.whitelistClasses) {
                     origin = whitelistClass.origin;
                     painlessLookupBuilder.addPainlessClass(
-                            whitelist.javaClassLoader, whitelistClass.javaClassName, whitelistClass.onlyFQNJavaClassName == false);
+                            whitelist.classLoader, whitelistClass.javaClassName, whitelistClass.noImport == false);
                 }
             }
 
             for (Whitelist whitelist : whitelists) {
-                for (WhitelistClass whitelistClass : whitelist.whitelistStructs) {
+                for (WhitelistClass whitelistClass : whitelist.whitelistClasses) {
                     String targetCanonicalClassName = whitelistClass.javaClassName.replace('$', '.');
 
                     for (WhitelistConstructor whitelistConstructor : whitelistClass.whitelistConstructors) {
                         origin = whitelistConstructor.origin;
                         painlessLookupBuilder.addPainlessConstructor(
-                                targetCanonicalClassName, whitelistConstructor.painlessParameterTypeNames);
+                                targetCanonicalClassName, whitelistConstructor.canonicalTypeNameParameters);
                     }
 
                     for (WhitelistMethod whitelistMethod : whitelistClass.whitelistMethods) {
                         origin = whitelistMethod.origin;
                         painlessLookupBuilder.addPainlessMethod(
-                                whitelist.javaClassLoader, targetCanonicalClassName, whitelistMethod.javaAugmentedClassName,
-                                whitelistMethod.javaMethodName, whitelistMethod.painlessReturnTypeName,
-                                whitelistMethod.painlessParameterTypeNames);
+                                whitelist.classLoader, targetCanonicalClassName, whitelistMethod.augmentedCanonicalClassName,
+                                whitelistMethod.methodName, whitelistMethod.returnCanonicalTypeName,
+                                whitelistMethod.canonicalTypeNameParameters);
                     }
 
                     for (WhitelistField whitelistField : whitelistClass.whitelistFields) {
                         origin = whitelistField.origin;
                         painlessLookupBuilder.addPainlessField(
-                                targetCanonicalClassName, whitelistField.javaFieldName, whitelistField.painlessFieldTypeName);
+                                targetCanonicalClassName, whitelistField.fieldName, whitelistField.canonicalTypeNameParameter);
                     }
                 }
             }
@@ -311,26 +311,26 @@ public final class PainlessLookupBuilder {
         }
     }
 
-    public void addPainlessConstructor(String targetCanonicalClassName, List<String> typeNameParameters) {
+    public void addPainlessConstructor(String targetCanonicalClassName, List<String> canonicalTypeNameParameters) {
         Objects.requireNonNull(targetCanonicalClassName);
-        Objects.requireNonNull(typeNameParameters);
+        Objects.requireNonNull(canonicalTypeNameParameters);
 
         Class<?> targetClass = canonicalClassNamesToClasses.get(targetCanonicalClassName);
 
         if (targetClass == null) {
             throw new IllegalArgumentException("target class [" + targetCanonicalClassName + "] not found" +
-                    "for constructor [[" + targetCanonicalClassName + "], " + typeNameParameters  + "]");
+                    "for constructor [[" + targetCanonicalClassName + "], " + canonicalTypeNameParameters  + "]");
         }
 
-        List<Class<?>> typeParameters = new ArrayList<>(typeNameParameters.size());
+        List<Class<?>> typeParameters = new ArrayList<>(canonicalTypeNameParameters.size());
 
-        for (String typeNameParameter : typeNameParameters) {
+        for (String typeNameParameter : canonicalTypeNameParameters) {
             try {
                 Class<?> typeParameter = canonicalTypeNameToType(typeNameParameter);
                 typeParameters.add(typeParameter);
             } catch (IllegalArgumentException iae) {
                 throw new IllegalArgumentException("type parameter [" + typeNameParameter + "] not found " +
-                        "for constructor [[" + targetCanonicalClassName + "], " + typeNameParameters  + "]", iae);
+                        "for constructor [[" + targetCanonicalClassName + "], " + canonicalTypeNameParameters  + "]", iae);
             }
         }
 
@@ -406,19 +406,19 @@ public final class PainlessLookupBuilder {
     }
 
     public void addPainlessMethod(ClassLoader classLoader, String targetCanonicalClassName, String augmentedCanonicalClassName,
-            String methodName, String returnCanonicalTypeName, List<String> typeNameParameters) {
+            String methodName, String returnCanonicalTypeName, List<String> canonicalTypeNameParameters) {
 
         Objects.requireNonNull(classLoader);
         Objects.requireNonNull(targetCanonicalClassName);
         Objects.requireNonNull(methodName);
         Objects.requireNonNull(returnCanonicalTypeName);
-        Objects.requireNonNull(typeNameParameters);
+        Objects.requireNonNull(canonicalTypeNameParameters);
 
         Class<?> targetClass = canonicalClassNamesToClasses.get(targetCanonicalClassName);
 
         if (targetClass == null) {
             throw new IllegalArgumentException("target class [" + targetCanonicalClassName + "] not found for method " +
-                    "[[" + targetCanonicalClassName + "], [" + methodName + "], " + typeNameParameters + "]");
+                    "[[" + targetCanonicalClassName + "], [" + methodName + "], " + canonicalTypeNameParameters + "]");
         }
 
         Class<?> augmentedClass = null;
@@ -428,19 +428,19 @@ public final class PainlessLookupBuilder {
                 augmentedClass = Class.forName(augmentedCanonicalClassName, true, classLoader);
             } catch (ClassNotFoundException cnfe) {
                 throw new IllegalArgumentException("augmented class [" + augmentedCanonicalClassName + "] not found for method " +
-                        "[[" + targetCanonicalClassName + "], [" + methodName + "], " + typeNameParameters + "]", cnfe);
+                        "[[" + targetCanonicalClassName + "], [" + methodName + "], " + canonicalTypeNameParameters + "]", cnfe);
             }
         }
 
-        List<Class<?>> typeParameters = new ArrayList<>(typeNameParameters.size());
+        List<Class<?>> typeParameters = new ArrayList<>(canonicalTypeNameParameters.size());
 
-        for (String typeNameParameter : typeNameParameters) {
+        for (String typeNameParameter : canonicalTypeNameParameters) {
             try {
                 Class<?> typeParameter = canonicalTypeNameToType(typeNameParameter);
                 typeParameters.add(typeParameter);
             } catch (IllegalArgumentException iae) {
                 throw new IllegalArgumentException("parameter type [" + typeNameParameter + "] not found for method " +
-                        "[[" + targetCanonicalClassName + "], [" + methodName + "], " + typeNameParameters + "]", iae);
+                        "[[" + targetCanonicalClassName + "], [" + methodName + "], " + canonicalTypeNameParameters + "]", iae);
             }
         }
 
@@ -450,7 +450,7 @@ public final class PainlessLookupBuilder {
             returnType = canonicalTypeNameToType(returnCanonicalTypeName);
         } catch (IllegalArgumentException iae) {
             throw new IllegalArgumentException("parameter type [" + returnCanonicalTypeName + "] not found for method " +
-                    "[[" + targetCanonicalClassName + "], [" + methodName + "], " + typeNameParameters + "]", iae);
+                    "[[" + targetCanonicalClassName + "], [" + methodName + "], " + canonicalTypeNameParameters + "]", iae);
         }
 
         addPainlessMethod(targetClass, augmentedClass, methodName, returnType, typeParameters);
@@ -610,10 +610,10 @@ public final class PainlessLookupBuilder {
         }
     }
 
-    public void addPainlessField(String targetCanonicalClassName, String fieldName, String typeNameParameter) {
+    public void addPainlessField(String targetCanonicalClassName, String fieldName, String canonicalTypeNameParameter) {
         Objects.requireNonNull(targetCanonicalClassName);
         Objects.requireNonNull(fieldName);
-        Objects.requireNonNull(typeNameParameter);
+        Objects.requireNonNull(canonicalTypeNameParameter);
 
         Class<?> targetClass = canonicalClassNamesToClasses.get(targetCanonicalClassName);
 
@@ -624,9 +624,9 @@ public final class PainlessLookupBuilder {
         Class<?> typeParameter;
 
         try {
-            typeParameter = canonicalTypeNameToType(typeNameParameter);
+            typeParameter = canonicalTypeNameToType(canonicalTypeNameParameter);
         } catch (IllegalArgumentException iae) {
-            throw new IllegalArgumentException("type parameter [" + typeNameParameter + "] not found " +
+            throw new IllegalArgumentException("type parameter [" + canonicalTypeNameParameter + "] not found " +
                     "for field [[" + targetCanonicalClassName + "], [" + fieldName + "]");
         }
 

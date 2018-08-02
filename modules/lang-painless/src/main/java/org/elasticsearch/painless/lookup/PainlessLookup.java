@@ -61,10 +61,10 @@ public final class PainlessLookup {
         return canonicalClassNamesToClasses.containsKey(canonicalClassName);
     }
 
-    public Class<?> canonicalTypeNameToType(String painlessType) {
-        Objects.requireNonNull(painlessType);
+    public Class<?> canonicalTypeNameToType(String canonicalTypeName) {
+        Objects.requireNonNull(canonicalTypeName);
 
-        return PainlessLookupUtility.canonicalTypeNameToType(painlessType, canonicalClassNamesToClasses);
+        return PainlessLookupUtility.canonicalTypeNameToType(canonicalTypeName, canonicalClassNamesToClasses);
     }
 
     public List<Class<?>> getSortedClassesByCanonicalClassName() {
@@ -75,10 +75,10 @@ public final class PainlessLookup {
         return classesToPainlessClasses.get(targetClass);
     }
 
-    public PainlessConstructor lookupPainlessConstructor(String targetClassName, int constructorArity) {
-        Objects.requireNonNull(targetClassName);
+    public PainlessConstructor lookupPainlessConstructor(String targetCanonicalClassName, int constructorArity) {
+        Objects.requireNonNull(targetCanonicalClassName);
 
-        Class<?> targetClass = canonicalTypeNameToType(targetClassName);
+        Class<?> targetClass = canonicalTypeNameToType(targetCanonicalClassName);
 
         return lookupPainlessConstructor(targetClass, constructorArity);
     }
@@ -104,10 +104,10 @@ public final class PainlessLookup {
         return painlessConstructor;
     }
 
-    public PainlessMethod lookupPainlessMethod(String targetClassName, boolean isStatic, String methodName, int methodArity) {
-        Objects.requireNonNull(targetClassName);
+    public PainlessMethod lookupPainlessMethod(String targetCanonicalClassName, boolean isStatic, String methodName, int methodArity) {
+        Objects.requireNonNull(targetCanonicalClassName);
 
-        Class<?> targetClass = canonicalTypeNameToType(targetClassName);
+        Class<?> targetClass = canonicalTypeNameToType(targetCanonicalClassName);
 
         return lookupPainlessMethod(targetClass, isStatic, methodName, methodArity);
     }
@@ -140,10 +140,10 @@ public final class PainlessLookup {
         return painlessMethod;
     }
 
-    public PainlessField lookupPainlessField(String targetClassName, boolean isStatic, String fieldName) {
-        Objects.requireNonNull(targetClassName);
+    public PainlessField lookupPainlessField(String targetCanonicalClassName, boolean isStatic, String fieldName) {
+        Objects.requireNonNull(targetCanonicalClassName);
 
-        Class<?> targetClass = canonicalTypeNameToType(targetClassName);
+        Class<?> targetClass = canonicalTypeNameToType(targetCanonicalClassName);
 
         return lookupPainlessField(targetClass, isStatic, fieldName);
     }
@@ -193,7 +193,8 @@ public final class PainlessLookup {
         Objects.requireNonNull(methodName);
 
         String painlessMethodKey = buildPainlessMethodKey(methodName, methodArity);
-        Function<PainlessClass, PainlessMethod> objectLookup = targetPainlessClass -> targetPainlessClass.methods.get(painlessMethodKey);
+        Function<PainlessClass, PainlessMethod> objectLookup =
+                targetPainlessClass -> targetPainlessClass.methods.get(painlessMethodKey);
         String notFoundErrorMessage =
                 "dynamic method [" + typeToCanonicalTypeName(originalTargetClass) + ", " + painlessMethodKey + "] not found";
 
@@ -204,8 +205,10 @@ public final class PainlessLookup {
         Objects.requireNonNull(originalTargetClass);
         Objects.requireNonNull(getterName);
 
-        Function<PainlessClass, MethodHandle> objectLookup = targetPainlessClass -> targetPainlessClass.getterMethodHandles.get(getterName);
-        String notFoundErrorMessage = "dynamic getter [" + typeToCanonicalTypeName(originalTargetClass) + ", " + getterName + "] not found";
+        Function<PainlessClass, MethodHandle> objectLookup =
+                targetPainlessClass -> targetPainlessClass.getterMethodHandles.get(getterName);
+        String notFoundErrorMessage =
+                "dynamic getter [" + typeToCanonicalTypeName(originalTargetClass) + ", " + getterName + "] not found";
 
         return lookupRuntimePainlessObject(originalTargetClass, objectLookup, notFoundErrorMessage);
     }
@@ -214,8 +217,10 @@ public final class PainlessLookup {
         Objects.requireNonNull(originalTargetClass);
         Objects.requireNonNull(setterName);
 
-        Function<PainlessClass, MethodHandle> objectLookup = targetPainlessClass -> targetPainlessClass.setterMethodHandles.get(setterName);
-        String notFoundErrorMessage = "dynamic setter [" + typeToCanonicalTypeName(originalTargetClass) + ", " + setterName + "] not found";
+        Function<PainlessClass, MethodHandle> objectLookup =
+                targetPainlessClass -> targetPainlessClass.setterMethodHandles.get(setterName);
+        String notFoundErrorMessage =
+                "dynamic setter [" + typeToCanonicalTypeName(originalTargetClass) + ", " + setterName + "] not found";
 
         return lookupRuntimePainlessObject(originalTargetClass, objectLookup, notFoundErrorMessage);
     }

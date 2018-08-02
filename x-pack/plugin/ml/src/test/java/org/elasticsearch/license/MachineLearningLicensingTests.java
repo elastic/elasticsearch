@@ -53,7 +53,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         ensureYellow();
     }
 
-    public void testMachineLearningPutJobActionRestricted() throws Exception {
+    public void testMachineLearningPutJobActionRestricted() {
         String jobId = "testmachinelearningputjobactionrestricted";
         // Pick a license that does not allow machine learning
         License.OperationMode mode = randomInvalidLicenseType();

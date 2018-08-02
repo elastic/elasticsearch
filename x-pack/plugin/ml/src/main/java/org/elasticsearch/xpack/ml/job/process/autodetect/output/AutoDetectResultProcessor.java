@@ -34,7 +34,7 @@ import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
@@ -88,7 +88,7 @@ public class AutoDetectResultProcessor {
     private final String jobId;
     private final Renormalizer renormalizer;
     private final JobResultsPersister persister;
-    private final JobProvider jobProvider;
+    private final JobResultsProvider jobResultsProvider;
     private final boolean restoredSnapshot;
 
     final CountDownLatch completionLatch = new CountDownLatch(1);
@@ -107,20 +107,22 @@ public class AutoDetectResultProcessor {
     private volatile boolean haveNewLatestModelSizeStats;
     private Future<?> scheduledEstablishedModelMemoryUpdate; // only accessed in synchronized methods
 
-    public AutoDetectResultProcessor(Client client, Auditor auditor, String jobId, Renormalizer renormalizer, JobResultsPersister persister,
-                                     JobProvider jobProvider, ModelSizeStats latestModelSizeStats, boolean restoredSnapshot) {
-        this(client, auditor, jobId, renormalizer, persister, jobProvider, latestModelSizeStats, restoredSnapshot, new FlushListener());
+    public AutoDetectResultProcessor(Client client, Auditor auditor, String jobId, Renormalizer renormalizer,
+                                     JobResultsPersister persister, JobResultsProvider jobResultsProvider,
+                                     ModelSizeStats latestModelSizeStats, boolean restoredSnapshot) {
+        this(client, auditor, jobId, renormalizer, persister, jobResultsProvider, latestModelSizeStats,
+                restoredSnapshot, new FlushListener());
     }
 
     AutoDetectResultProcessor(Client client, Auditor auditor, String jobId, Renormalizer renormalizer, JobResultsPersister persister,
-                              JobProvider jobProvider, ModelSizeStats latestModelSizeStats, boolean restoredSnapshot,
+                              JobResultsProvider jobResultsProvider, ModelSizeStats latestModelSizeStats, boolean restoredSnapshot,
                               FlushListener flushListener) {
         this.client = Objects.requireNonNull(client);
         this.auditor = Objects.requireNonNull(auditor);
         this.jobId = Objects.requireNonNull(jobId);
         this.renormalizer = Objects.requireNonNull(renormalizer);
         this.persister = Objects.requireNonNull(persister);
-        this.jobProvider = Objects.requireNonNull(jobProvider);
+        this.jobResultsProvider = Objects.requireNonNull(jobResultsProvider);
         this.flushListener = Objects.requireNonNull(flushListener);
         this.latestModelSizeStats = Objects.requireNonNull(latestModelSizeStats);
         this.restoredSnapshot = restoredSnapshot;
@@ -214,7 +216,7 @@ public class AutoDetectResultProcessor {
 
             // if we haven't previously set established model memory, consider trying again after
             // a reasonable number of buckets have elapsed since the last model size stats update
-            long minEstablishedTimespanMs = JobProvider.BUCKETS_FOR_ESTABLISHED_MEMORY_SIZE * bucket.getBucketSpan() * 1000L;
+            long minEstablishedTimespanMs = JobResultsProvider.BUCKETS_FOR_ESTABLISHED_MEMORY_SIZE * bucket.getBucketSpan() * 1000L;
             if (haveNewLatestModelSizeStats && latestEstablishedModelMemory == 0 && latestDateForEstablishedModelMemoryCalc.getTime()
                 > latestModelSizeStats.getTimestamp().getTime() + minEstablishedTimespanMs) {
                 scheduleEstablishedModelMemoryUpdate(ESTABLISHED_MODEL_MEMORY_UPDATE_DELAY);
@@ -314,7 +316,7 @@ public class AutoDetectResultProcessor {
         // This is a crude way to NOT refresh the index and NOT attempt to update established model memory during the first 20 buckets
         // because this is when the model size stats are likely to be least stable and lots of updates will be coming through, and
         // we'll NEVER consider memory usage to be established during this period
-        if (restoredSnapshot || bucketCount >= JobProvider.BUCKETS_FOR_ESTABLISHED_MEMORY_SIZE) {
+        if (restoredSnapshot || bucketCount >= JobResultsProvider.BUCKETS_FOR_ESTABLISHED_MEMORY_SIZE) {
             scheduleEstablishedModelMemoryUpdate(ESTABLISHED_MODEL_MEMORY_UPDATE_DELAY);
         }
     }
@@ -429,7 +431,7 @@ public class AutoDetectResultProcessor {
         // We need to make all results written up to and including these stats available for the established memory calculation
         persister.commitResultWrites(jobId);
 
-        jobProvider.getEstablishedMemoryUsage(jobId, latestBucketTimestamp, modelSizeStatsForCalc, establishedModelMemory -> {
+        jobResultsProvider.getEstablishedMemoryUsage(jobId, latestBucketTimestamp, modelSizeStatsForCalc, establishedModelMemory -> {
             if (latestEstablishedModelMemory != establishedModelMemory) {
                 JobUpdate update = new JobUpdate.Builder(jobId).setEstablishedModelMemory(establishedModelMemory).build();
                 UpdateJobAction.Request updateRequest = UpdateJobAction.Request.internal(jobId, update);

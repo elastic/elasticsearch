@@ -72,7 +72,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class JobProviderTests extends ESTestCase {
+public class JobResultsProviderTests extends ESTestCase {
     private static final String CLUSTER_NAME = "myCluster";
 
     @SuppressWarnings("unchecked")
@@ -87,7 +87,7 @@ public class JobProviderTests extends ESTestCase {
         clientBuilder.prepareAlias(resultsIndexName, AnomalyDetectorsIndex.resultsWriteAlias("foo"));
 
         Job.Builder job = buildJobBuilder("foo");
-        JobProvider provider = createProvider(clientBuilder.build());
+        JobResultsProvider provider = createProvider(clientBuilder.build());
         AtomicReference<Boolean> resultHolder = new AtomicReference<>();
 
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
@@ -141,7 +141,7 @@ public class JobProviderTests extends ESTestCase {
 
         Job.Builder job = buildJobBuilder("foo123");
         job.setResultsIndexName("foo");
-        JobProvider provider = createProvider(clientBuilder.build());
+        JobResultsProvider provider = createProvider(clientBuilder.build());
 
         Index index = mock(Index.class);
         when(index.getName()).thenReturn(AnomalyDetectorsIndex.jobResultsAliasedName("foo"));
@@ -202,7 +202,7 @@ public class JobProviderTests extends ESTestCase {
         Job.Builder job = buildJobBuilder("foo");
         job.setResultsIndexName("bar");
         Client client = clientBuilder.build();
-        JobProvider provider = createProvider(client);
+        JobResultsProvider provider = createProvider(client);
 
         ImmutableOpenMap<String, IndexMetaData> indexMap = ImmutableOpenMap.<String, IndexMetaData>builder().build();
 
@@ -248,7 +248,7 @@ public class JobProviderTests extends ESTestCase {
         int from = 0;
         int size = 10;
         Client client = getMockedClient(queryBuilder -> queryBuilderHolder[0] = queryBuilder, response);
-        JobProvider provider = createProvider(client);
+        JobResultsProvider provider = createProvider(client);
 
         BucketsQueryBuilder bq = new BucketsQueryBuilder().from(from).size(size).anomalyScoreThreshold(1.0);
 
@@ -281,7 +281,7 @@ public class JobProviderTests extends ESTestCase {
         int size = 17;
 
         Client client = getMockedClient(queryBuilder -> queryBuilderHolder[0] = queryBuilder, response);
-        JobProvider provider = createProvider(client);
+        JobResultsProvider provider = createProvider(client);
 
         BucketsQueryBuilder bq = new BucketsQueryBuilder().from(from).size(size).anomalyScoreThreshold(5.1)
                 .includeInterim(true);
@@ -314,7 +314,7 @@ public class JobProviderTests extends ESTestCase {
         int size = 17;
 
         Client client = getMockedClient(queryBuilder -> queryBuilderHolder[0] = queryBuilder, response);
-        JobProvider provider = createProvider(client);
+        JobResultsProvider provider = createProvider(client);
 
         BucketsQueryBuilder bq = new BucketsQueryBuilder();
         bq.from(from);
@@ -341,7 +341,7 @@ public class JobProviderTests extends ESTestCase {
         SearchResponse response = createSearchResponse(source);
 
         Client client = getMockedClient(queryBuilder -> {}, response);
-        JobProvider provider = createProvider(client);
+        JobResultsProvider provider = createProvider(client);
 
         BucketsQueryBuilder bq = new BucketsQueryBuilder();
         bq.timestamp(Long.toString(timestamp));
@@ -363,7 +363,7 @@ public class JobProviderTests extends ESTestCase {
 
         SearchResponse response = createSearchResponse(source);
         Client client = getMockedClient(queryBuilder -> {}, response);
-        JobProvider provider = createProvider(client);
+        JobResultsProvider provider = createProvider(client);
 
         BucketsQueryBuilder bq = new BucketsQueryBuilder();
         bq.timestamp(Long.toString(now.getTime()));
@@ -403,7 +403,7 @@ public class JobProviderTests extends ESTestCase {
         String sortfield = "minefield";
         SearchResponse response = createSearchResponse(source);
         Client client = getMockedClient(qb -> {}, response);
-        JobProvider provider = createProvider(client);
+        JobResultsProvider provider = createProvider(client);
 
         RecordsQueryBuilder rqb = new RecordsQueryBuilder().from(from).size(size).epochStart(String.valueOf(now.getTime()))
                 .epochEnd(String.valueOf(now.getTime())).includeInterim(true).sortField(sortfield)
@@ -451,7 +451,7 @@ public class JobProviderTests extends ESTestCase {
         SearchResponse response = createSearchResponse(source);
 
         Client client = getMockedClient(qb -> {}, response);
-        JobProvider provider = createProvider(client);
+        JobResultsProvider provider = createProvider(client);
 
         RecordsQueryBuilder rqb = new RecordsQueryBuilder();
         rqb.from(from);
@@ -505,7 +505,7 @@ public class JobProviderTests extends ESTestCase {
         String sortfield = "minefield";
         SearchResponse response = createSearchResponse(source);
         Client client = getMockedClient(qb -> {}, response);
-        JobProvider provider = createProvider(client);
+        JobResultsProvider provider = createProvider(client);
 
         @SuppressWarnings({"unchecked"})
         QueryPage<AnomalyRecord>[] holder = new QueryPage[1];
@@ -542,7 +542,7 @@ public class JobProviderTests extends ESTestCase {
 
         SearchResponse response = createSearchResponse(source);
         Client client = getMockedClient(qb -> {}, response);
-        JobProvider provider = createProvider(client);
+        JobResultsProvider provider = createProvider(client);
 
         Integer[] holder = new Integer[1];
         provider.expandBucket(jobId, false, bucket, records -> holder[0] = records, RuntimeException::new, client);
@@ -567,7 +567,7 @@ public class JobProviderTests extends ESTestCase {
         int size = 10;
         Client client = getMockedClient(q -> {}, response);
 
-        JobProvider provider = createProvider(client);
+        JobResultsProvider provider = createProvider(client);
         @SuppressWarnings({"unchecked"})
         QueryPage<CategoryDefinition>[] holder = new QueryPage[1];
         provider.categoryDefinitions(jobId, null, false, from, size, r -> holder[0] = r,
@@ -589,7 +589,7 @@ public class JobProviderTests extends ESTestCase {
 
         SearchResponse response = createSearchResponse(Collections.singletonList(source));
         Client client = getMockedClient(q -> {}, response);
-        JobProvider provider = createProvider(client);
+        JobResultsProvider provider = createProvider(client);
         @SuppressWarnings({"unchecked"})
         QueryPage<CategoryDefinition>[] holder = new QueryPage[1];
         provider.categoryDefinitions(jobId, categoryId, false, null, null,
@@ -630,7 +630,7 @@ public class JobProviderTests extends ESTestCase {
         QueryBuilder[] qbHolder = new QueryBuilder[1];
         SearchResponse response = createSearchResponse(source);
         Client client = getMockedClient(q -> qbHolder[0] = q, response);
-        JobProvider provider = createProvider(client);
+        JobResultsProvider provider = createProvider(client);
 
         @SuppressWarnings({"unchecked"})
         QueryPage<Influencer>[] holder = new QueryPage[1];
@@ -690,7 +690,7 @@ public class JobProviderTests extends ESTestCase {
         QueryBuilder[] qbHolder = new QueryBuilder[1];
         SearchResponse response = createSearchResponse(source);
         Client client = getMockedClient(q -> qbHolder[0] = q, response);
-        JobProvider provider = createProvider(client);
+        JobResultsProvider provider = createProvider(client);
 
         @SuppressWarnings({"unchecked"})
         QueryPage<Influencer>[] holder = new QueryPage[1];
@@ -745,7 +745,7 @@ public class JobProviderTests extends ESTestCase {
         int size = 3;
         SearchResponse response = createSearchResponse(source);
         Client client = getMockedClient(qb -> {}, response);
-        JobProvider provider = createProvider(client);
+        JobResultsProvider provider = createProvider(client);
 
         @SuppressWarnings({"unchecked"})
         QueryPage<ModelSnapshot>[] holder = new QueryPage[1];
@@ -783,11 +783,11 @@ public class JobProviderTests extends ESTestCase {
         MetaData metaData = MetaData.builder()
                 .put(indexMetaData1)
                 .build();
-        boolean result = JobProvider.violatedFieldCountLimit("index1", 0, 10,
+        boolean result = JobResultsProvider.violatedFieldCountLimit("index1", 0, 10,
                 ClusterState.builder(new ClusterName("_name")).metaData(metaData).build());
         assertFalse(result);
 
-        result = JobProvider.violatedFieldCountLimit("index1", 1, 10,
+        result = JobResultsProvider.violatedFieldCountLimit("index1", 1, 10,
                 ClusterState.builder(new ClusterName("_name")).metaData(metaData).build());
         assertTrue(result);
 
@@ -801,7 +801,7 @@ public class JobProviderTests extends ESTestCase {
         metaData = MetaData.builder()
                 .put(indexMetaData2)
                 .build();
-        result = JobProvider.violatedFieldCountLimit("index1", 0, 19,
+        result = JobResultsProvider.violatedFieldCountLimit("index1", 0, 19,
                 ClusterState.builder(new ClusterName("_name")).metaData(metaData).build());
         assertTrue(result);
     }
@@ -811,7 +811,7 @@ public class JobProviderTests extends ESTestCase {
         mapping.put("field1", Collections.singletonMap("type", "string"));
         mapping.put("field2", Collections.singletonMap("type", "string"));
         mapping.put("field3", Collections.singletonMap("type", "string"));
-        assertEquals(3, JobProvider.countFields(Collections.singletonMap("properties", mapping)));
+        assertEquals(3, JobResultsProvider.countFields(Collections.singletonMap("properties", mapping)));
 
         Map<String, Object> objectProperties = new HashMap<>();
         objectProperties.put("field4", Collections.singletonMap("type", "string"));
@@ -822,15 +822,15 @@ public class JobProviderTests extends ESTestCase {
         objectField.put("properties", objectProperties);
 
         mapping.put("field4", objectField);
-        assertEquals(7, JobProvider.countFields(Collections.singletonMap("properties", mapping)));
+        assertEquals(7, JobResultsProvider.countFields(Collections.singletonMap("properties", mapping)));
     }
 
     private Bucket createBucketAtEpochTime(long epoch) {
         return new Bucket("foo", new Date(epoch), 123);
     }
 
-    private JobProvider createProvider(Client client) {
-        return new JobProvider(client, Settings.EMPTY);
+    private JobResultsProvider createProvider(Client client) {
+        return new JobResultsProvider(client, Settings.EMPTY);
     }
 
     private static GetResponse createGetResponse(boolean exists, Map<String, Object> source) throws IOException {

@@ -25,7 +25,7 @@ import java.util.Objects;
 
 public class MoveToStepAction extends Action<MoveToStepAction.Response> {
     public static final MoveToStepAction INSTANCE = new MoveToStepAction();
-    public static final String NAME = "cluster:admin/xpack/index_lifecycle/_move/post";
+    public static final String NAME = "cluster:admin/ilm/_move/post";
 
     protected MoveToStepAction() {
         super(NAME);

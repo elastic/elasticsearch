@@ -3,6 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.core.indexlifecycle.action;
 
 import org.elasticsearch.action.Action;
@@ -21,7 +22,7 @@ import java.util.Objects;
 
 public class GetStatusAction extends Action<GetStatusAction.Response> {
     public static final GetStatusAction INSTANCE = new GetStatusAction();
-    public static final String NAME = "cluster:admin/xpack/index_lifecycle/operation_mode/get";
+    public static final String NAME = "cluster:admin/ilm/operation_mode/get";
 
     protected GetStatusAction() {
         super(NAME);

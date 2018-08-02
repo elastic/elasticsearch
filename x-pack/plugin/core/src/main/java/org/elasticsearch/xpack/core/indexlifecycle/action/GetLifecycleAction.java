@@ -3,6 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.core.indexlifecycle.action;
 
 import org.elasticsearch.action.Action;
@@ -23,7 +24,7 @@ import java.util.Objects;
 
 public class GetLifecycleAction extends Action<GetLifecycleAction.Response> {
     public static final GetLifecycleAction INSTANCE = new GetLifecycleAction();
-    public static final String NAME = "cluster:admin/xpack/index_lifecycle/get";
+    public static final String NAME = "cluster:admin/ilm/get";
 
     protected GetLifecycleAction() {
         super(NAME);

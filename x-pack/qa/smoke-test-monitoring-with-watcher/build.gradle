@@ -8,7 +8,7 @@ dependencies {
 }
 
 integTestCluster {
-  setting 'xpack.index_lifecycle.enabled', 'false'
+  setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.monitoring.enabled', 'true'
   setting 'xpack.watcher.enabled', 'true'
   setting 'xpack.security.enabled', 'false'

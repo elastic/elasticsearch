@@ -1487,7 +1487,9 @@ public class TranslogTests extends ESTestCase {
             ops.add(test);
         }
         Translog.writeOperations(out, ops);
-        final List<Translog.Operation> readOperations = Translog.readOperations(out.bytes().streamInput());
+        final List<Translog.Operation> readOperations = Translog.readOperations(
+                out.bytes().streamInput(),
+                new TranslogTestSource("testSnapshotFromStreamInput"));
         assertEquals(ops.size(), readOperations.size());
         assertEquals(ops, readOperations);
     }

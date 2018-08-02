@@ -20,6 +20,7 @@
 package org.elasticsearch.index.translog;
 
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
+import org.elasticsearch.index.translog.source.TranslogFileSource;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -79,7 +80,9 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
         final int size = reusableBuffer.getInt() + 4;
         final long maxSize = sizeInBytes() - position;
         if (size < 0 || size > maxSize) {
-            throw new TranslogCorruptedException(path, "Operation size is corrupted must be [0.." + maxSize + "] but was: " + size);
+            throw new TranslogCorruptedException(
+                    new TranslogFileSource(path),
+                    "operation size is corrupted must be [0.." + maxSize + "] but was: " + size);
         }
         return size;
     }
@@ -103,14 +106,16 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
         buffer.limit(opSize);
         readBytes(buffer, position);
         buffer.flip();
-        return new BufferedChecksumStreamInput(new ByteBufferStreamInput(buffer), path, reuse);
+        return new BufferedChecksumStreamInput(new ByteBufferStreamInput(buffer), new TranslogFileSource(path), reuse);
     }
 
     protected Translog.Operation read(BufferedChecksumStreamInput inStream) throws IOException {
         final Translog.Operation op = Translog.readOperation(inStream);
         if (op.primaryTerm() > getPrimaryTerm() && getPrimaryTerm() != TranslogHeader.UNKNOWN_PRIMARY_TERM) {
-            throw new TranslogCorruptedException(path, "Operation's term is newer than translog header term; " +
-                "operation term[" + op.primaryTerm() + "], translog header term [" + getPrimaryTerm() + "]");
+            throw new TranslogCorruptedException(
+                    new TranslogFileSource(path),
+                    "operation's term is newer than translog header term; " +
+                    "operation term[" + op.primaryTerm() + "], translog header term [" + getPrimaryTerm() + "]");
         }
         return op;
     }

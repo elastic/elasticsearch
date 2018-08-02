@@ -17,22 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.translog;
+package org.elasticsearch.index.translog.source;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.index.translog.source.TranslogSource;
-
-import java.io.IOException;
-
-public class TruncatedTranslogException extends TranslogCorruptedException {
-
-    public TruncatedTranslogException(StreamInput in) throws IOException {
-        super(in);
-    }
-
-    public TruncatedTranslogException(TranslogSource source, String details, Throwable cause) {
-        super(source, details, cause);
-    }
-
-
+public interface TranslogSource {
 }

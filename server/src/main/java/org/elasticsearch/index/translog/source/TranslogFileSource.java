@@ -17,22 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.index.translog;
+package org.elasticsearch.index.translog.source;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.index.translog.source.TranslogSource;
+import java.nio.file.Path;
 
-import java.io.IOException;
+public class TranslogFileSource implements TranslogSource {
+    private final Path path;
 
-public class TruncatedTranslogException extends TranslogCorruptedException {
-
-    public TruncatedTranslogException(StreamInput in) throws IOException {
-        super(in);
+    public TranslogFileSource(Path path){
+        this.path = path;
     }
 
-    public TruncatedTranslogException(TranslogSource source, String details, Throwable cause) {
-        super(source, details, cause);
+    @Override
+    public String toString() {
+        return path.toString();
     }
-
-
 }

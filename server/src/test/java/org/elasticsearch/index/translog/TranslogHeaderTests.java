@@ -108,7 +108,7 @@ public class TranslogHeaderTests extends ESTestCase {
         checkFailsToOpen("/org/elasticsearch/index/translog/translog-v1.binary", IllegalStateException.class, "pre-2.0 translog");
         checkFailsToOpen("/org/elasticsearch/index/translog/translog-v1-truncated.binary", IllegalStateException.class, "pre-2.0 translog");
         checkFailsToOpen("/org/elasticsearch/index/translog/translog-v1-corrupted-magic.binary",
-            TranslogCorruptedException.class, "Translog looks like version 1 or later, but has corrupted header");
+            TranslogCorruptedException.class, "translog looks like version 1 or later, but has corrupted header");
         checkFailsToOpen("/org/elasticsearch/index/translog/translog-v1-corrupted-body.binary",
             IllegalStateException.class, "pre-2.0 translog");
     }

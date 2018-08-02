@@ -22,9 +22,9 @@ package org.elasticsearch.index.translog;
 import org.apache.lucene.store.BufferedChecksum;
 import org.elasticsearch.common.io.stream.FilterStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.index.translog.source.TranslogSource;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
@@ -36,23 +36,11 @@ public final class BufferedChecksumStreamInput extends FilterStreamInput {
     private static final int SKIP_BUFFER_SIZE = 1024;
     private byte[] skipBuffer;
     private final Checksum digest;
-    private final Path path;
+    private final TranslogSource source;
 
-    public BufferedChecksumStreamInput(StreamInput in) {
+    public BufferedChecksumStreamInput(StreamInput in, TranslogSource source, BufferedChecksumStreamInput reuse) {
         super(in);
-        this.path = null;
-        this.digest = new BufferedChecksum(new CRC32());
-    }
-
-    public BufferedChecksumStreamInput(StreamInput in, Path path) {
-        super(in);
-        this.path = path;
-        this.digest = new BufferedChecksum(new CRC32());
-    }
-
-    public BufferedChecksumStreamInput(StreamInput in, Path path, BufferedChecksumStreamInput reuse) {
-        super(in);
-        this.path = path;
+        this.source = source;
         if (reuse == null ) {
             this.digest = new BufferedChecksum(new CRC32());
         } else {
@@ -62,7 +50,11 @@ public final class BufferedChecksumStreamInput extends FilterStreamInput {
         }
     }
 
-
+    public BufferedChecksumStreamInput(StreamInput in, TranslogSource source) {
+        super(in);
+        this.source = source;
+        this.digest = new BufferedChecksum(new CRC32());
+    }
 
     public long getChecksum() {
         return this.digest.getValue();
@@ -97,7 +89,6 @@ public final class BufferedChecksumStreamInput extends FilterStreamInput {
         return delegate.markSupported();
     }
 
-
     @Override
     public long skip(long numBytes) throws IOException {
         if (numBytes < 0) {
@@ -116,7 +107,6 @@ public final class BufferedChecksumStreamInput extends FilterStreamInput {
         return skipped;
     }
 
-
     @Override
     public synchronized void mark(int readlimit) {
         delegate.mark(readlimit);
@@ -126,7 +116,7 @@ public final class BufferedChecksumStreamInput extends FilterStreamInput {
         digest.reset();
     }
 
-    public Path getPath() {
-        return path;
+    public TranslogSource getSource(){
+        return source;
     }
 }

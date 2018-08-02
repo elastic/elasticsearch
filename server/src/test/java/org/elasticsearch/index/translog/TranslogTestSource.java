@@ -19,26 +19,17 @@
 
 package org.elasticsearch.index.translog;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.translog.source.TranslogSource;
 
-import java.io.IOException;
+public class TranslogTestSource implements TranslogSource {
+    private String testName;
 
-public class TranslogCorruptedException extends ElasticsearchException {
-    public TranslogCorruptedException(TranslogSource source, String details) {
-        super(corruptedMessage(source, details));
+    public TranslogTestSource(String testName){
+        this.testName = testName;
     }
 
-    public TranslogCorruptedException(TranslogSource source, String details, Throwable cause) {
-        super(corruptedMessage(source, details), cause);
-    }
-
-    private static String corruptedMessage(TranslogSource source, String details) {
-        return "translog from source [" + source + "] is corrupted, " + details;
-    }
-
-    public TranslogCorruptedException(StreamInput in) throws IOException {
-        super(in);
+    @Override
+    public String toString() {
+        return "constructed by test "+testName;
     }
 }

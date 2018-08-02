@@ -375,9 +375,8 @@ public class InternalEngine extends Engine {
                 recoverFromTranslogInternal();
             } catch (Exception e) {
                 try {
-
                     pendingTranslogRecovery.set(true); // just play safe and never allow commits on this see #ensureCanFlush
-                    failEngine("Failed to recover from translog", e);
+                    failEngine("failed to recover from translog", e);
                 } catch (Exception inner) {
                     e.addSuppressed(inner);
                 }
@@ -402,7 +401,7 @@ public class InternalEngine extends Engine {
         try (Translog.Snapshot snapshot = translog.newSnapshotFromGen(translogGen)) {
             opsRecovered = config().getTranslogRecoveryRunner().run(this, snapshot);
         } catch (Exception e) {
-            throw new EngineException(shardId, "Failed to recover from translog.", e);
+            throw new EngineException(shardId, "failed to recover from translog", e);
         }
         // flush if we recovered something or if we have references to older translogs
         // note: if opsRecovered == 0 and we have older translogs it means they are corrupted or 0 length.

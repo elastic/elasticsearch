@@ -44,6 +44,8 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.translog.source.TranslogFileSource;
+import org.elasticsearch.index.translog.source.TranslogSource;
 
 import java.io.Closeable;
 import java.io.EOFException;
@@ -1424,7 +1426,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         long expectedChecksum = in.getChecksum();
         long readChecksum = Integer.toUnsignedLong(in.readInt());
         if (readChecksum != expectedChecksum) {
-            throw new TranslogCorruptedException(in.getPath(), "Checksum verification failed. Expected: 0x" +
+            throw new TranslogCorruptedException(in.getSource(), "checksum verification failed - expected: 0x" +
                 Long.toHexString(expectedChecksum) + ", got: 0x" + Long.toHexString(readChecksum));
         }
     }
@@ -1432,10 +1434,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     /**
      * Reads a list of operations written with {@link #writeOperations(StreamOutput, List)}
      */
-    public static List<Operation> readOperations(StreamInput input) throws IOException {
+    public static List<Operation> readOperations(StreamInput input, TranslogSource source) throws IOException {
         ArrayList<Operation> operations = new ArrayList<>();
         int numOps = input.readInt();
-        final BufferedChecksumStreamInput checksumStreamInput = new BufferedChecksumStreamInput(input);
+        final BufferedChecksumStreamInput checksumStreamInput = new BufferedChecksumStreamInput(input, source);
         for (int i = 0; i < numOps; i++) {
             operations.add(readOperation(checksumStreamInput));
         }
@@ -1447,7 +1449,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         try {
             final int opSize = in.readInt();
             if (opSize < 4) { // 4byte for the checksum
-                throw new TranslogCorruptedException(in.getPath(), "Operation size must be at least 4 but was: " + opSize);
+                throw new TranslogCorruptedException(in.getSource(), "operation size must be at least 4 but was: " + opSize);
             }
             in.resetDigest(); // size is not part of the checksum!
             if (in.markSupported()) { // if we can we validate the checksum first
@@ -1463,14 +1465,14 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             operation = Translog.Operation.readOperation(in);
             verifyChecksum(in);
         } catch (EOFException e) {
-            throw new TruncatedTranslogException(in.getPath(), "Reached premature end of file, translog is truncated", e);
+            throw new TruncatedTranslogException(in.getSource(), "Reached premature end of file, translog is truncated", e);
         }
         return operation;
     }
 
     /**
      * Writes all operations in the given iterable to the given output stream including the size of the array
-     * use {@link #readOperations(StreamInput)} to read it back.
+     * use {@link #readOperations(StreamInput, TranslogSource)} to read it back.
      */
     public static void writeOperations(StreamOutput outStream, List<Operation> toWrite) throws IOException {
         final ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(BigArrays.NON_RECYCLING_INSTANCE);
@@ -1711,7 +1713,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         } catch (TranslogCorruptedException ex) {
             throw ex; // just bubble up.
         } catch (Exception ex) {
-            throw new TranslogCorruptedException(location, "", ex);
+            throw new TranslogCorruptedException(new TranslogFileSource(location), "", ex);
         }
         return checkpoint;
     }

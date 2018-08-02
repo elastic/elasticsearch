@@ -43,10 +43,6 @@ public class ModelPlotConfig implements ToXContentObject {
     private final boolean enabled;
     private final String terms;
 
-    public ModelPlotConfig() {
-        this(true, null);
-    }
-
     public ModelPlotConfig(boolean enabled, String terms) {
         this.enabled = enabled;
         this.terms = terms;

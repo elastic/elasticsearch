@@ -21,15 +21,7 @@ package org.elasticsearch.protocol.xpack.ml.job.config;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
-
 public class ModelPlotConfigTests extends AbstractXContentTestCase<ModelPlotConfig> {
-
-    public void testConstructorDefaults() {
-        assertThat(new ModelPlotConfig().isEnabled(), is(true));
-        assertThat(new ModelPlotConfig().getTerms(), is(nullValue()));
-    }
 
     @Override
     protected ModelPlotConfig createTestInstance() {

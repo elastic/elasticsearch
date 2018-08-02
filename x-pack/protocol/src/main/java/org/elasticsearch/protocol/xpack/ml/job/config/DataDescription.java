@@ -31,15 +31,11 @@ import java.util.Objects;
 
 /**
  * Describes the format of the data used in the job and how it should
- * be interpreted by autodetect.
+ * be interpreted by the ML job.
  * <p>
- * Data must either be in a textual delineated format (e.g. csv, tsv) or JSON
- * the {@linkplain DataFormat} enum indicates which. {@link #getTimeField()}
- * is the name of the field containing the timestamp and {@link #getTimeFormat()}
- * is the format code for the date string in as described by
- * {@link java.time.format.DateTimeFormatter}. The default quote character for
- * delineated formats is {@value #DEFAULT_QUOTE_CHAR} but any other character can be
- * used.
+ * {@link #getTimeField()} is the name of the field containing the timestamp and
+ * {@link #getTimeFormat()} is the format code for the date string in as described by
+ * {@link java.time.format.DateTimeFormatter}.
  */
 public class DataDescription implements ToXContentObject {
     /**
@@ -100,7 +96,7 @@ public class DataDescription implements ToXContentObject {
 
     /**
      * The default quote character used to escape text in
-     * delineated data formats
+     * delimited data formats
      */
     public static final char DEFAULT_QUOTE_CHAR = '"';
 
@@ -180,7 +176,7 @@ public class DataDescription implements ToXContentObject {
     }
 
     /**
-     * If the data is in a delineated format with a header e.g. csv or tsv
+     * If the data is in a delimited format with a header e.g. csv or tsv
      * this is the delimiter character used. This is only applicable if
      * {@linkplain #getFormat()} is {@link DataDescription.DataFormat#DELIMITED}.
      * The default value for delimited format is {@value #DEFAULT_DELIMITER}.
@@ -192,10 +188,10 @@ public class DataDescription implements ToXContentObject {
     }
 
     /**
-     * The quote character used in delineated formats.
+     * The quote character used in delimited formats.
      * The default value for delimited format is {@value #DEFAULT_QUOTE_CHAR}.
      *
-     * @return The delineated format quote character
+     * @return The delimited format quote character
      */
     public Character getQuoteCharacter() {
         return quoteCharacter;

@@ -84,11 +84,9 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment {
     }
 
     /**
-     * Parse a <code>categorization_analyzer</code> from configuration or cluster state.  A custom parser is needed
-     * due to the complexity of the format, with many elements able to be specified as either the name of a built-in
+     * Parse a <code>categorization_analyzer</code> configuration.  A custom parser is needed due to the
+     * complexity of the format, with many elements able to be specified as either the name of a built-in
      * element or an object containing a custom definition.
-     *
-     * The parser is strict when parsing config and lenient when parsing cluster state.
      */
     static CategorizationAnalyzerConfig buildFromXContentFragment(XContentParser parser) throws IOException {
 
@@ -147,7 +145,7 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment {
     /**
      * Simple store of either a name of a built-in analyzer element or a custom definition.
      */
-    public static class NameOrDefinition implements ToXContentFragment {
+    public static final class NameOrDefinition implements ToXContentFragment {
 
         // Exactly one of these two members is not null
         public final String name;

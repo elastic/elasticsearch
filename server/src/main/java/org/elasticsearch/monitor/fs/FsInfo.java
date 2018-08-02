@@ -498,13 +498,21 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         Set<String> seenDevices = new HashSet<>(paths.length);
         for (Path subPath : paths) {
             if (subPath.path != null) {
-                if (!seenDevices.add(subPath.path)) {
+                // #32568 path have mount information, check mount info. if mount not exist using path.
+                if (!seenDevices.add(getCheckPath(subPath))) {
                     continue; // already added numbers for this device;
                 }
             }
             res.add(subPath);
         }
         return res;
+    }
+
+    private String getCheckPath(Path subPath){
+        if(subPath.mount != null){
+            return subPath.mount;
+        }
+        return subPath.path;
     }
 
     public long getTimestamp() {

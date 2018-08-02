@@ -83,7 +83,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
             "   }\n" +
             "}";
         HttpEntity entity = new NStringEntity(jsonString, ContentType.APPLICATION_JSON);
-        Request request = new Request("PUT", "/_xpack/index_lifecycle/" + policy);
+        Request request = new Request("PUT", "/_ilm/" + policy);
         request.setEntity(entity);
         client().performRequest(request);
 

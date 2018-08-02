@@ -23,7 +23,7 @@ import java.util.Objects;
 
 public class ExplainLifecycleAction extends Action<ExplainLifecycleAction.Response> {
     public static final ExplainLifecycleAction INSTANCE = new ExplainLifecycleAction();
-    public static final String NAME = "indices:admin/xpack/index_lifecycle/explain";
+    public static final String NAME = "indices:admin/ilm/explain";
 
     protected ExplainLifecycleAction() {
         super(NAME);

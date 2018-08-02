@@ -1,0 +1,19 @@
+{
+  "ilm.remove_policy": {
+    "documentation": "http://www.elastic.co/guide/en/index_lifecycle/current/index_lifecycle.html",
+    "methods": [ "DELETE" ],
+    "url": {
+      "path": "/{index}/_ilm",
+      "paths": ["/{index}/_ilm", "/_ilm"],
+      "parts": {
+        "index": {
+          "type" : "string",
+          "description" : "The name of the index to remove policy on"
+        }
+      },
+      "params": {
+      }
+    },
+    "body": null
+  }
+}

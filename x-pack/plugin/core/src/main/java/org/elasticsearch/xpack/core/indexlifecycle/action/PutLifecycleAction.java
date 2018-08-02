@@ -24,7 +24,7 @@ import java.util.Objects;
 
 public class PutLifecycleAction extends Action<PutLifecycleAction.Response> {
     public static final PutLifecycleAction INSTANCE = new PutLifecycleAction();
-    public static final String NAME = "cluster:admin/xpack/index_lifecycle/put";
+    public static final String NAME = "cluster:admin/ilm/put";
 
     protected PutLifecycleAction() {
         super(NAME);

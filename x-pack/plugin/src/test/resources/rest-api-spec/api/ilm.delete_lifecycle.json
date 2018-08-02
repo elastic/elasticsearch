@@ -1,0 +1,19 @@
+{
+  "ilm.delete_lifecycle": {
+    "documentation": "http://www.elastic.co/guide/en/index_lifecycle/current/index_lifecycle.html",
+    "methods": [ "DELETE" ],
+    "url": {
+      "path": "/_ilm/{lifecycle}",
+      "paths": ["/_ilm/{lifecycle}"],
+      "parts": {
+        "lifecycle": {
+          "type" : "string",
+          "description" : "The name of the index lifecycle"
+        }
+      },
+      "params": {
+      }
+    },
+    "body": null
+  }
+}

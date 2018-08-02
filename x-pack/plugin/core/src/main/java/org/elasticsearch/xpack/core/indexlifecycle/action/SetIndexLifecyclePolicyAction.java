@@ -12,7 +12,7 @@ import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyRe
 public class SetIndexLifecyclePolicyAction extends Action<SetIndexLifecyclePolicyResponse> {
 
     public static final SetIndexLifecyclePolicyAction INSTANCE = new SetIndexLifecyclePolicyAction();
-    public static final String NAME = "indices:admin/xpack/index_lifecycle/set_index_policy";
+    public static final String NAME = "indices:admin/ilm/set_index_policy";
 
     protected SetIndexLifecyclePolicyAction() {
         super(NAME);

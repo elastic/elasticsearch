@@ -18,7 +18,6 @@ import org.joda.time.DateTimeZone;
 
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
@@ -28,14 +27,18 @@ import static org.hamcrest.Matchers.equalTo;
 public class ConfigTests extends ESTestCase {
 
     public void testEmptyField() {
-        final String field = randomBoolean() ? "" : null;
-        Exception e = expectThrows(IllegalArgumentException.class, () -> new MetricConfig(field, singletonList("max")));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new MetricConfig(null, singletonList("max")));
+        assertThat(e.getMessage(), equalTo("Field must be a non-null, non-empty string"));
+
+        e = expectThrows(IllegalArgumentException.class, () -> new MetricConfig("", singletonList("max")));
         assertThat(e.getMessage(), equalTo("Field must be a non-null, non-empty string"));
     }
 
     public void testEmptyMetrics() {
-        final List<String> metrics = randomBoolean() ? emptyList() : null;
-        Exception e = expectThrows(IllegalArgumentException.class, () -> new MetricConfig("foo", metrics));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new MetricConfig("foo", emptyList()));
+        assertThat(e.getMessage(), equalTo("Metrics must be a non-null, non-empty array of strings"));
+
+        e = expectThrows(IllegalArgumentException.class, () -> new MetricConfig("foo", null));
         assertThat(e.getMessage(), equalTo("Metrics must be a non-null, non-empty array of strings"));
     }
 

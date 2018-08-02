@@ -5,12 +5,13 @@
  */
 package org.elasticsearch.xpack.core.rollup;
 
+import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.rollup.job.DateHistoGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
-import org.elasticsearch.xpack.core.rollup.job.HistoGroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
@@ -50,7 +51,7 @@ public class ConfigTestHelpers {
         GroupConfig.Builder groupBuilder = new GroupConfig.Builder();
         groupBuilder.setDateHisto(getDateHisto().build());
         if (ESTestCase.randomBoolean()) {
-            groupBuilder.setHisto(getHisto().build());
+            groupBuilder.setHisto(randomHistogramGroupConfig(ESTestCase.random()));
         }
         if (ESTestCase.randomBoolean()) {
             groupBuilder.setTerms(randomTermsGroupConfig(ESTestCase.random()));
@@ -102,13 +103,6 @@ public class ConfigTestHelpers {
         return dateHistoBuilder;
     }
 
-    public static HistoGroupConfig.Builder getHisto() {
-        HistoGroupConfig.Builder histoBuilder = new HistoGroupConfig.Builder();
-        histoBuilder.setInterval(ESTestCase.randomIntBetween(1,10000));
-        histoBuilder.setFields(getFields());
-        return histoBuilder;
-    }
-
     public static  List<String> getFields() {
         return IntStream.range(0, ESTestCase.randomIntBetween(1, 10))
                 .mapToObj(n -> ESTestCase.randomAlphaOfLengthBetween(5, 10))
@@ -123,6 +117,10 @@ public class ConfigTestHelpers {
                 " " + (ESTestCase.randomBoolean() ? "*" : String.valueOf(ESTestCase.randomIntBetween(1, 12)))      + //month
                 " ?"                                                                         + //day of week
                 " " + (ESTestCase.randomBoolean() ? "*" : String.valueOf(ESTestCase.randomIntBetween(1970, 2199)));  //year
+    }
+
+    public static HistogramGroupConfig randomHistogramGroupConfig(final Random random) {
+        return new HistogramGroupConfig(randomInterval(random), randomFields(random));
     }
 
     public static TermsGroupConfig randomTermsGroupConfig(final Random random) {
@@ -140,5 +138,9 @@ public class ConfigTestHelpers {
 
     private static String randomField(final Random random) {
         return randomAsciiAlphanumOfLengthBetween(random, 5, 10);
+    }
+
+    private static long randomInterval(final Random random) {
+        return RandomNumbers.randomLongBetween(random, 1L, Long.MAX_VALUE);
     }
 }

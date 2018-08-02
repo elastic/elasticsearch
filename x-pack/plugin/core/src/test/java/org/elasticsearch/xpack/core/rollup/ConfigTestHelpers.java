@@ -141,6 +141,6 @@ public class ConfigTestHelpers {
     }
 
     private static long randomInterval(final Random random) {
-        return RandomNumbers.randomLongBetween(random, 0L, Long.MAX_VALUE);
+        return RandomNumbers.randomLongBetween(random, 1L, Long.MAX_VALUE);
     }
 }

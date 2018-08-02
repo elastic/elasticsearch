@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.job.DateHistoGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobStats;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
@@ -354,8 +355,10 @@ public class IndexerUtilsTests extends AggregatorTestCase {
             return foos;
         });
 
+        // The content of the config don't actually matter for this test
+        // because the test is just looking at agg keys
         GroupConfig.Builder groupConfig = ConfigTestHelpers.getGroupConfig();
-        groupConfig.setHisto(randomHistogramGroupConfig(random()));
+        groupConfig.setHisto(new HistogramGroupConfig(123L, "abc"));
 
         List<IndexRequest> docs = IndexerUtils.processBuckets(composite, "foo", new RollupJobStats(), groupConfig.build(), "foo");
         assertThat(docs.size(), equalTo(1));

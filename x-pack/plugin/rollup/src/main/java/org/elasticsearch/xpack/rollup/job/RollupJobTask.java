@@ -196,8 +196,13 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
             }
             initialPosition = state.getPosition();
 
-            // Since we have state, there could a incomplete checkpoint so
-            // use the state's ID scheme
+            // Since we have state, we are resuming a job/checkpoint.  Although we are resuming
+            // from something that was checkpointed, we can't guarantee it was the _final_ checkpoint
+            // before the job ended (e.g. it could have been STOPPING, still indexing and killed, leaving
+            // us with an interval of time partially indexed).
+            //
+            // To be safe, if we are resuming any job, use it's ID upgrade status.  It will only
+            // be true if it actually finished a full checkpoint.
             this.upgradedDocumentID.set(state.isUpgradedDocumentID());
         }
         this.indexer = new ClientRollupPageManager(job, initialState, initialPosition,

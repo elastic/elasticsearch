@@ -30,7 +30,22 @@ import static org.hamcrest.Matchers.equalTo;
 
 
 public class RollupIDUpgradeIT extends AbstractUpgradeTestCase {
-    public void testIndexing() throws Exception {
+    /**
+     * This test verifies that as a cluster is upgraded incrementally, new documents eventually switch
+     * over to the "new" form of ID (128 bit Murmur3 ids).
+     *
+     * Rollup IDs are essentially the hashed concatenation of keys returned by the composite aggregation,
+     * so the field values that are being indexed (timestamp, value, etc) directly affect the
+     * ID that is generated.
+     *
+     * We don't know which node will get the Rollup task to start, so we don't know when it will migrate.
+     * The first doc is guaranteed to be the "old" style since all nodes are un-upgraded.  The second
+     * and third phase will have a mixed cluster, and the rollup task may or may not migrate.  In those
+     * phases we have two options (old and new) for the document added in the phase.
+     *
+     * The last phase is guaranteed to be new as it's a fully upgraded cluster.
+     */
+    public void testIDsUpgradeCorrectly() throws Exception {
         switch (CLUSTER_TYPE) {
             case OLD:
                 break;
@@ -259,12 +274,12 @@ public class RollupIDUpgradeIT extends AbstractUpgradeTestCase {
         }, 30L, TimeUnit.SECONDS);
     }
 
-    private Map<String, Object> getJob(Response response, String targetJobId) throws IOException {
+    private static Map<String, Object> getJob(Response response, String targetJobId) throws IOException {
         return getJob(ESRestTestCase.entityAsMap(response), targetJobId);
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, Object> getJob(Map<String, Object> jobsMap, String targetJobId) throws IOException {
+    private static Map<String, Object> getJob(Map<String, Object> jobsMap, String targetJobId) throws IOException {
 
         List<Map<String, Object>> jobs =
             (List<Map<String, Object>>) XContentMapValues.extractValue("jobs", jobsMap);

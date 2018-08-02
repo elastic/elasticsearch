@@ -22,6 +22,9 @@ import java.util.zip.CRC32;
  * Once the ID has generated, the generator instance becomes locked and will not
  * accept any more values.  This is a safety mechanism to prevent accidentally
  * changing the ID at runtime.
+ *
+ * NOTE: this class is not thread safe; there is no synchronization on the "generated"
+ * flag and it is unsafe to use from multiple threads.
  */
 public abstract class RollupIDGenerator {
     public abstract void add(Integer v);
@@ -112,8 +115,8 @@ public abstract class RollupIDGenerator {
      */
     public static class Murmur3 extends RollupIDGenerator {
         private static final long SEED = 19;
-        private static final BytesRef DELIM = new BytesRef("$".getBytes(StandardCharsets.UTF_8));
-        private static final byte[] NULL_PLACEHOLDER = "__NULL_PLACEHOLDER__830f1de2__".getBytes(StandardCharsets.UTF_8);
+        private static final BytesRef DELIM = new BytesRef("$");
+        private static final BytesRef NULL_PLACEHOLDER = new BytesRef("__NULL_PLACEHOLDER__830f1de2__");
         private final BytesRefBuilder id = new BytesRefBuilder();
         private final String jobId;
 
@@ -152,7 +155,7 @@ public abstract class RollupIDGenerator {
         @Override
         public void addNull() {
             // New ID scheme uses a (hopefully) unique placeholder for null
-            update(NULL_PLACEHOLDER);
+            update(NULL_PLACEHOLDER.bytes);
         }
 
         private void update(byte[] v) {

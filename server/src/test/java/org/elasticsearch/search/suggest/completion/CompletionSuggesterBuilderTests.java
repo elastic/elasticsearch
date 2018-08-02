@@ -167,7 +167,7 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
     protected MappedFieldType mockFieldType(String fieldName) {
         CompletionFieldType completionFieldType = new CompletionFieldType();
         completionFieldType.setName(fieldName);
-        completionFieldType.setContextMappings(new ContextMappings(contextMappings));
+        completionFieldType.setContextMappings(new ContextMappings(contextMappings, null));
         return completionFieldType;
     }
 
@@ -180,7 +180,7 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
         assertEquals(builder.fuzzyOptions, completionSuggestionCtx.getFuzzyOptions());
         Map<String, List<InternalQueryContext>> parsedContextBytes;
         parsedContextBytes = CompletionSuggestionBuilder.parseContextBytes(builder.contextBytes, xContentRegistry(),
-                new ContextMappings(contextMappings));
+                new ContextMappings(contextMappings, null));
         Map<String, List<InternalQueryContext>> queryContexts = completionSuggestionCtx.getQueryContexts();
         assertEquals(parsedContextBytes.keySet(), queryContexts.keySet());
         for (String contextName : queryContexts.keySet()) {

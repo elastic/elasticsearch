@@ -21,7 +21,6 @@ package org.elasticsearch.search.suggest.completion.context;
 
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
-import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -32,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 
@@ -181,49 +181,22 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
     }
 
     @Override
-    public Set<CharSequence> parseContext(Document document) {
+    public Set<CharSequence> parseContext(Mapper.TypeParser.ParserContext parserContext, Document document) {
         final Set<CharSequence> geohashes = new HashSet<>();
-
+        MappedFieldType fieldType = parserContext.mapperService().fullName(fieldName);
+        if (!(fieldType instanceof GeoPointFieldMapper.GeoPointFieldType)) {
+            throw new ElasticsearchParseException("cannot parse geo context field [{}], it must be mapped as a geo_point", fieldName);
+        }
         if (fieldName != null) {
             IndexableField[] fields = document.getFields(fieldName);
             GeoPoint spare = new GeoPoint();
-            if (fields.length == 0) {
-                IndexableField[] lonFields = document.getFields(fieldName + ".lon");
-                IndexableField[] latFields = document.getFields(fieldName + ".lat");
-                if (lonFields.length > 0 && latFields.length > 0) {
-                    for (int i = 0; i < lonFields.length; i++) {
-                        IndexableField lonField = lonFields[i];
-                        IndexableField latField = latFields[i];
-                        assert lonField.fieldType().docValuesType() == latField.fieldType().docValuesType();
-                        // we write doc values fields differently: one field for all values, so we need to only care about indexed fields
-                        if (lonField.fieldType().docValuesType() == DocValuesType.NONE) {
-                            spare.reset(latField.numericValue().doubleValue(), lonField.numericValue().doubleValue());
-                            geohashes.add(stringEncode(spare.getLon(), spare.getLat(), precision));
-                        }
-                    }
-                } else {
-                    // Does this object exist? If it does and we didn't find what we need - we need to warn user
-                    for (IndexableField field : document.getFields()) {
-                        if (field.name().startsWith(fieldName + ".")) {
-                            throw new ElasticsearchParseException(
-                                "cannot parse geo context field [{}], expected object with lat/lon fields or geo_point", fieldName);
-                        }
-                    }
-                }
-            } else {
-                for (IndexableField field : fields) {
-                    if (field instanceof LatLonPoint || field instanceof LatLonDocValuesField){
-                        // todo return this to .stringValue() once LatLonPoint implements it
-                        spare.resetFromIndexableField(field);
-                        geohashes.add(spare.geohash());
-                    }
-                }
-                if (geohashes.isEmpty()) {
-                    throw new ElasticsearchParseException(
-                        "cannot parse geo context field [{}], expected object with lat/lon fields or geo_point", fieldName);
+            for (IndexableField field : fields) {
+                if (field instanceof LatLonPoint || field instanceof LatLonDocValuesField){
+                    // todo return this to .stringValue() once LatLonPoint implements it
+                    spare.resetFromIndexableField(field);
+                    geohashes.add(spare.geohash());
                 }
             }
-
         }
 
         Set<CharSequence> locations = new HashSet<>();

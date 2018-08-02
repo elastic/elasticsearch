@@ -499,18 +499,13 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         mapping.startObject(TYPE);
         mapping.startObject("properties");
         mapping.startObject("pin");
+        mapping.field("type", "geo_point");
+        // Enable store and disable indexing sometimes
         if (randomBoolean()) {
-            mapping.field("type", "geo_point");
-            // Enable store and disable indexing sometimes
-            if (randomBoolean()) {
-                mapping.field("store", "true");
-            }
-            if (randomBoolean()) {
-                mapping.field("index", "false");
-            }
-        } else {
-            // Make it object sometimes
-            mapping.field("type", "object");
+            mapping.field("store", "true");
+        }
+        if (randomBoolean()) {
+            mapping.field("index", "false");
         }
         mapping.endObject();
         mapping.startObject(FIELD);
@@ -603,7 +598,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                 .endObject();
             assertThat(expectThrows(ElasticsearchParseException.class, () ->
                     client().prepareIndex(INDEX, TYPE, "1").setSource(source1).execute().actionGet()).getMessage(),
-                equalTo("cannot parse geo context field [pin], expected object with lat/lon fields or geo_point"));
+                equalTo("cannot parse geo context field [pin], it must be mapped as a geo_point"));
 
             XContentBuilder source2 = jsonBuilder()
                 .startObject()
@@ -616,7 +611,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                 .endObject();
             assertThat(expectThrows(ElasticsearchParseException.class, () ->
                 client().prepareIndex(INDEX, TYPE, "2").setSource(source2).execute().actionGet()).getMessage(),
-                equalTo("cannot parse geo context field [pin], expected object with lat/lon fields or geo_point"));
+                equalTo("cannot parse geo context field [pin], it must be mapped as a geo_point"));
         } else if ("long".equals(type)) {
             XContentBuilder source2 = jsonBuilder()
                 .startObject()
@@ -627,7 +622,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                 .endObject();
             assertThat(expectThrows(ElasticsearchParseException.class, () ->
                     client().prepareIndex(INDEX, TYPE, "2").setSource(source2).execute().actionGet()).getMessage(),
-                equalTo("cannot parse geo context field [pin], expected object with lat/lon fields or geo_point"));
+                equalTo("cannot parse geo context field [pin], it must be mapped as a geo_point"));
         } else {
             XContentBuilder source1 = jsonBuilder()
                 .startObject()
@@ -638,7 +633,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                 .endObject();
             assertThat(expectThrows(ElasticsearchParseException.class, () ->
                     client().prepareIndex(INDEX, TYPE, "1").setSource(source1).execute().actionGet()).getMessage(),
-                equalTo("cannot parse geo context field [pin], expected object with lat/lon fields or geo_point"));
+                equalTo("cannot parse geo context field [pin], it must be mapped as a geo_point"));
 
             XContentBuilder source2 = jsonBuilder()
                 .startObject()
@@ -649,7 +644,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                 .endObject();
             assertThat(expectThrows(ElasticsearchParseException.class, () ->
                     client().prepareIndex(INDEX, TYPE, "2").setSource(source2).execute().actionGet()).getMessage(),
-                equalTo("cannot parse geo context field [pin], expected object with lat/lon fields or geo_point"));
+                equalTo("cannot parse geo context field [pin], it must be mapped as a geo_point"));
         }
     }
 

@@ -724,7 +724,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
         document.add(new Field(keyword.name(), new BytesRef("category1"), keyword));
         // Ignore doc values
         document.add(new SortedSetDocValuesField(keyword.name(), new BytesRef("category1")));
-        Set<CharSequence> context = mapping.parseContext(document);
+        Set<CharSequence> context = mapping.parseContext(null, document);
         assertThat(context.size(), equalTo(1));
         assertTrue(context.contains("category1"));
 
@@ -735,23 +735,23 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
         document.add(new Field(text.name(), "category1", text));
         // Ignore stored field
         document.add(new StoredField(text.name(), "category1", text));
-        context = mapping.parseContext(document);
+        context = mapping.parseContext(null, document);
         assertThat(context.size(), equalTo(1));
         assertTrue(context.contains("category1"));
 
         document = new ParseContext.Document();
         document.add(new SortedSetDocValuesField("category", new BytesRef("category")));
-        context = mapping.parseContext(document);
+        context = mapping.parseContext(null, document);
         assertThat(context.size(), equalTo(0));
 
         document = new ParseContext.Document();
         document.add(new SortedDocValuesField("category", new BytesRef("category")));
-        context = mapping.parseContext(document);
+        context = mapping.parseContext(null, document);
         assertThat(context.size(), equalTo(0));
 
         final ParseContext.Document doc = new ParseContext.Document();
         doc.add(new IntPoint("category", 36));
-        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> mapping.parseContext(doc));
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> mapping.parseContext(null, doc));
         assertThat(exc.getMessage(), containsString("Failed to parse context field [category]"));
     }
 

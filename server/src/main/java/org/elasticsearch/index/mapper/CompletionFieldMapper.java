@@ -30,7 +30,6 @@ import org.apache.lucene.search.suggest.document.FuzzyCompletionQuery;
 import org.apache.lucene.search.suggest.document.PrefixCompletionQuery;
 import org.apache.lucene.search.suggest.document.RegexCompletionQuery;
 import org.apache.lucene.search.suggest.document.SuggestField;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Settings;
@@ -74,7 +73,7 @@ import static org.elasticsearch.index.mapper.TypeParsers.parseMultiField;
  *  <li>"min_input_length": 50 (default)</li>
  *  <li>"contexts" : CONTEXTS</li>
  * </ul>
- * see {@link ContextMappings#load(Object, Version)} for CONTEXTS<br>
+ * see {@link ContextMappings#load(Object, org.elasticsearch.index.mapper.Mapper.TypeParser.ParserContext)} for CONTEXTS<br>
  * see {@link #parse(ParseContext)} for acceptable inputs for indexing<br>
  * <p>
  *  This field type constructs completion queries that are run
@@ -144,7 +143,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
                     builder.maxInputLength(Integer.parseInt(fieldNode.toString()));
                     iterator.remove();
                 } else if (Fields.CONTEXTS.match(fieldName, LoggingDeprecationHandler.INSTANCE)) {
-                    builder.contextMappings(ContextMappings.load(fieldNode, parserContext.indexVersionCreated()));
+                    builder.contextMappings(ContextMappings.load(fieldNode, parserContext));
                     iterator.remove();
                 } else if (parseMultiField(builder, name, parserContext, fieldName, fieldNode)) {
                     iterator.remove();
@@ -376,7 +375,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
 
         /**
          * Add context mapping to this field
-         * @param contextMappings see {@link ContextMappings#load(Object, Version)}
+         * @param contextMappings see {@link ContextMappings#load(Object, org.elasticsearch.index.mapper.Mapper.TypeParser.ParserContext)}
          */
         public Builder contextMappings(ContextMappings contextMappings) {
             this.contextMappings = contextMappings;

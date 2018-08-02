@@ -19,12 +19,17 @@
 package org.elasticsearch.test.transport;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionManager;
+import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportConnectionListener;
 
+import java.io.IOException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -85,6 +90,38 @@ public class StubbableConnectionManager extends ConnectionManager {
         TransportAddress address = node.getAddress();
         NodeConnectedBehavior behavior = nodeConnectedBehaviors.getOrDefault(address, defaultNodeConnectedBehavior);
         return behavior.nodeConnected(delegate, node);
+    }
+
+    @Override
+    public void addListener(TransportConnectionListener listener) {
+        delegate.addListener(listener);
+    }
+
+    @Override
+    public void removeListener(TransportConnectionListener listener) {
+        delegate.removeListener(listener);
+    }
+
+    @Override
+    public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
+                              CheckedBiConsumer<Transport.Connection, ConnectionProfile, IOException> connectionValidator)
+        throws ConnectTransportException {
+        delegate.connectToNode(node, connectionProfile, connectionValidator);
+    }
+
+    @Override
+    public void disconnectFromNode(DiscoveryNode node) {
+        delegate.disconnectFromNode(node);
+    }
+
+    @Override
+    public int connectedNodeCount() {
+        return delegate.connectedNodeCount();
+    }
+
+    @Override
+    public void close() {
+        delegate.close();
     }
 
     @FunctionalInterface

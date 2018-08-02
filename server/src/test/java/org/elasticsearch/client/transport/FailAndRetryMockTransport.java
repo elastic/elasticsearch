@@ -20,7 +20,6 @@
 package org.elasticsearch.client.transport;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.liveness.LivenessResponse;
 import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
@@ -31,10 +30,10 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
-import org.elasticsearch.common.concurrent.CompletableContext;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.transport.CloseableConnection;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.RequestHandlerRegistry;
@@ -81,9 +80,8 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
 
     @Override
     public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) {
-        CompletableContext<Void> closeContext = new CompletableContext<>();
+        return new CloseableConnection() {
 
-        return new Connection() {
             @Override
             public DiscoveryNode getNode() {
                 return node;
@@ -135,21 +133,6 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
                         }
                     }
                 }
-            }
-
-            @Override
-            public void addCloseListener(ActionListener<Void> listener) {
-                closeContext.addListener(ActionListener.toBiConsumer(listener));
-            }
-
-            @Override
-            public void close() {
-                closeContext.complete(null);
-            }
-
-            @Override
-            public boolean isClosed() {
-                return closeContext.isDone();
             }
         };
     }

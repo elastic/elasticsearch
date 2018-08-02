@@ -64,7 +64,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.transport.MockTransportService.createNewService;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -361,17 +360,11 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                     .build();
 
             try (MockTransportService clientService = createNewService(clientSettings, Version.CURRENT, threadPool, null)) {
-                final List<MockConnection> establishedConnections = new CopyOnWriteArrayList<>();
-                final List<MockConnection> reusedConnections = new CopyOnWriteArrayList<>();
+                final List<Transport.Connection> establishedConnections = new CopyOnWriteArrayList<>();
 
                 clientService.addConnectBehavior(remoteService, (transport, discoveryNode, profile) -> {
-                    MockConnection connection = new MockConnection(transport.openConnection(discoveryNode, profile));
+                    Transport.Connection connection = transport.openConnection(discoveryNode, profile);
                     establishedConnections.add(connection);
-                    return connection;
-                });
-                clientService.addGetConnectionBehavior(remoteService, (connectionManager, discoveryNode) -> {
-                    MockConnection connection = new MockConnection(connectionManager.getConnection(discoveryNode));
-                    reusedConnections.add(connection);
                     return connection;
                 });
 
@@ -383,93 +376,30 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                         new TransportClientNodesService(clientSettings, clientService, threadPool, (a, b) -> {})) {
                     assertEquals(0, transportClientNodesService.connectedNodes().size());
                     assertEquals(0, establishedConnections.size());
-                    assertEquals(0, reusedConnections.size());
 
                     transportClientNodesService.addTransportAddresses(remoteService.getLocalDiscoNode().getAddress());
                     assertEquals(1, transportClientNodesService.connectedNodes().size());
-                    assertTotalConnections(establishedConnections, 2);
-                    assertClosedConnections(establishedConnections, 1);
+                    assertEquals(1, clientService.connectionManager().connectedNodeCount());
 
                     transportClientNodesService.doSample();
-                    assertTotalConnections(establishedConnections, 3);
-                    assertOpenConnections(establishedConnections, 1);
-                    assertClosedConnections(establishedConnections, 2);
-                    assertTotalConnections(reusedConnections, 1);
-                    assertOpenConnections(reusedConnections, 1);
+                    assertEquals(1, clientService.connectionManager().connectedNodeCount());
 
+                    establishedConnections.clear();
                     handler.blockRequest();
                     Thread thread = new Thread(transportClientNodesService::doSample);
                     thread.start();
 
-                    assertBusy(() ->  assertEquals(4, establishedConnections.size()));
-                    assertFalse("Temporary ping connection must be opened", establishedConnections.get(3).isClosed());
+                    assertBusy(() ->  assertTrue(establishedConnections.size() >= 1));
+                    assertFalse("Temporary ping connection must be opened", establishedConnections.get(0).isClosed());
 
                     handler.releaseRequest();
                     thread.join();
 
-                    assertClosedConnections(establishedConnections, 3);
+                    assertTrue(establishedConnections.get(0).isClosed());
                 }
             }
         } finally {
             terminate(threadPool);
-        }
-    }
-
-    private void assertTotalConnections(final List<MockConnection> connections, final int size) {
-        assertEquals("Expecting " + size + " total connections but got " + connections.size(), size, connections.size());
-    }
-
-    private void assertClosedConnections(final List<MockConnection> connections, final int size) {
-        List<MockConnection> closed = connections.stream().filter(MockConnection::isClosed).collect(Collectors.toList());
-        assertEquals("Expecting " + size + " closed connections but got " + closed.size(), size, closed.size());
-    }
-
-    private void assertOpenConnections(final List<MockConnection> connections, final int size) {
-        List<MockConnection> open = connections.stream().filter((c) -> c.isClosed() == false).collect(Collectors.toList());
-        assertEquals("Expecting " + size + " open connections but got " + open.size(), size, open.size());
-    }
-
-    class MockConnection implements Transport.Connection {
-        private final Transport.Connection connection;
-
-        private MockConnection(Transport.Connection connection) {
-            this.connection = connection;
-        }
-
-        @Override
-        public DiscoveryNode getNode() {
-            return connection.getNode();
-        }
-
-        @Override
-        public Version getVersion() {
-            return connection.getVersion();
-        }
-
-        @Override
-        public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
-                throws IOException, TransportException {
-            connection.sendRequest(requestId, action, request, options);
-        }
-
-        @Override
-        public void close() {
-            connection.close();
-        }
-
-        @Override
-        public boolean sendPing() {
-            return connection.sendPing();
-        }
-
-        @Override
-        public void addCloseListener(ActionListener<Void> listener) {
-            connection.addCloseListener(listener);
-        }
-
-        @Override
-        public boolean isClosed() {
-            return connection.isClosed();
         }
     }
 

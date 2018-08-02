@@ -181,7 +181,6 @@ public class StubbableTransport implements Transport {
 
     private class WrappedConnection implements Transport.Connection {
 
-
         private final Transport.Connection connection;
 
         private WrappedConnection(Transport.Connection connection) {
@@ -234,16 +233,6 @@ public class StubbableTransport implements Transport {
         @Override
         public void close() {
             connection.close();
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            return connection.equals(obj);
-        }
-
-        @Override
-        public int hashCode() {
-            return connection.hashCode();
         }
     }
 

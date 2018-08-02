@@ -582,9 +582,9 @@ public final class MockTransportService extends TransportService {
     }
 
     public Transport getOriginalTransport() {
-        StubbableTransport transport = transport();
+        Transport transport = transport();
         while (transport instanceof StubbableTransport) {
-            transport = (StubbableTransport) transport.getDelegate();
+            transport = ((StubbableTransport) transport).getDelegate();
         }
         return transport;
     }
@@ -603,7 +603,7 @@ public final class MockTransportService extends TransportService {
             synchronized (openConnections) {
                 List<Transport.Connection> connections = openConnections.get(node);
                 boolean remove = connections.remove(connection);
-                assert remove;
+                assert remove : "Should have removed connection";
                 if (connections.isEmpty()) {
                     openConnections.remove(node);
                 }

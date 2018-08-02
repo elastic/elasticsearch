@@ -171,7 +171,6 @@ public class ConnectionManager implements Closeable {
                     Map.Entry<DiscoveryNode, Transport.Connection> next = iterator.next();
                     try {
                         IOUtils.closeWhileHandlingException(next.getValue());
-                        connectionListener.onNodeDisconnected(next.getKey());
                     } finally {
                         iterator.remove();
                     }

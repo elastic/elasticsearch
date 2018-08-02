@@ -90,10 +90,10 @@ public class FunctionRef {
             PainlessLookup painlessLookup, Class<?> expected, String type, String call, int numCaptures) {
 
         if ("new".equals(call)) {
-            return new FunctionRef(expected, painlessLookup.getPainlessStructFromJavaClass(expected).functionalMethod,
+            return new FunctionRef(expected, painlessLookup.lookupPainlessClass(expected).functionalMethod,
                     lookup(painlessLookup, expected, type), numCaptures);
         } else {
-            return new FunctionRef(expected, painlessLookup.getPainlessStructFromJavaClass(expected).functionalMethod,
+            return new FunctionRef(expected, painlessLookup.lookupPainlessClass(expected).functionalMethod,
                     lookup(painlessLookup, expected, type, call, numCaptures > 0), numCaptures);
         }
     }
@@ -230,14 +230,14 @@ public class FunctionRef {
     private static PainlessConstructor lookup(PainlessLookup painlessLookup, Class<?> expected, String type) {
         // check its really a functional interface
         // for e.g. Comparable
-        PainlessMethod method = painlessLookup.getPainlessStructFromJavaClass(expected).functionalMethod;
+        PainlessMethod method = painlessLookup.lookupPainlessClass(expected).functionalMethod;
         if (method == null) {
             throw new IllegalArgumentException("Cannot convert function reference [" + type + "::new] " +
                     "to [" + PainlessLookupUtility.typeToCanonicalTypeName(expected) + "], not a functional interface");
         }
 
         // lookup requested constructor
-        PainlessClass struct = painlessLookup.getPainlessStructFromJavaClass(painlessLookup.getJavaClassFromPainlessType(type));
+        PainlessClass struct = painlessLookup.lookupPainlessClass(painlessLookup.canonicalTypeNameToType(type));
         PainlessConstructor impl = struct.constructors.get(PainlessLookupUtility.buildPainlessConstructorKey(method.typeParameters.size()));
 
         if (impl == null) {
@@ -254,14 +254,14 @@ public class FunctionRef {
                                          String type, String call, boolean receiverCaptured) {
         // check its really a functional interface
         // for e.g. Comparable
-        PainlessMethod method = painlessLookup.getPainlessStructFromJavaClass(expected).functionalMethod;
+        PainlessMethod method = painlessLookup.lookupPainlessClass(expected).functionalMethod;
         if (method == null) {
             throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
                     "to [" + PainlessLookupUtility.typeToCanonicalTypeName(expected) + "], not a functional interface");
         }
 
         // lookup requested method
-        PainlessClass struct = painlessLookup.getPainlessStructFromJavaClass(painlessLookup.getJavaClassFromPainlessType(type));
+        PainlessClass struct = painlessLookup.lookupPainlessClass(painlessLookup.canonicalTypeNameToType(type));
         final PainlessMethod impl;
         // look for a static impl first
         PainlessMethod staticImpl =

@@ -71,7 +71,7 @@ public class SEach extends AStatement {
         Class<?> clazz;
 
         try {
-            clazz = locals.getPainlessLookup().getJavaClassFromPainlessType(this.type);
+            clazz = locals.getPainlessLookup().canonicalTypeNameToType(this.type);
         } catch (IllegalArgumentException exception) {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }

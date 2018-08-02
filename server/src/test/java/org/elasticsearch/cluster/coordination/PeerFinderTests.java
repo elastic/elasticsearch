@@ -53,6 +53,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static java.util.Collections.emptyList;
@@ -649,9 +650,9 @@ public class PeerFinderTests extends ESTestCase {
     }
 
     private void assertFoundPeers(DiscoveryNode... expectedNodesArray) {
-        final Set<DiscoveryNode> expectedNodes = Arrays.stream(expectedNodesArray).collect(Collectors.toSet());
-        final Set<DiscoveryNode> actualNodes = StreamSupport.stream(peerFinder.getFoundPeers().spliterator(), false).collect(Collectors.toSet());
-        assertThat(actualNodes, equalTo(expectedNodes));
+        final Stream<DiscoveryNode> expectedNodes = Arrays.stream(expectedNodesArray);
+        final Stream<DiscoveryNode> actualNodes = StreamSupport.stream(peerFinder.getFoundPeers().spliterator(), false);
+        assertThat(actualNodes.collect(Collectors.toSet()), equalTo(expectedNodes.collect(Collectors.toSet())));
     }
 
     private DiscoveryNode newDiscoveryNode(String nodeId) {

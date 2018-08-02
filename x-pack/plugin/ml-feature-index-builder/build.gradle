@@ -7,7 +7,7 @@ apply plugin: 'elasticsearch.esplugin'
 esplugin {
   name 'ml-feature-index-builder'
   description 'A plugin to build feature indexes'
-  classname 'org.elasticsearch.xpack.ml.featureIndexBuilder.FeatureIndexBuilder'
+  classname 'org.elasticsearch.xpack.ml.featureindexbuilder.FeatureIndexBuilder'
   extendedPlugins = ['x-pack-core']
 }
 

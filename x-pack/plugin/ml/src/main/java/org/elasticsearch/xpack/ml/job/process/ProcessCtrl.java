@@ -74,7 +74,6 @@ public class ProcessCtrl {
     static final String LENGTH_ENCODED_INPUT_ARG = "--lengthEncodedInput";
     static final String MODEL_CONFIG_ARG = "--modelconfig=";
     public static final String QUANTILES_STATE_PATH_ARG = "--quantilesState=";
-    static final String MULTIPLE_BUCKET_SPANS_ARG = "--multipleBucketspans=";
     static final String PER_PARTITION_NORMALIZATION = "--perPartitionNormalization";
 
     /*
@@ -155,8 +154,6 @@ public class ProcessCtrl {
             addIfNotNull(analysisConfig.getLatency(), LATENCY_ARG, command);
             addIfNotNull(analysisConfig.getSummaryCountFieldName(),
                     SUMMARY_COUNT_FIELD_ARG, command);
-            addIfNotNull(analysisConfig.getMultipleBucketSpans(),
-                    MULTIPLE_BUCKET_SPANS_ARG, command);
             if (Boolean.TRUE.equals(analysisConfig.getOverlappingBuckets())) {
                 Long window = analysisConfig.getResultFinalizationWindow();
                 if (window == null) {

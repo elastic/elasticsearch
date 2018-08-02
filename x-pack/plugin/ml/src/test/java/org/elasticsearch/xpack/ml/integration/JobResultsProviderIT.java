@@ -45,7 +45,7 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.job.persistence.CalendarQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.ScheduledEventsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
@@ -72,9 +72,9 @@ import static org.hamcrest.collection.IsEmptyCollection.empty;
 import static org.hamcrest.core.Is.is;
 
 
-public class JobProviderIT extends MlSingleNodeTestCase {
+public class JobResultsProviderIT extends MlSingleNodeTestCase {
 
-    private JobProvider jobProvider;
+    private JobResultsProvider jobProvider;
 
     @Override
     protected Settings nodeSettings()  {
@@ -95,7 +95,7 @@ public class JobProviderIT extends MlSingleNodeTestCase {
     public void createComponents() throws Exception {
         Settings.Builder builder = Settings.builder()
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(1));
-        jobProvider = new JobProvider(client(), builder.build());
+        jobProvider = new JobResultsProvider(client(), builder.build());
         waitForMlTemplates();
     }
 

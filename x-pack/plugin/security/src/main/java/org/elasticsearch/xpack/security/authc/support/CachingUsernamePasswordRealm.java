@@ -131,11 +131,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
                               boolean performedAuthentication, UsernamePasswordToken token,
                               Tuple<AuthenticationResult, UserWithHash> result, ActionListener<AuthenticationResult> listener) {
         final AuthenticationResult authResult = result.v1();
-        if (authResult == null) {
-            // this was from a lookup; clear and redo
-            cache.invalidate(token.principal(), future);
-            authenticateWithCache(token, listener);
-        } else if (authResult.isAuthenticated()) {
+        if (authResult.isAuthenticated()) {
             if (performedAuthentication) {
                 listener.onResponse(authResult);
             } else {

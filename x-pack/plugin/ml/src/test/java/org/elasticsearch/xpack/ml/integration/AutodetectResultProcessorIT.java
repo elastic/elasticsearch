@@ -36,7 +36,7 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.RecordsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
@@ -72,7 +72,7 @@ import static org.mockito.Mockito.when;
 public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
     private static final String JOB_ID = "autodetect-result-processor-it-job";
 
-    private JobProvider jobProvider;
+    private JobResultsProvider jobResultsProvider;
     private List<ModelSnapshot> capturedUpdateModelSnapshotOnJobRequests;
     private AutoDetectResultProcessor resultProcessor;
     private Renormalizer renormalizer;
@@ -98,11 +98,11 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         Settings.Builder builder = Settings.builder()
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(1));
         Auditor auditor = new Auditor(client(), "test_node");
-        jobProvider = new JobProvider(client(), builder.build());
+        jobResultsProvider = new JobResultsProvider(client(), builder.build());
         renormalizer = mock(Renormalizer.class);
         capturedUpdateModelSnapshotOnJobRequests = new ArrayList<>();
         resultProcessor = new AutoDetectResultProcessor(client(), auditor, JOB_ID, renormalizer,
-                new JobResultsPersister(nodeSettings(), client()), jobProvider, new ModelSizeStats.Builder(JOB_ID).build(), false) {
+                new JobResultsPersister(nodeSettings(), client()), jobResultsProvider, new ModelSizeStats.Builder(JOB_ID).build(), false) {
             @Override
             protected void updateModelSnapshotOnJob(ModelSnapshot modelSnapshot) {
                 capturedUpdateModelSnapshotOnJobRequests.add(modelSnapshot);
@@ -159,7 +159,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         assertEquals(1, persistedDefinition.count());
         assertEquals(categoryDefinition, persistedDefinition.results().get(0));
 
-        QueryPage<ModelPlot> persistedModelPlot = jobProvider.modelPlot(JOB_ID, 0, 100);
+        QueryPage<ModelPlot> persistedModelPlot = jobResultsProvider.modelPlot(JOB_ID, 0, 100);
         assertEquals(1, persistedModelPlot.count());
         assertEquals(modelPlot, persistedModelPlot.results().get(0));
 
@@ -443,7 +443,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         AtomicReference<Exception> errorHolder = new AtomicReference<>();
         AtomicReference<QueryPage<Bucket>> resultHolder = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
-        jobProvider.buckets(JOB_ID, bucketsQuery, r -> {
+        jobResultsProvider.buckets(JOB_ID, bucketsQuery, r -> {
             resultHolder.set(r);
             latch.countDown();
         }, e -> {
@@ -461,7 +461,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         AtomicReference<Exception> errorHolder = new AtomicReference<>();
         AtomicReference<QueryPage<CategoryDefinition>> resultHolder = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
-        jobProvider.categoryDefinitions(JOB_ID, categoryId, false, null, null, r -> {
+        jobResultsProvider.categoryDefinitions(JOB_ID, categoryId, false, null, null, r -> {
             resultHolder.set(r);
             latch.countDown();
         }, e -> {
@@ -479,7 +479,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         AtomicReference<Exception> errorHolder = new AtomicReference<>();
         AtomicReference<ModelSizeStats> resultHolder = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
-        jobProvider.modelSizeStats(JOB_ID, modelSizeStats -> {
+        jobResultsProvider.modelSizeStats(JOB_ID, modelSizeStats -> {
             resultHolder.set(modelSizeStats);
             latch.countDown();
         }, e -> {
@@ -497,7 +497,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         AtomicReference<Exception> errorHolder = new AtomicReference<>();
         AtomicReference<QueryPage<Influencer>> resultHolder = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
-        jobProvider.influencers(JOB_ID, new InfluencersQueryBuilder().build(), page -> {
+        jobResultsProvider.influencers(JOB_ID, new InfluencersQueryBuilder().build(), page -> {
             resultHolder.set(page);
             latch.countDown();
         }, e -> {
@@ -515,7 +515,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         AtomicReference<Exception> errorHolder = new AtomicReference<>();
         AtomicReference<QueryPage<AnomalyRecord>> resultHolder = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
-        jobProvider.records(JOB_ID, recordsQuery, page -> {
+        jobResultsProvider.records(JOB_ID, recordsQuery, page -> {
             resultHolder.set(page);
             latch.countDown();
         }, e -> {
@@ -533,7 +533,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         AtomicReference<Exception> errorHolder = new AtomicReference<>();
         AtomicReference<QueryPage<ModelSnapshot>> resultHolder = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
-        jobProvider.modelSnapshots(JOB_ID, 0, 100, page -> {
+        jobResultsProvider.modelSnapshots(JOB_ID, 0, 100, page -> {
             resultHolder.set(page);
             latch.countDown();
         }, e -> {
@@ -551,7 +551,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         AtomicReference<Exception> errorHolder = new AtomicReference<>();
         AtomicReference<Optional<Quantiles>> resultHolder = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
-        jobProvider.getAutodetectParams(JobTests.buildJobBuilder(JOB_ID).build(),params -> {
+        jobResultsProvider.getAutodetectParams(JobTests.buildJobBuilder(JOB_ID).build(), params -> {
             resultHolder.set(Optional.ofNullable(params.quantiles()));
             latch.countDown();
         }, e -> {

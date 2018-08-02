@@ -75,3 +75,34 @@ To remove a setting from the keystore, use the `remove` command:
 bin/elasticsearch-keystore remove the.setting.name.to.remove
 ----------------------------------------------------------------
 
+[float]
+[[reloadable-secure-settings]]
+=== Reloadable secure settings
+
+Just like the settings values in `elasticsearch.yml`, changes to the
+keystore contents are not automatically applied to the running
+elasticsearch node. Re-reading settings requires a node restart.
+However, certain secure settings are marked as *reloadable*. Such settings
+can be re-read and applied on a running node.
+
+The values of all secure settings, *reloadable* or not, must be identical
+across all cluster nodes. After making the desired secure settings changes,
+using the `bin/elasticsearch-keystore add` command, call:
+[source,js]
+----
+POST _nodes/reload_secure_settings
+{
+  "secure_settings_password": ""
+}
+----
+// CONSOLE
+This API will decrypt and re-read the entire keystore, on every cluster node,
+but only the *reloadable* secure settings will be applied. Changes to other
+settings will not go into effect until the next restart. Once the call returns,
+the reload has been completed, meaning that all internal datastructures dependent
+on these settings have been changed. Everything should look as if the settings
+had the new value from the start.
+
+When changing multiple *reloadable* secure settings, modify all of them, on
+each cluster node, and then issue a `reload_secure_settings` call, instead
+of reloading after each modification.

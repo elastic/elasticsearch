@@ -358,12 +358,12 @@ public class FullClusterRestartIT extends ESRestTestCase {
                 + "]"
                 + "}");
 
-            Map<String, Object> createRollupJobResponse = toMap(client().performRequest(createRollupJobRequest));
+            Map<String, Object> createRollupJobResponse = entityAsMap(client().performRequest(createRollupJobRequest));
             assertThat(createRollupJobResponse.get("acknowledged"), equalTo(Boolean.TRUE));
 
             // start the rollup job
             final Request startRollupJobRequest = new Request("POST", "_xpack/rollup/job/rollup-id-test/_start");
-            Map<String, Object> startRollupJobResponse = toMap(client().performRequest(startRollupJobRequest));
+            Map<String, Object> startRollupJobResponse = entityAsMap(client().performRequest(startRollupJobRequest));
             assertThat(startRollupJobResponse.get("started"), equalTo(Boolean.TRUE));
 
             assertRollUpJob("rollup-id-test");
@@ -372,7 +372,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
                 client().performRequest(new Request("POST", "id-test-results-rollup/_refresh"));
                 final Request searchRequest = new Request("GET", "id-test-results-rollup/_search");
                 try {
-                    Map<String, Object> searchResponse = toMap(client().performRequest(searchRequest));
+                    Map<String, Object> searchResponse = entityAsMap(client().performRequest(searchRequest));
                     assertNotNull(ObjectPath.eval("hits.total", searchResponse));
                     assertThat(ObjectPath.eval("hits.total", searchResponse), equalTo(1));
                     assertThat(ObjectPath.eval("hits.hits.0._id", searchResponse), equalTo("3310683722"));
@@ -393,7 +393,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
                 client().performRequest(new Request("POST", "id-test-results-rollup/_refresh"));
                 final Request searchRequest = new Request("GET", "id-test-results-rollup/_search");
                 try {
-                    Map<String, Object> searchResponse = toMap(client().performRequest(searchRequest));
+                    Map<String, Object> searchResponse = entityAsMap(client().performRequest(searchRequest));
                     assertNotNull(ObjectPath.eval("hits.total", searchResponse));
                     assertThat(ObjectPath.eval("hits.total", searchResponse), equalTo(2));
                     List<String> ids = new ArrayList<>(2);

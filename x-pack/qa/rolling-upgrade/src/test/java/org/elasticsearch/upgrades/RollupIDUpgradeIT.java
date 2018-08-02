@@ -5,12 +5,9 @@
  */
 package org.elasticsearch.upgrades;
 
-import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -18,6 +15,9 @@ import org.elasticsearch.xpack.core.watcher.support.xcontent.ObjectPath;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -68,6 +68,8 @@ public class RollupIDUpgradeIT extends AbstractUpgradeTestCase {
                 throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
         }
 
+        OffsetDateTime timestamp = Instant.parse("2018-01-01T00:00:01.000Z").atOffset(ZoneOffset.UTC);
+
         if (CLUSTER_TYPE == ClusterType.OLD) {
             String recoverQuickly = "{\"settings\": {\"index.unassigned.node_left.delayed_timeout\": \"100ms\"}}";
 
@@ -76,7 +78,7 @@ public class RollupIDUpgradeIT extends AbstractUpgradeTestCase {
             client().performRequest(createTargetIndex);
 
             final Request indexRequest = new Request("POST", "/target/_doc/1");
-            indexRequest.setJsonEntity("{\"timestamp\":\"2018-01-01T00:00:01\",\"value\":123}");
+            indexRequest.setJsonEntity("{\"timestamp\":\"" + timestamp.toString() + "\",\"value\":123}");
             client().performRequest(indexRequest);
 
             // create the rollup job
@@ -104,7 +106,7 @@ public class RollupIDUpgradeIT extends AbstractUpgradeTestCase {
                 + "]"
                 + "}");
 
-            Map<String, Object> createRollupJobResponse = toMap(client().performRequest(createRollupJobRequest));
+            Map<String, Object> createRollupJobResponse = entityAsMap(client().performRequest(createRollupJobRequest));
             assertThat(createRollupJobResponse.get("acknowledged"), equalTo(Boolean.TRUE));
 
             Request updateSettings = new Request("PUT", "/rollup/_settings");
@@ -113,7 +115,7 @@ public class RollupIDUpgradeIT extends AbstractUpgradeTestCase {
 
             // start the rollup job
             final Request startRollupJobRequest = new Request("POST", "_xpack/rollup/job/rollup-id-test/_start");
-            Map<String, Object> startRollupJobResponse = toMap(client().performRequest(startRollupJobRequest));
+            Map<String, Object> startRollupJobResponse = entityAsMap(client().performRequest(startRollupJobRequest));
             assertThat(startRollupJobResponse.get("started"), equalTo(Boolean.TRUE));
 
             assertRollUpJob("rollup-id-test");
@@ -124,7 +126,7 @@ public class RollupIDUpgradeIT extends AbstractUpgradeTestCase {
 
         if (CLUSTER_TYPE == ClusterType.MIXED && Booleans.parseBoolean(System.getProperty("tests.first_round"))) {
             final Request indexRequest = new Request("POST", "/target/_doc/2");
-            indexRequest.setJsonEntity("{\"timestamp\":\"2018-01-02T00:00:01\",\"value\":345}");
+            indexRequest.setJsonEntity("{\"timestamp\":\"" + timestamp.plusDays(1).toString() + "\",\"value\":345}");
             client().performRequest(indexRequest);
 
             assertRollUpJob("rollup-id-test");
@@ -141,7 +143,7 @@ public class RollupIDUpgradeIT extends AbstractUpgradeTestCase {
 
         if (CLUSTER_TYPE == ClusterType.MIXED && Booleans.parseBoolean(System.getProperty("tests.first_round")) == false) {
             final Request indexRequest = new Request("POST", "/target/_doc/3");
-            indexRequest.setJsonEntity("{\"timestamp\":\"2018-01-03T00:00:01\",\"value\":456}");
+            indexRequest.setJsonEntity("{\"timestamp\":\"" + timestamp.plusDays(2).toString() + "\",\"value\":456}");
             client().performRequest(indexRequest);
 
             assertRollUpJob("rollup-id-test");
@@ -161,7 +163,7 @@ public class RollupIDUpgradeIT extends AbstractUpgradeTestCase {
 
         if (CLUSTER_TYPE == ClusterType.UPGRADED) {
             final Request indexRequest = new Request("POST", "/target/_doc/4");
-            indexRequest.setJsonEntity("{\"timestamp\":\"2018-01-04T00:00:01\",\"value\":567}");
+            indexRequest.setJsonEntity("{\"timestamp\":\"" + timestamp.plusDays(3).toString() + "\",\"value\":567}");
             client().performRequest(indexRequest);
 
             assertRollUpJob("rollup-id-test");
@@ -189,7 +191,7 @@ public class RollupIDUpgradeIT extends AbstractUpgradeTestCase {
             client().performRequest(new Request("POST", "rollup/_refresh"));
             final Request searchRequest = new Request("GET", "rollup/_search");
             try {
-                Map<String, Object> searchResponse = toMap(client().performRequest(searchRequest));
+                Map<String, Object> searchResponse = entityAsMap(client().performRequest(searchRequest));
                 assertNotNull(ObjectPath.eval("hits.total", searchResponse));
                 assertThat(ObjectPath.eval("hits.total", searchResponse), equalTo(expectedCount));
 
@@ -211,14 +213,6 @@ public class RollupIDUpgradeIT extends AbstractUpgradeTestCase {
         return collectedIDs;
     }
 
-    static Map<String, Object> toMap(Response response) throws IOException {
-        return toMap(EntityUtils.toString(response.getEntity()));
-    }
-
-    static Map<String, Object> toMap(String response) throws IOException {
-        return XContentHelper.convertToMap(JsonXContent.jsonXContent, response, false);
-    }
-
     @SuppressWarnings("unchecked")
     private void assertRollUpJob(final String rollupJob) throws Exception {
         final Matcher<?> expectedStates = anyOf(equalTo("indexing"), equalTo("started"));
@@ -226,7 +220,7 @@ public class RollupIDUpgradeIT extends AbstractUpgradeTestCase {
 
         // check that the rollup job is started using the RollUp API
         final Request getRollupJobRequest = new Request("GET", "_xpack/rollup/job/" + rollupJob);
-        Map<String, Object> getRollupJobResponse = toMap(client().performRequest(getRollupJobRequest));
+        Map<String, Object> getRollupJobResponse = entityAsMap(client().performRequest(getRollupJobRequest));
         Map<String, Object> job = getJob(getRollupJobResponse, rollupJob);
         if (job != null) {
             assertThat(ObjectPath.eval("status.job_state", job), expectedStates);
@@ -236,7 +230,7 @@ public class RollupIDUpgradeIT extends AbstractUpgradeTestCase {
         final Request taskRequest = new Request("GET", "_tasks");
         taskRequest.addParameter("detailed", "true");
         taskRequest.addParameter("actions", "xpack/rollup/*");
-        Map<String, Object> taskResponse = toMap(client().performRequest(taskRequest));
+        Map<String, Object> taskResponse = entityAsMap(client().performRequest(taskRequest));
         Map<String, Object> taskResponseNodes = (Map<String, Object>) taskResponse.get("nodes");
         Map<String, Object> taskResponseNode = (Map<String, Object>) taskResponseNodes.values().iterator().next();
         Map<String, Object> taskResponseTasks = (Map<String, Object>) taskResponseNode.get("tasks");
@@ -245,7 +239,7 @@ public class RollupIDUpgradeIT extends AbstractUpgradeTestCase {
 
         // check that the rollup job is started using the Cluster State API
         final Request clusterStateRequest = new Request("GET", "_cluster/state/metadata");
-        Map<String, Object> clusterStateResponse = toMap(client().performRequest(clusterStateRequest));
+        Map<String, Object> clusterStateResponse = entityAsMap(client().performRequest(clusterStateRequest));
         List<Map<String, Object>> rollupJobTasks = ObjectPath.eval("metadata.persistent_tasks.tasks", clusterStateResponse);
 
         boolean hasRollupTask = false;

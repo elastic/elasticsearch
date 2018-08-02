@@ -43,13 +43,16 @@ public class TransportGetModelSnapshotsAction extends HandledTransportAction<Get
                 request.getJobId(), request.getSnapshotId(), request.getPageParams().getFrom(), request.getPageParams().getSize(),
                 request.getStart(), request.getEnd(), request.getSort(), request.getDescOrder());
 
-        jobManager.getJobOrThrowIfUnknown(request.getJobId());
-
-        jobProvider.modelSnapshots(request.getJobId(), request.getPageParams().getFrom(), request.getPageParams().getSize(),
-                request.getStart(), request.getEnd(), request.getSort(), request.getDescOrder(), request.getSnapshotId(),
-                page -> {
-                    listener.onResponse(new GetModelSnapshotsAction.Response(clearQuantiles(page)));
-                }, listener::onFailure);
+        jobManager.getJob(request.getJobId(), ActionListener.wrap(
+                job -> {
+                    jobProvider.modelSnapshots(request.getJobId(), request.getPageParams().getFrom(), request.getPageParams().getSize(),
+                            request.getStart(), request.getEnd(), request.getSort(), request.getDescOrder(), request.getSnapshotId(),
+                            page -> {
+                                listener.onResponse(new GetModelSnapshotsAction.Response(clearQuantiles(page)));
+                            }, listener::onFailure);
+                },
+                listener::onFailure
+        ));
     }
 
     public static QueryPage<ModelSnapshot> clearQuantiles(QueryPage<ModelSnapshot> page) {

@@ -52,8 +52,6 @@ public abstract class TransportJobTaskAction<Request extends JobTaskRequest<Requ
         String jobId = request.getJobId();
         // We need to check whether there is at least an assigned task here, otherwise we cannot redirect to the
         // node running the job task.
-        ClusterState state = clusterService.state();
-        JobManager.getJobOrThrowIfUnknown(jobId, state);
         PersistentTasksCustomMetaData tasks = clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         PersistentTasksCustomMetaData.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
         if (jobTask == null || jobTask.isAssigned() == false) {

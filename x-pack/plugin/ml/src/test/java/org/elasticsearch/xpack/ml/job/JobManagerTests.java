@@ -5,17 +5,18 @@
  */
 package org.elasticsearch.xpack.ml.job;
 
-import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -23,38 +24,34 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
-import org.elasticsearch.xpack.core.ml.action.PutJobAction;
-import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
-import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.config.RuleScope;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzerTests;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.persistence.MockClientBuilder;
 import org.elasticsearch.xpack.ml.job.process.autodetect.UpdateParams;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Matchers;
 import org.mockito.Mockito;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Date;
 import java.util.List;
 import java.util.TreeSet;
 
 import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
 import static org.elasticsearch.xpack.ml.action.TransportOpenJobActionTests.addJobTask;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -66,7 +63,6 @@ public class JobManagerTests extends ESTestCase {
 
     private Environment environment;
     private AnalysisRegistry analysisRegistry;
-    private Client client;
     private ClusterService clusterService;
     private JobProvider jobProvider;
     private Auditor auditor;
@@ -77,114 +73,23 @@ public class JobManagerTests extends ESTestCase {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         environment = TestEnvironment.newEnvironment(settings);
         analysisRegistry = CategorizationAnalyzerTests.buildTestAnalysisRegistry(environment);
-        client = mock(Client.class);
         clusterService = mock(ClusterService.class);
         jobProvider = mock(JobProvider.class);
         auditor = mock(Auditor.class);
         updateJobProcessNotifier = mock(UpdateJobProcessNotifier.class);
     }
 
-    public void testGetJobOrThrowIfUnknown_GivenUnknownJob() {
-        ClusterState cs = createClusterState();
-        ESTestCase.expectThrows(ResourceNotFoundException.class, () -> JobManager.getJobOrThrowIfUnknown("foo", cs));
-    }
-
-    public void testGetJobOrThrowIfUnknown_GivenKnownJob() {
-        Job job = buildJobBuilder("foo").build();
-        MlMetadata mlMetadata = new MlMetadata.Builder().putJob(job, false).build();
-        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
-                .metaData(MetaData.builder().putCustom(MlMetadata.TYPE, mlMetadata)).build();
-
-        assertEquals(job, JobManager.getJobOrThrowIfUnknown("foo", cs));
-    }
-
-    public void testExpandJobs_GivenAll() {
-        MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
-        for (int i = 0; i < 3; i++) {
-            mlMetadata.putJob(buildJobBuilder(Integer.toString(i)).build(), false);
-        }
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-                .metaData(MetaData.builder().putCustom(MlMetadata.TYPE, mlMetadata.build())).build();
-
-        JobManager jobManager = createJobManager();
-        QueryPage<Job> result = jobManager.expandJobs("_all", true, clusterState);
-
-        assertThat(result.count(), equalTo(3L));
-        assertThat(result.results().get(0).getId(), equalTo("0"));
-        assertThat(result.results().get(1).getId(), equalTo("1"));
-        assertThat(result.results().get(2).getId(), equalTo("2"));
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testPutJob_AddsCreateTime() throws IOException {
-        JobManager jobManager = createJobManager();
-        PutJobAction.Request putJobRequest = new PutJobAction.Request(createJob());
-
-        doAnswer(invocation -> {
-            AckedClusterStateUpdateTask<Boolean> task = (AckedClusterStateUpdateTask<Boolean>) invocation.getArguments()[1];
-            task.onAllNodesAcked(null);
-            return null;
-        }).when(clusterService).submitStateUpdateTask(Matchers.eq("put-job-foo"), any(AckedClusterStateUpdateTask.class));
-
-        ArgumentCaptor<Job> requestCaptor = ArgumentCaptor.forClass(Job.class);
-        doAnswer(invocation -> {
-            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[2];
-            listener.onResponse(true);
-            return null;
-        }).when(jobProvider).createJobResultIndex(requestCaptor.capture(), any(ClusterState.class), any(ActionListener.class));
-
-        ClusterState clusterState = createClusterState();
-
-        jobManager.putJob(putJobRequest, analysisRegistry, clusterState, new ActionListener<PutJobAction.Response>() {
-            @Override
-            public void onResponse(PutJobAction.Response response) {
-                Job job = requestCaptor.getValue();
-                assertNotNull(job.getCreateTime());
-                Date now = new Date();
-                // job create time should be within the last second
-                assertThat(now.getTime(), greaterThanOrEqualTo(job.getCreateTime().getTime()));
-                assertThat(now.getTime() - 1000, lessThanOrEqualTo(job.getCreateTime().getTime()));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                fail(e.toString());
-            }
-        });
-    }
-
-    public void testPutJob_ThrowsIfJobExists() throws IOException {
-        JobManager jobManager = createJobManager();
-        PutJobAction.Request putJobRequest = new PutJobAction.Request(createJob());
-
-        MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
-        mlMetadata.putJob(buildJobBuilder("foo").build(), false);
-        ClusterState clusterState = ClusterState.builder(new ClusterName("name"))
-                .metaData(MetaData.builder().putCustom(MlMetadata.TYPE, mlMetadata.build())).build();
-
-        jobManager.putJob(putJobRequest, analysisRegistry, clusterState, new ActionListener<PutJobAction.Response>() {
-            @Override
-            public void onResponse(PutJobAction.Response response) {
-                fail("should have got an error");
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                assertTrue(e instanceof ResourceAlreadyExistsException);
-            }
-        });
-    }
-
     public void testNotifyFilterChangedGivenNoop() {
         MlFilter filter = MlFilter.builder("my_filter").build();
-        JobManager jobManager = createJobManager();
+        MockClientBuilder mockClientBuilder = new MockClientBuilder("cluster-test");
+        JobManager jobManager = createJobManager(mockClientBuilder.build());
 
         jobManager.notifyFilterChanged(filter, Collections.emptySet(), Collections.emptySet());
 
         Mockito.verifyNoMoreInteractions(auditor, updateJobProcessNotifier);
     }
 
-    public void testNotifyFilterChanged() {
+    public void testNotifyFilterChanged() throws IOException {
         Detector.Builder detectorReferencingFilter = new Detector.Builder("count", null);
         detectorReferencingFilter.setByFieldName("foo");
         DetectionRule filterRule = new DetectionRule.Builder(RuleScope.builder().exclude("foo", "foo_filter")).build();
@@ -192,19 +97,21 @@ public class JobManagerTests extends ESTestCase {
         AnalysisConfig.Builder filterAnalysisConfig = new AnalysisConfig.Builder(Collections.singletonList(
                 detectorReferencingFilter.build()));
 
+        List<BytesReference> docsAsBytes = new ArrayList<>();
         Job.Builder jobReferencingFilter1 = buildJobBuilder("job-referencing-filter-1");
         jobReferencingFilter1.setAnalysisConfig(filterAnalysisConfig);
+        docsAsBytes.add(toBytesReference(jobReferencingFilter1.build()));
+
         Job.Builder jobReferencingFilter2 = buildJobBuilder("job-referencing-filter-2");
         jobReferencingFilter2.setAnalysisConfig(filterAnalysisConfig);
+        docsAsBytes.add(toBytesReference(jobReferencingFilter2.build()));
+
         Job.Builder jobReferencingFilter3 = buildJobBuilder("job-referencing-filter-3");
         jobReferencingFilter3.setAnalysisConfig(filterAnalysisConfig);
-        Job.Builder jobWithoutFilter = buildJobBuilder("job-without-filter");
+        docsAsBytes.add(toBytesReference(jobReferencingFilter3.build()));
 
-        MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
-        mlMetadata.putJob(jobReferencingFilter1.build(), false);
-        mlMetadata.putJob(jobReferencingFilter2.build(), false);
-        mlMetadata.putJob(jobReferencingFilter3.build(), false);
-        mlMetadata.putJob(jobWithoutFilter.build(), false);
+        Job.Builder jobWithoutFilter = buildJobBuilder("job-without-filter");
+        docsAsBytes.add(toBytesReference(jobWithoutFilter.build()));
 
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
         addJobTask(jobReferencingFilter1.getId(), "node_id", JobState.OPENED, tasksBuilder);
@@ -213,8 +120,7 @@ public class JobManagerTests extends ESTestCase {
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
                 .metaData(MetaData.builder()
-                        .putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build())
-                        .putCustom(MlMetadata.TYPE, mlMetadata.build()))
+                        .putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()))
                 .build();
         when(clusterService.state()).thenReturn(clusterState);
 
@@ -224,7 +130,9 @@ public class JobManagerTests extends ESTestCase {
             return null;
         }).when(updateJobProcessNotifier).submitJobUpdate(any(), any());
 
-        JobManager jobManager = createJobManager();
+        MockClientBuilder mockClientBuilder = new MockClientBuilder("cluster-test");
+        mockClientBuilder.prepareSearch(AnomalyDetectorsIndex.jobConfigIndexName(), docsAsBytes);
+        JobManager jobManager = createJobManager(mockClientBuilder.build());
 
         MlFilter filter = MlFilter.builder("foo_filter").setItems("a", "b").build();
 
@@ -250,7 +158,7 @@ public class JobManagerTests extends ESTestCase {
         Mockito.verifyNoMoreInteractions(auditor, updateJobProcessNotifier);
     }
 
-    public void testNotifyFilterChangedGivenOnlyAddedItems() {
+    public void testNotifyFilterChangedGivenOnlyAddedItems() throws IOException {
         Detector.Builder detectorReferencingFilter = new Detector.Builder("count", null);
         detectorReferencingFilter.setByFieldName("foo");
         DetectionRule filterRule = new DetectionRule.Builder(RuleScope.builder().exclude("foo", "foo_filter")).build();
@@ -261,16 +169,14 @@ public class JobManagerTests extends ESTestCase {
         Job.Builder jobReferencingFilter = buildJobBuilder("job-referencing-filter");
         jobReferencingFilter.setAnalysisConfig(filterAnalysisConfig);
 
-        MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
-        mlMetadata.putJob(jobReferencingFilter.build(), false);
+        List<BytesReference> docsAsBytes = Collections.singletonList(toBytesReference(jobReferencingFilter.build()));
 
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-                .metaData(MetaData.builder()
-                        .putCustom(MlMetadata.TYPE, mlMetadata.build()))
-                .build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
         when(clusterService.state()).thenReturn(clusterState);
 
-        JobManager jobManager = createJobManager();
+        MockClientBuilder mockClientBuilder = new MockClientBuilder("cluster-test");
+        mockClientBuilder.prepareSearch(AnomalyDetectorsIndex.jobConfigIndexName(), docsAsBytes);
+        JobManager jobManager = createJobManager(mockClientBuilder.build());
 
         MlFilter filter = MlFilter.builder("foo_filter").build();
 
@@ -280,7 +186,7 @@ public class JobManagerTests extends ESTestCase {
         Mockito.verifyNoMoreInteractions(auditor, updateJobProcessNotifier);
     }
 
-    public void testNotifyFilterChangedGivenOnlyRemovedItems() {
+    public void testNotifyFilterChangedGivenOnlyRemovedItems() throws IOException {
         Detector.Builder detectorReferencingFilter = new Detector.Builder("count", null);
         detectorReferencingFilter.setByFieldName("foo");
         DetectionRule filterRule = new DetectionRule.Builder(RuleScope.builder().exclude("foo", "foo_filter")).build();
@@ -290,17 +196,17 @@ public class JobManagerTests extends ESTestCase {
 
         Job.Builder jobReferencingFilter = buildJobBuilder("job-referencing-filter");
         jobReferencingFilter.setAnalysisConfig(filterAnalysisConfig);
+        List<BytesReference> docsAsBytes = Collections.singletonList(toBytesReference(jobReferencingFilter.build()));
 
         MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
         mlMetadata.putJob(jobReferencingFilter.build(), false);
 
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-                .metaData(MetaData.builder()
-                        .putCustom(MlMetadata.TYPE, mlMetadata.build()))
-                .build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
         when(clusterService.state()).thenReturn(clusterState);
 
-        JobManager jobManager = createJobManager();
+        MockClientBuilder mockClientBuilder = new MockClientBuilder("cluster-test");
+        mockClientBuilder.prepareSearch(AnomalyDetectorsIndex.jobConfigIndexName(), docsAsBytes);
+        JobManager jobManager = createJobManager(mockClientBuilder.build());
 
         MlFilter filter = MlFilter.builder("foo_filter").build();
 
@@ -334,7 +240,8 @@ public class JobManagerTests extends ESTestCase {
                 .build();
         when(clusterService.state()).thenReturn(clusterState);
 
-        JobManager jobManager = createJobManager();
+        MockClientBuilder mockClientBuilder = new MockClientBuilder("cluster-test");
+        JobManager jobManager = createJobManager(mockClientBuilder.build());
 
         jobManager.updateProcessOnCalendarChanged(Arrays.asList("job-1", "job-3", "job-4"));
 
@@ -373,7 +280,8 @@ public class JobManagerTests extends ESTestCase {
                 .build();
         when(clusterService.state()).thenReturn(clusterState);
 
-        JobManager jobManager = createJobManager();
+        MockClientBuilder mockClientBuilder = new MockClientBuilder("cluster-test");
+        JobManager jobManager = createJobManager(mockClientBuilder.build());
 
         jobManager.updateProcessOnCalendarChanged(Collections.singletonList("group-1"));
 
@@ -388,28 +296,18 @@ public class JobManagerTests extends ESTestCase {
         assertThat(capturedUpdateParams.get(1).isUpdateScheduledEvents(), is(true));
     }
 
-    private Job.Builder createJob() {
-        Detector.Builder d1 = new Detector.Builder("info_content", "domain");
-        d1.setOverFieldName("client");
-        AnalysisConfig.Builder ac = new AnalysisConfig.Builder(Collections.singletonList(d1.build()));
-
-        Job.Builder builder = new Job.Builder();
-        builder.setId("foo");
-        builder.setAnalysisConfig(ac);
-        builder.setDataDescription(new DataDescription.Builder());
-        return builder;
-    }
-
-    private JobManager createJobManager() {
+    private JobManager createJobManager(Client client) {
         ClusterSettings clusterSettings = new ClusterSettings(environment.settings(),
                 Collections.singleton(MachineLearningField.MAX_MODEL_MEMORY_LIMIT));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         return new JobManager(environment, environment.settings(), jobProvider, clusterService, auditor, client, updateJobProcessNotifier);
     }
 
-    private ClusterState createClusterState() {
-        ClusterState.Builder builder = ClusterState.builder(new ClusterName("_name"));
-        builder.metaData(MetaData.builder());
-        return builder.build();
+    private BytesReference toBytesReference(ToXContent content) throws IOException {
+        try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
+            content.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
+            return BytesReference.bytes(xContentBuilder);
+        }
+
     }
 }

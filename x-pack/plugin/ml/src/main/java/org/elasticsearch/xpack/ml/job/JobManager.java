@@ -5,30 +5,51 @@
  */
 package org.elasticsearch.xpack.ml.job;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.delete.DeleteAction;
+import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.get.GetAction;
+import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
@@ -46,6 +67,8 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.persistence.JobStorageDeletionTask;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
@@ -59,7 +82,9 @@ import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.utils.ChainTaskExecutor;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
@@ -67,9 +92,13 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 /**
  * Allows interactions with jobs. The managed interactions include:
@@ -120,31 +149,83 @@ public class JobManager extends AbstractComponent {
      * Gets the job that matches the given {@code jobId}.
      *
      * @param jobId the jobId
-     * @return The {@link Job} matching the given {code jobId}
+     * @param jobListener the Job listener
      * @throws ResourceNotFoundException if no job matches {@code jobId}
      */
-    public Job getJobOrThrowIfUnknown(String jobId) {
-        return getJobOrThrowIfUnknown(jobId, clusterService.state());
-    }
+    public void getJob(String jobId, ActionListener<Job> jobListener) {
+        GetRequest getRequest = new GetRequest(AnomalyDetectorsIndex.jobConfigIndexName(), ElasticsearchMappings.DOC_TYPE,
+                Job.documentId(jobId));
 
-    /**
-     * Gets the job that matches the given {@code jobId}.
-     *
-     * @param jobId the jobId
-     * @param clusterState the cluster state
-     * @return The {@link Job} matching the given {code jobId}
-     * @throws ResourceNotFoundException if no job matches {@code jobId}
-     */
-    public static Job getJobOrThrowIfUnknown(String jobId, ClusterState clusterState) {
-        Job job = MlMetadata.getMlMetadata(clusterState).getJobs().get(jobId);
-        if (job == null) {
-            throw ExceptionsHelper.missingJobException(jobId);
-        }
-        return job;
+        executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new ActionListener<GetResponse>() {
+            @Override
+            public void onResponse(GetResponse getResponse) {
+                if (getResponse.isExists() == false) {
+                    jobListener.onFailure(ExceptionsHelper.missingJobException(jobId));
+                    return;
+                }
+
+                BytesReference source = getResponse.getSourceAsBytesRef();
+                try (InputStream stream = source.streamInput();
+                     XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                             .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+                    jobListener.onResponse(Job.STRICT_PARSER.apply(parser, null).build());
+                } catch (IOException e) {
+                    jobListener.onFailure(new ElasticsearchParseException("failed to parse " + getResponse.getType(), e));
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                jobListener.onFailure(e);
+            }
+        });
     }
 
     private Set<String> expandJobIds(String expression, boolean allowNoJobs, ClusterState clusterState) {
         return MlMetadata.getMlMetadata(clusterState).expandJobIds(expression, allowNoJobs);
+    }
+
+    // TODO Paging?
+    public void getAllJobs(ActionListener<QueryPage<Job>> jobsListener) {
+        QueryBuilder qb = new TermQueryBuilder(Job.JOB_TYPE.getPreferredName(), Job.ANOMALY_DETECTOR_JOB_TYPE);
+        getJobs(qb, jobsListener);
+    }
+
+    private void getJobs(Collection<String> jobIds, ActionListener<QueryPage<Job>> jobsListener) {
+        QueryBuilder qb = new BoolQueryBuilder()
+                .filter(new TermQueryBuilder(Job.JOB_TYPE.getPreferredName(), Job.ANOMALY_DETECTOR_JOB_TYPE))
+                .filter(new TermsQueryBuilder(Job.ID.getPreferredName(), jobIds));
+
+        getJobs(qb, jobsListener);
+    }
+
+
+    private void getJobs(QueryBuilder query, ActionListener<QueryPage<Job>> jobsListener) {
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(query);
+        sourceBuilder.sort(Job.ID.getPreferredName());
+
+        SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.jobConfigIndexName())
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                .setQuery(query)
+                .setSource(sourceBuilder).request();
+
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
+                ActionListener.<SearchResponse>wrap(
+                        response -> {
+                            List<Job> jobs = new ArrayList<>();
+                            SearchHit[] hits = response.getHits().getHits();
+                            for (SearchHit hit : hits) {
+                                Job job = parseJobFromSearchHit(hit);
+                                if (job != null) {
+                                    jobs.add(job);
+                                }
+                            }
+
+                            jobsListener.onResponse(new QueryPage<Job>(jobs, response.getHits().getTotalHits(),
+                                    Job.RESULTS_FIELD));
+                        },
+                        jobsListener::onFailure)
+                , client::search);
     }
 
     /**
@@ -152,26 +233,28 @@ public class JobManager extends AbstractComponent {
      * Note that when the {@code jobId} is {@link MetaData#ALL} all jobs are returned.
      *
      * @param expression   the jobId or an expression matching jobIds
-     * @param clusterState the cluster state
      * @param allowNoJobs  if {@code false}, an error is thrown when no job matches the {@code jobId}
-     * @return A {@link QueryPage} containing the matching {@code Job}s
+     * @param clusterState the cluster state
+     * @param listener     Jobs listener containing the matching {@code Job}s
      */
-    public QueryPage<Job> expandJobs(String expression, boolean allowNoJobs, ClusterState clusterState) {
-        Set<String> expandedJobIds = expandJobIds(expression, allowNoJobs, clusterState);
-        MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
-        List<Job> jobs = new ArrayList<>();
-        for (String expandedJobId : expandedJobIds) {
-            jobs.add(mlMetadata.getJobs().get(expandedJobId));
+    // TODO Paging?
+    public void expandJobs(String expression, boolean allowNoJobs, ClusterState clusterState, ActionListener<QueryPage<Job>> listener) {
+        Set<String> jobIds = expandJobIds(expression, allowNoJobs, clusterState);
+        getJobs(jobIds, listener);
+    }
+
+    private Job parseJobFromSearchHit(SearchHit hit) {
+        BytesReference source = hit.getSourceRef();
+        try (InputStream stream = source.streamInput();
+             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+            return Job.LENIENT_PARSER.apply(parser, null).build();
+        } catch (IOException e) {
+            logger.error("Failed to parse job", e);
+            return null;
         }
-        logger.debug("Returning jobs matching [" + expression + "]");
-        return new QueryPage<>(jobs, jobs.size(), Job.RESULTS_FIELD);
     }
-
-    public JobState getJobState(String jobId) {
-        PersistentTasksCustomMetaData tasks = clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-        return MlTasks.getJobState(jobId, tasks);
-    }
-
+    
     /**
      * Validate the char filter/tokenizer/token filter names used in the categorization analyzer config (if any).
      * This validation has to be done server-side; it cannot be done in a client as that won't have loaded the
@@ -189,7 +272,7 @@ public class JobManager extends AbstractComponent {
     }
 
     /**
-     * Stores a job in the cluster state
+     * Stores the job in a document
      */
     public void putJob(PutJobAction.Request request, AnalysisRegistry analysisRegistry, ClusterState state,
                        ActionListener<PutJobAction.Response> actionListener) throws IOException {
@@ -216,19 +299,18 @@ public class JobManager extends AbstractComponent {
             @Override
             public void onResponse(Boolean indicesCreated) {
 
-                clusterService.submitStateUpdateTask("put-job-" + job.getId(),
-                        new AckedClusterStateUpdateTask<PutJobAction.Response>(request, actionListener) {
-                            @Override
-                            protected PutJobAction.Response newResponse(boolean acknowledged) {
-                                auditor.info(job.getId(), Messages.getMessage(Messages.JOB_AUDIT_CREATED));
-                                return new PutJobAction.Response(job);
-                            }
+                jobProvider.indexJob(job, new ActionListener<IndexResponse>() {
+                    @Override
+                    public void onResponse(IndexResponse indexResponse) {
+                        auditor.info(job.getId(), Messages.getMessage(Messages.JOB_AUDIT_CREATED));
+                        actionListener.onResponse(new PutJobAction.Response(job));
+                    }
 
-                            @Override
-                            public ClusterState execute(ClusterState currentState) {
-                                return updateClusterState(job, false, currentState);
-                            }
-                        });
+                    @Override
+                    public void onFailure(Exception e) {
+                        actionListener.onFailure(e);
+                    }
+                });
             }
 
             @Override
@@ -258,10 +340,14 @@ public class JobManager extends AbstractComponent {
     }
 
     public void updateJob(UpdateJobAction.Request request, ActionListener<PutJobAction.Response> actionListener) {
-        Job job = getJobOrThrowIfUnknown(request.getJobId());
-        validate(request.getJobUpdate(), job, ActionListener.wrap(
-                nullValue -> internalJobUpdate(request, actionListener),
-                actionListener::onFailure));
+        getJob(request.getJobId(), ActionListener.wrap(
+                job -> {
+                    validate(request.getJobUpdate(), job, ActionListener.wrap(
+                            nullValue -> internalJobUpdate(request, actionListener),
+                            actionListener::onFailure));
+                },
+                actionListener::onFailure
+        ));
     }
 
     private void validate(JobUpdate jobUpdate, Job job, ActionListener<Void> handler) {
@@ -324,83 +410,56 @@ public class JobManager extends AbstractComponent {
     }
 
     private void internalJobUpdate(UpdateJobAction.Request request, ActionListener<PutJobAction.Response> actionListener) {
-        if (request.isWaitForAck()) {
-            // Use the ack cluster state update
-            clusterService.submitStateUpdateTask("update-job-" + request.getJobId(),
-                    new AckedClusterStateUpdateTask<PutJobAction.Response>(request, actionListener) {
-                        private AtomicReference<Job> updatedJob = new AtomicReference<>();
 
-                        @Override
-                        protected PutJobAction.Response newResponse(boolean acknowledged) {
-                            return new PutJobAction.Response(updatedJob.get());
-                        }
+        AtomicReference<Boolean> jobHasChanged = new AtomicReference<Boolean>(Boolean.FALSE);
+        ActionListener<Job> updatedJobListener;
 
-                        @Override
-                        public ClusterState execute(ClusterState currentState) {
-                            Job job = getJobOrThrowIfUnknown(request.getJobId(), currentState);
-                            updatedJob.set(request.getJobUpdate().mergeWithJob(job, maxModelMemoryLimit));
-                            return updateClusterState(updatedJob.get(), true, currentState);
+        // Autodetect must be updated if the fields that the C++ uses are changed
+        if (request.getJobUpdate().isAutodetectProcessUpdate()) {
+            updatedJobListener = ActionListener.wrap(
+                    updatedJob -> {
+                        JobUpdate jobUpdate = request.getJobUpdate();
+                        if (jobHasChanged.get() && isJobOpen(clusterService.state(), request.getJobId())) {
+                            updateJobProcessNotifier.submitJobUpdate(UpdateParams.fromJobUpdate(jobUpdate), ActionListener.wrap(
+                                    isUpdated -> {
+                                        if (isUpdated) {
+                                            auditJobUpdatedIfNotInternal(request);
+                                        }
+                                    }, e -> {
+                                        // No need to do anything
+                                    }
+                            ));
                         }
-
-                        @Override
-                        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                            afterClusterStateUpdate(newState, request);
-                        }
-                    });
+                        actionListener.onResponse(new PutJobAction.Response(updatedJob));
+                    },
+                    actionListener::onFailure
+            );
         } else {
-            clusterService.submitStateUpdateTask("update-job-" + request.getJobId(), new ClusterStateUpdateTask() {
-                private AtomicReference<Job> updatedJob = new AtomicReference<>();
+            updatedJobListener = ActionListener.wrap(job -> {
+                        logger.debug("[{}] No process update required for job update: {}", request::getJobId, () -> {
+                            try {
+                                XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
+                                request.getJobUpdate().toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
+                                return Strings.toString(jsonBuilder);
+                            } catch (IOException e) {
+                                return "(unprintable due to " + e.getMessage() + ")";
+                            }
+                        });
 
-                @Override
-                public ClusterState execute(ClusterState currentState) throws Exception {
-                    Job job = getJobOrThrowIfUnknown(request.getJobId(), currentState);
-                    updatedJob.set(request.getJobUpdate().mergeWithJob(job, maxModelMemoryLimit));
-                    return updateClusterState(updatedJob.get(), true, currentState);
-                }
-
-                @Override
-                public void onFailure(String source, Exception e) {
-                    actionListener.onFailure(e);
-                }
-
-                @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    afterClusterStateUpdate(newState, request);
-                    actionListener.onResponse(new PutJobAction.Response(updatedJob.get()));
-                }
-            });
+                        auditJobUpdatedIfNotInternal(request);
+                        actionListener.onResponse(new PutJobAction.Response(job));
+                    },
+                    actionListener::onFailure);
         }
-    }
 
-    private void afterClusterStateUpdate(ClusterState newState, UpdateJobAction.Request request) {
-        JobUpdate jobUpdate = request.getJobUpdate();
-
-        // Change is required if the fields that the C++ uses are being updated
-        boolean processUpdateRequired = jobUpdate.isAutodetectProcessUpdate();
-
-        if (processUpdateRequired && isJobOpen(newState, request.getJobId())) {
-            updateJobProcessNotifier.submitJobUpdate(UpdateParams.fromJobUpdate(jobUpdate), ActionListener.wrap(
-                    isUpdated -> {
-                        if (isUpdated) {
-                            auditJobUpdatedIfNotInternal(request);
-                        }
-                    }, e -> {
-                        // No need to do anything
-                    }
-            ));
-        } else {
-            logger.debug("[{}] No process update required for job update: {}", () -> request.getJobId(), () -> {
-                try {
-                    XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
-                    jobUpdate.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
-                    return Strings.toString(jsonBuilder);
-                } catch (IOException e) {
-                    return "(unprintable due to " + e.getMessage() + ")";
-                }
-            });
-
-            auditJobUpdatedIfNotInternal(request);
-        }
+        applyJobUpdate(request.getJobId(),
+                jobBuilder -> {
+                    Job currentJob = jobBuilder.build();
+                    Job updatedJob = request.getJobUpdate().mergeWithJob(currentJob, maxModelMemoryLimit);
+                    jobHasChanged.set(updatedJob.equals(currentJob) == false);
+                    return updatedJob;
+                },
+                updatedJobListener);
     }
 
     private void auditJobUpdatedIfNotInternal(UpdateJobAction.Request request) {
@@ -415,32 +474,37 @@ public class JobManager extends AbstractComponent {
         return jobState == JobState.OPENED;
     }
 
-    private ClusterState updateClusterState(Job job, boolean overwrite, ClusterState currentState) {
-        MlMetadata.Builder builder = createMlMetadataBuilder(currentState);
-        builder.putJob(job, overwrite);
-        return buildNewClusterState(currentState, builder);
-    }
-
     public void notifyFilterChanged(MlFilter filter, Set<String> addedItems, Set<String> removedItems) {
         if (addedItems.isEmpty() && removedItems.isEmpty()) {
             return;
         }
 
-        ClusterState clusterState = clusterService.state();
-        QueryPage<Job> jobs = expandJobs("*", true, clusterService.state());
-        for (Job job : jobs.results()) {
-            Set<String> jobFilters = job.getAnalysisConfig().extractReferencedFilters();
-            if (jobFilters.contains(filter.getId())) {
-                if (isJobOpen(clusterState, job.getId())) {
-                    updateJobProcessNotifier.submitJobUpdate(UpdateParams.filterUpdate(job.getId(), filter),
-                            ActionListener.wrap(isUpdated -> {
+        getAllJobs(ActionListener.wrap(
+                jobs -> {
+                    ClusterState clusterState = clusterService.state();
+
+                    // NORELEASE  don't fire all these off at once
+                    for (Job job : jobs.results()) {
+                        Set<String> jobFilters = job.getAnalysisConfig().extractReferencedFilters();
+                        if (jobFilters.contains(filter.getId())) {
+                            if (isJobOpen(clusterState, job.getId())) {
+                                updateJobProcessNotifier.submitJobUpdate(UpdateParams.filterUpdate(job.getId(), filter), ActionListener.wrap(
+                                        isUpdated -> {
+                                            if (isUpdated) {
+                                                auditFilterChanges(job.getId(), filter.getId(), addedItems, removedItems);
+                                            }
+                                        }, e -> {
+                                        }
+                                ));
+                            } else {
                                 auditFilterChanges(job.getId(), filter.getId(), addedItems, removedItems);
-                            }, e -> {}));
-                } else {
-                    auditFilterChanges(job.getId(), filter.getId(), addedItems, removedItems);
+                            }
+                        }
+                    }
+                },
+                e -> {
                 }
-            }
-        }
+        ));
     }
 
     private void auditFilterChanges(String jobId, String filterId, Set<String> addedItems, Set<String> removedItems) {
@@ -498,9 +562,8 @@ public class JobManager extends AbstractComponent {
         String jobId = request.getJobId();
         logger.debug("Deleting job '" + jobId + "'");
 
-        // Step 4. When the job has been removed from the cluster state, return a response
-        // -------
-        CheckedConsumer<Boolean, Exception> apiResponseHandler = jobDeleted -> {
+        // Step 4. When the job document has been removed return a response
+        Consumer<Boolean> apiResponseHandler = jobDeleted -> {
             if (jobDeleted) {
                 logger.info("Job [" + jobId + "] deleted");
                 auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_DELETED));
@@ -511,43 +574,35 @@ public class JobManager extends AbstractComponent {
         };
 
         // Step 3. When the physical storage has been deleted, remove from Cluster State
-        // -------
-        CheckedConsumer<Boolean, Exception> deleteJobStateHandler = response -> clusterService.submitStateUpdateTask("delete-job-" + jobId,
-                new AckedClusterStateUpdateTask<Boolean>(request, ActionListener.wrap(apiResponseHandler, actionListener::onFailure)) {
+        CheckedConsumer<Boolean, Exception> deleteJobStateHandler = response -> {
+            DeleteRequest deleteRequest = new DeleteRequest(AnomalyDetectorsIndex.jobConfigIndexName(), ElasticsearchMappings.DOC_TYPE,
+                    Job.documentId(jobId));
 
-                    @Override
-                    protected Boolean newResponse(boolean acknowledged) {
-                        return acknowledged && response;
-                    }
+            executeAsyncWithOrigin(client, ML_ORIGIN, DeleteAction.INSTANCE, deleteRequest, new ActionListener<DeleteResponse>() {
+                @Override
+                public void onResponse(DeleteResponse deleteResponse) {
+                    apiResponseHandler.accept(Boolean.TRUE);
+                }
 
-                    @Override
-                    public ClusterState execute(ClusterState currentState) {
-                        MlMetadata currentMlMetadata = MlMetadata.getMlMetadata(currentState);
-                        if (currentMlMetadata.getJobs().containsKey(jobId) == false) {
-                            // We wouldn't have got here if the job never existed so
-                            // the Job must have been deleted by another action.
-                            // Don't error in this case
-                            return currentState;
-                        }
-
-                        MlMetadata.Builder builder = new MlMetadata.Builder(currentMlMetadata);
-                        builder.deleteJob(jobId, currentState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE));
-                        return buildNewClusterState(currentState, builder);
-                    }
+                @Override
+                public void onFailure(Exception e) {
+                    actionListener.onFailure(e);
+                }
             });
-
+        };
 
         // Step 2. Remove the job from any calendars
         CheckedConsumer<Boolean, Exception> removeFromCalendarsHandler = response -> {
-            jobProvider.removeJobFromCalendars(jobId, ActionListener.<Boolean>wrap(deleteJobStateHandler::accept,
+            jobProvider.removeJobFromCalendars(jobId, ActionListener.wrap(deleteJobStateHandler::accept,
                     actionListener::onFailure ));
         };
 
-
-        // Step 1. Delete the physical storage
-
-        // This task manages the physical deletion of the job state and results
-        task.delete(jobId, client, clusterService.state(), removeFromCalendarsHandler, actionListener::onFailure);
+        // Step 1. Get the job and delete the physical storage
+        getJob(request.getJobId(), ActionListener.wrap(
+                // This task manages the physical deletion of the job state and results
+                job -> task.delete(jobId, client, job.getResultsIndexName(), removeFromCalendarsHandler, actionListener::onFailure),
+                actionListener::onFailure
+        ));
     }
 
     public void revertSnapshot(RevertModelSnapshotAction.Request request, ActionListener<RevertModelSnapshotAction.Response> actionListener,
@@ -579,46 +634,76 @@ public class JobManager extends AbstractComponent {
             }
         };
 
-        // Step 1. Do the cluster state update
+        // Step 1. update the job
         // -------
-        Consumer<Long> clusterStateHandler = response -> clusterService.submitStateUpdateTask("revert-snapshot-" + request.getJobId(),
-                new AckedClusterStateUpdateTask<Boolean>(request, ActionListener.wrap(updateHandler, actionListener::onFailure)) {
-
-            @Override
-            protected Boolean newResponse(boolean acknowledged) {
-                if (acknowledged) {
-                    auditor.info(request.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_REVERTED, modelSnapshot.getDescription()));
-                    return true;
-                }
-                actionListener.onFailure(new IllegalStateException("Could not revert modelSnapshot on job ["
-                        + request.getJobId() + "], not acknowledged by master."));
-                return false;
-            }
-
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                Job job = getJobOrThrowIfUnknown(request.getJobId(), currentState);
-                Job.Builder builder = new Job.Builder(job);
-                builder.setModelSnapshotId(modelSnapshot.getSnapshotId());
-                builder.setEstablishedModelMemory(response);
-                return updateClusterState(builder.build(), true, currentState);
-            }
-        });
+        Consumer<Long> updateJobHandler = response -> {
+            applyJobUpdate(request.getJobId(),
+                    jobBuilder -> {
+                        jobBuilder.setModelSnapshotId(modelSnapshot.getSnapshotId());
+                        jobBuilder.setEstablishedModelMemory(response);
+                        return jobBuilder.build();
+                    },
+                    ActionListener.wrap(job -> {
+                                auditor.info(request.getJobId(),
+                                        Messages.getMessage(Messages.JOB_AUDIT_REVERTED, modelSnapshot.getDescription()));
+                                updateHandler.accept(true);
+                            },
+                            actionListener::onFailure));
+        };
 
         // Step 0. Find the appropriate established model memory for the reverted job
         // -------
-        jobProvider.getEstablishedMemoryUsage(request.getJobId(), modelSizeStats.getTimestamp(), modelSizeStats, clusterStateHandler,
+        jobProvider.getEstablishedMemoryUsage(request.getJobId(), modelSizeStats.getTimestamp(), modelSizeStats, updateJobHandler,
                 actionListener::onFailure);
     }
 
-    private static MlMetadata.Builder createMlMetadataBuilder(ClusterState currentState) {
-        return new MlMetadata.Builder(MlMetadata.getMlMetadata(currentState));
-    }
+    private void applyJobUpdate(String jobId, Function<Job.Builder, Job> jobUpdater, ActionListener<Job> updatedJobListener) {
+        client.prepareGet(AnomalyDetectorsIndex.jobConfigIndexName(), ElasticsearchMappings.DOC_TYPE, Job.documentId(jobId))
+                .execute(new ActionListener<GetResponse>() {
+                    @Override
+                    public void onResponse(GetResponse getResponse) {
+                        if (getResponse.isExists() == false) {
+                            updatedJobListener.onFailure(ExceptionsHelper.missingJobException(jobId));
+                            return;
+                        }
 
-    private static ClusterState buildNewClusterState(ClusterState currentState, MlMetadata.Builder builder) {
-        XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
-        ClusterState.Builder newState = ClusterState.builder(currentState);
-        newState.metaData(MetaData.builder(currentState.getMetaData()).putCustom(MlMetadata.TYPE, builder.build()).build());
-        return newState.build();
+                        BytesReference source = getResponse.getSourceAsBytesRef();
+                        long version = getResponse.getVersion();
+                        try (InputStream stream = source.streamInput();
+                             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+                            Job.Builder jobBulder = Job.STRICT_PARSER.apply(parser, null);
+
+                            Job updatedJob = jobUpdater.apply(jobBulder);
+
+                            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                                XContentBuilder updatedSource = updatedJob.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                                IndexRequest indexRequest =  client.prepareIndex(AnomalyDetectorsIndex.jobConfigIndexName(),
+                                        ElasticsearchMappings.DOC_TYPE, Job.documentId(updatedJob.getId()))
+                                        .setSource(updatedSource)
+                                        .setVersion(version)
+                                        .request();
+
+                                executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(
+                                        indexResponse -> {
+                                            updatedJobListener.onResponse(updatedJob);
+                                        },
+                                        updatedJobListener::onFailure
+                                ));
+
+                            } catch (IOException e) {
+                                throw new IllegalStateException("Failed to serialise job with id [" + jobId + "]", e);
+                            }
+
+                        } catch (IOException e) {
+                            updatedJobListener.onFailure(new ElasticsearchParseException("failed to parse " + getResponse.getType(), e));
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        updatedJobListener.onFailure(e);
+                    }
+                });
     }
 }

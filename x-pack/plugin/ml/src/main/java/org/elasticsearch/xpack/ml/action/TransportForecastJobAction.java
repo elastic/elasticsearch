@@ -9,7 +9,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -41,14 +40,16 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
     private static final ByteSizeValue FORECAST_LOCAL_STORAGE_LIMIT = new ByteSizeValue(500, ByteSizeUnit.MB);
 
     private final JobProvider jobProvider;
+    private final JobManager jobManager;
     @Inject
     public TransportForecastJobAction(Settings settings, TransportService transportService,
-                                      ClusterService clusterService, ActionFilters actionFilters,
+                                      ClusterService clusterService, ActionFilters actionFilters, JobManager jobManager,
                                       JobProvider jobProvider, AutodetectProcessManager processManager) {
         super(settings, ForecastJobAction.NAME, clusterService, transportService, actionFilters,
             ForecastJobAction.Request::new, ForecastJobAction.Response::new,
                 ThreadPool.Names.SAME, processManager);
         this.jobProvider = jobProvider;
+        this.jobManager = jobManager;
         // ThreadPool.Names.SAME, because operations is executed by autodetect worker thread
     }
 
@@ -62,57 +63,61 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
     @Override
     protected void taskOperation(ForecastJobAction.Request request, TransportOpenJobAction.JobTask task,
                                  ActionListener<ForecastJobAction.Response> listener) {
-        ClusterState state = clusterService.state();
-        Job job = JobManager.getJobOrThrowIfUnknown(task.getJobId(), state);
-        validate(job, request);
+        jobManager.getJob(task.getJobId(), ActionListener.wrap(
+                job -> {
+                    validate(job, request);
 
-        ForecastParams.Builder paramsBuilder = ForecastParams.builder();
+                    ForecastParams.Builder paramsBuilder = ForecastParams.builder();
 
-        if (request.getDuration() != null) {
-            paramsBuilder.duration(request.getDuration());
-        }
-
-        if (request.getExpiresIn() != null) {
-            paramsBuilder.expiresIn(request.getExpiresIn());
-        }
-
-        // tmp storage might be null, we do not log here, because it might not be
-        // required
-        Path tmpStorage = processManager.tryGetTmpStorage(task, FORECAST_LOCAL_STORAGE_LIMIT);
-        if (tmpStorage != null) {
-            paramsBuilder.tmpStorage(tmpStorage.toString());
-        }
-
-        ForecastParams params = paramsBuilder.build();
-        processManager.forecastJob(task, params, e -> {
-            if (e == null) {
-                Consumer<ForecastRequestStats> forecastRequestStatsHandler = forecastRequestStats -> {
-                    if (forecastRequestStats == null) {
-                        // paranoia case, it should not happen that we do not retrieve a result
-                        listener.onFailure(new ElasticsearchException(
-                                "Cannot run forecast: internal error, please check the logs"));
-                    } else if (forecastRequestStats.getStatus() == ForecastRequestStats.ForecastRequestStatus.FAILED) {
-                        List<String> messages = forecastRequestStats.getMessages();
-                        if (messages.size() > 0) {
-                            listener.onFailure(ExceptionsHelper.badRequestException("Cannot run forecast: "
-                                    + messages.get(0)));
-                        } else {
-                            // paranoia case, it should not be possible to have an empty message list
-                            listener.onFailure(
-                                    new ElasticsearchException(
-                                            "Cannot run forecast: internal error, please check the logs"));
-                        }
-                    } else {
-                        listener.onResponse(new ForecastJobAction.Response(true, params.getForecastId()));
+                    if (request.getDuration() != null) {
+                        paramsBuilder.duration(request.getDuration());
                     }
-                };
 
-                jobProvider.getForecastRequestStats(request.getJobId(), params.getForecastId(),
-                        forecastRequestStatsHandler, listener::onFailure);
-            } else {
-                listener.onFailure(e);
-            }
-        });
+                    if (request.getExpiresIn() != null) {
+                        paramsBuilder.expiresIn(request.getExpiresIn());
+                    }
+
+                    // tmp storage might be null, we do not log here, because it might not be
+                    // required
+                    Path tmpStorage = processManager.tryGetTmpStorage(task, FORECAST_LOCAL_STORAGE_LIMIT);
+                    if (tmpStorage != null) {
+                        paramsBuilder.tmpStorage(tmpStorage.toString());
+                    }
+
+                    ForecastParams params = paramsBuilder.build();
+                    processManager.forecastJob(task, params, e -> {
+                        if (e == null) {
+                            Consumer<ForecastRequestStats> forecastRequestStatsHandler = forecastRequestStats -> {
+                                if (forecastRequestStats == null) {
+                                    // paranoia case, it should not happen that we do not retrieve a result
+                                    listener.onFailure(new ElasticsearchException(
+                                            "Cannot run forecast: internal error, please check the logs"));
+                                } else if (forecastRequestStats.getStatus() == ForecastRequestStats.ForecastRequestStatus.FAILED) {
+                                    List<String> messages = forecastRequestStats.getMessages();
+                                    if (messages.size() > 0) {
+                                        listener.onFailure(ExceptionsHelper.badRequestException("Cannot run forecast: "
+                                                + messages.get(0)));
+                                    } else {
+                                        // paranoia case, it should not be possible to have an empty message list
+                                        listener.onFailure(
+                                                new ElasticsearchException(
+                                                        "Cannot run forecast: internal error, please check the logs"));
+                                    }
+                                } else {
+                                    listener.onResponse(new ForecastJobAction.Response(true, params.getForecastId()));
+                                }
+                            };
+
+                            jobProvider.getForecastRequestStats(request.getJobId(), params.getForecastId(),
+                                    forecastRequestStatsHandler, listener::onFailure);
+                        } else {
+                            listener.onFailure(e);
+                        }
+                    });
+                },
+                listener::onFailure
+        ));
+
     }
 
     static void validate(Job job, ForecastJobAction.Request request) {

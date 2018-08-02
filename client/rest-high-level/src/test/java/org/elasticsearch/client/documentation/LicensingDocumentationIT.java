@@ -45,7 +45,6 @@ import static org.hamcrest.Matchers.startsWith;
  */
 public class LicensingDocumentationIT extends ESRestHighLevelClientTestCase {
 
-    @SuppressWarnings("unchecked")
     public void testLicense() throws Exception {
         RestHighLevelClient client = highLevelClient();
         String license = "{\"license\": {\"uid\":\"893361dc-9749-4997-93cb-802e3d7fa4a8\",\"type\":\"gold\"," +

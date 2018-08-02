@@ -139,7 +139,7 @@ public final class IngestClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public SimulatePipelineResponse simulatePipeline(SimulatePipelineRequest request, RequestOptions options) throws IOException {
+    public SimulatePipelineResponse simulate(SimulatePipelineRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity( request, RequestConverters::simulatePipeline, options,
             SimulatePipelineResponse::fromXContent, emptySet());
     }
@@ -154,9 +154,9 @@ public final class IngestClient {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      */
-    public void simulatePipelineAsync(SimulatePipelineRequest request,
-                                      RequestOptions options,
-                                      ActionListener<SimulatePipelineResponse> listener) {
+    public void simulateAsync(SimulatePipelineRequest request,
+                              RequestOptions options,
+                              ActionListener<SimulatePipelineResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity( request, RequestConverters::simulatePipeline, options,
             SimulatePipelineResponse::fromXContent, listener, emptySet());
     }

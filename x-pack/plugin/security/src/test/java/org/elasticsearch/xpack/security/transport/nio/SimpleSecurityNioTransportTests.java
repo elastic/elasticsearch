@@ -35,9 +35,6 @@ import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
-import javax.net.SocketFactory;
-import javax.net.ssl.HandshakeCompletedListener;
-import javax.net.ssl.SSLSocket;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.SocketTimeoutException;
@@ -47,6 +44,10 @@ import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
+import javax.net.SocketFactory;
+import javax.net.ssl.HandshakeCompletedListener;
+import javax.net.ssl.SSLSocket;
+
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
@@ -55,15 +56,17 @@ import static org.hamcrest.Matchers.instanceOf;
 public class SimpleSecurityNioTransportTests extends AbstractSimpleTransportTestCase {
 
     private SSLService createSSLService() {
-        Path testnodeStore = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks");
+        Path testnodeCert = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
+        Path testnodeKey = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem");
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
+        secureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
-                .put("xpack.security.transport.ssl.enabled", true)
-                .put("xpack.ssl.keystore.path", testnodeStore)
-                .setSecureSettings(secureSettings)
-                .put("path.home", createTempDir())
-                .build();
+            .put("xpack.security.transport.ssl.enabled", true)
+            .put("xpack.ssl.key", testnodeKey)
+            .put("xpack.ssl.certificate", testnodeCert)
+            .put("path.home", createTempDir())
+            .setSecureSettings(secureSettings)
+            .build();
         try {
             return new SSLService(settings, TestEnvironment.newEnvironment(settings));
         } catch (Exception e) {
@@ -117,7 +120,6 @@ public class SimpleSecurityNioTransportTests extends AbstractSimpleTransportTest
 
     @Override
     protected void closeConnectionChannel(Transport transport, Transport.Connection connection) throws IOException {
-        @SuppressWarnings("unchecked")
         TcpTransport.NodeChannels channels = (TcpTransport.NodeChannels) connection;
         CloseableChannel.closeChannels(channels.getChannels().subList(0, randomIntBetween(1, channels.getChannels().size())), true);
     }

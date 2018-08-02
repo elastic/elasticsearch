@@ -75,7 +75,8 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         PercolateQueryBuilder.DOCUMENTS_FIELD.getPreferredName()
     };
 
-    private static String queryField;
+    private static String queryField = "field";
+    private static String aliasField = "alias";
     private static String docType;
 
     private String indexedDocumentIndex;
@@ -96,9 +97,11 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         queryField = randomAlphaOfLength(4);
+        aliasField = randomAlphaOfLength(4);
+
         String docType = "_doc";
         mapperService.merge(docType, new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(docType,
-                queryField, "type=percolator"
+                queryField, "type=percolator", aliasField, "type=alias,path=" + queryField
         ))), MapperService.MergeReason.MAPPING_UPDATE);
         mapperService.merge(docType, new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(docType,
                 STRING_FIELD_NAME, "type=text"
@@ -354,5 +357,22 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         assertEquals(ise.getMessage(), "supplier must be null, can't serialize suppliers, missing a rewriteAndFetch?");
         builder = rewriteAndFetch(builder, createShardContext());
         builder.writeTo(new BytesStreamOutput(10));
+    }
+
+    public void testFieldAlias() throws IOException {
+        QueryShardContext shardContext = createShardContext();
+
+        PercolateQueryBuilder builder = doCreateTestQueryBuilder(false);
+        QueryBuilder rewrittenBuilder = rewriteAndFetch(builder, shardContext);
+        PercolateQuery query = (PercolateQuery) rewrittenBuilder.toQuery(shardContext);
+
+        PercolateQueryBuilder aliasBuilder = new PercolateQueryBuilder(aliasField,
+            builder.getDocuments(),
+            builder.getXContentType());
+        QueryBuilder rewrittenAliasBuilder = rewriteAndFetch(aliasBuilder, shardContext);
+        PercolateQuery aliasQuery = (PercolateQuery) rewrittenAliasBuilder.toQuery(shardContext);
+
+        assertEquals(query.getCandidateMatchesQuery(), aliasQuery.getCandidateMatchesQuery());
+        assertEquals(query.getVerifiedMatchesQuery(), aliasQuery.getVerifiedMatchesQuery());
     }
 }

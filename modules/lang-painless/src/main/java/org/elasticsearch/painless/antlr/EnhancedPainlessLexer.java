@@ -23,8 +23,8 @@ import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.LexerNoViableAltException;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.misc.Interval;
-import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.lookup.PainlessLookup;
 
 /**
  * A lexer that is customized for painless. It:

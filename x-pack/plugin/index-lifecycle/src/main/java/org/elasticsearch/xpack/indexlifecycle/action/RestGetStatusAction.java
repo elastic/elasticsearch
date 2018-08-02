@@ -19,7 +19,7 @@ public class RestGetStatusAction extends BaseRestHandler {
     public RestGetStatusAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.GET,
-            IndexLifecycle.BASE_PATH + "status", this);
+            IndexLifecycle.BASE_PATH + "_status", this);
     }
 
     @Override

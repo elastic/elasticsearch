@@ -59,7 +59,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject());
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
-        FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
+        Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
         GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
@@ -83,7 +83,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject());
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
-        FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
+        Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
         ShapeBuilder.Orientation orientation = ((GeoShapeFieldMapper)fieldMapper).fieldType().orientation();
@@ -121,7 +121,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject());
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
-        FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
+        Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
         boolean coerce = ((GeoShapeFieldMapper)fieldMapper).coerce().value();
@@ -157,7 +157,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
             .parse("type1", new CompressedXContent(mapping));
-        FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
+        Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
         boolean ignoreZValue = ((GeoShapeFieldMapper)fieldMapper).ignoreZValue().value();
@@ -191,7 +191,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
             .endObject().endObject());
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
-        FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
+        Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
         Explicit<Boolean> ignoreMalformed = ((GeoShapeFieldMapper)fieldMapper).ignoreMalformed();
@@ -225,7 +225,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject());
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
-        FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
+        Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
         GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
@@ -248,7 +248,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject());
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
-        FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
+        Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
         GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
@@ -276,7 +276,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
 
 
             DocumentMapper defaultMapper = parser.parse("type1", new CompressedXContent(mapping));
-            FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
+            Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
             assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
             GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
@@ -300,7 +300,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
 
 
             DocumentMapper defaultMapper = parser.parse("type1", new CompressedXContent(mapping));
-            FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
+            Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
             assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
             GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
@@ -326,7 +326,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject().endObject());
 
             DocumentMapper defaultMapper = parser.parse("type1", new CompressedXContent(mapping));
-            FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
+            Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
             assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
             GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
@@ -350,7 +350,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject().endObject());
 
             DocumentMapper defaultMapper = parser.parse("type1", new CompressedXContent(mapping));
-            FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
+            Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
             assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
             GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
@@ -373,7 +373,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject().endObject());
 
             DocumentMapper defaultMapper = parser.parse("type1", new CompressedXContent(mapping));
-            FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
+            Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
             assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
             GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
@@ -395,7 +395,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject());
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
-        FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
+        Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
         GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
@@ -418,7 +418,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
 
 
             DocumentMapper defaultMapper = parser.parse("type1", new CompressedXContent(mapping));
-            FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
+            Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
             assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
             GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
@@ -440,7 +440,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject().endObject());
 
             DocumentMapper defaultMapper = parser.parse("type1", new CompressedXContent(mapping));
-            FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
+            Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
             assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
             GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
@@ -475,7 +475,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         }
 
         // verify nothing changed
-        FieldMapper fieldMapper = docMapper.mappers().getMapper("shape");
+        Mapper fieldMapper = docMapper.mappers().getMapper("shape");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
         GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
@@ -600,7 +600,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
             .endObject().endObject());
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
-        FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
+        Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
         GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;

@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.core.rollup.action.RollupJobCaps;
 import org.elasticsearch.xpack.core.rollup.job.DateHistoGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
+import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
 import org.elasticsearch.xpack.rollup.Rollup;
 import org.hamcrest.core.IsEqual;
 import org.joda.time.DateTimeZone;
@@ -158,7 +159,7 @@ public class SearchActionTests extends ESTestCase {
     public void testTermQuery() {
         RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
         GroupConfig.Builder group = ConfigTestHelpers.getGroupConfig();
-        group.setTerms(ConfigTestHelpers.getTerms().setFields(Collections.singletonList("foo")).build());
+        group.setTerms(new TermsGroupConfig("foo"));
         job.setGroupConfig(group.build());
         RollupJobCaps cap = new RollupJobCaps(job.build());
         Set<RollupJobCaps> caps = new HashSet<>();
@@ -171,7 +172,7 @@ public class SearchActionTests extends ESTestCase {
     public void testTermsQuery() {
         RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
         GroupConfig.Builder group = ConfigTestHelpers.getGroupConfig();
-        group.setTerms(ConfigTestHelpers.getTerms().setFields(Collections.singletonList("foo")).build());
+        group.setTerms(new TermsGroupConfig("foo"));
         job.setGroupConfig(group.build());
         RollupJobCaps cap = new RollupJobCaps(job.build());
         Set<RollupJobCaps> caps = new HashSet<>();
@@ -217,7 +218,7 @@ public class SearchActionTests extends ESTestCase {
         RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
         GroupConfig.Builder group = ConfigTestHelpers.getGroupConfig();
         group.setDateHisto(new DateHistoGroupConfig.Builder().setField("foo").setInterval(new DateHistogramInterval("1h")).build());
-        group.setTerms(ConfigTestHelpers.getTerms().setFields(Collections.singletonList("foo")).build()).build();
+        group.setTerms(new TermsGroupConfig("foo"));
         job.setGroupConfig(group.build());
         RollupJobCaps cap = new RollupJobCaps(job.build());
         Set<RollupJobCaps> caps = new HashSet<>();

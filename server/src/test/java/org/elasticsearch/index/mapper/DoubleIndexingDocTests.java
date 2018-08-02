@@ -45,7 +45,9 @@ public class DoubleIndexingDocTests extends ESSingleNodeTestCase {
                 .endObject().endObject());
         IndexService index = createIndex("test");
         client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping, XContentType.JSON).get();
-        DocumentMapper mapper = index.mapperService().documentMapper("type");
+        MapperService mapperService = index.mapperService();
+        DocumentMapper mapper = mapperService.documentMapper();
+
         QueryShardContext context = index.newQueryShardContext(0, null, () -> 0L, null);
 
         ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
@@ -61,7 +63,6 @@ public class DoubleIndexingDocTests extends ESSingleNodeTestCase {
         assertNotNull(doc.dynamicMappingsUpdate());
         client().admin().indices().preparePutMapping("test").setType("type")
             .setSource(doc.dynamicMappingsUpdate().toString(), XContentType.JSON).get();
-        mapper = index.mapperService().documentMapper("type");
 
         writer.addDocument(doc.rootDoc());
         writer.addDocument(doc.rootDoc());
@@ -69,25 +70,25 @@ public class DoubleIndexingDocTests extends ESSingleNodeTestCase {
         IndexReader reader = DirectoryReader.open(writer);
         IndexSearcher searcher = new IndexSearcher(reader);
 
-        TopDocs topDocs = searcher.search(mapper.mappers().getMapper("field1").fieldType().termQuery("value1", context), 10);
+        TopDocs topDocs = searcher.search(mapperService.fullName("field1").termQuery("value1", context), 10);
         assertThat(topDocs.totalHits, equalTo(2L));
 
-        topDocs = searcher.search(mapper.mappers().getMapper("field2").fieldType().termQuery("1", context), 10);
+        topDocs = searcher.search(mapperService.fullName("field2").termQuery("1", context), 10);
         assertThat(topDocs.totalHits, equalTo(2L));
 
-        topDocs = searcher.search(mapper.mappers().getMapper("field3").fieldType().termQuery("1.1", context), 10);
+        topDocs = searcher.search(mapperService.fullName("field3").termQuery("1.1", context), 10);
         assertThat(topDocs.totalHits, equalTo(2L));
 
-        topDocs = searcher.search(mapper.mappers().getMapper("field4").fieldType().termQuery("2010-01-01", context), 10);
+        topDocs = searcher.search(mapperService.fullName("field4").termQuery("2010-01-01", context), 10);
         assertThat(topDocs.totalHits, equalTo(2L));
 
-        topDocs = searcher.search(mapper.mappers().getMapper("field5").fieldType().termQuery("1", context), 10);
+        topDocs = searcher.search(mapperService.fullName("field5").termQuery("1", context), 10);
         assertThat(topDocs.totalHits, equalTo(2L));
 
-        topDocs = searcher.search(mapper.mappers().getMapper("field5").fieldType().termQuery("2", context), 10);
+        topDocs = searcher.search(mapperService.fullName("field5").termQuery("2", context), 10);
         assertThat(topDocs.totalHits, equalTo(2L));
 
-        topDocs = searcher.search(mapper.mappers().getMapper("field5").fieldType().termQuery("3", context), 10);
+        topDocs = searcher.search(mapperService.fullName("field5").termQuery("3", context), 10);
         assertThat(topDocs.totalHits, equalTo(2L));
         writer.close();
         reader.close();

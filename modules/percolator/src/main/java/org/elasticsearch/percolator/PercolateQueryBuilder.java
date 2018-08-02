@@ -618,13 +618,13 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             docSearcher.setQueryCache(null);
         }
 
-        PercolatorFieldMapper percolatorFieldMapper = (PercolatorFieldMapper) docMapper.mappers().getMapper(field);
-        boolean mapUnmappedFieldsAsString = percolatorFieldMapper.isMapUnmappedFieldAsText();
-        QueryShardContext percolateShardContext = wrap(context);
-
-        String name = this.name != null ? this.name : field;
         PercolatorFieldMapper.FieldType pft = (PercolatorFieldMapper.FieldType) fieldType;
-        PercolateQuery.QueryStore queryStore = createStore(pft.queryBuilderField, percolateShardContext, mapUnmappedFieldsAsString);
+        String name = this.name != null ? this.name : pft.name();
+        QueryShardContext percolateShardContext = wrap(context);
+        PercolateQuery.QueryStore queryStore = createStore(pft.queryBuilderField,
+            percolateShardContext,
+            pft.mapUnmappedFieldsAsText);
+
         return pft.percolateQuery(name, queryStore, documents, docSearcher, context.indexVersionCreated());
     }
 

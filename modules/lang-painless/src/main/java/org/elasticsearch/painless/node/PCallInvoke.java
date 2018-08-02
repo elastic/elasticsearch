@@ -19,15 +19,14 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.lookup.PainlessLookup;
-import org.elasticsearch.painless.lookup.PainlessMethod;
-import org.elasticsearch.painless.lookup.PainlessMethodKey;
-import org.elasticsearch.painless.lookup.PainlessClass;
-import org.elasticsearch.painless.lookup.PainlessLookup.def;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.PainlessClass;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.lookup.def;
 
 import java.util.List;
 import java.util.Objects;
@@ -74,10 +73,10 @@ public final class PCallInvoke extends AExpression {
         PainlessClass struct = locals.getPainlessLookup().getPainlessStructFromJavaClass(prefix.actual);
 
         if (prefix.actual.isPrimitive()) {
-            struct = locals.getPainlessLookup().getPainlessStructFromJavaClass(PainlessLookup.getBoxedType(prefix.actual));
+            struct = locals.getPainlessLookup().getPainlessStructFromJavaClass(PainlessLookupUtility.typeToBoxedType(prefix.actual));
         }
 
-        PainlessMethodKey methodKey = new PainlessMethodKey(name, arguments.size());
+        String methodKey = PainlessLookupUtility.buildPainlessMethodKey(name, arguments.size());
         PainlessMethod method = prefix instanceof EStatic ? struct.staticMethods.get(methodKey) : struct.methods.get(methodKey);
 
         if (method != null) {
@@ -85,8 +84,8 @@ public final class PCallInvoke extends AExpression {
         } else if (prefix.actual == def.class) {
             sub = new PSubDefCall(location, name, arguments);
         } else {
-            throw createError(new IllegalArgumentException(
-                "Unknown call [" + name + "] with [" + arguments.size() + "] arguments on type [" + struct.name + "]."));
+            throw createError(new IllegalArgumentException("Unknown call [" + name + "] with [" + arguments.size() + "] arguments " +
+                    "on type [" + PainlessLookupUtility.typeToCanonicalTypeName(prefix.actual) + "]."));
         }
 
         if (nullSafe) {

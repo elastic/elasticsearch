@@ -18,12 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
@@ -36,6 +31,14 @@ import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
+import org.hamcrest.core.IsNull;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -59,6 +62,33 @@ public class SumIT extends AbstractNumericTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(MetricAggScriptPlugin.class);
+    }
+
+    @Override
+    public void setupSuiteScopeCluster() throws Exception {
+        super.setupSuiteScopeCluster();
+
+        // Create two indices and add the field 'route_length_miles' as an alias in
+        // one, and a concrete field in the other.
+        prepareCreate("old_index")
+            .addMapping("_doc",
+                "transit_mode", "type=keyword",
+                "distance", "type=double",
+                "route_length_miles", "type=alias,path=distance")
+            .get();
+        prepareCreate("new_index")
+            .addMapping("_doc",
+                "transit_mode", "type=keyword",
+                "route_length_miles", "type=double")
+            .get();
+
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        builders.add(client().prepareIndex("old_index", "_doc").setSource("transit_mode", "train", "distance", 42.0));
+        builders.add(client().prepareIndex("old_index", "_doc").setSource("transit_mode", "bus", "distance", 50.5));
+        builders.add(client().prepareIndex("new_index", "_doc").setSource("transit_mode", "train", "route_length_miles", 100.2));
+
+        indexRandom(true, builders);
+        ensureSearchable();
     }
 
     @Override
@@ -381,5 +411,55 @@ public class SumIT extends AbstractNumericTestCase {
                 .getHitCount(), equalTo(0L));
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getMissCount(), equalTo(1L));
+    }
+
+    public void testFieldAlias() {
+        SearchResponse response = client().prepareSearch("old_index", "new_index")
+            .addAggregation(sum("sum")
+                .field("route_length_miles"))
+            .execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Sum sum = response.getAggregations().get("sum");
+        assertThat(sum, IsNull.notNullValue());
+        assertThat(sum.getName(), equalTo("sum"));
+        assertThat(sum.getValue(), equalTo(192.7));
+    }
+
+     public void testFieldAliasInSubAggregation() {
+        SearchResponse response = client().prepareSearch("old_index", "new_index")
+            .addAggregation(terms("terms")
+                .field("transit_mode")
+                .subAggregation(sum("sum")
+                    .field("route_length_miles")))
+            .execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+
+        List<? extends Terms.Bucket> buckets = terms.getBuckets();
+        assertThat(buckets.size(), equalTo(2));
+
+        Terms.Bucket bucket = buckets.get(0);
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKey(), equalTo("train"));
+        assertThat(bucket.getDocCount(), equalTo(2L));
+
+        Sum sum = bucket.getAggregations().get("sum");
+        assertThat(sum, notNullValue());
+        assertThat(sum.getValue(), equalTo(142.2));
+
+        bucket = buckets.get(1);
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKey(), equalTo("bus"));
+        assertThat(bucket.getDocCount(), equalTo(1L));
+
+        sum = bucket.getAggregations().get("sum");
+        assertThat(sum, notNullValue());
+        assertThat(sum.getValue(), equalTo(50.5));
     }
 }

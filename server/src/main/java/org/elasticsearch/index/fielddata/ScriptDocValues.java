@@ -29,7 +29,6 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.elasticsearch.script.ScriptModule;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.MutableDateTime;
@@ -126,11 +125,8 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         public long getValue() {
             if (count == 0) {
-                if (ScriptModule.EXCEPTION_FOR_MISSING_VALUE) {
-                    throw new IllegalStateException("A document doesn't have a value for a field! " +
-                        "Use doc[<field>].size()==0 to check if a document is missing a field!");
-                }
-                return 0L;
+                throw new IllegalStateException("A document doesn't have a value for a field! " +
+                    "Use doc[<field>].size()==0 to check if a document is missing a field!");
             }
             return values[0];
         }
@@ -172,11 +168,8 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
          */
         public ReadableDateTime getValue() {
             if (count == 0) {
-                if (ScriptModule.EXCEPTION_FOR_MISSING_VALUE) {
-                    throw new IllegalStateException("A document doesn't have a value for a field! " +
-                        "Use doc[<field>].size()==0 to check if a document is missing a field!");
-                }
-                return EPOCH;
+                throw new IllegalStateException("A document doesn't have a value for a field! " +
+                    "Use doc[<field>].size()==0 to check if a document is missing a field!");
             }
             return get(0);
         }
@@ -277,11 +270,8 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         public double getValue() {
             if (count == 0) {
-                if (ScriptModule.EXCEPTION_FOR_MISSING_VALUE) {
-                    throw new IllegalStateException("A document doesn't have a value for a field! " +
-                        "Use doc[<field>].size()==0 to check if a document is missing a field!");
-                }
-                return 0d;
+               throw new IllegalStateException("A document doesn't have a value for a field! " +
+                   "Use doc[<field>].size()==0 to check if a document is missing a field!");
             }
             return values[0];
         }
@@ -337,11 +327,8 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         public GeoPoint getValue() {
             if (count == 0) {
-                if (ScriptModule.EXCEPTION_FOR_MISSING_VALUE) {
-                    throw new IllegalStateException("A document doesn't have a value for a field! " +
+                throw new IllegalStateException("A document doesn't have a value for a field! " +
                         "Use doc[<field>].size()==0 to check if a document is missing a field!");
-                }
-                return null;
             }
             return values[0];
         }
@@ -454,11 +441,8 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         public boolean getValue() {
             if (count == 0) {
-                if (ScriptModule.EXCEPTION_FOR_MISSING_VALUE) {
-                    throw new IllegalStateException("A document doesn't have a value for a field! " +
-                        "Use doc[<field>].size()==0 to check if a document is missing a field!");
-                }
-                return false;
+                throw new IllegalStateException("A document doesn't have a value for a field! " +
+                    "Use doc[<field>].size()==0 to check if a document is missing a field!");
             }
             return values[0];
         }
@@ -544,11 +528,8 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         public String getValue() {
             if (count == 0) {
-                if (ScriptModule.EXCEPTION_FOR_MISSING_VALUE) {
-                    throw new IllegalStateException("A document doesn't have a value for a field! " +
+                throw new IllegalStateException("A document doesn't have a value for a field! " +
                         "Use doc[<field>].size()==0 to check if a document is missing a field!");
-                }
-                return null;
             }
             return get(0);
         }
@@ -572,11 +553,8 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         public BytesRef getValue() {
             if (count == 0) {
-                if (ScriptModule.EXCEPTION_FOR_MISSING_VALUE) {
-                    throw new IllegalStateException("A document doesn't have a value for a field! " +
+                throw new IllegalStateException("A document doesn't have a value for a field! " +
                         "Use doc[<field>].size()==0 to check if a document is missing a field!");
-                }
-                return new BytesRef();
             }
             return get(0);
         }

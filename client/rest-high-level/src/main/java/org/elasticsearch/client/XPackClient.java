@@ -22,6 +22,8 @@ package org.elasticsearch.client;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
+import org.elasticsearch.protocol.xpack.XPackUsageRequest;
+import org.elasticsearch.protocol.xpack.XPackUsageResponse;
 
 import java.io.IOException;
 
@@ -37,10 +39,19 @@ import static java.util.Collections.emptySet;
  * X-Pack APIs on elastic.co</a> for more information.
  */
 public final class XPackClient {
+
     private final RestHighLevelClient restHighLevelClient;
+    private final WatcherClient watcherClient;
+    private final LicenseClient licenseClient;
 
     XPackClient(RestHighLevelClient restHighLevelClient) {
         this.restHighLevelClient = restHighLevelClient;
+        this.watcherClient = new WatcherClient(restHighLevelClient);
+        this.licenseClient = new LicenseClient(restHighLevelClient);
+    }
+
+    public WatcherClient watcher() {
+        return watcherClient;
     }
 
     /**
@@ -69,5 +80,37 @@ public final class XPackClient {
                                   ActionListener<XPackInfoResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::xPackInfo, options,
             XPackInfoResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Fetch usage information about X-Pack features from the cluster.
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public XPackUsageResponse usage(XPackUsageRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::xpackUsage, options,
+            XPackUsageResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously fetch usage information about X-Pack features from the cluster.
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void usageAsync(XPackUsageRequest request, RequestOptions options, ActionListener<XPackUsageResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::xpackUsage, options,
+            XPackUsageResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * A wrapper for the {@link RestHighLevelClient} that provides methods for
+     * accessing the Elastic Licensing APIs.
+     * <p>
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/licensing-apis.html">
+     * X-Pack APIs on elastic.co</a> for more information.
+     */
+    public LicenseClient license() {
+        return licenseClient;
     }
 }

@@ -19,9 +19,41 @@
 
 package org.elasticsearch.index.engine;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Queue;
+import java.util.Set;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.function.LongSupplier;
+import java.util.function.Supplier;
+import java.util.function.ToLongBiFunction;
+import java.util.stream.Collectors;
+import java.util.stream.LongStream;
+
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
-
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -122,39 +154,6 @@ import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
-
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.charset.Charset;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Base64;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Queue;
-import java.util.Set;
-import java.util.concurrent.BrokenBarrierException;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiFunction;
-import java.util.function.Function;
-import java.util.function.LongSupplier;
-import java.util.function.Supplier;
-import java.util.function.ToLongBiFunction;
-import java.util.stream.Collectors;
-import java.util.stream.LongStream;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.shuffle;
@@ -1183,7 +1182,7 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat(indexResult.getVersion(), equalTo(1L));
 
         create = new Engine.Index(newUid(doc), doc, indexResult.getSeqNo(), create.primaryTerm(), indexResult.getVersion(),
-            create.versionType().versionTypeForReplicationAndRecovery(), REPLICA, 0, -1, false);
+            null, REPLICA, 0, -1, false);
         indexResult = replicaEngine.index(create);
         assertThat(indexResult.getVersion(), equalTo(1L));
     }
@@ -1197,7 +1196,7 @@ public class InternalEngineTests extends EngineTestCase {
 
 
         create = new Engine.Index(newUid(doc), doc, indexResult.getSeqNo(), create.primaryTerm(), indexResult.getVersion(),
-            create.versionType().versionTypeForReplicationAndRecovery(), REPLICA, 0, -1, false);
+            null, REPLICA, 0, -1, false);
         indexResult = replicaEngine.index(create);
         assertThat(indexResult.getVersion(), equalTo(1L));
         assertTrue(indexResult.isCreated());
@@ -1216,7 +1215,7 @@ public class InternalEngineTests extends EngineTestCase {
 
 
         update = new Engine.Index(newUid(doc), doc, updateResult.getSeqNo(), update.primaryTerm(), updateResult.getVersion(),
-            update.versionType().versionTypeForReplicationAndRecovery(), REPLICA, 0, -1, false);
+            null, REPLICA, 0, -1, false);
         updateResult = replicaEngine.index(update);
         assertThat(updateResult.getVersion(), equalTo(2L));
         assertFalse(updateResult.isCreated());
@@ -1269,7 +1268,7 @@ public class InternalEngineTests extends EngineTestCase {
         Engine.IndexResult indexResult = engine.index(index);
         assertThat(indexResult.getVersion(), equalTo(1L));
 
-        index = new Engine.Index(newUid(doc), doc, indexResult.getSeqNo(), index.primaryTerm(), indexResult.getVersion(), index.versionType().versionTypeForReplicationAndRecovery(), REPLICA, 0, -1, false);
+        index = new Engine.Index(newUid(doc), doc, indexResult.getSeqNo(), index.primaryTerm(), indexResult.getVersion(), null, REPLICA, 0, -1, false);
         indexResult = replicaEngine.index(index);
         assertThat(indexResult.getVersion(), equalTo(1L));
     }
@@ -1418,7 +1417,7 @@ public class InternalEngineTests extends EngineTestCase {
                     forReplica && i >= startWithSeqNo ? i * 2 : SequenceNumbers.UNASSIGNED_SEQ_NO,
                     forReplica && i >= startWithSeqNo && incrementTermWhenIntroducingSeqNo ? primaryTerm + 1 : primaryTerm,
                     version,
-                    forReplica ? versionType.versionTypeForReplicationAndRecovery() : versionType,
+                    forReplica ? null : versionType,
                     forReplica ? REPLICA : PRIMARY,
                     System.currentTimeMillis(), -1, false
                 );
@@ -1427,7 +1426,7 @@ public class InternalEngineTests extends EngineTestCase {
                     forReplica && i >= startWithSeqNo ? i * 2 : SequenceNumbers.UNASSIGNED_SEQ_NO,
                     forReplica && i >= startWithSeqNo && incrementTermWhenIntroducingSeqNo ? primaryTerm + 1 : primaryTerm,
                     version,
-                    forReplica ? versionType.versionTypeForReplicationAndRecovery() : versionType,
+                    forReplica ? null : versionType,
                     forReplica ? REPLICA : PRIMARY,
                     System.currentTimeMillis());
             }
@@ -1979,7 +1978,7 @@ public class InternalEngineTests extends EngineTestCase {
         @Override
         public void append(LogEvent event) {
             final String formattedMessage = event.getMessage().getFormattedMessage();
-            if (event.getLevel() == Level.TRACE && event.getMarker().getName().contains("[index][0] ")) {
+            if (event.getLevel() == Level.TRACE && event.getMarker().getName().contains("[index][0]")) {
                 if (event.getLoggerName().endsWith(".IW") &&
                     formattedMessage.contains("IW: now apply all deletes")) {
                     sawIndexWriterMessage = true;
@@ -2025,6 +2024,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32430")
     public void testSeqNoAndCheckpoints() throws IOException {
         final int opCount = randomIntBetween(1, 256);
         long primarySeqNo = SequenceNumbers.NO_OPS_PERFORMED;
@@ -3221,7 +3221,7 @@ public class InternalEngineTests extends EngineTestCase {
         Engine.IndexResult indexResult = engine.index(index);
         assertThat(indexResult.getVersion(), equalTo(1L));
 
-        index = new Engine.Index(newUid(doc), doc, indexResult.getSeqNo(), index.primaryTerm(), indexResult.getVersion(), index.versionType().versionTypeForReplicationAndRecovery(), REPLICA, System.nanoTime(), autoGeneratedIdTimestamp, isRetry);
+        index = new Engine.Index(newUid(doc), doc, indexResult.getSeqNo(), index.primaryTerm(), indexResult.getVersion(), null, REPLICA, System.nanoTime(), autoGeneratedIdTimestamp, isRetry);
         indexResult = replicaEngine.index(index);
         assertThat(indexResult.getVersion(), equalTo(1L));
 
@@ -3235,7 +3235,7 @@ public class InternalEngineTests extends EngineTestCase {
             assertEquals(1, topDocs.totalHits);
         }
 
-        index = new Engine.Index(newUid(doc), doc, indexResult.getSeqNo(), index.primaryTerm(), indexResult.getVersion(), index.versionType().versionTypeForReplicationAndRecovery(), REPLICA, System.nanoTime(), autoGeneratedIdTimestamp, isRetry);
+        index = new Engine.Index(newUid(doc), doc, indexResult.getSeqNo(), index.primaryTerm(), indexResult.getVersion(), null, REPLICA, System.nanoTime(), autoGeneratedIdTimestamp, isRetry);
         indexResult = replicaEngine.index(index);
         assertThat(indexResult.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
         replicaEngine.refresh("test");
@@ -3255,7 +3255,7 @@ public class InternalEngineTests extends EngineTestCase {
         Engine.IndexResult result = engine.index(firstIndexRequest);
         assertThat(result.getVersion(), equalTo(1L));
 
-        Engine.Index firstIndexRequestReplica = new Engine.Index(newUid(doc), doc, result.getSeqNo(), firstIndexRequest.primaryTerm(), result.getVersion(), firstIndexRequest.versionType().versionTypeForReplicationAndRecovery(), REPLICA, System.nanoTime(), autoGeneratedIdTimestamp, isRetry);
+        Engine.Index firstIndexRequestReplica = new Engine.Index(newUid(doc), doc, result.getSeqNo(), firstIndexRequest.primaryTerm(), result.getVersion(), null, REPLICA, System.nanoTime(), autoGeneratedIdTimestamp, isRetry);
         Engine.IndexResult indexReplicaResult = replicaEngine.index(firstIndexRequestReplica);
         assertThat(indexReplicaResult.getVersion(), equalTo(1L));
 
@@ -3269,7 +3269,7 @@ public class InternalEngineTests extends EngineTestCase {
             assertEquals(1, topDocs.totalHits);
         }
 
-        Engine.Index secondIndexRequestReplica = new Engine.Index(newUid(doc), doc, result.getSeqNo(), secondIndexRequest.primaryTerm(), result.getVersion(), firstIndexRequest.versionType().versionTypeForReplicationAndRecovery(), REPLICA, System.nanoTime(), autoGeneratedIdTimestamp, isRetry);
+        Engine.Index secondIndexRequestReplica = new Engine.Index(newUid(doc), doc, result.getSeqNo(), secondIndexRequest.primaryTerm(), result.getVersion(), null, REPLICA, System.nanoTime(), autoGeneratedIdTimestamp, isRetry);
         replicaEngine.index(secondIndexRequestReplica);
         replicaEngine.refresh("test");
         try (Engine.Searcher searcher = replicaEngine.acquireSearcher("test")) {
@@ -3292,7 +3292,7 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public Engine.Index appendOnlyReplica(ParsedDocument doc, boolean retry, final long autoGeneratedIdTimestamp, final long seqNo) {
-        return new Engine.Index(newUid(doc), doc, seqNo, 2, 1, VersionType.EXTERNAL,
+        return new Engine.Index(newUid(doc), doc, seqNo, 2, 1, null,
             Engine.Operation.Origin.REPLICA, System.nanoTime(), autoGeneratedIdTimestamp, retry);
     }
 
@@ -3694,7 +3694,7 @@ public class InternalEngineTests extends EngineTestCase {
                     sequenceNumberSupplier.getAsLong(),
                     1,
                     i,
-                    VersionType.EXTERNAL,
+                    origin == PRIMARY ? VersionType.EXTERNAL : null,
                     origin,
                     System.nanoTime(),
                     IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
@@ -3708,7 +3708,7 @@ public class InternalEngineTests extends EngineTestCase {
                     sequenceNumberSupplier.getAsLong(),
                     1,
                     i,
-                    VersionType.EXTERNAL,
+                    origin == PRIMARY ? VersionType.EXTERNAL : null,
                     origin,
                     System.nanoTime());
                 operations.add(delete);
@@ -3928,7 +3928,7 @@ public class InternalEngineTests extends EngineTestCase {
                 final ParsedDocument doc = testParsedDocument(id, null, testDocumentWithTextField(), SOURCE, null);
                 final Term uid = newUid(doc);
                 final long time = System.nanoTime();
-                actualEngine.index(new Engine.Index(uid, doc, seqNo, 1, 1, VersionType.EXTERNAL, REPLICA, time, time, false));
+                actualEngine.index(new Engine.Index(uid, doc, seqNo, 1, 1, null, REPLICA, time, time, false));
                 if (rarely()) {
                     actualEngine.rollTranslogGeneration();
                 }
@@ -4686,7 +4686,7 @@ public class InternalEngineTests extends EngineTestCase {
                 for (int i = 0; i < seqNos.size(); i++) {
                     ParsedDocument doc = testParsedDocument(Long.toString(seqNos.get(i)), null, testDocument(), new BytesArray("{}"), null);
                     Engine.Index index = new Engine.Index(newUid(doc), doc, seqNos.get(i), 0,
-                        1, VersionType.EXTERNAL, REPLICA, System.nanoTime(), -1, false);
+                        1, null, REPLICA, System.nanoTime(), -1, false);
                     engine.index(index);
                     if (randomBoolean()) {
                         engine.flush();

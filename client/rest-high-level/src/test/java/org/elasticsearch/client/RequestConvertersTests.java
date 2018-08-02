@@ -41,9 +41,10 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequ
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
@@ -125,6 +126,8 @@ import org.elasticsearch.index.rankeval.RankEvalSpec;
 import org.elasticsearch.index.rankeval.RatedRequest;
 import org.elasticsearch.index.rankeval.RestRankEvalAction;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
+import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
+import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.ScriptType;
@@ -145,6 +148,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 import org.hamcrest.CoreMatchers;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -2196,6 +2200,31 @@ public class RequestConvertersTests extends ESTestCase {
         assertThat(request.getEntity(), is(nullValue()));
     }
 
+    public void testRestoreSnapshot() throws IOException {
+        Map<String, String> expectedParams = new HashMap<>();
+        String repository = randomIndicesNames(1, 1)[0];
+        String snapshot = "snapshot-" + randomAlphaOfLengthBetween(2, 5).toLowerCase(Locale.ROOT);
+        String endpoint = String.format(Locale.ROOT, "/_snapshot/%s/%s/_restore", repository, snapshot);
+
+        RestoreSnapshotRequest restoreSnapshotRequest = new RestoreSnapshotRequest(repository, snapshot);
+        setRandomMasterTimeout(restoreSnapshotRequest, expectedParams);
+        if (randomBoolean()) {
+            restoreSnapshotRequest.waitForCompletion(true);
+            expectedParams.put("wait_for_completion", "true");
+        }
+        if (randomBoolean()) {
+            String timeout = randomTimeValue();
+            restoreSnapshotRequest.masterNodeTimeout(timeout);
+            expectedParams.put("master_timeout", timeout);
+        }
+
+        Request request = RequestConverters.restoreSnapshot(restoreSnapshotRequest);
+        assertThat(endpoint, equalTo(request.getEndpoint()));
+        assertThat(HttpPost.METHOD_NAME, equalTo(request.getMethod()));
+        assertThat(expectedParams, equalTo(request.getParameters()));
+        assertToXContentBody(restoreSnapshotRequest, request.getEntity());
+    }
+
     public void testDeleteSnapshot() {
         Map<String, String> expectedParams = new HashMap<>();
         String repository = randomIndicesNames(1, 1)[0];
@@ -2521,6 +2550,46 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals("/_xpack", request.getEndpoint());
         assertNull(request.getEntity());
         assertEquals(expectedParams, request.getParameters());
+    }
+
+    public void testXPackPutWatch() throws Exception {
+        PutWatchRequest putWatchRequest = new PutWatchRequest();
+        String watchId = randomAlphaOfLength(10);
+        putWatchRequest.setId(watchId);
+        String body = randomAlphaOfLength(20);
+        putWatchRequest.setSource(new BytesArray(body), XContentType.JSON);
+
+        Map<String, String> expectedParams = new HashMap<>();
+        if (randomBoolean()) {
+            putWatchRequest.setActive(false);
+            expectedParams.put("active", "false");
+        }
+
+        if (randomBoolean()) {
+            long version = randomLongBetween(10, 100);
+            putWatchRequest.setVersion(version);
+            expectedParams.put("version", String.valueOf(version));
+        }
+
+        Request request = RequestConverters.xPackWatcherPutWatch(putWatchRequest);
+        assertEquals(HttpPut.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/watcher/watch/" + watchId, request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertThat(request.getEntity().getContentType().getValue(), is(XContentType.JSON.mediaTypeWithoutParameters()));
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        request.getEntity().writeTo(bos);
+        assertThat(bos.toString("UTF-8"), is(body));
+    }
+
+    public void testXPackDeleteWatch() {
+        DeleteWatchRequest deleteWatchRequest = new DeleteWatchRequest();
+        String watchId = randomAlphaOfLength(10);
+        deleteWatchRequest.setId(watchId);
+
+        Request request = RequestConverters.xPackWatcherDeleteWatch(deleteWatchRequest);
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/watcher/watch/" + watchId, request.getEndpoint());
+        assertThat(request.getEntity(), nullValue());
     }
 
     /**

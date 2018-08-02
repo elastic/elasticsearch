@@ -46,7 +46,7 @@ public class SlackService extends NotificationService<SlackAccount> {
         clusterSettings.addAffixUpdateConsumer(SETTING_URL, (s, o) -> {}, (s, o) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_URL_SECURE, (s, o) -> {}, (s, o) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_DEFAULTS, (s, o) -> {}, (s, o) -> {});
-        setAccountSetting(settings);
+        reload(settings);
     }
 
     @Override

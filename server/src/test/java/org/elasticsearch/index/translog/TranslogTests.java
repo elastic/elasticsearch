@@ -416,9 +416,9 @@ public class TranslogTests extends ESTestCase {
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(1));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(163L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(162L));
             assertThat(stats.getUncommittedOperations(), equalTo(1));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(163L));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(162L));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(1L));
         }
 
@@ -426,9 +426,9 @@ public class TranslogTests extends ESTestCase {
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(2));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(212L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(210L));
             assertThat(stats.getUncommittedOperations(), equalTo(2));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(212L));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(210L));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(1L));
         }
 
@@ -436,9 +436,9 @@ public class TranslogTests extends ESTestCase {
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(3));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(261L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(258L));
             assertThat(stats.getUncommittedOperations(), equalTo(3));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(261L));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(258L));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(1L));
         }
 
@@ -446,13 +446,13 @@ public class TranslogTests extends ESTestCase {
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(4));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(303L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(300L));
             assertThat(stats.getUncommittedOperations(), equalTo(4));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(303L));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(300L));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(1L));
         }
 
-        final long expectedSizeInBytes = 358L;
+        final long expectedSizeInBytes = 355L;
         translog.rollGeneration();
         {
             final TranslogStats stats = stats();
@@ -725,14 +725,12 @@ public class TranslogTests extends ESTestCase {
                         assertEquals(expIndexOp.type(), indexOp.type());
                         assertEquals(expIndexOp.source(), indexOp.source());
                         assertEquals(expIndexOp.version(), indexOp.version());
-                        assertEquals(expIndexOp.versionType(), indexOp.versionType());
                         break;
                     case DELETE:
                         Translog.Delete delOp = (Translog.Delete) op;
                         Translog.Delete expDelOp = (Translog.Delete) expectedOp;
                         assertEquals(expDelOp.uid(), delOp.uid());
                         assertEquals(expDelOp.version(), delOp.version());
-                        assertEquals(expDelOp.versionType(), delOp.versionType());
                         break;
                     case NO_OP:
                         final Translog.NoOp noOp = (Translog.NoOp) op;
@@ -1478,7 +1476,7 @@ public class TranslogTests extends ESTestCase {
         try (Translog ignored = new Translog(config, translogUUID, deletionPolicy, () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get)) {
             fail("corrupted");
         } catch (IllegalStateException ex) {
-            assertEquals("Checkpoint file translog-3.ckp already exists but has corrupted content expected: Checkpoint{offset=3080, " +
+            assertEquals("Checkpoint file translog-3.ckp already exists but has corrupted content expected: Checkpoint{offset=3025, " +
                 "numOps=55, generation=3, minSeqNo=45, maxSeqNo=99, globalCheckpoint=-1, minTranslogGeneration=1, trimmedAboveSeqNo=-2} but got: Checkpoint{offset=0, numOps=0, " +
                 "generation=0, minSeqNo=-1, maxSeqNo=-1, globalCheckpoint=-1, minTranslogGeneration=0, trimmedAboveSeqNo=-2}", ex.getMessage());
         }
@@ -1842,8 +1840,7 @@ public class TranslogTests extends ESTestCase {
                                 new Term("_uid", threadId + "_" + opCount),
                                 seqNoGenerator.getAndIncrement(),
                                 primaryTerm.get(),
-                                1 + randomInt(100000),
-                                randomFrom(VersionType.values()));
+                                1 + randomInt(100000));
                             break;
                         case NO_OP:
                             op = new Translog.NoOp(seqNoGenerator.getAndIncrement(), primaryTerm.get(), randomAlphaOfLength(16));
@@ -2929,6 +2926,24 @@ public class TranslogTests extends ESTestCase {
         }
         try (Translog.Snapshot snapshot = translog.newSnapshot()) {
             assertThat(snapshot, containsOperationsInAnyOrder(latestOperations.values()));
+        }
+    }
+
+    /** Make sure that it's ok to close a translog snapshot multiple times */
+    public void testCloseSnapshotTwice() throws Exception {
+        int numOps = between(0, 10);
+        for (int i = 0; i < numOps; i++) {
+            Translog.Index op = new Translog.Index("doc", randomAlphaOfLength(10), i, primaryTerm.get(), new byte[]{1});
+            translog.add(op);
+            if (randomBoolean()) {
+                translog.rollGeneration();
+            }
+        }
+        for (int i = 0; i < 5; i++) {
+            Translog.Snapshot snapshot = translog.newSnapshot();
+            assertThat(snapshot, SnapshotMatchers.size(numOps));
+            snapshot.close();
+            snapshot.close();
         }
     }
 

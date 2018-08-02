@@ -320,8 +320,5 @@ public class IndicesOptionsTests extends ESTestCase {
         }
         assertEquals(map.get("ignore_unavailable"), options.contains(Option.IGNORE_UNAVAILABLE));
         assertEquals(map.get("allow_no_indices"), options.contains(Option.ALLOW_NO_INDICES));
-        assertEquals(map.get("forbid_aliases_to_multiple_indices"), options.contains(Option.FORBID_ALIASES_TO_MULTIPLE_INDICES));
-        assertEquals(map.get("forbid_closed_indices"), options.contains(Option.FORBID_CLOSED_INDICES));
-        assertEquals(map.get("ignore_aliases"), options.contains(Option.IGNORE_ALIASES));
     }
 }

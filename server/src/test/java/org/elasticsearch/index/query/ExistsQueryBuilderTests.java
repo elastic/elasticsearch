@@ -68,15 +68,11 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
         Collection<String> fields = context.getQueryShardContext().simpleMatchToIndexNames(fieldPattern);
         Collection<String> mappedFields = fields.stream().filter((field) -> context.getQueryShardContext().getObjectMapper(field) != null
                 || context.getQueryShardContext().getMapperService().fullName(field) != null).collect(Collectors.toList());
-        if (getCurrentTypes().length == 0) {
-            assertThat(query, instanceOf(MatchNoDocsQuery.class));
-            MatchNoDocsQuery matchNoDocsQuery = (MatchNoDocsQuery) query;
-            assertThat(matchNoDocsQuery.toString(null), containsString("Missing types in \"exists\" query."));
-        } else if (context.mapperService().getIndexSettings().getIndexVersionCreated().before(Version.V_6_1_0)) {
+        if (context.mapperService().getIndexSettings().getIndexVersionCreated().before(Version.V_6_1_0)) {
             if (fields.size() == 1) {
                 assertThat(query, instanceOf(ConstantScoreQuery.class));
                 ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) query;
-                String field = fields.iterator().next();
+                String field = expectedFieldName(fields.iterator().next());
                 assertThat(constantScoreQuery.getQuery(), instanceOf(TermQuery.class));
                 TermQuery termQuery = (TermQuery) constantScoreQuery.getQuery();
                 assertEquals(field, termQuery.getTerm().text());
@@ -99,7 +95,7 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
         } else if (fields.size() == 1) {
             assertThat(query, instanceOf(ConstantScoreQuery.class));
             ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) query;
-            String field = fields.iterator().next();
+            String field = expectedFieldName(fields.iterator().next());
             if (context.getQueryShardContext().getObjectMapper(field) != null) {
                 assertThat(constantScoreQuery.getQuery(), instanceOf(BooleanQuery.class));
                 BooleanQuery booleanQuery = (BooleanQuery) constantScoreQuery.getQuery();

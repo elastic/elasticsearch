@@ -44,7 +44,6 @@ import java.nio.channels.SocketChannel;
 import java.util.Collections;
 import java.util.Map;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
@@ -129,19 +128,11 @@ public class SecurityNioTransport extends NioTransport {
         return new SecurityTcpChannelFactory(profileSettings, isClient);
     }
 
-    private boolean validateChannel(NioSocketChannel channel) {
-        if (authenticator != null) {
-            NioTcpChannel nioTcpChannel = (NioTcpChannel) channel;
-            return authenticator.accept(nioTcpChannel.getProfile(), nioTcpChannel.getRemoteAddress());
-        } else {
-            return true;
-        }
-    }
-
     private class SecurityTcpChannelFactory extends TcpChannelFactory {
 
         private final String profileName;
         private final boolean isClient;
+        private final NioIPFilter ipFilter;
 
         private SecurityTcpChannelFactory(ProfileSettings profileSettings, boolean isClient) {
             super(new RawChannelFactory(profileSettings.tcpNoDelay,
@@ -151,12 +142,12 @@ public class SecurityNioTransport extends NioTransport {
                 Math.toIntExact(profileSettings.receiveBufferSize.getBytes())));
             this.profileName = profileSettings.profileName;
             this.isClient = isClient;
+            this.ipFilter = new NioIPFilter(authenticator, profileName);
         }
 
         @Override
         public NioTcpChannel createChannel(NioSelector selector, SocketChannel channel) throws IOException {
             NioTcpChannel nioChannel = new NioTcpChannel(profileName, channel);
-            SocketChannelContext context;
             Supplier<InboundChannelBuffer.Page> pageSupplier = () -> {
                 Recycler.V<byte[]> bytes = pageCacheRecycler.bytePage(false);
                 return new InboundChannelBuffer.Page(ByteBuffer.wrap(bytes.v()), bytes::close);
@@ -164,8 +155,8 @@ public class SecurityNioTransport extends NioTransport {
             TcpReadWriteHandler readWriteHandler = new TcpReadWriteHandler(nioChannel, SecurityNioTransport.this);
             InboundChannelBuffer buffer = new InboundChannelBuffer(pageSupplier);
             Consumer<Exception> exceptionHandler = (e) -> onException(nioChannel, e);
-            Predicate<NioSocketChannel> filter = SecurityNioTransport.this::validateChannel;
 
+            SocketChannelContext context;
             if (sslEnabled) {
                 SSLEngine sslEngine;
                 SSLConfiguration defaultConfig = profileConfiguration.get(TcpTransport.DEFAULT_PROFILE);
@@ -179,9 +170,9 @@ public class SecurityNioTransport extends NioTransport {
                     sslEngine = sslService.createSSLEngine(sslConfig, null, -1);
                 }
                 SSLDriver sslDriver = new SSLDriver(sslEngine, isClient);
-                context = new SSLChannelContext(nioChannel, selector, exceptionHandler, sslDriver, readWriteHandler, buffer, filter);
+                context = new SSLChannelContext(nioChannel, selector, exceptionHandler, sslDriver, readWriteHandler, buffer, ipFilter);
             } else {
-                context = new BytesChannelContext(nioChannel, selector, exceptionHandler, readWriteHandler, buffer, filter);
+                context = new BytesChannelContext(nioChannel, selector, exceptionHandler, readWriteHandler, buffer, ipFilter);
             }
             nioChannel.setContext(context);
 

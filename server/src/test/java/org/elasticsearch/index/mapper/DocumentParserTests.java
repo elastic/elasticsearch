@@ -1001,7 +1001,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1.json"));
         Document doc = docMapper.parse(SourceToParse.source("test", "person", "1", json, XContentType.JSON)).rootDoc();
 
-        assertThat(doc.get(docMapper.mappers().getMapper("name.first").fieldType().name()), equalTo("shay"));
+        assertThat(doc.get(docMapper.mappers().getMapper("name.first").name()), equalTo("shay"));
         doc = docMapper.parse(SourceToParse.source("test", "person", "1", json, XContentType.JSON)).rootDoc();
     }
 
@@ -1014,8 +1014,8 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         DocumentMapper builtDocMapper = parser.parse("person", new CompressedXContent(builtMapping));
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1.json"));
         Document doc = builtDocMapper.parse(SourceToParse.source("test", "person", "1", json, XContentType.JSON)).rootDoc();
-        assertThat(doc.getBinaryValue(docMapper.idFieldMapper().fieldType().name()), equalTo(Uid.encodeId("1")));
-        assertThat(doc.get(docMapper.mappers().getMapper("name.first").fieldType().name()), equalTo("shay"));
+        assertThat(doc.getBinaryValue(docMapper.idFieldMapper().name()), equalTo(Uid.encodeId("1")));
+        assertThat(doc.get(docMapper.mappers().getMapper("name.first").name()), equalTo("shay"));
     }
 
     public void testSimpleParser() throws Exception {
@@ -1026,8 +1026,8 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1.json"));
         Document doc = docMapper.parse(SourceToParse.source("test", "person", "1", json, XContentType.JSON)).rootDoc();
-        assertThat(doc.getBinaryValue(docMapper.idFieldMapper().fieldType().name()), equalTo(Uid.encodeId("1")));
-        assertThat(doc.get(docMapper.mappers().getMapper("name.first").fieldType().name()), equalTo("shay"));
+        assertThat(doc.getBinaryValue(docMapper.idFieldMapper().name()), equalTo(Uid.encodeId("1")));
+        assertThat(doc.get(docMapper.mappers().getMapper("name.first").name()), equalTo("shay"));
     }
 
     public void testSimpleParserNoTypeNoId() throws Exception {
@@ -1035,8 +1035,8 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("person", new CompressedXContent(mapping));
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1-notype-noid.json"));
         Document doc = docMapper.parse(SourceToParse.source("test", "person", "1", json, XContentType.JSON)).rootDoc();
-        assertThat(doc.getBinaryValue(docMapper.idFieldMapper().fieldType().name()), equalTo(Uid.encodeId("1")));
-        assertThat(doc.get(docMapper.mappers().getMapper("name.first").fieldType().name()), equalTo("shay"));
+        assertThat(doc.getBinaryValue(docMapper.idFieldMapper().name()), equalTo(Uid.encodeId("1")));
+        assertThat(doc.get(docMapper.mappers().getMapper("name.first").name()), equalTo("shay"));
     }
 
     public void testAttributes() throws Exception {
@@ -1388,5 +1388,99 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         err = expectThrows(MapperParsingException.class, () ->
                 client().prepareIndex("idx", "type").setSource(bytes2, XContentType.JSON).get());
         assertThat(ExceptionsHelper.detailedMessage(err), containsString("field name cannot be an empty string"));
+    }
+
+    public void testWriteToFieldAlias() throws Exception {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("alias-field")
+                            .field("type", "alias")
+                            .field("path", "concrete-field")
+                        .endObject()
+                        .startObject("concrete-field")
+                            .field("type", "keyword")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject());
+
+        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
+        DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
+
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
+            .startObject()
+                .field("alias-field", "value")
+            .endObject());
+        MapperParsingException exception = expectThrows(MapperParsingException.class,
+            () -> mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON)));
+
+        assertEquals("Cannot write to a field alias [alias-field].", exception.getCause().getMessage());
+    }
+
+     public void testCopyToFieldAlias() throws Exception {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("alias-field")
+                            .field("type", "alias")
+                            .field("path", "concrete-field")
+                        .endObject()
+                        .startObject("concrete-field")
+                            .field("type", "keyword")
+                        .endObject()
+                        .startObject("text-field")
+                            .field("type", "text")
+                            .field("copy_to", "alias-field")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject());
+
+        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
+        DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
+
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
+            .startObject()
+                .field("text-field", "value")
+            .endObject());
+        MapperParsingException exception = expectThrows(MapperParsingException.class,
+            () -> mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON)));
+
+        assertEquals("Cannot copy to a field alias [alias-field].", exception.getCause().getMessage());
+    }
+
+    public void testDynamicDottedFieldNameWithFieldAlias() throws Exception {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("alias-field")
+                            .field("type", "alias")
+                            .field("path", "concrete-field")
+                        .endObject()
+                        .startObject("concrete-field")
+                            .field("type", "keyword")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject());
+
+        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
+        DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
+
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("alias-field.dynamic-field")
+                    .field("type", "keyword")
+                .endObject()
+            .endObject());
+        MapperParsingException exception = expectThrows(MapperParsingException.class,
+            () -> mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON)));
+
+        assertEquals("Could not dynamically add mapping for field [alias-field.dynamic-field]. "
+            + "Existing mapping for [alias-field] must be of type object but found [alias].", exception.getMessage());
     }
 }

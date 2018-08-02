@@ -42,6 +42,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.internal.SearchContext;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -53,7 +54,7 @@ public class AutoDateHistogramAggregationBuilder
 
     public static final String NAME = "auto_date_histogram";
 
-    public static final ParseField NUM_BUCKETS_FIELD = new ParseField("buckets");
+    private static final ParseField NUM_BUCKETS_FIELD = new ParseField("buckets");
 
     private static final ObjectParser<AutoDateHistogramAggregationBuilder, Void> PARSER;
     static {
@@ -61,6 +62,29 @@ public class AutoDateHistogramAggregationBuilder
         ValuesSourceParserHelper.declareNumericFields(PARSER, true, true, true);
 
         PARSER.declareInt(AutoDateHistogramAggregationBuilder::setNumBuckets, NUM_BUCKETS_FIELD);
+    }
+
+    /**
+     *
+     * Build roundings, computed dynamically as roundings are time zone dependent.
+     * The current implementation probably should not be invoked in a tight loop.
+     * @return Array of RoundingInfo
+     */
+    static RoundingInfo[] buildRoundings(DateTimeZone timeZone) {
+        RoundingInfo[] roundings = new RoundingInfo[6];
+        roundings[0] = new RoundingInfo(createRounding(DateTimeUnit.SECOND_OF_MINUTE, timeZone),
+            1000L, 1, 5, 10, 30);
+        roundings[1] = new RoundingInfo(createRounding(DateTimeUnit.MINUTES_OF_HOUR, timeZone),
+            60 * 1000L, 1, 5, 10, 30);
+        roundings[2] = new RoundingInfo(createRounding(DateTimeUnit.HOUR_OF_DAY, timeZone),
+            60 * 60 * 1000L, 1, 3, 12);
+        roundings[3] = new RoundingInfo(createRounding(DateTimeUnit.DAY_OF_MONTH, timeZone),
+            24 * 60 * 60 * 1000L, 1, 7);
+        roundings[4] = new RoundingInfo(createRounding(DateTimeUnit.MONTH_OF_YEAR, timeZone),
+            30 * 24 * 60 * 60 * 1000L, 1, 3);
+        roundings[5] = new RoundingInfo(createRounding(DateTimeUnit.YEAR_OF_CENTURY, timeZone),
+            365 * 24 * 60 * 60 * 1000L, 1, 5, 10, 20, 50, 100);
+        return roundings;
     }
 
     public static AutoDateHistogramAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
@@ -116,14 +140,7 @@ public class AutoDateHistogramAggregationBuilder
     @Override
     protected ValuesSourceAggregatorFactory<Numeric, ?> innerBuild(SearchContext context, ValuesSourceConfig<Numeric> config,
             AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
-        RoundingInfo[] roundings = new RoundingInfo[6];
-        roundings[0] = new RoundingInfo(createRounding(DateTimeUnit.SECOND_OF_MINUTE), 1000L, 1, 5, 10, 30);
-        roundings[1] = new RoundingInfo(createRounding(DateTimeUnit.MINUTES_OF_HOUR), 60 * 1000L, 1, 5, 10, 30);
-        roundings[2] = new RoundingInfo(createRounding(DateTimeUnit.HOUR_OF_DAY), 60 * 60 * 1000L, 1, 3, 12);
-        roundings[3] = new RoundingInfo(createRounding(DateTimeUnit.DAY_OF_MONTH), 24 * 60 * 60 * 1000L, 1, 7);
-        roundings[4] = new RoundingInfo(createRounding(DateTimeUnit.MONTH_OF_YEAR), 30 * 24 * 60 * 60 * 1000L, 1, 3);
-        roundings[5] = new RoundingInfo(createRounding(DateTimeUnit.YEAR_OF_CENTURY), 365 * 24 * 60 * 60 * 1000L, 1, 5, 10, 20, 50, 100);
-
+        RoundingInfo[] roundings = buildRoundings(timeZone());
         int maxRoundingInterval = Arrays.stream(roundings,0, roundings.length-1)
             .map(rounding -> rounding.innerIntervals)
             .flatMapToInt(Arrays::stream)
@@ -139,10 +156,10 @@ public class AutoDateHistogramAggregationBuilder
         return new AutoDateHistogramAggregatorFactory(name, config, numBuckets, roundings, context, parent, subFactoriesBuilder, metaData);
     }
 
-    private Rounding createRounding(DateTimeUnit interval) {
+    private static Rounding createRounding(DateTimeUnit interval, DateTimeZone timeZone) {
         Rounding.Builder tzRoundingBuilder = Rounding.builder(interval);
-        if (timeZone() != null) {
-            tzRoundingBuilder.timeZone(timeZone());
+        if (timeZone != null) {
+            tzRoundingBuilder.timeZone(timeZone);
         }
         Rounding rounding = tzRoundingBuilder.build();
         return rounding;

@@ -48,7 +48,6 @@ public class ClusterGetSettingsResponse extends ActionResponse implements ToXCon
     static final String TRANSIENT_FIELD = "transient";
     static final String DEFAULTS_FIELD = "defaults";
 
-    @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<ClusterGetSettingsResponse, Void> PARSER =
         new ConstructingObjectParser<>(
             "cluster_get_settings_response",

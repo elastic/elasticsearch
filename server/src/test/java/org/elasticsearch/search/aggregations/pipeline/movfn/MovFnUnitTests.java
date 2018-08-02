@@ -98,7 +98,6 @@ public class MovFnUnitTests extends AggregatorTestCase {
     }
 
 
-    @SuppressWarnings("unchecked")
     private void executeTestCase(Query query,
                                  DateHistogramAggregationBuilder aggBuilder,
                                  Consumer<Histogram> verify,

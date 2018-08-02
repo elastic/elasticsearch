@@ -30,6 +30,10 @@ import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.CapturingTransport.CapturedRequest;
+import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
@@ -44,6 +48,7 @@ import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -76,7 +81,7 @@ public class PeerFinderTests extends ESTestCase {
     private Set<DiscoveryNode> disconnectedNodes = new HashSet<>();
     private Set<DiscoveryNode> connectedNodes = new HashSet<>();
     private DiscoveryNodes lastAcceptedNodes;
-
+    private TransportService transportService;
 
     class MockTransportAddressConnector implements TransportAddressConnector {
         final Set<DiscoveryNode> reachableNodes = new HashSet<>();
@@ -164,7 +169,7 @@ public class PeerFinderTests extends ESTestCase {
         deterministicTaskQueue = new DeterministicTaskQueue(settings);
 
         localNode = newDiscoveryNode("local-node");
-        final TransportService transportService = new TransportService(settings, capturingTransport,
+        transportService = new TransportService(settings, capturingTransport,
             deterministicTaskQueue.getThreadPool(), TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundTransportAddress -> localNode, null, emptySet());
         transportService.start();
@@ -359,6 +364,41 @@ public class PeerFinderTests extends ESTestCase {
         final PeersResponse peersResponse = peerFinder.handlePeersRequest(new PeersRequest(sourceNode, Collections.emptyList()));
         assertThat("should have consumed the mock value", peerFinder.nextResponseWhenInactive, nullValue());
         assertThat(peersResponse, equalTo(expectedResponse));
+    }
+
+    public void testReceivesRequestsFromTransportService() {
+        final DiscoveryNode sourceNode = newDiscoveryNode("request-source");
+
+        transportAddressConnector.reachableNodes.add(sourceNode);
+
+        peerFinder.activate(lastAcceptedNodes);
+
+        final AtomicBoolean responseReceived = new AtomicBoolean();
+
+        transportService.sendRequest(localNode, PeerFinder.REQUEST_PEERS_ACTION_NAME, new PeersRequest(sourceNode, Collections.emptyList()),
+            new TransportResponseHandler<PeersResponse>() {
+                @Override
+                public void handleResponse(PeersResponse response) {
+                    assertTrue(responseReceived.compareAndSet(false, true));
+                    assertFalse(response.getMasterNode().isPresent());
+                    assertThat(response.getKnownPeers(), empty()); // sourceNode is not yet known
+                    assertThat(response.getTerm(), is(0L));
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    throw new AssertionError("unexpected", exp);
+                }
+
+                @Override
+                public String executor() {
+                    return Names.SAME;
+                }
+            });
+
+        runAllRunnableTasks();
+        assertTrue(responseReceived.get());
+        assertFoundPeers(sourceNode);
     }
 
     public void testRequestsPeersIncludingKnownPeersInRequest() {

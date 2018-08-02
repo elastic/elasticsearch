@@ -32,7 +32,6 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
-import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
@@ -205,14 +204,7 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
                             assertThat(nodesMap.size(), equalTo(cluster().size()));
                             for (final NodesReloadSecureSettingsResponse.NodeResponse nodeResponse : nodesReloadResponse.getNodes()) {
                                 assertThat(nodeResponse.reloadException(), notNullValue());
-                                // Running in a JVM with a BouncyCastle FIPS Security Provider, decrypting the Keystore with the wrong
-                                // password returns a SecurityException if the DataInputStream can't be fully consumed
-                                if (inFipsJvm()) {
                                     assertThat(nodeResponse.reloadException(), instanceOf(SecurityException.class));
-                                } else {
-                                    assertThat(nodeResponse.reloadException(), instanceOf(IOException.class));
-                                }
-
                             }
                         } catch (final AssertionError e) {
                             reloadSettingsError.set(e);

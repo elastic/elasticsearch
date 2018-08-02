@@ -79,7 +79,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
 
     @Override
     protected MlMetadata doParseInstance(XContentParser parser) {
-        return MlMetadata.METADATA_PARSER.apply(parser, null).build();
+        return MlMetadata.LENIENT_PARSER.apply(parser, null).build();
     }
 
     @Override

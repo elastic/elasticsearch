@@ -10,6 +10,7 @@ import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -20,7 +21,7 @@ public class FIPS140SecureSettingsBootstrapCheck implements BootstrapCheck {
     private final Environment environment;
 
     FIPS140SecureSettingsBootstrapCheck(Settings settings, Environment environment) {
-        this.fipsModeEnabled = Security.FIPS_MODE_ENABLED.get(settings);
+        this.fipsModeEnabled = XPackSettings.FIPS_MODE_ENABLED.get(settings);
         this.environment = environment;
     }
 

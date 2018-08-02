@@ -1,9 +1,6 @@
 [[painless-contexts]]
 == Painless contexts
 
-:es_version: https://www.elastic.co/guide/en/elasticsearch/reference/master
-:xp_version: https://www.elastic.co/guide/en/x-pack/current
-
 A Painless script is evaluated within a context. Each context has values that
 are available as local variables, a whitelist that controls the available
 classes, and the methods and fields within those classes (API), and
@@ -18,41 +15,41 @@ specialized code may define new ways to use a Painless script.
 | Name                              | Painless Documentation
                                     | Elasticsearch Documentation
 | Update                            | <<painless-update-context, Painless Documentation>>
-                                    | {es_version}/docs-update.html[Elasticsearch Documentation]
+                                    | {ref}/docs-update.html[Elasticsearch Documentation]
 | Update by query                   | <<painless-update-by-query-context, Painless Documentation>>
-                                    | {es_version}/docs-update-by-query.html[Elasticsearch Documentation]
+                                    | {ref}/docs-update-by-query.html[Elasticsearch Documentation]
 | Reindex                           | <<painless-reindex-context, Painless Documentation>>
-                                    | {es_version}/docs-reindex.html[Elasticsearch Documentation]
+                                    | {ref}/docs-reindex.html[Elasticsearch Documentation]
 | Sort                              | <<painless-sort-context, Painless Documentation>>
-                                    | {es_version}/search-request-sort.html[Elasticsearch Documentation]
+                                    | {ref}/search-request-sort.html[Elasticsearch Documentation]
 | Similarity                        | <<painless-similarity-context, Painless Documentation>>
-                                    | {es_version}/index-modules-similarity.html[Elasticsearch Documentation]
-| Weight                            | <<painless-similarity-context, Painless Documentation>>
-                                    | {es_version}/index-modules-similarity.html[Elasticsearch Documentation]
+                                    | {ref}/index-modules-similarity.html[Elasticsearch Documentation]
+| Weight                            | <<painless-weight-context, Painless Documentation>>
+                                    | {ref}/index-modules-similarity.html[Elasticsearch Documentation]
 | Score                             | <<painless-score-context, Painless Documentation>>
-                                    | {es_version}/query-dsl-function-score-query.html[Elasticsearch Documentation]
+                                    | {ref}/query-dsl-function-score-query.html[Elasticsearch Documentation]
 | Field                             | <<painless-field-context, Painless Documentation>>
-                                    | {es_version}/search-request-script-fields.html[Elasticsearch Documentation]
+                                    | {ref}/search-request-script-fields.html[Elasticsearch Documentation]
 | Filter                            | <<painless-filter-context, Painless Documentation>>
-                                    | {es_version}/query-dsl-script-query.html[Elasticsearch Documentation]
+                                    | {ref}/query-dsl-script-query.html[Elasticsearch Documentation]
 | Minimum should match              | <<painless-min-should-match-context, Painless Documentation>>
-                                    | {es_version}/query-dsl-terms-set-query.html[Elasticsearch Documentation]
+                                    | {ref}/query-dsl-terms-set-query.html[Elasticsearch Documentation]
 | Metric aggregation initialization | <<painless-metric-agg-init-context, Painless Documentation>>
-                                    | {es_version}/search-aggregations-metrics-scripted-metric-aggregation.html[Elasticsearch Documentation]
+                                    | {ref}/search-aggregations-metrics-scripted-metric-aggregation.html[Elasticsearch Documentation]
 | Metric aggregation map            | <<painless-metric-agg-map-context, Painless Documentation>>
-                                    | {es_version}/search-aggregations-metrics-scripted-metric-aggregation.html[Elasticsearch Documentation]
+                                    | {ref}/search-aggregations-metrics-scripted-metric-aggregation.html[Elasticsearch Documentation]
 | Metric aggregation combine        | <<painless-metric-agg-combine-context, Painless Documentation>>
-                                    | {es_version}/search-aggregations-metrics-scripted-metric-aggregation.html[Elasticsearch Documentation]
+                                    | {ref}/search-aggregations-metrics-scripted-metric-aggregation.html[Elasticsearch Documentation]
 | Metric aggregation reduce         | <<painless-metric-agg-reduce-context, Painless Documentation>>
-                                    | {es_version}/search-aggregations-metrics-scripted-metric-aggregation.html[Elasticsearch Documentation]
+                                    | {ref}/search-aggregations-metrics-scripted-metric-aggregation.html[Elasticsearch Documentation]
 | Bucket aggregation                | <<painless-bucket-agg-context, Painless Documentation>>
-                                    | {es_version}/search-aggregations-pipeline-bucket-script-aggregation.html[Elasticsearch Documentation]
+                                    | {ref}/search-aggregations-pipeline-bucket-script-aggregation.html[Elasticsearch Documentation]
 | Ingest processor                  | <<painless-ingest-processor-context, Painless Documentation>>
-                                    | {es_version}/script-processor.html[Elasticsearch Documentation]
+                                    | {ref}/script-processor.html[Elasticsearch Documentation]
 | Watcher condition                 | <<painless-watcher-condition-context, Painless Documentation>>
-                                    | {xp_version}/condition-script.html[Elasticsearch Documentation]
+                                    | {xpack-ref}/condition-script.html[Elasticsearch Documentation]
 | Watcher transform                 | <<painless-watcher-transform-context, Painless Documentation>>
-                                    | {xp_version}/transform-script.html[Elasticsearch Documentation]
+                                    | {xpack-ref}/transform-script.html[Elasticsearch Documentation]
 |====
 
 include::painless-contexts/index.asciidoc[]

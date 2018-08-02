@@ -1,0 +1,25 @@
+[[breaking-changes-6.5]]
+== Breaking changes in 6.5
+
+This section discusses the changes that you need to be aware of when migrating
+your application to Elasticsearch 6.5.
+
+* <<breaking_65_logging_changes>>
+
+See also <<release-highlights>> and <<es-release-notes>>.
+
+[[breaking_65_logging_changes]]
+=== Logging changes
+
+==== %node_name in logging pattern
+
+To make the node name appear consistently in Elasticsearch's logs and to clean
+up much of the internal logging code we've removed the node name from the
+"marker" in the logging configuration. If you do not customize your logging
+configuration file then there is nothing for you to do. If you *do* customize
+your logging configuration properties then you should replace `%marker` with
+`[%node_name]%marker `, including the trailing space. If you do not do so
+Elasticsearch will log a warning on startup and log with the new pattern. It
+will not change the logging configuration files though. You should make this
+change before 7.0 because in 7.0 Elasticsearch will no longer automatically
+add the node name to the logging configuration if it isn't already present.

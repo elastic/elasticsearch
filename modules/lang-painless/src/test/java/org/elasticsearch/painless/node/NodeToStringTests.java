@@ -460,7 +460,7 @@ public class NodeToStringTests extends ESTestCase {
     public void testPSubField() {
         Location l = new Location(getTestName(), 0);
         PainlessClass s = painlessLookup.getPainlessStructFromJavaClass(Boolean.class);
-        PainlessField f = s.staticMembers.get("TRUE");
+        PainlessField f = s.staticFields.get("TRUE");
         PSubField node = new PSubField(l, f);
         node.prefix = new EStatic(l, "Boolean");
         assertEquals("(PSubField (EStatic Boolean) TRUE)", node.toString());
@@ -469,32 +469,28 @@ public class NodeToStringTests extends ESTestCase {
 
     public void testPSubListShortcut() {
         Location l = new Location(getTestName(), 0);
-        PainlessClass s = painlessLookup.getPainlessStructFromJavaClass(List.class);
-        PSubListShortcut node = new PSubListShortcut(l, s, new EConstant(l, 1));
+        PSubListShortcut node = new PSubListShortcut(l, List.class, new EConstant(l, 1));
         node.prefix = new EVariable(l, "a");
         assertEquals("(PSubListShortcut (EVariable a) (EConstant Integer 1))", node.toString());
         assertEquals("(PSubNullSafeCallInvoke (PSubListShortcut (EVariable a) (EConstant Integer 1)))",
                 new PSubNullSafeCallInvoke(l, node).toString());
 
         l = new Location(getTestName(), 0);
-        s = painlessLookup.getPainlessStructFromJavaClass(List.class);
-        node = new PSubListShortcut(l, s, new EBinary(l, Operation.ADD, new EConstant(l, 1), new EConstant(l, 4)));
+        node = new PSubListShortcut(l, List.class, new EBinary(l, Operation.ADD, new EConstant(l, 1), new EConstant(l, 4)));
         node.prefix = new EVariable(l, "a");
         assertEquals("(PSubListShortcut (EVariable a) (EBinary (EConstant Integer 1) + (EConstant Integer 4)))", node.toString());
     }
 
     public void testPSubMapShortcut() {
         Location l = new Location(getTestName(), 0);
-        PainlessClass s = painlessLookup.getPainlessStructFromJavaClass(Map.class);
-        PSubMapShortcut node = new PSubMapShortcut(l, s, new EConstant(l, "cat"));
+        PSubMapShortcut node = new PSubMapShortcut(l, Map.class, new EConstant(l, "cat"));
         node.prefix = new EVariable(l, "a");
         assertEquals("(PSubMapShortcut (EVariable a) (EConstant String 'cat'))", node.toString());
         assertEquals("(PSubNullSafeCallInvoke (PSubMapShortcut (EVariable a) (EConstant String 'cat')))",
                 new PSubNullSafeCallInvoke(l, node).toString());
 
         l = new Location(getTestName(), 1);
-        s = painlessLookup.getPainlessStructFromJavaClass(Map.class);
-        node = new PSubMapShortcut(l, s, new EBinary(l, Operation.ADD, new EConstant(l, 1), new EConstant(l, 4)));
+        node = new PSubMapShortcut(l, Map.class, new EBinary(l, Operation.ADD, new EConstant(l, 1), new EConstant(l, 4)));
         node.prefix = new EVariable(l, "a");
         assertEquals("(PSubMapShortcut (EVariable a) (EBinary (EConstant Integer 1) + (EConstant Integer 4)))", node.toString());
     }

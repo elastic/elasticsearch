@@ -200,7 +200,7 @@ public class FieldAliasMapperTests extends ESSingleNodeTestCase {
         .endObject());
         IllegalStateException e = expectThrows(IllegalStateException.class,
             () -> parser.parse("type", new CompressedXContent(mapping)));
-        assertEquals("Cannot create a field alias [alias-field] on index [alias-test],"
-            + " as it has multiple types.", e.getMessage());
+        assertEquals("Cannot create a field alias [alias-field] for index [alias-test]. Field aliases" +
+            " can only be specified on indexes that enforce a single mapping type.", e.getMessage());
     }
 }

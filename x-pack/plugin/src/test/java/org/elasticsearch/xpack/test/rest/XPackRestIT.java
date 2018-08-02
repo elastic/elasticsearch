@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.test.rest;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.http.HttpStatus;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -128,15 +128,17 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
                     () -> "Exception when waiting for [" + template + "] template to be created");
             }
 
-            Map<String, String> params = MapBuilder.<String, String>newMapBuilder().put("size", "1000").put("ignore", "404").map();
-            Response response = adminClient().performRequest("GET", ".watches/_search", params);
+            Request searchWatchesRequest = new Request("GET", ".watches/_search");
+            searchWatchesRequest.addParameter("size", "1000");
+            searchWatchesRequest.addParameter("ignore", "404");
+            Response response = adminClient().performRequest(searchWatchesRequest);
             ObjectPath objectPathResponse = ObjectPath.createFromResponse(response);
             Integer totalHits = objectPathResponse.evaluate("hits.total");
             if (totalHits != null && totalHits > 0) {
                 List<Map<String, Object>> hits = objectPathResponse.evaluate("hits.hits");
                 for (Map<String, Object> hit : hits) {
                     String id = (String) hit.get("_id");
-                    assertOK(adminClient().performRequest("DELETE", "_xpack/watcher/watch/" + id));
+                    adminClient().performRequest(new Request("DELETE", "_xpack/watcher/watch/" + id));
                 }
             }
         }

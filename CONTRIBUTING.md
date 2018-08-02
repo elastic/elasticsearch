@@ -100,6 +100,12 @@ JDK 10 and testing on a JDK 8 runtime; to do this, set `RUNTIME_JAVA_HOME`
 pointing to the Java home of a JDK 8 installation. Note that this mechanism can
 be used to test against other JDKs as well, this is not only limited to JDK 8.
 
+> Note: It is also required to have `JAVA7_HOME`, `JAVA8_HOME` and
+`JAVA10_HOME` available so that the tests can pass.
+
+> Warning: do not use `sdkman` for Java installations which do not have proper
+`jrunscript` for jdk distributions.
+
 Elasticsearch uses the Gradle wrapper for its build. You can execute Gradle
 using the wrapper via the `gradlew` script in the root of the repository.
 

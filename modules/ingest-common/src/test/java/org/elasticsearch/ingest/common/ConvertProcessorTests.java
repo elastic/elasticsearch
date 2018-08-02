@@ -69,7 +69,7 @@ public class ConvertProcessorTests extends ESTestCase {
 
     public void testConvertIntHexError() {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        String value = "0x" + randomAlphaOfLengthBetween(1, 10);
+        String value = "0xnotanumber";
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, value);
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), fieldName, fieldName, Type.INTEGER, false);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
@@ -139,7 +139,7 @@ public class ConvertProcessorTests extends ESTestCase {
 
     public void testConvertLongHexError() {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        String value = "0x" + randomAlphaOfLengthBetween(1, 10);
+        String value = "0xnotanumber";
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, value);
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), fieldName, fieldName, Type.LONG, false);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));

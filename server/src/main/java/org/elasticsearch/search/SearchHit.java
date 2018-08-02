@@ -19,6 +19,16 @@
 
 package org.elasticsearch.search;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.OriginalIndices;
@@ -50,16 +60,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
@@ -107,6 +107,9 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
     @Nullable
     private SearchShardTarget shard;
 
+    //These two fields normally get set when setting the shard target, so they hold the same values as the target thus don't get
+    //serialized over the wire. When parsing hits back from xcontent though, in most of the cases (whenever explanation is disabled)
+    //we can't rebuild the shard target object so we need to set these manually for users retrieval.
     private transient String index;
     private transient String clusterAlias;
 
@@ -551,7 +554,26 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
         Map<String, DocumentField> fields = get(Fields.FIELDS, values, Collections.emptyMap());
 
         SearchHit searchHit = new SearchHit(-1, id, type, nestedIdentity, fields);
-        searchHit.index = get(Fields._INDEX, values, null);
+        String index = get(Fields._INDEX, values, null);
+        String clusterAlias = null;
+        if (index != null) {
+            int indexOf = index.indexOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR);
+            if (indexOf > 0) {
+                clusterAlias = index.substring(0, indexOf);
+                index = index.substring(indexOf + 1);
+            }
+        }
+        ShardId shardId = get(Fields._SHARD, values, null);
+        String nodeId = get(Fields._NODE, values, null);
+        if (shardId != null && nodeId != null) {
+            assert shardId.getIndexName().equals(index);
+            searchHit.shard(new SearchShardTarget(nodeId, shardId, clusterAlias, OriginalIndices.NONE));
+        } else {
+            //these fields get set anyways when setting the shard target,
+            //but we set them explicitly when we don't have enough info to rebuild the shard target
+            searchHit.index = index;
+            searchHit.clusterAlias = clusterAlias;
+        }
         searchHit.score(get(Fields._SCORE, values, DEFAULT_SCORE));
         searchHit.version(get(Fields._VERSION, values, -1L));
         searchHit.sortValues(get(Fields.SORT, values, SearchSortValues.EMPTY));
@@ -561,12 +583,7 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
         searchHit.setInnerHits(get(Fields.INNER_HITS, values, null));
         List<String> matchedQueries = get(Fields.MATCHED_QUERIES, values, null);
         if (matchedQueries != null) {
-            searchHit.matchedQueries(matchedQueries.toArray(new String[matchedQueries.size()]));
-        }
-        ShardId shardId = get(Fields._SHARD, values, null);
-        String nodeId = get(Fields._NODE, values, null);
-        if (shardId != null && nodeId != null) {
-            searchHit.shard(new SearchShardTarget(nodeId, shardId, null, OriginalIndices.NONE));
+            searchHit.matchedQueries(matchedQueries.toArray(new String[0]));
         }
         return searchHit;
     }
@@ -602,16 +619,24 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
         for (String metadatafield : MapperService.getAllMetaFields()) {
             if (metadatafield.equals(Fields._ID) == false && metadatafield.equals(Fields._INDEX) == false
                     && metadatafield.equals(Fields._TYPE) == false) {
-                parser.declareField((map, field) -> {
-                    @SuppressWarnings("unchecked")
-                    Map<String, DocumentField> fieldMap = (Map<String, DocumentField>) map.computeIfAbsent(Fields.FIELDS,
-                            v -> new HashMap<String, DocumentField>());
-                    fieldMap.put(field.getName(), field);
-                }, (p, c) -> {
-                    List<Object> values = new ArrayList<>();
-                    values.add(parseFieldsValue(p));
-                    return new DocumentField(metadatafield, values);
-                }, new ParseField(metadatafield), ValueType.VALUE);
+                if (metadatafield.equals(IgnoredFieldMapper.NAME)) {
+                    parser.declareObjectArray((map, list) -> {
+                            @SuppressWarnings("unchecked")
+                            Map<String, DocumentField> fieldMap = (Map<String, DocumentField>) map.computeIfAbsent(Fields.FIELDS,
+                                v -> new HashMap<String, DocumentField>());
+                            DocumentField field = new DocumentField(metadatafield, list);
+                            fieldMap.put(field.getName(), field);
+                        }, (p, c) -> parseFieldsValue(p),
+                        new ParseField(metadatafield));
+                } else {
+                    parser.declareField((map, field) -> {
+                            @SuppressWarnings("unchecked")
+                            Map<String, DocumentField> fieldMap = (Map<String, DocumentField>) map.computeIfAbsent(Fields.FIELDS,
+                                v -> new HashMap<String, DocumentField>());
+                            fieldMap.put(field.getName(), field);
+                        }, (p, c) -> new DocumentField(metadatafield, Collections.singletonList(parseFieldsValue(p))),
+                        new ParseField(metadatafield), ValueType.VALUE);
+                }
             }
         }
     }
@@ -834,13 +859,15 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
                 && Arrays.equals(matchedQueries, other.matchedQueries)
                 && Objects.equals(explanation, other.explanation)
                 && Objects.equals(shard, other.shard)
-                && Objects.equals(innerHits, other.innerHits);
+                && Objects.equals(innerHits, other.innerHits)
+                && Objects.equals(index, other.index)
+                && Objects.equals(clusterAlias, other.clusterAlias);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(id, type, nestedIdentity, version, source, fields, getHighlightFields(), Arrays.hashCode(matchedQueries),
-                explanation, shard, innerHits);
+                explanation, shard, innerHits, index, clusterAlias);
     }
 
     /**
@@ -957,5 +984,10 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
         public int hashCode() {
             return Objects.hash(field, offset, child);
         }
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
     }
 }

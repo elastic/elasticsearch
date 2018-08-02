@@ -5,10 +5,8 @@
  */
 package org.elasticsearch.upgrades;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.elasticsearch.Version;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.common.Booleans;
@@ -93,7 +91,7 @@ public class IndexAuditUpgradeIT extends AbstractUpgradeTestCase {
 
     private void assertAuditDocsExist() throws Exception {
         final String type = minVersionInCluster.before(Version.V_6_0_0) ? "event" : "doc";
-        Response response = client().performRequest("GET", "/.security_audit_log*/" + type + "/_count");
+        Response response = client().performRequest(new Request("GET", "/.security_audit_log*/" + type + "/_count"));
         assertEquals(200, response.getStatusLine().getStatusCode());
         Map<String, Object> responseMap = entityAsMap(response);
         assertNotNull(responseMap.get("count"));
@@ -102,19 +100,20 @@ public class IndexAuditUpgradeIT extends AbstractUpgradeTestCase {
 
     private void assertNumUniqueNodeNameBuckets(int numBuckets) throws Exception {
         // call API that will hit all nodes
-        Map<?, ?> nodesResponse = entityAsMap(client().performRequest("GET", "/_nodes/_all/info/version"));
+        Map<?, ?> nodesResponse = entityAsMap(client().performRequest(new Request("GET", "/_nodes/_all/info/version")));
         logger.info("all nodes {}", nodesResponse);
 
-        HttpEntity httpEntity = new StringEntity(
+        Request aggRequest = new Request("GET", "/.security_audit_log*/_search");
+        aggRequest.setJsonEntity(
                 "{\n" +
                 "    \"aggs\" : {\n" +
                 "        \"nodes\" : {\n" +
                 "            \"terms\" : { \"field\" : \"node_name\" }\n" +
                 "        }\n" +
                 "    }\n" +
-                "}", ContentType.APPLICATION_JSON);
-        Response aggResponse = client().performRequest("GET", "/.security_audit_log*/_search",
-                Collections.singletonMap("pretty", "true"), httpEntity);
+                "}");
+        aggRequest.addParameter("pretty", "true");
+        Response aggResponse = client().performRequest(aggRequest);
         Map<String, Object> aggResponseMap = entityAsMap(aggResponse);
         logger.debug("aggResponse {}", aggResponseMap);
         Map<?, ?> aggregations = (Map<?, ?>) aggResponseMap.get("aggregations");
@@ -130,7 +129,7 @@ public class IndexAuditUpgradeIT extends AbstractUpgradeTestCase {
      * Has the master been upgraded to the new version?
      */
     private boolean masterIsNewVersion() throws IOException {
-        Map<?, ?> map = entityAsMap(client().performRequest("GET", "/_nodes/_master"));
+        Map<?, ?> map = entityAsMap(client().performRequest(new Request("GET", "/_nodes/_master")));
         map = (Map<?, ?>) map.get("nodes");
         assertThat(map.values(), hasSize(1));
         map = (Map<?, ?>) map.values().iterator().next();

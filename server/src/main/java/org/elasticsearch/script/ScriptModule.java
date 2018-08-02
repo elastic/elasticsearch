@@ -19,6 +19,14 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.search.aggregations.pipeline.movfn.MovingFunctionScript;
+
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -26,14 +34,6 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.search.aggregations.pipeline.movfn.MovingFunctionScript;
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 
 /**
  * Manages building {@link ScriptService}.

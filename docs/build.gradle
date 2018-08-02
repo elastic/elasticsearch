@@ -37,6 +37,9 @@ integTestCluster {
   extraConfigFile 'hunspell/en_US/en_US.dic', '../server/src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.dic'
   // Whitelist reindexing from the local node so we can test it.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
+
+  // TODO: remove this for 7.0, this exists to allow the doc examples in 6.x to continue using the defaults
+  systemProperty 'es.scripting.use_java_time', 'false'
 }
 
 // remove when https://github.com/elastic/elasticsearch/issues/31305 is fixed

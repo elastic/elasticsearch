@@ -115,7 +115,8 @@ public final class FieldAliasMapper extends Mapper {
         private static void checkIndexCompatibility(IndexSettings settings, String name) {
             if (!settings.isSingleType()) {
                 throw new IllegalStateException("Cannot create a field alias [" + name + "] " +
-                    "on index [" + settings.getIndex().getName() + "], as it has multiple types.");
+                    "for index [" + settings.getIndex().getName() + "]. Field aliases can only " +
+                    "be specified on indexes that enforce a single mapping type.");
             }
         }
     }

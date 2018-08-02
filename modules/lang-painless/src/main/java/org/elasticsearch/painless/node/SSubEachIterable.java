@@ -99,7 +99,7 @@ final class SSubEachIterable extends AStatement {
                     .getMethodType(org.objectweb.asm.Type.getType(Iterator.class), org.objectweb.asm.Type.getType(Object.class));
             writer.invokeDefCall("iterator", methodType, DefBootstrap.ITERATOR);
         } else {
-            method.write(writer);
+            writer.invokeMethodCall(method);
         }
 
         writer.visitVarInsn(MethodWriter.getType(iterator.clazz).getOpcode(Opcodes.ISTORE), iterator.getSlot());

@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.CapturingTransport.CapturedRequest;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -52,6 +53,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -532,6 +534,27 @@ public class PeerFinderTests extends ESTestCase {
         assertFoundPeers(otherNode);
     }
 
+    public void testDiscardsDisconnectedNodes() {
+        final DiscoveryNode otherNode = newDiscoveryNode("original-node");
+        unicastHostsProvider.providedAddresses.add(otherNode.getAddress());
+        transportAddressConnector.reachableNodes.add(otherNode);
+
+        peerFinder.activate(lastAcceptedNodes);
+        runAllRunnableTasks();
+
+        assertFoundPeers(otherNode);
+
+        transportAddressConnector.reachableNodes.clear();
+        transportAddressConnector.unreachableAddresses.add(otherNode.getAddress());
+        connectedNodes.remove(otherNode);
+        disconnectedNodes.add(otherNode);
+
+        deterministicTaskQueue.advanceTime();
+        runAllRunnableTasks();
+
+        assertFoundPeers();
+    }
+
     public void testReconnectsToDisconnectedNodes() {
         final DiscoveryNode otherNode = newDiscoveryNode("original-node");
         unicastHostsProvider.providedAddresses.add(otherNode.getAddress());
@@ -552,7 +575,7 @@ public class PeerFinderTests extends ESTestCase {
         deterministicTaskQueue.advanceTime();
         runAllRunnableTasks();
 
-        assertFoundPeers(otherNode, rebootedOtherNode);
+        assertFoundPeers(rebootedOtherNode);
     }
 
     private void respondToRequests(Function<DiscoveryNode, PeersResponse> responseFactory) {
@@ -566,9 +589,10 @@ public class PeerFinderTests extends ESTestCase {
         }
     }
 
-    private void assertFoundPeers(DiscoveryNode... expectedNodes) {
-        assertThat(peerFinder.getFoundPeers(),
-            equalTo(Arrays.stream(expectedNodes).collect(Collectors.toSet())));
+    private void assertFoundPeers(DiscoveryNode... expectedNodesArray) {
+        final Set<DiscoveryNode> expectedNodes = Arrays.stream(expectedNodesArray).collect(Collectors.toSet());
+        final Set<DiscoveryNode> actualNodes = StreamSupport.stream(peerFinder.getFoundPeers().spliterator(), false).collect(Collectors.toSet());
+        assertThat(actualNodes, equalTo(expectedNodes));
     }
 
     private DiscoveryNode newDiscoveryNode(String nodeId) {

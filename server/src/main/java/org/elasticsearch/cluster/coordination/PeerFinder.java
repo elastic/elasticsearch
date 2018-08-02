@@ -59,7 +59,6 @@ import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.new
 
 public abstract class PeerFinder extends AbstractLifecycleComponent {
 
-    // TODO can this class handle these requests?
     public static final String REQUEST_PEERS_ACTION_NAME = "internal:discovery/requestpeers";
 
     // the time between attempts to find all peers

@@ -18,7 +18,7 @@ package org.elasticsearch.client.documentation;/*
  */
 
 import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
+import org.apache.http.nio.entity.NStringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
@@ -196,7 +196,7 @@ public class StoredScriptsDocumentationIT extends ESRestHighLevelClientTestCase 
         Response putResponse =
             adminClient()
                 .performRequest("PUT", "/_scripts/" + id, emptyMap(),
-                    new StringEntity("{\"script\":" + script + "}",
+                    new NStringEntity("{\"script\":" + script + "}",
                         ContentType.APPLICATION_JSON));
         assertEquals(putResponse.getStatusLine().getReasonPhrase(), 200, putResponse.getStatusLine().getStatusCode());
         assertEquals("{\"acknowledged\":true}", EntityUtils.toString(putResponse.getEntity()));

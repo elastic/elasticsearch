@@ -19,7 +19,7 @@ package org.elasticsearch.client;/*
 
 
 import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
+import org.apache.http.nio.entity.NStringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
@@ -55,7 +55,7 @@ public class StoredScriptsIT extends ESRestHighLevelClientTestCase {
         Response putResponse =
             adminClient()
                 .performRequest("PUT", "/_scripts/calculate-score", emptyMap(),
-                    new StringEntity("{\"script\":" + script + "}",
+                    new NStringEntity("{\"script\":" + script + "}",
                         ContentType.APPLICATION_JSON));
         assertEquals(putResponse.getStatusLine().getReasonPhrase(), 200, putResponse.getStatusLine().getStatusCode());
         assertEquals("{\"acknowledged\":true}", EntityUtils.toString(putResponse.getEntity()));
@@ -81,7 +81,7 @@ public class StoredScriptsIT extends ESRestHighLevelClientTestCase {
         Response putResponse =
             adminClient()
                 .performRequest("PUT", "/_scripts/" + id, emptyMap(),
-                    new StringEntity("{\"script\":" + script + "}",
+                    new NStringEntity("{\"script\":" + script + "}",
                         ContentType.APPLICATION_JSON));
         assertEquals(putResponse.getStatusLine().getReasonPhrase(), 200, putResponse.getStatusLine().getStatusCode());
         assertEquals("{\"acknowledged\":true}", EntityUtils.toString(putResponse.getEntity()));

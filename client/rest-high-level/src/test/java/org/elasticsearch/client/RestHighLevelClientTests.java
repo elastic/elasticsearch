@@ -29,7 +29,6 @@ import org.apache.http.RequestLine;
 import org.apache.http.StatusLine;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.apache.http.message.BasicHttpResponse;
 import org.apache.http.message.BasicRequestLine;
 import org.apache.http.message.BasicStatusLine;
@@ -216,11 +215,11 @@ public class RestHighLevelClientTests extends ESTestCase {
         }
         {
             IllegalStateException ise = expectThrows(IllegalStateException.class,
-                    () -> restHighLevelClient.parseEntity(new StringEntity("", (ContentType) null), null));
+                    () -> restHighLevelClient.parseEntity(new NStringEntity("", (ContentType) null), null));
             assertEquals("Elasticsearch didn't return the [Content-Type] header, unable to parse response body", ise.getMessage());
         }
         {
-            StringEntity entity = new StringEntity("", ContentType.APPLICATION_SVG_XML);
+            NStringEntity entity = new NStringEntity("", ContentType.APPLICATION_SVG_XML);
             IllegalStateException ise = expectThrows(IllegalStateException.class, () -> restHighLevelClient.parseEntity(entity, null));
             assertEquals("Unsupported Content-Type: " + entity.getContentType().getValue(), ise.getMessage());
         }
@@ -233,9 +232,9 @@ public class RestHighLevelClientTests extends ESTestCase {
                 assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
                 return value;
             };
-            HttpEntity jsonEntity = new StringEntity("{\"field\":\"value\"}", ContentType.APPLICATION_JSON);
+            HttpEntity jsonEntity = new NStringEntity("{\"field\":\"value\"}", ContentType.APPLICATION_JSON);
             assertEquals("value", restHighLevelClient.parseEntity(jsonEntity, entityParser));
-            HttpEntity yamlEntity = new StringEntity("---\nfield: value\n", ContentType.create("application/yaml"));
+            HttpEntity yamlEntity = new NStringEntity("---\nfield: value\n", ContentType.create("application/yaml"));
             assertEquals("value", restHighLevelClient.parseEntity(yamlEntity, entityParser));
             HttpEntity smileEntity = createBinaryEntity(SmileXContent.contentBuilder(), ContentType.create("application/smile"));
             assertEquals("value", restHighLevelClient.parseEntity(smileEntity, entityParser));
@@ -275,7 +274,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         {
             RestStatus restStatus = randomFrom(RestStatus.values());
             HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
-            httpResponse.setEntity(new StringEntity("{\"error\":\"test error message\",\"status\":" + restStatus.getStatus() + "}",
+            httpResponse.setEntity(new NStringEntity("{\"error\":\"test error message\",\"status\":" + restStatus.getStatus() + "}",
                     ContentType.APPLICATION_JSON));
             Response response = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
             ResponseException responseException = new ResponseException(response);
@@ -287,7 +286,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         {
             RestStatus restStatus = randomFrom(RestStatus.values());
             HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
-            httpResponse.setEntity(new StringEntity("{\"error\":", ContentType.APPLICATION_JSON));
+            httpResponse.setEntity(new NStringEntity("{\"error\":", ContentType.APPLICATION_JSON));
             Response response = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
             ResponseException responseException = new ResponseException(response);
             ElasticsearchException elasticsearchException = restHighLevelClient.parseResponseException(responseException);
@@ -299,7 +298,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         {
             RestStatus restStatus = randomFrom(RestStatus.values());
             HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
-            httpResponse.setEntity(new StringEntity("{\"status\":" + restStatus.getStatus() + "}", ContentType.APPLICATION_JSON));
+            httpResponse.setEntity(new NStringEntity("{\"status\":" + restStatus.getStatus() + "}", ContentType.APPLICATION_JSON));
             Response response = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
             ResponseException responseException = new ResponseException(response);
             ElasticsearchException elasticsearchException = restHighLevelClient.parseResponseException(responseException);
@@ -351,7 +350,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         CheckedFunction<MainRequest, Request, IOException> requestConverter = request -> new Request(HttpGet.METHOD_NAME, "/");
         RestStatus restStatus = randomFrom(RestStatus.values());
         HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
-        httpResponse.setEntity(new StringEntity("{\"error\":\"test error message\",\"status\":" + restStatus.getStatus() + "}",
+        httpResponse.setEntity(new NStringEntity("{\"error\":\"test error message\",\"status\":" + restStatus.getStatus() + "}",
                 ContentType.APPLICATION_JSON));
         Response mockResponse = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
         ResponseException responseException = new ResponseException(mockResponse);
@@ -369,7 +368,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         CheckedFunction<MainRequest, Request, IOException> requestConverter = request -> new Request(HttpGet.METHOD_NAME, "/");
         RestStatus restStatus = randomFrom(RestStatus.values());
         HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
-        httpResponse.setEntity(new StringEntity("{\"error\":", ContentType.APPLICATION_JSON));
+        httpResponse.setEntity(new NStringEntity("{\"error\":", ContentType.APPLICATION_JSON));
         Response mockResponse = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
         ResponseException responseException = new ResponseException(mockResponse);
         when(restClient.performRequest(any(Request.class))).thenThrow(responseException);
@@ -387,7 +386,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         CheckedFunction<MainRequest, Request, IOException> requestConverter = request -> new Request(HttpGet.METHOD_NAME, "/");
         RestStatus restStatus = randomFrom(RestStatus.values());
         HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
-        httpResponse.setEntity(new StringEntity("{\"status\":" + restStatus.getStatus() + "}", ContentType.APPLICATION_JSON));
+        httpResponse.setEntity(new NStringEntity("{\"status\":" + restStatus.getStatus() + "}", ContentType.APPLICATION_JSON));
         Response mockResponse = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
         ResponseException responseException = new ResponseException(mockResponse);
         when(restClient.performRequest(any(Request.class))).thenThrow(responseException);
@@ -431,7 +430,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         MainRequest mainRequest = new MainRequest();
         CheckedFunction<MainRequest, Request, IOException> requestConverter = request -> new Request(HttpGet.METHOD_NAME, "/");
         HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(RestStatus.NOT_FOUND));
-        httpResponse.setEntity(new StringEntity("{\"error\":\"test error message\",\"status\":404}",
+        httpResponse.setEntity(new NStringEntity("{\"error\":\"test error message\",\"status\":404}",
                 ContentType.APPLICATION_JSON));
         Response mockResponse = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
         ResponseException responseException = new ResponseException(mockResponse);
@@ -501,7 +500,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                 response -> response.getStatusLine().getStatusCode(), trackingActionListener, Collections.emptySet());
         RestStatus restStatus = randomFrom(RestStatus.values());
         HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
-        httpResponse.setEntity(new StringEntity("{\"error\":\"test error message\",\"status\":" + restStatus.getStatus() + "}",
+        httpResponse.setEntity(new NStringEntity("{\"error\":\"test error message\",\"status\":" + restStatus.getStatus() + "}",
                 ContentType.APPLICATION_JSON));
         Response response = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
         ResponseException responseException = new ResponseException(response);
@@ -520,7 +519,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                     response -> response.getStatusLine().getStatusCode(), trackingActionListener, Collections.emptySet());
             RestStatus restStatus = randomFrom(RestStatus.values());
             HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
-            httpResponse.setEntity(new StringEntity("{\"error\":", ContentType.APPLICATION_JSON));
+            httpResponse.setEntity(new NStringEntity("{\"error\":", ContentType.APPLICATION_JSON));
             Response response = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
             ResponseException responseException = new ResponseException(response);
             responseListener.onFailure(responseException);
@@ -537,7 +536,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                     response -> response.getStatusLine().getStatusCode(), trackingActionListener, Collections.emptySet());
             RestStatus restStatus = randomFrom(RestStatus.values());
             HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
-            httpResponse.setEntity(new StringEntity("{\"status\":" + restStatus.getStatus() + "}", ContentType.APPLICATION_JSON));
+            httpResponse.setEntity(new NStringEntity("{\"status\":" + restStatus.getStatus() + "}", ContentType.APPLICATION_JSON));
             Response response = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
             ResponseException responseException = new ResponseException(response);
             responseListener.onFailure(responseException);
@@ -587,7 +586,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         ResponseListener responseListener = restHighLevelClient.wrapResponseListener(
                 response -> { throw new IllegalStateException(); }, trackingActionListener, Collections.singleton(404));
         HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(RestStatus.NOT_FOUND));
-        httpResponse.setEntity(new StringEntity("{\"error\":\"test error message\",\"status\":404}",
+        httpResponse.setEntity(new NStringEntity("{\"error\":\"test error message\",\"status\":404}",
                 ContentType.APPLICATION_JSON));
         Response response = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
         ResponseException responseException = new ResponseException(response);

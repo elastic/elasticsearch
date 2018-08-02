@@ -20,8 +20,6 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.rounding.DateTimeUnit;
-import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
@@ -51,14 +49,6 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
     public void setUp() throws Exception {
         super.setUp();
         format = randomNumericDocValueFormat();
-
-        roundingInfos = new RoundingInfo[6];
-        roundingInfos[0] = new RoundingInfo(Rounding.builder(DateTimeUnit.SECOND_OF_MINUTE).build(), 1, 5, 10, 30);
-        roundingInfos[1] = new RoundingInfo(Rounding.builder(DateTimeUnit.MINUTES_OF_HOUR).build(), 1, 5, 10, 30);
-        roundingInfos[2] = new RoundingInfo(Rounding.builder(DateTimeUnit.HOUR_OF_DAY).build(), 1, 3, 12);
-        roundingInfos[3] = new RoundingInfo(Rounding.builder(DateTimeUnit.DAY_OF_MONTH).build(), 1, 7);
-        roundingInfos[4] = new RoundingInfo(Rounding.builder(DateTimeUnit.MONTH_OF_YEAR).build(), 1, 3);
-        roundingInfos[5] = new RoundingInfo(Rounding.builder(DateTimeUnit.YEAR_OF_CENTURY).build(), 1, 10, 20, 50, 100);
     }
 
     @Override
@@ -66,6 +56,8 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
                                                        List<PipelineAggregator> pipelineAggregators,
                                                        Map<String, Object> metaData,
                                                        InternalAggregations aggregations) {
+        
+        roundingInfos = AutoDateHistogramAggregationBuilder.buildRoundings(null);
         int nbBuckets = randomNumberOfBuckets();
         int targetBuckets = randomIntBetween(1, nbBuckets * 2 + 1);
         List<InternalAutoDateHistogram.Bucket> buckets = new ArrayList<>(nbBuckets);
@@ -81,6 +73,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         InternalAggregations subAggregations = new InternalAggregations(Collections.emptyList());
         BucketInfo bucketInfo = new BucketInfo(roundingInfos, randomIntBetween(0, roundingInfos.length - 1), subAggregations);
 
+
         return new InternalAutoDateHistogram(name, buckets, targetBuckets, bucketInfo, format, pipelineAggregators, metaData);
     }
 
@@ -92,13 +85,50 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
                 roundingIdx = histogram.getBucketInfo().roundingIdx;
             }
         }
-        Map<Long, Long> expectedCounts = new TreeMap<>();
-        for (Histogram histogram : inputs) {
+        RoundingInfo roundingInfo = roundingInfos[roundingIdx];
+
+        long lowest = Long.MAX_VALUE;
+        long highest = 0;
+        for (InternalAutoDateHistogram histogram : inputs) {
             for (Histogram.Bucket bucket : histogram.getBuckets()) {
-                expectedCounts.compute(roundingInfos[roundingIdx].rounding.round(((DateTime) bucket.getKey()).getMillis()),
-                        (key, oldValue) -> (oldValue == null ? 0 : oldValue) + bucket.getDocCount());
+                long bucketKey = ((DateTime) bucket.getKey()).getMillis();
+                if (bucketKey < lowest) {
+                    lowest = bucketKey;
+                }
+                if (bucketKey > highest) {
+                    highest = bucketKey;
+                }
             }
         }
+        long normalizedDuration = (highest - lowest) / roundingInfo.getRoughEstimateDurationMillis();
+        long innerIntervalToUse = 0;
+        for (int interval : roundingInfo.innerIntervals) {
+            if (normalizedDuration / interval < maxNumberOfBuckets()) {
+                innerIntervalToUse = interval;
+            }
+        }
+        Map<Long, Long> expectedCounts = new TreeMap<>();
+        long intervalInMillis = innerIntervalToUse*roundingInfo.getRoughEstimateDurationMillis();
+        for (long keyForBucket = roundingInfo.rounding.round(lowest);
+             keyForBucket <= highest;
+             keyForBucket = keyForBucket + intervalInMillis) {
+            expectedCounts.put(keyForBucket, 0L);
+
+            for (InternalAutoDateHistogram histogram : inputs) {
+                for (Histogram.Bucket bucket : histogram.getBuckets()) {
+                    long bucketKey = ((DateTime) bucket.getKey()).getMillis();
+                    long roundedBucketKey = roundingInfo.rounding.round(bucketKey);
+                    if (roundedBucketKey >= keyForBucket
+                        && roundedBucketKey < keyForBucket + intervalInMillis) {
+                        long count = bucket.getDocCount();
+                        expectedCounts.compute(keyForBucket,
+                            (key, oldValue) -> (oldValue == null ? 0 : oldValue) + count);
+                    }
+                }
+            }
+        }
+
+
         Map<Long, Long> actualCounts = new TreeMap<>();
         for (Histogram.Bucket bucket : reduced.getBuckets()) {
             actualCounts.compute(((DateTime) bucket.getKey()).getMillis(),
@@ -115,12 +145,6 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
     @Override
     protected Class<? extends ParsedMultiBucketAggregation> implementationClass() {
         return ParsedAutoDateHistogram.class;
-    }
-
-    @Override
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32215")
-    public void testReduceRandom() {
-        super.testReduceRandom();
     }
 
     @Override

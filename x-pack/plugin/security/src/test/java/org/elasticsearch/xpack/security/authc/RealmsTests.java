@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -51,13 +52,16 @@ public class RealmsTests extends ESTestCase {
     private XPackLicenseState licenseState;
     private ThreadContext threadContext;
     private ReservedRealm reservedRealm;
+    private int randomRealmTypesCount;
 
     @Before
     public void init() throws Exception {
         factories = new HashMap<>();
         factories.put(FileRealmSettings.TYPE, config -> new DummyRealm(FileRealmSettings.TYPE, config));
         factories.put(NativeRealmSettings.TYPE, config -> new DummyRealm(NativeRealmSettings.TYPE, config));
-        for (int i = 0; i < randomIntBetween(1, 5); i++) {
+        factories.put(KerberosRealmSettings.TYPE, config -> new DummyRealm(KerberosRealmSettings.TYPE, config));
+        randomRealmTypesCount = randomIntBetween(1, 5);
+        for (int i = 0; i < randomRealmTypesCount; i++) {
             String name = "type_" + i;
             factories.put(name, config -> new DummyRealm(name, config));
         }
@@ -73,13 +77,13 @@ public class RealmsTests extends ESTestCase {
     public void testWithSettings() throws Exception {
         Settings.Builder builder = Settings.builder()
                 .put("path.home", createTempDir());
-        List<Integer> orders = new ArrayList<>(factories.size() - 2);
-        for (int i = 0; i < factories.size() - 2; i++) {
+        List<Integer> orders = new ArrayList<>(randomRealmTypesCount);
+        for (int i = 0; i < randomRealmTypesCount; i++) {
             orders.add(i);
         }
         Collections.shuffle(orders, random());
         Map<Integer, Integer> orderToIndex = new HashMap<>();
-        for (int i = 0; i < factories.size() - 2; i++) {
+        for (int i = 0; i < randomRealmTypesCount; i++) {
             builder.put("xpack.security.authc.realms.realm_" + i + ".type", "type_" + i);
             builder.put("xpack.security.authc.realms.realm_" + i + ".order", orders.get(i));
             orderToIndex.put(orders.get(i), i);
@@ -107,14 +111,14 @@ public class RealmsTests extends ESTestCase {
     public void testWithSettingsWhereDifferentRealmsHaveSameOrder() throws Exception {
         Settings.Builder builder = Settings.builder()
                 .put("path.home", createTempDir());
-        List<Integer> randomSeq = new ArrayList<>(factories.size() - 2);
-        for (int i = 0; i < factories.size() - 2; i++) {
+        List<Integer> randomSeq = new ArrayList<>(randomRealmTypesCount);
+        for (int i = 0; i < randomRealmTypesCount; i++) {
             randomSeq.add(i);
         }
         Collections.shuffle(randomSeq, random());
 
         TreeMap<String, Integer> nameToRealmId = new TreeMap<>();
-        for (int i = 0; i < factories.size() - 2; i++) {
+        for (int i = 0; i < randomRealmTypesCount; i++) {
             int randomizedRealmId = randomSeq.get(i);
             String randomizedRealmName = randomAlphaOfLengthBetween(12,32);
             nameToRealmId.put("realm_" + randomizedRealmName, randomizedRealmId);
@@ -181,13 +185,13 @@ public class RealmsTests extends ESTestCase {
     public void testUnlicensedWithOnlyCustomRealms() throws Exception {
         Settings.Builder builder = Settings.builder()
                 .put("path.home", createTempDir());
-        List<Integer> orders = new ArrayList<>(factories.size() - 2);
-        for (int i = 0; i < factories.size() - 2; i++) {
+        List<Integer> orders = new ArrayList<>(randomRealmTypesCount);
+        for (int i = 0; i < randomRealmTypesCount; i++) {
             orders.add(i);
         }
         Collections.shuffle(orders, random());
         Map<Integer, Integer> orderToIndex = new HashMap<>();
-        for (int i = 0; i < factories.size() - 2; i++) {
+        for (int i = 0; i < randomRealmTypesCount; i++) {
             builder.put("xpack.security.authc.realms.realm_" + i + ".type", "type_" + i);
             builder.put("xpack.security.authc.realms.realm_" + i + ".order", orders.get(i));
             orderToIndex.put(orders.get(i), i);
@@ -384,13 +388,13 @@ public class RealmsTests extends ESTestCase {
     public void testDisabledRealmsAreNotAdded() throws Exception {
         Settings.Builder builder = Settings.builder()
                 .put("path.home", createTempDir());
-        List<Integer> orders = new ArrayList<>(factories.size() - 2);
-        for (int i = 0; i < factories.size() - 2; i++) {
+        List<Integer> orders = new ArrayList<>(randomRealmTypesCount);
+        for (int i = 0; i < randomRealmTypesCount; i++) {
             orders.add(i);
         }
         Collections.shuffle(orders, random());
         Map<Integer, Integer> orderToIndex = new HashMap<>();
-        for (int i = 0; i < factories.size() - 2; i++) {
+        for (int i = 0; i < randomRealmTypesCount; i++) {
             builder.put("xpack.security.authc.realms.realm_" + i + ".type", "type_" + i);
             builder.put("xpack.security.authc.realms.realm_" + i + ".order", orders.get(i));
             boolean enabled = randomBoolean();
@@ -518,6 +522,20 @@ public class RealmsTests extends ESTestCase {
                 assertThat(typeMap.size(), is(2));
             }
         }
+    }
+
+    public void testInitRealmsFailsForMultipleKerberosRealms() throws IOException {
+        final Settings.Builder builder = Settings.builder().put("path.home", createTempDir());
+        builder.put("xpack.security.authc.realms.realm_1.type", "kerberos");
+        builder.put("xpack.security.authc.realms.realm_1.order", 1);
+        builder.put("xpack.security.authc.realms.realm_2.type", "kerberos");
+        builder.put("xpack.security.authc.realms.realm_2.order", 2);
+        final Settings settings = builder.build();
+        Environment env = TestEnvironment.newEnvironment(settings);
+        final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
+                () -> new Realms(settings, env, factories, licenseState, threadContext, reservedRealm));
+        assertThat(iae.getMessage(), is(equalTo(
+                "multiple realms [realm_1, realm_2] configured of type [kerberos], [kerberos] can only have one such realm configured")));
     }
 
     static class DummyRealm extends Realm {

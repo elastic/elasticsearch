@@ -23,6 +23,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static java.util.Arrays.asList;
+
 /**
  * The configuration object for the groups section in the rollup config.
  * Basically just a wrapper for histo/date histo/terms objects
@@ -42,18 +44,18 @@ public class GroupConfig implements Writeable, ToXContentObject {
     private static final ParseField TERMS = new ParseField("terms");
 
     private final DateHistoGroupConfig dateHisto;
-    private final HistoGroupConfig histo;
+    private final HistogramGroupConfig histo;
     private final TermsGroupConfig terms;
 
     public static final ObjectParser<GroupConfig.Builder, Void> PARSER = new ObjectParser<>(NAME, GroupConfig.Builder::new);
 
     static {
         PARSER.declareObject(GroupConfig.Builder::setDateHisto, (p,c) -> DateHistoGroupConfig.PARSER.apply(p,c).build(), DATE_HISTO);
-        PARSER.declareObject(GroupConfig.Builder::setHisto, (p,c) -> HistoGroupConfig.PARSER.apply(p,c).build(), HISTO);
-        PARSER.declareObject(GroupConfig.Builder::setTerms, (p,c) -> TermsGroupConfig.PARSER.apply(p,c).build(), TERMS);
+        PARSER.declareObject(GroupConfig.Builder::setHisto, (p,c) -> HistogramGroupConfig.fromXContent(p), HISTO);
+        PARSER.declareObject(GroupConfig.Builder::setTerms, (p,c) -> TermsGroupConfig.fromXContent(p), TERMS);
     }
 
-    private GroupConfig(DateHistoGroupConfig dateHisto, @Nullable HistoGroupConfig histo, @Nullable TermsGroupConfig terms) {
+    private GroupConfig(DateHistoGroupConfig dateHisto, @Nullable HistogramGroupConfig histo, @Nullable TermsGroupConfig terms) {
         this.dateHisto = Objects.requireNonNull(dateHisto, "A date_histogram group is mandatory");
         this.histo = histo;
         this.terms = terms;
@@ -61,7 +63,7 @@ public class GroupConfig implements Writeable, ToXContentObject {
 
     GroupConfig(StreamInput in) throws IOException {
         dateHisto = new DateHistoGroupConfig(in);
-        histo = in.readOptionalWriteable(HistoGroupConfig::new);
+        histo = in.readOptionalWriteable(HistogramGroupConfig::new);
         terms = in.readOptionalWriteable(TermsGroupConfig::new);
     }
 
@@ -69,7 +71,7 @@ public class GroupConfig implements Writeable, ToXContentObject {
         return dateHisto;
     }
 
-    public HistoGroupConfig getHisto() {
+    public HistogramGroupConfig getHisto() {
         return histo;
     }
 
@@ -81,10 +83,10 @@ public class GroupConfig implements Writeable, ToXContentObject {
         Set<String> fields = new HashSet<>();
         fields.add(dateHisto.getField());
         if (histo != null) {
-            fields.addAll(histo.getAllFields());
+            fields.addAll(asList(histo.getFields()));
         }
         if (terms != null) {
-            fields.addAll(terms.getAllFields());
+            fields.addAll(asList(terms.getFields()));
         }
         return fields;
     }
@@ -100,7 +102,6 @@ public class GroupConfig implements Writeable, ToXContentObject {
         }
     }
 
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -108,14 +109,10 @@ public class GroupConfig implements Writeable, ToXContentObject {
         dateHisto.toXContent(builder, params);
         builder.endObject();
         if (histo != null) {
-            builder.startObject(HISTO.getPreferredName());
-            histo.toXContent(builder, params);
-            builder.endObject();
+            builder.field(HISTO.getPreferredName(), histo);
         }
         if (terms != null) {
-            builder.startObject(TERMS.getPreferredName());
-            terms.toXContent(builder, params);
-            builder.endObject();
+            builder.field(TERMS.getPreferredName(), terms);
         }
         builder.endObject();
         return builder;
@@ -157,7 +154,7 @@ public class GroupConfig implements Writeable, ToXContentObject {
 
     public static class Builder {
         private DateHistoGroupConfig dateHisto;
-        private HistoGroupConfig histo;
+        private HistogramGroupConfig histo;
         private TermsGroupConfig terms;
 
         public DateHistoGroupConfig getDateHisto() {
@@ -169,11 +166,11 @@ public class GroupConfig implements Writeable, ToXContentObject {
             return this;
         }
 
-        public HistoGroupConfig getHisto() {
+        public HistogramGroupConfig getHisto() {
             return histo;
         }
 
-        public GroupConfig.Builder setHisto(HistoGroupConfig histo) {
+        public GroupConfig.Builder setHisto(HistogramGroupConfig histo) {
             this.histo = histo;
             return this;
         }

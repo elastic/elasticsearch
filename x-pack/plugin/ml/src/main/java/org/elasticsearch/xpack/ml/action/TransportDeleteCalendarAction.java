@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.action.DeleteCalendarAction;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.ml.job.JobManager;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 
 import java.util.function.Supplier;
 
@@ -35,16 +35,17 @@ public class TransportDeleteCalendarAction extends HandledTransportAction<Delete
 
     private final Client client;
     private final JobManager jobManager;
-    private final JobProvider jobProvider;
+    private final JobResultsProvider jobResultsProvider;
 
     @Inject
     public TransportDeleteCalendarAction(Settings settings, TransportService transportService,
-                                         ActionFilters actionFilters, Client client, JobManager jobManager, JobProvider jobProvider) {
+                                         ActionFilters actionFilters, Client client, JobManager jobManager,
+                                         JobResultsProvider jobResultsProvider) {
         super(settings, DeleteCalendarAction.NAME, transportService, actionFilters,
             (Supplier<DeleteCalendarAction.Request>) DeleteCalendarAction.Request::new);
         this.client = client;
         this.jobManager = jobManager;
-        this.jobProvider = jobProvider;
+        this.jobResultsProvider = jobResultsProvider;
     }
 
     @Override
@@ -70,7 +71,7 @@ public class TransportDeleteCalendarAction extends HandledTransportAction<Delete
                 listener::onFailure
         );
 
-        jobProvider.calendar(calendarId, calendarListener);
+        jobResultsProvider.calendar(calendarId, calendarListener);
     }
 
     private DeleteByQueryRequest buildDeleteByQuery(String calendarId) {

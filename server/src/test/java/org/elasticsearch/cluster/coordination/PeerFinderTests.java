@@ -61,6 +61,7 @@ import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class PeerFinderTests extends ESTestCase {
@@ -113,6 +114,7 @@ public class PeerFinderTests extends ESTestCase {
     static class TestPeerFinder extends PeerFinder {
         DiscoveryNode discoveredMasterNode;
         OptionalLong discoveredMasterTerm = OptionalLong.empty();
+        PeersResponse nextResponseWhenInactive;
 
         TestPeerFinder(Settings settings, TransportService transportService, UnicastHostsProvider hostsProvider,
                        FutureExecutor futureExecutor, TransportAddressConnector transportAddressConnector,
@@ -131,7 +133,10 @@ public class PeerFinderTests extends ESTestCase {
 
         @Override
         protected PeersResponse onPeersRequestWhenInactive(DiscoveryNode sourceNode) {
-            throw new AssertionError("TODO");
+            assertThat(nextResponseWhenInactive, not(nullValue()));
+            final PeersResponse savedResponse = this.nextResponseWhenInactive;
+            nextResponseWhenInactive = null; // only send this response once.
+            return savedResponse;
         }
     }
 
@@ -342,6 +347,18 @@ public class PeerFinderTests extends ESTestCase {
         assertFalse(peersResponse2.getMasterNode().isPresent());
         assertThat(peersResponse2.getKnownPeers(), contains(sourceNode));
         assertThat(peersResponse2.getTerm(), is(updatedTerm));
+    }
+
+    public void testDelegatesRequestHandlingWhenInactive() {
+        final DiscoveryNode masterNode = newDiscoveryNode("master-node");
+        final DiscoveryNode sourceNode = newDiscoveryNode("request-source");
+        transportAddressConnector.reachableNodes.add(sourceNode);
+
+        final PeersResponse expectedResponse = new PeersResponse(Optional.of(masterNode), Collections.emptyList(), randomNonNegativeLong());
+        peerFinder.nextResponseWhenInactive = expectedResponse;
+        final PeersResponse peersResponse = peerFinder.handlePeersRequest(new PeersRequest(sourceNode, Collections.emptyList()));
+        assertThat("should have consumed the mock value", peerFinder.nextResponseWhenInactive, nullValue());
+        assertThat(peersResponse, equalTo(expectedResponse));
     }
 
     public void testRequestsPeersIncludingKnownPeersInRequest() {

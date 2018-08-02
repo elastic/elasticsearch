@@ -135,7 +135,9 @@ public final class ConditionalClusterPrivileges {
             this.requestPredicate = request -> {
                 if (request instanceof ApplicationPrivilegesRequest) {
                     final ApplicationPrivilegesRequest privRequest = (ApplicationPrivilegesRequest) request;
-                    return privRequest.getApplicationNames().stream().allMatch(application -> applicationPredicate.test(application));
+                    final Collection<String> requestApplicationNames = privRequest.getApplicationNames();
+                    return requestApplicationNames.isEmpty() ? this.applicationNames.contains("*")
+                        : requestApplicationNames.stream().allMatch(application -> applicationPredicate.test(application));
                 }
                 return false;
             };

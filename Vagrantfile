@@ -115,11 +115,6 @@ Vagrant.configure(2) do |config|
   'opensuse-42'.tap do |box|
     config.vm.define box, define_opts do |config|
       config.vm.box = 'elastic/opensuse-42-x86_64'
-
-      # https://github.com/elastic/elasticsearch/issues/30295
-      config.vm.provider 'virtualbox' do |vbox|
-        vbox.customize ['storagectl', :id, '--name', 'SATA Controller', '--hostiocache', 'on']
-      end
       suse_common config, box
     end
   end

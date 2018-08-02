@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.security.authz;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
-import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.protocol.xpack.security.User;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.ArrayList;

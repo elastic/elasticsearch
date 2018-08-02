@@ -18,7 +18,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersResponse;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
-import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.protocol.xpack.security.User;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;

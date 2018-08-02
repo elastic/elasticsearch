@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.security.user;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.protocol.xpack.security.User;
 
 import java.io.IOException;
 

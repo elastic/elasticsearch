@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
-import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.protocol.xpack.security.User;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.ietf.jgss.GSSException;

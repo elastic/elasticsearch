@@ -61,9 +61,9 @@ final class TypeConverter {
     
     static {
         Map<Class<?>, JDBCType> aMap = Arrays.stream(DataType.values())
-                .filter(dataType -> dataType.javaClass() != null 
-                        && dataType != DataType.HALF_FLOAT 
-                        && dataType != DataType.SCALED_FLOAT 
+                .filter(dataType -> dataType.javaClass() != null
+                        && dataType != DataType.HALF_FLOAT
+                        && dataType != DataType.SCALED_FLOAT
                         && dataType != DataType.TEXT)
                 .collect(Collectors.toMap(dataType -> dataType.javaClass(), dataType -> dataType.jdbcType));
         // apart from the mappings in {@code DataType} three more Java classes can be mapped to a {@code JDBCType.TIMESTAMP}
@@ -254,7 +254,7 @@ final class TypeConverter {
             case REAL:
                 return floatValue(v);  // Float might be represented as string for infinity and NaN values
             case TIMESTAMP:
-                return ((Number) v).longValue();
+                return new Timestamp(((Number) v).longValue());
             default:
                 throw new SQLException("Unexpected column type [" + columnType.getName() + "]");
 
@@ -428,7 +428,7 @@ final class TypeConverter {
             case SMALLINT:
             case INTEGER:
             case BIGINT:
-                return Float.valueOf((float) ((Number) val).longValue());
+                return Float.valueOf(((Number) val).longValue());
             case REAL:
             case FLOAT:
             case DOUBLE:
@@ -447,7 +447,7 @@ final class TypeConverter {
             case SMALLINT:
             case INTEGER:
             case BIGINT:
-                return Double.valueOf((double) ((Number) val).longValue());
+                return Double.valueOf(((Number) val).longValue());
             case REAL:
             case FLOAT:
             case DOUBLE:

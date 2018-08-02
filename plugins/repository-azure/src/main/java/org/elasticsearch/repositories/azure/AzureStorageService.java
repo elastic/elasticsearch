@@ -61,7 +61,10 @@ import static java.util.Collections.emptyMap;
 public class AzureStorageService extends AbstractComponent {
 
     public static final ByteSizeValue MIN_CHUNK_SIZE = new ByteSizeValue(1, ByteSizeUnit.BYTES);
-    public static final ByteSizeValue MAX_CHUNK_SIZE = new ByteSizeValue(64, ByteSizeUnit.MB);
+    /**
+     * {@link com.microsoft.azure.storage.blob.BlobConstants#MAX_SINGLE_UPLOAD_BLOB_SIZE_IN_BYTES}
+     */
+    public static final ByteSizeValue MAX_CHUNK_SIZE = new ByteSizeValue(256, ByteSizeUnit.MB);
 
     // 'package' for testing
     volatile Map<String, AzureStorageSettings> storageSettings = emptyMap();
@@ -236,17 +239,20 @@ public class AzureStorageService extends AbstractComponent {
         return blobsBuilder.immutableMap();
     }
 
-    public void writeBlob(String account, String container, String blobName, InputStream inputStream, long blobSize)
+    public void writeBlob(String account, String container, String blobName, InputStream inputStream, long blobSize,
+                          boolean failIfAlreadyExists)
         throws URISyntaxException, StorageException, FileAlreadyExistsException {
         logger.trace(() -> new ParameterizedMessage("writeBlob({}, stream, {})", blobName, blobSize));
         final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(account);
         final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
         final CloudBlockBlob blob = blobContainer.getBlockBlobReference(blobName);
         try {
+            final AccessCondition accessCondition =
+                failIfAlreadyExists ? AccessCondition.generateIfNotExistsCondition() : AccessCondition.generateEmptyCondition();
             SocketAccess.doPrivilegedVoidException(() ->
-                blob.upload(inputStream, blobSize, AccessCondition.generateIfNotExistsCondition(), null, client.v2().get()));
+                blob.upload(inputStream, blobSize, accessCondition, null, client.v2().get()));
         } catch (final StorageException se) {
-            if (se.getHttpStatusCode() == HttpURLConnection.HTTP_CONFLICT &&
+            if (failIfAlreadyExists && se.getHttpStatusCode() == HttpURLConnection.HTTP_CONFLICT &&
                 StorageErrorCodeStrings.BLOB_ALREADY_EXISTS.equals(se.getErrorCode())) {
                 throw new FileAlreadyExistsException(blobName, null, se.getMessage());
             }

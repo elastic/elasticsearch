@@ -25,8 +25,6 @@ import org.apache.lucene.search.suggest.document.ContextSuggestField;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
@@ -53,9 +51,6 @@ import static org.elasticsearch.search.suggest.completion.context.ContextMapping
  * for a {@link CompletionFieldMapper}
  */
 public class ContextMappings implements ToXContent {
-
-    private static final DeprecationLogger DEPRECATION_LOGGER =
-        new DeprecationLogger(Loggers.getLogger(ContextMappings.class));
 
     private final List<ContextMapping<?>> contextMappings;
     private final Map<String, ContextMapping<?>> contextNameMap;
@@ -124,7 +119,7 @@ public class ContextMappings implements ToXContent {
         private final ParseContext.Document document;
 
         TypedContextField(String name, String value, int weight, Map<String, Set<CharSequence>> contexts,
-                                 ParseContext.Document document) {
+                          ParseContext.Document document) {
             super(name, value, weight);
             this.contexts = contexts;
             this.document = document;
@@ -150,8 +145,7 @@ public class ContextMappings implements ToXContent {
                 }
             }
             if (typedContexts.isEmpty()) {
-                DEPRECATION_LOGGER.deprecated("The ability to index a suggestion with no context on a context enabled completion field" +
-                    " is deprecated and will be removed in the next major release.");
+                throw new IllegalArgumentException("Contexts are mandatory in context enabled completion field [" + name + "]");
             }
             return typedContexts;
         }
@@ -186,8 +180,7 @@ public class ContextMappings implements ToXContent {
             }
         }
         if (hasContext == false) {
-            DEPRECATION_LOGGER.deprecated("The ability to query with no context on a context enabled completion field is deprecated " +
-                "and will be removed in the next major release.");
+            throw new IllegalArgumentException("Missing mandatory contexts in context query");
         }
         return typedContextQuery;
     }

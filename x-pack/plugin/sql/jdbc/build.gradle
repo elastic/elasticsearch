@@ -1,15 +1,3 @@
-
-buildscript {
-    repositories {
-        maven {
-            url 'https://plugins.gradle.org/m2/'
-        }
-    }
-    dependencies {
-        classpath 'com.github.jengelman.gradle.plugins:shadow:2.0.4'
-    }
-}
-
 apply plugin: 'elasticsearch.build'
 apply plugin: 'nebula.maven-base-publish'
 apply plugin: 'nebula.maven-scm'
@@ -49,7 +37,6 @@ dependencyLicenses {
 }
 
 shadowJar {
-    classifier = null
     relocate 'com.fasterxml', 'org.elasticsearch.fasterxml'
 }
 
@@ -69,27 +56,4 @@ task nodepsJar(type: Jar) {
 artifacts  {
     nodeps nodepsJar
     archives shadowJar
-}
-
-publishing {
-    publications {
-        nebula(MavenPublication) {
-            artifact shadowJar
-            pom.withXml {
-                // Nebula is mistakenly including all dependencies that are already shadowed into the shadow jar
-                asNode().remove(asNode().dependencies)
-            }
-        }
-    }
-}
-
-assemble.dependsOn shadowJar
-
-// Use the jar for testing so the tests are more "real"
-test {
-    classpath -= compileJava.outputs.files
-    classpath -= configurations.compile
-    classpath -= configurations.runtime
-    classpath += shadowJar.outputs.files
-    dependsOn shadowJar
 }

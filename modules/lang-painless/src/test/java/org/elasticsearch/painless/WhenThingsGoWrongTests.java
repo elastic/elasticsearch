@@ -20,7 +20,6 @@
 package org.elasticsearch.painless;
 
 import junit.framework.AssertionFailedError;
-
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.script.ScriptException;
 

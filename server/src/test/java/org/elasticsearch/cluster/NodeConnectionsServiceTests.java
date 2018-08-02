@@ -35,7 +35,9 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
+import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -54,7 +56,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -171,12 +172,28 @@ public class NodeConnectionsServiceTests extends ESTestCase {
     }
 
     final class MockTransport implements Transport {
-        private final AtomicLong requestId = new AtomicLong();
         Set<DiscoveryNode> connectedNodes = ConcurrentCollections.newConcurrentSet();
         volatile boolean randomConnectionExceptions = false;
+        private ResponseHandlers responseHandlers = new ResponseHandlers();
+        private TransportConnectionListener listener = new TransportConnectionListener() {};
 
         @Override
-        public void setTransportService(TransportService service) {
+        public <Request extends TransportRequest> void registerRequestHandler(RequestHandlerRegistry<Request> reg) {
+        }
+
+        @Override
+        public RequestHandlerRegistry getRequestHandler(String action) {
+            return null;
+        }
+
+        @Override
+        public void addConnectionListener(TransportConnectionListener listener) {
+            this.listener = listener;
+        }
+
+        @Override
+        public boolean removeConnectionListener(TransportConnectionListener listener) {
+            throw new UnsupportedOperationException();
         }
 
         @Override
@@ -208,12 +225,14 @@ public class NodeConnectionsServiceTests extends ESTestCase {
                     throw new ConnectTransportException(node, "simulated");
                 }
                 connectedNodes.add(node);
+                listener.onNodeConnected(node);
             }
         }
 
         @Override
         public void disconnectFromNode(DiscoveryNode node) {
             connectedNodes.remove(node);
+            listener.onNodeDisconnected(node);
         }
 
         @Override
@@ -226,30 +245,27 @@ public class NodeConnectionsServiceTests extends ESTestCase {
 
                 @Override
                 public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
-                    throws IOException, TransportException {
+                    throws TransportException {
 
                 }
 
                 @Override
-                public void close() throws IOException {
+                public void close() {
 
                 }
             };
         }
 
         @Override
-        public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) throws IOException {
-            return getConnection(node);
+        public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) {
+            Connection connection = getConnection(node);
+            listener.onConnectionOpened(connection);
+            return connection;
         }
 
         @Override
         public List<String> getLocalAddresses() {
             return null;
-        }
-
-        @Override
-        public long newRequestId() {
-            return requestId.incrementAndGet();
         }
 
         @Override
@@ -277,6 +293,11 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         @Override
         public TransportStats getStats() {
             throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public ResponseHandlers getResponseHandlers() {
+            return responseHandlers;
         }
     }
 }

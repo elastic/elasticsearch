@@ -10,7 +10,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DefaultDetectorDescription;
@@ -18,6 +17,7 @@ import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
+import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.io.OutputStreamWriter;
@@ -66,11 +66,7 @@ public class FieldConfigWriter {
         writeFilters(contents);
         writeDetectors(contents);
         writeScheduledEvents(contents);
-
-        if (MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA == false) {
-            writeAsEnumeratedSettings(CATEGORIZATION_FILTER_PREFIX, config.getCategorizationFilters(),
-                    contents, true);
-        }
+        writeCategorizationFilters(contents);
 
         // As values are written as entire settings rather than part of a
         // clause no quoting is needed
@@ -78,6 +74,14 @@ public class FieldConfigWriter {
 
         logger.debug("FieldConfig:\n" + contents.toString());
         writer.write(contents.toString());
+    }
+
+    @SuppressWarnings("unused") // CATEGORIZATION_TOKENIZATION_IN_JAVA is used for performance testing
+    private void writeCategorizationFilters(StringBuilder contents) {
+        if (MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA == false) {
+            writeAsEnumeratedSettings(CATEGORIZATION_FILTER_PREFIX, config.getCategorizationFilters(),
+                    contents, true);
+        }
     }
 
     private void writeDetectors(StringBuilder contents) throws IOException {

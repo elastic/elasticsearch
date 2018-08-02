@@ -85,6 +85,13 @@ for a particular index with the index setting `index.max_regex_length`.
 Search requests with extra content after the main object will no longer be accepted
 by the `_search` endpoint. A parsing exception will be thrown instead.
 
+==== Context Completion Suggester
+
+The ability to query and index context enabled suggestions without context,
+deprecated in 6.x, has been removed. Context enabled suggestion queries
+without contexts have to visit every suggestion, which degrades the search performance
+considerably.
+
 ==== Semantics changed for `max_concurrent_shard_requests`
 
 `max_concurrent_shard_requests` used to limit the total number of concurrent shard

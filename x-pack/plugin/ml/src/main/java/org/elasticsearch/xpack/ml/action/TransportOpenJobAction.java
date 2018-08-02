@@ -51,6 +51,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
@@ -63,7 +64,7 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 
 import java.io.IOException;
@@ -94,19 +95,20 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
     private final XPackLicenseState licenseState;
     private final PersistentTasksService persistentTasksService;
     private final Client client;
-    private final JobProvider jobProvider;
+    private final JobResultsProvider jobResultsProvider;
 
     @Inject
     public TransportOpenJobAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                   XPackLicenseState licenseState, ClusterService clusterService,
                                   PersistentTasksService persistentTasksService, ActionFilters actionFilters,
-                                  IndexNameExpressionResolver indexNameExpressionResolver, Client client, JobProvider jobProvider) {
+                                  IndexNameExpressionResolver indexNameExpressionResolver, Client client,
+                                  JobResultsProvider jobResultsProvider) {
         super(settings, OpenJobAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
                 OpenJobAction.Request::new);
         this.licenseState = licenseState;
         this.persistentTasksService = persistentTasksService;
         this.client = client;
-        this.jobProvider = jobProvider;
+        this.jobResultsProvider = jobResultsProvider;
     }
 
     /**
@@ -210,16 +212,27 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 for (PersistentTasksCustomMetaData.PersistentTask<?> assignedTask : assignedTasks) {
                     JobTaskState jobTaskState = (JobTaskState) assignedTask.getState();
                     JobState jobState;
-                    if (jobTaskState == null || // executor node didn't have the chance to set job status to OPENING
-                            // previous executor node failed and current executor node didn't have the chance to set job status to OPENING
-                            jobTaskState.isStatusStale(assignedTask)) {
+                    if (jobTaskState == null) {
+                        // executor node didn't have the chance to set job status to OPENING
                         ++numberOfAllocatingJobs;
                         jobState = JobState.OPENING;
                     } else {
                         jobState = jobTaskState.getState();
+                        if (jobTaskState.isStatusStale(assignedTask)) {
+                            if (jobState == JobState.CLOSING) {
+                                // previous executor node failed while the job was closing - it won't
+                                // be reopened, so consider it CLOSED for resource usage purposes
+                                jobState = JobState.CLOSED;
+                            } else if (jobState != JobState.FAILED) {
+                                // previous executor node failed and current executor node didn't
+                                // have the chance to set job status to OPENING
+                                ++numberOfAllocatingJobs;
+                                jobState = JobState.OPENING;
+                            }
+                        }
                     }
-                    // Don't count FAILED jobs, as they don't consume native memory
-                    if (jobState != JobState.FAILED) {
+                    // Don't count CLOSED or FAILED jobs, as they don't consume native memory
+                    if (jobState.isAnyOf(JobState.CLOSED, JobState.FAILED) == false) {
                         ++numberOfAssignedJobs;
                         String assignedJobId = ((OpenJobAction.JobParams) assignedTask.getParams()).getJobId();
                         Job assignedJob = mlMetadata.getJobs().get(assignedJobId);
@@ -478,7 +491,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
             // Step 4. Start job task
             ActionListener<PutJobAction.Response> establishedMemoryUpdateListener = ActionListener.wrap(
-                    response -> persistentTasksService.sendStartRequest(MlMetadata.jobTaskId(jobParams.getJobId()),
+                    response -> persistentTasksService.sendStartRequest(MlTasks.jobTaskId(jobParams.getJobId()),
                             OpenJobAction.TASK_NAME, jobParams, finalListener),
                     listener::onFailure
             );
@@ -492,7 +505,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                             Long jobEstablishedModelMemory = job.getEstablishedModelMemory();
                             if ((jobVersion == null || jobVersion.before(Version.V_6_1_0))
                                     && (jobEstablishedModelMemory == null || jobEstablishedModelMemory == 0)) {
-                                jobProvider.getEstablishedMemoryUsage(job.getId(), null, null, establishedModelMemory -> {
+                                jobResultsProvider.getEstablishedMemoryUsage(job.getId(), null, null, establishedModelMemory -> {
                                     if (establishedModelMemory != null && establishedModelMemory > 0) {
                                         JobUpdate update = new JobUpdate.Builder(job.getId())
                                                 .setEstablishedModelMemory(establishedModelMemory).build();
@@ -667,10 +680,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             PersistentTasksCustomMetaData.Assignment assignment = selectLeastLoadedMlNode(params.getJobId(), clusterState,
                     maxConcurrentJobAllocations, fallbackMaxNumberOfOpenJobs, maxMachineMemoryPercent, logger);
             if (assignment.getExecutorNode() == null) {
-                String msg = "Could not open job because no suitable nodes were found, allocation explanation ["
-                        + assignment.getExplanation() + "]";
-                logger.warn("[{}] {}", params.getJobId(), msg);
-                throw new ElasticsearchStatusException(msg, RestStatus.TOO_MANY_REQUESTS);
+                throw makeNoSuitableNodesException(logger, params.getJobId(), assignment.getExplanation());
             }
         }
 
@@ -774,9 +784,9 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 // and this is why this class must only be used when opening a job
                 if (assignment != null && assignment.equals(PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT) == false &&
                         assignment.isAssigned() == false) {
+                    OpenJobAction.JobParams params = (OpenJobAction.JobParams) persistentTask.getParams();
                     // Assignment has failed on the master node despite passing our "fast fail" validation
-                    exception = new ElasticsearchStatusException("Could not open job because no suitable nodes were found, " +
-                            "allocation explanation [" + assignment.getExplanation() + "]", RestStatus.TOO_MANY_REQUESTS);
+                    exception = makeNoSuitableNodesException(logger, params.getJobId(), assignment.getExplanation());
                     // The persistent task should be cancelled so that the observed outcome is the
                     // same as if the "fast fail" validation on the coordinating node had failed
                     shouldCancel = true;
@@ -801,5 +811,13 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                     return true;
             }
         }
+    }
+
+    static ElasticsearchException makeNoSuitableNodesException(Logger logger, String jobId, String explanation) {
+        String msg = "Could not open job because no suitable nodes were found, allocation explanation [" + explanation + "]";
+        logger.warn("[{}] {}", jobId, msg);
+        Exception detail = new IllegalStateException(msg);
+        return new ElasticsearchStatusException("Could not open job because no ML nodes with sufficient capacity were found",
+            RestStatus.TOO_MANY_REQUESTS, detail);
     }
 }

@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
@@ -33,13 +34,14 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportStats;
 
 import java.io.IOException;
@@ -54,14 +56,16 @@ import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static org.apache.lucene.util.LuceneTestCase.rarely;
 
 /** A transport class that doesn't send anything but rather captures all requests for inspection from tests */
 public class CapturingTransport implements Transport {
 
-    private TransportService transportService;
+    private volatile Map<String, RequestHandlerRegistry> requestHandlers = Collections.emptyMap();
+    final Object requestHandlerMutex = new Object();
+    private final ResponseHandlers responseHandlers = new ResponseHandlers();
+    private TransportConnectionListener listener;
 
     public static class CapturedRequest {
         public final DiscoveryNode node;
@@ -79,8 +83,6 @@ public class CapturingTransport implements Transport {
 
     private ConcurrentMap<Long, Tuple<DiscoveryNode, String>> requests = new ConcurrentHashMap<>();
     private BlockingQueue<CapturedRequest> capturedRequests = ConcurrentCollections.newBlockingQueue();
-    private final AtomicLong requestId = new AtomicLong();
-
 
     /** returns all requests captured so far. Doesn't clear the captured request list. See {@link #clear()} */
     public CapturedRequest[] capturedRequests() {
@@ -137,7 +139,7 @@ public class CapturingTransport implements Transport {
 
     /** simulate a response for the given requestId */
     public void handleResponse(final long requestId, final TransportResponse response) {
-        transportService.onResponseReceived(requestId).handleResponse(response);
+        responseHandlers.onResponseReceived(requestId, listener).handleResponse(response);
     }
 
     /**
@@ -189,7 +191,7 @@ public class CapturingTransport implements Transport {
      * @param e the failure
      */
     public void handleError(final long requestId, final TransportException e) {
-        transportService.onResponseReceived(requestId).handleException(e);
+        responseHandlers.onResponseReceived(requestId, listener).handleException(e);
     }
 
     @Override
@@ -217,11 +219,6 @@ public class CapturingTransport implements Transport {
     @Override
     public TransportStats getStats() {
         throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public void setTransportService(TransportService transportService) {
-        this.transportService = transportService;
     }
 
     @Override
@@ -285,16 +282,47 @@ public class CapturingTransport implements Transport {
         return Collections.emptyList();
     }
 
-    @Override
-    public long newRequestId() {
-        return requestId.incrementAndGet();
-    }
-
     public Connection getConnection(DiscoveryNode node) {
         try {
             return openConnection(node, null);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    @Override
+    public <Request extends TransportRequest> void registerRequestHandler(RequestHandlerRegistry<Request> reg) {
+        synchronized (requestHandlerMutex) {
+            if (requestHandlers.containsKey(reg.getAction())) {
+                throw new IllegalArgumentException("transport handlers for action " + reg.getAction() + " is already registered");
+            }
+            requestHandlers = MapBuilder.newMapBuilder(requestHandlers).put(reg.getAction(), reg).immutableMap();
+        }
+    }
+    @Override
+    public ResponseHandlers getResponseHandlers() {
+        return responseHandlers;
+    }
+
+    @Override
+    public RequestHandlerRegistry getRequestHandler(String action) {
+        return requestHandlers.get(action);
+    }
+
+    @Override
+    public void addConnectionListener(TransportConnectionListener listener) {
+        if (this.listener != null) {
+            throw new IllegalStateException("listener already set");
+        }
+        this.listener = listener;
+    }
+
+    @Override
+    public boolean removeConnectionListener(TransportConnectionListener listener) {
+        if (listener == this.listener) {
+            this.listener = null;
+            return true;
+        }
+        return false;
     }
 }

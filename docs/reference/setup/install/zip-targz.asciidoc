@@ -90,22 +90,7 @@ include::xpack-indices.asciidoc[]
 endif::include-xpack[]
 
 [[zip-targz-running]]
-==== Running Elasticsearch from the command line
-
-Elasticsearch can be started from the command line as follows:
-
-[source,sh]
---------------------------------------------
-./bin/elasticsearch
---------------------------------------------
-
-By default, Elasticsearch runs in the foreground, prints its logs to the
-standard output (`stdout`), and can be stopped by pressing `Ctrl-C`.
-
-NOTE: All scripts packaged with Elasticsearch require a version of Bash
-that supports arrays and assume that Bash is available at `/bin/bash`.
-As such, Bash should be available at this path either directly or via a
-symbolic link.
+include::zip-targz-start.asciidoc[]
 
 include::check-running.asciidoc[]
 
@@ -113,27 +98,7 @@ Log printing to `stdout` can be disabled using the `-q` or `--quiet`
 option on the command line.
 
 [[setup-installation-daemon]]
-==== Running as a daemon
-
-To run Elasticsearch as a daemon, specify `-d` on the command line, and record
-the process ID in a file using the `-p` option:
-
-[source,sh]
---------------------------------------------
-./bin/elasticsearch -d -p pid
---------------------------------------------
-
-Log messages can be found in the `$ES_HOME/logs/` directory.
-
-To shut down Elasticsearch, kill the process ID recorded in the `pid` file:
-
-[source,sh]
---------------------------------------------
-kill `cat pid`
---------------------------------------------
-
-NOTE: The startup scripts provided in the <<rpm,RPM>> and <<deb,Debian>>
-packages take care of starting and stopping the Elasticsearch process for you.
+include::zip-targz-daemon.asciidoc[]
 
 [[zip-targz-configuring]]
 ==== Configuring Elasticsearch on the command line

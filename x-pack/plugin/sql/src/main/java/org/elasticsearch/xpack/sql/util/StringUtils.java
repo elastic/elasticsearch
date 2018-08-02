@@ -57,6 +57,33 @@ public abstract class StringUtils {
         }
         return sb.toString().toUpperCase(Locale.ROOT);
     }
+    
+    //CAMEL_CASE to camelCase
+    public static String underscoreToLowerCamelCase(String string) {
+        if (!Strings.hasText(string)) {
+            return EMPTY;
+        }
+        StringBuilder sb = new StringBuilder();
+        String s = string.trim().toLowerCase(Locale.ROOT);
+
+        boolean previousCharWasUnderscore = false;
+        for (int i = 0; i < s.length(); i++) {
+            char ch = s.charAt(i);
+            if (ch == '_') {
+                previousCharWasUnderscore = true;
+            }
+            else {
+                if (previousCharWasUnderscore) {
+                    sb.append(Character.toUpperCase(ch));
+                    previousCharWasUnderscore = false;
+                }
+                else {
+                    sb.append(ch);
+                }
+            }
+        }
+        return sb.toString();
+    }
 
     public static String nullAsEmpty(String string) {
         return string == null ? EMPTY : string;

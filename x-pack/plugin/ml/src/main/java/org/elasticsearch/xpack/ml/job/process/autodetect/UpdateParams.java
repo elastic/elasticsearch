@@ -49,6 +49,15 @@ public final class UpdateParams {
         return filter;
     }
 
+    /**
+     * Returns true if the update params include a job update,
+     * ie an update to the job config directly rather than an
+     * update to external resources a job uses (e.g. calendars, filters).
+     */
+    public boolean isJobUpdate() {
+        return modelPlotConfig != null || detectorUpdates != null;
+    }
+
     public boolean isUpdateScheduledEvents() {
         return updateScheduledEvents;
     }

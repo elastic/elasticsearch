@@ -145,6 +145,8 @@ public final class CsvTestUtils {
                 return "double";
             case "ts":
                 return "timestamp";
+            case "bt":
+                return "byte";
             default:
                 return type;
         }
@@ -190,7 +192,7 @@ public final class CsvTestUtils {
     }
 
     public static class CsvTestCase {
-        String query;
-        String expectedResults;
+        public String query;
+        public String expectedResults;
     }
 }

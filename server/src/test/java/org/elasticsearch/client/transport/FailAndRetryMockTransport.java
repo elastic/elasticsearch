@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
@@ -34,13 +35,14 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
+import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportStats;
 
 import java.io.IOException;
@@ -51,22 +53,22 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 
 abstract class FailAndRetryMockTransport<Response extends TransportResponse> implements Transport {
 
     private final Random random;
     private final ClusterName clusterName;
+    private volatile Map<String, RequestHandlerRegistry> requestHandlers = Collections.emptyMap();
+    final Object requestHandlerMutex = new Object();
+    private final ResponseHandlers responseHandlers = new ResponseHandlers();
+    private TransportConnectionListener listener;
 
     private boolean connectMode = true;
-
-    private TransportService transportService;
 
     private final AtomicInteger connectTransportExceptions = new AtomicInteger();
     private final AtomicInteger failures = new AtomicInteger();
     private final AtomicInteger successes = new AtomicInteger();
     private final Set<DiscoveryNode> triedNodes = new CopyOnWriteArraySet<>();
-    private final AtomicLong requestId = new AtomicLong();
 
     FailAndRetryMockTransport(Random random, ClusterName clusterName) {
         this.random = new Random(random.nextLong());
@@ -90,12 +92,12 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
                 //we make sure that nodes get added to the connected ones when calling addTransportAddress, by returning proper nodes info
                 if (connectMode) {
                     if (TransportLivenessAction.NAME.equals(action)) {
-                        TransportResponseHandler transportResponseHandler = transportService.onResponseReceived(requestId);
+                        TransportResponseHandler transportResponseHandler = responseHandlers.onResponseReceived(requestId, listener);
                         transportResponseHandler.handleResponse(new LivenessResponse(ClusterName.CLUSTER_NAME_SETTING.
                             getDefault(Settings.EMPTY),
                             node));
                     } else if (ClusterStateAction.NAME.equals(action)) {
-                        TransportResponseHandler transportResponseHandler = transportService.onResponseReceived(requestId);
+                        TransportResponseHandler transportResponseHandler = responseHandlers.onResponseReceived(requestId, listener);
                         ClusterState clusterState = getMockClusterState(node);
                         transportResponseHandler.handleResponse(new ClusterStateResponse(clusterName, clusterState, 0L));
                     } else {
@@ -116,7 +118,7 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
                         //throw whatever exception that is not a subclass of ConnectTransportException
                         throw new IllegalStateException();
                     } else {
-                        TransportResponseHandler transportResponseHandler = transportService.onResponseReceived(requestId);
+                        TransportResponseHandler transportResponseHandler = responseHandlers.onResponseReceived(requestId, listener);
                         if (random.nextBoolean()) {
                             successes.incrementAndGet();
                             transportResponseHandler.handleResponse(newResponse());
@@ -162,10 +164,6 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
         return triedNodes;
     }
 
-    @Override
-    public void setTransportService(TransportService transportServiceAdapter) {
-        this.transportService = transportServiceAdapter;
-    }
 
     @Override
     public BoundTransportAddress boundAddress() {
@@ -224,12 +222,36 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
     }
 
     @Override
-    public long newRequestId() {
-        return requestId.incrementAndGet();
+    public TransportStats getStats() {
+        throw new UnsupportedOperationException();
     }
 
     @Override
-    public TransportStats getStats() {
+    public <Request extends TransportRequest> void registerRequestHandler(RequestHandlerRegistry<Request> reg) {
+        synchronized (requestHandlerMutex) {
+            if (requestHandlers.containsKey(reg.getAction())) {
+                throw new IllegalArgumentException("transport handlers for action " + reg.getAction() + " is already registered");
+            }
+            requestHandlers = MapBuilder.newMapBuilder(requestHandlers).put(reg.getAction(), reg).immutableMap();
+        }
+    }
+    @Override
+    public ResponseHandlers getResponseHandlers() {
+        return responseHandlers;
+    }
+
+    @Override
+    public RequestHandlerRegistry getRequestHandler(String action) {
+        return requestHandlers.get(action);
+    }
+
+    @Override
+    public void addConnectionListener(TransportConnectionListener listener) {
+        this.listener = listener;
+    }
+
+    @Override
+    public boolean removeConnectionListener(TransportConnectionListener listener) {
         throw new UnsupportedOperationException();
     }
 }

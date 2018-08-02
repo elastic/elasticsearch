@@ -45,7 +45,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implements IndicesRequest, ToXContentObject {
 
     private static final ObjectParser<RolloverRequest, Void> PARSER = new ObjectParser<>("rollover");
-    private static final ObjectParser<Map<String, Condition>, Void> CONDITION_PARSER = new ObjectParser<>("conditions");
+    private static final ObjectParser<Map<String, Condition<?>>, Void> CONDITION_PARSER = new ObjectParser<>("conditions");
 
     private static final ParseField CONDITIONS = new ParseField("conditions");
     private static final ParseField MAX_AGE_CONDITION = new ParseField(MaxAgeCondition.NAME);
@@ -78,7 +78,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     private String alias;
     private String newIndexName;
     private boolean dryRun;
-    private Map<String, Condition> conditions = new HashMap<>(2);
+    private Map<String, Condition<?>> conditions = new HashMap<>(2);
     //the index name "_na_" is never read back, what matters are settings, mappings and aliases
     private CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
 
@@ -106,7 +106,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         dryRun = in.readBoolean();
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
-            Condition condition = in.readNamedWriteable(Condition.class);
+            Condition<?> condition = in.readNamedWriteable(Condition.class);
             this.conditions.put(condition.name, condition);
         }
         createIndexRequest = new CreateIndexRequest();
@@ -120,7 +120,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         out.writeOptionalString(newIndexName);
         out.writeBoolean(dryRun);
         out.writeVInt(conditions.size());
-        for (Condition condition : conditions.values()) {
+        for (Condition<?> condition : conditions.values()) {
             if (condition.includedInVersion(out.getVersion())) {
                 out.writeNamedWriteable(condition);
             }
@@ -196,7 +196,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         return dryRun;
     }
 
-    Map<String, Condition> getConditions() {
+    Map<String, Condition<?>> getConditions() {
         return conditions;
     }
 
@@ -221,7 +221,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         createIndexRequest.innerToXContent(builder, params);
 
         builder.startObject(CONDITIONS.getPreferredName());
-        for (Condition condition : conditions.values()) {
+        for (Condition<?> condition : conditions.values()) {
             condition.toXContent(builder, params);
         }
         builder.endObject();

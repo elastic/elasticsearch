@@ -89,7 +89,7 @@ public class Netty4ScheduledPingTests extends ESTestCase {
         assertThat(nettyA.getPing().getFailedPings(), equalTo(0L));
         assertThat(nettyB.getPing().getFailedPings(), equalTo(0L));
 
-        serviceA.registerRequestHandler("sayHello", TransportRequest.Empty::new, ThreadPool.Names.GENERIC,
+        serviceA.registerRequestHandler("internal:sayHello", TransportRequest.Empty::new, ThreadPool.Names.GENERIC,
             new TransportRequestHandler<TransportRequest.Empty>() {
                 @Override
                 public void messageReceived(TransportRequest.Empty request, TransportChannel channel, Task task) {
@@ -104,7 +104,7 @@ public class Netty4ScheduledPingTests extends ESTestCase {
 
         int rounds = scaledRandomIntBetween(100, 5000);
         for (int i = 0; i < rounds; i++) {
-            serviceB.submitRequest(nodeA, "sayHello",
+            serviceB.submitRequest(nodeA, "internal:sayHello",
                 TransportRequest.Empty.INSTANCE, TransportRequestOptions.builder().withCompress(randomBoolean()).build(),
                 new TransportResponseHandler<TransportResponse.Empty>() {
                     @Override

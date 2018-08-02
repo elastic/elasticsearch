@@ -20,6 +20,10 @@ progress of a job.
   (object) An object that provides information about the size and contents of the model.
   See <<ml-modelsizestats,model size stats objects>>
 
+`forecasts_stats`::
+  (object) An object that provides statistical information about forecasts
+  of this job. See <<ml-forecastsstats, forecasts stats objects>>
+
 `node`::
   (object) For open jobs only, contains information about the node where the
   job runs. See <<ml-stats-node,node object>>.
@@ -176,6 +180,33 @@ NOTE: The `over` field values are counted separately for each detector and parti
 
 `timestamp`::
   (date) The timestamp of the `model_size_stats` according to the timestamp of the data.
+
+[float]
+[[ml-forecastsstats]]
+==== Forecasts Stats Objects
+
+The `forecasts_stats` object shows statistics about forecasts. It has the following properties:
+
+`total`::
+  (long) The number of forecasts currently available for this model.
+
+`forecasted_jobs`::
+  (long) The number of jobs that have at least one forecast.
+
+`memory_bytes`::
+  (object) Statistics about the memory usage: minimum, maximum, average and total.
+
+`records`::
+  (object) Statistics about the number of forecast records: minimum, maximum, average and total.
+
+`processing_time_ms`::
+  (object) Statistics about the forecast runtime in milliseconds: minimum, maximum, average and total.
+
+`status`::
+  (object) Counts per forecast status, for example: {"finished" : 2}. 
+
+NOTE: `memory_bytes`, `records`, `processing_time_ms` and `status` require at least 1 forecast, otherwise
+these fields are ommitted.
 
 [float]
 [[ml-stats-node]]

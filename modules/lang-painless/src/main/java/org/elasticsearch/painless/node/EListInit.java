@@ -19,13 +19,16 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.MethodKey;
-import org.elasticsearch.painless.Definition.def;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.PainlessConstructor;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.lookup.def;
+import org.objectweb.asm.Type;
+import org.objectweb.asm.commons.Method;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,8 +40,8 @@ import java.util.Set;
 public final class EListInit extends AExpression {
     private final List<AExpression> values;
 
-    private Method constructor = null;
-    private Method method = null;
+    private PainlessConstructor constructor = null;
+    private PainlessMethod method = null;
 
     public EListInit(Location location, List<AExpression> values) {
         super(location);
@@ -61,13 +64,15 @@ public final class EListInit extends AExpression {
 
         actual = ArrayList.class;
 
-        constructor = locals.getDefinition().ClassToType(actual).struct.constructors.get(new MethodKey("<init>", 0));
+        constructor = locals.getPainlessLookup().getPainlessStructFromJavaClass(actual).constructors.get(
+                PainlessLookupUtility.buildPainlessConstructorKey(0));
 
         if (constructor == null) {
             throw createError(new IllegalStateException("Illegal tree structure."));
         }
 
-        method = locals.getDefinition().ClassToType(actual).struct.methods.get(new MethodKey("add", 1));
+        method = locals.getPainlessLookup().getPainlessStructFromJavaClass(actual).methods
+                .get(PainlessLookupUtility.buildPainlessMethodKey("add", 1));
 
         if (method == null) {
             throw createError(new IllegalStateException("Illegal tree structure."));
@@ -89,12 +94,13 @@ public final class EListInit extends AExpression {
 
         writer.newInstance(MethodWriter.getType(actual));
         writer.dup();
-        writer.invokeConstructor(constructor.owner.type, constructor.method);
+        writer.invokeConstructor(
+                    Type.getType(constructor.javaConstructor.getDeclaringClass()), Method.getMethod(constructor.javaConstructor));
 
         for (AExpression value : values) {
             writer.dup();
             value.write(writer, globals);
-            method.write(writer);
+            writer.invokeMethodCall(method);
             writer.pop();
         }
     }

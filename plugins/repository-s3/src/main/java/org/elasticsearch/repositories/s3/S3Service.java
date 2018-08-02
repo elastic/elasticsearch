@@ -22,8 +22,7 @@ package org.elasticsearch.repositories.s3;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.auth.InstanceProfileCredentialsProvider;
+import com.amazonaws.auth.EC2ContainerCredentialsProviderWrapper;
 import com.amazonaws.http.IdleConnectionReaper;
 import com.amazonaws.internal.StaticCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
@@ -134,7 +133,7 @@ class S3Service extends AbstractComponent implements Closeable {
 
     // pkg private for tests
     static AWSCredentialsProvider buildCredentials(Logger logger, S3ClientSettings clientSettings) {
-        final BasicAWSCredentials credentials = clientSettings.credentials;
+        final AWSCredentials credentials = clientSettings.credentials;
         if (credentials == null) {
             logger.debug("Using instance profile credentials");
             return new PrivilegedInstanceProfileCredentialsProvider();
@@ -157,10 +156,11 @@ class S3Service extends AbstractComponent implements Closeable {
     }
 
     static class PrivilegedInstanceProfileCredentialsProvider implements AWSCredentialsProvider {
-        private final InstanceProfileCredentialsProvider credentials;
+        private final AWSCredentialsProvider credentials;
 
         private PrivilegedInstanceProfileCredentialsProvider() {
-            this.credentials = new InstanceProfileCredentialsProvider();
+            // InstanceProfileCredentialsProvider as last item of chain
+            this.credentials = new EC2ContainerCredentialsProviderWrapper();
         }
 
         @Override

@@ -128,10 +128,7 @@ public class HasherTests extends ESTestCase {
         assertThat(Hasher.resolveFromHash(
             "{PBKDF2}1000000$UuyhtjDEzWmE2wyY80akZKPWWpy2r2X50so41YML82U=$WFasYLelqbjQwt3EqFlUcwHiC38EZC45Iu/Iz0xL1GQ=".toCharArray()),
             sameInstance(Hasher.PBKDF2_1000000));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            Hasher.resolveFromHash("{GBGN}cGR8S2vr3FuFuOpQitR".toCharArray());
-        });
-        assertThat(e.getMessage(), containsString("unknown hash format for hash"));
+        assertThat(Hasher.resolveFromHash("notavalidhashformat".toCharArray()), sameInstance(Hasher.NOOP));
     }
 
     private static void testHasherSelfGenerated(Hasher hasher) {

@@ -59,6 +59,13 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         this.destination = destination;
     }
 
+    public ReindexRequest(StreamInput in) throws IOException {
+        super.readFrom(in);
+        destination = new IndexRequest();
+        destination.readFrom(in);
+        remoteInfo = in.readOptionalWriteable(RemoteInfo::new);
+    }
+
     @Override
     protected ReindexRequest self() {
         return this;
@@ -135,10 +142,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        destination = new IndexRequest();
-        destination.readFrom(in);
-        remoteInfo = in.readOptionalWriteable(RemoteInfo::new);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

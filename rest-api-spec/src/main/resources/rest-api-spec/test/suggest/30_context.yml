@@ -337,11 +337,10 @@ setup:
   - match:  { suggest.result.0.options.0.text: "foo" }
 
 ---
-"Indexing and Querying without contexts is deprecated":
+"Indexing and Querying without contexts is forbidden":
   - skip:
       version: " - 6.99.99"
-      reason: this feature was deprecated in 7.0
-      features: "warnings"
+      reason: this feature was removed in 7.0
 
   - do:
       index:
@@ -359,8 +358,7 @@ setup:
               color: "blue"
 
   - do:
-      warnings:
-        - "The ability to index a suggestion with no context on a context enabled completion field is deprecated and will be removed in the next major release."
+      catch: /Contexts are mandatory in context enabled completion field \[suggest_context\]/
       index:
         index: test
         type:  test
@@ -373,9 +371,9 @@ setup:
       indices.refresh: {}
       
   - do:
-      warnings:
-        - "The ability to query with no context on a context enabled completion field is deprecated and will be removed in the next major release."
+      catch: /Missing mandatory contexts in context query/
       search:
+        allow_partial_search_results: false
         body:
           suggest:
             result:
@@ -383,12 +381,10 @@ setup:
               completion:
                 field: suggest_context
 
-  - length: { suggest.result: 1  }
-
   - do:
-      warnings:
-        - "The ability to query with no context on a context enabled completion field is deprecated and will be removed in the next major release."
+      catch: /Missing mandatory contexts in context query/
       search:
+        allow_partial_search_results: false
         body:
           suggest:
             result:
@@ -397,12 +393,10 @@ setup:
                 field: suggest_context
                 contexts: {}
 
-  - length: { suggest.result: 1  }
-
   - do:
-      warnings:
-          - "The ability to query with no context on a context enabled completion field is deprecated and will be removed in the next major release."
+      catch: /Missing mandatory contexts in context query/
       search:
+        allow_partial_search_results: false
         body:
           suggest:
             result:
@@ -411,5 +405,3 @@ setup:
                 field: suggest_multi_contexts
                 contexts:
                   location: []
-
-  - length: { suggest.result: 1  }

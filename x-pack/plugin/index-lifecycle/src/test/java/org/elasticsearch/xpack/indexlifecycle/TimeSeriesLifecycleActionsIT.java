@@ -51,13 +51,18 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         policy = randomAlphaOfLength(5);
     }
 
+    public static void updatePolicy(String indexName, String policy) throws IOException {
+        Request request = new Request("PUT", "/" + indexName + "/_lifecycle/" + policy);
+        client().performRequest(request);
+    }
+
     public void testAllocate() throws Exception {
         createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
         String allocateNodeName = "node-" + randomFrom(0, 1);
         AllocateAction allocateAction = new AllocateAction(null, null, singletonMap("_name", allocateNodeName));
         createNewSingletonPolicy(randomFrom("warm", "cold"), allocateAction);
-        updateIndexSettings(index, Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy));
+        updatePolicy(index, policy);
         assertBusy(() -> {
             Map<String, Object> settings = getOnlyIndexSettings(index);
             assertThat(getStepKey(settings), equalTo(TerminalPolicyStep.KEY));
@@ -69,7 +74,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
         createNewSingletonPolicy("delete", new DeleteAction());
-        updateIndexSettings(index, Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy));
+        updatePolicy(index, policy);
         assertBusy(() -> assertFalse(indexExists(index)));
     }
 
@@ -77,7 +82,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
         createNewSingletonPolicy("warm", new ReadOnlyAction());
-        updateIndexSettings(index, Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy));
+        updatePolicy(index, policy);
         assertBusy(() -> {
             Map<String, Object> settings = getOnlyIndexSettings(index);
             assertThat(getStepKey(settings), equalTo(TerminalPolicyStep.KEY));
@@ -111,7 +116,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertThat(numSegments.get(), greaterThan(1));
 
         createNewSingletonPolicy("warm", new ForceMergeAction(1));
-        updateIndexSettings(index, Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy));
+        updatePolicy(index, policy);
 
         assertBusy(() -> {
             assertThat(getStepKey(getOnlyIndexSettings(index)), equalTo(TerminalPolicyStep.KEY));
@@ -126,7 +131,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numShards)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numReplicas));
         createNewSingletonPolicy(randomFrom("warm", "cold"), new ReplicasAction(finalNumReplicas));
-        updateIndexSettings(index, Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy));
+        updatePolicy(index, policy);
 
         assertBusy(() -> {
             Map<String, Object> settings = getOnlyIndexSettings(index);
@@ -143,7 +148,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numShards)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
         createNewSingletonPolicy("warm", new ShrinkAction(expectedFinalShards));
-        updateIndexSettings(index, Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy));
+        updatePolicy(index, policy);
         assertBusy(() -> {
             assertTrue(indexExists(shrunkenIndex));
             assertTrue(aliasExists(shrunkenIndex, index));

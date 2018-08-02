@@ -431,7 +431,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         metricFieldType.setName(metricField);
 
         // Setup the composite agg
-        TermsGroupConfig termsGroupConfig = new TermsGroupConfig.Builder().setFields(Collections.singletonList(valueField)).build();
+        TermsGroupConfig termsGroupConfig = new TermsGroupConfig(valueField);
         CompositeAggregationBuilder compositeBuilder = new CompositeAggregationBuilder(RollupIndexer.AGGREGATION_NAME,
             termsGroupConfig.toBuilders()).size(numDocs*2);
 

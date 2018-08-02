@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client.documentation;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
@@ -40,6 +41,7 @@ import static org.hamcrest.Matchers.startsWith;
  * Documentation for Licensing APIs in the high level java client.
  * Code wrapped in {@code tag} and {@code end} tags is included in the docs.
  */
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32580")
 public class LicensingDocumentationIT extends ESRestHighLevelClientTestCase {
 
     public void testPutLicense() throws Exception {

@@ -45,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static java.util.Comparator.comparing;
 
@@ -73,7 +74,8 @@ public class PainlessDocGenerator {
             Files.newOutputStream(indexPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
             false, StandardCharsets.UTF_8.name())) {
             emitGeneratedWarning(indexStream);
-            List<Class<?>> classes = PAINLESS_LOOKUP.getSortedClassesByCanonicalClassName();
+            List<Class<?>> classes = PAINLESS_LOOKUP.getClasses().stream().sorted(
+                    Comparator.comparing(Class::getCanonicalName)).collect(Collectors.toList());
             for (Class<?> clazz : classes) {
                 PainlessClass struct = PAINLESS_LOOKUP.lookupPainlessClass(clazz);
                 String canonicalClassName = PainlessLookupUtility.typeToCanonicalTypeName(clazz);

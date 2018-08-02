@@ -37,7 +37,7 @@ public class IndicesAliasesResponse extends AcknowledgedResponse {
     IndicesAliasesResponse() {
     }
 
-    IndicesAliasesResponse(boolean acknowledged) {
+    public IndicesAliasesResponse(boolean acknowledged) {
         super(acknowledged);
     }
 

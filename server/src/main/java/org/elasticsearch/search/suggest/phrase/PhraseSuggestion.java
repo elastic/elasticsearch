@@ -30,6 +30,7 @@ import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -151,6 +152,17 @@ public class PhraseSuggestion extends Suggest.Suggestion<PhraseSuggestion.Entry>
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeDouble(cutoffScore);
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return super.equals(other)
+                && Objects.equals(cutoffScore, ((Entry) other).cutoffScore);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), cutoffScore);
         }
 
         public static class Option extends Suggestion.Entry.Option {

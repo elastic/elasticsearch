@@ -53,6 +53,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -236,6 +237,23 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             .collect(Collectors.toList());
     }
 
+    @Override
+    public boolean equals(Object other) {
+        if (this == other) {
+            return true;
+        }
+        if (other == null || getClass() != other.getClass()) {
+            return false;
+        }
+
+        return Objects.equals(suggestions, ((Suggest) other).suggestions);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(suggestions);
+    }
+
     /**
      * The suggestion responses corresponding with the suggestions in the request.
      */
@@ -402,6 +420,27 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             return builder;
         }
 
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) {
+                return true;
+            }
+
+            if (other == null || getClass() != other.getClass()) {
+                return false;
+            }
+
+            Suggestion otherSuggestion = (Suggestion) other;
+            return Objects.equals(name, otherSuggestion.name)
+                && Objects.equals(size, otherSuggestion.size)
+                && Objects.equals(entries, otherSuggestion.entries);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(name, size, entries);
+        }
+
         @SuppressWarnings("unchecked")
         public static Suggestion<? extends Entry<? extends Option>> fromXContent(XContentParser parser) throws IOException {
             ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser::getTokenLocation);
@@ -550,24 +589,23 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
             @Override
             public boolean equals(Object o) {
-                if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
+                if (this == o) {
+                    return true;
+                }
+                if (o == null || getClass() != o.getClass()) {
+                    return false;
+                }
 
                 Entry<?> entry = (Entry<?>) o;
-
-                if (length != entry.length) return false;
-                if (offset != entry.offset) return false;
-                if (!this.text.equals(entry.text)) return false;
-
-                return true;
+                return Objects.equals(length, entry.length)
+                    && Objects.equals(offset, entry.offset)
+                    && Objects.equals(text, entry.text)
+                    && Objects.equals(options, entry.options);
             }
 
             @Override
             public int hashCode() {
-                int result = text.hashCode();
-                result = 31 * result + offset;
-                result = 31 * result + length;
-                return result;
+                return Objects.hash(text, offset, length, options);
             }
 
             protected abstract O newOption();
@@ -712,18 +750,25 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                     }
                 }
 
+                /*
+                 * We consider options equal if they have the same text, even if their other fields may differ
+                 */
                 @Override
                 public boolean equals(Object o) {
-                    if (this == o) return true;
-                    if (o == null || getClass() != o.getClass()) return false;
+                    if (this == o) {
+                        return true;
+                    }
+                    if (o == null || getClass() != o.getClass()) {
+                        return false;
+                    }
 
                     Option that = (Option) o;
-                    return text.equals(that.text);
+                    return Objects.equals(text, that.text);
                 }
 
                 @Override
                 public int hashCode() {
-                    return text.hashCode();
+                    return Objects.hash(text);
                 }
             }
         }

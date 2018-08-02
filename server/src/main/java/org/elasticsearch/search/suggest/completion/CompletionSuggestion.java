@@ -124,6 +124,17 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
         return getOptions().size() > 0;
     }
 
+    @Override
+    public boolean equals(Object other) {
+        return super.equals(other)
+            && Objects.equals(skipDuplicates, ((CompletionSuggestion) other).skipDuplicates);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), skipDuplicates);
+    }
+
     public static CompletionSuggestion fromXContent(XContentParser parser, String name) throws IOException {
         CompletionSuggestion suggestion = new CompletionSuggestion(name, -1, false);
         parseEntries(parser, suggestion, CompletionSuggestion.Entry::fromXContent);
@@ -442,6 +453,22 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 stringBuilder.append("]");
                 return stringBuilder.toString();
             }
+
+//            @Override
+//            public boolean equals(Object other) {
+//                if (super.equals(other) == false) {
+//                    return false;
+//                }
+//
+//                Option otherOption = (Option) other;
+//                return Objects.equals(contexts, otherOption.contexts)
+//                    && Objects.equals(hit, otherOption.hit);
+//            }
+//
+//            @Override
+//            public int hashCode() {
+//                return Objects.hash(super.hashCode(), contexts, hit);
+//            }
         }
     }
 

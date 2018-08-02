@@ -225,16 +225,8 @@ public class SuggestTests extends ESTestCase {
     }
 
     public void testSerialization() throws IOException {
-        System.out.println("RELEASED VERSIONS [" + VersionUtils.allReleasedVersions() + "] first [" + VersionUtils.getFirstVersion() +
-            " ]");
-        System.out.println("UNRELEASED VERSIONS [" + VersionUtils.allUnreleasedVersions() + "]");
-        System.out.println("CURRENT VERSION [" + Version.CURRENT + " ] MINIMUM COMPAT VERSION [" +
-            Version.CURRENT.minimumCompatibilityVersion() + " ]");
-
         final Version bwcVersion = VersionUtils.randomVersionBetween(random(),
             Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT);
-
-        System.out.println("BWC VERSION [" + bwcVersion + "]");
 
         final Suggest suggest = createTestItem();
         final Suggest bwcSuggest;
@@ -246,7 +238,7 @@ public class SuggestTests extends ESTestCase {
             out.setVersion(bwcVersion);
             suggest.writeTo(out);
             try (NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry)) {
-                in.setVersion(Version.CURRENT);
+                in.setVersion(bwcVersion);
                 bwcSuggest = new Suggest(in);
             }
         }
@@ -259,7 +251,7 @@ public class SuggestTests extends ESTestCase {
             out.setVersion(Version.CURRENT);
             bwcSuggest.writeTo(out);
             try (NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry)) {
-                in.setVersion(bwcVersion);
+                in.setVersion(Version.CURRENT);
                 backAgain = new Suggest(in);
             }
         }

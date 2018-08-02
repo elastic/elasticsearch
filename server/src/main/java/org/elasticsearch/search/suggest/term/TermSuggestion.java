@@ -35,6 +35,7 @@ import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
 
 import java.io.IOException;
 import java.util.Comparator;
+import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -163,6 +164,17 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
         return new Entry(in);
     }
 
+    @Override
+    public boolean equals(Object other) {
+        return super.equals(other)
+            && Objects.equals(sort, ((TermSuggestion) other).sort);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), sort);
+    }
+
     /**
      * Represents a part from the suggest text with suggested options.
      */
@@ -270,6 +282,18 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
             public static Option fromXContent(XContentParser parser) {
                 return PARSER.apply(parser, null);
             }
+//              SuggestSearchIT.testSizeAndSort fails if we do this
+//
+//            @Override
+//            public boolean equals(Object other) {
+//                return super.equals(other)
+//                    && Objects.equals(freq, ((Option) other).freq);
+//            }
+//
+//            @Override
+//            public int hashCode() {
+//                return Objects.hash(super.hashCode(), freq);
+//            }
         }
 
     }

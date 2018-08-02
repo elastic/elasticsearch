@@ -17,7 +17,7 @@ project.sourceSets.test.output.dir(outputDir, builtBy: copyXPackPluginProps)
 
 integTestCluster {
   distribution 'zip'
-  setting 'xpack.index_lifecycle.enabled', 'false'
+  setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.security.enabled', 'true'

@@ -15,7 +15,7 @@ remoteClusterTestCluster {
   numNodes = 2
   clusterName = 'remote-cluster'
   setting 'search.remote.connect', false
-  setting 'xpack.index_lifecycle.enabled', 'false'
+  setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.watcher.enabled', 'false'
   setting 'xpack.monitoring.enabled', 'false'

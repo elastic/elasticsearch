@@ -1,0 +1,34 @@
+evaluationDependsOn(xpackModule('core'))
+
+apply plugin: 'elasticsearch.esplugin'
+
+esplugin {
+    name 'x-pack-ilm'
+    description 'Elasticsearch Expanded Pack Plugin - Index Lifecycle Management'
+    classname 'org.elasticsearch.xpack.indexlifecycle.IndexLifecycle'
+    extendedPlugins = ['x-pack-core']
+    hasNativeController false
+    requiresKeystore true
+}
+archivesBaseName = 'x-pack-ilm'
+
+dependencies {
+    compileOnly project(path: xpackModule('core'), configuration: 'shadow')
+    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+}
+
+integTestCluster {
+    numNodes = 2
+    clusterName = 'ilm'
+    setting 'xpack.security.enabled', 'false'
+    setting 'xpack.watcher.enabled', 'false'
+    setting 'xpack.monitoring.enabled', 'false'
+    setting 'xpack.ml.enabled', 'false'
+    setting 'xpack.ilm.enabled', 'true'
+    setting 'indices.lifecycle.poll_interval', '500ms'
+    module project(xpackModule('core'))
+}
+
+run {
+    plugin xpackModule('core')
+}

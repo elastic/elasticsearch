@@ -85,6 +85,10 @@ public class LocateFunctionProcessorDefinition extends ProcessorDefinition {
 
     @Override
     protected NodeInfo<LocateFunctionProcessorDefinition> info() {
+        if (start == null) {
+            return NodeInfo.create(this, LocateFunctionProcessorDefinition::new, expression(), pattern, source);
+        }
+        
         return NodeInfo.create(this, LocateFunctionProcessorDefinition::new, expression(), pattern, source, start);
     }
 

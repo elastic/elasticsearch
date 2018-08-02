@@ -42,7 +42,6 @@ public class LocateFunctionProcessorDefinitionTests extends AbstractNodeTestCase
                 .makeProcessorDefinition());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32554")
     @Override
     public void testTransform() {
         // test transforming only the properties (location, expression), 

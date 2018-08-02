@@ -2597,7 +2597,7 @@ public class RequestConvertersTests extends ESTestCase {
         String idxString = Strings.arrayToCommaDelimitedString(indices);
         assertThat(request.getEndpoint(),
             equalTo("/" + (idxString.isEmpty() ? "" : (idxString + "/")) +
-                "_lifecycle/" + policyName));
+                "_ilm/" + policyName));
         assertThat(request.getParameters(), equalTo(expectedParams));
     }
 

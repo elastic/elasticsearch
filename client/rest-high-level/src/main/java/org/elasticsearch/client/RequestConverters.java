@@ -1159,7 +1159,7 @@ final class RequestConverters {
         Request request = new Request(HttpPut.METHOD_NAME,
             new EndpointBuilder()
                 .addCommaSeparatedPathParts(indices)
-                .addPathPartAsIs("_lifecycle")
+                .addPathPartAsIs("_ilm")
                 .addPathPart(setPolicyRequest.policy())
             .build());
         Params params = new Params(request);

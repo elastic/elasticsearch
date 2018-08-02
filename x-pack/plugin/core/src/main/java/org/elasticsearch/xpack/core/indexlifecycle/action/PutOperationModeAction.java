@@ -3,6 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.core.indexlifecycle.action;
 
 import org.elasticsearch.action.Action;
@@ -19,7 +20,7 @@ import java.util.Objects;
 
 public class PutOperationModeAction extends Action<PutOperationModeAction.Response> {
     public static final PutOperationModeAction INSTANCE = new PutOperationModeAction();
-    public static final String NAME = "cluster:admin/xpack/index_lifecycle/operation_mode/set";
+    public static final String NAME = "cluster:admin/ilm/operation_mode/set";
 
     protected PutOperationModeAction() {
         super(NAME);

@@ -3,6 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.core.indexlifecycle.action;
 
 import org.elasticsearch.action.Action;
@@ -19,7 +20,7 @@ import java.util.Objects;
 
 public class DeleteLifecycleAction extends Action<DeleteLifecycleAction.Response> {
     public static final DeleteLifecycleAction INSTANCE = new DeleteLifecycleAction();
-    public static final String NAME = "cluster:admin/xpack/index_lifecycle/delete";
+    public static final String NAME = "cluster:admin/ilm/delete";
 
     protected DeleteLifecycleAction() {
         super(NAME);

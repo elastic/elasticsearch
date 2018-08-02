@@ -193,7 +193,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     protected volatile ShardRouting shardRouting;
     protected volatile IndexShardState state;
-    protected volatile long pendingPrimaryTerm;
+    protected volatile long pendingPrimaryTerm; // see JavaDocs for getPendingPrimaryTerm
     protected volatile long operationPrimaryTerm;
     protected final AtomicReference<Engine> currentEngineReference = new AtomicReference<>();
     final EngineFactory engineFactory;

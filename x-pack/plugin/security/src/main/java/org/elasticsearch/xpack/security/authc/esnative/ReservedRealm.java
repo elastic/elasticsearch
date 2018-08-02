@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
+import org.elasticsearch.xpack.core.security.user.APMServerSystemUser;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
@@ -149,6 +150,8 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                 return new LogstashSystemUser(userInfo.enabled);
             case BeatsSystemUser.NAME:
                 return new BeatsSystemUser(userInfo.enabled);
+            case APMServerSystemUser.NAME:
+                return new APMServerSystemUser(userInfo.enabled);
             default:
                 if (anonymousEnabled && anonymousUser.principal().equals(username)) {
                     return anonymousUser;
@@ -176,6 +179,9 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
 
                 userInfo = reservedUserInfos.get(BeatsSystemUser.NAME);
                 users.add(new BeatsSystemUser(userInfo == null || userInfo.enabled));
+
+                userInfo = reservedUserInfos.get(APMServerSystemUser.NAME);
+                users.add(new APMServerSystemUser(userInfo == null || userInfo.enabled));
 
                 if (anonymousEnabled) {
                     users.add(anonymousUser);
@@ -230,6 +236,8 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                 return LogstashSystemUser.DEFINED_SINCE;
             case BeatsSystemUser.NAME:
                 return BeatsSystemUser.DEFINED_SINCE;
+            case APMServerSystemUser.NAME:
+                return APMServerSystemUser.DEFINED_SINCE;
             default:
                 return Version.V_5_0_0;
         }

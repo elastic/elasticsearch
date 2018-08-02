@@ -26,6 +26,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.user.APMServerSystemUser;
 import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
@@ -81,7 +82,7 @@ public class NativeUsersStoreTests extends ESTestCase {
     public void testPasswordUpsertWhenSetEnabledOnReservedUser() throws Exception {
         final NativeUsersStore nativeUsersStore = startNativeUsersStore();
 
-        final String user = randomFrom(ElasticUser.NAME, KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME);
+        final String user = randomFrom(ElasticUser.NAME, KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME, APMServerSystemUser.NAME);
 
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
         nativeUsersStore.setEnabled(user, true, WriteRequest.RefreshPolicy.IMMEDIATE, future);
@@ -99,7 +100,7 @@ public class NativeUsersStoreTests extends ESTestCase {
     public void testBlankPasswordInIndexImpliesDefaultPassword() throws Exception {
         final NativeUsersStore nativeUsersStore = startNativeUsersStore();
 
-        final String user = randomFrom(ElasticUser.NAME, KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME);
+        final String user = randomFrom(ElasticUser.NAME, KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME, APMServerSystemUser.NAME);
         final Map<String, Object> values = new HashMap<>();
         values.put(ENABLED_FIELD, Boolean.TRUE);
         values.put(PASSWORD_FIELD, BLANK_PASSWORD);

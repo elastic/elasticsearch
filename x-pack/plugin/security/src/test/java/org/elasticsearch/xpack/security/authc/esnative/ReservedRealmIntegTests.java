@@ -13,6 +13,7 @@ import org.elasticsearch.test.NativeRealmIntegTestCase;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordResponse;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
+import org.elasticsearch.xpack.core.security.user.APMServerSystemUser;
 import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
@@ -49,7 +50,7 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
     }
 
     public void testAuthenticate() {
-        for (String username : Arrays.asList(ElasticUser.NAME, KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME)) {
+        for (String username : Arrays.asList(ElasticUser.NAME, KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME, APMServerSystemUser.NAME)) {
             ClusterHealthResponse response = client()
                     .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(username, getReservedPassword())))
                     .admin()
@@ -67,7 +68,7 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
      */
     public void testAuthenticateAfterEnablingUser() {
         final SecurityClient c = securityClient();
-        for (String username : Arrays.asList(ElasticUser.NAME, KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME)) {
+        for (String username : Arrays.asList(ElasticUser.NAME, KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME, APMServerSystemUser.NAME)) {
             c.prepareSetEnabled(username, true).get();
             ClusterHealthResponse response = client()
                     .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(username, getReservedPassword())))
@@ -81,7 +82,7 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
     }
 
     public void testChangingPassword() {
-        String username = randomFrom(ElasticUser.NAME, KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME);
+        String username = randomFrom(ElasticUser.NAME, KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME, APMServerSystemUser.NAME);
         final char[] newPassword = "supersecretvalue".toCharArray();
 
         if (randomBoolean()) {

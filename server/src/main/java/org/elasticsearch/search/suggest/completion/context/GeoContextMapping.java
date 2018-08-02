@@ -183,11 +183,11 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
     @Override
     public Set<CharSequence> parseContext(Mapper.TypeParser.ParserContext parserContext, Document document) {
         final Set<CharSequence> geohashes = new HashSet<>();
-        MappedFieldType fieldType = parserContext.mapperService().fullName(fieldName);
-        if (!(fieldType instanceof GeoPointFieldMapper.GeoPointFieldType)) {
-            throw new ElasticsearchParseException("cannot parse geo context field [{}], it must be mapped as a geo_point", fieldName);
-        }
         if (fieldName != null) {
+            MappedFieldType fieldType = parserContext.mapperService().fullName(fieldName);
+            if (!(fieldType instanceof GeoPointFieldMapper.GeoPointFieldType)) {
+                throw new ElasticsearchParseException("cannot parse geo context field [{}], it must be mapped as a geo_point", fieldName);
+            }
             IndexableField[] fields = document.getFields(fieldName);
             GeoPoint spare = new GeoPoint();
             for (IndexableField field : fields) {

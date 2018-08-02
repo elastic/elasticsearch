@@ -1,7 +1,7 @@
 [[painless-ingest-processor-context]]
 === Ingest processor context
 
-Use a Painless script in an {es_version}/script-processor.html[ingest processor]
+Use a Painless script in an {ref}/script-processor.html[ingest processor]
 to modify documents upon insertion.
 
 *Variables*
@@ -9,10 +9,10 @@ to modify documents upon insertion.
 `params` (`Map`, read-only)::
         User-defined parameters passed in as part of the query.
 
-{es_version}/mapping-index-field.html[`ctx['_index']`] (`String`)::
+{ref}/mapping-index-field.html[`ctx['_index']`] (`String`)::
         The name of the index.
 
-{es_version}/mapping-type-field.html[`ctx['_type']`] (`String`)::
+{ref}/mapping-type-field.html[`ctx['_type']`] (`String`)::
         The type of document within an index.
 
 `ctx` (`Map`)::
@@ -21,10 +21,10 @@ to modify documents upon insertion.
 
 *Side Effects*
 
-{es_version}/mapping-index-field.html[`ctx['_index']`]::
+{ref}/mapping-index-field.html[`ctx['_index']`]::
         Modify this to change the destination index for the current document.
 
-{es_version}/mapping-type-field.html[`ctx['_type']`]::
+{ref}/mapping-type-field.html[`ctx['_type']`]::
         Modify this to change the type for the current document.
 
 `ctx` (`Map`, read-only)::

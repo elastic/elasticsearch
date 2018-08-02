@@ -309,6 +309,16 @@ setups['farequote_datafeed'] = setups['farequote_job'] + '''
           "job_id":"farequote",
           "indexes":"farequote"
           }
+'''          
+setups['ml_filter_safe_domains'] = '''
+  - do:
+      xpack.ml.put_filter:
+        filter_id: "safe_domains"
+        body:  >
+          {
+            "description": "A list of safe domains",
+            "items": ["*.google.com", "wikipedia.org"]
+          }
 '''
 setups['server_metrics_index'] = '''
   - do:

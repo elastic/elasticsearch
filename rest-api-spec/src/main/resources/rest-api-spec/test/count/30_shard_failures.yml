@@ -1,0 +1,46 @@
+---
+"shard failures":
+  - do:
+      indices.create:
+        index: text
+        body:
+          settings:
+            number_of_replicas: 0
+            number_of_shards: 1
+          mappings:
+            doc:
+              properties:
+                creation_date:
+                  type: keyword
+
+  - do:
+      indices.create:
+        index: date
+        body:
+          settings:
+            number_of_replicas: 0
+            number_of_shards: 3
+          mappings:
+            doc:
+              properties:
+                creation_date:
+                  type: date
+
+  - do:
+      count:
+        body: { query: { match: { creation_date: text} } }
+
+  - length: { _shards.failures: 1  }
+  - match: { _shards.failed: 3}
+  - match: { _shards.total: 4}
+  - match: { _shards.successful: 1}
+
+  - do:
+      count:
+        group_shard_failures: false
+        body: { query: { match: { creation_date: text} } }
+
+  - length: { _shards.failures: 3  }
+  - match: { _shards.failed: 3}
+  - match: { _shards.total: 4}
+  - match: { _shards.successful: 1}

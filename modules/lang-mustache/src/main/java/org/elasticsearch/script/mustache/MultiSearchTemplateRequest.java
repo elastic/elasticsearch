@@ -46,6 +46,13 @@ public class MultiSearchTemplateRequest extends ActionRequest implements Composi
     private int maxConcurrentSearchRequests = 0;
     private List<SearchTemplateRequest> requests = new ArrayList<>();
 
+    /**
+     * Flag that controls whether shard failures are grouped by reason when outputting them
+     * using {@link org.elasticsearch.action.search.SearchResponse#toXContent(XContentBuilder, ToXContent.Params)}. This flag is used
+     * in the high-level REST client while it has no effect in the transport client.
+     */
+    private boolean groupShardFailures = true;
+
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosed();
 
     /**
@@ -66,7 +73,6 @@ public class MultiSearchTemplateRequest extends ActionRequest implements Composi
         return this;
     }
 
-
     /**
      * Returns the amount of search requests specified in this multi search requests are allowed to be ran concurrently.
      */
@@ -84,6 +90,25 @@ public class MultiSearchTemplateRequest extends ActionRequest implements Composi
 
         this.maxConcurrentSearchRequests = maxConcurrentSearchRequests;
         return this;
+    }
+
+    /**
+     * Controls whether shard failures should be grouped by reason when outputting them
+     * using {@link org.elasticsearch.action.search.SearchResponse#toXContent(XContentBuilder, ToXContent.Params)}.
+     * This flag is used in the high-level REST client while it has no effect in the transport client.
+     */
+    public MultiSearchTemplateRequest groupShardFailures(boolean groupShardFailures) {
+        this.groupShardFailures = groupShardFailures;
+        return this;
+    }
+
+    /**
+     * Returns whether shard failures will be grouped by reason when outputting them
+     * using {@link org.elasticsearch.action.search.SearchResponse#toXContent(XContentBuilder, ToXContent.Params)}.
+     * This flag is used in the high-level REST client while it has no effect in the transport client.
+     */
+    public boolean groupShardFailures() {
+        return this.groupShardFailures;
     }
 
     public List<SearchTemplateRequest> requests() {
@@ -134,7 +159,7 @@ public class MultiSearchTemplateRequest extends ActionRequest implements Composi
         }
         out.writeStreamableList(requests);
     }
-        
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -148,9 +173,9 @@ public class MultiSearchTemplateRequest extends ActionRequest implements Composi
     @Override
     public int hashCode() {
         return Objects.hash(maxConcurrentSearchRequests, requests, indicesOptions);
-    }      
-    
-    public static byte[] writeMultiLineFormat(MultiSearchTemplateRequest multiSearchTemplateRequest, 
+    }
+
+    public static byte[] writeMultiLineFormat(MultiSearchTemplateRequest multiSearchTemplateRequest,
             XContent xContent) throws IOException {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         for (SearchTemplateRequest templateRequest : multiSearchTemplateRequest.requests()) {
@@ -168,5 +193,5 @@ public class MultiSearchTemplateRequest extends ActionRequest implements Composi
         }
         return output.toByteArray();
     }
-    
+
 }

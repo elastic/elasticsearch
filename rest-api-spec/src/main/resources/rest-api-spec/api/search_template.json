@@ -58,6 +58,10 @@
         "typed_keys": {
           "type" : "boolean",
           "description" : "Specify whether aggregation and suggester names should be prefixed by their respective types in the response"
+        },
+        "group_shard_failures" : {
+          "type" : "boolean",
+          "description" : "Specify whether shard failures should be grouped by reason, default is true"
         }
       }
     },

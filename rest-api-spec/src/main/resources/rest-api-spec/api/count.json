@@ -71,6 +71,10 @@
         "terminate_after" : {
           "type" : "number",
           "description" : "The maximum count for each shard, upon reaching which the query execution will terminate early"
+        },
+        "group_shard_failures" : {
+          "type" : "boolean",
+          "description" : "Specify whether shard failures should be grouped by reason, default is true"
         }
       }
     },

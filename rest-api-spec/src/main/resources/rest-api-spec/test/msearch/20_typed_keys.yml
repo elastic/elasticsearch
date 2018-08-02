@@ -61,7 +61,7 @@ setup:
       msearch:
         typed_keys: true
         body:
-          # Testing aggegrations
+          # Testing aggregations
           - index: test-*
           - {query: {match: {bool: true} }, size: 0, aggs: {test_filter: {filter: {range: {integer: {gte: 20} } } } } }
           - index: test-1

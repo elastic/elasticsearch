@@ -83,7 +83,7 @@ public final class PainlessLookupUtility {
         Objects.requireNonNull(canonicalTypeName);
         Objects.requireNonNull(canonicalClassNamesToClasses);
 
-        Class<?> type = canonicalClassNamesToClasses.get(canonicalTypeName);
+        Class<?> type = DEF_CLASS_NAME.equals(canonicalTypeName) ? def.class : canonicalClassNamesToClasses.get(canonicalTypeName);
 
         if (type != null) {
             return type;
@@ -106,7 +106,7 @@ public final class PainlessLookupUtility {
             }
 
             canonicalTypeName = canonicalTypeName.substring(0, canonicalTypeName.indexOf('['));
-            type = canonicalClassNamesToClasses.get(canonicalTypeName);
+            type = DEF_CLASS_NAME.equals(canonicalTypeName) ? def.class : canonicalClassNamesToClasses.get(canonicalTypeName);
 
             char arrayBraces[] = new char[arrayDimensions];
             Arrays.fill(arrayBraces, '[');
@@ -265,7 +265,7 @@ public final class PainlessLookupUtility {
             type = type.getComponentType();
         }
 
-        if (classes.contains(type) == false) {
+        if (def.class != type && classes.contains(type) == false) {
             throw new IllegalArgumentException("type [" + canonicalTypeName + "] not found");
         }
     }

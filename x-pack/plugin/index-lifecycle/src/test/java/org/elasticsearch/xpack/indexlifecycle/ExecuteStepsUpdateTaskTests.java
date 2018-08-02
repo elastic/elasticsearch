@@ -21,6 +21,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.Phase;
 import org.elasticsearch.xpack.core.indexlifecycle.RandomStepInfo;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
+import org.elasticsearch.xpack.core.indexlifecycle.StepsFactory;
 import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
 import org.elasticsearch.xpack.core.indexlifecycle.TestLifecycleType;
 import org.elasticsearch.xpack.indexlifecycle.IndexLifecycleRunnerTests.MockClusterStateWaitStep;
@@ -94,7 +96,8 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         policyMap.put(mixedPolicyName, new LifecyclePolicyMetadata(mixedPolicy, Collections.emptyMap()));
         policyMap.put(allClusterPolicyName, new LifecyclePolicyMetadata(allClusterPolicy, Collections.emptyMap()));
         policyMap.put(invalidPolicyName, new LifecyclePolicyMetadata(invalidPolicy, Collections.emptyMap()));
-        policyStepsRegistry = new PolicyStepsRegistry();
+        StepsFactory stepsFactory = new StepsFactory(Collections.singletonMap(MockAction.NAME, LifecycleAction::<MockAction>toSteps));
+        policyStepsRegistry = new PolicyStepsRegistry(stepsFactory);
 
         IndexMetaData indexMetadata = IndexMetaData.builder(randomAlphaOfLength(5))
             .settings(settings(Version.CURRENT)

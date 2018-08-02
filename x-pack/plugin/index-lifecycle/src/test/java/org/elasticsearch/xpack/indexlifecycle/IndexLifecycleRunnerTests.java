@@ -71,7 +71,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Map<StepKey, Step> policySteps = new HashMap<>();
         policySteps.put(step.getKey(), step);
         stepMap.put(policyName, policySteps);
-        return new PolicyStepsRegistry(lifecyclePolicyMap, firstStepMap, stepMap);
+        return new PolicyStepsRegistry(lifecyclePolicyMap, firstStepMap, stepMap, null);
     }
 
     public void testRunPolicyTerminalPolicyStep() {
@@ -333,7 +333,9 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
     public void testRunPolicyWithNoStepsInRegistry() {
         String policyName = "cluster_state_action_policy";
         ClusterService clusterService = mock(ClusterService.class);
-        IndexLifecycleRunner runner = new IndexLifecycleRunner(new PolicyStepsRegistry(), clusterService, () -> 0L);
+        IndexLifecycleRunner runner = new IndexLifecycleRunner(
+            new PolicyStepsRegistry(Collections.emptySortedMap(), Collections.emptyMap(), Collections.emptyMap(), null),
+            clusterService, () -> 0L);
         IndexMetaData indexMetaData = IndexMetaData.builder("my_index").settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         // verify that no exception is thrown
@@ -452,7 +454,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         otherPolicySteps.put(otherPolicyFirstStepKey, otherPolicyFirstStep);
         otherPolicySteps.put(otherPolicySecondStepKey, otherPolicySecondStep);
         stepMap.put(otherPolicyName, otherPolicySteps);
-        PolicyStepsRegistry registry = new PolicyStepsRegistry(lifecyclePolicyMap, firstStepMap, stepMap);
+        PolicyStepsRegistry registry = new PolicyStepsRegistry(lifecyclePolicyMap, firstStepMap, stepMap, null);
 
         Settings indexSettings = Settings.EMPTY;
         Step actualStep = IndexLifecycleRunner.getCurrentStep(registry, policyName, indexSettings);

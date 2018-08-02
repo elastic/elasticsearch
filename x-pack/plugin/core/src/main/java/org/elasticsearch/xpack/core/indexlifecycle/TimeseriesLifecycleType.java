@@ -140,7 +140,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
                 throw new IllegalArgumentException("lifecycle type[" + TYPE + "] does not support phase[" + phase.getName() + "]");
         }
     }
-    
+
     @Override
     public String getNextActionName(String currentActionName, Phase phase) {
         List<String> orderedActionNames;

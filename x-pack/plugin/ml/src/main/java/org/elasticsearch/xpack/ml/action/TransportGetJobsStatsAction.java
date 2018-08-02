@@ -33,7 +33,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 
 import java.io.IOException;
@@ -53,19 +53,19 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
 
     private final ClusterService clusterService;
     private final AutodetectProcessManager processManager;
-    private final JobProvider jobProvider;
+    private final JobResultsProvider jobResultsProvider;
 
     @Inject
     public TransportGetJobsStatsAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                        ActionFilters actionFilters, ClusterService clusterService,
                                        IndexNameExpressionResolver indexNameExpressionResolver,
-                                       AutodetectProcessManager processManager, JobProvider jobProvider) {
+                                       AutodetectProcessManager processManager, JobResultsProvider jobResultsProvider) {
         super(settings, GetJobsStatsAction.NAME, threadPool, clusterService, transportService, actionFilters,
                 indexNameExpressionResolver, GetJobsStatsAction.Request::new, GetJobsStatsAction.Response::new,
                 ThreadPool.Names.MANAGEMENT);
         this.clusterService = clusterService;
         this.processManager = processManager;
-        this.jobProvider = jobProvider;
+        this.jobResultsProvider = jobResultsProvider;
     }
 
     @Override
@@ -160,13 +160,13 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
     }
 
     void gatherForecastStats(String jobId, Consumer<ForecastStats> handler, Consumer<Exception> errorHandler) {
-        jobProvider.getForecastStats(jobId, handler, errorHandler);
+        jobResultsProvider.getForecastStats(jobId, handler, errorHandler);
     }
     
     void gatherDataCountsAndModelSizeStats(String jobId, BiConsumer<DataCounts, ModelSizeStats> handler,
                                                    Consumer<Exception> errorHandler) {
-        jobProvider.dataCounts(jobId, dataCounts -> {
-            jobProvider.modelSizeStats(jobId, modelSizeStats -> {
+        jobResultsProvider.dataCounts(jobId, dataCounts -> {
+            jobResultsProvider.modelSizeStats(jobId, modelSizeStats -> {
                 handler.accept(dataCounts, modelSizeStats);
             }, errorHandler);
         }, errorHandler);

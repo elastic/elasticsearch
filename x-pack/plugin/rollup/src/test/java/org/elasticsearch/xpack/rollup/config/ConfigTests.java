@@ -9,7 +9,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.job.DateHistoGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
-import org.elasticsearch.xpack.core.rollup.job.HistoGroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
@@ -60,7 +60,7 @@ public class ConfigTests extends ESTestCase {
     public void testNoDateHisto() {
         GroupConfig.Builder groupConfig = new GroupConfig.Builder();
         groupConfig.setTerms(ConfigTestHelpers.randomTermsGroupConfig(random()));
-        groupConfig.setHisto(ConfigTestHelpers.getHisto().build());
+        groupConfig.setHisto(ConfigTestHelpers.randomHistogramGroupConfig(random()));
 
         Exception e = expectThrows(IllegalArgumentException.class, groupConfig::build);
         assertThat(e.getMessage(), equalTo("A date_histogram group is mandatory"));
@@ -202,24 +202,19 @@ public class ConfigTests extends ESTestCase {
     }
 
     public void testEmptyHistoField() {
-        HistoGroupConfig.Builder config = ConfigTestHelpers.getHisto();
-        config.setFields(null);
-        Exception e = expectThrows(IllegalArgumentException.class, config::build);
-        assertThat(e.getMessage(), equalTo("Parameter [fields] must have at least one value."));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new HistogramGroupConfig(1L, (String[]) null));
+        assertThat(e.getMessage(), equalTo("Fields must have at least one value"));
 
-        config.setFields(Collections.emptyList());
-        e = expectThrows(IllegalArgumentException.class, config::build);
-        assertThat(e.getMessage(), equalTo("Parameter [fields] must have at least one value."));
+        e = expectThrows(IllegalArgumentException.class, () -> new HistogramGroupConfig(1L, new String[0]));
+        assertThat(e.getMessage(), equalTo("Fields must have at least one value"));
     }
 
     public void testBadHistoIntervals() {
-        HistoGroupConfig.Builder config = new HistoGroupConfig.Builder().setFields(Collections.singletonList("foo"));
-        Exception e = expectThrows(IllegalArgumentException.class, config::build);
-        assertThat(e.getMessage(), equalTo("Parameter [interval] must be a positive long."));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new HistogramGroupConfig(0L, "foo", "bar"));
+        assertThat(e.getMessage(), equalTo("Interval must be a positive long"));
 
-        config.setInterval(-1);
-        e = expectThrows(IllegalArgumentException.class, config::build);
-        assertThat(e.getMessage(), equalTo("Parameter [interval] must be a positive long."));
+        e = expectThrows(IllegalArgumentException.class, () -> new HistogramGroupConfig(-1L, "foo", "bar"));
+        assertThat(e.getMessage(), equalTo("Interval must be a positive long"));
     }
 
     public void testEmptyTermsField() {

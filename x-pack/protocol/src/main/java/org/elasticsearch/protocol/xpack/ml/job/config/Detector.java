@@ -32,9 +32,11 @@ import java.util.Locale;
 import java.util.Objects;
 
 /**
- * Defines the fields to be used in the analysis.
- * <code>fieldname</code> must be set and only one of <code>byFieldName</code>
- * and <code>overFieldName</code> should be set.
+ * Defines the fields and functions used in the analysis. A combination of <code>field_name</code>,
+ * <code>by_field_name</code> and <code>over_field_name</code> can be used depending on the specific
+ * function chosen. For more information see
+ * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-job-resource.html#ml-detectorconfig">configuring
+ * detectors</a> and <a href="https://www.elastic.co/guide/en/elastic-stack-overview/current/ml-functions.html">detector functions</a>.
  */
 public class Detector implements ToXContentObject {
 
@@ -46,7 +48,7 @@ public class Detector implements ToXContentObject {
 
         /**
          * Case-insensitive from string method.
-         * Works with either JSON, json, etc.
+         * Works with either ALL, All, etc.
          *
          * @param value String representation
          * @return The data format

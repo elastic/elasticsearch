@@ -98,7 +98,7 @@ public class PublicationTests extends ESTestCase {
         Map<DiscoveryNode, ActionListener<PublishWithJoinResponse>> pendingPublications = new HashMap<>();
         Map<DiscoveryNode, ActionListener<TransportResponse.Empty>> pendingCommits = new HashMap<>();
 
-        public MockPublication(Settings settings, PublishRequest publishRequest, Discovery.AckListener ackListener,
+        MockPublication(Settings settings, PublishRequest publishRequest, Discovery.AckListener ackListener,
                                LongSupplier currentTimeSupplier) {
             super(settings, publishRequest, ackListener, currentTimeSupplier);
             this.publishRequest = publishRequest;

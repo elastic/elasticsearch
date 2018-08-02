@@ -25,9 +25,13 @@ import org.elasticsearch.transport.TransportResponse;
 import java.io.IOException;
 import java.util.Optional;
 
+/**
+ * Response to a {@link PublishRequest}. Encapsulates both a {@link PublishResponse}
+ * and an optional {@link Join}.
+ */
 public class PublishWithJoinResponse extends TransportResponse {
     private final PublishResponse publishResponse;
-    private final Optional<Join> optionalJoin; // if vote was granted due to node having lower term
+    private final Optional<Join> optionalJoin;
 
     public PublishWithJoinResponse(PublishResponse publishResponse, Optional<Join> optionalJoin) {
         this.publishResponse = publishResponse;

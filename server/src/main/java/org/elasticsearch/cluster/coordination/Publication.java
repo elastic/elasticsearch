@@ -143,7 +143,8 @@ public abstract class Publication extends AbstractComponent {
         }
 
         if (isPublishQuorum(possiblySuccessfulNodes) == false) {
-            logger.debug("onPossibleCommitFailure: non-failed nodes do not form a quorum, so {} cannot succeed", this);
+            logger.debug("onPossibleCommitFailure: non-failed nodes {} do not form a quorum, so {} cannot succeed",
+                possiblySuccessfulNodes, this);
             Exception e = new Discovery.FailedToCommitClusterStateException("non-failed nodes do not form a quorum");
             publicationTargets.stream().filter(PublicationTarget::isActive).forEach(pt -> pt.setFailed(e));
             onPossibleCompletion();
@@ -293,8 +294,7 @@ public abstract class Publication extends AbstractComponent {
 
         public void onFaultyNode(DiscoveryNode faultyNode) {
             if (isActive() && discoveryNode.equals(faultyNode)) {
-                logger.debug("onFaultyNode: [{}] is faulty, failing target in publication of version [{}] in term [{}]", faultyNode,
-                    publishRequest.getAcceptedState().version(), publishRequest.getAcceptedState().term());
+                logger.debug("onFaultyNode: [{}] is faulty, failing target in publication {}", faultyNode, Publication.this);
                 setFailed(new ElasticsearchException("faulty node"));
                 onPossibleCommitFailure();
             }

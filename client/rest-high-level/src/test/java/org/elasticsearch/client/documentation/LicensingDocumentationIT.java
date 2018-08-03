@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client.documentation;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
+import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
@@ -41,10 +41,10 @@ import static org.hamcrest.Matchers.startsWith;
  * Documentation for Licensing APIs in the high level java client.
  * Code wrapped in {@code tag} and {@code end} tags is included in the docs.
  */
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32580")
 public class LicensingDocumentationIT extends ESRestHighLevelClientTestCase {
 
     public void testPutLicense() throws Exception {
+        assumeTrue("License is only valid when tested against snapshot/test builds", Build.CURRENT.isSnapshot());
         RestHighLevelClient client = highLevelClient();
         String license = "{\"license\": {\"uid\":\"893361dc-9749-4997-93cb-802e3d7fa4a8\",\"type\":\"gold\"," +
             "\"issue_date_in_millis\":1411948800000,\"expiry_date_in_millis\":1914278399999,\"max_nodes\":1,\"issued_to\":\"issued_to\"," +

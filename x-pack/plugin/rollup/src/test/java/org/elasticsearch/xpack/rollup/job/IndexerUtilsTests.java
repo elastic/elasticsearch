@@ -37,7 +37,7 @@ import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.sum.SumAggregationBuilder;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.RollupField;
-import org.elasticsearch.xpack.core.rollup.job.DateHistoGroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
@@ -55,6 +55,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.rollup.ConfigTestHelpers.randomHistogramGroupConfig;
+import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -97,16 +98,10 @@ public class IndexerUtilsTests extends AggregatorTestCase {
 
         // Setup the composite agg
         //TODO swap this over to DateHistoConfig.Builder once DateInterval is in
-        DateHistoGroupConfig dateHistoGroupConfig = new DateHistoGroupConfig.Builder()
-                .setField(timestampField)
-                .setInterval(DateHistogramInterval.days(1))
-                .build();
+        DateHistogramGroupConfig dateHistoGroupConfig = new DateHistogramGroupConfig(timestampField, DateHistogramInterval.DAY);
         CompositeAggregationBuilder compositeBuilder =
                 new CompositeAggregationBuilder(RollupIndexer.AGGREGATION_NAME, dateHistoGroupConfig.toBuilders());
-        MetricConfig metricConfig = new MetricConfig.Builder()
-                .setField("does_not_exist")
-                .setMetrics(Collections.singletonList("max"))
-                .build();
+        MetricConfig metricConfig = new MetricConfig("does_not_exist", singletonList("max"));
         metricConfig.toBuilders().forEach(compositeBuilder::subAggregation);
 
         Aggregator aggregator = createAggregator(compositeBuilder, indexSearcher, timestampFieldType, valueFieldType);
@@ -171,9 +166,9 @@ public class IndexerUtilsTests extends AggregatorTestCase {
                 .interval(1);
 
         CompositeAggregationBuilder compositeBuilder = new CompositeAggregationBuilder(RollupIndexer.AGGREGATION_NAME,
-                Collections.singletonList(dateHisto));
+                singletonList(dateHisto));
 
-        MetricConfig metricConfig = new MetricConfig.Builder().setField(valueField).setMetrics(Collections.singletonList("max")).build();
+        MetricConfig metricConfig = new MetricConfig(valueField, singletonList("max"));
         metricConfig.toBuilders().forEach(compositeBuilder::subAggregation);
 
         Aggregator aggregator = createAggregator(compositeBuilder, indexSearcher, timestampFieldType, valueFieldType);
@@ -227,9 +222,9 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         TermsValuesSourceBuilder terms
                 = new TermsValuesSourceBuilder("the_terms." + TermsAggregationBuilder.NAME).field(valueField);
         CompositeAggregationBuilder compositeBuilder = new CompositeAggregationBuilder(RollupIndexer.AGGREGATION_NAME,
-                Collections.singletonList(terms));
+                singletonList(terms));
 
-        MetricConfig metricConfig = new MetricConfig.Builder().setField(valueField).setMetrics(Collections.singletonList("max")).build();
+        MetricConfig metricConfig = new MetricConfig(valueField, singletonList("max"));
         metricConfig.toBuilders().forEach(compositeBuilder::subAggregation);
 
         Aggregator aggregator = createAggregator(compositeBuilder, indexSearcher, valueFieldType);
@@ -293,9 +288,9 @@ public class IndexerUtilsTests extends AggregatorTestCase {
                     .dateHistogramInterval(new DateHistogramInterval("1d"));
 
         CompositeAggregationBuilder compositeBuilder = new CompositeAggregationBuilder(RollupIndexer.AGGREGATION_NAME,
-                Collections.singletonList(dateHisto));
+                singletonList(dateHisto));
 
-        MetricConfig metricConfig = new MetricConfig.Builder().setField("another_field").setMetrics(Arrays.asList("avg", "sum")).build();
+        MetricConfig metricConfig = new MetricConfig("another_field", Arrays.asList("avg", "sum"));
         metricConfig.toBuilders().forEach(compositeBuilder::subAggregation);
 
         Aggregator aggregator = createAggregator(compositeBuilder, indexSearcher, timestampFieldType, valueFieldType);
@@ -542,7 +537,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         CompositeAggregationBuilder compositeBuilder = new CompositeAggregationBuilder(RollupIndexer.AGGREGATION_NAME,
             termsGroupConfig.toBuilders()).size(numDocs*2);
 
-        MetricConfig metricConfig = new MetricConfig.Builder().setField(metricField).setMetrics(Collections.singletonList("max")).build();
+        MetricConfig metricConfig = new MetricConfig(metricField, singletonList("max"));
         metricConfig.toBuilders().forEach(compositeBuilder::subAggregation);
 
         Aggregator aggregator = createAggregator(compositeBuilder, indexSearcher, valueFieldType, metricFieldType);

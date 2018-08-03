@@ -205,6 +205,8 @@ public class RestHighLevelClient implements Closeable {
     private final SnapshotClient snapshotClient = new SnapshotClient(this);
     private final TasksClient tasksClient = new TasksClient(this);
     private final XPackClient xPackClient = new XPackClient(this);
+    private final WatcherClient watcherClient = new WatcherClient(this);
+    private final LicenseClient licenseClient = new LicenseClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -296,17 +298,37 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * A wrapper for the {@link RestHighLevelClient} that provides methods for
-     * accessing the Elastic Licensed X-Pack APIs that are shipped with the
-     * default distribution of Elasticsearch. All of these APIs will 404 if run
-     * against the OSS distribution of Elasticsearch.
+     * Provides methods for accessing the Elastic Licensed X-Pack Info
+     * and Usage APIs that are shipped with the default distribution of
+     * Elasticsearch. All of these APIs will 404 if run against the OSS
+     * distribution of Elasticsearch.
      * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/xpack-api.html">
-     * X-Pack APIs on elastic.co</a> for more information.
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/info-api.html">
+     * Info APIs on elastic.co</a> for more information.
      */
     public final XPackClient xpack() {
         return xPackClient;
     }
+
+    /**
+     * Provides methods for accessing the Elastic Licensed Watcher APIs that
+     * are shipped with the default distribution of Elasticsearch. All of
+     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
+     * <p>
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api.html">
+     * Watcher APIs on elastic.co</a> for more information.
+     */
+    public WatcherClient watcher() { return watcherClient; }
+
+    /**
+     * Provides methods for accessing the Elastic Licensed Licensing APIs that
+     * are shipped with the default distribution of Elasticsearch. All of
+     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
+     * <p>
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/licensing-apis.html">
+     * Licensing APIs on elastic.co</a> for more information.
+     */
+    public LicenseClient license() { return licenseClient; }
 
     /**
      * Executes a bulk request using the Bulk API.

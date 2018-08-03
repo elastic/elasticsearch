@@ -1,0 +1,28 @@
+//https://github.com/elastic/elasticsearch/issues/31863
+stringSelectConstantAsciiEqualsConstant
+SELECT ASCII('A') = 65 a FROM "test_emp" WHERE ASCII('A') = 65 ORDER BY emp_no;
+
+//Unsupported yet
+ltrimFilterWithLike
+SELECT LTRIM("first_name") lt FROM "test_emp" WHERE LTRIM("first_name") LIKE '%a%';
+
+// related to for https://github.com/elastic/elasticsearch/issues/32589
+// H2 is Locale sensitive, while ES-SQL is not (so far)
+selectInsertWithLcaseAndLengthWithOrderBy
+SELECT "first_name" origFN, "last_name" origLN, INSERT(UCASE("first_name"),LENGTH("first_name")+1,123,LCASE("last_name")) modified FROM "test_emp" WHERE ASCII("first_name")=65 ORDER BY "first_name" ASC, "last_name" ASC LIMIT 10;
+
+
+// related to https://github.com/elastic/elasticsearch/issues/32589
+// H2 is Locale sensitive, while ES-SQL is not (so far)
+upperCasingTheSecondLetterFromTheRightFromFirstName
+SELECT CONCAT(CONCAT(SUBSTRING("first_name",1,LENGTH("first_name")-2),UCASE(LEFT(RIGHT("first_name",2),1))),RIGHT("first_name",1)) f FROM "test_emp" ORDER BY "first_name" LIMIT 10;
+
+// related to https://github.com/elastic/elasticsearch/issues/32589
+// H2 is Locale sensitive, while ES-SQL is not (so far)
+upperCasingTheSecondLetterFromTheRightFromFirstNameWithOrderByAndGroupBy
+SELECT CONCAT(CONCAT(SUBSTRING("first_name",1,LENGTH("first_name")-2),UCASE(LEFT(RIGHT("first_name",2),1))),RIGHT("first_name",1)) f, COUNT(*) c FROM "test_emp" GROUP BY CONCAT(CONCAT(SUBSTRING("first_name",1,LENGTH("first_name")-2),UCASE(LEFT(RIGHT("first_name",2),1))),RIGHT("first_name",1)) ORDER BY CONCAT(CONCAT(SUBSTRING("first_name",1,LENGTH("first_name")-2),UCASE(LEFT(RIGHT("first_name",2),1))),RIGHT("first_name",1)) LIMIT 10;
+
+// related to https://github.com/elastic/elasticsearch/issues/32589
+// H2 is Locale sensitive, while ES-SQL is not (so far)
+upperCasingTheSecondLetterFromTheRightFromFirstNameWithWhere
+SELECT CONCAT(CONCAT(SUBSTRING("first_name",1,LENGTH("first_name")-2),UCASE(LEFT(RIGHT("first_name",2),1))),RIGHT("first_name",1)) f, COUNT(*) c FROM "test_emp" WHERE CONCAT(CONCAT(SUBSTRING("first_name",1,LENGTH("first_name")-2),UCASE(LEFT(RIGHT("first_name",2),1))),RIGHT("first_name",1))='AlejandRo' GROUP BY CONCAT(CONCAT(SUBSTRING("first_name",1,LENGTH("first_name")-2),UCASE(LEFT(RIGHT("first_name",2),1))),RIGHT("first_name",1)) ORDER BY CONCAT(CONCAT(SUBSTRING("first_name",1,LENGTH("first_name")-2),UCASE(LEFT(RIGHT("first_name",2),1))),RIGHT("first_name",1)) LIMIT 10;

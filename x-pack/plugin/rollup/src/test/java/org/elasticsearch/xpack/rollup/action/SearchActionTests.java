@@ -541,7 +541,8 @@ public class SearchActionTests extends ESTestCase {
         BoolQueryBuilder bool1 = new BoolQueryBuilder()
                 .must(TransportRollupSearchAction.rewriteQuery(request.source().query(), caps))
                 .filter(new TermQueryBuilder(RollupField.formatMetaField(RollupField.ID.getPreferredName()), "foo"))
-                .filter(new TermQueryBuilder(RollupField.formatMetaField(RollupField.VERSION_FIELD), Rollup.ROLLUP_VERSION));
+                .filter(new TermsQueryBuilder(RollupField.formatMetaField(RollupField.VERSION_FIELD),
+                    new long[]{Rollup.ROLLUP_VERSION_V1, Rollup.ROLLUP_VERSION_V2}));
         assertThat(msearch.requests().get(1).source().query(), equalTo(bool1));
     }
 

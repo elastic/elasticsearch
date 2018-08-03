@@ -47,13 +47,13 @@ import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.job.DateHistoGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.IndexerState;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
-import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Before;
@@ -143,7 +143,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         DateHistoGroupConfig dateHistoConfig = new DateHistoGroupConfig.Builder()
                 .setField(field)
                 .setInterval(new DateHistogramInterval("1h")).build();
-        MetricConfig config = new MetricConfig.Builder().setField("counter").setMetrics(Arrays.asList("avg", "sum", "max", "min")).build();
+        MetricConfig config = new MetricConfig("counter", Arrays.asList("avg", "sum", "max", "min"));
         RollupJobConfig job = createJob(rollupIndex, new GroupConfig.Builder().setDateHisto(dateHistoConfig).build(),
                 Collections.singletonList(config));
         final List<Map<String, Object>> dataset = new ArrayList<>();
@@ -417,7 +417,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         DateHistoGroupConfig dateHistoConfig = new DateHistoGroupConfig.Builder()
                 .setField(timestampField)
                 .setInterval(new DateHistogramInterval(timeInterval)).build();
-        MetricConfig metricConfig = new MetricConfig.Builder().setField(valueField).setMetrics(Collections.singletonList("avg")).build();
+        MetricConfig metricConfig = new MetricConfig(valueField, Collections.singletonList("avg"));
         RollupJobConfig job = createJob(rollupIndex, new GroupConfig.Builder().setDateHisto(dateHistoConfig).build(),
                 Collections.singletonList(metricConfig));
 

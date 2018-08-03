@@ -401,7 +401,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         });
 
         GroupConfig.Builder groupConfig = ConfigTestHelpers.getGroupConfig();
-        groupConfig.setHisto(ConfigTestHelpers.getHisto().setFields(Collections.singletonList("abc")).build());
+        groupConfig.setHisto(new HistogramGroupConfig(1, "abc"));
 
         List<IndexRequest> docs = IndexerUtils.processBuckets(composite, "foo", new RollupJobStats(),
             groupConfig.build(), "foo", true);
@@ -454,7 +454,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         });
 
         GroupConfig.Builder groupConfig = ConfigTestHelpers.getGroupConfig();
-        groupConfig.setHisto(ConfigTestHelpers.getHisto().setFields(Collections.singletonList("abc")).build());
+        groupConfig.setHisto(new HistogramGroupConfig(1, "abc"));
 
         List<IndexRequest> docs = IndexerUtils.processBuckets(composite, "foo", new RollupJobStats(),
             groupConfig.build(), "foo", true);

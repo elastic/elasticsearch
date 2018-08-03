@@ -3,6 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
@@ -520,7 +521,7 @@ public class ShardChangesIT extends ESIntegTestCase {
                 ShardFollowNodeTask.Status status = (ShardFollowNodeTask.Status) taskInfo.getStatus();
                 assertThat(status, notNullValue());
                 assertThat("incorrect global checkpoint " + shardFollowTaskParams,
-                    status.getFollowerGlobalCheckpoint(),
+                    status.followerGlobalCheckpoint(),
                     equalTo(numDocsPerShard.get(shardFollowTaskParams.getLeaderShardId())));
             }
         };

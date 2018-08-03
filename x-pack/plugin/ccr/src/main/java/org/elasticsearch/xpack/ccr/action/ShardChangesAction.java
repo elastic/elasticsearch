@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -150,28 +151,37 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
     public static final class Response extends ActionResponse {
 
         private long indexMetadataVersion;
-        private long globalCheckpoint;
-        private Translog.Operation[] operations;
-
-        Response() {
-        }
-
-        Response(long indexMetadataVersion, long globalCheckpoint, final Translog.Operation[] operations) {
-            this.indexMetadataVersion = indexMetadataVersion;
-            this.globalCheckpoint = globalCheckpoint;
-            this.operations = operations;
-        }
 
         public long getIndexMetadataVersion() {
             return indexMetadataVersion;
         }
 
+        private long globalCheckpoint;
+
         public long getGlobalCheckpoint() {
             return globalCheckpoint;
         }
 
+        private long maxSeqNo;
+
+        public long getMaxSeqNo() {
+            return maxSeqNo;
+        }
+
+        private Translog.Operation[] operations;
+
         public Translog.Operation[] getOperations() {
             return operations;
+        }
+
+        Response() {
+        }
+
+        Response(final long indexMetadataVersion, final long globalCheckpoint, final long maxSeqNo, final Translog.Operation[] operations) {
+            this.indexMetadataVersion = indexMetadataVersion;
+            this.globalCheckpoint = globalCheckpoint;
+            this.maxSeqNo = maxSeqNo;
+            this.operations = operations;
         }
 
         @Override
@@ -179,6 +189,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             super.readFrom(in);
             indexMetadataVersion = in.readVLong();
             globalCheckpoint = in.readZLong();
+            maxSeqNo = in.readZLong();
             operations = in.readArray(Translog.Operation::readOperation, Translog.Operation[]::new);
         }
 
@@ -187,6 +198,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             super.writeTo(out);
             out.writeVLong(indexMetadataVersion);
             out.writeZLong(globalCheckpoint);
+            out.writeZLong(maxSeqNo);
             out.writeArray(Translog.Operation::writeOperation, operations);
         }
 
@@ -194,19 +206,16 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
         public boolean equals(final Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            final Response response = (Response) o;
-            return indexMetadataVersion == response.indexMetadataVersion &&
-                globalCheckpoint == response.globalCheckpoint &&
-                Arrays.equals(operations, response.operations);
+            final Response that = (Response) o;
+            return indexMetadataVersion == that.indexMetadataVersion &&
+                    globalCheckpoint == that.globalCheckpoint &&
+                    maxSeqNo == that.maxSeqNo &&
+                    Arrays.equals(operations, that.operations);
         }
 
         @Override
         public int hashCode() {
-            int result = 1;
-            result += Objects.hashCode(indexMetadataVersion);
-            result += Objects.hashCode(globalCheckpoint);
-            result += Arrays.hashCode(operations);
-            return result;
+            return Objects.hash(indexMetadataVersion, globalCheckpoint, maxSeqNo, Arrays.hashCode(operations));
         }
     }
 
@@ -231,12 +240,16 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
         protected Response shardOperation(Request request, ShardId shardId) throws IOException {
             IndexService indexService = indicesService.indexServiceSafe(request.getShard().getIndex());
             IndexShard indexShard = indexService.getShard(request.getShard().id());
-            long globalCheckpoint = indexShard.getGlobalCheckpoint();
+            final SeqNoStats seqNoStats =  indexShard.seqNoStats();
             final long indexMetaDataVersion = clusterService.state().metaData().index(shardId.getIndex()).getVersion();
 
-            final Translog.Operation[] operations = getOperations(indexShard, globalCheckpoint, request.fromSeqNo,
-                request.maxOperationCount, request.maxOperationSizeInBytes);
-            return new Response(indexMetaDataVersion, globalCheckpoint, operations);
+            final Translog.Operation[] operations = getOperations(
+                    indexShard,
+                    seqNoStats.getGlobalCheckpoint(),
+                    request.fromSeqNo,
+                    request.maxOperationCount,
+                    request.maxOperationSizeInBytes);
+            return new Response(indexMetaDataVersion, seqNoStats.getGlobalCheckpoint(), seqNoStats.getMaxSeqNo(), operations);
         }
 
         @Override
@@ -292,4 +305,5 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
         }
         return operations.toArray(EMPTY_OPERATIONS_ARRAY);
     }
+
 }

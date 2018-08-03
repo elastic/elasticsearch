@@ -114,12 +114,12 @@ public class CcrStatsAction extends Action<CcrStatsAction.TasksResponse> {
             /*
              * This is a limitation of the current tasks API. When the transport action is executed, the tasks API invokes this match method
              * to find the tasks on which to execute the task-level operation (see TransportTasksAction#nodeOperation and
-             * TransportTasksAction#taskOperation). If we do the matching here, then we can not match index patterns. Therefore, we defer
-             * deciding whether or not the task matches the request to the transport action (see TransportCcrStatsAction#taskOperation)
-             * where we can decide on the basis of the cluster state whether or not the task matches any of the index patterns in the
-             * request.
+             * TransportTasksAction#processTasks). If we do the matching here, then we can not match index patterns. Therefore, override
+             * TransportTasksAction#processTasks (see TransportCcrStatsAction#processTasks) and do the matching there. We should never see
+             * this method invoked and since we can not support matching a task on the basis of the request here, we throw that this
+             * operation is unsupported.
              */
-            return task instanceof ShardFollowNodeTask;
+            throw new UnsupportedOperationException();
         }
 
         @Override

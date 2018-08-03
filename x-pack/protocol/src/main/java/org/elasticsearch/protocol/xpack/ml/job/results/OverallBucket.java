@@ -137,7 +137,7 @@ public class OverallBucket implements ToXContentObject {
             return true;
         }
 
-        if (other instanceof OverallBucket == false) {
+        if (other == null || getClass() != other.getClass()) {
             return false;
         }
 
@@ -197,7 +197,7 @@ public class OverallBucket implements ToXContentObject {
             if (this == other) {
                 return true;
             }
-            if (other instanceof JobInfo == false) {
+            if (other == null || getClass() != other.getClass()) {
                 return false;
             }
             JobInfo that = (JobInfo) other;

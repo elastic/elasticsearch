@@ -229,7 +229,7 @@ public class Bucket implements ToXContentObject {
             return true;
         }
 
-        if (other instanceof Bucket == false) {
+        if (other == null || getClass() != other.getClass()) {
             return false;
         }
 

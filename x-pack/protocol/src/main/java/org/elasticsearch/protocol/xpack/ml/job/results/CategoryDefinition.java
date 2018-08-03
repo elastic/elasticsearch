@@ -148,7 +148,7 @@ public class CategoryDefinition implements ToXContentObject {
         if (this == other) {
             return true;
         }
-        if (other instanceof CategoryDefinition == false) {
+        if (other == null || getClass() != other.getClass()) {
             return false;
         }
         CategoryDefinition that = (CategoryDefinition) other;

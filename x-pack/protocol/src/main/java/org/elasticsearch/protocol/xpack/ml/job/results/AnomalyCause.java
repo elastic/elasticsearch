@@ -268,7 +268,7 @@ public class AnomalyCause implements ToXContentObject {
             return true;
         }
 
-        if (other instanceof AnomalyCause == false) {
+        if (other == null || getClass() != other.getClass()) {
             return false;
         }
 

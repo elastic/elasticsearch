@@ -396,7 +396,7 @@ public class AnomalyRecord implements ToXContentObject {
             return true;
         }
 
-        if (other instanceof AnomalyRecord == false) {
+        if (other == null || getClass() != other.getClass()) {
             return false;
         }
 

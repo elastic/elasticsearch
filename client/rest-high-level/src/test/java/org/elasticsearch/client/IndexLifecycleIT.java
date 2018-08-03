@@ -90,8 +90,8 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         createIndex("foo", Settings.builder().put("index.lifecycle.name", "bar").build());
         createIndex("baz", Settings.builder().put("index.lifecycle.name", "eggplant").build());
         SetIndexLifecyclePolicyRequest req = new SetIndexLifecyclePolicyRequest(policy, "foo", "baz");
-        SetIndexLifecyclePolicyResponse response = execute(req, highLevelClient().xpack().indexLifecycle()::setIndexLifecyclePolicy,
-            highLevelClient().xpack().indexLifecycle()::setIndexLifecyclePolicyAsync);
+        SetIndexLifecyclePolicyResponse response = execute(req, highLevelClient().indexLifecycle()::setIndexLifecyclePolicy,
+                highLevelClient().indexLifecycle()::setIndexLifecyclePolicyAsync);
         assertThat(response.hasFailures(), is(false));
         assertThat(response.getFailedIndexes().isEmpty(), is(true));
 

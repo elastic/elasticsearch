@@ -385,7 +385,7 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
                     @Override
                     public void onResponse(DiscoveryNode remoteNode) {
                         assert remoteNode.isMasterNode() : remoteNode + " is not master-eligible";
-                        assert remoteNode.equals(getLocalNode()) : remoteNode + " is the local node";
+                        assert remoteNode.equals(getLocalNode()) == false : remoteNode + " is the local node";
                         synchronized (mutex) {
                             if (running) {
                                 discoveryNode.set(remoteNode);

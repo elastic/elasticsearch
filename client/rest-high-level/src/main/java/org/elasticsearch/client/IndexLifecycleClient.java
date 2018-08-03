@@ -20,6 +20,8 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.protocol.xpack.indexlifecycle.PutOperationModeRequest;
+import org.elasticsearch.protocol.xpack.indexlifecycle.PutOperationModeResponse;
 import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleResponse;
 import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyRequest;
@@ -63,6 +65,34 @@ public class IndexLifecycleClient {
                                              ActionListener<SetIndexLifecyclePolicyResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::setIndexLifecyclePolicy, options,
             SetIndexLifecyclePolicyResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Set the operation mode for the Index Lifecycle Management feature.
+     * See <a href="https://fix-me-when-we-have-docs.com">
+     * the docs</a> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public PutOperationModeResponse putOperationMode(PutOperationModeRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::putOperationMode, options,
+                PutOperationModeResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously set the operation mode for the Index Lifecycle Management feature.
+     * See <a href="https://fix-me-when-we-have-docs.com">
+     * the docs</a> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void putOperationModeAsync(PutOperationModeRequest request, RequestOptions options,
+            ActionListener<PutOperationModeResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::putOperationMode, options,
+                PutOperationModeResponse::fromXContent, listener, emptySet());
     }
 
     /**

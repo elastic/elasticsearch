@@ -109,6 +109,8 @@ import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
+import org.elasticsearch.protocol.xpack.indexlifecycle.OperationMode;
+import org.elasticsearch.protocol.xpack.indexlifecycle.PutOperationModeRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyRequest;
 import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
@@ -1167,6 +1169,17 @@ final class RequestConverters {
         Params params = new Params(request);
         params.withIndicesOptions(setPolicyRequest.indicesOptions());
         params.withMasterTimeout(setPolicyRequest.masterNodeTimeout());
+        return request;
+    }
+
+    static Request putOperationMode(PutOperationModeRequest putOperationModeRequest) {
+        Request request = new Request(HttpGet.METHOD_NAME,
+            new EndpointBuilder()
+                .addPathPartAsIs("_ilm")
+                .addPathPartAsIs(putOperationModeRequest.getMode() == OperationMode.RUNNING ? "start" : "stop")
+            .build());
+        Params params = new Params(request);
+        params.withMasterTimeout(putOperationModeRequest.masterNodeTimeout());
         return request;
     }
 

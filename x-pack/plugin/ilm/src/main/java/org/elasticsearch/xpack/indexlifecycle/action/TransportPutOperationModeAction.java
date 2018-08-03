@@ -17,21 +17,21 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.protocol.xpack.indexlifecycle.PutOperationModeRequest;
+import org.elasticsearch.protocol.xpack.indexlifecycle.PutOperationModeResponse;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.indexlifecycle.action.PutOperationModeAction;
-import org.elasticsearch.xpack.core.indexlifecycle.action.PutOperationModeAction.Request;
-import org.elasticsearch.xpack.core.indexlifecycle.action.PutOperationModeAction.Response;
 import org.elasticsearch.xpack.indexlifecycle.OperationModeUpdateTask;
 
-public class TransportPutOperationModeAction extends TransportMasterNodeAction<Request, Response> {
+public class TransportPutOperationModeAction extends TransportMasterNodeAction<PutOperationModeRequest, PutOperationModeResponse> {
 
     @Inject
     public TransportPutOperationModeAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                            ThreadPool threadPool, ActionFilters actionFilters,
                                            IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, PutOperationModeAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            indexNameExpressionResolver, Request::new);
+            indexNameExpressionResolver, PutOperationModeRequest::new);
     }
 
     @Override
@@ -40,28 +40,28 @@ public class TransportPutOperationModeAction extends TransportMasterNodeAction<R
     }
 
     @Override
-    protected Response newResponse() {
-        return new Response();
+    protected PutOperationModeResponse newResponse() {
+        return new PutOperationModeResponse();
     }
 
     @Override
-    protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) {
+    protected void masterOperation(PutOperationModeRequest request, ClusterState state, ActionListener<PutOperationModeResponse> listener) {
         clusterService.submitStateUpdateTask("ilm_operation_mode_update",
-            new AckedClusterStateUpdateTask<Response>(request, listener) {
+            new AckedClusterStateUpdateTask<PutOperationModeResponse>(request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     return (new OperationModeUpdateTask(request.getMode())).execute(currentState);
                 }
 
                 @Override
-                protected Response newResponse(boolean acknowledged) {
-                    return new Response(acknowledged);
+                protected PutOperationModeResponse newResponse(boolean acknowledged) {
+                    return new PutOperationModeResponse(acknowledged);
                 }
             });
     }
 
     @Override
-    protected ClusterBlockException checkBlock(Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(PutOperationModeRequest request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 }

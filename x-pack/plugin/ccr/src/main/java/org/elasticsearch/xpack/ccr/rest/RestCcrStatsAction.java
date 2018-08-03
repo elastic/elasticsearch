@@ -22,8 +22,8 @@ public class RestCcrStatsAction extends BaseRestHandler {
 
     public RestCcrStatsAction(final Settings settings, final RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.GET, "/_xpack/ccr/_stats", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_xpack/ccr/_stats/{index}", this);
+        controller.registerHandler(RestRequest.Method.GET, "/_ccr/stats", this);
+        controller.registerHandler(RestRequest.Method.GET, "/_ccr/stats/{index}", this);
     }
 
     @Override

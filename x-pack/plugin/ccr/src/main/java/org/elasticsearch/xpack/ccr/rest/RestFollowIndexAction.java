@@ -22,12 +22,12 @@ public class RestFollowIndexAction extends BaseRestHandler {
 
     public RestFollowIndexAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.POST, "/{index}/_xpack/ccr/_follow", this);
+        controller.registerHandler(RestRequest.Method.POST, "/{index}/_ccr/follow", this);
     }
 
     @Override
     public String getName() {
-        return "xpack_ccr_follow_index_action";
+        return "ccr_follow_index_action";
     }
 
     @Override

@@ -34,6 +34,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -115,7 +116,10 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
          * - index #5
          * - If flush and the translog/lucene retention disabled, delete #1 will be removed while index #0 is still retained and replayed.
          */
-        Settings settings = Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 10).build();
+        Settings settings = Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 10)
+            // If soft-deletes is enabled, delete#1 will be reclaimed because its segment (segment_1) is fully deleted
+            // index#0 will be retained if merge is disabled; otherwise it will be reclaimed because gcp=3 and retained_ops=0
+            .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false).build();
         try (ReplicationGroup shards = createGroup(1, settings)) {
             shards.startAll();
             // create out of order delete and index op on replica

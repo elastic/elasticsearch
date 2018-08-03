@@ -1,15 +1,15 @@
 {
-  "xpack.ccr.follow_index": {
+  "ccr.create_and_follow_index": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current",
     "methods": [ "POST" ],
     "url": {
-      "path": "/{index}/_xpack/ccr/_follow",
-      "paths": [ "/{index}/_xpack/ccr/_follow" ],
+      "path": "/{index}/_ccr/create_and_follow",
+      "paths": [ "/{index}/_ccr/create_and_follow" ],
       "parts": {
         "index": {
           "type": "string",
           "required": true,
-          "description": "The name of the follower index."
+          "description": "The name of the follower index"
         }
       }
     },

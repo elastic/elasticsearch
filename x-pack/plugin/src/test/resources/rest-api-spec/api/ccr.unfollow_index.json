@@ -1,10 +1,10 @@
 {
-  "xpack.ccr.unfollow_index": {
+  "ccr.unfollow_index": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current",
     "methods": [ "POST" ],
     "url": {
-      "path": "/{index}/_xpack/ccr/_unfollow",
-      "paths": [ "/{index}/_xpack/ccr/_unfollow" ],
+      "path": "/{index}/_ccr/unfollow",
+      "paths": [ "/{index}/_ccr/unfollow" ],
       "parts": {
         "index": {
           "type": "string",

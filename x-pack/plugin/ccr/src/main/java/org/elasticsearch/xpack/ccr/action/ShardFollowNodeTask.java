@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -68,23 +69,23 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private final BiConsumer<TimeValue, Runnable> scheduler;
     private final LongSupplier relativeTimeProvider;
 
-    private volatile long leaderGlobalCheckpoint;
-    private volatile long leaderMaxSeqNo;
-    private volatile long lastRequestedSeqNo;
-    private volatile long followerGlobalCheckpoint = 0;
-    private volatile long followerMaxSeqNo = 0;
-    private volatile int numConcurrentReads = 0;
-    private volatile int numConcurrentWrites = 0;
-    private volatile long currentIndexMetadataVersion = 0;
-    private volatile long totalFetchTimeNanos = 0;
-    private volatile long numberOfSuccessfulFetches = 0;
-    private volatile long numberOfFailedFetches = 0;
-    private volatile long operationsReceived = 0;
-    private volatile long totalTransferredBytes = 0;
-    private volatile long totalIndexTimeNanos = 0;
-    private volatile long numberOfSuccessfulBulkOperations = 0;
-    private volatile long numberOfFailedBulkOperations = 0;
-    private volatile long numberOfOperationsIndexed = 0;
+    private long leaderGlobalCheckpoint;
+    private long leaderMaxSeqNo;
+    private long lastRequestedSeqNo;
+    private long followerGlobalCheckpoint = 0;
+    private long followerMaxSeqNo = 0;
+    private int numConcurrentReads = 0;
+    private int numConcurrentWrites = 0;
+    private long currentIndexMetadataVersion = 0;
+    private long totalFetchTimeNanos = 0;
+    private long numberOfSuccessfulFetches = 0;
+    private long numberOfFailedFetches = 0;
+    private long operationsReceived = 0;
+    private long totalTransferredBytes = 0;
+    private long totalIndexTimeNanos = 0;
+    private long numberOfSuccessfulBulkOperations = 0;
+    private long numberOfFailedBulkOperations = 0;
+    private long numberOfOperationsIndexed = 0;
     private final Queue<Translog.Operation> buffer = new PriorityQueue<>(Comparator.comparing(Translog.Operation::seqNo));
 
     ShardFollowNodeTask(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers,
@@ -102,16 +103,20 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             final long leaderMaxSeqNo,
             final long followerGlobalCheckpoint,
             final long followerMaxSeqNo) {
-        this.leaderGlobalCheckpoint = leaderGlobalCheckpoint;
-        this.leaderMaxSeqNo = leaderMaxSeqNo;
-        this.followerGlobalCheckpoint = followerGlobalCheckpoint;
-        this.followerMaxSeqNo = followerMaxSeqNo;
-        this.lastRequestedSeqNo = followerGlobalCheckpoint;
+        synchronized (ShardFollowNodeTask.this) {
+            this.leaderGlobalCheckpoint = leaderGlobalCheckpoint;
+            this.leaderMaxSeqNo = leaderMaxSeqNo;
+            this.followerGlobalCheckpoint = followerGlobalCheckpoint;
+            this.followerMaxSeqNo = followerMaxSeqNo;
+            this.lastRequestedSeqNo = followerGlobalCheckpoint;
+        }
 
         // Forcefully updates follower mapping, this gets us the leader imd version and
         // makes sure that leader and follower mapping are identical.
         updateMapping(imdVersion -> {
-            currentIndexMetadataVersion = imdVersion;
+            synchronized (ShardFollowNodeTask.this) {
+                currentIndexMetadataVersion = imdVersion;
+            }
             LOGGER.info("{} Started to follow leader shard {}, followGlobalCheckPoint={}, indexMetaDataVersion={}",
                 params.getFollowShardId(), params.getLeaderShardId(), followerGlobalCheckpoint, imdVersion);
             coordinateReads();

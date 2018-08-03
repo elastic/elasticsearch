@@ -21,12 +21,12 @@ public class RestUnfollowIndexAction extends BaseRestHandler {
 
     public RestUnfollowIndexAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.POST, "/{index}/_xpack/ccr/_unfollow", this);
+        controller.registerHandler(RestRequest.Method.POST, "/{index}/_ccr/unfollow", this);
     }
 
     @Override
     public String getName() {
-        return "xpack_ccr_unfollow_index_action";
+        return "ccr_unfollow_index_action";
     }
 
     @Override

@@ -52,7 +52,7 @@ public class TestTranslog {
     /**
      * Corrupts random translog file (translog-N.tlog) from the given translog directory.
      *
-     * @return a translog file that have been corrupted.
+     * @return a translog file which has been corrupted.
      */
     public static Path corruptRandomTranslogFile(Logger logger, Random random, Path translogDir, long minGeneration) throws
             IOException {

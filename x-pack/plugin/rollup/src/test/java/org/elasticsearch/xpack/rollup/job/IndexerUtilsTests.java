@@ -36,7 +36,7 @@ import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.sum.SumAggregationBuilder;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.RollupField;
-import org.elasticsearch.xpack.core.rollup.job.DateHistoGroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
@@ -97,10 +97,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
 
         // Setup the composite agg
         //TODO swap this over to DateHistoConfig.Builder once DateInterval is in
-        DateHistoGroupConfig dateHistoGroupConfig = new DateHistoGroupConfig.Builder()
-                .setField(timestampField)
-                .setInterval(DateHistogramInterval.days(1))
-                .build();
+        DateHistogramGroupConfig dateHistoGroupConfig = new DateHistogramGroupConfig(timestampField, DateHistogramInterval.DAY);
         CompositeAggregationBuilder compositeBuilder =
                 new CompositeAggregationBuilder(RollupIndexer.AGGREGATION_NAME, dateHistoGroupConfig.toBuilders());
         MetricConfig metricConfig = new MetricConfig("does_not_exist", singletonList("max"));

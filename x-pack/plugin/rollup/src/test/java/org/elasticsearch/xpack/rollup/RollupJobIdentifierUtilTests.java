@@ -26,10 +26,10 @@ import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
 import org.joda.time.DateTimeZone;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
+import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RollupJobIdentifierUtilTests extends ESTestCase {
@@ -103,10 +103,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
         GroupConfig.Builder group = ConfigTestHelpers.getGroupConfig();
         group.setDateHisto(new DateHistoGroupConfig.Builder().setField("foo").setInterval(new DateHistogramInterval("1h")).build());
         job.setGroupConfig(group.build());
-        job.setMetricsConfig(Collections.singletonList(new MetricConfig.Builder()
-                .setField("bar")
-                .setMetrics(Collections.singletonList("max"))
-            .build()));
+        job.setMetricsConfig(singletonList(new MetricConfig("bar", singletonList("max"))));
         RollupJobCaps cap = new RollupJobCaps(job.build());
         Set<RollupJobCaps> caps = singletonSet(cap);
 
@@ -168,10 +165,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
         GroupConfig.Builder group = ConfigTestHelpers.getGroupConfig();
         group.setDateHisto(new DateHistoGroupConfig.Builder().setField("foo").setInterval(new DateHistogramInterval("1h")).build());
         job.setGroupConfig(group.build());
-        job.setMetricsConfig(Collections.singletonList(new MetricConfig.Builder()
-                .setField("bar")
-                .setMetrics(Collections.singletonList("max"))
-                .build()));
+        job.setMetricsConfig(singletonList(new MetricConfig("bar", singletonList("max"))));
         RollupJobCaps cap = new RollupJobCaps(job.build());
         Set<RollupJobCaps> caps = new HashSet<>(2);
         caps.add(cap);
@@ -180,10 +174,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
         GroupConfig.Builder group2 = ConfigTestHelpers.getGroupConfig();
         group2.setDateHisto(new DateHistoGroupConfig.Builder().setField("foo").setInterval(new DateHistogramInterval("1h")).build());
         job2.setGroupConfig(group.build());
-        job.setMetricsConfig(Collections.singletonList(new MetricConfig.Builder()
-                .setField("bar")
-                .setMetrics(Collections.singletonList("min"))
-                .build()));
+        job.setMetricsConfig(singletonList(new MetricConfig("bar", singletonList("min"))));
         RollupJobCaps cap2 = new RollupJobCaps(job2.build());
         caps.add(cap2);
 
@@ -331,12 +322,8 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
                                 .build())
                         .setHisto(new HistogramGroupConfig(1L, "baz")) // <-- NOTE right type but wrong name
                         .build())
-                .setMetricsConfig(Arrays.asList(new MetricConfig.Builder()
-                                .setField("max_field")
-                                .setMetrics(Collections.singletonList("max")).build(),
-                        new MetricConfig.Builder()
-                                .setField("avg_field")
-                                .setMetrics(Collections.singletonList("avg")).build()))
+                .setMetricsConfig(
+                    Arrays.asList(new MetricConfig("max_field", singletonList("max")), new MetricConfig("avg_field", singletonList("avg"))))
                 .build();
         Set<RollupJobCaps> caps = singletonSet(new RollupJobCaps(job));
 
@@ -360,12 +347,8 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
                                 .setTimeZone(DateTimeZone.UTC)
                                 .build())
                         .build())
-                .setMetricsConfig(Arrays.asList(new MetricConfig.Builder()
-                                .setField("max_field")
-                                .setMetrics(Collections.singletonList("max")).build(),
-                        new MetricConfig.Builder()
-                                .setField("avg_field")
-                                .setMetrics(Collections.singletonList("avg")).build()))
+                .setMetricsConfig(
+                    Arrays.asList(new MetricConfig("max_field", singletonList("max")), new MetricConfig("avg_field", singletonList("avg"))))
                 .build();
         Set<RollupJobCaps> caps = singletonSet(new RollupJobCaps(job));
 
@@ -412,12 +395,8 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
                                 .setTimeZone(DateTimeZone.UTC)
                                 .build())
                         .build())
-                .setMetricsConfig(Arrays.asList(new MetricConfig.Builder()
-                                .setField("max_field")
-                                .setMetrics(Collections.singletonList("max")).build(),
-                        new MetricConfig.Builder()
-                                .setField("avg_field")
-                                .setMetrics(Collections.singletonList("avg")).build()))
+                .setMetricsConfig(
+                    Arrays.asList(new MetricConfig("max_field", singletonList("max")), new MetricConfig("avg_field", singletonList("avg"))))
                 .build();
         Set<RollupJobCaps> caps = singletonSet(new RollupJobCaps(job));
 
@@ -442,12 +421,8 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
                                 .build())
                         .setHisto(new HistogramGroupConfig(1L, "baz")) // <-- NOTE right type but wrong name
                         .build())
-                .setMetricsConfig(Arrays.asList(new MetricConfig.Builder()
-                                .setField("max_field")
-                                .setMetrics(Collections.singletonList("max")).build(),
-                        new MetricConfig.Builder()
-                                .setField("avg_field")
-                                .setMetrics(Collections.singletonList("avg")).build()))
+                .setMetricsConfig(
+                    Arrays.asList(new MetricConfig("max_field", singletonList("max")), new MetricConfig("avg_field", singletonList("avg"))))
                 .build();
         Set<RollupJobCaps> caps = singletonSet(new RollupJobCaps(job));
 
@@ -485,9 +460,8 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
         int i = ESTestCase.randomIntBetween(0, 3);
 
         Set<RollupJobCaps> caps = singletonSet(new RollupJobCaps(ConfigTestHelpers
-                .getRollupJob("foo").setMetricsConfig(Collections.singletonList(new MetricConfig.Builder()
-                        .setField("foo")
-                        .setMetrics(Arrays.asList("avg", "max", "min", "sum")).build()))
+                .getRollupJob("foo")
+                    .setMetricsConfig(singletonList(new MetricConfig("foo", Arrays.asList("avg", "max", "min", "sum"))))
                 .build()));
 
         String aggType;

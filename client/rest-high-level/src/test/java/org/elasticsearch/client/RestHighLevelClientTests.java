@@ -755,7 +755,10 @@ public class RestHighLevelClientTests extends ESTestCase {
                             method.isAnnotationPresent(Deprecated.class));
                     } else {
                         //TODO xpack api are currently ignored, we need to load xpack yaml spec too
-                        if (apiName.startsWith("xpack.") == false) {
+                        if (apiName.startsWith("xpack.") == false &&
+                            apiName.startsWith("license.") == false &&
+                            apiName.startsWith("watcher.") == false &&
+                            apiName.startsWith("index_lifecycle.") == false) {
                             apiNotFound.add(apiName);
                         }
                     }

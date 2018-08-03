@@ -13,7 +13,7 @@
     - contains:  { nodes.$master.modules: { name: x-pack-core } }
     - contains:  { nodes.$master.modules: { name: x-pack-deprecation } }
     - contains:  { nodes.$master.modules: { name: x-pack-graph } }
-    - contains:  { nodes.$master.modules: { name: x-pack-index-lifecycle } }
+    - contains:  { nodes.$master.modules: { name: x-pack-ilm } }
     - contains:  { nodes.$master.modules: { name: x-pack-logstash } }
     - contains:  { nodes.$master.modules: { name: x-pack-ml } }
     - contains:  { nodes.$master.modules: { name: x-pack-monitoring } }

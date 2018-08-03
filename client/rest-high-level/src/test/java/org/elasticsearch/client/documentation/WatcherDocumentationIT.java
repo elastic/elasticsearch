@@ -49,7 +49,7 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
                 "}");
             PutWatchRequest request = new PutWatchRequest("my_watch_id", watch, XContentType.JSON);
             request.setActive(false); // <1>
-            PutWatchResponse response = client.xpack().watcher().putWatch(request, RequestOptions.DEFAULT);
+            PutWatchResponse response = client.watcher().putWatch(request, RequestOptions.DEFAULT);
             //end::x-pack-put-watch-execute
 
             //tag::x-pack-put-watch-response
@@ -85,7 +85,7 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::x-pack-put-watch-execute-async
-            client.xpack().watcher().putWatchAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            client.watcher().putWatchAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::x-pack-put-watch-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
@@ -94,7 +94,7 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             //tag::x-pack-delete-watch-execute
             DeleteWatchRequest request = new DeleteWatchRequest("my_watch_id");
-            DeleteWatchResponse response = client.xpack().watcher().deleteWatch(request, RequestOptions.DEFAULT);
+            DeleteWatchResponse response = client.watcher().deleteWatch(request, RequestOptions.DEFAULT);
             //end::x-pack-delete-watch-execute
 
             //tag::x-pack-delete-watch-response
@@ -125,7 +125,7 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::x-pack-delete-watch-execute-async
-            client.xpack().watcher().deleteWatchAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            client.watcher().deleteWatchAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::x-pack-delete-watch-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));

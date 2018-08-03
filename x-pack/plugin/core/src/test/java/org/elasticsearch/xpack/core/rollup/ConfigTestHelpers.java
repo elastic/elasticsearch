@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import java.util.stream.Collectors;
@@ -38,11 +39,7 @@ public class ConfigTestHelpers {
         builder.setGroupConfig(ConfigTestHelpers.getGroupConfig().build());
         builder.setPageSize(ESTestCase.randomIntBetween(1,10));
         if (ESTestCase.randomBoolean()) {
-            List<MetricConfig> metrics = IntStream.range(1, ESTestCase.randomIntBetween(1,10))
-                    .mapToObj(n -> ConfigTestHelpers.getMetricConfig().build())
-                    .collect(Collectors.toList());
-
-            builder.setMetricsConfig(metrics);
+            builder.setMetricsConfig(randomMetricsConfigs(ESTestCase.random()));
         }
         return builder;
     }
@@ -57,32 +54,6 @@ public class ConfigTestHelpers {
             groupBuilder.setTerms(randomTermsGroupConfig(ESTestCase.random()));
         }
         return groupBuilder;
-    }
-
-    public static MetricConfig.Builder getMetricConfig() {
-        MetricConfig.Builder builder = new MetricConfig.Builder();
-        builder.setField(ESTestCase.randomAlphaOfLength(15));  // large names so we don't accidentally collide
-        List<String> metrics = new ArrayList<>();
-        if (ESTestCase.randomBoolean()) {
-            metrics.add("min");
-        }
-        if (ESTestCase.randomBoolean()) {
-            metrics.add("max");
-        }
-        if (ESTestCase.randomBoolean()) {
-            metrics.add("sum");
-        }
-        if (ESTestCase.randomBoolean()) {
-            metrics.add("avg");
-        }
-        if (ESTestCase.randomBoolean()) {
-            metrics.add("value_count");
-        }
-        if (metrics.size() == 0) {
-            metrics.add("min");
-        }
-        builder.setMetrics(metrics);
-        return builder;
     }
 
     private static final String[] TIME_SUFFIXES = new String[]{"d", "h", "ms", "s", "m"};
@@ -121,6 +92,39 @@ public class ConfigTestHelpers {
 
     public static HistogramGroupConfig randomHistogramGroupConfig(final Random random) {
         return new HistogramGroupConfig(randomInterval(random), randomFields(random));
+    }
+
+    public static List<MetricConfig> randomMetricsConfigs(final Random random) {
+        final int numMetrics = randomIntBetween(random, 1, 10);
+        final List<MetricConfig> metrics = new ArrayList<>(numMetrics);
+        for (int i = 0; i < numMetrics; i++) {
+            metrics.add(randomMetricConfig(random));
+        }
+        return Collections.unmodifiableList(metrics);
+    }
+
+    public static MetricConfig randomMetricConfig(final Random random) {
+        final String field = randomAsciiAlphanumOfLengthBetween(random, 15, 25);  // large names so we don't accidentally collide
+        final List<String> metrics = new ArrayList<>();
+        if (random.nextBoolean()) {
+            metrics.add("min");
+        }
+        if (random.nextBoolean()) {
+            metrics.add("max");
+        }
+        if (random.nextBoolean()) {
+            metrics.add("sum");
+        }
+        if (random.nextBoolean()) {
+            metrics.add("avg");
+        }
+        if (random.nextBoolean()) {
+            metrics.add("value_count");
+        }
+        if (metrics.size() == 0) {
+            metrics.add("min");
+        }
+        return new MetricConfig(field, Collections.unmodifiableList(metrics));
     }
 
     public static TermsGroupConfig randomTermsGroupConfig(final Random random) {

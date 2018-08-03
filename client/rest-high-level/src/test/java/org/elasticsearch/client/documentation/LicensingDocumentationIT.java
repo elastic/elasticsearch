@@ -62,7 +62,7 @@ public class LicensingDocumentationIT extends ESRestHighLevelClientTestCase {
             request.setLicenseDefinition(license);  // <1>
             request.setAcknowledge(false);          // <2>
 
-            PutLicenseResponse response = client.xpack().license().putLicense(request, RequestOptions.DEFAULT);
+            PutLicenseResponse response = client.license().putLicense(request, RequestOptions.DEFAULT);
             //end::put-license-execute
 
             //tag::put-license-response
@@ -98,7 +98,7 @@ public class LicensingDocumentationIT extends ESRestHighLevelClientTestCase {
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::put-license-execute-async
-            client.xpack().license().putLicenseAsync(
+            client.license().putLicenseAsync(
                     request, RequestOptions.DEFAULT, listener); // <1>
             // end::put-license-execute-async
 

@@ -17,14 +17,16 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class MetricsConfigSerializingTests extends AbstractSerializingTestCase<MetricConfig> {
+public class MetricConfigSerializingTests extends AbstractSerializingTestCase<MetricConfig> {
+
     @Override
-    protected MetricConfig doParseInstance(XContentParser parser) throws IOException {
-        return MetricConfig.PARSER.apply(parser, null).build();
+    protected MetricConfig doParseInstance(final XContentParser parser) throws IOException {
+        return MetricConfig.fromXContent(parser);
     }
 
     @Override
@@ -34,24 +36,20 @@ public class MetricsConfigSerializingTests extends AbstractSerializingTestCase<M
 
     @Override
     protected MetricConfig createTestInstance() {
-        return ConfigTestHelpers.getMetricConfig().build();
+        return ConfigTestHelpers.randomMetricConfig(random());
     }
 
-    public void testValidateNoMapping() throws IOException {
+    public void testValidateNoMapping() {
         ActionRequestValidationException e = new ActionRequestValidationException();
         Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
 
-        MetricConfig config = new MetricConfig.Builder()
-                .setField("my_field")
-                .setMetrics(Collections.singletonList("max"))
-                .build();
+        MetricConfig config = new MetricConfig("my_field", singletonList("max"));
         config.validateMappings(responseMap, e);
         assertThat(e.validationErrors().get(0), equalTo("Could not find a [numeric] field with name [my_field] in any of the " +
                 "indices matching the index pattern."));
     }
 
-    public void testValidateNomatchingField() throws IOException {
-
+    public void testValidateNomatchingField() {
         ActionRequestValidationException e = new ActionRequestValidationException();
         Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
 
@@ -59,17 +57,13 @@ public class MetricsConfigSerializingTests extends AbstractSerializingTestCase<M
         FieldCapabilities fieldCaps = mock(FieldCapabilities.class);
         responseMap.put("some_other_field", Collections.singletonMap("date", fieldCaps));
 
-        MetricConfig config = new MetricConfig.Builder()
-                .setField("my_field")
-                .setMetrics(Collections.singletonList("max"))
-                .build();
+        MetricConfig config = new MetricConfig("my_field", singletonList("max"));
         config.validateMappings(responseMap, e);
         assertThat(e.validationErrors().get(0), equalTo("Could not find a [numeric] field with name [my_field] in any of the " +
                 "indices matching the index pattern."));
     }
 
-    public void testValidateFieldWrongType() throws IOException {
-
+    public void testValidateFieldWrongType() {
         ActionRequestValidationException e = new ActionRequestValidationException();
         Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
 
@@ -77,17 +71,13 @@ public class MetricsConfigSerializingTests extends AbstractSerializingTestCase<M
         FieldCapabilities fieldCaps = mock(FieldCapabilities.class);
         responseMap.put("my_field", Collections.singletonMap("keyword", fieldCaps));
 
-        MetricConfig config = new MetricConfig.Builder()
-                .setField("my_field")
-                .setMetrics(Collections.singletonList("max"))
-                .build();
+        MetricConfig config = new MetricConfig("my_field", singletonList("max"));
         config.validateMappings(responseMap, e);
         assertThat(e.validationErrors().get(0), equalTo("The field referenced by a metric group must be a [numeric] type, " +
                 "but found [keyword] for field [my_field]"));
     }
 
-    public void testValidateFieldMatchingNotAggregatable() throws IOException {
-
+    public void testValidateFieldMatchingNotAggregatable() {
         ActionRequestValidationException e = new ActionRequestValidationException();
         Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
 
@@ -96,15 +86,12 @@ public class MetricsConfigSerializingTests extends AbstractSerializingTestCase<M
         when(fieldCaps.isAggregatable()).thenReturn(false);
         responseMap.put("my_field", Collections.singletonMap("long", fieldCaps));
 
-        MetricConfig config = new MetricConfig.Builder()
-                .setField("my_field")
-                .setMetrics(Collections.singletonList("max"))
-                .build();
+        MetricConfig config = new MetricConfig("my_field", singletonList("max"));
         config.validateMappings(responseMap, e);
         assertThat(e.validationErrors().get(0), equalTo("The field [my_field] must be aggregatable across all indices, but is not."));
     }
 
-    public void testValidateMatchingField() throws IOException {
+    public void testValidateMatchingField() {
         ActionRequestValidationException e = new ActionRequestValidationException();
         Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
 
@@ -113,10 +100,7 @@ public class MetricsConfigSerializingTests extends AbstractSerializingTestCase<M
         when(fieldCaps.isAggregatable()).thenReturn(true);
         responseMap.put("my_field", Collections.singletonMap("long", fieldCaps));
 
-        MetricConfig config = new MetricConfig.Builder()
-                .setField("my_field")
-                .setMetrics(Collections.singletonList("max"))
-                .build();
+        MetricConfig config = new MetricConfig("my_field", singletonList("max"));
         config.validateMappings(responseMap, e);
         assertThat(e.validationErrors().size(), equalTo(0));
 
@@ -124,70 +108,49 @@ public class MetricsConfigSerializingTests extends AbstractSerializingTestCase<M
         fieldCaps = mock(FieldCapabilities.class);
         when(fieldCaps.isAggregatable()).thenReturn(true);
         responseMap.put("my_field", Collections.singletonMap("double", fieldCaps));
-        config = new MetricConfig.Builder()
-                .setField("my_field")
-                .setMetrics(Collections.singletonList("max"))
-                .build();
+        config = new MetricConfig("my_field", singletonList("max"));
         config.validateMappings(responseMap, e);
         assertThat(e.validationErrors().size(), equalTo(0));
 
         fieldCaps = mock(FieldCapabilities.class);
         when(fieldCaps.isAggregatable()).thenReturn(true);
         responseMap.put("my_field", Collections.singletonMap("float", fieldCaps));
-        config = new MetricConfig.Builder()
-                .setField("my_field")
-                .setMetrics(Collections.singletonList("max"))
-                .build();
+        config = new MetricConfig("my_field", singletonList("max"));
         config.validateMappings(responseMap, e);
         assertThat(e.validationErrors().size(), equalTo(0));
 
         fieldCaps = mock(FieldCapabilities.class);
         when(fieldCaps.isAggregatable()).thenReturn(true);
         responseMap.put("my_field", Collections.singletonMap("short", fieldCaps));
-        config = new MetricConfig.Builder()
-                .setField("my_field")
-                .setMetrics(Collections.singletonList("max"))
-                .build();
+        config = new MetricConfig("my_field", singletonList("max"));
         config.validateMappings(responseMap, e);
         assertThat(e.validationErrors().size(), equalTo(0));
 
         fieldCaps = mock(FieldCapabilities.class);
         when(fieldCaps.isAggregatable()).thenReturn(true);
         responseMap.put("my_field", Collections.singletonMap("byte", fieldCaps));
-        config = new MetricConfig.Builder()
-                .setField("my_field")
-                .setMetrics(Collections.singletonList("max"))
-                .build();
+        config = new MetricConfig("my_field", singletonList("max"));
         config.validateMappings(responseMap, e);
         assertThat(e.validationErrors().size(), equalTo(0));
 
         fieldCaps = mock(FieldCapabilities.class);
         when(fieldCaps.isAggregatable()).thenReturn(true);
         responseMap.put("my_field", Collections.singletonMap("half_float", fieldCaps));
-        config = new MetricConfig.Builder()
-                .setField("my_field")
-                .setMetrics(Collections.singletonList("max"))
-                .build();
+        config = new MetricConfig("my_field", singletonList("max"));
         config.validateMappings(responseMap, e);
         assertThat(e.validationErrors().size(), equalTo(0));
 
         fieldCaps = mock(FieldCapabilities.class);
         when(fieldCaps.isAggregatable()).thenReturn(true);
         responseMap.put("my_field", Collections.singletonMap("scaled_float", fieldCaps));
-        config = new MetricConfig.Builder()
-                .setField("my_field")
-                .setMetrics(Collections.singletonList("max"))
-                .build();
+        config = new MetricConfig("my_field", singletonList("max"));
         config.validateMappings(responseMap, e);
         assertThat(e.validationErrors().size(), equalTo(0));
 
         fieldCaps = mock(FieldCapabilities.class);
         when(fieldCaps.isAggregatable()).thenReturn(true);
         responseMap.put("my_field", Collections.singletonMap("integer", fieldCaps));
-        config = new MetricConfig.Builder()
-                .setField("my_field")
-                .setMetrics(Collections.singletonList("max"))
-                .build();
+        config = new MetricConfig("my_field", singletonList("max"));
         config.validateMappings(responseMap, e);
         assertThat(e.validationErrors().size(), equalTo(0));
     }

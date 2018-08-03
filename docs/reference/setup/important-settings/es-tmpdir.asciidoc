@@ -18,6 +18,6 @@ is excluded from periodic cleanup.
 However, if you intend to run the `.tar.gz` distribution on Linux for an
 extended period then you should consider creating a dedicated temporary
 directory for Elasticsearch that is not under a path that will have old files
-and directories cleaned from it.  This directory should have permissions set
+and directories cleaned from it. This directory should have permissions set
 so that only the user that Elasticsearch runs as can access it. Then set the
 `$ES_TMPDIR` environment variable to point to it before starting Elasticsearch.

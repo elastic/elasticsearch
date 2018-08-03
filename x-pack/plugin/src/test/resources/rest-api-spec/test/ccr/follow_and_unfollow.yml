@@ -16,7 +16,7 @@
   - is_true: acknowledged
 
   - do:
-      xpack.ccr.create_and_follow_index:
+      ccr.create_and_follow_index:
         index: bar
         body:
           leader_index: foo
@@ -25,18 +25,18 @@
   - is_true: index_following_started
 
   - do:
-      xpack.ccr.unfollow_index:
+      ccr.unfollow_index:
         index: bar
   - is_true: acknowledged
 
   - do:
-      xpack.ccr.follow_index:
+      ccr.follow_index:
         index: bar
         body:
           leader_index: foo
   - is_true: acknowledged
 
   - do:
-      xpack.ccr.unfollow_index:
+      ccr.unfollow_index:
         index: bar
   - is_true: acknowledged

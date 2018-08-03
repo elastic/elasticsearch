@@ -428,7 +428,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         static final ParseField INDEX_METADATA_VERSION_FIELD = new ParseField("index_metadata_version");
         static final ParseField TOTAL_FETCH_TIME_NANOS_FIELD = new ParseField("total_fetch_time_nanos");
         static final ParseField NUMBER_OF_SUCCESSFUL_FETCHES_FIELD = new ParseField("number_of_successful_fetches");
-        static final ParseField NUMBER_OF_FAILED_FETCHES_FIELD = new ParseField("number_of_failed_etches");
+        static final ParseField NUMBER_OF_FAILED_FETCHES_FIELD = new ParseField("number_of_failed_fetches");
         static final ParseField OPERATIONS_RECEIVED_FIELD = new ParseField("operations_received");
         static final ParseField TOTAL_TRANSFERRED_BYTES = new ParseField("total_transferred_bytes");
         static final ParseField TOTAL_INDEX_TIME_NANOS_FIELD = new ParseField("total_index_time_nanos");

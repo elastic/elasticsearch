@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.rollup.job;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -15,8 +16,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.rounding.DateTimeUnit;
 import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
@@ -33,6 +34,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.common.xcontent.ObjectParser.ValueType;
+
 /**
  * The configuration object for the histograms in the rollup config
  *
@@ -47,71 +52,100 @@ import java.util.Objects;
  *     ]
  * }
  */
-public class DateHistoGroupConfig implements Writeable, ToXContentFragment {
-    private static final String NAME = "date_histo_group_config";
-    public static final ObjectParser<DateHistoGroupConfig.Builder, Void> PARSER
-            = new ObjectParser<>(NAME, DateHistoGroupConfig.Builder::new);
+public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
 
-    private static final ParseField INTERVAL = new ParseField("interval");
-    private static final ParseField DELAY = new ParseField("delay");
-    private static final ParseField FIELD = new ParseField("field");
-    public static final ParseField TIME_ZONE = new ParseField("time_zone");
-
-    private final DateHistogramInterval interval;
-    private final String field;
-    private final DateTimeZone timeZone;
-    private final DateHistogramInterval delay;
-
+    private static final String NAME = "date_histogram";
+    private static final String INTERVAL = "interval";
+    private static final String FIELD = "field";
+    public static final String TIME_ZONE = "time_zone";
+    private static final String DELAY = "delay";
+    private static final String DEFAULT_TIMEZONE = "UTC";
+    private static final ConstructingObjectParser<DateHistogramGroupConfig, Void> PARSER;
     static {
-        PARSER.declareField(DateHistoGroupConfig.Builder::setInterval,
-                p -> new DateHistogramInterval(p.text()), INTERVAL, ObjectParser.ValueType.STRING);
-        PARSER.declareString(DateHistoGroupConfig.Builder::setField, FIELD);
-        PARSER.declareField(DateHistoGroupConfig.Builder::setDelay,
-                p -> new DateHistogramInterval(p.text()), DELAY, ObjectParser.ValueType.LONG);
-        PARSER.declareField(DateHistoGroupConfig.Builder::setTimeZone, p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return DateTimeZone.forID(p.text());
-            } else {
-                return DateTimeZone.forOffsetHours(p.intValue());
-            }
-        }, TIME_ZONE, ObjectParser.ValueType.LONG);
+        PARSER = new ConstructingObjectParser<>(NAME, a ->
+            new DateHistogramGroupConfig((String) a[0], (DateHistogramInterval) a[1], (DateHistogramInterval) a[2], (String) a[3]));
+        PARSER.declareString(constructorArg(), new ParseField(FIELD));
+        PARSER.declareField(constructorArg(), p -> new DateHistogramInterval(p.text()), new ParseField(INTERVAL), ValueType.STRING);
+        PARSER.declareField(optionalConstructorArg(),  p -> new DateHistogramInterval(p.text()), new ParseField(DELAY), ValueType.STRING);
+        PARSER.declareString(optionalConstructorArg(), new ParseField(TIME_ZONE));
     }
 
-    private DateHistoGroupConfig(DateHistogramInterval interval,
-                                 String field,
-                                 DateHistogramInterval delay,
-                                 DateTimeZone timeZone) {
+    private final String field;
+    private final DateHistogramInterval interval;
+    private final DateHistogramInterval delay;
+    private final String timeZone;
+
+    /**
+     * Create a new {@link DateHistogramGroupConfig} using the given field and interval parameters.
+     */
+    public DateHistogramGroupConfig(final String field, final DateHistogramInterval interval) {
+        this(field, interval, null, null);
+    }
+
+    /**
+     * Create a new {@link DateHistogramGroupConfig} using the given configuration parameters.
+     * <p>
+     *     The {@code field} and {@code interval} are required to compute the date histogram for the rolled up documents.
+     *     The {@code delay} is optional and can be set to {@code null}. It defines how long to wait before rolling up new documents.
+     *     The {@code timeZone} is optional and can be set to {@code null}. When configured, the time zone value  is resolved using
+     *     ({@link DateTimeZone#forID(String)} and must match a time zone identifier provided by the Joda Time library.
+     * </p>
+     * @param field the name of the date field to use for the date histogram (required)
+     * @param interval the interval to use for the date histogram (required)
+     * @param delay the time delay (optional)
+     * @param timeZone the id of time zone to use to calculate the date histogram (optional). When {@code null}, the UTC timezone is used.
+     */
+    public DateHistogramGroupConfig(final String field,
+                                    final DateHistogramInterval interval,
+                                    final @Nullable DateHistogramInterval delay,
+                                    final @Nullable String timeZone) {
+        if (field == null || field.isEmpty()) {
+            throw new IllegalArgumentException("Field must be a non-null, non-empty string");
+        }
+        if (interval == null) {
+            throw new IllegalArgumentException("Interval must be non-null");
+        }
+
         this.interval = interval;
         this.field = field;
         this.delay = delay;
-        this.timeZone = Objects.requireNonNull(timeZone);
+        this.timeZone = (timeZone != null && timeZone.isEmpty() == false) ? timeZone : DEFAULT_TIMEZONE;
+
+        // validate interval
+        createRounding(this.interval.toString(), this.timeZone);
+        if (delay != null) {
+            // and delay
+            TimeValue.parseTimeValue(this.delay.toString(), DELAY);
+        }
     }
 
-    DateHistoGroupConfig(StreamInput in) throws IOException {
+    DateHistogramGroupConfig(final StreamInput in) throws IOException {
         interval = new DateHistogramInterval(in);
         field = in.readString();
         delay = in.readOptionalWriteable(DateHistogramInterval::new);
-        timeZone = in.readTimeZone();
+        timeZone = in.readString();
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    public void writeTo(final StreamOutput out) throws IOException {
         interval.writeTo(out);
         out.writeString(field);
         out.writeOptionalWriteable(delay);
-        out.writeTimeZone(timeZone);
+        out.writeString(timeZone);
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(INTERVAL.getPreferredName(), interval.toString());
-        builder.field(FIELD.getPreferredName(), field);
-        if (delay != null) {
-            builder.field(DELAY.getPreferredName(), delay.toString());
+    public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
+        builder.startObject();
+        {
+            builder.field(INTERVAL, interval.toString());
+            builder.field(FIELD, field);
+            if (delay != null) {
+                builder.field(DELAY, delay.toString());
+            }
+            builder.field(TIME_ZONE, timeZone);
         }
-        builder.field(TIME_ZONE.getPreferredName(), timeZone.toString());
-
-        return builder;
+        return builder.endObject();
     }
 
     /**
@@ -138,7 +172,7 @@ public class DateHistoGroupConfig implements Writeable, ToXContentFragment {
     /**
      * Get the timezone to apply
      */
-    public DateTimeZone getTimeZone() {
+    public String getTimeZone() {
         return timeZone;
     }
 
@@ -146,9 +180,9 @@ public class DateHistoGroupConfig implements Writeable, ToXContentFragment {
      * Create the rounding for this date histogram
      */
     public Rounding createRounding() {
-        return createRounding(interval.toString(), timeZone, "");
+        return createRounding(interval.toString(), timeZone);
     }
-    ;
+
     /**
      * This returns a set of aggregation builders which represent the configured
      * set of date histograms.  Used by the rollup indexer to iterate over historical data
@@ -158,7 +192,7 @@ public class DateHistoGroupConfig implements Writeable, ToXContentFragment {
                 new DateHistogramValuesSourceBuilder(RollupField.formatIndexerAggName(field, DateHistogramAggregationBuilder.NAME));
         vsBuilder.dateHistogramInterval(interval);
         vsBuilder.field(field);
-        vsBuilder.timeZone(timeZone);
+        vsBuilder.timeZone(toDateTimeZone(timeZone));
         return Collections.singletonList(vsBuilder);
     }
 
@@ -168,11 +202,11 @@ public class DateHistoGroupConfig implements Writeable, ToXContentFragment {
     public Map<String, Object> toAggCap() {
         Map<String, Object> map = new HashMap<>(3);
         map.put("agg", DateHistogramAggregationBuilder.NAME);
-        map.put(INTERVAL.getPreferredName(), interval.toString());
+        map.put(INTERVAL, interval.toString());
         if (delay != null) {
-            map.put(DELAY.getPreferredName(), delay.toString());
+            map.put(DELAY, delay.toString());
         }
-        map.put(TIME_ZONE.getPreferredName(), timeZone.toString());
+        map.put(TIME_ZONE, timeZone);
 
         return map;
     }
@@ -204,21 +238,18 @@ public class DateHistoGroupConfig implements Writeable, ToXContentFragment {
     }
 
     @Override
-    public boolean equals(Object other) {
+    public boolean equals(final Object other) {
         if (this == other) {
             return true;
         }
-
         if (other == null || getClass() != other.getClass()) {
             return false;
         }
-
-        DateHistoGroupConfig that = (DateHistoGroupConfig) other;
-
-        return Objects.equals(this.interval, that.interval)
-                && Objects.equals(this.field, that.field)
-                && Objects.equals(this.delay, that.delay)
-                && Objects.equals(this.timeZone, that.timeZone);
+        final DateHistogramGroupConfig that = (DateHistogramGroupConfig) other;
+        return Objects.equals(interval, that.interval)
+            && Objects.equals(field, that.field)
+            && Objects.equals(delay, that.delay)
+            && Objects.equals(timeZone, that.timeZone);
     }
 
     @Override
@@ -231,77 +262,28 @@ public class DateHistoGroupConfig implements Writeable, ToXContentFragment {
         return Strings.toString(this, true, true);
     }
 
-    private static Rounding createRounding(String expr, DateTimeZone timeZone, String settingName) {
+    public static DateHistogramGroupConfig fromXContent(final XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null);
+    }
+
+    private static Rounding createRounding(final String expr, final String timeZone) {
         DateTimeUnit timeUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(expr);
         final Rounding.Builder rounding;
         if (timeUnit != null) {
             rounding = new Rounding.Builder(timeUnit);
         } else {
-            rounding = new Rounding.Builder(TimeValue.parseTimeValue(expr, settingName));
+            rounding = new Rounding.Builder(TimeValue.parseTimeValue(expr, "createRounding"));
         }
-        rounding.timeZone(timeZone);
+        rounding.timeZone(toDateTimeZone(timeZone));
         return rounding.build();
     }
 
-    public static class Builder {
-        private DateHistogramInterval interval;
-        private String field;
-        private DateHistogramInterval delay;
-        private DateTimeZone timeZone;
-
-        public DateHistogramInterval getInterval() {
-            return interval;
-        }
-
-        public DateHistoGroupConfig.Builder setInterval(DateHistogramInterval interval) {
-            this.interval = interval;
-            return this;
-        }
-
-        public String getField() {
-            return field;
-        }
-
-        public DateHistoGroupConfig.Builder setField(String field) {
-            this.field = field;
-            return this;
-        }
-
-        public DateTimeZone getTimeZone() {
-            return timeZone;
-        }
-
-        public DateHistoGroupConfig.Builder setTimeZone(DateTimeZone timeZone) {
-            this.timeZone = timeZone;
-            return this;
-        }
-
-        public DateHistogramInterval getDelay() {
-            return delay;
-        }
-
-        public DateHistoGroupConfig.Builder setDelay(DateHistogramInterval delay) {
-            this.delay = delay;
-            return this;
-        }
-
-        public DateHistoGroupConfig build() {
-            if (field == null || field.isEmpty()) {
-                throw new IllegalArgumentException("Parameter [" + FIELD.getPreferredName() + "] is mandatory.");
-            }
-            if (timeZone == null) {
-                timeZone = DateTimeZone.UTC;
-            }
-            if (interval == null) {
-                throw new IllegalArgumentException("Parameter [" + INTERVAL.getPreferredName() + "] is mandatory.");
-            }
-            // validate interval
-            createRounding(interval.toString(), timeZone, INTERVAL.getPreferredName());
-            if (delay != null) {
-                // and delay
-                TimeValue.parseTimeValue(delay.toString(), INTERVAL.getPreferredName());
-            }
-            return new DateHistoGroupConfig(interval, field, delay, timeZone);
+    private static DateTimeZone toDateTimeZone(final String timezone) {
+        try {
+            return DateTimeZone.forOffsetHours(Integer.parseInt(timezone));
+        } catch (NumberFormatException e) {
+            return DateTimeZone.forID(timezone);
         }
     }
+
 }

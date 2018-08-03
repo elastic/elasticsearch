@@ -341,8 +341,8 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
 
         private class Peer {
             private final TransportAddress transportAddress;
-            private volatile PeerState state = PeerState.CONNECTING; // volatile just for toString()
             private SetOnce<DiscoveryNode> discoveryNode = new SetOnce<>();
+            private volatile boolean peersRequestInFlight;
 
             Peer(TransportAddress transportAddress) {
                 this.transportAddress = transportAddress;
@@ -360,39 +360,41 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
                 }
 
                 final DiscoveryNode discoveryNode = this.discoveryNode.get();
-                if (discoveryNode != null && transportService.nodeConnected(discoveryNode) == false) {
-                    logger.trace("{} no longer connected to {}", this, discoveryNode);
-                    removePeer();
-                    return;
-                }
+                // may be null if connection not yet established
 
-                if (state == PeerState.PEERS_KNOWN) {
-                    requestPeers();
+                if (discoveryNode != null) {
+                    if (transportService.nodeConnected(discoveryNode)) {
+                        if (peersRequestInFlight == false) {
+                            requestPeers(discoveryNode);
+                        }
+                    } else {
+                        logger.trace("{} no longer connected to {}", this, discoveryNode);
+                        removePeer();
+                    }
                 }
             }
 
             void establishConnection() {
                 assert holdsLock() : "PeerFinder mutex not held";
-                assert state == PeerState.CONNECTING : state;
+                assert getDiscoveryNode() == null : "unexpectedly connected to " + getDiscoveryNode();
                 assert running;
 
                 logger.trace("{} attempting connection", this);
                 transportAddressConnector.connectToRemoteMasterNode(transportAddress, new ActionListener<DiscoveryNode>() {
                     @Override
                     public void onResponse(DiscoveryNode remoteNode) {
-                        // No synchronisation required for discoveryNode.set()
                         assert remoteNode.isMasterNode() : remoteNode;
-                        discoveryNode.set(remoteNode);
                         synchronized (mutex) {
                             if (running) {
-                                requestPeers();
+                                discoveryNode.set(remoteNode);
+                                requestPeers(remoteNode);
                             }
                         }
                     }
 
                     @Override
                     public void onFailure(Exception e) {
-                        // No synchronisation required - peersByAddress is threadsafe
+                        // No synchronisation required - removePeer is threadsafe
                         logger.debug(() -> new ParameterizedMessage("{} connection failed", Peer.this), e);
                         removePeer();
                     }
@@ -405,17 +407,14 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
                 assert removed == Peer.this;
             }
 
-            private void requestPeers() {
+            private void requestPeers(final DiscoveryNode discoveryNode) {
                 assert holdsLock() : "PeerFinder mutex not held";
-                assert state != PeerState.PEERS_REQUESTED : "PeersRequest already in flight";
+                assert peersRequestInFlight == false : "PeersRequest already in flight";
                 assert running;
-
-                state = PeerState.PEERS_REQUESTED;
-
-                final DiscoveryNode discoveryNode = this.discoveryNode.get();
-                assert discoveryNode != null : "discoveryNode should be set";
+                assert discoveryNode.equals(this.discoveryNode.get());
 
                 logger.trace("{} requesting peers from {}", this, discoveryNode);
+                peersRequestInFlight = true;
 
                 List<DiscoveryNode> knownNodes = getKnownPeers();
 
@@ -437,7 +436,7 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
                                     return;
                                 }
 
-                                state = PeerState.PEERS_KNOWN;
+                                peersRequestInFlight = false;
 
                                 if (response.getMasterNode().isPresent()) {
                                     final DiscoveryNode masterNode = response.getMasterNode().get();
@@ -456,14 +455,14 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
 
                             if (foundMasterNode) {
                                 // Must not hold lock here to avoid deadlock
-                                assert holdsLock() == false : "Peerfinder mutex is held in error";
+                                assert holdsLock() == false : "PeerFinder mutex is held in error";
                                 onMasterFoundByProbe(discoveryNode, response.getTerm());
                             }
                         }
 
                         @Override
                         public void handleException(TransportException exp) {
-                            state = PeerState.PEERS_KNOWN;
+                            peersRequestInFlight = false; // volatile write needs no further synchronisation
                             logger.debug("PeersRequest failed", exp);
                         }
 
@@ -476,14 +475,8 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
 
             @Override
             public String toString() {
-                return "Peer{" + transportAddress + " [" + state + "]}";
+                return "Peer{" + transportAddress + " peersRequestInFlight=" + peersRequestInFlight + "}";
             }
         }
-    }
-
-    private enum PeerState {
-        CONNECTING, // Address is known but no connection established yet
-        PEERS_REQUESTED, // Connection established, PeersRequest sent
-        PEERS_KNOWN // Connection established and PeersResponse received
     }
 }

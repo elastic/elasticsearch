@@ -219,22 +219,16 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         innerSendShardChangesRequest(from, maxOperationCount,
                 response -> {
                     synchronized (ShardFollowNodeTask.this) {
-                        // noinspection NonAtomicOperationOnVolatileField
                         totalFetchTimeNanos += relativeTimeProvider.getAsLong() - startTime;
-                        // noinspection NonAtomicOperationOnVolatileField
                         numberOfSuccessfulFetches++;
-                        // noinspection NonAtomicOperationOnVolatileField
                         operationsReceived += response.getOperations().length;
-                        // noinspection NonAtomicOperationOnVolatileField
                         totalTransferredBytes += Arrays.stream(response.getOperations()).mapToLong(Translog.Operation::estimateSize).sum();
                     }
                     handleReadResponse(from, maxRequiredSeqNo, response);
                 },
                 e -> {
                     synchronized (ShardFollowNodeTask.this) {
-                        // noinspection NonAtomicOperationOnVolatileField
                         totalFetchTimeNanos += relativeTimeProvider.getAsLong() - startTime;
-                        // noinspection NonAtomicOperationOnVolatileField
                         numberOfFailedFetches++;
                     }
                     handleFailure(e, retryCounter, () -> sendShardChangesRequest(from, maxOperationCount, maxRequiredSeqNo, retryCounter));
@@ -300,20 +294,15 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         innerSendBulkShardOperationsRequest(operations,
                 response -> {
                     synchronized (ShardFollowNodeTask.this) {
-                        // noinspection NonAtomicOperationOnVolatileField
                         totalIndexTimeNanos += relativeTimeProvider.getAsLong() - startTime;
-                        // noinspection NonAtomicOperationOnVolatileField
                         numberOfSuccessfulBulkOperations++;
-                        // noinspection NonAtomicOperationOnVolatileField
                         numberOfOperationsIndexed += operations.size();
                     }
                     handleWriteResponse(response);
                 },
                 e -> {
                     synchronized (ShardFollowNodeTask.this) {
-                        // noinspection NonAtomicOperationOnVolatileField
                         totalIndexTimeNanos += relativeTimeProvider.getAsLong() - startTime;
-                        // noinspection NonAtomicOperationOnVolatileField
                         numberOfFailedBulkOperations++;
                     }
                     handleFailure(e, retryCounter, () -> sendBulkShardOperationsRequest(operations, retryCounter));

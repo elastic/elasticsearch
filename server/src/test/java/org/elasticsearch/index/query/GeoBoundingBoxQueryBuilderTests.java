@@ -39,7 +39,6 @@ import java.io.IOException;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
-import static org.hamcrest.Matchers.startsWith;
 
 public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBoundingBoxQueryBuilder> {
     /** Randomly generate either NaN or one of the two infinity values. */
@@ -110,16 +109,12 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         assertEquals("cannot parse type from null string", e.getMessage());
     }
 
-    @Override
-    public void testToQuery() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-        super.testToQuery();
-    }
-
-    public void testExceptionOnMissingTypes() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length == 0);
-        QueryShardException e = expectThrows(QueryShardException.class, super::testToQuery);
-        assertThat(e.getMessage(), startsWith("failed to find geo_point field [mapped_geo_point"));
+    public void testExceptionOnMissingTypes() {
+        QueryShardContext context = createShardContextWithNoType();
+        GeoBoundingBoxQueryBuilder qb = createTestQueryBuilder();
+        qb.ignoreUnmapped(false);
+        QueryShardException e = expectThrows(QueryShardException.class, () -> qb.toQuery(context));
+        assertEquals("failed to find geo_point field [" + qb.fieldName() + "]", e.getMessage());
     }
 
     public void testBrokenCoordinateCannotBeSet() {
@@ -295,7 +290,6 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
     }
 
     public void testParsingAndToQuery1() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
                 "    \"geo_bounding_box\":{\n" +
                 "        \"" + GEO_POINT_FIELD_NAME+ "\":{\n" +
@@ -308,7 +302,6 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
     }
 
     public void testParsingAndToQuery2() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
                 "    \"geo_bounding_box\":{\n" +
                 "        \"" + GEO_POINT_FIELD_NAME+ "\":{\n" +
@@ -327,7 +320,6 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
     }
 
     public void testParsingAndToQuery3() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
                 "    \"geo_bounding_box\":{\n" +
                 "        \"" + GEO_POINT_FIELD_NAME+ "\":{\n" +
@@ -340,7 +332,6 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
     }
 
     public void testParsingAndToQuery4() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
                 "    \"geo_bounding_box\":{\n" +
                 "        \"" + GEO_POINT_FIELD_NAME+ "\":{\n" +
@@ -353,7 +344,6 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
     }
 
     public void testParsingAndToQuery5() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
                 "    \"geo_bounding_box\":{\n" +
                 "        \"" + GEO_POINT_FIELD_NAME+ "\":{\n" +
@@ -366,7 +356,6 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
     }
 
     public void testParsingAndToQuery6() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
                 "    \"geo_bounding_box\":{\n" +
                 "        \"" + GEO_POINT_FIELD_NAME+ "\":{\n" +
@@ -513,7 +502,6 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
     }
 
     public void testHonorsCoercion() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
             "  \"geo_bounding_box\": {\n" +
             "    \"validation_method\": \"COERCE\",\n" +
@@ -534,7 +522,6 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
 
     @Override
     public void testMustRewrite() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         super.testMustRewrite();
     }
 

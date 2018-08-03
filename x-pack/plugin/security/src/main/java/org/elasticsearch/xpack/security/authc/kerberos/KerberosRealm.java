@@ -19,12 +19,13 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
-import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.protocol.xpack.security.User;
 import org.elasticsearch.xpack.security.authc.support.CachingRealm;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.ietf.jgss.GSSException;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
@@ -87,6 +88,16 @@ public final class KerberosRealm extends Realm implements CachingRealm {
         this.kerberosTicketValidator = kerberosTicketValidator;
         this.threadPool = threadPool;
         this.keytabPath = config.env().configFile().resolve(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(config.settings()));
+
+        if (Files.exists(keytabPath) == false) {
+            throw new IllegalArgumentException("configured service key tab file [" + keytabPath + "] does not exist");
+        }
+        if (Files.isDirectory(keytabPath)) {
+            throw new IllegalArgumentException("configured service key tab file [" + keytabPath + "] is a directory");
+        }
+        if (Files.isReadable(keytabPath) == false) {
+            throw new IllegalArgumentException("configured service key tab file [" + keytabPath + "] must have read permission");
+        }
         this.enableKerberosDebug = KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE.get(config.settings());
         this.removeRealmName = KerberosRealmSettings.SETTING_REMOVE_REALM_NAME.get(config.settings());
     }

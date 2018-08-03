@@ -296,7 +296,7 @@ public final class ExceptionsHelper {
         GroupBy(ShardOperationFailedException failure) {
             Throwable cause = failure.getCause();
             //the index name from the failure contains the cluster alias when using CCS. Ideally failures should be grouped by
-            //by index name and cluster alias. That's why the failure index name has the precedence over the one coming from the cause,
+            //index name and cluster alias. That's why the failure index name has the precedence over the one coming from the cause,
             //which does not include the cluster alias.
             String indexName = failure.index();
             if (indexName == null) {

@@ -19,14 +19,12 @@
 
 package org.elasticsearch.index.translog;
 
-import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.store.NIOFSDirectory;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.index.engine.CombinedDeletionPolicy;
 
 import java.io.IOException;
@@ -36,8 +34,6 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
@@ -46,8 +42,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.not;
 
 /**
  * Helpers for testing translog.
@@ -55,70 +49,34 @@ import static org.hamcrest.Matchers.not;
 public class TestTranslog {
     static final Pattern TRANSLOG_FILE_PATTERN = Pattern.compile("translog-(\\d+)\\.tlog");
 
-    /*TODO currently there are two methods for corrupting translog.
-    There are two differences:
-     1) corruptTranslogFiles method is expecting other index files, not only translog.
-     2) corruptTranslogFiles method sometimes does not corrupt translog at all.
-    //It would be nice to have single corruption method to be used in integration and unit tests*/
     /**
-     * Randomly overwrite some bytes in the translog files
-     */
-    public static void corruptTranslogFilesReliably(Logger logger, Random random, Path directory) throws Exception {
-        Path[] files = FileSystemUtils.files(directory, "translog-*");
-        for (Path file : files) {
-            logger.info("--> corrupting {}...", file);
-            FileChannel f = FileChannel.open(file, StandardOpenOption.READ, StandardOpenOption.WRITE);
-            int corruptions = RandomizedTest.scaledRandomIntBetween(10, 50);
-            for (int i = 0; i < corruptions; i++) {
-                // note: with the current logic, this will sometimes be a no-op
-                long pos = RandomNumbers.randomIntBetween(random,0, (int) f.size());
-
-                ByteBuffer junk = ByteBuffer.wrap(new byte[]{(byte) random.nextInt()});
-                f.write(junk, pos);
-            }
-            f.close();
-        }
-    }
-
-    /**
-     * Corrupts some translog files (translog-N.tlog) from the given translog directories.
+     * Corrupts random translog file (translog-N.tlog) from the given translog directory.
      *
-     * @return a collection of tlog files that have been corrupted.
+     * @return a translog file that have been corrupted.
      */
-    public static Set<Path> corruptTranslogFiles(Logger logger, Random random, Collection<Path> translogDirs) throws IOException {
+    public static Path corruptRandomTranslogFile(Logger logger, Random random, Path translogDir, long minGeneration) throws
+            IOException {
+        assertThat("translogDir is directory", Files.isDirectory(translogDir));
         Set<Path> candidates = new TreeSet<>(); // TreeSet makes sure iteration order is deterministic
-        for (Path translogDir : translogDirs) {
-            if (Files.isDirectory(translogDir)) {
-                final long minUsedTranslogGen = minTranslogGenUsedInRecovery(translogDir);
-                logger.info("--> Translog dir [{}], minUsedTranslogGen [{}]", translogDir, minUsedTranslogGen);
-                try (DirectoryStream<Path> stream = Files.newDirectoryStream(translogDir)) {
-                    for (Path item : stream) {
-                        if (Files.isRegularFile(item)) {
-                            // Makes sure that we will corrupt tlog files that are referenced by the Checkpoint.
-                            final Matcher matcher = TRANSLOG_FILE_PATTERN.matcher(item.getFileName().toString());
-                            if (matcher.matches() && Long.parseLong(matcher.group(1)) >= minUsedTranslogGen) {
-                                candidates.add(item);
-                            }
-                        }
+        logger.info("--> Translog dir [{}], minUsedTranslogGen [{}]", translogDir, minGeneration);
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(translogDir)) {
+            for (Path item : stream) {
+                if (Files.isRegularFile(item)) {
+                    final Matcher matcher = TRANSLOG_FILE_PATTERN.matcher(item.getFileName().toString());
+                    if (matcher.matches() && Long.parseLong(matcher.group(1)) >= minGeneration) {
+                        candidates.add(item);
                     }
                 }
             }
         }
 
-        Set<Path> corruptedFiles = new HashSet<>();
-        if (!candidates.isEmpty()) {
-            int corruptions = RandomNumbers.randomIntBetween(random, 5, 20);
-            for (int i = 0; i < corruptions; i++) {
-                Path fileToCorrupt = RandomPicks.randomFrom(random, candidates);
-                corruptFile(logger, random, fileToCorrupt);
-                corruptedFiles.add(fileToCorrupt);
-            }
-        }
-        assertThat("no translog file corrupted", corruptedFiles, not(empty()));
-        return corruptedFiles;
+        Path corruptedFile = RandomPicks.randomFrom(random, candidates);
+        corruptFile(logger, random, corruptedFile);
+        return corruptedFile;
     }
 
-    static void corruptFile(Logger logger, Random random, Path fileToCorrupt) throws IOException {
+
+     static void corruptFile(Logger logger, Random random, Path fileToCorrupt) throws IOException {
         try (FileChannel raf = FileChannel.open(fileToCorrupt, StandardOpenOption.READ, StandardOpenOption.WRITE)) {
             // read
             raf.position(RandomNumbers.randomLongBetween(random, 0, raf.size() - 1));
@@ -144,7 +102,7 @@ public class TestTranslog {
     /**
      * Lists all existing commits in a given index path, then read the minimum translog generation that will be used in recoverFromTranslog.
      */
-    private static long minTranslogGenUsedInRecovery(Path translogPath) throws IOException {
+    public static long minTranslogGenUsedInRecovery(Path translogPath) throws IOException {
         try (NIOFSDirectory directory = new NIOFSDirectory(translogPath.getParent().resolve("index"))) {
             List<IndexCommit> commits = DirectoryReader.listCommits(directory);
             final String translogUUID = commits.get(commits.size() - 1).getUserData().get(Translog.TRANSLOG_UUID_KEY);

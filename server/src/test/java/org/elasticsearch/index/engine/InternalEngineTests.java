@@ -116,10 +116,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.SnapshotMatchers;
-import org.elasticsearch.index.translog.TestTranslog;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
-import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
@@ -164,7 +162,6 @@ import static org.elasticsearch.index.engine.Engine.Operation.Origin.PEER_RECOVE
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
 import static org.elasticsearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
-import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.Matchers.contains;
@@ -658,25 +655,6 @@ public class InternalEngineTests extends EngineTestCase {
         IOUtils.close(store, engine);
     }
 
-
-    public void testTranslogRecoveryFailure() throws Exception {
-        Store store = createStore();
-        Path translogPath = createTempDir("translog");
-        InternalEngine engine = createEngine(store, translogPath);
-        ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), SOURCE, null);
-        engine.index(indexForDoc(doc));
-        engine.close();
-        trimUnsafeCommits(engine.config());
-
-        engine = new InternalEngine(engine.config());
-        assertTrue(engine.isRecovering());
-
-        TestTranslog.corruptTranslogFilesReliably(logger, random(), translogPath);
-        EngineException ex = expectThrows(EngineException.class, engine::recoverFromTranslog);
-        assertThat(ex.getCause(), instanceOf(TranslogCorruptedException.class));
-        assertThat(ex.getCause().getMessage(), containsString(translogPath.toString()));
-        IOUtils.close(store, engine);
-    }
 
     public void testFlushIsDisabledDuringTranslogRecovery() throws IOException {
         assertFalse(engine.isRecovering());

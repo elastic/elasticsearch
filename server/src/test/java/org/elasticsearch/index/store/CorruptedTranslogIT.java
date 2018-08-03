@@ -86,7 +86,7 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
         indexRandom(false, false, false, Arrays.asList(builders));  // this one
 
         // Corrupt the translog file(s)
-        corruptRandomTranslogFiles();
+        corruptRandomTranslogFile();
 
         // Restart the single node
         internalCluster().fullRestart();
@@ -102,7 +102,7 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
     }
 
 
-    private void corruptRandomTranslogFiles() throws IOException {
+    private void corruptRandomTranslogFile() throws IOException {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         GroupShardsIterator shardIterators = state.getRoutingTable().activePrimaryShardsGrouped(new String[]{"test"}, false);
         final Index test = state.metaData().index("test").getIndex();
@@ -121,7 +121,8 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
             Path translogDir = PathUtils.get(path).resolve(relativeDataLocationPath);
             translogDirs.add(translogDir);
         }
-        TestTranslog.corruptTranslogFiles(logger, random(), translogDirs);
+        Path translogDir = RandomPicks.randomFrom(random(), translogDirs);
+        TestTranslog.corruptRandomTranslogFile(logger, random(), translogDir, TestTranslog.minTranslogGenUsedInRecovery(translogDir));
     }
 
     /** Disables translog flushing for the specified index */

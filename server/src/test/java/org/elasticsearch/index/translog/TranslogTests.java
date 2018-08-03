@@ -749,7 +749,9 @@ public class TranslogTests extends ESTestCase {
     }
 
 
-    public void testTranslogChecksums() throws Exception {
+    public void testTranslogCorruption() throws Exception {
+        TranslogConfig config = translog.getConfig();
+        String uuid = translog.getTranslogUUID();
         List<Translog.Location> locations = new ArrayList<>();
 
         int translogOperations = randomIntBetween(10, 100);
@@ -757,24 +759,26 @@ public class TranslogTests extends ESTestCase {
             String ascii = randomAlphaOfLengthBetween(1, 50);
             locations.add(translog.add(new Translog.Index("test", "" + op, op, primaryTerm.get(), ascii.getBytes("UTF-8"))));
         }
-        translog.sync();
+        translog.close();
 
-        TestTranslog.corruptTranslogFilesReliably(logger, random(), translogDir);
+        TestTranslog.corruptRandomTranslogFile(logger, random(), translogDir, 0);
+        int corruptionsCaught = 0;
 
-        AtomicInteger corruptionsCaught = new AtomicInteger(0);
-        try (Translog.Snapshot snapshot = translog.newSnapshot()) {
-            for (Translog.Location location : locations) {
-                try {
-                    Translog.Operation next = snapshot.next();
-                    assertNotNull(next);
-                } catch (TranslogCorruptedException e) {
-                    corruptionsCaught.incrementAndGet();
+        try (Translog translog = openTranslog(config, uuid)){
+            try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+                for (Location loc: locations){
+                    snapshot.next();
                 }
             }
-            expectThrows(TranslogCorruptedException.class, snapshot::next);
-            assertThat("at least one corruption was caused and caught", corruptionsCaught.get(), greaterThanOrEqualTo(1));
+        } catch (TranslogCorruptedException e) {
+            assertThat(e.getMessage(), containsString(translogDir.toString()));
+            corruptionsCaught++;
         }
+
+        assertThat("corruption is caught", corruptionsCaught, greaterThanOrEqualTo(1));
     }
+
+
 
     public void testTruncatedTranslogs() throws Exception {
         List<Translog.Location> locations = new ArrayList<>();

@@ -45,9 +45,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static java.util.Comparator.comparing;
-import static java.util.stream.Collectors.toList;
 
 /**
  * Generates an API reference from the method and type whitelists in {@link PainlessLookup}.
@@ -74,9 +74,10 @@ public class PainlessDocGenerator {
             Files.newOutputStream(indexPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
             false, StandardCharsets.UTF_8.name())) {
             emitGeneratedWarning(indexStream);
-            List<Class<?>> classes = PAINLESS_LOOKUP.getStructs().stream().sorted(comparing(Class::getCanonicalName)).collect(toList());
+            List<Class<?>> classes = PAINLESS_LOOKUP.getClasses().stream().sorted(
+                    Comparator.comparing(Class::getCanonicalName)).collect(Collectors.toList());
             for (Class<?> clazz : classes) {
-                PainlessClass struct = PAINLESS_LOOKUP.getPainlessStructFromJavaClass(clazz);
+                PainlessClass struct = PAINLESS_LOOKUP.lookupPainlessClass(clazz);
                 String canonicalClassName = PainlessLookupUtility.typeToCanonicalTypeName(clazz);
 
                 if (clazz.isPrimitive()) {

@@ -20,7 +20,6 @@ package org.elasticsearch.protocol.xpack.ml.datafeed;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;

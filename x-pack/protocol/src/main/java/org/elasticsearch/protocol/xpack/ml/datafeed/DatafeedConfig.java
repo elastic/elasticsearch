@@ -49,9 +49,6 @@ public class DatafeedConfig implements ToXContentObject {
 
     public static final int DEFAULT_SCROLL_SIZE = 1000;
 
-    // Used for QueryPage
-    public static final ParseField RESULTS_FIELD = new ParseField("datafeeds");
-
     public static final ParseField ID = new ParseField("datafeed_id");
     public static final ParseField QUERY_DELAY = new ParseField("query_delay");
     public static final ParseField FREQUENCY = new ParseField("frequency");

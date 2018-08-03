@@ -76,12 +76,12 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private int numConcurrentReads = 0;
     private int numConcurrentWrites = 0;
     private long currentIndexMetadataVersion = 0;
-    private long totalFetchTimeNanos = 0;
+    private long totalFetchTimeMillis = 0;
     private long numberOfSuccessfulFetches = 0;
     private long numberOfFailedFetches = 0;
     private long operationsReceived = 0;
     private long totalTransferredBytes = 0;
-    private long totalIndexTimeNanos = 0;
+    private long totalIndexTimeMillis = 0;
     private long numberOfSuccessfulBulkOperations = 0;
     private long numberOfFailedBulkOperations = 0;
     private long numberOfOperationsIndexed = 0;
@@ -222,7 +222,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         innerSendShardChangesRequest(from, maxOperationCount,
                 response -> {
                     synchronized (ShardFollowNodeTask.this) {
-                        totalFetchTimeNanos += relativeTimeProvider.getAsLong() - startTime;
+                        totalFetchTimeMillis += TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTime);
                         numberOfSuccessfulFetches++;
                         operationsReceived += response.getOperations().length;
                         totalTransferredBytes += Arrays.stream(response.getOperations()).mapToLong(Translog.Operation::estimateSize).sum();
@@ -231,7 +231,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 },
                 e -> {
                     synchronized (ShardFollowNodeTask.this) {
-                        totalFetchTimeNanos += relativeTimeProvider.getAsLong() - startTime;
+                        totalFetchTimeMillis += TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTime);
                         numberOfFailedFetches++;
                     }
                     handleFailure(e, retryCounter, () -> sendShardChangesRequest(from, maxOperationCount, maxRequiredSeqNo, retryCounter));
@@ -297,7 +297,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         innerSendBulkShardOperationsRequest(operations,
                 response -> {
                     synchronized (ShardFollowNodeTask.this) {
-                        totalIndexTimeNanos += relativeTimeProvider.getAsLong() - startTime;
+                        totalIndexTimeMillis += TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTime);
                         numberOfSuccessfulBulkOperations++;
                         numberOfOperationsIndexed += operations.size();
                     }
@@ -305,7 +305,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 },
                 e -> {
                     synchronized (ShardFollowNodeTask.this) {
-                        totalIndexTimeNanos += relativeTimeProvider.getAsLong() - startTime;
+                        totalIndexTimeMillis += TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTime);
                         numberOfFailedBulkOperations++;
                     }
                     handleFailure(e, retryCounter, () -> sendBulkShardOperationsRequest(operations, retryCounter));
@@ -404,12 +404,12 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 numConcurrentWrites,
                 buffer.size(),
                 currentIndexMetadataVersion,
-                totalFetchTimeNanos,
+                totalFetchTimeMillis,
                 numberOfSuccessfulFetches,
                 numberOfFailedFetches,
                 operationsReceived,
                 totalTransferredBytes,
-                totalIndexTimeNanos,
+                totalIndexTimeMillis,
                 numberOfSuccessfulBulkOperations,
                 numberOfFailedBulkOperations,
                 numberOfOperationsIndexed);
@@ -429,12 +429,12 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         static final ParseField NUMBER_OF_CONCURRENT_WRITES_FIELD = new ParseField("number_of_concurrent_writes");
         static final ParseField NUMBER_OF_QUEUED_WRITES_FIELD = new ParseField("number_of_queued_writes");
         static final ParseField INDEX_METADATA_VERSION_FIELD = new ParseField("index_metadata_version");
-        static final ParseField TOTAL_FETCH_TIME_NANOS_FIELD = new ParseField("total_fetch_time_nanos");
+        static final ParseField TOTAL_FETCH_TIME_MILLIS_FIELD = new ParseField("total_fetch_time_millis");
         static final ParseField NUMBER_OF_SUCCESSFUL_FETCHES_FIELD = new ParseField("number_of_successful_fetches");
         static final ParseField NUMBER_OF_FAILED_FETCHES_FIELD = new ParseField("number_of_failed_fetches");
         static final ParseField OPERATIONS_RECEIVED_FIELD = new ParseField("operations_received");
         static final ParseField TOTAL_TRANSFERRED_BYTES = new ParseField("total_transferred_bytes");
-        static final ParseField TOTAL_INDEX_TIME_NANOS_FIELD = new ParseField("total_index_time_nanos");
+        static final ParseField TOTAL_INDEX_TIME_MILLIS_FIELD = new ParseField("total_index_time_millis");
         static final ParseField NUMBER_OF_SUCCESSFUL_BULK_OPERATIONS_FIELD = new ParseField("number_of_successful_bulk_operations");
         static final ParseField NUMBER_OF_FAILED_BULK_OPERATIONS_FIELD = new ParseField("number_of_failed_bulk_operations");
         static final ParseField NUMBER_OF_OPERATIONS_INDEXED_FIELD = new ParseField("number_of_operations_indexed");
@@ -472,12 +472,12 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             PARSER.declareInt(ConstructingObjectParser.constructorArg(), NUMBER_OF_CONCURRENT_WRITES_FIELD);
             PARSER.declareInt(ConstructingObjectParser.constructorArg(), NUMBER_OF_QUEUED_WRITES_FIELD);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), INDEX_METADATA_VERSION_FIELD);
-            PARSER.declareLong(ConstructingObjectParser.constructorArg(), TOTAL_FETCH_TIME_NANOS_FIELD);
+            PARSER.declareLong(ConstructingObjectParser.constructorArg(), TOTAL_FETCH_TIME_MILLIS_FIELD);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_SUCCESSFUL_FETCHES_FIELD);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_FAILED_FETCHES_FIELD);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), OPERATIONS_RECEIVED_FIELD);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), TOTAL_TRANSFERRED_BYTES);
-            PARSER.declareLong(ConstructingObjectParser.constructorArg(), TOTAL_INDEX_TIME_NANOS_FIELD);
+            PARSER.declareLong(ConstructingObjectParser.constructorArg(), TOTAL_INDEX_TIME_MILLIS_FIELD);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_SUCCESSFUL_BULK_OPERATIONS_FIELD);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_FAILED_BULK_OPERATIONS_FIELD);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_OPERATIONS_INDEXED_FIELD);
@@ -543,10 +543,10 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             return indexMetadataVersion;
         }
 
-        private final long totalFetchTimeNanos;
+        private final long totalFetchTimeMillis;
 
-        public long totalFetchTimeNanos() {
-            return totalFetchTimeNanos;
+        public long totalFetchTimeMillis() {
+            return totalFetchTimeMillis;
         }
 
         private final long numberOfSuccessfulFetches;
@@ -573,10 +573,10 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             return totalTransferredBytes;
         }
 
-        private final long totalIndexTimeNanos;
+        private final long totalIndexTimeMillis;
 
-        public long totalIndexTimeNanos() {
-            return totalIndexTimeNanos;
+        public long totalIndexTimeMillis() {
+            return totalIndexTimeMillis;
         }
 
         private final long numberOfSuccessfulBulkOperations;
@@ -608,12 +608,12 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 final int numberOfConcurrentWrites,
                 final int numberOfQueuedWrites,
                 final long indexMetadataVersion,
-                final long totalFetchTimeNanos,
+                final long totalFetchTimeMillis,
                 final long numberOfSuccessfulFetches,
                 final long numberOfFailedFetches,
                 final long operationsReceived,
                 final long totalTransferredBytes,
-                final long totalIndexTimeNanos,
+                final long totalIndexTimeMillis,
                 final long numberOfSuccessfulBulkOperations,
                 final long numberOfFailedBulkOperations,
                 final long numberOfOperationsIndexed) {
@@ -627,12 +627,12 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             this.numberOfConcurrentWrites = numberOfConcurrentWrites;
             this.numberOfQueuedWrites = numberOfQueuedWrites;
             this.indexMetadataVersion = indexMetadataVersion;
-            this.totalFetchTimeNanos = totalFetchTimeNanos;
+            this.totalFetchTimeMillis = totalFetchTimeMillis;
             this.numberOfSuccessfulFetches = numberOfSuccessfulFetches;
             this.numberOfFailedFetches = numberOfFailedFetches;
             this.operationsReceived = operationsReceived;
             this.totalTransferredBytes = totalTransferredBytes;
-            this.totalIndexTimeNanos = totalIndexTimeNanos;
+            this.totalIndexTimeMillis = totalIndexTimeMillis;
             this.numberOfSuccessfulBulkOperations = numberOfSuccessfulBulkOperations;
             this.numberOfFailedBulkOperations = numberOfFailedBulkOperations;
             this.numberOfOperationsIndexed = numberOfOperationsIndexed;
@@ -649,12 +649,12 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             this.numberOfConcurrentWrites = in.readVInt();
             this.numberOfQueuedWrites = in.readVInt();
             this.indexMetadataVersion = in.readVLong();
-            this.totalFetchTimeNanos = in.readVLong();
+            this.totalFetchTimeMillis = in.readVLong();
             this.numberOfSuccessfulFetches = in.readVLong();
             this.numberOfFailedFetches = in.readVLong();
             this.operationsReceived = in.readVLong();
             this.totalTransferredBytes = in.readVLong();
-            this.totalIndexTimeNanos = in.readVLong();
+            this.totalIndexTimeMillis = in.readVLong();
             this.numberOfSuccessfulBulkOperations = in.readVLong();
             this.numberOfFailedBulkOperations = in.readVLong();
             this.numberOfOperationsIndexed = in.readVLong();
@@ -677,12 +677,12 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             out.writeVInt(numberOfConcurrentWrites);
             out.writeVInt(numberOfQueuedWrites);
             out.writeVLong(indexMetadataVersion);
-            out.writeVLong(totalFetchTimeNanos);
+            out.writeVLong(totalFetchTimeMillis);
             out.writeVLong(numberOfSuccessfulFetches);
             out.writeVLong(numberOfFailedFetches);
             out.writeVLong(operationsReceived);
             out.writeVLong(totalTransferredBytes);
-            out.writeVLong(totalIndexTimeNanos);
+            out.writeVLong(totalIndexTimeMillis);
             out.writeVLong(numberOfSuccessfulBulkOperations);
             out.writeVLong(numberOfFailedBulkOperations);
             out.writeVLong(numberOfOperationsIndexed);
@@ -703,9 +703,9 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 builder.field(NUMBER_OF_QUEUED_WRITES_FIELD.getPreferredName(), numberOfQueuedWrites);
                 builder.field(INDEX_METADATA_VERSION_FIELD.getPreferredName(), indexMetadataVersion);
                 builder.humanReadableField(
-                        TOTAL_FETCH_TIME_NANOS_FIELD.getPreferredName(),
+                        TOTAL_FETCH_TIME_MILLIS_FIELD.getPreferredName(),
                         "total_fetch_time",
-                        new TimeValue(totalFetchTimeNanos, TimeUnit.NANOSECONDS));
+                        new TimeValue(totalFetchTimeMillis, TimeUnit.MILLISECONDS));
                 builder.field(NUMBER_OF_SUCCESSFUL_FETCHES_FIELD.getPreferredName(), numberOfSuccessfulFetches);
                 builder.field(NUMBER_OF_FAILED_FETCHES_FIELD.getPreferredName(), numberOfFailedFetches);
                 builder.field(OPERATIONS_RECEIVED_FIELD.getPreferredName(), operationsReceived);
@@ -714,9 +714,9 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                         "total_transferred",
                         new ByteSizeValue(totalTransferredBytes, ByteSizeUnit.BYTES));
                 builder.humanReadableField(
-                        TOTAL_INDEX_TIME_NANOS_FIELD.getPreferredName(),
+                        TOTAL_INDEX_TIME_MILLIS_FIELD.getPreferredName(),
                         "total_index_time",
-                        new TimeValue(totalIndexTimeNanos, TimeUnit.NANOSECONDS));
+                        new TimeValue(totalIndexTimeMillis, TimeUnit.MILLISECONDS));
                 builder.field(NUMBER_OF_SUCCESSFUL_BULK_OPERATIONS_FIELD.getPreferredName(), numberOfSuccessfulBulkOperations);
                 builder.field(NUMBER_OF_FAILED_BULK_OPERATIONS_FIELD.getPreferredName(), numberOfFailedBulkOperations);
                 builder.field(NUMBER_OF_OPERATIONS_INDEXED_FIELD.getPreferredName(), numberOfOperationsIndexed);
@@ -744,7 +744,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                     numberOfConcurrentWrites == that.numberOfConcurrentWrites &&
                     numberOfQueuedWrites == that.numberOfQueuedWrites &&
                     indexMetadataVersion == that.indexMetadataVersion &&
-                    totalFetchTimeNanos == that.totalFetchTimeNanos &&
+                    totalFetchTimeMillis == that.totalFetchTimeMillis &&
                     numberOfSuccessfulFetches == that.numberOfSuccessfulFetches &&
                     numberOfFailedFetches == that.numberOfFailedFetches &&
                     operationsReceived == that.operationsReceived &&
@@ -766,7 +766,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                     numberOfConcurrentWrites,
                     numberOfQueuedWrites,
                     indexMetadataVersion,
-                    totalFetchTimeNanos,
+                    totalFetchTimeMillis,
                     numberOfSuccessfulFetches,
                     numberOfFailedFetches,
                     operationsReceived,

@@ -18,6 +18,6 @@ public class FeatureIndexBuilderFeatureSetUsage extends Usage {
     }
 
     public FeatureIndexBuilderFeatureSetUsage(boolean available, boolean enabled) {
-        super(XPackField.MACHINE_LEARNING, available, enabled);
+        super(XPackField.FIB, available, enabled);
     }
 }

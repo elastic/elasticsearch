@@ -66,7 +66,7 @@ this.licenseState = licenseState;
             ActionListener<StartFeatureIndexBuilderJobAction.Response> listener) {
 
         if (!licenseState.isMachineLearningAllowed()) {
-            listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
+            listener.onFailure(LicenseUtils.newComplianceException(XPackField.FIB));
             return;
         }
          

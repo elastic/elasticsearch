@@ -28,7 +28,7 @@ public class FeatureIndexBuilderFeatureSet implements XPackFeatureSet {
 
     @Override
     public String name() {
-        return XPackField.MACHINE_LEARNING; // todo: own implementation??
+        return XPackField.FIB;
     }
 
     @Override

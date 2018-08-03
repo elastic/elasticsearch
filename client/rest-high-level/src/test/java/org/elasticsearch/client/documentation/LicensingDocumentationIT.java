@@ -116,7 +116,7 @@ public class LicensingDocumentationIT extends ESRestHighLevelClientTestCase {
             //tag::get-license-execute
             GetLicenseRequest request = new GetLicenseRequest();
 
-            GetLicenseResponse response = client.xpack().license().getLicense(request, RequestOptions.DEFAULT);
+            GetLicenseResponse response = client.license().getLicense(request, RequestOptions.DEFAULT);
             //end::get-license-execute
 
             //tag::get-license-response
@@ -147,7 +147,7 @@ public class LicensingDocumentationIT extends ESRestHighLevelClientTestCase {
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::get-license-execute-async
-            client.xpack().license().getLicenseAsync(
+            client.license().getLicenseAsync(
                 request, RequestOptions.DEFAULT, listener); // <1>
             // end::get-license-execute-async
 
@@ -159,7 +159,7 @@ public class LicensingDocumentationIT extends ESRestHighLevelClientTestCase {
             // Make sure that it still works in other formats
             builder.addHeader("Accept", randomFrom("application/smile", "application/cbor"));
             RequestOptions options = builder.build();
-            GetLicenseResponse response = client.xpack().license().getLicense(request, options);
+            GetLicenseResponse response = client.license().getLicense(request, options);
             String currentLicense = response.getLicenseDefinition();
             assertThat(currentLicense, startsWith("{"));
             assertThat(currentLicense, containsString("trial"));

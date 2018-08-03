@@ -302,7 +302,9 @@ public final class ExceptionsHelper {
             if (indexName == null) {
                 if (cause instanceof ElasticsearchException) {
                     final Index index = ((ElasticsearchException) cause).getIndex();
-                    indexName = index.getName();
+                    if (index != null) {
+                        indexName = index.getName();
+                    }
                 }
             }
             this.index = indexName;

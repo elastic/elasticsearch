@@ -35,12 +35,10 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.RemoteClusterAware;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -204,85 +202,6 @@ public class RestActionsTests extends ESTestCase {
             new ShardId(new Index(index, IndexMetaData.INDEX_UUID_NA_VALUE), shardId), clusterAlias, OriginalIndices.NONE);
     }
 
-    public void testBuildBroadcastShardsHeaderNullTarget() throws Exception {
-        ShardOperationFailedException[] failures = new ShardOperationFailedException[] {
-            createShardFailureQueryShardException(null),
-            createShardFailureQueryShardException(null),
-            createShardFailureQueryShardException(null),
-            createShardFailureQueryShardException("cluster1"),
-            createShardFailureQueryShardException("cluster1"),
-            createShardFailureQueryShardException("cluster1"),
-            createShardFailureQueryShardException("cluster2"),
-            createShardFailureQueryShardException("cluster2"),
-        };
-
-        XContentBuilder builder = JsonXContent.contentBuilder();
-        builder.prettyPrint();
-        builder.startObject();
-        RestActions.buildBroadcastShardsHeader(builder, ToXContent.EMPTY_PARAMS, 11, 3, 0, 8, failures);
-        builder.endObject();
-
-        assertThat(Strings.toString(builder), equalTo("{\n" +
-            "  \"_shards\" : {\n" +
-            "    \"total\" : 11,\n" +
-            "    \"successful\" : 3,\n" +
-            "    \"skipped\" : 0,\n" +
-            "    \"failed\" : 8,\n" +
-            "    \"failures\" : [\n" +
-            "      {\n" +
-            "        \"shard\" : -1,\n" +
-            "        \"index\" : null,\n" +
-            "        \"reason\" : {\n" +
-            "          \"type\" : \"query_shard_exception\",\n" +
-            "          \"reason\" : \"error\",\n" +
-            "          \"index_uuid\" : \"uuid\",\n" +
-            "          \"index\" : \"index\",\n" +
-            "          \"caused_by\" : {\n" +
-            "            \"type\" : \"illegal_argument_exception\",\n" +
-            "            \"reason\" : \"parse error\"\n" +
-            "          }\n" +
-            "        }\n" +
-            "      },\n" +
-            "      {\n" +
-            "        \"shard\" : -1,\n" +
-            "        \"index\" : null,\n" +
-            "        \"reason\" : {\n" +
-            "          \"type\" : \"query_shard_exception\",\n" +
-            "          \"reason\" : \"error\",\n" +
-            "          \"index_uuid\" : \"uuid\",\n" +
-            "          \"index\" : \"cluster1:index\",\n" +
-            "          \"caused_by\" : {\n" +
-            "            \"type\" : \"illegal_argument_exception\",\n" +
-            "            \"reason\" : \"parse error\"\n" +
-            "          }\n" +
-            "        }\n" +
-            "      },\n" +
-            "      {\n" +
-            "        \"shard\" : -1,\n" +
-            "        \"index\" : null,\n" +
-            "        \"reason\" : {\n" +
-            "          \"type\" : \"query_shard_exception\",\n" +
-            "          \"reason\" : \"error\",\n" +
-            "          \"index_uuid\" : \"uuid\",\n" +
-            "          \"index\" : \"cluster2:index\",\n" +
-            "          \"caused_by\" : {\n" +
-            "            \"type\" : \"illegal_argument_exception\",\n" +
-            "            \"reason\" : \"parse error\"\n" +
-            "          }\n" +
-            "        }\n" +
-            "      }\n" +
-            "    ]\n" +
-            "  }\n" +
-            "}"));
-    }
-
-    private static ShardSearchFailure createShardFailureQueryShardException(String clusterAlias) {
-        String indexName = "index";
-        Index index = new Index(RemoteClusterAware.buildRemoteIndexName(clusterAlias, indexName), "uuid");
-        QueryShardException queryShardException = new QueryShardException(index, "error", new IllegalArgumentException("parse error"));
-        return new ShardSearchFailure(queryShardException, null);
-    }
-
     public void testBuildBroadcastShardsHeaderNullCause() throws Exception {
         ShardOperationFailedException[] failures = new ShardOperationFailedException[] {
             new ShardSearchFailure("error", createSearchShardTarget("node0", 0, "index", null)),
@@ -297,7 +216,7 @@ public class RestActionsTests extends ESTestCase {
         builder.startObject();
         RestActions.buildBroadcastShardsHeader(builder, ToXContent.EMPTY_PARAMS, 12, 3, 0, 9, failures);
         builder.endObject();
-        //TODO the reason is not printed out, as a follow-up we should either print it out when the cause is null,
+        //TODO the reason is not printed out, as a follow-up we should probably either print it out when the cause is null,
         //or even better enforce that the cause can't be null
         assertThat(Strings.toString(builder), equalTo("{\n" +
             "  \"_shards\" : {\n" +

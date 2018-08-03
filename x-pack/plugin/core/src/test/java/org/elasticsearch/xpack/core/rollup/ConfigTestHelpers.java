@@ -9,7 +9,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.rollup.job.DateHistoGroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
@@ -25,6 +25,7 @@ import java.util.stream.IntStream;
 
 import static com.carrotsearch.randomizedtesting.generators.RandomNumbers.randomIntBetween;
 import static com.carrotsearch.randomizedtesting.generators.RandomStrings.randomAsciiAlphanumOfLengthBetween;
+import static org.elasticsearch.test.ESTestCase.randomDateTimeZone;
 
 public class ConfigTestHelpers {
 
@@ -46,7 +47,7 @@ public class ConfigTestHelpers {
 
     public static GroupConfig.Builder getGroupConfig() {
         GroupConfig.Builder groupBuilder = new GroupConfig.Builder();
-        groupBuilder.setDateHisto(getDateHisto().build());
+        groupBuilder.setDateHisto(randomDateHistogramGroupConfig(ESTestCase.random()));
         if (ESTestCase.randomBoolean()) {
             groupBuilder.setHisto(randomHistogramGroupConfig(ESTestCase.random()));
         }
@@ -61,17 +62,12 @@ public class ConfigTestHelpers {
         return ESTestCase.randomIntBetween(1, 1000) + ESTestCase.randomFrom(TIME_SUFFIXES);
     }
 
-    public static DateHistoGroupConfig.Builder getDateHisto() {
-        DateHistoGroupConfig.Builder dateHistoBuilder = new DateHistoGroupConfig.Builder();
-        dateHistoBuilder.setInterval(new DateHistogramInterval(randomPositiveTimeValue()));
-        if (ESTestCase.randomBoolean()) {
-            dateHistoBuilder.setTimeZone(ESTestCase.randomDateTimeZone());
-        }
-        if (ESTestCase.randomBoolean()) {
-            dateHistoBuilder.setDelay(new DateHistogramInterval(randomPositiveTimeValue()));
-        }
-        dateHistoBuilder.setField(ESTestCase.randomAlphaOfLengthBetween(5, 10));
-        return dateHistoBuilder;
+    public static DateHistogramGroupConfig randomDateHistogramGroupConfig(final Random random) {
+        final String field = randomField(random);
+        final DateHistogramInterval interval = randomInterval();
+        final DateHistogramInterval delay = random.nextBoolean() ? randomInterval() : null;
+        final String timezone = random.nextBoolean() ? randomDateTimeZone().toString() : null;
+        return new DateHistogramGroupConfig(field, interval, delay, timezone);
     }
 
     public static  List<String> getFields() {
@@ -140,8 +136,12 @@ public class ConfigTestHelpers {
         return fields;
     }
 
-    private static String randomField(final Random random) {
+    public static String randomField(final Random random) {
         return randomAsciiAlphanumOfLengthBetween(random, 5, 10);
+    }
+
+    public static DateHistogramInterval randomInterval() {
+        return new DateHistogramInterval(randomPositiveTimeValue());
     }
 
     private static long randomInterval(final Random random) {

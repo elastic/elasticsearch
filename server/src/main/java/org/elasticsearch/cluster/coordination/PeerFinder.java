@@ -356,31 +356,17 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
 
             if (inFlightProbes.add(transportAddress)) {
                 logger.trace("startProbe({}) starting new probe", transportAddress);
-                executorService.get().execute(new AbstractRunnable() {
+                transportAddressConnector.connectTo(transportAddress, new ActionListener<DiscoveryNode>() {
                     @Override
-                    protected void doRun() {
-                        // No synchronisation required - transportAddressConnector is threadsafe
-                        transportAddressConnector.connectTo(transportAddress, new ActionListener<DiscoveryNode>() {
-                            @Override
-                            public void onResponse(DiscoveryNode remoteNode) {
-                                // No synchronisation required - connectedNodes, inFlightProbes, onProbeSuccess all threadsafe
-                                logger.trace("startProbe({}) found {}", transportAddress, remoteNode);
-                                final boolean removed = inFlightProbes.remove(transportAddress);
-                                assert removed;
-                                if (remoteNode.isMasterNode()) {
-                                    connectedNodes.put(remoteNode.getAddress(), remoteNode);
-                                    onProbeSuccess(remoteNode);
-                                }
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                // No synchronisation required - inFlightProbes is threadsafe
-                                logger.debug(() -> new ParameterizedMessage("startProbe({}) failed", transportAddress), e);
-                                final boolean removed = inFlightProbes.remove(transportAddress);
-                                assert removed;
-                            }
-                        });
+                    public void onResponse(DiscoveryNode remoteNode) {
+                        // No synchronisation required - connectedNodes, inFlightProbes, onProbeSuccess all threadsafe
+                        logger.trace("startProbe({}) found {}", transportAddress, remoteNode);
+                        final boolean removed = inFlightProbes.remove(transportAddress);
+                        assert removed;
+                        if (remoteNode.isMasterNode()) {
+                            connectedNodes.put(remoteNode.getAddress(), remoteNode);
+                            onProbeSuccess(remoteNode);
+                        }
                     }
 
                     @Override
@@ -389,11 +375,6 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
                         logger.debug(() -> new ParameterizedMessage("startProbe({}) failed", transportAddress), e);
                         final boolean removed = inFlightProbes.remove(transportAddress);
                         assert removed;
-                    }
-
-                    @Override
-                    public String toString() {
-                        return "probe " + transportAddress;
                     }
                 });
             } else {

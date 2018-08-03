@@ -475,22 +475,5 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
                     });
             }
         }
-
-        private class FoundPeer {
-            final DiscoveryNode discoveryNode;
-            boolean peersRequestedThisRound;
-
-            FoundPeer(DiscoveryNode discoveryNode) {
-                this.discoveryNode = discoveryNode;
-            }
-
-            @Override
-            public String toString() {
-                return "FoundPeer{" +
-                    "discoveryNode=" + discoveryNode +
-                    ", peersRequestedThisRound=" + peersRequestedThisRound +
-                    '}';
-            }
-        }
     }
 }

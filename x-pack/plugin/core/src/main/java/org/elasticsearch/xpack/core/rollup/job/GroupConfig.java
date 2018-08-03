@@ -43,31 +43,31 @@ public class GroupConfig implements Writeable, ToXContentObject {
     private static final ParseField HISTO = new ParseField("histogram");
     private static final ParseField TERMS = new ParseField("terms");
 
-    private final DateHistoGroupConfig dateHisto;
+    private final DateHistogramGroupConfig dateHisto;
     private final HistogramGroupConfig histo;
     private final TermsGroupConfig terms;
 
     public static final ObjectParser<GroupConfig.Builder, Void> PARSER = new ObjectParser<>(NAME, GroupConfig.Builder::new);
 
     static {
-        PARSER.declareObject(GroupConfig.Builder::setDateHisto, (p,c) -> DateHistoGroupConfig.PARSER.apply(p,c).build(), DATE_HISTO);
+        PARSER.declareObject(GroupConfig.Builder::setDateHisto, (p,c) -> DateHistogramGroupConfig.fromXContent(p), DATE_HISTO);
         PARSER.declareObject(GroupConfig.Builder::setHisto, (p,c) -> HistogramGroupConfig.fromXContent(p), HISTO);
         PARSER.declareObject(GroupConfig.Builder::setTerms, (p,c) -> TermsGroupConfig.fromXContent(p), TERMS);
     }
 
-    private GroupConfig(DateHistoGroupConfig dateHisto, @Nullable HistogramGroupConfig histo, @Nullable TermsGroupConfig terms) {
+    private GroupConfig(DateHistogramGroupConfig dateHisto, @Nullable HistogramGroupConfig histo, @Nullable TermsGroupConfig terms) {
         this.dateHisto = Objects.requireNonNull(dateHisto, "A date_histogram group is mandatory");
         this.histo = histo;
         this.terms = terms;
     }
 
     GroupConfig(StreamInput in) throws IOException {
-        dateHisto = new DateHistoGroupConfig(in);
+        dateHisto = new DateHistogramGroupConfig(in);
         histo = in.readOptionalWriteable(HistogramGroupConfig::new);
         terms = in.readOptionalWriteable(TermsGroupConfig::new);
     }
 
-    public DateHistoGroupConfig getDateHisto() {
+    public DateHistogramGroupConfig getDateHisto() {
         return dateHisto;
     }
 
@@ -105,9 +105,7 @@ public class GroupConfig implements Writeable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.startObject(DATE_HISTO.getPreferredName());
-        dateHisto.toXContent(builder, params);
-        builder.endObject();
+        builder.field(DATE_HISTO.getPreferredName(), dateHisto);
         if (histo != null) {
             builder.field(HISTO.getPreferredName(), histo);
         }
@@ -153,15 +151,15 @@ public class GroupConfig implements Writeable, ToXContentObject {
     }
 
     public static class Builder {
-        private DateHistoGroupConfig dateHisto;
+        private DateHistogramGroupConfig dateHisto;
         private HistogramGroupConfig histo;
         private TermsGroupConfig terms;
 
-        public DateHistoGroupConfig getDateHisto() {
+        public DateHistogramGroupConfig getDateHisto() {
             return dateHisto;
         }
 
-        public GroupConfig.Builder setDateHisto(DateHistoGroupConfig dateHisto) {
+        public GroupConfig.Builder setDateHisto(DateHistogramGroupConfig dateHisto) {
             this.dateHisto = dateHisto;
             return this;
         }

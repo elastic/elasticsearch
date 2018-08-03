@@ -14,14 +14,14 @@ import java.util.Objects;
 import java.util.function.LongSupplier;
 
 public class PhaseAfterStep extends ClusterStateWaitStep {
-    public static final String NAME = "after";
-    private final TimeValue after;
+    public static final String NAME = "index_age";
+    private final TimeValue indexAge;
     private final LongSupplier nowSupplier;
 
-    PhaseAfterStep(LongSupplier nowSupplier, TimeValue after, StepKey key, StepKey nextStepKey) {
+    PhaseAfterStep(LongSupplier nowSupplier, TimeValue indexAge, StepKey key, StepKey nextStepKey) {
         super(key, nextStepKey);
         this.nowSupplier = nowSupplier;
-        this.after = after;
+        this.indexAge = indexAge;
     }
 
     @Override
@@ -29,22 +29,22 @@ public class PhaseAfterStep extends ClusterStateWaitStep {
         IndexMetaData indexMetaData = clusterState.metaData().index(index);
         long lifecycleDate = indexMetaData.getSettings()
             .getAsLong(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE, -1L);
-        return new Result(nowSupplier.getAsLong() >= lifecycleDate + after.getMillis(), null);
+        return new Result(nowSupplier.getAsLong() >= lifecycleDate + indexAge.getMillis(), null);
     }
-    
-    TimeValue getAfter() {
-        return after;
+
+    TimeValue getIndexAge() {
+        return indexAge;
     }
-    
+
     LongSupplier getNowSupplier() {
         return nowSupplier;
     }
-    
+
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), after);
+        return Objects.hash(super.hashCode(), indexAge);
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (obj == null) {
@@ -55,6 +55,6 @@ public class PhaseAfterStep extends ClusterStateWaitStep {
         }
         PhaseAfterStep other = (PhaseAfterStep) obj;
         return super.equals(obj) &&
-                Objects.equals(after, other.after);
+                Objects.equals(indexAge, other.indexAge);
     }
 }

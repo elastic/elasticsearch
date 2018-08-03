@@ -26,7 +26,7 @@ setup:
                "type": "timeseries",
                "phases": {
                  "warm": {
-                   "after": "10s",
+                   "index_age": "10s",
                    "actions": {
                      "forcemerge": {
                        "max_num_segments": 10000
@@ -34,7 +34,7 @@ setup:
                    }
                  },
                  "delete": {
-                   "after": "30s",
+                   "index_age": "30s",
                    "actions": {
                      "delete": {}
                    }
@@ -48,8 +48,8 @@ setup:
       ilm.get_lifecycle:
         lifecycle: "my_timeseries_lifecycle"
   - match: { my_timeseries_lifecycle.type: "timeseries" }
-  - match: { my_timeseries_lifecycle.phases.warm.after: "10s" }
-  - match: { my_timeseries_lifecycle.phases.delete.after: "30s" }
+  - match: { my_timeseries_lifecycle.phases.warm.index_age: "10s" }
+  - match: { my_timeseries_lifecycle.phases.delete.index_age: "30s" }
 
   - do:
       acknowledge: true
@@ -73,7 +73,7 @@ setup:
                "type": "timeseries",
                "phases": {
                  "warm": {
-                   "after": "10s",
+                   "index_age": "10s",
                    "actions": {
                      "forcemerge": {
                        "max_num_segments": 10000
@@ -81,7 +81,7 @@ setup:
                    }
                  },
                  "delete": {
-                   "after": "30s",
+                   "index_age": "30s",
                    "actions": {
                      "delete": {}
                    }
@@ -95,8 +95,8 @@ setup:
       ilm.get_lifecycle:
         lifecycle: "my_timeseries_lifecycle"
   - match: { my_timeseries_lifecycle.type: "timeseries" }
-  - match: { my_timeseries_lifecycle.phases.warm.after: "10s" }
-  - match: { my_timeseries_lifecycle.phases.delete.after: "30s" }
+  - match: { my_timeseries_lifecycle.phases.warm.index_age: "10s" }
+  - match: { my_timeseries_lifecycle.phases.delete.index_age: "30s" }
 
 
   - do:
@@ -123,7 +123,7 @@ setup:
                "type": "timeseries",
                "phases": {
                  "warm": {
-                   "after": "300s",
+                   "index_age": "300s",
                    "actions": {
                      "forcemerge": {
                        "max_num_segments": 10000
@@ -131,7 +131,7 @@ setup:
                    }
                  },
                  "delete": {
-                   "after": "600s",
+                   "index_age": "600s",
                    "actions": {
                      "delete": {}
                    }
@@ -145,8 +145,8 @@ setup:
       ilm.get_lifecycle:
         lifecycle: "my_timeseries_lifecycle"
   - match: { my_timeseries_lifecycle.type: "timeseries" }
-  - match: { my_timeseries_lifecycle.phases.warm.after: "300s" }
-  - match: { my_timeseries_lifecycle.phases.delete.after: "600s" }
+  - match: { my_timeseries_lifecycle.phases.warm.index_age: "300s" }
+  - match: { my_timeseries_lifecycle.phases.delete.index_age: "600s" }
 
   - do:
       acknowledge: true
@@ -179,7 +179,7 @@ setup:
                "type": "timeseries",
                "phases": {
                  "warm": {
-                   "after": "10s",
+                   "index_age": "10s",
                    "actions": {
                      "forcemerge": {
                        "max_num_segments": 10000
@@ -187,7 +187,7 @@ setup:
                    }
                  },
                  "delete": {
-                   "after": "30s",
+                   "index_age": "30s",
                    "actions": {
                      "delete": {}
                    }
@@ -201,8 +201,8 @@ setup:
       ilm.get_lifecycle:
         lifecycle: "my_timeseries_lifecycle"
   - match: { my_timeseries_lifecycle.type: "timeseries" }
-  - match: { my_timeseries_lifecycle.phases.warm.after: "10s" }
-  - match: { my_timeseries_lifecycle.phases.delete.after: "30s" }
+  - match: { my_timeseries_lifecycle.phases.warm.index_age: "10s" }
+  - match: { my_timeseries_lifecycle.phases.delete.index_age: "30s" }
 
   - do:
       indices.create:

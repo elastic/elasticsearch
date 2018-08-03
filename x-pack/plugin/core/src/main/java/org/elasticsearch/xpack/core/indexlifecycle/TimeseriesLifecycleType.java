@@ -69,7 +69,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
                 } else if (phase.getActions().containsKey(ReadOnlyAction.NAME) == false){
                     Map<String, LifecycleAction> actionMap = new HashMap<>(phase.getActions());
                     actionMap.put(ReadOnlyAction.NAME, ReadOnlyAction.INSTANCE);
-                    phase = new Phase(phase.getName(), phase.getAfter(), actionMap);
+                    phase = new Phase(phase.getName(), phase.getIndexAge(), actionMap);
                 }
             }
             if (phase != null) {
@@ -140,7 +140,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
                 throw new IllegalArgumentException("lifecycle type[" + TYPE + "] does not support phase[" + phase.getName() + "]");
         }
     }
-    
+
     @Override
     public String getNextActionName(String currentActionName, Phase phase) {
         List<String> orderedActionNames;

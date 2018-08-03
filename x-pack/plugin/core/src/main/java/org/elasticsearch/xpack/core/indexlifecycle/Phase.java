@@ -31,7 +31,7 @@ import java.util.stream.Collectors;
  */
 public class Phase implements ToXContentObject, Writeable {
 
-    public static final ParseField AFTER_FIELD = new ParseField("after");
+    public static final ParseField INDEX_AGE_FIELD = new ParseField("index_age");
     public static final ParseField ACTIONS_FIELD = new ParseField("actions");
 
     @SuppressWarnings("unchecked")
@@ -40,7 +40,7 @@ public class Phase implements ToXContentObject, Writeable {
                     .collect(Collectors.toMap(LifecycleAction::getWriteableName, Function.identity()))));
     static {
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> TimeValue.parseTimeValue(p.text(), AFTER_FIELD.getPreferredName()), AFTER_FIELD, ValueType.VALUE);
+                (p, c) -> TimeValue.parseTimeValue(p.text(), INDEX_AGE_FIELD.getPreferredName()), INDEX_AGE_FIELD, ValueType.VALUE);
         PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(),
                 (p, c, n) -> p.namedObject(LifecycleAction.class, n, null), v -> {
                     throw new IllegalArgumentException("ordered " + ACTIONS_FIELD.getPreferredName() + " are not supported");
@@ -53,12 +53,12 @@ public class Phase implements ToXContentObject, Writeable {
 
     private String name;
     private Map<String, LifecycleAction> actions;
-    private TimeValue after;
+    private TimeValue indexAge;
 
     /**
      * @param name
      *            the name of this {@link Phase}.
-     * @param after
+     * @param indexAge
      *            the age of the index when the index should move to this
      *            {@link Phase}.
      * @param actions
@@ -67,12 +67,12 @@ public class Phase implements ToXContentObject, Writeable {
      *            action names. The order of these actions is defined
      *            by the {@link LifecycleType}
      */
-    public Phase(String name, TimeValue after, Map<String, LifecycleAction> actions) {
+    public Phase(String name, TimeValue indexAge, Map<String, LifecycleAction> actions) {
         this.name = name;
-        if (after == null) {
-            this.after = TimeValue.ZERO;
+        if (indexAge == null) {
+            this.indexAge = TimeValue.ZERO;
         } else {
-            this.after = after;
+            this.indexAge = indexAge;
         }
         this.actions = actions;
     }
@@ -82,7 +82,7 @@ public class Phase implements ToXContentObject, Writeable {
      */
     public Phase(StreamInput in) throws IOException {
         this.name = in.readString();
-        this.after = in.readTimeValue();
+        this.indexAge = in.readTimeValue();
         int size = in.readVInt();
         TreeMap<String, LifecycleAction> actions = new TreeMap<>();
         for (int i = 0; i < size; i++) {
@@ -94,7 +94,7 @@ public class Phase implements ToXContentObject, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        out.writeTimeValue(after);
+        out.writeTimeValue(indexAge);
         out.writeVInt(actions.size());
         for (Map.Entry<String, LifecycleAction> entry : actions.entrySet()) {
             out.writeString(entry.getKey());
@@ -106,8 +106,8 @@ public class Phase implements ToXContentObject, Writeable {
      * @return the age of the index when the index should move to this
      *         {@link Phase}.
      */
-    public TimeValue getAfter() {
-        return after;
+    public TimeValue getIndexAge() {
+        return indexAge;
     }
 
     /**
@@ -128,17 +128,17 @@ public class Phase implements ToXContentObject, Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(AFTER_FIELD.getPreferredName(), after.seconds() + "s"); // Need a better way to get a parsable format out here
+        builder.field(INDEX_AGE_FIELD.getPreferredName(), indexAge.seconds() + "s"); // Need a better way to get a parsable format out here
         builder.field(ACTIONS_FIELD.getPreferredName(), actions);
         builder.endObject();
         return builder;
     }
-    
+
     @Override
     public int hashCode() {
-        return Objects.hash(name, after, actions);
+        return Objects.hash(name, indexAge, actions);
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (obj == null) {
@@ -149,7 +149,7 @@ public class Phase implements ToXContentObject, Writeable {
         }
         Phase other = (Phase) obj;
         return Objects.equals(name, other.name) &&
-                Objects.equals(after, other.after) &&
+                Objects.equals(indexAge, other.indexAge) &&
                 Objects.equals(actions, other.actions);
     }
 

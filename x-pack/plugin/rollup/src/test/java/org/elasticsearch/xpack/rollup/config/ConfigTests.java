@@ -5,9 +5,10 @@
  */
 package org.elasticsearch.xpack.rollup.config;
 
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
-import org.elasticsearch.xpack.core.rollup.job.DateHistoGroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
@@ -170,29 +171,38 @@ public class ConfigTests extends ESTestCase {
     }
 
     public void testEmptyDateHistoField() {
-        DateHistoGroupConfig.Builder config = ConfigTestHelpers.getDateHisto();
-        config.setField(null);
-        Exception e = expectThrows(IllegalArgumentException.class, config::build);
-        assertThat(e.getMessage(), equalTo("Parameter [field] is mandatory."));
+        Exception e = expectThrows(IllegalArgumentException.class,
+            () -> new DateHistogramGroupConfig(null, DateHistogramInterval.HOUR));
+        assertThat(e.getMessage(), equalTo("Field must be a non-null, non-empty string"));
 
-        config.setField("");
-        e = expectThrows(IllegalArgumentException.class, config::build);
-        assertThat(e.getMessage(), equalTo("Parameter [field] is mandatory."));
+        e = expectThrows(IllegalArgumentException.class, () -> new DateHistogramGroupConfig("", DateHistogramInterval.HOUR));
+        assertThat(e.getMessage(), equalTo("Field must be a non-null, non-empty string"));
     }
 
     public void testEmptyDateHistoInterval() {
-        DateHistoGroupConfig.Builder config = ConfigTestHelpers.getDateHisto();
-        config.setField("foo");
-        config.setInterval(null);
-        Exception e = expectThrows(IllegalArgumentException.class, config::build);
-        assertThat(e.getMessage(), equalTo("Parameter [interval] is mandatory."));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new DateHistogramGroupConfig("foo", null));
+        assertThat(e.getMessage(), equalTo("Interval must be non-null"));
     }
 
     public void testNullTimeZone() {
-        DateHistoGroupConfig.Builder config = ConfigTestHelpers.getDateHisto();
-        config.setTimeZone(null);
-        DateHistoGroupConfig finalConfig = config.build();
-        assertThat(finalConfig.getTimeZone(), equalTo(DateTimeZone.UTC));
+        DateHistogramGroupConfig config = new DateHistogramGroupConfig("foo", DateHistogramInterval.HOUR, null, null);
+        assertThat(config.getTimeZone(), equalTo(DateTimeZone.UTC.getID()));
+    }
+
+    public void testEmptyTimeZone() {
+        DateHistogramGroupConfig config = new DateHistogramGroupConfig("foo", DateHistogramInterval.HOUR, null, "");
+        assertThat(config.getTimeZone(), equalTo(DateTimeZone.UTC.getID()));
+    }
+
+    public void testDefaultTimeZone() {
+        DateHistogramGroupConfig config = new DateHistogramGroupConfig("foo", DateHistogramInterval.HOUR);
+        assertThat(config.getTimeZone(), equalTo(DateTimeZone.UTC.getID()));
+    }
+
+    public void testUnkownTimeZone() {
+        Exception e = expectThrows(IllegalArgumentException.class,
+            () -> new DateHistogramGroupConfig("foo", DateHistogramInterval.HOUR, null, "FOO"));
+        assertThat(e.getMessage(), equalTo("The datetime zone id 'FOO' is not recognised"));
     }
 
     public void testEmptyHistoField() {

@@ -16,7 +16,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregati
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.xpack.core.rollup.RollupField;
-import org.elasticsearch.xpack.core.rollup.job.DateHistoGroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobStats;
 import org.elasticsearch.xpack.rollup.Rollup;
@@ -83,7 +83,7 @@ class IndexerUtils {
                 assert v != null;
                 doc.put(k + "." + RollupField.TIMESTAMP, v);
                 doc.put(k  + "." + RollupField.INTERVAL, groupConfig.getDateHisto().getInterval());
-                doc.put(k  + "." + DateHistoGroupConfig.TIME_ZONE, groupConfig.getDateHisto().getTimeZone().toString());
+                doc.put(k  + "." + DateHistogramGroupConfig.TIME_ZONE, groupConfig.getDateHisto().getTimeZone());
                 docID.update(Numbers.longToBytes((Long)v), 0, 8);
             } else if (k.endsWith("." + HistogramAggregationBuilder.NAME)) {
                 doc.put(k + "." + RollupField.VALUE, v);

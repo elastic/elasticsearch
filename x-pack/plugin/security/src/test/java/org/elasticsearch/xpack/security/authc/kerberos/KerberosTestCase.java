@@ -133,7 +133,7 @@ public abstract class KerberosTestCase extends ESTestCase {
      * @param dir Directory where the key tab would be created.
      * @param princNames principal names to be created
      * @return {@link Path} to key tab file.
-     * @throws Exception
+     * @throws Exception thrown if principal or keytab could not be created
      */
     protected Path createPrincipalKeyTab(final Path dir, final String... princNames) throws Exception {
         final Path path = dir.resolve(randomAlphaOfLength(10) + ".keytab");
@@ -146,7 +146,7 @@ public abstract class KerberosTestCase extends ESTestCase {
      * 
      * @param principalName Principal name
      * @param password Password
-     * @throws Exception
+     * @throws Exception thrown if principal could not be created
      */
     protected void createPrincipal(final String principalName, final char[] password) throws Exception {
         simpleKdcLdapServer.createPrincipal(principalName, new String(password));
@@ -168,8 +168,8 @@ public abstract class KerberosTestCase extends ESTestCase {
      * @param subject {@link Subject}
      * @param action {@link PrivilegedExceptionAction} action for performing inside
      *            Subject.doAs
-     * @return <T> Type of value as returned by PrivilegedAction
-     * @throws PrivilegedActionException
+     * @return T Type of value as returned by PrivilegedAction
+     * @throws PrivilegedActionException when privileged action threw exception
      */
     static <T> T doAsWrapper(final Subject subject, final PrivilegedExceptionAction<T> action) throws PrivilegedActionException {
         return AccessController.doPrivileged((PrivilegedExceptionAction<T>) () -> Subject.doAs(subject, action));
@@ -181,7 +181,7 @@ public abstract class KerberosTestCase extends ESTestCase {
      * @param keytabPath {@link Path} to keytab file.
      * @param content Content for keytab
      * @return key tab path
-     * @throws IOException
+     * @throws IOException if I/O error occurs while writing keytab file
      */
     public static Path writeKeyTab(final Path keytabPath, final String content) throws IOException {
         try (BufferedWriter bufferedWriter = Files.newBufferedWriter(keytabPath, StandardCharsets.US_ASCII)) {

@@ -20,24 +20,20 @@
 package org.elasticsearch.painless.lookup;
 
 import java.lang.invoke.MethodHandle;
+import java.lang.reflect.Field;
 
 public final class PainlessField {
-    public final String name;
-    public final Class<?> target;
-    public final Class<?> clazz;
-    public final String javaName;
-    public final int modifiers;
-    public final MethodHandle getter;
-    public final MethodHandle setter;
+    public final Field javaField;
+    public final Class<?> typeParameter;
 
-    PainlessField(String name, String javaName, Class<?> target, Class<?> clazz, int modifiers,
-                  MethodHandle getter, MethodHandle setter) {
-        this.name = name;
-        this.javaName = javaName;
-        this.target = target;
-        this.clazz = clazz;
-        this.modifiers = modifiers;
-        this.getter = getter;
-        this.setter = setter;
+    public final MethodHandle getterMethodHandle;
+    public final MethodHandle setterMethodHandle;
+
+    PainlessField(Field javaField, Class<?> typeParameter, MethodHandle getterMethodHandle, MethodHandle setterMethodHandle) {
+        this.javaField = javaField;
+        this.typeParameter = typeParameter;
+
+        this.getterMethodHandle = getterMethodHandle;
+        this.setterMethodHandle = setterMethodHandle;
     }
 }

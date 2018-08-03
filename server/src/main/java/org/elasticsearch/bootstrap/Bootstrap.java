@@ -37,6 +37,7 @@ import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.NodeNamePatternConverter;
 import org.elasticsearch.common.network.IfConfig;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureSettings;
@@ -287,6 +288,10 @@ final class Bootstrap {
 
         final SecureSettings keystore = loadSecureSettings(initialEnv);
         final Environment environment = createEnvironment(pidFile, keystore, initialEnv.settings(), initialEnv.configFile());
+
+        String nodeName = Node.NODE_NAME_SETTING.get(environment.settings());
+        NodeNamePatternConverter.setNodeName(nodeName);
+
         try {
             LogConfigurator.configure(environment);
         } catch (IOException e) {
@@ -317,8 +322,7 @@ final class Bootstrap {
             // install the default uncaught exception handler; must be done before security is
             // initialized as we do not want to grant the runtime permission
             // setDefaultUncaughtExceptionHandler
-            Thread.setDefaultUncaughtExceptionHandler(
-                new ElasticsearchUncaughtExceptionHandler(() -> Node.NODE_NAME_SETTING.get(environment.settings())));
+            Thread.setDefaultUncaughtExceptionHandler(new ElasticsearchUncaughtExceptionHandler());
 
             INSTANCE.setup(true, environment);
 

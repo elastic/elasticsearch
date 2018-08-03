@@ -18,15 +18,18 @@
  */
 package org.elasticsearch.grok;
 
-import org.elasticsearch.test.ESTestCase;
-
 import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.is;
 
 public class ThreadWatchdogTests extends ESTestCase {
-    
+
     public void testInterrupt() throws Exception {
         AtomicBoolean run = new AtomicBoolean(true); // to avoid a lingering thread when test has completed
         ThreadWatchdog watchdog = ThreadWatchdog.newInstance(10, 100, System::currentTimeMillis, (delay, command) -> {
@@ -43,7 +46,7 @@ public class ThreadWatchdogTests extends ESTestCase {
             thread.start();
             return null;
         });
-    
+
         Map<?, ?> registry = ((ThreadWatchdog.Default) watchdog).registry;
         assertThat(registry.size(), is(0));
         // need to call #register() method on a different thread, assertBusy() fails if current thread gets interrupted
@@ -66,5 +69,39 @@ public class ThreadWatchdogTests extends ESTestCase {
             assertThat(registry.size(), is(0));
         });
     }
-    
+
+
+    public void testIdleIfNothingRegistered() throws Exception {
+        long interval = 1L;
+        AtomicInteger counter = new AtomicInteger(0);
+        ScheduledExecutorService threadPool = Executors.newSingleThreadScheduledExecutor();
+        try {
+            ThreadWatchdog watchdog = ThreadWatchdog.newInstance(interval, Long.MAX_VALUE, System::currentTimeMillis, (delay, command) -> {
+                counter.incrementAndGet();
+                return threadPool.schedule(command, delay, TimeUnit.MILLISECONDS);
+            });
+            // Counter was not incremented since watchdog does not run without a registered thread
+            assertEquals(0, counter.get());
+            watchdog.register();
+            Thread.sleep(5L * interval);
+            // Counter is incremented because thread is registered and it runs every ms
+            assertTrue(counter.get() > 0);
+            watchdog.unregister();
+            Thread.sleep(5L * interval);
+            // Wait for counter to stop incrementing because no thread is registered
+            int beginningCount = counter.get();
+            Thread.sleep(5L * interval);
+            // Without a registered thread counter again does not increment
+            assertEquals(beginningCount, counter.get());
+            watchdog.register();
+            Thread.sleep(5L * interval);
+            // Registering the thread again makes the counter increment again
+            assertTrue(counter.get() > beginningCount);
+        } finally {
+            threadPool.shutdownNow();
+            if (!threadPool.awaitTermination(2L, TimeUnit.SECONDS)) {
+                fail("Threadpool failed to shut down.");
+            }
+        }
+    }
 }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.coordination;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.coordination.PeerFinder.TransportAddressConnector;
@@ -94,7 +95,7 @@ public class PeerFinderTests extends ESTestCase {
         final Set<TransportAddress> inFlightConnectionAttempts = new HashSet<>();
 
         @Override
-        public void connectTo(TransportAddress transportAddress, ActionListener<DiscoveryNode> listener) {
+        public void connectToRemoteMasterNode(TransportAddress transportAddress, ActionListener<DiscoveryNode> listener) {
             assert localNode.getAddress().equals(transportAddress) == false : "should not probe local node";
 
             final boolean isNotInFlight = inFlightConnectionAttempts.add(transportAddress);
@@ -114,11 +115,16 @@ public class PeerFinderTests extends ESTestCase {
 
                     for (final DiscoveryNode discoveryNode : reachableNodes) {
                         if (discoveryNode.getAddress().equals(transportAddress)) {
-                            disconnectedNodes.remove(discoveryNode);
-                            connectedNodes.add(discoveryNode);
-                            assertTrue(inFlightConnectionAttempts.remove(transportAddress));
-                            listener.onResponse(discoveryNode);
-                            return;
+                            if (discoveryNode.isMasterNode()) {
+                                disconnectedNodes.remove(discoveryNode);
+                                connectedNodes.add(discoveryNode);
+                                assertTrue(inFlightConnectionAttempts.remove(transportAddress));
+                                listener.onResponse(discoveryNode);
+                                return;
+                            } else {
+                                listener.onFailure(new ElasticsearchException("non-master node " + discoveryNode)); // TODO better exception
+                                return;
+                            }
                         }
                     }
 
@@ -576,7 +582,6 @@ public class PeerFinderTests extends ESTestCase {
 
         deterministicTaskQueue.advanceTime();
         runAllRunnableTasks();
-
         assertFoundPeers();
     }
 

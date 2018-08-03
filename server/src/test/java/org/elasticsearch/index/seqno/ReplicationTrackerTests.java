@@ -770,8 +770,10 @@ public class ReplicationTrackerTests extends ESTestCase {
         assertThat(newPrimary.routingTable, equalTo(oldPrimary.routingTable));
         assertThat(newPrimary.replicationGroup, equalTo(oldPrimary.replicationGroup));
 
+        assertFalse(oldPrimary.relocated);
         oldPrimary.completeRelocationHandoff();
         assertFalse(oldPrimary.primaryMode);
+        assertTrue(oldPrimary.relocated);
     }
 
     public void testIllegalStateExceptionIfUnknownAllocationId() {

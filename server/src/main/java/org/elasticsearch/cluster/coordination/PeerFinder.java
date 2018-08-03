@@ -355,7 +355,7 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
             }
 
             if (inFlightProbes.add(transportAddress)) {
-                logger.trace("startProbe({}) acquired probeLock", transportAddress);
+                logger.trace("startProbe({}) starting new probe", transportAddress);
                 executorService.get().execute(new AbstractRunnable() {
                     @Override
                     protected void doRun() {
@@ -397,7 +397,7 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
                     }
                 });
             } else {
-                logger.trace("startProbe({}) probeLock unavailable", transportAddress);
+                logger.trace("startProbe({}) already probing", transportAddress);
             }
         }
 

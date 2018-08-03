@@ -453,22 +453,6 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 stringBuilder.append("]");
                 return stringBuilder.toString();
             }
-
-//            @Override
-//            public boolean equals(Object other) {
-//                if (super.equals(other) == false) {
-//                    return false;
-//                }
-//
-//                Option otherOption = (Option) other;
-//                return Objects.equals(contexts, otherOption.contexts)
-//                    && Objects.equals(hit, otherOption.hit);
-//            }
-//
-//            @Override
-//            public int hashCode() {
-//                return Objects.hash(super.hashCode(), contexts, hit);
-//            }
         }
     }
 

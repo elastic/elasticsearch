@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.upgrades;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Booleans;
@@ -30,6 +31,9 @@ import static org.hamcrest.Matchers.equalTo;
 
 
 public class RollupIDUpgradeIT extends AbstractUpgradeTestCase {
+    private static final Version UPGRADE_FROM_VERSION =
+        Version.fromString(System.getProperty("tests.upgrade_from_version"));
+
     /**
      * This test verifies that as a cluster is upgraded incrementally, new documents eventually switch
      * over to the "new" form of ID (128 bit Murmur3 ids).
@@ -46,6 +50,8 @@ public class RollupIDUpgradeIT extends AbstractUpgradeTestCase {
      * The last phase is guaranteed to be new as it's a fully upgraded cluster.
      */
     public void testIDsUpgradeCorrectly() throws Exception {
+        assumeTrue("Rollup became available in 6.3", UPGRADE_FROM_VERSION.onOrAfter(Version.V_6_3_0));
+        assumeTrue("Rollup ID change happened in 6.4", UPGRADE_FROM_VERSION.before(Version.V_6_4_0));
         switch (CLUSTER_TYPE) {
             case OLD:
                 break;

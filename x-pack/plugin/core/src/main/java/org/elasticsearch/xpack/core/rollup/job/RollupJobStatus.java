@@ -85,7 +85,7 @@ public class RollupJobStatus implements Task.Status, PersistentTaskState {
     public RollupJobStatus(StreamInput in) throws IOException {
         state = IndexerState.fromStream(in);
         currentPosition = in.readBoolean() ? new TreeMap<>(in.readMap()) : null;
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) { //TODO change this after backport
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
             upgradedDocumentID = in.readBoolean();
         } else {
             // If we're getting this job from a pre-6.4.0 node,
@@ -138,7 +138,7 @@ public class RollupJobStatus implements Task.Status, PersistentTaskState {
         if (currentPosition != null) {
             out.writeMap(currentPosition);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) { //TODO change this after backport
+        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
             out.writeBoolean(upgradedDocumentID);
         }
     }

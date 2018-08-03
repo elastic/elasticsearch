@@ -1008,6 +1008,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertEquals(total, shardTotal);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32506")
     public void testFilterCacheStats() throws Exception {
         Settings settings = Settings.builder().put(indexSettings()).put("number_of_replicas", 0).build();
         assertAcked(prepareCreate("index").setSettings(settings).get());

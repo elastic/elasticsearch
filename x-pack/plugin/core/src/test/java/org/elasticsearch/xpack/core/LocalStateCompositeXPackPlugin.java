@@ -355,13 +355,6 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     }
 
     @Override
-    public Map<String, Supplier<ClusterState.Custom>> getInitialClusterStateCustomSupplier() {
-        Map<String, Supplier<ClusterState.Custom>> suppliers = new HashMap<>();
-        filterPlugins(ClusterPlugin.class).stream().forEach(p -> suppliers.putAll(p.getInitialClusterStateCustomSupplier()));
-        return suppliers;
-    }
-
-    @Override
     public Function<String, Predicate<String>> getFieldFilter() {
         List<Function<String, Predicate<String>>> items = filterPlugins(MapperPlugin.class).stream().map(p ->
                 p.getFieldFilter()).collect(Collectors.toList());

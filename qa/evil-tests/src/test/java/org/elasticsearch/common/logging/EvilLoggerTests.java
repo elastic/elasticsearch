@@ -360,6 +360,7 @@ public class EvilLoggerTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32546")
     public void testNoNodeNameWarning() throws IOException, UserException {
         setupLogging("no_node_name");
 

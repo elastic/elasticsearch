@@ -16,35 +16,29 @@ import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
 import org.joda.time.DateTimeZone;
 
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
-
+//TODO split this into dedicated unit test classes (one for each config object)
 public class ConfigTests extends ESTestCase {
 
     public void testEmptyField() {
-        MetricConfig.Builder config = ConfigTestHelpers.getMetricConfig();
-        config.setField(null);
-        Exception e = expectThrows(IllegalArgumentException.class, config::build);
-        assertThat(e.getMessage(), equalTo("Parameter [field] must be a non-null, non-empty string."));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new MetricConfig(null, singletonList("max")));
+        assertThat(e.getMessage(), equalTo("Field must be a non-null, non-empty string"));
 
-        config.setField("");
-        e = expectThrows(IllegalArgumentException.class, config::build);
-        assertThat(e.getMessage(), equalTo("Parameter [field] must be a non-null, non-empty string."));
+        e = expectThrows(IllegalArgumentException.class, () -> new MetricConfig("", singletonList("max")));
+        assertThat(e.getMessage(), equalTo("Field must be a non-null, non-empty string"));
     }
 
     public void testEmptyMetrics() {
-        MetricConfig.Builder config = ConfigTestHelpers.getMetricConfig();
-        config.setMetrics(null);
-        Exception e = expectThrows(IllegalArgumentException.class, config::build);
-        assertThat(e.getMessage(), equalTo("Parameter [metrics] must be a non-null, non-empty array of strings."));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new MetricConfig("foo", emptyList()));
+        assertThat(e.getMessage(), equalTo("Metrics must be a non-null, non-empty array of strings"));
 
-        config.setMetrics(Collections.emptyList());
-        e = expectThrows(IllegalArgumentException.class, config::build);
-        assertThat(e.getMessage(), equalTo("Parameter [metrics] must be a non-null, non-empty array of strings."));
+        e = expectThrows(IllegalArgumentException.class, () -> new MetricConfig("foo", null));
+        assertThat(e.getMessage(), equalTo("Metrics must be a non-null, non-empty array of strings"));
     }
 
     public void testEmptyGroup() {
@@ -232,12 +226,5 @@ public class ConfigTests extends ESTestCase {
         String json = job.toString();
         assertFalse(json.contains("authentication"));
         assertFalse(json.contains("security"));
-    }
-
-    public void testUnsupportedMetric() {
-        MetricConfig.Builder config = ConfigTestHelpers.getMetricConfig();
-        config.setMetrics(Arrays.asList("max","foo"));
-        Exception e = expectThrows(IllegalArgumentException.class, config::build);
-        assertThat(e.getMessage(), equalTo("Unsupported metric [foo].  Supported metrics include: [max, min, sum, avg, value_count]"));
     }
 }

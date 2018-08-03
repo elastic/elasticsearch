@@ -454,7 +454,7 @@ public class SearchActionTests extends ESTestCase {
         job2.setGroupConfig(group.build());
 
         // so that the jobs aren't exactly equal
-        job2.setMetricsConfig(Collections.singletonList(ConfigTestHelpers.getMetricConfig().build()));
+        job2.setMetricsConfig(ConfigTestHelpers.randomMetricsConfigs(random()));
         RollupJobCaps cap2 = new RollupJobCaps(job2.build());
 
         Set<RollupJobCaps> caps = new HashSet<>(2);

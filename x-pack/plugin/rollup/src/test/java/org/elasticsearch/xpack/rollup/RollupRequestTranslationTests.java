@@ -45,6 +45,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.rollup.RollupRequestTranslator.translateAggregation;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
@@ -153,9 +154,8 @@ public class RollupRequestTranslationTests extends ESTestCase {
 
     public void testUnsupportedMetric() {
         Set<RollupJobCaps> caps = singletonSet(new RollupJobCaps(ConfigTestHelpers
-                .getRollupJob("foo").setMetricsConfig(Collections.singletonList(new MetricConfig.Builder()
-                        .setField("foo")
-                        .setMetrics(Arrays.asList("avg", "max", "min", "sum")).build()))
+                .getRollupJob("foo")
+                    .setMetricsConfig(singletonList(new MetricConfig("foo", Arrays.asList("avg", "max", "min", "sum"))))
                 .build()));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
@@ -384,7 +384,7 @@ public class RollupRequestTranslationTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("Unable to translate aggregation tree into Rollup.  Aggregation [test_geo] is of type " +
                 "[GeoDistanceAggregationBuilder] which is currently unsupported."));
     }
-    
+
     private Set<RollupJobCaps> singletonSet(RollupJobCaps cap) {
         Set<RollupJobCaps> caps = new HashSet<>();
         caps.add(cap);

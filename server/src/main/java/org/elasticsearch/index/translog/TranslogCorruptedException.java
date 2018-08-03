@@ -30,12 +30,20 @@ public class TranslogCorruptedException extends ElasticsearchException {
         super(corruptedMessage(source, details));
     }
 
+    public TranslogCorruptedException(TranslogSource source, Throwable cause) {
+        this(source, null, cause);
+    }
+
     public TranslogCorruptedException(TranslogSource source, String details, Throwable cause) {
         super(corruptedMessage(source, details), cause);
     }
 
     private static String corruptedMessage(TranslogSource source, String details) {
-        return "translog from source [" + source + "] is corrupted, " + details;
+        String msg = "translog from source [" + source + "] is corrupted";
+        if (details != null) {
+            msg += ", " + details;
+        }
+        return msg;
     }
 
     public TranslogCorruptedException(StreamInput in) throws IOException {

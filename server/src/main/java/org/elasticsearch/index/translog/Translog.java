@@ -1713,7 +1713,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         } catch (TranslogCorruptedException ex) {
             throw ex; // just bubble up.
         } catch (Exception ex) {
-            throw new TranslogCorruptedException(new TranslogFileSource(location), "", ex);
+            throw new TranslogCorruptedException(new TranslogFileSource(location), ex);
         }
         return checkpoint;
     }

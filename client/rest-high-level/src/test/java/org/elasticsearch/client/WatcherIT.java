@@ -37,7 +37,7 @@ public class WatcherIT extends ESRestHighLevelClientTestCase {
             "}";
         BytesReference bytesReference = new BytesArray(json);
         PutWatchRequest putWatchRequest = new PutWatchRequest(watchId, bytesReference, XContentType.JSON);
-        PutWatchResponse putWatchResponse = highLevelClient().xpack().watcher().putWatch(putWatchRequest, RequestOptions.DEFAULT);
+        PutWatchResponse putWatchResponse = highLevelClient().watcher().putWatch(putWatchRequest, RequestOptions.DEFAULT);
         assertThat(putWatchResponse.isCreated(), is(true));
         assertThat(putWatchResponse.getId(), is(watchId));
         assertThat(putWatchResponse.getVersion(), is(1L));

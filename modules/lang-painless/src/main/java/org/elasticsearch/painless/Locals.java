@@ -22,8 +22,8 @@ package org.elasticsearch.painless;
 import org.elasticsearch.painless.ScriptClassInfo.MethodArgument;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.lookup.PainlessMethod;
 
+import java.lang.invoke.MethodType;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -37,6 +37,30 @@ import java.util.Set;
  * Tracks user defined methods and variables across compilation phases.
  */
 public final class Locals {
+
+    /**
+     * Constructs a local method key used to lookup local methods from a painless class.
+     */
+    public static String buildLocalMethodKey(String methodName, int methodArity) {
+        return methodName + "/" + methodArity;
+    }
+
+    /**
+     * Stores information about methods directly callable on the generated script class.
+     */
+    public static class LocalMethod {
+        public final String name;
+        public final Class<?> returnType;
+        public final List<Class<?>> typeParameters;
+        public final MethodType methodType;
+
+        public LocalMethod(String name, Class<?> returnType, List<Class<?>> typeParameters, MethodType methodType) {
+            this.name = name;
+            this.returnType = returnType;
+            this.typeParameters = typeParameters;
+            this.methodType = methodType;
+        }
+    }
 
     /** Reserved word: loop counter */
     public static final String LOOP   = "#loop";
@@ -110,9 +134,9 @@ public final class Locals {
     }
 
     /** Creates a new program scope: the list of methods. It is the parent for all methods */
-    public static Locals newProgramScope(PainlessLookup painlessLookup, Collection<PainlessMethod> methods) {
+    public static Locals newProgramScope(PainlessLookup painlessLookup, Collection<LocalMethod> methods) {
         Locals locals = new Locals(null, painlessLookup, null, null);
-        for (PainlessMethod method : methods) {
+        for (LocalMethod method : methods) {
             locals.addMethod(method);
         }
         return locals;
@@ -143,8 +167,8 @@ public final class Locals {
     }
 
     /** Looks up a method. Returns null if the method does not exist. */
-    public PainlessMethod getMethod(String key) {
-        PainlessMethod method = lookupMethod(key);
+    public LocalMethod getMethod(String key) {
+        LocalMethod method = lookupMethod(key);
         if (method != null) {
             return method;
         }
@@ -199,7 +223,7 @@ public final class Locals {
     // variable name -> variable
     private Map<String,Variable> variables;
     // method name+arity -> methods
-    private Map<String,PainlessMethod> methods;
+    private Map<String,LocalMethod> methods;
 
     /**
      * Create a new Locals
@@ -237,7 +261,7 @@ public final class Locals {
     }
 
     /** Looks up a method at this scope only. Returns null if the method does not exist. */
-    private PainlessMethod lookupMethod(String key) {
+    private LocalMethod lookupMethod(String key) {
         if (methods == null) {
             return null;
         }
@@ -256,11 +280,11 @@ public final class Locals {
         return variable;
     }
 
-    private void addMethod(PainlessMethod method) {
+    private void addMethod(LocalMethod method) {
         if (methods == null) {
             methods = new HashMap<>();
         }
-        methods.put(PainlessLookupUtility.buildPainlessMethodKey(method.name, method.arguments.size()), method);
+        methods.put(buildLocalMethodKey(method.name, method.typeParameters.size()), method);
         // TODO: check result
     }
 

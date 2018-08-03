@@ -19,9 +19,9 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateW
 import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateWatchResponse;
 import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchAction;
-import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchRequest;
+import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchRequestBuilder;
-import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchResponse;
+import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;

@@ -404,7 +404,7 @@ public class NodeToStringTests extends ESTestCase {
 
     public void testPSubCallInvoke() {
         Location l = new Location(getTestName(), 0);
-        PainlessClass c = painlessLookup.getPainlessStructFromJavaClass(Integer.class);
+        PainlessClass c = painlessLookup.lookupPainlessClass(Integer.class);
         PainlessMethod m = c.methods.get(PainlessLookupUtility.buildPainlessMethodKey("toString", 0));
         PSubCallInvoke node = new PSubCallInvoke(l, m, null, emptyList());
         node.prefix = new EVariable(l, "a");
@@ -459,8 +459,8 @@ public class NodeToStringTests extends ESTestCase {
 
     public void testPSubField() {
         Location l = new Location(getTestName(), 0);
-        PainlessClass s = painlessLookup.getPainlessStructFromJavaClass(Boolean.class);
-        PainlessField f = s.staticMembers.get("TRUE");
+        PainlessClass s = painlessLookup.lookupPainlessClass(Boolean.class);
+        PainlessField f = s.staticFields.get("TRUE");
         PSubField node = new PSubField(l, f);
         node.prefix = new EStatic(l, "Boolean");
         assertEquals("(PSubField (EStatic Boolean) TRUE)", node.toString());
@@ -469,39 +469,35 @@ public class NodeToStringTests extends ESTestCase {
 
     public void testPSubListShortcut() {
         Location l = new Location(getTestName(), 0);
-        PainlessClass s = painlessLookup.getPainlessStructFromJavaClass(List.class);
-        PSubListShortcut node = new PSubListShortcut(l, s, new EConstant(l, 1));
+        PSubListShortcut node = new PSubListShortcut(l, List.class, new EConstant(l, 1));
         node.prefix = new EVariable(l, "a");
         assertEquals("(PSubListShortcut (EVariable a) (EConstant Integer 1))", node.toString());
         assertEquals("(PSubNullSafeCallInvoke (PSubListShortcut (EVariable a) (EConstant Integer 1)))",
                 new PSubNullSafeCallInvoke(l, node).toString());
 
         l = new Location(getTestName(), 0);
-        s = painlessLookup.getPainlessStructFromJavaClass(List.class);
-        node = new PSubListShortcut(l, s, new EBinary(l, Operation.ADD, new EConstant(l, 1), new EConstant(l, 4)));
+        node = new PSubListShortcut(l, List.class, new EBinary(l, Operation.ADD, new EConstant(l, 1), new EConstant(l, 4)));
         node.prefix = new EVariable(l, "a");
         assertEquals("(PSubListShortcut (EVariable a) (EBinary (EConstant Integer 1) + (EConstant Integer 4)))", node.toString());
     }
 
     public void testPSubMapShortcut() {
         Location l = new Location(getTestName(), 0);
-        PainlessClass s = painlessLookup.getPainlessStructFromJavaClass(Map.class);
-        PSubMapShortcut node = new PSubMapShortcut(l, s, new EConstant(l, "cat"));
+        PSubMapShortcut node = new PSubMapShortcut(l, Map.class, new EConstant(l, "cat"));
         node.prefix = new EVariable(l, "a");
         assertEquals("(PSubMapShortcut (EVariable a) (EConstant String 'cat'))", node.toString());
         assertEquals("(PSubNullSafeCallInvoke (PSubMapShortcut (EVariable a) (EConstant String 'cat')))",
                 new PSubNullSafeCallInvoke(l, node).toString());
 
         l = new Location(getTestName(), 1);
-        s = painlessLookup.getPainlessStructFromJavaClass(Map.class);
-        node = new PSubMapShortcut(l, s, new EBinary(l, Operation.ADD, new EConstant(l, 1), new EConstant(l, 4)));
+        node = new PSubMapShortcut(l, Map.class, new EBinary(l, Operation.ADD, new EConstant(l, 1), new EConstant(l, 4)));
         node.prefix = new EVariable(l, "a");
         assertEquals("(PSubMapShortcut (EVariable a) (EBinary (EConstant Integer 1) + (EConstant Integer 4)))", node.toString());
     }
 
     public void testPSubShortcut() {
         Location l = new Location(getTestName(), 0);
-        PainlessClass s = painlessLookup.getPainlessStructFromJavaClass(FeatureTest.class);
+        PainlessClass s = painlessLookup.lookupPainlessClass(FeatureTest.class);
         PainlessMethod getter = s.methods.get(PainlessLookupUtility.buildPainlessMethodKey("getX", 0));
         PainlessMethod setter = s.methods.get(PainlessLookupUtility.buildPainlessMethodKey("setX", 1));
         PSubShortcut node = new PSubShortcut(l, "x", FeatureTest.class.getName(), getter, setter);

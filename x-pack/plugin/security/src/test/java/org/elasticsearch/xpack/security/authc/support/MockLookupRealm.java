@@ -8,11 +8,11 @@ package org.elasticsearch.xpack.security.authc.support;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.protocol.xpack.security.User;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
-import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.HashMap;
 import java.util.Map;

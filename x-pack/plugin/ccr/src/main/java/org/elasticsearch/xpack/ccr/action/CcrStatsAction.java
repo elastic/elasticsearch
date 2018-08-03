@@ -143,7 +143,6 @@ public class CcrStatsAction extends Action<CcrStatsAction.TasksResponse> {
 
     }
 
-
     public static class TaskResponse implements Writeable {
 
         private final ShardId followerShardId;

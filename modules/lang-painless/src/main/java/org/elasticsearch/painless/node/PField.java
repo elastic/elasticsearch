@@ -23,8 +23,6 @@ import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.lookup.PainlessClass;
-import org.elasticsearch.painless.lookup.PainlessField;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
@@ -67,26 +65,34 @@ public final class PField extends AStoreable {
         } else if (prefix.actual == def.class) {
             sub = new PSubDefField(location, value);
         } else {
-            PainlessClass struct = locals.getPainlessLookup().getPainlessStructFromJavaClass(prefix.actual);
-            PainlessField field = prefix instanceof EStatic ? struct.staticFields.get(value) : struct.fields.get(value);
+            try {
+                sub = new PSubField(location,
+                        locals.getPainlessLookup().lookupPainlessField(prefix.actual, prefix instanceof EStatic, value));
+            } catch (IllegalArgumentException fieldIAE) {
+                PainlessMethod getter;
+                PainlessMethod setter;
 
-            if (field != null) {
-                sub = new PSubField(location, field);
-            } else {
-                PainlessMethod getter = struct.methods.get(PainlessLookupUtility.buildPainlessMethodKey(
-                        "get" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0));
-
-                if (getter == null) {
-                    getter = struct.methods.get(PainlessLookupUtility.buildPainlessMethodKey(
-                            "is" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0));
+                try {
+                    getter = locals.getPainlessLookup().lookupPainlessMethod(prefix.actual, false,
+                            "get" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0);
+                } catch (IllegalArgumentException getIAE) {
+                    try {
+                        getter = locals.getPainlessLookup().lookupPainlessMethod(prefix.actual, false,
+                                "is" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0);
+                    } catch (IllegalArgumentException isIAE) {
+                        getter = null;
+                    }
                 }
 
-                PainlessMethod setter = struct.methods.get(PainlessLookupUtility.buildPainlessMethodKey(
-                        "set" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 1));
+                try {
+                    setter = locals.getPainlessLookup().lookupPainlessMethod(prefix.actual, false,
+                            "set" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0);
+                } catch (IllegalArgumentException setIAE) {
+                    setter = null;
+                }
 
                 if (getter != null || setter != null) {
-                    sub = new PSubShortcut(
-                            location, value, PainlessLookupUtility.typeToCanonicalTypeName(prefix.actual), getter, setter);
+                    sub = new PSubShortcut(location, value, PainlessLookupUtility.typeToCanonicalTypeName(prefix.actual), getter, setter);
                 } else {
                     EConstant index = new EConstant(location, value);
                     index.analyze(locals);
@@ -99,12 +105,11 @@ public final class PField extends AStoreable {
                         sub = new PSubListShortcut(location, prefix.actual, index);
                     }
                 }
-            }
-        }
 
-        if (sub == null) {
-            throw createError(new IllegalArgumentException(
-                "Unknown field [" + value + "] for type [" + PainlessLookupUtility.typeToCanonicalTypeName(prefix.actual) + "]."));
+                if (sub == null) {
+                    throw createError(fieldIAE);
+                }
+            }
         }
 
         if (nullSafe) {

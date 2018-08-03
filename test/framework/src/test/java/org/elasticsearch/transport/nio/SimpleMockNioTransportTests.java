@@ -94,6 +94,10 @@ public class SimpleMockNioTransportTests extends AbstractSimpleTransportTestCase
         return transportService;
     }
 
+    protected int channelsPerNodeConnection() {
+        return 3;
+    }
+
     @Override
     protected void closeConnectionChannel(Transport transport, Transport.Connection connection) throws IOException {
         TcpTransport.NodeChannels channels = (TcpTransport.NodeChannels) connection;

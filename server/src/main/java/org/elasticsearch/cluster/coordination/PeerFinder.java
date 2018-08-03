@@ -349,6 +349,7 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
             }
 
             DiscoveryNode getDiscoveryNode() {
+                // No synchronisation required
                 return discoveryNode.get();
             }
 
@@ -383,7 +384,8 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
                 transportAddressConnector.connectToRemoteMasterNode(transportAddress, new ActionListener<DiscoveryNode>() {
                     @Override
                     public void onResponse(DiscoveryNode remoteNode) {
-                        assert remoteNode.isMasterNode() : remoteNode;
+                        assert remoteNode.isMasterNode() : remoteNode + " is not master-eligible";
+                        assert remoteNode.equals(getLocalNode()) : remoteNode + " is the local node";
                         synchronized (mutex) {
                             if (running) {
                                 discoveryNode.set(remoteNode);

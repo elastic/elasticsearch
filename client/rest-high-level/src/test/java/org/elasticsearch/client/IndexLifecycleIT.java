@@ -42,7 +42,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
             "     \"type\": \"timeseries\",\n" +
             "     \"phases\": {\n" +
             "       \"hot\": {\n" +
-            "         \"after\": \"60s\",\n" +
+            "         \"index_age\": \"60s\",\n" +
             "         \"actions\": {\n" +
             "          \"rollover\": {\n" +
             "            \"max_age\": \"500s\"\n" +
@@ -50,7 +50,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
             "         }\n" +
             "       },\n" +
             "       \"warm\": {\n" +
-            "         \"after\": \"1000s\",\n" +
+            "         \"index_age\": \"1000s\",\n" +
             "         \"actions\": {\n" +
             "           \"allocate\": {\n" +
             "             \"require\": { \"_name\": \"node-1\" },\n" +
@@ -66,7 +66,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
             "         }\n" +
             "       },\n" +
             "       \"cold\": {\n" +
-            "         \"after\": \"2000s\",\n" +
+            "         \"index_age\": \"2000s\",\n" +
             "         \"actions\": {\n" +
             "          \"replicas\": {\n" +
             "            \"number_of_replicas\": 0\n" +
@@ -74,7 +74,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
             "         }\n" +
             "       },\n" +
             "       \"delete\": {\n" +
-            "         \"after\": \"3000s\",\n" +
+            "         \"index_age\": \"3000s\",\n" +
             "         \"actions\": {\n" +
             "           \"delete\": {}\n" +
             "         }\n" +

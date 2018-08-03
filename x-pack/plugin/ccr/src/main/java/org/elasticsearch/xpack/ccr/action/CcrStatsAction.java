@@ -114,7 +114,7 @@ public class CcrStatsAction extends Action<CcrStatsAction.TasksResponse> {
             /*
              * This is a limitation of the current tasks API. When the transport action is executed, the tasks API invokes this match method
              * to find the tasks on which to execute the task-level operation (see TransportTasksAction#nodeOperation and
-             * TransportTasksAction#processTasks). If we do the matching here, then we can not match index patterns. Therefore, override
+             * TransportTasksAction#processTasks). If we do the matching here, then we can not match index patterns. Therefore, we override
              * TransportTasksAction#processTasks (see TransportCcrStatsAction#processTasks) and do the matching there. We should never see
              * this method invoked and since we can not support matching a task on the basis of the request here, we throw that this
              * operation is unsupported.

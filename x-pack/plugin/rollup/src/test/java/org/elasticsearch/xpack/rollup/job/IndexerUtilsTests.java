@@ -10,6 +10,7 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -112,7 +113,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         directory.close();
 
         List<IndexRequest> docs = IndexerUtils.processBuckets(composite, indexName, stats,
-                ConfigTestHelpers.getGroupConfig().build(), "foo");
+                ConfigTestHelpers.getGroupConfig().build(), "foo", randomBoolean());
 
         assertThat(docs.size(), equalTo(numDocs));
         for (IndexRequest doc : docs) {
@@ -179,7 +180,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         directory.close();
 
         List<IndexRequest> docs = IndexerUtils.processBuckets(composite, indexName, stats,
-                ConfigTestHelpers.getGroupConfig().build(), "foo");
+                ConfigTestHelpers.getGroupConfig().build(), "foo", randomBoolean());
 
         assertThat(docs.size(), equalTo(numDocs));
         for (IndexRequest doc : docs) {
@@ -235,7 +236,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         directory.close();
 
         List<IndexRequest> docs = IndexerUtils.processBuckets(composite, indexName, stats,
-                ConfigTestHelpers.getGroupConfig().build(), "foo");
+                ConfigTestHelpers.getGroupConfig().build(), "foo", randomBoolean());
 
         assertThat(docs.size(), equalTo(numDocs));
         for (IndexRequest doc : docs) {
@@ -301,7 +302,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         directory.close();
 
         List<IndexRequest> docs = IndexerUtils.processBuckets(composite, indexName, stats,
-                ConfigTestHelpers.getGroupConfig().build(), "foo");
+                ConfigTestHelpers.getGroupConfig().build(), "foo", randomBoolean());
 
         assertThat(docs.size(), equalTo(numDocs));
         for (IndexRequest doc : docs) {
@@ -312,7 +313,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         }
     }
 
-    public void testKeyOrdering() {
+    public void testKeyOrderingOldID() {
         CompositeAggregation composite = mock(CompositeAggregation.class);
 
         when(composite.getBuckets()).thenAnswer((Answer<List<CompositeAggregation.Bucket>>) invocationOnMock -> {
@@ -355,9 +356,110 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         GroupConfig.Builder groupConfig = ConfigTestHelpers.getGroupConfig();
         groupConfig.setHisto(new HistogramGroupConfig(123L, "abc"));
 
-        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, "foo", new RollupJobStats(), groupConfig.build(), "foo");
+        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, "foo", new RollupJobStats(),
+            groupConfig.build(), "foo", false);
         assertThat(docs.size(), equalTo(1));
         assertThat(docs.get(0).id(), equalTo("1237859798"));
+    }
+
+    public void testKeyOrderingNewID() {
+        CompositeAggregation composite = mock(CompositeAggregation.class);
+
+        when(composite.getBuckets()).thenAnswer((Answer<List<CompositeAggregation.Bucket>>) invocationOnMock -> {
+            List<CompositeAggregation.Bucket> foos = new ArrayList<>();
+
+            CompositeAggregation.Bucket bucket = mock(CompositeAggregation.Bucket.class);
+            LinkedHashMap<String, Object> keys = new LinkedHashMap<>(3);
+            keys.put("foo.date_histogram", 123L);
+            keys.put("bar.terms", "baz");
+            keys.put("abc.histogram", 1.9);
+            keys = shuffleMap(keys, Collections.emptySet());
+            when(bucket.getKey()).thenReturn(keys);
+
+            List<Aggregation> list = new ArrayList<>(3);
+            InternalNumericMetricsAggregation.SingleValue mockAgg = mock(InternalNumericMetricsAggregation.SingleValue.class);
+            when(mockAgg.getName()).thenReturn("123");
+            list.add(mockAgg);
+
+            InternalNumericMetricsAggregation.SingleValue mockAgg2 = mock(InternalNumericMetricsAggregation.SingleValue.class);
+            when(mockAgg2.getName()).thenReturn("abc");
+            list.add(mockAgg2);
+
+            InternalNumericMetricsAggregation.SingleValue mockAgg3 = mock(InternalNumericMetricsAggregation.SingleValue.class);
+            when(mockAgg3.getName()).thenReturn("yay");
+            list.add(mockAgg3);
+
+            Collections.shuffle(list, random());
+
+            Aggregations aggs = new Aggregations(list);
+            when(bucket.getAggregations()).thenReturn(aggs);
+            when(bucket.getDocCount()).thenReturn(1L);
+
+            foos.add(bucket);
+
+            return foos;
+        });
+
+        GroupConfig.Builder groupConfig = ConfigTestHelpers.getGroupConfig();
+        groupConfig.setHisto(new HistogramGroupConfig(1, "abc"));
+
+        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, "foo", new RollupJobStats(),
+            groupConfig.build(), "foo", true);
+        assertThat(docs.size(), equalTo(1));
+        assertThat(docs.get(0).id(), equalTo("foo$c9LcrFqeFW92uN_Z7sv1hA"));
+    }
+
+    /*
+        A test to make sure very long keys don't break the hash
+     */
+    public void testKeyOrderingNewIDLong() {
+        CompositeAggregation composite = mock(CompositeAggregation.class);
+
+        when(composite.getBuckets()).thenAnswer((Answer<List<CompositeAggregation.Bucket>>) invocationOnMock -> {
+            List<CompositeAggregation.Bucket> foos = new ArrayList<>();
+
+            CompositeAggregation.Bucket bucket = mock(CompositeAggregation.Bucket.class);
+            LinkedHashMap<String, Object> keys = new LinkedHashMap<>(3);
+            keys.put("foo.date_histogram", 123L);
+
+            char[] charArray = new char[IndexWriter.MAX_TERM_LENGTH];
+            Arrays.fill(charArray, 'a');
+            keys.put("bar.terms", new String(charArray));
+            keys.put("abc.histogram", 1.9);
+            keys = shuffleMap(keys, Collections.emptySet());
+            when(bucket.getKey()).thenReturn(keys);
+
+            List<Aggregation> list = new ArrayList<>(3);
+            InternalNumericMetricsAggregation.SingleValue mockAgg = mock(InternalNumericMetricsAggregation.SingleValue.class);
+            when(mockAgg.getName()).thenReturn("123");
+            list.add(mockAgg);
+
+            InternalNumericMetricsAggregation.SingleValue mockAgg2 = mock(InternalNumericMetricsAggregation.SingleValue.class);
+            when(mockAgg2.getName()).thenReturn("abc");
+            list.add(mockAgg2);
+
+            InternalNumericMetricsAggregation.SingleValue mockAgg3 = mock(InternalNumericMetricsAggregation.SingleValue.class);
+            when(mockAgg3.getName()).thenReturn("yay");
+            list.add(mockAgg3);
+
+            Collections.shuffle(list, random());
+
+            Aggregations aggs = new Aggregations(list);
+            when(bucket.getAggregations()).thenReturn(aggs);
+            when(bucket.getDocCount()).thenReturn(1L);
+
+            foos.add(bucket);
+
+            return foos;
+        });
+
+        GroupConfig.Builder groupConfig = ConfigTestHelpers.getGroupConfig();
+        groupConfig.setHisto(new HistogramGroupConfig(1, "abc"));
+
+        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, "foo", new RollupJobStats(),
+            groupConfig.build(), "foo", true);
+        assertThat(docs.size(), equalTo(1));
+        assertThat(docs.get(0).id(), equalTo("foo$VAFKZpyaEqYRPLyic57_qw"));
     }
 
     public void testNullKeys() {
@@ -384,7 +486,8 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         GroupConfig.Builder groupConfig = ConfigTestHelpers.getGroupConfig();
         groupConfig.setHisto(randomHistogramGroupConfig(random()));
 
-        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, "foo", new RollupJobStats(), groupConfig.build(), "foo");
+        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, "foo", new RollupJobStats(),
+            groupConfig.build(), "foo", randomBoolean());
         assertThat(docs.size(), equalTo(1));
         assertFalse(Strings.isNullOrEmpty(docs.get(0).id()));
     }
@@ -446,7 +549,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         directory.close();
 
         List<IndexRequest> docs = IndexerUtils.processBuckets(composite, indexName, stats,
-            ConfigTestHelpers.getGroupConfig().build(), "foo");
+            ConfigTestHelpers.getGroupConfig().build(), "foo", randomBoolean());
 
         assertThat(docs.size(), equalTo(6));
         for (IndexRequest doc : docs) {

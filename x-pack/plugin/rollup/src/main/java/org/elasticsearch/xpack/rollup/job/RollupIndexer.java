@@ -391,7 +391,6 @@ public abstract class RollupIndexer {
             }
             if (groupConfig.getTerms() != null) {
                 builders.addAll(groupConfig.getTerms().toBuilders());
-                metadata.putAll(groupConfig.getTerms().getMetadata());
             }
         }
 

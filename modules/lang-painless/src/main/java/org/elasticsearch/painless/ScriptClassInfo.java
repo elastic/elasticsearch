@@ -190,7 +190,7 @@ public class ScriptClassInfo {
             componentType = componentType.getComponentType();
         }
 
-        if (painlessLookup.getPainlessStructFromJavaClass(componentType) == null) {
+        if (painlessLookup.lookupPainlessClass(componentType) == null) {
             throw new IllegalArgumentException(unknownErrorMessageSource.apply(componentType));
         }
 

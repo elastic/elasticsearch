@@ -47,6 +47,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -54,6 +55,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
@@ -125,7 +127,29 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
     @Override
     protected void doExecute(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
-        if (bulkRequest.hasIndexRequestsWithPipelines()) {
+        boolean hasIndexRequestsWithPipelines = false;
+        ImmutableOpenMap<String, IndexMetaData> indicesMetaData = clusterService.state().getMetaData().indices();
+        for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
+            if (actionRequest instanceof IndexRequest) {
+                IndexRequest indexRequest = (IndexRequest) actionRequest;
+                String pipeline = indexRequest.getPipeline();
+                if (pipeline == null) {
+                    IndexMetaData indexMetaData = indicesMetaData.get(indexRequest.index());
+                    if (indexMetaData == null) {
+                        indexRequest.setPipeline(IngestService.NOOP_PIPELINE_NAME);
+                    } else {
+                        String defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(indexMetaData.getSettings());
+                        indexRequest.setPipeline(defaultPipeline);
+                        if (IngestService.NOOP_PIPELINE_NAME.equals(defaultPipeline) == false) {
+                            hasIndexRequestsWithPipelines = true;
+                        }
+                    }
+                } else if (IngestService.NOOP_PIPELINE_NAME.equals(pipeline) == false) {
+                    hasIndexRequestsWithPipelines = true;
+                }
+            }
+        }
+        if (hasIndexRequestsWithPipelines) {
             if (clusterService.localNode().isIngestNode()) {
                 processBulkIndexIngestRequest(task, bulkRequest, listener);
             } else {

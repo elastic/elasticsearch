@@ -208,7 +208,7 @@ public class RollupRequestTranslator {
     private static List<AggregationBuilder> translateDateHistogram(DateHistogramAggregationBuilder source,
                                                                    List<QueryBuilder> filterConditions,
                                                                    NamedWriteableRegistry registry) {
-        
+
         return translateVSAggBuilder(source, filterConditions, registry, () -> {
             DateHistogramAggregationBuilder rolledDateHisto
                     = new DateHistogramAggregationBuilder(source.getName());

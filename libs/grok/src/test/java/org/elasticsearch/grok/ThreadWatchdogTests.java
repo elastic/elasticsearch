@@ -19,14 +19,21 @@
 package org.elasticsearch.grok;
 
 import java.util.Map;
-import java.util.concurrent.Executors;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.elasticsearch.test.ESTestCase;
+import org.mockito.Mockito;
 
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.verifyZeroInteractions;
 
 public class ThreadWatchdogTests extends ESTestCase {
 
@@ -70,38 +77,38 @@ public class ThreadWatchdogTests extends ESTestCase {
         });
     }
 
-
     public void testIdleIfNothingRegistered() throws Exception {
         long interval = 1L;
-        AtomicInteger counter = new AtomicInteger(0);
-        ScheduledExecutorService threadPool = Executors.newSingleThreadScheduledExecutor();
+        ScheduledExecutorService threadPool = mock(ScheduledExecutorService.class);
+        ThreadWatchdog watchdog = ThreadWatchdog.newInstance(interval, Long.MAX_VALUE, System::currentTimeMillis,
+            (delay, command) -> threadPool.schedule(command, delay, TimeUnit.MILLISECONDS));
+        // Periodic action is not scheduled because no thread is registered
+        verifyZeroInteractions(threadPool);
+        CompletableFuture<Runnable> commandFuture = new CompletableFuture<>();
+        // Periodic action is scheduled because a thread is registered
+        doAnswer(invocationOnMock -> {
+            commandFuture.complete((Runnable) invocationOnMock.getArguments()[0]);
+            return null;
+        }).when(threadPool).schedule(
+            any(Runnable.class), eq(interval), eq(TimeUnit.MILLISECONDS)
+        );
+        watchdog.register();
+        // Registering the first thread should have caused the command to get scheduled again
+        Runnable command = commandFuture.get(1L, TimeUnit.MILLISECONDS);
+        Mockito.reset(threadPool);
+        watchdog.unregister();
+        command.run();
+        // Periodic action is not scheduled again because no thread is registered
+        verifyZeroInteractions(threadPool);
+        watchdog.register();
+        Thread otherThread = new Thread(watchdog::register);
         try {
-            ThreadWatchdog watchdog = ThreadWatchdog.newInstance(interval, Long.MAX_VALUE, System::currentTimeMillis, (delay, command) -> {
-                counter.incrementAndGet();
-                return threadPool.schedule(command, delay, TimeUnit.MILLISECONDS);
-            });
-            // Counter was not incremented since watchdog does not run without a registered thread
-            assertEquals(0, counter.get());
-            watchdog.register();
-            Thread.sleep(5L * interval);
-            // Counter is incremented because thread is registered and it runs every ms
-            assertTrue(counter.get() > 0);
-            watchdog.unregister();
-            Thread.sleep(5L * interval);
-            // Wait for counter to stop incrementing because no thread is registered
-            int beginningCount = counter.get();
-            Thread.sleep(5L * interval);
-            // Without a registered thread counter again does not increment
-            assertEquals(beginningCount, counter.get());
-            watchdog.register();
-            Thread.sleep(5L * interval);
-            // Registering the thread again makes the counter increment again
-            assertTrue(counter.get() > beginningCount);
+            verify(threadPool).schedule(any(Runnable.class), eq(interval), eq(TimeUnit.MILLISECONDS));
+            // Registering a second thread does not cause the command to get scheduled twice
+            verifyNoMoreInteractions(threadPool);
+            otherThread.start();
         } finally {
-            threadPool.shutdownNow();
-            if (!threadPool.awaitTermination(2L, TimeUnit.SECONDS)) {
-                fail("Threadpool failed to shut down.");
-            }
+            otherThread.join();
         }
     }
 }

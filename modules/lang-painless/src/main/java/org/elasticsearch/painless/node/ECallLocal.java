@@ -21,10 +21,11 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Locals.LocalMethod;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.objectweb.asm.commons.Method;
 
 import java.util.List;
 import java.util.Objects;
@@ -40,7 +41,7 @@ public final class ECallLocal extends AExpression {
     private final String name;
     private final List<AExpression> arguments;
 
-    private PainlessMethod method = null;
+    private LocalMethod method = null;
 
     public ECallLocal(Location location, String name, List<AExpression> arguments) {
         super(location);
@@ -68,14 +69,14 @@ public final class ECallLocal extends AExpression {
         for (int argument = 0; argument < arguments.size(); ++argument) {
             AExpression expression = arguments.get(argument);
 
-            expression.expected = method.arguments.get(argument);
+            expression.expected = method.typeParameters.get(argument);
             expression.internal = true;
             expression.analyze(locals);
             arguments.set(argument, expression.cast(locals));
         }
 
         statement = true;
-        actual = method.rtn;
+        actual = method.returnType;
     }
 
     @Override
@@ -86,7 +87,7 @@ public final class ECallLocal extends AExpression {
             argument.write(writer, globals);
         }
 
-        writer.invokeStatic(CLASS_TYPE, method.method);
+        writer.invokeStatic(CLASS_TYPE, new Method(method.name, method.methodType.toMethodDescriptorString()));
     }
 
     @Override

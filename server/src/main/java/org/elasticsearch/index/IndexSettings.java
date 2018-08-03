@@ -31,6 +31,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.Node;
 
 import java.util.Collections;
@@ -254,6 +255,14 @@ public final class IndexSettings {
     public static final Setting<Integer> MAX_REGEX_LENGTH_SETTING = Setting.intSetting("index.max_regex_length",
         1000, 1, Property.Dynamic, Property.IndexScope);
 
+    public static final Setting<String> DEFAULT_PIPELINE =
+       new Setting<>("index.default_pipeline", IngestService.NOOP_PIPELINE_NAME, s -> {
+           if (s == null || s.isEmpty()) {
+               throw new IllegalArgumentException("Value for [index.default_pipeline] must be a non-empty string.");
+           }
+        return s;
+       }, Property.Dynamic, Property.IndexScope);
+
     private final Index index;
     private final Version version;
     private final Logger logger;
@@ -293,6 +302,7 @@ public final class IndexSettings {
     private volatile TimeValue searchIdleAfter;
     private volatile int maxAnalyzedOffset;
     private volatile int maxTermsCount;
+    private volatile String defaultPipeline;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -408,6 +418,7 @@ public final class IndexSettings {
         this.mergePolicyConfig = new MergePolicyConfig(logger, this);
         this.indexSortConfig = new IndexSortConfig(this);
         searchIdleAfter = scopedSettings.get(INDEX_SEARCH_IDLE_AFTER);
+        defaultPipeline = scopedSettings.get(DEFAULT_PIPELINE);
 
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING, mergePolicyConfig::setNoCFSRatio);
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING, mergePolicyConfig::setExpungeDeletesAllowed);
@@ -446,6 +457,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_FIELD_SETTING, this::setDefaultFields);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SEARCH_IDLE_AFTER, this::setSearchIdleAfter);
         scopedSettings.addSettingsUpdateConsumer(MAX_REGEX_LENGTH_SETTING, this::setMaxRegexLength);
+        scopedSettings.addSettingsUpdateConsumer(DEFAULT_PIPELINE, this::setDefaultPipeline);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) { this.searchIdleAfter = searchIdleAfter; }
@@ -821,4 +833,12 @@ public final class IndexSettings {
      * Returns the time that an index shard becomes search idle unless it's accessed in between
      */
     public TimeValue getSearchIdleAfter() { return searchIdleAfter; }
+
+    public String getDefaultPipeline() {
+        return defaultPipeline;
+    }
+
+    public void setDefaultPipeline(String defaultPipeline) {
+        this.defaultPipeline = defaultPipeline;
+    }
 }

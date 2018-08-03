@@ -455,7 +455,7 @@ A rule has the following properties:
 +
 --
 NOTE: If your detector uses `lat_long`, `metric`, `rare`, or `freq_rare` 
-functions, you cannot specify `conditions` for your rule.
+functions, you can only specify `conditions` that apply to `time`.
 
   
 A condition has the following properties: 
@@ -467,7 +467,7 @@ A condition has the following properties:
     (string) Specifies the condition operator. The available options are
     `gt` (greater than), `gte` (greater than or equals), `lt` (less than) and `lte` (less than or equals).
 `value`:::
-    (double) The value that is compared against the `applied_to` field using the `operator`.
+    (double) The value that is compared against the `applies_to` field using the `operator`.
 --
 
 A rule is required to either have a non-empty scope or at least one condition.

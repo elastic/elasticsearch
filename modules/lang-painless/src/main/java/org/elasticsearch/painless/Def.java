@@ -187,7 +187,7 @@ public final class Def {
         String key = PainlessLookupUtility.buildPainlessMethodKey(name, arity);
         // check whitelist for matching method
         for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
-            PainlessClass struct = painlessLookup.getPainlessStructFromJavaClass(clazz);
+            PainlessClass struct = painlessLookup.lookupPainlessClass(clazz);
 
             if (struct != null) {
                 PainlessMethod method = struct.methods.get(key);
@@ -197,7 +197,7 @@ public final class Def {
             }
 
             for (Class<?> iface : clazz.getInterfaces()) {
-                struct = painlessLookup.getPainlessStructFromJavaClass(iface);
+                struct = painlessLookup.lookupPainlessClass(iface);
 
                 if (struct != null) {
                     PainlessMethod method = struct.methods.get(key);
@@ -238,7 +238,7 @@ public final class Def {
          int numArguments = callSiteType.parameterCount();
          // simple case: no lambdas
          if (recipeString.isEmpty()) {
-             return lookupMethodInternal(painlessLookup, receiverClass, name, numArguments - 1).handle;
+             return lookupMethodInternal(painlessLookup, receiverClass, name, numArguments - 1).methodHandle;
          }
 
          // convert recipe string to a bitset for convenience (the code below should be refactored...)
@@ -262,7 +262,7 @@ public final class Def {
          // lookup the method with the proper arity, then we know everything (e.g. interface types of parameters).
          // based on these we can finally link any remaining lambdas that were deferred.
          PainlessMethod method = lookupMethodInternal(painlessLookup, receiverClass, name, arity);
-         MethodHandle handle = method.handle;
+         MethodHandle handle = method.methodHandle;
 
          int replaced = 0;
          upTo = 1;
@@ -281,7 +281,7 @@ public final class Def {
                      captures[capture] = callSiteType.parameterType(i + 1 + capture);
                  }
                  MethodHandle filter;
-                 Class<?> interfaceType = method.arguments.get(i - 1 - replaced);
+                 Class<?> interfaceType = method.typeParameters.get(i - 1 - replaced);
                  if (signature.charAt(0) == 'S') {
                      // the implementation is strongly typed, now that we know the interface type,
                      // we have everything.
@@ -326,15 +326,16 @@ public final class Def {
       */
     static MethodHandle lookupReference(PainlessLookup painlessLookup, MethodHandles.Lookup methodHandlesLookup, String interfaceClass,
                                         Class<?> receiverClass, String name) throws Throwable {
-         Class<?> interfaceType = painlessLookup.getJavaClassFromPainlessType(interfaceClass);
-         PainlessMethod interfaceMethod = painlessLookup.getPainlessStructFromJavaClass(interfaceType).functionalMethod;
+         Class<?> interfaceType = painlessLookup.canonicalTypeNameToType(interfaceClass);
+         PainlessMethod interfaceMethod = painlessLookup.lookupPainlessClass(interfaceType).functionalMethod;
          if (interfaceMethod == null) {
              throw new IllegalArgumentException("Class [" + interfaceClass + "] is not a functional interface");
          }
-         int arity = interfaceMethod.arguments.size();
+         int arity = interfaceMethod.typeParameters.size();
          PainlessMethod implMethod = lookupMethodInternal(painlessLookup, receiverClass, name, arity);
         return lookupReferenceInternal(painlessLookup, methodHandlesLookup, interfaceType,
-                PainlessLookupUtility.typeToCanonicalTypeName(implMethod.target), implMethod.name, receiverClass);
+                PainlessLookupUtility.typeToCanonicalTypeName(implMethod.targetClass),
+                implMethod.javaMethod.getName(), receiverClass);
      }
 
      /** Returns a method handle to an implementation of clazz, given method reference signature. */
@@ -344,12 +345,12 @@ public final class Def {
          final FunctionRef ref;
          if ("this".equals(type)) {
              // user written method
-             PainlessMethod interfaceMethod = painlessLookup.getPainlessStructFromJavaClass(clazz).functionalMethod;
+             PainlessMethod interfaceMethod = painlessLookup.lookupPainlessClass(clazz).functionalMethod;
              if (interfaceMethod == null) {
                  throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
                          "to [" + PainlessLookupUtility.typeToCanonicalTypeName(clazz) + "], not a functional interface");
              }
-             int arity = interfaceMethod.arguments.size() + captures.length;
+             int arity = interfaceMethod.typeParameters.size() + captures.length;
              final MethodHandle handle;
              try {
                  MethodHandle accessor = methodHandlesLookup.findStaticGetter(methodHandlesLookup.lookupClass(),
@@ -360,7 +361,7 @@ public final class Def {
                  // is it a synthetic method? If we generated the method ourselves, be more helpful. It can only fail
                  // because the arity does not match the expected interface type.
                  if (call.contains("$")) {
-                     throw new IllegalArgumentException("Incorrect number of parameters for [" + interfaceMethod.name +
+                     throw new IllegalArgumentException("Incorrect number of parameters for [" + interfaceMethod.javaMethod.getName() +
                                                         "] in [" + clazz + "]");
                  }
                  throw new IllegalArgumentException("Unknown call [" + call + "] with [" + arity + "] arguments.");
@@ -418,7 +419,7 @@ public final class Def {
     static MethodHandle lookupGetter(PainlessLookup painlessLookup, Class<?> receiverClass, String name) {
         // first try whitelist
         for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
-            PainlessClass struct = painlessLookup.getPainlessStructFromJavaClass(clazz);
+            PainlessClass struct = painlessLookup.lookupPainlessClass(clazz);
 
             if (struct != null) {
                 MethodHandle handle = struct.getterMethodHandles.get(name);
@@ -428,7 +429,7 @@ public final class Def {
             }
 
             for (final Class<?> iface : clazz.getInterfaces()) {
-                struct = painlessLookup.getPainlessStructFromJavaClass(iface);
+                struct = painlessLookup.lookupPainlessClass(iface);
 
                 if (struct != null) {
                     MethodHandle handle = struct.getterMethodHandles.get(name);
@@ -489,7 +490,7 @@ public final class Def {
     static MethodHandle lookupSetter(PainlessLookup painlessLookup, Class<?> receiverClass, String name) {
         // first try whitelist
         for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
-            PainlessClass struct = painlessLookup.getPainlessStructFromJavaClass(clazz);
+            PainlessClass struct = painlessLookup.lookupPainlessClass(clazz);
 
             if (struct != null) {
                 MethodHandle handle = struct.setterMethodHandles.get(name);
@@ -499,7 +500,7 @@ public final class Def {
             }
 
             for (final Class<?> iface : clazz.getInterfaces()) {
-                struct = painlessLookup.getPainlessStructFromJavaClass(iface);
+                struct = painlessLookup.lookupPainlessClass(iface);
 
                 if (struct != null) {
                     MethodHandle handle = struct.setterMethodHandles.get(name);

@@ -96,7 +96,7 @@ final class Compiler {
             if (statefulFactoryClass != null && statefulFactoryClass.getName().equals(name)) {
                 return statefulFactoryClass;
             }
-            Class<?> found = painlessLookup.getClassFromBinaryName(name);
+            Class<?> found = painlessLookup.canonicalTypeNameToType(name.replace('$', '.'));
 
             return found != null ? found : super.findClass(name);
         }

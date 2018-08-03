@@ -121,7 +121,7 @@ public final class SFunction extends AStatement {
 
     void generateSignature(PainlessLookup painlessLookup) {
         try {
-            returnType = painlessLookup.getJavaClassFromPainlessType(rtnTypeStr);
+            returnType = painlessLookup.canonicalTypeNameToType(rtnTypeStr);
         } catch (IllegalArgumentException exception) {
             throw createError(new IllegalArgumentException("Illegal return type [" + rtnTypeStr + "] for function [" + name + "]."));
         }
@@ -135,7 +135,7 @@ public final class SFunction extends AStatement {
 
         for (int param = 0; param < this.paramTypeStrs.size(); ++param) {
             try {
-                Class<?> paramType = painlessLookup.getJavaClassFromPainlessType(this.paramTypeStrs.get(param));
+                Class<?> paramType = painlessLookup.canonicalTypeNameToType(this.paramTypeStrs.get(param));
 
                 paramClasses[param] = PainlessLookupUtility.typeToJavaType(paramType);
                 paramTypes.add(paramType);

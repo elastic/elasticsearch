@@ -102,7 +102,11 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             final long leaderMaxSeqNo,
             final long followerGlobalCheckpoint,
             final long followerMaxSeqNo) {
-        synchronized (ShardFollowNodeTask.this) {
+        /*
+         * While this should only ever be called once and before any other threads can touch these fields, we use synchronization here to
+         * avoid the need to declare these fields as volatile. That is, we are ensuring thesefields are always accessed under the same lock.
+         */
+        synchronized (this) {
             this.leaderGlobalCheckpoint = leaderGlobalCheckpoint;
             this.leaderMaxSeqNo = leaderMaxSeqNo;
             this.followerGlobalCheckpoint = followerGlobalCheckpoint;

@@ -327,6 +327,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
 
     public void testRollupIDSchemeAfterRestart() throws Exception {
         assumeTrue("Rollup can be tested with 6.3.0 and onwards", oldClusterVersion.onOrAfter(Version.V_6_3_0));
+        assumeTrue("Rollup ID scheme changed in 6.4", oldClusterVersion.before(Version.V_6_4_0));
         if (runningAgainstOldCluster) {
 
             final Request indexRequest = new Request("POST", "/id-test-rollup/_doc/1");

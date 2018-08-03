@@ -10,6 +10,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleRequest;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -33,7 +34,7 @@ public class RestExplainLifecycleAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String[] indexes = Strings.splitStringByCommaToArray(restRequest.param("index"));
-        ExplainLifecycleAction.Request explainLifecycleRequest = new ExplainLifecycleAction.Request();
+        ExplainLifecycleRequest explainLifecycleRequest = new ExplainLifecycleRequest();
         explainLifecycleRequest.indices(indexes);
         explainLifecycleRequest.indicesOptions(IndicesOptions.fromRequest(restRequest, IndicesOptions.strictExpandOpen()));
 

@@ -4,21 +4,21 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.core.indexlifecycle.action;
+package org.elasticsearch.protocol.xpack.indexlifecycle;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleRequest;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.indexlifecycle.action.ExplainLifecycleAction.Request;
 
 import java.io.IOException;
 import java.util.Arrays;
 
-public class ExplainLifecycleRequestTests extends AbstractWireSerializingTestCase<Request> {
+public class ExplainLifecycleRequestTests extends AbstractWireSerializingTestCase<ExplainLifecycleRequest> {
 
     @Override
-    protected Request createTestInstance() {
-        Request request = new Request();
+    protected ExplainLifecycleRequest createTestInstance() {
+        ExplainLifecycleRequest request = new ExplainLifecycleRequest();
         if (randomBoolean()) {
             request.indices(generateRandomStringArray(20, 20, false, true));
         }
@@ -31,7 +31,7 @@ public class ExplainLifecycleRequestTests extends AbstractWireSerializingTestCas
     }
 
     @Override
-    protected Request mutateInstance(Request instance) throws IOException {
+    protected ExplainLifecycleRequest mutateInstance(ExplainLifecycleRequest instance) throws IOException {
         String[] indices = instance.indices();
         IndicesOptions indicesOptions = instance.indicesOptions();
         switch (between(0, 1)) {
@@ -46,15 +46,15 @@ public class ExplainLifecycleRequestTests extends AbstractWireSerializingTestCas
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        Request newRequest = new Request();
+        ExplainLifecycleRequest newRequest = new ExplainLifecycleRequest();
         newRequest.indices(indices);
         newRequest.indicesOptions(indicesOptions);
         return newRequest;
     }
 
     @Override
-    protected Reader<Request> instanceReader() {
-        return Request::new;
+    protected Reader<ExplainLifecycleRequest> instanceReader() {
+        return ExplainLifecycleRequest::new;
     }
 
 }

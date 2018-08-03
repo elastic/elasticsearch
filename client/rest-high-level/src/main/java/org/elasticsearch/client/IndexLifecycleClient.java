@@ -20,6 +20,8 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleRequest;
+import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleResponse;
 import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyResponse;
 
@@ -61,5 +63,33 @@ public class IndexLifecycleClient {
                                              ActionListener<SetIndexLifecyclePolicyResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::setIndexLifecyclePolicy, options,
             SetIndexLifecyclePolicyResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Explain the lifecycle state for an index
+     * See <a href="https://fix-me-when-we-have-docs.com">
+     * the docs</a> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public ExplainLifecycleResponse explainLifecycle(ExplainLifecycleRequest request,RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::explainLifecycle, options,
+            ExplainLifecycleResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously explain the lifecycle state for an index
+     * See <a href="https://fix-me-when-we-have-docs.com">
+     * the docs</a> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void explainLifecycleAsync(ExplainLifecycleRequest request, RequestOptions options,
+                                      ActionListener<ExplainLifecycleResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::explainLifecycle, options,
+                ExplainLifecycleResponse::fromXContent, listener, emptySet());
     }
 }

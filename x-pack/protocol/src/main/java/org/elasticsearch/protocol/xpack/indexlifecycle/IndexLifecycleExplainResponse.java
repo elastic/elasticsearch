@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.core.indexlifecycle.action;
+package org.elasticsearch.protocol.xpack.indexlifecycle;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;

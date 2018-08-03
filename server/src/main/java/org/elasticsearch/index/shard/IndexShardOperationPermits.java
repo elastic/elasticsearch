@@ -34,6 +34,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -61,7 +62,7 @@ final class IndexShardOperationPermits implements Closeable {
     final Semaphore semaphore = new Semaphore(TOTAL_PERMITS, true); // fair to ensure a blocking thread is not starved
     private final List<DelayedOperation> delayedOperations = new ArrayList<>(); // operations that are delayed
     private volatile boolean closed;
-    private boolean delayed; // does not need to be volatile as all accesses are done under a lock on this
+    private int queuedBlockOperations; // does not need to be volatile as all accesses are done under a lock on this
 
     // only valid when assertions are enabled. Key is AtomicBoolean associated with each permit to ensure close once semantics.
     // Value is a tuple, with a some debug information supplied by the caller and a stack trace of the acquiring thread
@@ -106,9 +107,6 @@ final class IndexShardOperationPermits implements Closeable {
             final long timeout,
             final TimeUnit timeUnit,
             final CheckedRunnable<E> onBlocked) throws InterruptedException, TimeoutException, E {
-        if (closed) {
-            throw new IndexShardClosedException(shardId);
-        }
         delayOperations();
         try {
             doBlockOperations(timeout, timeUnit, onBlocked);
@@ -151,13 +149,12 @@ final class IndexShardOperationPermits implements Closeable {
     }
 
     private void delayOperations() {
+        if (closed) {
+            throw new IndexShardClosedException(shardId);
+        }
         synchronized (this) {
-            if (delayed) {
-                throw new IllegalStateException("operations are already delayed");
-            } else {
-                assert delayedOperations.isEmpty();
-                delayed = true;
-            }
+            assert queuedBlockOperations > 0 || delayedOperations.isEmpty();
+            queuedBlockOperations++;
         }
     }
 
@@ -168,7 +165,7 @@ final class IndexShardOperationPermits implements Closeable {
         if (Assertions.ENABLED) {
             // since delayed is not volatile, we have to synchronize even here for visibility
             synchronized (this) {
-                assert delayed;
+                assert queuedBlockOperations > 0;
             }
         }
         if (semaphore.tryAcquire(TOTAL_PERMITS, timeout, timeUnit)) {
@@ -186,10 +183,14 @@ final class IndexShardOperationPermits implements Closeable {
     private void releaseDelayedOperations() {
         final List<DelayedOperation> queuedActions;
         synchronized (this) {
-            assert delayed;
-            queuedActions = new ArrayList<>(delayedOperations);
-            delayedOperations.clear();
-            delayed = false;
+            assert queuedBlockOperations > 0;
+            queuedBlockOperations--;
+            if (queuedBlockOperations == 0) {
+                queuedActions = new ArrayList<>(delayedOperations);
+                delayedOperations.clear();
+            } else {
+                queuedActions = Collections.emptyList();
+            }
         }
         if (!queuedActions.isEmpty()) {
             /*
@@ -246,7 +247,7 @@ final class IndexShardOperationPermits implements Closeable {
         final Releasable releasable;
         try {
             synchronized (this) {
-                if (delayed) {
+                if (queuedBlockOperations > 0) {
                     final Supplier<StoredContext> contextSupplier = threadPool.getThreadContext().newRestorableContext(false);
                     final ActionListener<Releasable> wrappedListener;
                     if (executorOnDelay != null) {
@@ -310,6 +311,11 @@ final class IndexShardOperationPermits implements Closeable {
         } else {
             return TOTAL_PERMITS - availablePermits;
         }
+    }
+
+
+    synchronized boolean isBlocked() {
+        return queuedBlockOperations > 0;
     }
 
     /**

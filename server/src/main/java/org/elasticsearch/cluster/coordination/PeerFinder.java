@@ -94,10 +94,7 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
     }
 
     public void activate(final DiscoveryNodes lastAcceptedNodes) {
-        if (lifecycle.started() == false) {
-            logger.debug("ignoring activation, not started");
-            return;
-        }
+        assert lifecycle.started() : lifecycle;
 
         logger.trace("activating PeerFinder {}", lastAcceptedNodes);
 

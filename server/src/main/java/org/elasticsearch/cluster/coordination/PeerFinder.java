@@ -273,9 +273,9 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
                     @Override
                     protected void doRun() {
                         List<TransportAddress> providedAddresses
-                            = new ArrayList<>(hostsProvider.buildDynamicHosts((hosts, limitPortCounts)
+                            = hostsProvider.buildDynamicHosts((hosts, limitPortCounts)
                             -> UnicastZenPing.resolveHostsLists(executorService.get(), logger, hosts, limitPortCounts,
-                            transportService, resolveTimeout)));
+                            transportService, resolveTimeout));
 
                         logger.trace("ActivePeerFinder#handleNextWakeUp(): probing resolved transport addresses {}", providedAddresses);
                         synchronized (mutex) {

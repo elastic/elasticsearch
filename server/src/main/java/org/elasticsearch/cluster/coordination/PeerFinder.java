@@ -354,7 +354,7 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
                 if (discoveryNode != null) {
                     if (transportService.nodeConnected(discoveryNode)) {
                         if (peersRequestInFlight == false) {
-                            requestPeers(discoveryNode);
+                            requestPeers();
                         }
                     } else {
                         logger.trace("{} no longer connected to {}", this, discoveryNode);
@@ -378,7 +378,7 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
                             if (running) {
                                 assert discoveryNode.get() == null : "discoveryNode unexpectedly already set to " + discoveryNode.get();
                                 discoveryNode.set(remoteNode);
-                                requestPeers(remoteNode);
+                                requestPeers();
                             }
                         }
                     }
@@ -396,11 +396,13 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
                 assert removed == Peer.this;
             }
 
-            private void requestPeers(final DiscoveryNode discoveryNode) {
+            private void requestPeers() {
                 assert holdsLock() : "PeerFinder mutex not held";
                 assert peersRequestInFlight == false : "PeersRequest already in flight";
                 assert running;
-                assert discoveryNode.equals(this.discoveryNode.get());
+
+                final DiscoveryNode discoveryNode = getDiscoveryNode();
+                assert discoveryNode != null : "cannot request peers without first connecting";
 
                 logger.trace("{} requesting peers from {}", this, discoveryNode);
                 peersRequestInFlight = true;

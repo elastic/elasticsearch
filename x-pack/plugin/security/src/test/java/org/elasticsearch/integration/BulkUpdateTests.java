@@ -5,15 +5,12 @@
  */
 package org.elasticsearch.integration;
 
-import org.apache.http.Header;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.message.BasicHeader;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.client.Response;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -24,10 +21,8 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 
 import java.io.IOException;
-import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 
 public class BulkUpdateTests extends SecurityIntegTestCase {
 
@@ -77,46 +72,48 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
 
     public void testThatBulkUpdateDoesNotLoseFieldsHttp() throws IOException {
         final String path = "/index1/type/1";
-        final Header basicAuthHeader = new BasicHeader("Authorization",
-                UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
-                        new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())));
+        final RequestOptions.Builder optionsBuilder = RequestOptions.DEFAULT.toBuilder();
+        optionsBuilder.addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
+                new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())));
+        final RequestOptions options = optionsBuilder.build();
 
-        StringEntity body = new StringEntity("{\"test\":\"test\"}", ContentType.APPLICATION_JSON);
-        Response response = getRestClient().performRequest("PUT", path, Collections.emptyMap(), body, basicAuthHeader);
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(201));
+        Request createRequest = new Request("PUT", path);
+        createRequest.setOptions(options);
+        createRequest.setJsonEntity("{\"test\":\"test\"}");
+        getRestClient().performRequest(createRequest);
 
-        response = getRestClient().performRequest("GET", path, basicAuthHeader);
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
-        assertThat(EntityUtils.toString(response.getEntity()), containsString("\"test\":\"test\""));
+        Request getRequest = new Request("GET", path);
+        getRequest.setOptions(options);
+        assertThat(EntityUtils.toString(getRestClient().performRequest(getRequest).getEntity()), containsString("\"test\":\"test\""));
 
         if (randomBoolean()) {
             flushAndRefresh();
         }
 
         //update with new field
-        body = new StringEntity("{\"doc\": {\"not test\": \"not test\"}}", ContentType.APPLICATION_JSON);
-        response = getRestClient().performRequest("POST", path + "/_update", Collections.emptyMap(), body, basicAuthHeader);
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        Request updateRequest = new Request("POST", path + "/_update");
+        updateRequest.setOptions(options);
+        updateRequest.setJsonEntity("{\"doc\": {\"not test\": \"not test\"}}");
+        getRestClient().performRequest(updateRequest);
 
-        response = getRestClient().performRequest("GET", path, basicAuthHeader);
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
-        String responseBody = EntityUtils.toString(response.getEntity());
-        assertThat(responseBody, containsString("\"test\":\"test\""));
-        assertThat(responseBody, containsString("\"not test\":\"not test\""));
+        String afterUpdate = EntityUtils.toString(getRestClient().performRequest(getRequest).getEntity());
+        assertThat(afterUpdate, containsString("\"test\":\"test\""));
+        assertThat(afterUpdate, containsString("\"not test\":\"not test\""));
 
         // this part is important. Without this, the document may be read from the translog which would bypass the bug where
         // FLS kicks in because the request can't be found and only returns meta fields
         flushAndRefresh();
 
-        body = new StringEntity("{\"update\": {\"_index\": \"index1\", \"_type\": \"type\", \"_id\": \"1\"}}\n" +
-                "{\"doc\": {\"bulk updated\":\"bulk updated\"}}\n", ContentType.APPLICATION_JSON);
-        response = getRestClient().performRequest("POST", "/_bulk", Collections.emptyMap(), body, basicAuthHeader);
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        Request bulkRequest = new Request("POST", "/_bulk");
+        bulkRequest.setOptions(options);
+        bulkRequest.setJsonEntity(
+                "{\"update\": {\"_index\": \"index1\", \"_type\": \"type\", \"_id\": \"1\"}}\n" +
+                "{\"doc\": {\"bulk updated\":\"bulk updated\"}}\n");
+        getRestClient().performRequest(bulkRequest);
 
-        response = getRestClient().performRequest("GET", path, basicAuthHeader);
-        responseBody = EntityUtils.toString(response.getEntity());
-        assertThat(responseBody, containsString("\"test\":\"test\""));
-        assertThat(responseBody, containsString("\"not test\":\"not test\""));
-        assertThat(responseBody, containsString("\"bulk updated\":\"bulk updated\""));
+        String afterBulk = EntityUtils.toString(getRestClient().performRequest(getRequest).getEntity());
+        assertThat(afterBulk, containsString("\"test\":\"test\""));
+        assertThat(afterBulk, containsString("\"not test\":\"not test\""));
+        assertThat(afterBulk, containsString("\"bulk updated\":\"bulk updated\""));
     }
 }

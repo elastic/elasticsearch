@@ -34,13 +34,17 @@ public final class URLDecodeProcessor extends AbstractStringProcessor {
         super(processorTag, field, ignoreMissing, targetField);
     }
 
-    @Override
-    protected String process(String value) {
+    public static String apply(String value) {
         try {
             return URLDecoder.decode(value, "UTF-8");
         } catch (UnsupportedEncodingException e) {
-            throw new IllegalArgumentException("could not URL-decode field[" + getField() + "]", e);
+            throw new IllegalArgumentException("Could not URL-decode value.", e);
         }
+    }
+
+    @Override
+    protected String process(String value) {
+        return apply(value);
     }
 
     @Override

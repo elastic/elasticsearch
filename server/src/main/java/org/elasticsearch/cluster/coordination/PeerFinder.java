@@ -31,10 +31,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.discovery.ConfiguredHostsResolver;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
-import org.elasticsearch.discovery.zen.UnicastZenPing;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -47,8 +45,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
@@ -63,16 +59,13 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
             TimeValue.timeValueMillis(1000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
 
     private final TimeValue findPeersDelay;
-    private final TimeValue resolveTimeout;
 
     private final Object mutex = new Object();
     private final TransportService transportService;
-    private final UnicastHostsProvider hostsProvider;
     private final FutureExecutor futureExecutor;
     private final TransportAddressConnector transportAddressConnector;
-    private final Supplier<ExecutorService> executorServiceFactory;
+    private final ConfiguredHostsResolver configuredHostsResolver;
 
-    private final SetOnce<ExecutorService> executorService = new SetOnce<>();
     private Optional<ActivePeerFinder> peerFinder = Optional.empty();
     private volatile long currentTerm;
     private Optional<DiscoveryNode> leader = Optional.empty();
@@ -82,12 +75,10 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
                Supplier<ExecutorService> executorServiceFactory) {
         super(settings);
         findPeersDelay = DISCOVERY_FIND_PEERS_INTERVAL_SETTING.get(settings);
-        resolveTimeout = UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT.get(settings);
         this.transportService = transportService;
-        this.hostsProvider = hostsProvider;
         this.futureExecutor = futureExecutor;
         this.transportAddressConnector = transportAddressConnector;
-        this.executorServiceFactory = executorServiceFactory;
+        configuredHostsResolver = new ConfiguredHostsResolver(settings, transportService, hostsProvider, executorServiceFactory);
 
         transportService.registerRequestHandler(REQUEST_PEERS_ACTION_NAME, Names.GENERIC, false, false,
             PeersRequest::new,
@@ -177,16 +168,17 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
 
     @Override
     protected void doStart() {
-        executorService.set(executorServiceFactory.get());
+        configuredHostsResolver.start();
     }
 
     @Override
     protected void doStop() {
-        ThreadPool.terminate(executorService.get(), 10, TimeUnit.SECONDS);
+        configuredHostsResolver.stop();
     }
 
     @Override
     protected void doClose() {
+        configuredHostsResolver.close();
     }
 
     /**
@@ -204,7 +196,6 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
     private class ActivePeerFinder {
         private final DiscoveryNodes lastAcceptedNodes;
         boolean running;
-        private final AtomicBoolean resolveInProgress = new AtomicBoolean();
         private final Map<TransportAddress, Peer> peersByAddress = newConcurrentMap();
 
         ActivePeerFinder(DiscoveryNodes lastAcceptedNodes) {
@@ -264,37 +255,12 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
                 startProbe(discoveryNodeObjectCursor.value.getAddress());
             }
 
-            if (resolveInProgress.compareAndSet(false, true)) {
-                transportService.getThreadPool().generic().execute(new AbstractRunnable() {
-                    @Override
-                    public void onFailure(Exception e) {
-                    }
-
-                    @Override
-                    protected void doRun() {
-                        List<TransportAddress> providedAddresses
-                            = hostsProvider.buildDynamicHosts((hosts, limitPortCounts)
-                            -> UnicastZenPing.resolveHostsLists(executorService.get(), logger, hosts, limitPortCounts,
-                            transportService, resolveTimeout));
-
-                        logger.trace("ActivePeerFinder#handleNextWakeUp(): probing resolved transport addresses {}", providedAddresses);
-                        synchronized (mutex) {
-                            providedAddresses.forEach(ActivePeerFinder.this::startProbe);
-                        }
-                    }
-
-                    @Override
-                    public void onAfter() {
-                        super.onAfter();
-                        resolveInProgress.set(false);
-                    }
-
-                    @Override
-                    public String toString() {
-                        return "PeerFinder resolving unicast hosts list";
-                    }
-                });
-            }
+            configuredHostsResolver.resolveConfiguredHosts(providedAddresses -> {
+                synchronized (mutex) {
+                    logger.trace("ActivePeerFinder#handleNextWakeUp(): probing resolved transport addresses {}", providedAddresses);
+                    providedAddresses.forEach(ActivePeerFinder.this::startProbe);
+                }
+            });
 
             futureExecutor.schedule(new Runnable() {
                 @Override

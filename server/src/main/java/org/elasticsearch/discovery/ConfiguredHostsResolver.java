@@ -19,89 +19,18 @@
 
 package org.elasticsearch.discovery;
 
-import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.discovery.zen.UnicastHostsProvider;
-import org.elasticsearch.discovery.zen.UnicastZenPing;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
-public class ConfiguredHostsResolver extends AbstractLifecycleComponent {
-
-    private final AtomicBoolean resolveInProgress = new AtomicBoolean();
-    private final TransportService transportService;
-    private final UnicastHostsProvider hostsProvider;
-    private final SetOnce<ExecutorService> executorService = new SetOnce<>();
-    private final TimeValue resolveTimeout;
-    private final Supplier<ExecutorService> executorServiceFactory;
-
-    public ConfiguredHostsResolver(Settings settings, TransportService transportService, UnicastHostsProvider hostsProvider,
-                                   Supplier<ExecutorService> executorServiceFactory) {
-        super(settings);
-        this.transportService = transportService;
-        this.hostsProvider = hostsProvider;
-        resolveTimeout = UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT.get(settings);
-        this.executorServiceFactory = executorServiceFactory;
-    }
-
-    @Override
-    protected void doStart() {
-        executorService.set(executorServiceFactory.get());
-    }
-
-    @Override
-    protected void doStop() {
-        ThreadPool.terminate(executorService.get(), 10, TimeUnit.SECONDS);
-    }
-
-    @Override
-    protected void doClose() {
-    }
-
+public interface ConfiguredHostsResolver {
     /**
      * Attempt to resolve the configured unicast hosts list to a list of transport addresses.
+     *
      * @param consumer Consumer for the resolved list. May not be called if an error occurs or if another resolution attempt is in
      *                 progress.
      */
-    public void resolveConfiguredHosts(Consumer<List<TransportAddress>> consumer) {
-        if (resolveInProgress.compareAndSet(false, true)) {
-            transportService.getThreadPool().generic().execute(new AbstractRunnable() {
-                @Override
-                public void onFailure(Exception e) {
-                }
-
-                @Override
-                protected void doRun() {
-                    List<TransportAddress> providedAddresses
-                        = hostsProvider.buildDynamicHosts((hosts, limitPortCounts)
-                        -> UnicastZenPing.resolveHostsLists(executorService.get(), logger, hosts, limitPortCounts,
-                        transportService, resolveTimeout));
-
-                    consumer.accept(providedAddresses);
-                }
-
-                @Override
-                public void onAfter() {
-                    super.onAfter();
-                    resolveInProgress.set(false);
-                }
-
-                @Override
-                public String toString() {
-                    return "ConfiguredHostsResolver resolving unicast hosts list";
-                }
-            });
-        }
-    }
+    void resolveConfiguredHosts(Consumer<List<TransportAddress>> consumer);
 }
+

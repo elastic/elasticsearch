@@ -25,14 +25,13 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.ConfiguredHostsResolver;
-import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -44,12 +43,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ExecutorService;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
-public abstract class PeerFinder extends AbstractLifecycleComponent {
+public abstract class PeerFinder extends AbstractComponent {
 
     public static final String REQUEST_PEERS_ACTION_NAME = "internal:discovery/requestpeers";
 
@@ -72,15 +69,14 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
     private final Map<TransportAddress, Peer> peersByAddress = newConcurrentMap();
     private Optional<DiscoveryNode> leader = Optional.empty();
 
-    PeerFinder(Settings settings, TransportService transportService, UnicastHostsProvider hostsProvider,
-               FutureExecutor futureExecutor, TransportAddressConnector transportAddressConnector,
-               Supplier<ExecutorService> executorServiceFactory) {
+    PeerFinder(Settings settings, TransportService transportService, FutureExecutor futureExecutor,
+               TransportAddressConnector transportAddressConnector, ConfiguredHostsResolver configuredHostsResolver) {
         super(settings);
         findPeersDelay = DISCOVERY_FIND_PEERS_INTERVAL_SETTING.get(settings);
         this.transportService = transportService;
         this.futureExecutor = futureExecutor;
         this.transportAddressConnector = transportAddressConnector;
-        configuredHostsResolver = new ConfiguredHostsResolver(settings, transportService, hostsProvider, executorServiceFactory);
+        this.configuredHostsResolver = configuredHostsResolver;
 
         transportService.registerRequestHandler(REQUEST_PEERS_ACTION_NAME, Names.GENERIC, false, false,
             PeersRequest::new,
@@ -94,8 +90,6 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
     }
 
     public void activate(final DiscoveryNodes lastAcceptedNodes) {
-        assert lifecycle.started() : lifecycle;
-
         logger.trace("activating PeerFinder {}", lastAcceptedNodes);
 
         synchronized (mutex) {
@@ -123,6 +117,12 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
         return Thread.holdsLock(mutex);
     }
 
+    boolean assertInactiveWithNoKnownPeers() {
+        assert active == false;
+        assert peersByAddress.isEmpty();
+        return true;
+    }
+
     PeersResponse handlePeersRequest(PeersRequest peersRequest) {
         synchronized (mutex) {
             assert peersRequest.getSourceNode().equals(getLocalNode()) == false;
@@ -144,21 +144,6 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
         final DiscoveryNode localNode = transportService.getLocalNode();
         assert localNode != null;
         return localNode;
-    }
-
-    @Override
-    protected void doStart() {
-        configuredHostsResolver.start();
-    }
-
-    @Override
-    protected void doStop() {
-        configuredHostsResolver.stop();
-    }
-
-    @Override
-    protected void doClose() {
-        configuredHostsResolver.close();
     }
 
     /**
@@ -216,7 +201,7 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
 
         configuredHostsResolver.resolveConfiguredHosts(providedAddresses -> {
             synchronized (mutex) {
-                logger.trace("ActivePeerFinder#handleNextWakeUp(): probing resolved transport addresses {}", providedAddresses);
+                logger.trace("PeerFinder: probing resolved transport addresses {}", providedAddresses);
                 providedAddresses.forEach(this::startProbe);
             }
         });

@@ -69,7 +69,6 @@ import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class PeerFinderTests extends ESTestCase {
@@ -151,7 +150,6 @@ public class PeerFinderTests extends ESTestCase {
     static class TestPeerFinder extends PeerFinder {
         DiscoveryNode discoveredMasterNode;
         OptionalLong discoveredMasterTerm = OptionalLong.empty();
-        PeersResponse nextResponseWhenInactive;
 
         TestPeerFinder(Settings settings, TransportService transportService, UnicastHostsProvider hostsProvider,
                        FutureExecutor futureExecutor, TransportAddressConnector transportAddressConnector,
@@ -166,14 +164,6 @@ public class PeerFinderTests extends ESTestCase {
             assertFalse(discoveredMasterTerm.isPresent());
             discoveredMasterNode = masterNode;
             discoveredMasterTerm = OptionalLong.of(term);
-        }
-
-        @Override
-        protected PeersResponse onPeersRequestWhenInactive(DiscoveryNode sourceNode) {
-            assertThat(nextResponseWhenInactive, not(nullValue()));
-            final PeersResponse savedResponse = this.nextResponseWhenInactive;
-            nextResponseWhenInactive = null; // only send this response once.
-            return savedResponse;
         }
     }
 
@@ -217,7 +207,7 @@ public class PeerFinderTests extends ESTestCase {
 
     @After
     public void deactivateAndRunRemainingTasks() {
-        peerFinder.deactivate();
+        peerFinder.deactivate(localNode);
         deterministicTaskQueue.runAllTasks(); // termination ensures that everything is properly cleaned up
     }
 
@@ -226,7 +216,7 @@ public class PeerFinderTests extends ESTestCase {
         assertFoundPeers();
         assertTrue(peerFinder.isActive());
 
-        peerFinder.deactivate();
+        peerFinder.deactivate(localNode);
         assertFalse(peerFinder.isActive());
     }
 
@@ -292,7 +282,7 @@ public class PeerFinderTests extends ESTestCase {
 
         assertFoundPeers(otherNode);
 
-        peerFinder.deactivate();
+        peerFinder.deactivate(localNode);
 
         unicastHostsProvider.providedAddresses.clear();
         peerFinder.activate(lastAcceptedNodes);
@@ -391,10 +381,14 @@ public class PeerFinderTests extends ESTestCase {
         final DiscoveryNode sourceNode = newDiscoveryNode("request-source");
         transportAddressConnector.reachableNodes.add(sourceNode);
 
-        final PeersResponse expectedResponse = new PeersResponse(Optional.of(masterNode), Collections.emptyList(), randomNonNegativeLong());
-        peerFinder.nextResponseWhenInactive = expectedResponse;
+        peerFinder.activate(DiscoveryNodes.EMPTY_NODES);
+
+        final long term = randomNonNegativeLong();
+        peerFinder.setCurrentTerm(term);
+        peerFinder.deactivate(masterNode);
+
+        final PeersResponse expectedResponse = new PeersResponse(Optional.of(masterNode), Collections.emptyList(), term);
         final PeersResponse peersResponse = peerFinder.handlePeersRequest(new PeersRequest(sourceNode, Collections.emptyList()));
-        assertThat("should have consumed the mock value", peerFinder.nextResponseWhenInactive, nullValue());
         assertThat(peersResponse, equalTo(expectedResponse));
     }
 

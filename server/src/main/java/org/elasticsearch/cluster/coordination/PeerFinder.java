@@ -42,6 +42,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -74,6 +75,7 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
     private final SetOnce<ExecutorService> executorService = new SetOnce<>();
     private Optional<ActivePeerFinder> peerFinder = Optional.empty();
     private volatile long currentTerm;
+    private Optional<DiscoveryNode> leader = Optional.empty();
 
     PeerFinder(Settings settings, TransportService transportService, UnicastHostsProvider hostsProvider,
                FutureExecutor futureExecutor, TransportAddressConnector transportAddressConnector,
@@ -110,6 +112,7 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
             assert peerFinder.isPresent() == false;
             peerFinder = Optional.of(new ActivePeerFinder(lastAcceptedNodes));
             peerFinder.get().start();
+            leader = Optional.empty();
         }
     }
 
@@ -118,7 +121,7 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
         return Thread.holdsLock(mutex);
     }
 
-    public void deactivate() {
+    public void deactivate(DiscoveryNode leader) {
         synchronized (mutex) {
             if (peerFinder.isPresent()) {
                 logger.trace("deactivating PeerFinder");
@@ -126,6 +129,7 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
                 peerFinder.get().stop();
                 peerFinder = Optional.empty();
             }
+            this.leader = Optional.of(leader);
         }
     }
 
@@ -144,10 +148,10 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
                 activePeerFinder.startProbe(peersRequest.getSourceNode().getAddress());
                 peersRequest.getKnownPeers().stream().map(DiscoveryNode::getAddress).forEach(activePeerFinder::startProbe);
                 return new PeersResponse(Optional.empty(), activePeerFinder.getKnownPeers(), currentTerm);
+            } else {
+                return new PeersResponse(leader, Collections.emptyList(), currentTerm);
             }
         }
-
-        return onPeersRequestWhenInactive(peersRequest.getSourceNode());
     }
 
     public boolean isActive() {
@@ -194,16 +198,6 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
      */
     protected abstract void onMasterFoundByProbe(DiscoveryNode masterNode, long term);
 
-    /**
-     * Called on receipt of a PeersRequest when there is no ActivePeerFinder, which mostly means that this node thinks there's an
-     * active leader. However, there's no synchronisation around this call so it's possible that it's called if there's no active
-     * leader, but we have not yet been activated. If so, this should respond indicating that there's no active leader, and no
-     * known peers.
-     *
-     * @param sourceNode The sender of the PeersRequest
-     */
-    protected abstract PeersResponse onPeersRequestWhenInactive(DiscoveryNode sourceNode);
-
     public interface TransportAddressConnector {
         /**
          * Identify the node at the given address and, if it is a master node and not the local node then establish a full connection to it.
@@ -243,7 +237,7 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
         List<DiscoveryNode> getKnownPeers() {
             assert holdsLock() : "PeerFinder mutex not held";
             List<DiscoveryNode> knownPeers = new ArrayList<>(peersByAddress.size());
-            for(final Peer peer : peersByAddress.values()) {
+            for (final Peer peer : peersByAddress.values()) {
                 DiscoveryNode peerNode = peer.getDiscoveryNode();
                 if (peerNode != null) {
                     knownPeers.add(peerNode);

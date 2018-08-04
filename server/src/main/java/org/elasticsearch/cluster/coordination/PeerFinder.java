@@ -139,12 +139,6 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
         }
     }
 
-    public boolean isActive() {
-        synchronized (mutex) {
-            return active;
-        }
-    }
-
     public void setCurrentTerm(long currentTerm) {
         this.currentTerm = currentTerm;
     }

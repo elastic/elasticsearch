@@ -211,15 +211,6 @@ public class PeerFinderTests extends ESTestCase {
         deterministicTaskQueue.runAllTasks(); // termination ensures that everything is properly cleaned up
     }
 
-    public void testActivationAndDeactivation() {
-        peerFinder.activate(lastAcceptedNodes);
-        assertFoundPeers();
-        assertTrue(peerFinder.isActive());
-
-        peerFinder.deactivate(localNode);
-        assertFalse(peerFinder.isActive());
-    }
-
     public void testAddsReachableNodesFromUnicastHostsList() {
         final DiscoveryNode otherNode = newDiscoveryNode("node-from-hosts-list");
         unicastHostsProvider.providedAddresses.add(otherNode.getAddress());

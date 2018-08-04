@@ -109,6 +109,7 @@ public abstract class PeerFinder extends AbstractComponent {
                 handleWakeUpUnderLock();
             }
             this.leader = Optional.of(leader);
+            assert assertInactiveWithNoKnownPeers();
         }
     }
 

@@ -76,7 +76,7 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetReader.DocumentSubsetDirectoryReader;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
-import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.protocol.xpack.security.User;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -442,7 +442,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
                         return "rendered_text";
                     }
                 };
-        
+
         when(scriptService.compile(any(Script.class), eq(TemplateScript.CONTEXT))).thenReturn(compiledTemplate);
 
         XContentBuilder builder = jsonBuilder();

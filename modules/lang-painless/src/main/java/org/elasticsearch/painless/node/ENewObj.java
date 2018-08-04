@@ -23,7 +23,6 @@ import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.lookup.PainlessClass;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.objectweb.asm.Type;
@@ -60,38 +59,36 @@ public final class ENewObj extends AExpression {
     @Override
     void analyze(Locals locals) {
         try {
-            actual = locals.getPainlessLookup().getJavaClassFromPainlessType(this.type);
+            actual = locals.getPainlessLookup().canonicalTypeNameToType(this.type);
         } catch (IllegalArgumentException exception) {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }
 
-        PainlessClass struct = locals.getPainlessLookup().getPainlessStructFromJavaClass(actual);
-        constructor = struct.constructors.get(PainlessLookupUtility.buildPainlessConstructorKey(arguments.size()));
-
-        if (constructor != null) {
-            Class<?>[] types = new Class<?>[constructor.typeParameters.size()];
-            constructor.typeParameters.toArray(types);
-
-            if (constructor.typeParameters.size() != arguments.size()) {
-                throw createError(new IllegalArgumentException(
-                        "When calling constructor on type [" + PainlessLookupUtility.typeToCanonicalTypeName(actual) + "] " +
-                        "expected [" + constructor.typeParameters.size() + "] arguments, but found [" + arguments.size() + "]."));
-            }
-
-            for (int argument = 0; argument < arguments.size(); ++argument) {
-                AExpression expression = arguments.get(argument);
-
-                expression.expected = types[argument];
-                expression.internal = true;
-                expression.analyze(locals);
-                arguments.set(argument, expression.cast(locals));
-            }
-
-            statement = true;
-        } else {
-            throw createError(new IllegalArgumentException(
-                    "Unknown new call on type [" + PainlessLookupUtility.typeToCanonicalTypeName(actual) + "]."));
+        try {
+            constructor = locals.getPainlessLookup().lookupPainlessConstructor(actual, arguments.size());
+        } catch (IllegalArgumentException iae) {
+            throw createError(iae);
         }
+
+        Class<?>[] types = new Class<?>[constructor.typeParameters.size()];
+        constructor.typeParameters.toArray(types);
+
+        if (constructor.typeParameters.size() != arguments.size()) {
+            throw createError(new IllegalArgumentException(
+                    "When calling constructor on type [" + PainlessLookupUtility.typeToCanonicalTypeName(actual) + "] " +
+                    "expected [" + constructor.typeParameters.size() + "] arguments, but found [" + arguments.size() + "]."));
+        }
+
+        for (int argument = 0; argument < arguments.size(); ++argument) {
+            AExpression expression = arguments.get(argument);
+
+            expression.expected = types[argument];
+            expression.internal = true;
+            expression.analyze(locals);
+            arguments.set(argument, expression.cast(locals));
+        }
+
+        statement = true;
     }
 
     @Override

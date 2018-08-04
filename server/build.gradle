@@ -306,13 +306,6 @@ thirdPartyAudit.excludes = [
 
 if (JavaVersion.current() > JavaVersion.VERSION_1_8) {
   thirdPartyAudit.excludes += ['javax.xml.bind.DatatypeConverter']
-} else {
-  thirdPartyAudit.excludes += [
-    'java.io.ObjectInputFilter',
-    'java.io.ObjectInputFilter$Config',
-    'java.io.ObjectInputFilter$FilterInfo',
-    'java.io.ObjectInputFilter$Status',
-  ]
 }
 
 dependencyLicenses {

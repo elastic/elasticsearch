@@ -280,7 +280,10 @@ public class UpdateHelper extends AbstractComponent {
         try {
             if (scriptService != null) {
                 UpdateScript.Factory factory = scriptService.compile(script, UpdateScript.CONTEXT);
-                UpdateScript executableScript = factory.newInstance(script.getParams());
+                Map<String, Object> params = new HashMap<>();
+                params.putAll(script.getParams());
+                params.put(ContextFields.CTX, ctx);
+                UpdateScript executableScript = factory.newInstance(params);
                 executableScript.execute(ctx);
             }
         } catch (Exception e) {

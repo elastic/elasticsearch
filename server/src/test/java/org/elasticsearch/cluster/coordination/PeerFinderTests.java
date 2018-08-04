@@ -247,6 +247,25 @@ public class PeerFinderTests extends ESTestCase {
         assertFoundPeers(otherNode);
     }
 
+    public void testDoesNotRequireAddressResolutionToSucceed() {
+        final DiscoveryNode otherNode = newDiscoveryNode("node-from-hosts-list");
+        providedAddresses.add(otherNode.getAddress());
+        transportAddressConnector.reachableNodes.add(otherNode);
+        addressResolveDelay = -1;
+
+        peerFinder.activate(lastAcceptedNodes);
+        runAllRunnableTasks();
+        assertFoundPeers();
+
+        final long successTime = 10000 + PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING.get(Settings.EMPTY).millis();
+        while (deterministicTaskQueue.getCurrentTimeMillis() < successTime) {
+            deterministicTaskQueue.advanceTime();
+            runAllRunnableTasks();
+        }
+
+        assertFoundPeers();
+    }
+
     public void testDoesNotAddUnreachableNodesFromUnicastHostsList() {
         final DiscoveryNode otherNode = newDiscoveryNode("node-from-hosts-list");
         providedAddresses.add(otherNode.getAddress());

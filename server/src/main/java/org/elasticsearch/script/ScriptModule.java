@@ -48,7 +48,7 @@ public class ScriptModule {
             ExecutableScript.CONTEXT,
             BucketAggregationScript.CONTEXT,
             BucketAggregationSelectorScript.CONTEXT,
-            ScriptHeuristicScript.CONTEXT,
+            SignificantTermsHeuristicScoreScript.CONTEXT,
             ExecutableScript.UPDATE_CONTEXT,
             IngestScript.CONTEXT,
             FilterScript.CONTEXT,

@@ -22,9 +22,9 @@ package org.elasticsearch.script;
 import java.util.Map;
 
 /**
- * A script used in script heuristics.
+ * A script used in significant terms heuristic scoring.
  */
-public abstract class ScriptHeuristicScript {
+public abstract class SignificantTermsHeuristicScoreScript {
 
     public static final String[] PARAMETERS = { "params" };
 
@@ -33,6 +33,6 @@ public abstract class ScriptHeuristicScript {
     public abstract double execute(Map<String, Object> params);
 
     public interface Factory {
-        ScriptHeuristicScript newInstance();
+        SignificantTermsHeuristicScoreScript newInstance();
     }
 }

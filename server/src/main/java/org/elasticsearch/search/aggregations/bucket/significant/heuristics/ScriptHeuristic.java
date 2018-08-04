@@ -29,7 +29,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptHeuristicScript;
+import org.elasticsearch.script.SignificantTermsHeuristicScoreScript;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -50,10 +50,10 @@ public class ScriptHeuristic extends SignificanceHeuristic {
         private final LongAccessor supersetSizeHolder;
         private final LongAccessor subsetDfHolder;
         private final LongAccessor supersetDfHolder;
-        private final ScriptHeuristicScript executableScript;
+        private final SignificantTermsHeuristicScoreScript executableScript;
         private final Map<String, Object> params = new HashMap<>();
 
-        ExecutableScriptHeuristic(Script script, ScriptHeuristicScript executableScript) {
+        ExecutableScriptHeuristic(Script script, SignificantTermsHeuristicScoreScript executableScript) {
             super(script);
             subsetSizeHolder = new LongAccessor();
             supersetSizeHolder = new LongAccessor();
@@ -95,14 +95,14 @@ public class ScriptHeuristic extends SignificanceHeuristic {
 
     @Override
     public SignificanceHeuristic rewrite(InternalAggregation.ReduceContext context) {
-        ScriptHeuristicScript.Factory factory = context.scriptService().compile(script, ScriptHeuristicScript.CONTEXT);
+        SignificantTermsHeuristicScoreScript.Factory factory = context.scriptService().compile(script, SignificantTermsHeuristicScoreScript.CONTEXT);
         return new ExecutableScriptHeuristic(script, factory.newInstance());
     }
 
     @Override
     public SignificanceHeuristic rewrite(SearchContext context) {
         QueryShardContext shardContext = context.getQueryShardContext();
-        ScriptHeuristicScript.Factory compiledScript = shardContext.getScriptService().compile(script, ScriptHeuristicScript.CONTEXT);
+        SignificantTermsHeuristicScoreScript.Factory compiledScript = shardContext.getScriptService().compile(script, SignificantTermsHeuristicScoreScript.CONTEXT);
         return new ExecutableScriptHeuristic(script, compiledScript.newInstance());
     }
 

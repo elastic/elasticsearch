@@ -331,7 +331,7 @@ public abstract class PeerFinder extends AbstractComponent {
 
                     @Override
                     public void handleResponse(PeersResponse response) {
-                        logger.trace("{} received {} from {}", this, response, discoveryNode);
+                        logger.trace("{} received {} from {}", Peer.this, response, discoveryNode);
                         synchronized (mutex) {
                             if (active == false) {
                                 return;

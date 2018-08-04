@@ -166,12 +166,10 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
     }
 
     public void setCurrentTerm(long currentTerm) {
-        // Volatile write, no synchronisation required
         this.currentTerm = currentTerm;
     }
 
     private DiscoveryNode getLocalNode() {
-        // No synchronisation required
         final DiscoveryNode localNode = transportService.getLocalNode();
         assert localNode != null;
         return localNode;
@@ -179,13 +177,11 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
 
     @Override
     protected void doStart() {
-        // No synchronisation required
         executorService.set(executorServiceFactory.get());
     }
 
     @Override
     protected void doStop() {
-        // No synchronisation required
         ThreadPool.terminate(executorService.get(), 10, TimeUnit.SECONDS);
     }
 
@@ -276,7 +272,6 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
 
                     @Override
                     protected void doRun() {
-                        // No synchronisation required for most of this
                         List<TransportAddress> providedAddresses
                             = new ArrayList<>(hostsProvider.buildDynamicHosts((hosts, limitPortCounts)
                             -> UnicastZenPing.resolveHostsLists(executorService.get(), logger, hosts, limitPortCounts,
@@ -343,7 +338,6 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
             }
 
             DiscoveryNode getDiscoveryNode() {
-                // No synchronisation required
                 return discoveryNode.get();
             }
 
@@ -390,7 +384,6 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
 
                     @Override
                     public void onFailure(Exception e) {
-                        // No synchronisation required - removePeer is threadsafe
                         logger.debug(() -> new ParameterizedMessage("{} connection failed", Peer.this), e);
                         removePeer();
                     }
@@ -398,7 +391,6 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
             }
 
             private void removePeer() {
-                // No synchronisation required - peersByAddress is threadsafe
                 final Peer removed = peersByAddress.remove(transportAddress);
                 assert removed == Peer.this;
             }
@@ -458,7 +450,7 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
 
                         @Override
                         public void handleException(TransportException exp) {
-                            peersRequestInFlight = false; // volatile write needs no further synchronisation
+                            peersRequestInFlight = false;
                             logger.debug("PeersRequest failed", exp);
                         }
 

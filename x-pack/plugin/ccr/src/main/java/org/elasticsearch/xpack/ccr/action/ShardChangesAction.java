@@ -13,12 +13,14 @@ import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
@@ -259,10 +261,11 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
 
         @Override
         protected ShardsIterator shards(ClusterState state, InternalRequest request) {
-            return state.routingTable()
-                    .index(request.concreteIndex())
-                    .shard(request.request().getShard().id())
-                    .activeInitializingShardsRandomIt();
+            final IndexRoutingTable indexRoutingTable = state.routingTable().index(request.concreteIndex());
+            if (indexRoutingTable == null) {
+                throw new IndexNotFoundException(request.concreteIndex());
+            }
+            return indexRoutingTable.shard(request.request().getShard().id()).activeInitializingShardsRandomIt();
         }
 
         @Override

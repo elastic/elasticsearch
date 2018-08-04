@@ -22,31 +22,17 @@ package org.elasticsearch.script;
 import java.util.Map;
 
 /**
- * An executable script, can't be used concurrently.
+ * A script used in significant terms heuristic scoring.
  */
-public interface ExecutableScript {
+public abstract class SignificantTermsHeuristicScoreScript {
 
-    /**
-     * Sets a runtime script parameter.
-     * <p>
-     * Note that this method may be slow, involving put() and get() calls
-     * to a hashmap or similar.
-     * @param name parameter name
-     * @param value parameter value
-     */
-    void setNextVar(String name, Object value);
+    public static final String[] PARAMETERS = { "params" };
 
-    /**
-     * Executes the script.
-     */
-    Object run();
+    public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("script_heuristic", Factory.class);
 
-    interface Factory {
-        ExecutableScript newInstance(Map<String, Object> params);
+    public abstract double execute(Map<String, Object> params);
+
+    public interface Factory {
+        SignificantTermsHeuristicScoreScript newInstance();
     }
-
-    ScriptContext<Factory> CONTEXT = new ScriptContext<>("executable", Factory.class);
-
-    // TODO: remove these once each has its own script interface
-    ScriptContext<Factory> UPDATE_CONTEXT = new ScriptContext<>("update", Factory.class);
 }

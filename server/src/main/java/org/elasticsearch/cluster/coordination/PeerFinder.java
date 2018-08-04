@@ -348,7 +348,7 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
                     return;
                 }
 
-                final DiscoveryNode discoveryNode = this.discoveryNode.get();
+                final DiscoveryNode discoveryNode = getDiscoveryNode();
                 // may be null if connection not yet established
 
                 if (discoveryNode != null) {
@@ -376,6 +376,7 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
                         assert remoteNode.equals(getLocalNode()) == false : remoteNode + " is the local node";
                         synchronized (mutex) {
                             if (running) {
+                                assert discoveryNode.get() == null : "discoveryNode unexpectedly already set to " + discoveryNode.get();
                                 discoveryNode.set(remoteNode);
                                 requestPeers(remoteNode);
                             }

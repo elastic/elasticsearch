@@ -22,31 +22,33 @@ package org.elasticsearch.script;
 import java.util.Map;
 
 /**
- * An executable script, can't be used concurrently.
+ * A script used in bucket aggregations that returns a {@code double} value.
  */
-public interface ExecutableScript {
+public abstract class BucketAggregationScript {
+
+    public static final String[] PARAMETERS = {};
+
+    public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("bucket_aggregation", Factory.class);
 
     /**
-     * Sets a runtime script parameter.
-     * <p>
-     * Note that this method may be slow, involving put() and get() calls
-     * to a hashmap or similar.
-     * @param name parameter name
-     * @param value parameter value
+     * The generic runtime parameters for the script.
      */
-    void setNextVar(String name, Object value);
+    private final Map<String, Object> params;
 
-    /**
-     * Executes the script.
-     */
-    Object run();
-
-    interface Factory {
-        ExecutableScript newInstance(Map<String, Object> params);
+    public BucketAggregationScript(Map<String, Object> params) {
+        this.params = params;
     }
 
-    ScriptContext<Factory> CONTEXT = new ScriptContext<>("executable", Factory.class);
+    /**
+     * Return the parameters for this script.
+     */
+    public Map<String, Object> getParams() {
+        return params;
+    }
 
-    // TODO: remove these once each has its own script interface
-    ScriptContext<Factory> UPDATE_CONTEXT = new ScriptContext<>("update", Factory.class);
+    public abstract double execute();
+
+    public interface Factory {
+        BucketAggregationScript newInstance(Map<String, Object> params);
+    }
 }

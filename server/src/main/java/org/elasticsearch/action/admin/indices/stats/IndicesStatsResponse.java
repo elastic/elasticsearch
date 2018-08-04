@@ -159,13 +159,17 @@ public class IndicesStatsResponse extends BroadcastResponse {
 
         builder.startObject("_all");
 
-        builder.startObject("primaries");
-        getPrimaries().toXContent(builder, params);
-        builder.endObject();
+        if (primary != null) {
+            builder.startObject("primaries");
+            getPrimaries().toXContent(builder, params);
+            builder.endObject();
+        }
 
-        builder.startObject("total");
-        getTotal().toXContent(builder, params);
-        builder.endObject();
+        if (total != null) {
+            builder.startObject("total");
+            getTotal().toXContent(builder, params);
+            builder.endObject();
+        }
 
         builder.endObject();
 

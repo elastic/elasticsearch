@@ -19,10 +19,12 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.Collections;
 
 import static org.hamcrest.CoreMatchers.containsString;
@@ -30,6 +32,12 @@ import static org.hamcrest.object.HasToString.hasToString;
 
 
 public class IndicesStatsResponseTests extends ESTestCase {
+
+    public void testRedIndicesToXContent() {
+        IndicesStatsResponse response = new IndicesStatsResponse(new ShardStats[0], 10, 0, 0, new ArrayList<>());
+        String output = Strings.toString(response);
+        assertEquals("{\"_shards\":{\"total\":10,\"successful\":0,\"failed\":0},\"_all\":{},\"indices\":{}}", output);
+    }
 
     public void testInvalidLevel() {
         final IndicesStatsResponse response = new IndicesStatsResponse();

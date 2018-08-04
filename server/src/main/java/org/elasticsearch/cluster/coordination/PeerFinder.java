@@ -192,7 +192,7 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
     /**
      * Called on receipt of a PeersResponse from a node that believes it's an active leader, which this node should therefore try and join.
      */
-    protected abstract void onMasterFoundByProbe(DiscoveryNode masterNode, long term);
+    protected abstract void onActiveMasterFound(DiscoveryNode masterNode, long term);
 
     public interface TransportAddressConnector {
         /**
@@ -444,7 +444,7 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
                             if (foundMasterNode) {
                                 // Must not hold lock here to avoid deadlock
                                 assert holdsLock() == false : "PeerFinder mutex is held in error";
-                                onMasterFoundByProbe(discoveryNode, response.getTerm());
+                                onActiveMasterFound(discoveryNode, response.getTerm());
                             }
                         }
 

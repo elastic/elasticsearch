@@ -158,7 +158,7 @@ public class PeerFinderTests extends ESTestCase {
         }
 
         @Override
-        protected void onMasterFoundByProbe(DiscoveryNode masterNode, long term) {
+        protected void onActiveMasterFound(DiscoveryNode masterNode, long term) {
             assert holdsLock() == false : "PeerFinder lock held in error";
             assertThat(discoveredMasterNode, nullValue());
             assertFalse(discoveredMasterTerm.isPresent());

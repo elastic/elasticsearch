@@ -418,7 +418,6 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
                         @Override
                         public void handleResponse(PeersResponse response) {
                             logger.trace("{} received {} from {}", this, response, discoveryNode);
-                            final boolean foundMasterNode;
                             synchronized (mutex) {
                                 if (running == false) {
                                     return;
@@ -428,20 +427,16 @@ public abstract class PeerFinder extends AbstractLifecycleComponent {
 
                                 if (response.getMasterNode().isPresent()) {
                                     final DiscoveryNode masterNode = response.getMasterNode().get();
-                                    if (masterNode.equals(discoveryNode)) {
-                                        foundMasterNode = true;
-                                    } else {
-                                        foundMasterNode = false;
+                                    if (masterNode.equals(discoveryNode) == false) {
                                         startProbe(masterNode);
                                     }
                                 } else {
-                                    foundMasterNode = false;
                                     response.getKnownPeers().stream().map(DiscoveryNode::getAddress)
                                         .forEach(ActivePeerFinder.this::startProbe);
                                 }
                             }
 
-                            if (foundMasterNode) {
+                            if (response.getMasterNode().equals(Optional.of(discoveryNode))) {
                                 // Must not hold lock here to avoid deadlock
                                 assert holdsLock() == false : "PeerFinder mutex is held in error";
                                 onActiveMasterFound(discoveryNode, response.getTerm());

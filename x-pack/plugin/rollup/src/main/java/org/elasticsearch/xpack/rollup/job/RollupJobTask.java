@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.rollup.Rollup;
 
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -97,8 +98,10 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
         private final Client client;
         private final RollupJob job;
 
-        ClientRollupPageManager(RollupJob job, IndexerState initialState, Map<String, Object> initialPosition, Client client) {
-            super(threadPool.executor(ThreadPool.Names.GENERIC), job, new AtomicReference<>(initialState), initialPosition);
+        ClientRollupPageManager(RollupJob job, IndexerState initialState, Map<String, Object> initialPosition,
+                                Client client, AtomicBoolean upgradedDocumentID) {
+            super(threadPool.executor(ThreadPool.Names.GENERIC), job, new AtomicReference<>(initialState),
+                initialPosition, upgradedDocumentID);
             this.client = client;
             this.job = job;
         }
@@ -122,9 +125,16 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
                 next.run();
             } else {
                 // Otherwise, attempt to persist our state
-                final RollupJobStatus state = new RollupJobStatus(indexerState, getPosition());
+                // Upgrade to the new ID scheme while we are at it
+                boolean oldState = upgradedDocumentID.getAndSet(true);
+                final RollupJobStatus state = new RollupJobStatus(indexerState, getPosition(), upgradedDocumentID.get());
                 logger.debug("Updating persistent state of job [" + job.getConfig().getId() + "] to [" + indexerState.toString() + "]");
-                updatePersistentTaskState(state, ActionListener.wrap(task -> next.run(), exc -> next.run()));
+                updatePersistentTaskState(state, ActionListener.wrap(task -> next.run(), exc -> {
+                    // We failed to update the persistent task for some reason,
+                    // set our flag back to what it was before
+                    upgradedDocumentID.set(oldState);
+                    next.run();
+                }));
             }
         }
 
@@ -148,6 +158,7 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
     private final SchedulerEngine schedulerEngine;
     private final ThreadPool threadPool;
     private final RollupIndexer indexer;
+    private AtomicBoolean upgradedDocumentID;
 
     RollupJobTask(long id, String type, String action, TaskId parentTask, RollupJob job, RollupJobStatus state,
                   Client client, SchedulerEngine schedulerEngine, ThreadPool threadPool, Map<String, String> headers) {
@@ -155,6 +166,9 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
         this.job = job;
         this.schedulerEngine = schedulerEngine;
         this.threadPool = threadPool;
+
+        // We can assume the new ID scheme only for new jobs
+        this.upgradedDocumentID = new AtomicBoolean(true);
 
         // If status is not null, we are resuming rather than starting fresh.
         Map<String, Object> initialPosition = null;
@@ -169,25 +183,35 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
                  * it is indexing but without the actual indexing thread running.
                  */
                 initialState = IndexerState.STARTED;
+
             } else if (existingState.equals(IndexerState.ABORTING) || existingState.equals(IndexerState.STOPPING)) {
                 // It shouldn't be possible to persist ABORTING, but if for some reason it does,
                 // play it safe and restore the job as STOPPED.  An admin will have to clean it up,
                 // but it won't be running, and won't delete itself either.  Safest option.
                 // If we were STOPPING, that means it persisted but was killed before finally stopped... so ok
-                // to restore as STOPEPD
+                // to restore as STOPPED
                 initialState = IndexerState.STOPPED;
             } else  {
                 initialState = existingState;
             }
             initialPosition = state.getPosition();
+
+            // Since we have state, we are resuming a job/checkpoint.  Although we are resuming
+            // from something that was checkpointed, we can't guarantee it was the _final_ checkpoint
+            // before the job ended (e.g. it could have been STOPPING, still indexing and killed, leaving
+            // us with an interval of time partially indexed).
+            //
+            // To be safe, if we are resuming any job, use it's ID upgrade status.  It will only
+            // be true if it actually finished a full checkpoint.
+            this.upgradedDocumentID.set(state.isUpgradedDocumentID());
         }
         this.indexer = new ClientRollupPageManager(job, initialState, initialPosition,
-                new ParentTaskAssigningClient(client, new TaskId(getPersistentTaskId())));
+                new ParentTaskAssigningClient(client, new TaskId(getPersistentTaskId())), upgradedDocumentID);
     }
 
     @Override
     public Status getStatus() {
-        return new RollupJobStatus(indexer.getState(), indexer.getPosition());
+        return new RollupJobStatus(indexer.getState(), indexer.getPosition(), upgradedDocumentID.get());
     }
 
     /**
@@ -223,13 +247,16 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
                     + " state was [" + prevState + "]"));
             return;
         }
+
         final IndexerState newState = indexer.start();
         if (newState != IndexerState.STARTED) {
             listener.onFailure(new ElasticsearchException("Cannot start task for Rollup Job [" + job.getConfig().getId() + "] because"
                     + " state was [" + newState + "]"));
             return;
         }
-        final RollupJobStatus state = new RollupJobStatus(IndexerState.STARTED, indexer.getPosition());
+
+
+        final RollupJobStatus state = new RollupJobStatus(IndexerState.STARTED, indexer.getPosition(), upgradedDocumentID.get());
         logger.debug("Updating state for rollup job [" + job.getConfig().getId() + "] to [" + state.getIndexerState() + "][" +
                 state.getPosition() + "]");
         updatePersistentTaskState(state,
@@ -240,6 +267,8 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
                             listener.onResponse(new StartRollupJobAction.Response(true));
                         },
                         (exc) -> {
+                            // We were unable to update the persistent status, so we need to shutdown the indexer too.
+                            indexer.stop();
                             listener.onFailure(
                                     new ElasticsearchException("Error while updating state for rollup job [" + job.getConfig().getId()
                                             + "] to [" + state.getIndexerState() + "].", exc)
@@ -261,6 +290,7 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
      * @param listener The listener that is requesting the stop, so that we can signal completion/failure
      */
     public synchronized void stop(ActionListener<StopRollupJobAction.Response> listener) {
+
         final IndexerState newState = indexer.stop();
         switch (newState) {
             case STOPPED:
@@ -268,9 +298,13 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
                 break;
 
             case STOPPING:
-                // update the persistent state only if there is no background job running,
-                // otherwise the state is updated by the indexer when the background job detects the STOPPING state.
-                RollupJobStatus state = new RollupJobStatus(IndexerState.STOPPED, indexer.getPosition());
+                // update the persistent state to STOPPED.  There are two scenarios and both are safe:
+                // 1. we persist STOPPED now, indexer continues a bit then sees the flag and checkpoints another
+                //    STOPPED with the more recent position.  That will also upgrade the ID scheme
+                // 2. we persist STOPPED now, indexer continues a bit but then dies.  When/if we resume we'll pick up
+                //    at last checkpoint, overwrite some docs and eventually checkpoint.  At that time we'll also
+                //    upgrade the ID scheme
+                RollupJobStatus state = new RollupJobStatus(IndexerState.STOPPED, indexer.getPosition(), upgradedDocumentID.get());
                 updatePersistentTaskState(state,
                         ActionListener.wrap(
                                 (task) -> {

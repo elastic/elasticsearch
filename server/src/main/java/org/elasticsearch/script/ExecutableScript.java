@@ -46,7 +46,4 @@ public interface ExecutableScript {
     }
 
     ScriptContext<Factory> CONTEXT = new ScriptContext<>("executable", Factory.class);
-
-    // TODO: remove these once each has its own script interface
-    ScriptContext<Factory> AGGS_CONTEXT = new ScriptContext<>("aggs_executable", Factory.class);
 }

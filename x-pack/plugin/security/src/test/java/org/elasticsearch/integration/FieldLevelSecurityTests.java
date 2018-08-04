@@ -30,8 +30,10 @@ import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.join.ParentJoinPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -161,10 +163,12 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
                 .build();
     }
 
-    public void testQuery() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text")
-        );
+    public void testQuery() {
+        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1",
+            "field1", "type=text",
+            "field2", "type=text",
+            "field3", "type=text",
+            "alias", "type=alias,path=field1"));
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
@@ -297,6 +301,20 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user8", USERS_PASSWD)))
                 .prepareSearch("test")
                 .setQuery(matchQuery("field3", "value3"))
+                .get();
+        assertHitCount(response, 0);
+
+        // user1 has access to field1, so a query on its field alias should match with the document:
+        response = client()
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareSearch("test")
+                .setQuery(matchQuery("alias", "value1"))
+                .get();
+        assertHitCount(response, 1);
+        // user2 has no access to field1, so a query on its field alias should not match with the document:
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                .prepareSearch("test")
+                .setQuery(matchQuery("alias", "value1"))
                 .get();
         assertHitCount(response, 0);
     }
@@ -793,10 +811,11 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
     }
 
     public void testFields() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=text,store=true", "field2", "type=text,store=true",
-                                "field3", "type=text,store=true")
-        );
+        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1",
+            "field1", "type=text,store=true",
+            "field2", "type=text,store=true",
+            "field3", "type=text,store=true",
+            "alias", "type=alias,path=field1"));
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
@@ -888,6 +907,22 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(response.getHits().getAt(0).getFields().size(), equalTo(2));
         assertThat(response.getHits().getAt(0).getFields().get("field1").<String>getValue(), equalTo("value1"));
         assertThat(response.getHits().getAt(0).getFields().get("field2").<String>getValue(), equalTo("value2"));
+
+        // user1 is granted access to field1 only, and so should be able to load it by alias:
+        response = client()
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareSearch("test")
+                .addStoredField("alias")
+                .get();
+        assertThat(response.getHits().getAt(0).getFields().size(), equalTo(1));
+        assertThat(response.getHits().getAt(0).getFields().get("alias").getValue(), equalTo("value1"));
+
+        // user2 is not granted access to field1, and so should not be able to load it by alias:
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                .prepareSearch("test")
+                .addStoredField("alias")
+                .get();
+        assertThat(response.getHits().getAt(0).getFields().size(), equalTo(0));
     }
 
     public void testSource() throws Exception {
@@ -963,11 +998,11 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(response.getHits().getAt(0).getSourceAsMap().get("field2").toString(), equalTo("value2"));
     }
 
-    public void testSort() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=long", "field2", "type=long")
-        );
-
+    public void testSort() {
+        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1",
+            "field1", "type=long",
+            "field2", "type=long",
+            "alias", "type=alias,path=field1"));
         client().prepareIndex("test", "type1", "1").setSource("field1", 1d, "field2", 2d)
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
@@ -1000,12 +1035,81 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
                 .addSort("field2", SortOrder.ASC)
                 .get();
         assertThat(response.getHits().getAt(0).getSortValues()[0], equalTo(2L));
+
+        // user1 is granted to use field1, so it is included in the sort_values when using its alias:
+        response = client()
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareSearch("test")
+                .addSort("alias", SortOrder.ASC)
+                .get();
+        assertThat(response.getHits().getAt(0).getSortValues()[0], equalTo(1L));
+
+        // user2 is not granted to use field1, so the default missing sort value is included when using its alias:
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                .prepareSearch("test")
+                .addSort("alias", SortOrder.ASC)
+                .get();
+        assertThat(response.getHits().getAt(0).getSortValues()[0], equalTo(Long.MAX_VALUE));
     }
 
-    public void testAggs() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=text,fielddata=true", "field2", "type=text,fielddata=true")
-        );
+     public void testHighlighting() {
+         assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1",
+             "field1", "type=text",
+             "field2", "type=text",
+             "field3", "type=text",
+             "alias", "type=alias,path=field1"));
+         client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
+             .setRefreshPolicy(IMMEDIATE)
+             .get();
+
+         // user1 has access to field1, so the highlight should be visible:
+         SearchResponse response = client()
+             .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+             .prepareSearch("test")
+             .setQuery(matchQuery("field1", "value1"))
+             .highlighter(new HighlightBuilder().field("field1"))
+             .get();
+         assertHitCount(response, 1);
+         SearchHit hit = response.getHits().iterator().next();
+         assertEquals(hit.getHighlightFields().size(), 1);
+
+         // user2 has no access to field1, so the highlight should not be visible:
+         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+             .prepareSearch("test")
+             .setQuery(matchQuery("field2", "value2"))
+             .highlighter(new HighlightBuilder().field("field1"))
+             .get();
+         assertHitCount(response, 1);
+         hit = response.getHits().iterator().next();
+         assertEquals(hit.getHighlightFields().size(), 0);
+
+         // user1 has access to field1, so the highlight on its alias should be visible:
+         response = client()
+             .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+             .prepareSearch("test")
+             .setQuery(matchQuery("field1", "value1"))
+             .highlighter(new HighlightBuilder().field("alias"))
+             .get();
+         assertHitCount(response, 1);
+         hit = response.getHits().iterator().next();
+         assertEquals(hit.getHighlightFields().size(), 1);
+
+         // user2 has no access to field1, so the highlight on its alias should not be visible:
+         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+             .prepareSearch("test")
+             .setQuery(matchQuery("field2", "value2"))
+             .highlighter(new HighlightBuilder().field("alias"))
+             .get();
+         assertHitCount(response, 1);
+         hit = response.getHits().iterator().next();
+         assertEquals(hit.getHighlightFields().size(), 0);
+     }
+
+    public void testAggs() {
+        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1",
+            "field1", "type=text,fielddata=true",
+            "field2", "type=text,fielddata=true",
+            "alias", "type=alias,path=field1"));
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2")
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
@@ -1038,6 +1142,21 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
                 .addAggregation(AggregationBuilders.terms("_name").field("field2"))
                 .get();
         assertThat(((Terms) response.getAggregations().get("_name")).getBucketByKey("value2").getDocCount(), equalTo(1L));
+
+        // user1 is authorized to use field1, so buckets are include for a term agg on its alias:
+        response = client()
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareSearch("test")
+                .addAggregation(AggregationBuilders.terms("_name").field("alias"))
+                .get();
+        assertThat(((Terms) response.getAggregations().get("_name")).getBucketByKey("value1").getDocCount(), equalTo(1L));
+
+        // user2 is not authorized to use field1, so no buckets are include for a term agg on its alias:
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                .prepareSearch("test")
+                .addAggregation(AggregationBuilders.terms("_name").field("alias"))
+                .get();
+        assertThat(((Terms) response.getAggregations().get("_name")).getBucketByKey("value1"), nullValue());
     }
 
     public void testTVApi() throws Exception {
@@ -1218,15 +1337,22 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testParentChild() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
-              .startObject("properties")
-                  .startObject("join_field")
-                      .field("type", "join")
-                      .startObject("relations")
-                          .field("parent", "child")
-                      .endObject()
-                  .endObject()
-              .endObject()
-              .endObject();
+            .startObject("properties")
+                .startObject("field1")
+                    .field("type", "keyword")
+                .endObject()
+                .startObject("alias")
+                    .field("type", "alias")
+                    .field("path", "field1")
+                .endObject()
+                .startObject("join_field")
+                    .field("type", "join")
+                    .startObject("relations")
+                        .field("parent", "child")
+                    .endObject()
+                 .endObject()
+            .endObject()
+            .endObject();
         assertAcked(prepareCreate("test")
               .addMapping("doc", mapping));
         ensureGreen();
@@ -1263,6 +1389,23 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
                 .prepareSearch("test")
                 .setQuery(hasChildQuery("child", termQuery("field1", "yellow"), ScoreMode.None))
                 .get();
+        assertHitCount(searchResponse, 0L);
+
+        // Perform the same checks, but using an alias for field1.
+        searchResponse = client()
+            .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+            .prepareSearch("test")
+            .setQuery(hasChildQuery("child", termQuery("alias", "yellow"), ScoreMode.None))
+            .get();
+        assertHitCount(searchResponse, 1L);
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("p1"));
+
+        searchResponse = client()
+            .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+            .prepareSearch("test")
+            .setQuery(hasChildQuery("child", termQuery("alias", "yellow"), ScoreMode.None))
+            .get();
         assertHitCount(searchResponse, 0L);
     }
 
@@ -1315,10 +1458,9 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(client().prepareGet("test", "type", "1").get().getSource().get("field2").toString(), equalTo("value3"));
     }
 
-    public void testQuery_withRoleWithFieldWildcards() throws Exception {
+    public void testQuery_withRoleWithFieldWildcards() {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=text", "field2", "type=text")
-        );
+                        .addMapping("type1", "field1", "type=text", "field2", "type=text"));
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2")
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
@@ -1345,9 +1487,12 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
     }
 
     public void testExistQuery() {
-        assertAcked(client().admin().indices().prepareCreate("test")
-                .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text")
-        );
+        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1",
+            "field1", "type=text",
+            "field2", "type=text",
+            "field3", "type=text",
+            "alias", "type=alias,path=field1"));
+
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
@@ -1400,6 +1545,20 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user4", USERS_PASSWD)))
                 .prepareSearch("test")
                 .setQuery(existsQuery("field2"))
+                .get();
+        assertHitCount(response, 0);
+
+        // user1 has access to field1, so a query on its alias should match with the document:
+        response = client()
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareSearch("test")
+                .setQuery(existsQuery("alias"))
+                .get();
+        assertHitCount(response, 1);
+        // user2 has no access to field1, so the query should not match with the document:
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                .prepareSearch("test")
+                .setQuery(existsQuery("alias"))
                 .get();
         assertHitCount(response, 0);
     }

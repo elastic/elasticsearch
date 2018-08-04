@@ -292,6 +292,26 @@ public class SecurityTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("cannot deserialize the license format"));
     }
 
+    public void testJoinValidatorForFIPSLicense() throws Exception {
+        DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(),
+            VersionUtils.randomVersionBetween(random(), null, Version.CURRENT));
+        MetaData.Builder builder = MetaData.builder();
+        License license = TestUtils.generateSignedLicense(TimeValue.timeValueHours(24));
+        TestUtils.putLicense(builder, license);
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metaData(builder.build()).build();
+        new Security.ValidateLicenseForFIPS(false).accept(node, state);
+
+        final boolean isLicenseValidForFips =
+            FIPS140LicenseBootstrapCheck.ALLOWED_LICENSE_OPERATION_MODES.contains(license.operationMode());
+        if (isLicenseValidForFips) {
+            new Security.ValidateLicenseForFIPS(true).accept(node, state);
+        } else {
+            IllegalStateException e = expectThrows(IllegalStateException.class,
+                () -> new Security.ValidateLicenseForFIPS(true).accept(node, state));
+            assertThat(e.getMessage(), containsString("FIPS mode cannot be used"));
+        }
+    }
+
     public void testIndexJoinValidator_Old_And_Rolling() throws Exception {
         createComponents(Settings.EMPTY);
         BiConsumer<DiscoveryNode, ClusterState> joinValidator = security.getJoinValidator();
@@ -399,7 +419,8 @@ public class SecurityTests extends ESTestCase {
         createComponents(Settings.EMPTY);
         Function<String, Predicate<String>> fieldFilter = security.getFieldFilter();
         assertNotSame(MapperPlugin.NOOP_FIELD_FILTER, fieldFilter);
-        licenseState.update(randomFrom(License.OperationMode.BASIC, License.OperationMode.STANDARD, License.OperationMode.GOLD), true);
+        licenseState.update(
+            randomFrom(License.OperationMode.BASIC, License.OperationMode.STANDARD, License.OperationMode.GOLD), true, null);
         assertNotSame(MapperPlugin.NOOP_FIELD_FILTER, fieldFilter);
         assertSame(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply(randomAlphaOfLengthBetween(3, 6)));
     }

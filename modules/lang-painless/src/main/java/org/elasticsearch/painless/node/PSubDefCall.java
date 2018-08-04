@@ -20,11 +20,11 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.lookup.PainlessLookup.def;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.def;
 import org.objectweb.asm.Type;
 
 import java.util.ArrayList;

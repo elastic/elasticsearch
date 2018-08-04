@@ -62,6 +62,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsFetchSubPhase;
@@ -69,7 +70,6 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceSubPhase;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.junit.After;
@@ -79,7 +79,12 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 import static org.mockito.Matchers.anyObject;
@@ -144,14 +149,48 @@ public abstract class AggregatorTestCase extends ESTestCase {
         SearchLookup searchLookup = new SearchLookup(mapperService, ifds::getForField, new String[]{TYPE_NAME});
         when(searchContext.lookup()).thenReturn(searchLookup);
 
-        QueryShardContext queryShardContext = queryShardContextMock(mapperService, fieldTypes, circuitBreakerService);
+        QueryShardContext queryShardContext = queryShardContextMock(mapperService);
         when(queryShardContext.getIndexSettings()).thenReturn(indexSettings);
         when(searchContext.getQueryShardContext()).thenReturn(queryShardContext);
-        for (MappedFieldType fieldType : fieldTypes) {
-            when(searchContext.smartNameFieldType(fieldType.name())).thenReturn(fieldType);
-        }
+
+        Map<String, MappedFieldType> fieldNameToType = new HashMap<>();
+        fieldNameToType.putAll(Arrays.stream(fieldTypes)
+            .collect(Collectors.toMap(MappedFieldType::name, Function.identity())));
+        fieldNameToType.putAll(getFieldAliases(fieldTypes));
+
+        registerFieldTypes(queryShardContext, searchContext, mapperService,
+            circuitBreakerService, fieldNameToType);
 
         return aggregationBuilder.build(searchContext, null);
+    }
+
+    /**
+     * Allows subclasses to provide alternate names for the provided field type, which
+     * can be useful when testing aggregations on field aliases.
+     */
+    protected Map<String, MappedFieldType> getFieldAliases(MappedFieldType... fieldTypes) {
+        return Collections.emptyMap();
+    }
+
+    private void registerFieldTypes(QueryShardContext queryShardContext,
+                                    SearchContext searchContext,
+                                    MapperService mapperService,
+                                    CircuitBreakerService circuitBreakerService,
+                                    Map<String, MappedFieldType> fieldNameToType) {
+        for (Map.Entry<String, MappedFieldType> entry : fieldNameToType.entrySet()) {
+            String fieldName = entry.getKey();
+            MappedFieldType fieldType = entry.getValue();
+
+            when(queryShardContext.fieldMapper(fieldName)).thenReturn(fieldType);
+            when(searchContext.smartNameFieldType(fieldName)).thenReturn(fieldType);
+        }
+
+        for (MappedFieldType fieldType : new HashSet<>(fieldNameToType.values())) {
+            when(queryShardContext.getForField(fieldType)).then(invocation ->
+                fieldType.fielddataBuilder(mapperService.getIndexSettings().getIndex().getName())
+                    .build(mapperService.getIndexSettings(), fieldType,
+                        new IndexFieldDataCache.None(), circuitBreakerService, mapperService));
+        }
     }
 
     protected <A extends Aggregator> A createAggregator(AggregationBuilder aggregationBuilder,
@@ -257,16 +296,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
     /**
      * sub-tests that need a more complex mock can overwrite this
      */
-    protected QueryShardContext queryShardContextMock(MapperService mapperService, MappedFieldType[] fieldTypes,
-            CircuitBreakerService circuitBreakerService) {
+    protected QueryShardContext queryShardContextMock(MapperService mapperService) {
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
         when(queryShardContext.getMapperService()).thenReturn(mapperService);
-        for (MappedFieldType fieldType : fieldTypes) {
-            when(queryShardContext.fieldMapper(fieldType.name())).thenReturn(fieldType);
-            when(queryShardContext.getForField(fieldType)).then(invocation -> fieldType.fielddataBuilder(mapperService.getIndexSettings()
-                .getIndex().getName())
-                .build(mapperService.getIndexSettings(), fieldType, new IndexFieldDataCache.None(), circuitBreakerService, mapperService));
-        }
         NestedScope nestedScope = new NestedScope();
         when(queryShardContext.isFilter()).thenCallRealMethod();
         Mockito.doCallRealMethod().when(queryShardContext).setIsFilter(Matchers.anyBoolean());

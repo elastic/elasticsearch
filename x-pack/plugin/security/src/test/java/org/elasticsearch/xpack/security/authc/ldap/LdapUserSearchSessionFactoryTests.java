@@ -54,7 +54,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
 
     @Before
     public void init() throws Exception {
-        Path keystore = getDataPath("support/ADtrust.jks");
+        Path certPath = getDataPath("support/smb_ca.crt");
         Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
         /*
          * Prior to each test we reinitialize the socket factory with a new SSLService so that we get a new SSLContext.
@@ -63,10 +63,9 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
          */
 
         globalSettings = Settings.builder()
-                .put("path.home", createTempDir())
-                .put("xpack.ssl.truststore.path", keystore)
-                .setSecureSettings(newSecureSettings("xpack.ssl.truststore.secure_password", "changeit"))
-                .build();
+            .put("path.home", createTempDir())
+            .put("xpack.ssl.certificate_authorities", certPath)
+            .build();
         sslService = new SSLService(globalSettings, env);
         threadPool = new TestThreadPool("LdapUserSearchSessionFactoryTests");
     }

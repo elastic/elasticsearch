@@ -59,6 +59,10 @@ forbiddenApisMain {
                     PrecommitTasks.getResource('/forbidden/http-signatures.txt')]
 }
 
+forbiddenPatterns {
+  exclude '**/*.der'
+}
+
 forbiddenApisTest {
   //we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
   bundledSignatures -= 'jdk-non-portable'

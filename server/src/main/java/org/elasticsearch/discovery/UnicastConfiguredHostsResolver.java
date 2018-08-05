@@ -1,0 +1,105 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.elasticsearch.discovery;
+
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.discovery.PeerFinder.ConfiguredHostsResolver;
+import org.elasticsearch.discovery.zen.UnicastHostsProvider;
+import org.elasticsearch.discovery.zen.UnicastZenPing;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
+
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
+
+public class UnicastConfiguredHostsResolver extends AbstractLifecycleComponent implements ConfiguredHostsResolver {
+
+    private final AtomicBoolean resolveInProgress = new AtomicBoolean();
+    private final TransportService transportService;
+    private final UnicastHostsProvider hostsProvider;
+    private final SetOnce<ExecutorService> executorService = new SetOnce<>();
+    private final TimeValue resolveTimeout;
+    private final Supplier<ExecutorService> executorServiceFactory;
+
+    public UnicastConfiguredHostsResolver(Settings settings, TransportService transportService, UnicastHostsProvider hostsProvider,
+                                          Supplier<ExecutorService> executorServiceFactory) {
+        super(settings);
+        this.transportService = transportService;
+        this.hostsProvider = hostsProvider;
+        resolveTimeout = UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT.get(settings);
+        this.executorServiceFactory = executorServiceFactory;
+    }
+
+    @Override
+    protected void doStart() {
+        executorService.set(executorServiceFactory.get());
+    }
+
+    @Override
+    protected void doStop() {
+        ThreadPool.terminate(executorService.get(), 10, TimeUnit.SECONDS);
+    }
+
+    @Override
+    protected void doClose() {
+    }
+
+    public void resolveConfiguredHosts(Consumer<List<TransportAddress>> consumer) {
+        assert lifecycle.started() : lifecycle;
+
+        if (resolveInProgress.compareAndSet(false, true)) {
+            transportService.getThreadPool().generic().execute(new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+                }
+
+                @Override
+                protected void doRun() {
+                    List<TransportAddress> providedAddresses
+                        = hostsProvider.buildDynamicHosts((hosts, limitPortCounts)
+                        -> UnicastZenPing.resolveHostsLists(executorService.get(), logger, hosts, limitPortCounts,
+                        transportService, resolveTimeout));
+
+                    consumer.accept(providedAddresses);
+                }
+
+                @Override
+                public void onAfter() {
+                    super.onAfter();
+                    resolveInProgress.set(false);
+                }
+
+                @Override
+                public String toString() {
+                    return "UnicastConfiguredHostsResolver resolving unicast hosts list";
+                }
+            });
+        }
+    }
+}

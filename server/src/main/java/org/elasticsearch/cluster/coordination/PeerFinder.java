@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.discovery.ConfiguredHostsResolver;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportException;
@@ -201,9 +202,20 @@ public abstract class PeerFinder extends AbstractComponent {
             }
         });
 
-        futureExecutor.schedule(new Runnable() {
+        futureExecutor.schedule(new AbstractRunnable() {
             @Override
-            public void run() {
+            public boolean isForceExecution() {
+                return true;
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assert false : e;
+                logger.debug("unexpected exception in PeerFinder wakeup", e);
+            }
+
+            @Override
+            protected void doRun() {
                 synchronized (mutex) {
                     handleWakeUp();
                 }

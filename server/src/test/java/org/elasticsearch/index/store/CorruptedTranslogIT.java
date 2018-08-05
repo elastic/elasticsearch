@@ -44,6 +44,7 @@ import org.elasticsearch.test.engine.MockEngineSupport;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
@@ -119,7 +120,9 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
             String path = fsPath.getPath();
             String relativeDataLocationPath = "indices/" + test.getUUID() + "/" + Integer.toString(shardRouting.getId()) + "/translog";
             Path translogDir = PathUtils.get(path).resolve(relativeDataLocationPath);
-            translogDirs.add(translogDir);
+            if (Files.isDirectory(translogDir)) {
+                translogDirs.add(translogDir);
+            }
         }
         Path translogDir = RandomPicks.randomFrom(random(), translogDirs);
         TestTranslog.corruptRandomTranslogFile(logger, random(), translogDir, TestTranslog.minTranslogGenUsedInRecovery(translogDir));

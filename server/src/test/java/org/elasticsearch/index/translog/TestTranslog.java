@@ -41,8 +41,6 @@ import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-
 /**
  * Helpers for testing translog.
  */
@@ -56,7 +54,6 @@ public class TestTranslog {
      */
     public static Path corruptRandomTranslogFile(Logger logger, Random random, Path translogDir, long minGeneration) throws
             IOException {
-        assertThat("translogDir is directory", Files.isDirectory(translogDir));
         Set<Path> candidates = new TreeSet<>(); // TreeSet makes sure iteration order is deterministic
         logger.info("--> Translog dir [{}], minUsedTranslogGen [{}]", translogDir, minGeneration);
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(translogDir)) {

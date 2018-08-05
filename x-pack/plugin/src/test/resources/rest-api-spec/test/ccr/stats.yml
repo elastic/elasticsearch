@@ -25,18 +25,18 @@
       ccr.stats:
         index: bar
   - match: { bar.0.shard_id: 0 }
-  - match: { bar.0.leader_global_checkpoint: -1 }
-  - match: { bar.0.leader_max_seq_no: -1 }
-  - match: { bar.0.follower_global_checkpoint: -1 }
-  - match: { bar.0.follower_max_seq_no: -1 }
-  - match: { bar.0.last_requested_seq_no: -1 }
-  - match: { bar.0.number_of_concurrent_reads: 0 }
+  - gte: { bar.0.leader_global_checkpoint: -1 }
+  - gte: { bar.0.leader_max_seq_no: -1 }
+  - gte: { bar.0.follower_global_checkpoint: -1 }
+  - gte: { bar.0.follower_max_seq_no: -1 }
+  - gte: { bar.0.last_requested_seq_no: -1 }
+  - gte: { bar.0.number_of_concurrent_reads: 0 }
   - match: { bar.0.number_of_concurrent_writes: 0 }
   - match: { bar.0.number_of_queued_writes: 0 }
-  - match: { bar.0.index_metadata_version: 0 }
-  - match: { bar.0.total_fetch_time_millis: 0 }
-  - match: { bar.0.number_of_successful_fetches: 0 }
-  - match: { bar.0.number_of_failed_fetches: 0 }
+  - gte: { bar.0.index_metadata_version: 0 }
+  - gte: { bar.0.total_fetch_time_millis: 0 }
+  - gte: { bar.0.number_of_successful_fetches: 0 }
+  - gte: { bar.0.number_of_failed_fetches: 0 }
   - match: { bar.0.operations_received: 0 }
   - match: { bar.0.total_transferred_bytes: 0 }
   - match: { bar.0.total_index_time_millis: 0 }

@@ -1,5 +1,8 @@
 ---
 "Script upsert":
+  - skip:
+      features: "warnings"
+      reason: Putting ctx under params was deprecated in 7.0.0.
 
   - do:
       update:
@@ -23,6 +26,8 @@
 
 
   - do:
+      warnings:
+        - "Exposing `ctx` under `params.ctx` is deprecated. Use -Des.scripting.update.ctx_in_params=false to disable this behaviour."
       update:
           index:    test_1
           type:     test
@@ -43,6 +48,8 @@
   - match:  { _source.foo: xxx }
 
   - do:
+      warnings:
+        - "Exposing `ctx` under `params.ctx` is deprecated. Use -Des.scripting.update.ctx_in_params=false to disable this behaviour."
       update:
           index:    test_1
           type:     test
@@ -64,6 +71,8 @@
   - match:  { _source.foo: xxx }
 
   - do:
+      warnings:
+        - "Exposing `ctx` under `params.ctx` is deprecated. Use -Des.scripting.update.ctx_in_params=false to disable this behaviour."
       update:
           index:    test_1
           type:     test

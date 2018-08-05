@@ -1,5 +1,8 @@
 ---
 "Update Script":
+  - skip:
+      features: "warnings"
+      reason: Putting ctx under params was deprecated in 7.0.0.
 
   - do:
       index:
@@ -11,6 +14,8 @@
               count:  1
 
   - do:
+      warnings:
+        - "Exposing `ctx` under `params.ctx` is deprecated. Use -Des.scripting.update.ctx_in_params=false to disable this behaviour."
       update:
           index:  test_1
           type:   test
@@ -36,6 +41,8 @@
   - match: { _source.count:      1   }
 
   - do:
+      warnings:
+        - "Exposing `ctx` under `params.ctx` is deprecated. Use -Des.scripting.update.ctx_in_params=false to disable this behaviour."
       update:
           index:  test_1
           type:   test
@@ -60,6 +67,8 @@
   - match: { _source.count:      1   }
 
   - do:
+      warnings:
+        - "Exposing `ctx` under `params.ctx` is deprecated. Use -Des.scripting.update.ctx_in_params=false to disable this behaviour."
       update:
           index:  test_1
           type:   test
@@ -86,6 +95,8 @@
   - is_false: _source.missing_length
 
   - do:
+      warnings:
+        - "Exposing `ctx` under `params.ctx` is deprecated. Use -Des.scripting.update.ctx_in_params=false to disable this behaviour."
       update:
           index:  test_1
           type:   test
@@ -114,6 +125,10 @@
 
 ---
 "Update Script with script error":
+  - skip:
+      features: "warnings"
+      reason: Putting ctx under params was deprecated in 7.0.0.
+
   - do:
       index:
           index:  test_1
@@ -124,6 +139,8 @@
               count:  1
 
   - do:
+      warnings:
+        - "Exposing `ctx` under `params.ctx` is deprecated. Use -Des.scripting.update.ctx_in_params=false to disable this behaviour."
       catch: bad_request
       update:
           index:  test_1

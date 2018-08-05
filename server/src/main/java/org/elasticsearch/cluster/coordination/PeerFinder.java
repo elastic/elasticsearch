@@ -220,11 +220,7 @@ public abstract class PeerFinder extends AbstractComponent {
         }, findPeersDelay);
     }
 
-    void startProbe(DiscoveryNode discoveryNode) {
-        startProbe(discoveryNode.getAddress());
-    }
-
-    void startProbe(TransportAddress transportAddress) {
+    private void startProbe(TransportAddress transportAddress) {
         assert holdsLock() : "PeerFinder mutex not held";
         if (active == false) {
             logger.trace("startProbe({}) not running", transportAddress);
@@ -343,7 +339,7 @@ public abstract class PeerFinder extends AbstractComponent {
                             if (response.getMasterNode().isPresent()) {
                                 final DiscoveryNode masterNode = response.getMasterNode().get();
                                 if (masterNode.equals(discoveryNode) == false) {
-                                    startProbe(masterNode);
+                                    startProbe(masterNode.getAddress());
                                 }
                             } else {
                                 response.getKnownPeers().stream().map(DiscoveryNode::getAddress)

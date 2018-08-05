@@ -17,6 +17,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.mockito.Mockito;
@@ -147,6 +148,31 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
         latch.await();
         assertNotNull(reference.get());
         assertThat(reference.get(), instanceOf(IndexNotFoundException.class));
+    }
+
+    public void testShardNotFound() throws InterruptedException {
+        final int numberOfShards = randomIntBetween(1, 5);
+        final IndexService indexService = createIndex("index", Settings.builder().put("index.number_of_shards", numberOfShards).build());
+        final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<Exception> reference = new AtomicReference<>();
+        final ShardChangesAction.TransportAction transportAction = node().injector().getInstance(ShardChangesAction.TransportAction.class);
+        transportAction.execute(
+                new ShardChangesAction.Request(new ShardId(indexService.getMetaData().getIndex(), numberOfShards)),
+                new ActionListener<ShardChangesAction.Response>() {
+                    @Override
+                    public void onResponse(final ShardChangesAction.Response response) {
+                        fail();
+                    }
+
+                    @Override
+                    public void onFailure(final Exception e) {
+                        reference.set(e);
+                        latch.countDown();
+                    }
+                });
+        latch.await();
+        assertNotNull(reference.get());
+        assertThat(reference.get(), instanceOf(ShardNotFoundException.class));
     }
 
 }

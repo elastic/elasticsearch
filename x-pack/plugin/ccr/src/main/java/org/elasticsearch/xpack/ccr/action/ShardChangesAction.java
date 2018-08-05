@@ -261,11 +261,10 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
 
         @Override
         protected ShardsIterator shards(ClusterState state, InternalRequest request) {
-            final IndexRoutingTable indexRoutingTable = state.routingTable().index(request.concreteIndex());
-            if (indexRoutingTable == null) {
-                throw new IndexNotFoundException(request.concreteIndex());
-            }
-            return indexRoutingTable.shard(request.request().getShard().id()).activeInitializingShardsRandomIt();
+            return state
+                    .routingTable()
+                    .shardRoutingTable(request.concreteIndex(), request.request().getShard().id())
+                    .activeInitializingShardsRandomIt();
         }
 
         @Override

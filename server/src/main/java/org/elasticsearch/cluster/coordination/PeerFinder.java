@@ -97,7 +97,7 @@ public abstract class PeerFinder extends AbstractComponent {
             active = true;
             this.lastAcceptedNodes = lastAcceptedNodes;
             leader = Optional.empty();
-            handleWakeUpUnderLock();
+            handleWakeUp();
         }
     }
 
@@ -106,7 +106,7 @@ public abstract class PeerFinder extends AbstractComponent {
             logger.trace("deactivating PeerFinder and setting leader to {}", leader);
             if (active) {
                 active = false;
-                handleWakeUpUnderLock();
+                handleWakeUp();
             }
             this.leader = Optional.of(leader);
             assert assertInactiveWithNoKnownPeers();
@@ -159,12 +159,6 @@ public abstract class PeerFinder extends AbstractComponent {
         void connectToRemoteMasterNode(TransportAddress transportAddress, ActionListener<DiscoveryNode> listener);
     }
 
-    private void handleWakeUp() {
-        synchronized (mutex) {
-            handleWakeUpUnderLock();
-        }
-    }
-
     private List<DiscoveryNode> getKnownPeers() {
         assert active;
         assert holdsLock() : "PeerFinder mutex not held";
@@ -184,7 +178,7 @@ public abstract class PeerFinder extends AbstractComponent {
         return peer;
     }
 
-    private void handleWakeUpUnderLock() {
+    private void handleWakeUp() {
         assert holdsLock() : "PeerFinder mutex not held";
 
         for (final Peer peer : peersByAddress.values()) {
@@ -210,7 +204,9 @@ public abstract class PeerFinder extends AbstractComponent {
         futureExecutor.schedule(new Runnable() {
             @Override
             public void run() {
-                handleWakeUp();
+                synchronized (mutex) {
+                    handleWakeUp();
+                }
             }
 
             @Override

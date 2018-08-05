@@ -34,6 +34,11 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class ShardChangesActionTests extends ESSingleNodeTestCase {
 
+    @Override
+    protected boolean resetNodeAfterTest() {
+        return true;
+    }
+
     public void testGetOperations() throws Exception {
         final Settings settings = Settings.builder()
                 .put("index.number_of_shards", 1)

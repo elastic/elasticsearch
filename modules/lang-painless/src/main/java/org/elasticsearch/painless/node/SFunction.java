@@ -20,20 +20,16 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Constant;
-import org.elasticsearch.painless.Def;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Parameter;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.WriterConstants;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.node.SSource.Reserved;
 import org.objectweb.asm.ClassVisitor;
-import org.objectweb.asm.Handle;
 import org.objectweb.asm.Opcodes;
 
 import java.lang.invoke.MethodType;
@@ -46,7 +42,6 @@ import java.util.Set;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableSet;
-import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
 
 /**
  * Represents a user-defined function.
@@ -218,15 +213,6 @@ public final class SFunction extends AStatement {
                 throw createError(new IllegalStateException("Illegal tree structure."));
             }
         }
-
-        String staticHandleFieldName = Def.getUserFunctionHandleFieldName(name, parameters.size());
-        globals.addConstantInitializer(new Constant(location, WriterConstants.METHOD_HANDLE_TYPE,
-                                                    staticHandleFieldName, this::initializeConstant));
-    }
-
-    private void initializeConstant(MethodWriter writer) {
-        final Handle handle = new Handle(Opcodes.H_INVOKESTATIC, CLASS_TYPE.getInternalName(), name, method.getDescriptor(), false);
-        writer.push(handle);
     }
 
     @Override

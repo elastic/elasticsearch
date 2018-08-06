@@ -17,17 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.coordination;
+package org.elasticsearch.discovery;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.coordination.PeerFinder.TransportAddressConnector;
+import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
+import org.elasticsearch.cluster.coordination.FutureExecutor;
+import org.elasticsearch.cluster.coordination.PeersResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.DiscoveryNodes.Builder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.discovery.PeerFinder.TransportAddressConnector;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.CapturingTransport.CapturedRequest;
@@ -58,7 +61,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.cluster.coordination.PeerFinder.REQUEST_PEERS_ACTION_NAME;
+import static org.elasticsearch.discovery.PeerFinder.REQUEST_PEERS_ACTION_NAME;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
@@ -436,7 +439,7 @@ public class PeerFinderTests extends ESTestCase {
 
         final AtomicBoolean responseReceived = new AtomicBoolean();
 
-        transportService.sendRequest(localNode, PeerFinder.REQUEST_PEERS_ACTION_NAME, new PeersRequest(sourceNode, Collections.emptyList()),
+        transportService.sendRequest(localNode, REQUEST_PEERS_ACTION_NAME, new PeersRequest(sourceNode, Collections.emptyList()),
             new TransportResponseHandler<PeersResponse>() {
                 @Override
                 public void handleResponse(PeersResponse response) {

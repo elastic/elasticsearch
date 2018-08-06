@@ -33,4 +33,3 @@ public interface ConfiguredHostsResolver {
      */
     void resolveConfiguredHosts(Consumer<List<TransportAddress>> consumer);
 }
-

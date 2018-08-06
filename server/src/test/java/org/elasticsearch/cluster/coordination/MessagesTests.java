@@ -25,16 +25,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
-import java.util.Optional;
-import java.util.stream.Collectors;
-
-import static java.util.Collections.emptyList;
-import static java.util.Collections.singletonList;
-
 public class MessagesTests extends ESTestCase {
 
     private DiscoveryNode createNode(String id) {
@@ -155,69 +145,5 @@ public class MessagesTests extends ESTestCase {
             new ClusterState.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(10, 10, false))),
             randomLong());
     }
-
-    private List<DiscoveryNode> modifyDiscoveryNodesList(Collection<DiscoveryNode> originalNodes, boolean allowEmpty) {
-        final List<DiscoveryNode> discoveryNodes = new ArrayList<>(originalNodes);
-        if (discoveryNodes.isEmpty() == false && randomBoolean() && (allowEmpty || discoveryNodes.size() > 1)) {
-            discoveryNodes.remove(randomIntBetween(0, discoveryNodes.size() - 1));
-        } else if (discoveryNodes.isEmpty() == false && randomBoolean()) {
-            discoveryNodes.set(randomIntBetween(0, discoveryNodes.size() - 1), createNode(randomAlphaOfLength(10)));
-        } else {
-            discoveryNodes.add(createNode(randomAlphaOfLength(10)));
-        }
-        return discoveryNodes;
-    }
-
-    public void testPeersRequestEqualsHashCodeSerialization() {
-        final PeersRequest initialPeersRequest = new PeersRequest(createNode(randomAlphaOfLength(10)),
-            Arrays.stream(generateRandomStringArray(10, 10, false)).map(this::createNode).collect(Collectors.toList()));
-
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(initialPeersRequest,
-            publishRequest -> copyWriteable(publishRequest, writableRegistry(), PeersRequest::new),
-            in -> {
-                final List<DiscoveryNode> discoveryNodes = new ArrayList<>(in.getKnownPeers());
-                if (randomBoolean()) {
-                    return new PeersRequest(createNode(randomAlphaOfLength(10)), discoveryNodes);
-                } else {
-                    return new PeersRequest(in.getSourceNode(), modifyDiscoveryNodesList(in.getKnownPeers(), true));
-                }
-            });
-    }
-
-    public void testPeersResponseEqualsHashCodeSerialization() {
-        final long initialTerm = randomNonNegativeLong();
-        final PeersResponse initialPeersResponse;
-
-        if (randomBoolean()) {
-            initialPeersResponse = new PeersResponse(Optional.of(createNode(randomAlphaOfLength(10))), emptyList(), initialTerm);
-        } else {
-            initialPeersResponse = new PeersResponse(Optional.empty(),
-                Arrays.stream(generateRandomStringArray(10, 10, false, false)).map(this::createNode).collect(Collectors.toList()),
-                initialTerm);
-        }
-
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(initialPeersResponse,
-            publishResponse -> copyWriteable(publishResponse, writableRegistry(), PeersResponse::new),
-            in -> {
-                final long term = in.getTerm();
-                if (randomBoolean()) {
-                    return new PeersResponse(in.getMasterNode(), in.getKnownPeers(),
-                        randomValueOtherThan(term, ESTestCase::randomNonNegativeLong));
-                } else {
-                    if (in.getMasterNode().isPresent()) {
-                        if (randomBoolean()) {
-                            return new PeersResponse(Optional.of(createNode(randomAlphaOfLength(10))), in.getKnownPeers(), term);
-                        } else {
-                            return new PeersResponse(Optional.empty(), singletonList(createNode(randomAlphaOfLength(10))), term);
-                        }
-                    } else {
-                        if (randomBoolean()) {
-                            return new PeersResponse(Optional.of(createNode(randomAlphaOfLength(10))), emptyList(), term);
-                        } else {
-                            return new PeersResponse(in.getMasterNode(), modifyDiscoveryNodesList(in.getKnownPeers(), false), term);
-                        }
-                    }
-                }
-            });
-    }
 }
+

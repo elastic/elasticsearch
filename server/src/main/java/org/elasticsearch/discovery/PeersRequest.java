@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.coordination;
+package org.elasticsearch.discovery;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;

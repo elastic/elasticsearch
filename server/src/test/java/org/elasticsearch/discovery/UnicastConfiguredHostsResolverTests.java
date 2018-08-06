@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
@@ -49,15 +50,14 @@ public class UnicastConfiguredHostsResolverTests extends ESTestCase {
 
     @Before
     public void startResolver() {
-        final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build();
-        threadPool = new ThreadPool(settings);
+        threadPool = new TestThreadPool("node");
         transportAddresses = new ArrayList<>();
 
         TransportService transportService = mock(TransportService.class);
         when(transportService.getThreadPool()).thenReturn(threadPool);
 
         unicastConfiguredHostsResolver
-            = new UnicastConfiguredHostsResolver(settings, transportService, hostsResolver -> transportAddresses);
+            = new UnicastConfiguredHostsResolver(Settings.EMPTY, transportService, hostsResolver -> transportAddresses);
         unicastConfiguredHostsResolver.start();
     }
 

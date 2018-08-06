@@ -748,7 +748,6 @@ public class TranslogTests extends ESTestCase {
 
     }
 
-
     public void testTranslogCorruption() throws Exception {
         TranslogConfig config = translog.getConfig();
         String uuid = translog.getTranslogUUID();
@@ -764,9 +763,9 @@ public class TranslogTests extends ESTestCase {
         TestTranslog.corruptRandomTranslogFile(logger, random(), translogDir, 0);
         int corruptionsCaught = 0;
 
-        try (Translog translog = openTranslog(config, uuid)){
+        try (Translog translog = openTranslog(config, uuid)) {
             try (Translog.Snapshot snapshot = translog.newSnapshot()) {
-                for (Location loc: locations){
+                for (Location loc : locations) {
                     snapshot.next();
                 }
             }
@@ -777,8 +776,6 @@ public class TranslogTests extends ESTestCase {
 
         assertThat("corruption is caught", corruptionsCaught, greaterThanOrEqualTo(1));
     }
-
-
 
     public void testTruncatedTranslogs() throws Exception {
         List<Translog.Location> locations = new ArrayList<>();

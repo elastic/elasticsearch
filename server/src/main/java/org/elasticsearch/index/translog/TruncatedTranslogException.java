@@ -34,5 +34,4 @@ public class TruncatedTranslogException extends TranslogCorruptedException {
         super(source, details, cause);
     }
 
-
 }

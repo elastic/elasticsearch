@@ -24,12 +24,12 @@ import org.elasticsearch.index.translog.source.TranslogSource;
 public class TranslogTestSource implements TranslogSource {
     private String testName;
 
-    public TranslogTestSource(String testName){
+    public TranslogTestSource(String testName) {
         this.testName = testName;
     }
 
     @Override
     public String toString() {
-        return "constructed by test "+testName;
+        return "constructed by test " + testName;
     }
 }

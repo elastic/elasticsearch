@@ -41,6 +41,11 @@ import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.core.Is.is;
+import static org.hamcrest.core.IsNot.not;
+
 /**
  * Helpers for testing translog.
  */
@@ -66,6 +71,7 @@ public class TestTranslog {
                 }
             }
         }
+        assertThat(candidates, is(not(empty())));
 
         Path corruptedFile = RandomPicks.randomFrom(random, candidates);
         corruptFile(logger, random, corruptedFile);

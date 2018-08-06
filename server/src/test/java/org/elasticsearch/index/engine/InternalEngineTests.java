@@ -655,7 +655,6 @@ public class InternalEngineTests extends EngineTestCase {
         IOUtils.close(store, engine);
     }
 
-
     public void testFlushIsDisabledDuringTranslogRecovery() throws IOException {
         assertFalse(engine.isRecovering());
         ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), SOURCE, null);

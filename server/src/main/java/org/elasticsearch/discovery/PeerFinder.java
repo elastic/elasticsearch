@@ -89,7 +89,7 @@ public abstract class PeerFinder extends AbstractComponent {
     }
 
     public void activate(final DiscoveryNodes lastAcceptedNodes) {
-        logger.trace("activating PeerFinder {}", lastAcceptedNodes);
+        logger.trace("activating with {}", lastAcceptedNodes);
 
         synchronized (mutex) {
             assert active == false;
@@ -102,7 +102,7 @@ public abstract class PeerFinder extends AbstractComponent {
 
     public void deactivate(DiscoveryNode leader) {
         synchronized (mutex) {
-            logger.trace("deactivating PeerFinder and setting leader to {}", leader);
+            logger.trace("deactivating and setting leader to {}", leader);
             active = false;
             handleWakeUp();
             this.leader = Optional.of(leader);
@@ -192,17 +192,18 @@ public abstract class PeerFinder extends AbstractComponent {
         }
 
         if (active == false) {
-            logger.trace("PeerFinder: not running");
+            logger.trace("not active");
             return;
         }
 
+        logger.trace("probing master nodes from cluster state: {}", lastAcceptedNodes);
         for (ObjectCursor<DiscoveryNode> discoveryNodeObjectCursor : lastAcceptedNodes.getMasterNodes().values()) {
             startProbe(discoveryNodeObjectCursor.value.getAddress());
         }
 
         configuredHostsResolver.resolveConfiguredHosts(providedAddresses -> {
             synchronized (mutex) {
-                logger.trace("PeerFinder: probing resolved transport addresses {}", providedAddresses);
+                logger.trace("probing resolved transport addresses {}", providedAddresses);
                 providedAddresses.forEach(this::startProbe);
             }
         });
@@ -216,7 +217,7 @@ public abstract class PeerFinder extends AbstractComponent {
             @Override
             public void onFailure(Exception e) {
                 assert false : e;
-                logger.debug("unexpected exception in PeerFinder wakeup", e);
+                logger.debug("unexpected exception in wakeup", e);
             }
 
             @Override

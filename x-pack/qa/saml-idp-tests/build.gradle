@@ -36,7 +36,7 @@ integTestCluster {
   setting 'xpack.security.authc.token.enabled', 'true'
   setting 'xpack.security.authc.realms.file.type', 'file'
   setting 'xpack.security.authc.realms.file.order', '0'
-  // SAML realm 1 (no authorizing_realms)
+  // SAML realm 1 (no authorization_realms)
   setting 'xpack.security.authc.realms.shibboleth.type', 'saml'
   setting 'xpack.security.authc.realms.shibboleth.order', '1'
   setting 'xpack.security.authc.realms.shibboleth.idp.entity_id', 'https://test.shibboleth.elastic.local/'
@@ -48,7 +48,7 @@ integTestCluster {
   setting 'xpack.security.authc.realms.shibboleth.sp.acs', 'http://localhost:54321/saml/acs1'
   setting 'xpack.security.authc.realms.shibboleth.attributes.principal', 'uid'
   setting 'xpack.security.authc.realms.shibboleth.attributes.name', 'urn:oid:2.5.4.3'
-  // SAML realm 2 (uses authorizing_realms)
+  // SAML realm 2 (uses authorization_realms)
   setting 'xpack.security.authc.realms.shibboleth_native.type', 'saml'
   setting 'xpack.security.authc.realms.shibboleth_native.order', '2'
   setting 'xpack.security.authc.realms.shibboleth_native.idp.entity_id', 'https://test.shibboleth.elastic.local/'
@@ -56,7 +56,7 @@ integTestCluster {
   setting 'xpack.security.authc.realms.shibboleth_native.sp.entity_id', 'http://mock2.http.elastic.local/'
   setting 'xpack.security.authc.realms.shibboleth_native.sp.acs', 'http://localhost:54321/saml/acs2'
   setting 'xpack.security.authc.realms.shibboleth_native.attributes.principal', 'uid'
-  setting 'xpack.security.authc.realms.shibboleth_native.authorizing_realms', 'native'
+  setting 'xpack.security.authc.realms.shibboleth_native.authorization_realms', 'native'
   setting 'xpack.security.authc.realms.native.type', 'native'
   setting 'xpack.security.authc.realms.native.order', '3'
 

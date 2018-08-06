@@ -245,7 +245,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 }
             }
 
-            shards.promoteReplicaToPrimary(newPrimary);
+            shards.promoteReplicaToPrimary(newPrimary).get();
 
             // check that local checkpoint of new primary is properly tracked after primary promotion
             assertThat(newPrimary.getLocalCheckpoint(), equalTo(totalDocs - 1L));
@@ -432,7 +432,8 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 while ((next = snapshot.next()) != null) {
                     translogOperations++;
                     assertThat("unexpected op: " + next, (int)next.seqNo(), lessThan(initialDocs + extraDocs));
-                    assertThat("unexpected primaryTerm: " + next.primaryTerm(), next.primaryTerm(), is(oldPrimary.getPrimaryTerm()));
+                    assertThat("unexpected primaryTerm: " + next.primaryTerm(), next.primaryTerm(),
+                        is(oldPrimary.getPendingPrimaryTerm()));
                     final Translog.Source source = next.getSource();
                     assertThat(source.source.utf8ToString(), is("{ \"f\": \"normal\"}"));
                 }

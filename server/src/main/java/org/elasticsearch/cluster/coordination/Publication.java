@@ -198,13 +198,13 @@ public abstract class Publication extends AbstractComponent {
                 '}';
         }
 
-        public void sendPublishRequest() {
+        void sendPublishRequest() {
             if (isFailed()) {
                 return;
             }
             assert state == PublicationTargetState.NOT_STARTED : state + " -> " + PublicationTargetState.SENT_PUBLISH_REQUEST;
             state = PublicationTargetState.SENT_PUBLISH_REQUEST;
-            Publication.this.sendPublishRequest(discoveryNode, publishRequest, new PublicationTarget.PublishResponseHandler());
+            Publication.this.sendPublishRequest(discoveryNode, publishRequest, new PublishResponseHandler());
             // TODO Can this ^ fail with an exception? Target should be failed if so.
             assert publicationCompletedIffAllTargetsInactiveOrTimedOut();
         }
@@ -224,27 +224,27 @@ public abstract class Publication extends AbstractComponent {
             }
         }
 
-        public void sendApplyCommit() {
+        void sendApplyCommit() {
             assert state == PublicationTargetState.WAITING_FOR_QUORUM : state + " -> " + PublicationTargetState.SENT_APPLY_COMMIT;
             state = PublicationTargetState.SENT_APPLY_COMMIT;
             assert applyCommitRequest.isPresent();
-            Publication.this.sendApplyCommit(discoveryNode, applyCommitRequest.get(), new PublicationTarget.ApplyCommitResponseHandler());
+            Publication.this.sendApplyCommit(discoveryNode, applyCommitRequest.get(), new ApplyCommitResponseHandler());
             assert publicationCompletedIffAllTargetsInactiveOrTimedOut();
         }
 
-        public void setAppliedCommit() {
+        void setAppliedCommit() {
             assert state == PublicationTargetState.SENT_APPLY_COMMIT : state + " -> " + PublicationTargetState.APPLIED_COMMIT;
             state = PublicationTargetState.APPLIED_COMMIT;
             ackOnce(null);
         }
 
-        public void setFailed(Exception e) {
+        void setFailed(Exception e) {
             assert state != PublicationTargetState.APPLIED_COMMIT : state + " -> " + PublicationTargetState.FAILED;
             state = PublicationTargetState.FAILED;
             ackOnce(e);
         }
 
-        public void onFaultyNode(DiscoveryNode faultyNode) {
+        void onFaultyNode(DiscoveryNode faultyNode) {
             if (isActive() && discoveryNode.equals(faultyNode)) {
                 logger.debug("onFaultyNode: [{}] is faulty, failing target in publication {}", faultyNode, Publication.this);
                 setFailed(new ElasticsearchException("faulty node"));
@@ -259,22 +259,22 @@ public abstract class Publication extends AbstractComponent {
             }
         }
 
-        public boolean isActive() {
+        boolean isActive() {
             return state != PublicationTargetState.FAILED
                 && state != PublicationTargetState.APPLIED_COMMIT;
         }
 
-        public boolean isWaitingForQuorum() {
+        boolean isWaitingForQuorum() {
             return state == PublicationTargetState.WAITING_FOR_QUORUM;
         }
 
-        public boolean mayCommitInFuture() {
+        boolean mayCommitInFuture() {
             return (state == PublicationTargetState.NOT_STARTED
                 || state == PublicationTargetState.SENT_PUBLISH_REQUEST
                 || state == PublicationTargetState.WAITING_FOR_QUORUM);
         }
 
-        public boolean isFailed() {
+        boolean isFailed() {
             return state == PublicationTargetState.FAILED;
         }
 

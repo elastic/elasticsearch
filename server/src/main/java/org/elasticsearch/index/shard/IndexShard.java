@@ -2229,7 +2229,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     onBlocked.run();
                 }
             },
-            e -> failShard("exception during primary term transition", e));
+            e -> {
+                try {
+                    failShard("exception during primary term transition", e);
+                } catch (AlreadyClosedException ace) {
+                    // ignore, shard is already closed
+                }
+            });
         pendingPrimaryTerm = newPrimaryTerm;
         termUpdated.countDown();
     }

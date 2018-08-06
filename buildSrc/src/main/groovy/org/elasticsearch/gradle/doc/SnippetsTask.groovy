@@ -284,7 +284,7 @@ public class SnippetsTask extends DefaultTask {
                     contents.append(line).append('\n')
                     return
                 }
-                // Allow line extensions for console snippets within lists
+                // Allow line continuations for console snippets within lists
                 if (snippet != null && line.trim() == '+') {
                     return
                 }

@@ -69,7 +69,7 @@ import static org.elasticsearch.painless.WriterConstants.EXCEPTION_TYPE;
 import static org.elasticsearch.painless.WriterConstants.GET_NAME_METHOD;
 import static org.elasticsearch.painless.WriterConstants.GET_SOURCE_METHOD;
 import static org.elasticsearch.painless.WriterConstants.GET_STATEMENTS_METHOD;
-import static org.elasticsearch.painless.WriterConstants.OBJECT_TYPE;
+import static org.elasticsearch.painless.WriterConstants.MAP_TYPE;
 import static org.elasticsearch.painless.WriterConstants.OUT_OF_MEMORY_ERROR_TYPE;
 import static org.elasticsearch.painless.WriterConstants.PAINLESS_ERROR_TYPE;
 import static org.elasticsearch.painless.WriterConstants.PAINLESS_EXPLAIN_ERROR_GET_HEADERS_METHOD;
@@ -257,7 +257,7 @@ public final class SSource extends AStatement {
                 globals.getStatements(), settings);
         bootstrapDef.visitCode();
         bootstrapDef.getStatic(CLASS_TYPE, "$DEFINITION", DEFINITION_TYPE);
-        bootstrapDef.getStatic(CLASS_TYPE, "$LOCALS", OBJECT_TYPE);
+        bootstrapDef.getStatic(CLASS_TYPE, "$LOCALS", MAP_TYPE);
         bootstrapDef.loadArgs();
         bootstrapDef.invokeStatic(DEF_BOOTSTRAP_DELEGATE_TYPE, DEF_BOOTSTRAP_DELEGATE_METHOD);
         bootstrapDef.returnValue();
@@ -270,7 +270,7 @@ public final class SSource extends AStatement {
 
         // Write the static variables used by the method to bootstrap def calls
         visitor.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "$DEFINITION", DEFINITION_TYPE.getDescriptor(), null, null).visitEnd();
-        visitor.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "$LOCALS", OBJECT_TYPE.getDescriptor(), null, null).visitEnd();
+        visitor.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "$LOCALS", MAP_TYPE.getDescriptor(), null, null).visitEnd();
 
         org.objectweb.asm.commons.Method init;
 

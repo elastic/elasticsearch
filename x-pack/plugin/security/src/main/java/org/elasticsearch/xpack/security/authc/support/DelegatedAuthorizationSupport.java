@@ -13,11 +13,11 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.protocol.xpack.security.User;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
-import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,7 +25,7 @@ import java.util.List;
 import static org.elasticsearch.common.Strings.collectionToDelimitedString;
 
 /**
- * Utility class for supporting "delegated authorization" (aka "authorizing_realms", aka "lookup realms").
+ * Utility class for supporting "delegated authorization" (aka "authorization_realms", aka "lookup realms").
  * A {@link Realm} may support delegating authorization to another realm. It does this by registering a
  * setting for {@link DelegatedAuthorizationSettings#AUTHZ_REALMS}, and constructing an instance of this
  * class. Then, after the realm has performed any authentication steps, if {@link #hasDelegation()} is
@@ -74,7 +74,7 @@ public class DelegatedAuthorizationSupport {
      * with a meaningful diagnostic message.
      */
     public void resolve(String username, ActionListener<AuthenticationResult> resultListener) {
-        if (licenseState.isAuthorizingRealmAllowed() == false) {
+        if (licenseState.isAuthorizationRealmAllowed() == false) {
             resultListener.onResponse(AuthenticationResult.unsuccessful(
                 DelegatedAuthorizationSettings.AUTHZ_REALMS.getKey() + " are not permitted",
                 LicenseUtils.newComplianceException(DelegatedAuthorizationSettings.AUTHZ_REALMS.getKey())

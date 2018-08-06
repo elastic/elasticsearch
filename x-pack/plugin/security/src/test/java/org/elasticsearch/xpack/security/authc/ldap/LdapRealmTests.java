@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.core.security.authc.support.CachingUsernamePasswo
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 import org.elasticsearch.xpack.core.security.authc.support.DnRoleMapperSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.protocol.xpack.security.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.VerificationMode;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapTestCase;
@@ -84,7 +84,7 @@ public class LdapRealmTests extends LdapTestCase {
         defaultGlobalSettings = Settings.builder().put("path.home", createTempDir()).build();
         sslService = new SSLService(defaultGlobalSettings, TestEnvironment.newEnvironment(defaultGlobalSettings));
         licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isAuthorizingRealmAllowed()).thenReturn(true);
+        when(licenseState.isAuthorizationRealmAllowed()).thenReturn(true);
     }
 
     @After

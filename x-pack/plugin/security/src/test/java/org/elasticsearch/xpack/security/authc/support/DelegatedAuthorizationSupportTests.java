@@ -12,11 +12,11 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.protocol.xpack.security.User;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
-import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -75,13 +75,13 @@ public class DelegatedAuthorizationSupportTests extends ESTestCase {
         final AuthenticationResult result = future.get();
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.CONTINUE));
         assertThat(result.getUser(), nullValue());
-        assertThat(result.getMessage(), equalTo("No [authorizing_realms] have been configured"));
+        assertThat(result.getMessage(), equalTo("No [authorization_realms] have been configured"));
     }
 
     public void testMissingRealmInDelegationList() {
         final XPackLicenseState license = getLicenseState(true);
         final Settings settings = Settings.builder()
-            .putList("authorizing_realms", "no-such-realm")
+            .putList("authorization_realms", "no-such-realm")
             .build();
         final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () ->
             new DelegatedAuthorizationSupport(realms, buildRealmConfig("r", settings), license)
@@ -93,7 +93,7 @@ public class DelegatedAuthorizationSupportTests extends ESTestCase {
         final XPackLicenseState license = getLicenseState(true);
         final List<MockLookupRealm> useRealms = shuffle(randomSubsetOf(randomIntBetween(1, realms.size()), realms));
         final Settings settings = Settings.builder()
-            .putList("authorizing_realms", useRealms.stream().map(Realm::name).collect(Collectors.toList()))
+            .putList("authorization_realms", useRealms.stream().map(Realm::name).collect(Collectors.toList()))
             .build();
         final User user = new User("my_user");
         randomFrom(useRealms).registerUser(user);
@@ -111,7 +111,7 @@ public class DelegatedAuthorizationSupportTests extends ESTestCase {
         final List<MockLookupRealm> useRealms = shuffle(randomSubsetOf(randomIntBetween(3, realms.size()), realms));
         final List<String> names = useRealms.stream().map(Realm::name).collect(Collectors.toList());
         final Settings settings = Settings.builder()
-            .putList("authorizing_realms", names)
+            .putList("authorization_realms", names)
             .build();
         final List<User> users = new ArrayList<>(names.size());
         final String username = randomAlphaOfLength(8);
@@ -135,7 +135,7 @@ public class DelegatedAuthorizationSupportTests extends ESTestCase {
         final XPackLicenseState license = getLicenseState(true);
         final List<MockLookupRealm> useRealms = shuffle(randomSubsetOf(randomIntBetween(1, realms.size()), realms));
         final Settings settings = Settings.builder()
-            .putList("authorizing_realms", useRealms.stream().map(Realm::name).collect(Collectors.toList()))
+            .putList("authorization_realms", useRealms.stream().map(Realm::name).collect(Collectors.toList()))
             .build();
         final DelegatedAuthorizationSupport das = new DelegatedAuthorizationSupport(realms, buildRealmConfig("r", settings), license);
         assertThat(das.hasDelegation(), equalTo(true));
@@ -151,7 +151,7 @@ public class DelegatedAuthorizationSupportTests extends ESTestCase {
     public void testLicenseRejection() throws Exception {
         final XPackLicenseState license = getLicenseState(false);
         final Settings settings = Settings.builder()
-            .putList("authorizing_realms", realms.get(0).name())
+            .putList("authorization_realms", realms.get(0).name())
             .build();
         final DelegatedAuthorizationSupport das = new DelegatedAuthorizationSupport(realms, buildRealmConfig("r", settings), license);
         assertThat(das.hasDelegation(), equalTo(true));
@@ -160,14 +160,14 @@ public class DelegatedAuthorizationSupportTests extends ESTestCase {
         final AuthenticationResult result = future.get();
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.CONTINUE));
         assertThat(result.getUser(), nullValue());
-        assertThat(result.getMessage(), equalTo("authorizing_realms are not permitted"));
+        assertThat(result.getMessage(), equalTo("authorization_realms are not permitted"));
         assertThat(result.getException(), instanceOf(ElasticsearchSecurityException.class));
-        assertThat(result.getException().getMessage(), equalTo("current license is non-compliant for [authorizing_realms]"));
+        assertThat(result.getException().getMessage(), equalTo("current license is non-compliant for [authorization_realms]"));
     }
 
     private XPackLicenseState getLicenseState(boolean authzRealmsAllowed) {
         final XPackLicenseState license = mock(XPackLicenseState.class);
-        when(license.isAuthorizingRealmAllowed()).thenReturn(authzRealmsAllowed);
+        when(license.isAuthorizationRealmAllowed()).thenReturn(authzRealmsAllowed);
         return license;
     }
 }

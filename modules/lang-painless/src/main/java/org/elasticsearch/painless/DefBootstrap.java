@@ -437,7 +437,7 @@ public final class DefBootstrap {
      * see https://docs.oracle.com/javase/specs/jvms/se7/html/jvms-6.html#jvms-6.5.invokedynamic
      */
     @SuppressWarnings("unchecked")
-    public static CallSite bootstrap(PainlessLookup painlessLookup, Object localMethods,
+    public static CallSite bootstrap(PainlessLookup painlessLookup, Map<String, LocalMethod> localMethods,
             MethodHandles.Lookup methodHandlesLookup, String name, MethodType type, int initialDepth, int flavor, Object... args) {
         // validate arguments
         switch(flavor) {
@@ -457,8 +457,7 @@ public final class DefBootstrap {
                 if (args.length != numLambdas + 1) {
                     throw new BootstrapMethodError("Illegal number of parameters: expected " + numLambdas + " references");
                 }
-                return new PIC(painlessLookup, (Map<String, LocalMethod>)localMethods,
-                        methodHandlesLookup, name, type, initialDepth, flavor, args);
+                return new PIC(painlessLookup, localMethods, methodHandlesLookup, name, type, initialDepth, flavor, args);
             case LOAD:
             case STORE:
             case ARRAY_LOAD:
@@ -468,8 +467,7 @@ public final class DefBootstrap {
                 if (args.length > 0) {
                     throw new BootstrapMethodError("Illegal static bootstrap parameters for flavor: " + flavor);
                 }
-                return new PIC(painlessLookup, (Map<String, LocalMethod>)localMethods,
-                        methodHandlesLookup, name, type, initialDepth, flavor, args);
+                return new PIC(painlessLookup, localMethods, methodHandlesLookup, name, type, initialDepth, flavor, args);
             case REFERENCE:
                 if (args.length != 1) {
                     throw new BootstrapMethodError("Invalid number of parameters for reference call");
@@ -477,8 +475,7 @@ public final class DefBootstrap {
                 if (args[0] instanceof String == false) {
                     throw new BootstrapMethodError("Illegal parameter for reference call: " + args[0]);
                 }
-                return new PIC(painlessLookup, (Map<String, LocalMethod>)localMethods,
-                        methodHandlesLookup, name, type, initialDepth, flavor, args);
+                return new PIC(painlessLookup, localMethods, methodHandlesLookup, name, type, initialDepth, flavor, args);
 
             // operators get monomorphic cache, with a generic impl for a fallback
             case UNARY_OPERATOR:

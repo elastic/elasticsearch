@@ -255,8 +255,6 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         DiscoveryPlugin, MapperPlugin, ExtensiblePlugin {
 
     private static final Logger logger = Loggers.getLogger(Security.class);
-    static final Setting<Boolean> FIPS_MODE_ENABLED =
-        Setting.boolSetting("xpack.security.fips_mode.enabled", false, Property.NodeScope);
 
     static final Setting<List<String>> AUDIT_OUTPUTS_SETTING =
         Setting.listSetting(SecurityField.setting("audit.outputs"),
@@ -593,7 +591,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         }
 
         // The following just apply in node mode
-        settingsList.add(FIPS_MODE_ENABLED);
+        settingsList.add(XPackSettings.FIPS_MODE_ENABLED);
 
         // IP Filter settings
         IPFilter.addSettings(settingsList);
@@ -1000,7 +998,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             return new ValidateTLSOnJoin(XPackSettings.TRANSPORT_SSL_ENABLED.get(settings),
                     DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings))
                 .andThen(new ValidateUpgradedSecurityIndex())
-                .andThen(new ValidateLicenseCanBeDeserialized());
+                .andThen(new ValidateLicenseCanBeDeserialized())
+                .andThen(new ValidateLicenseForFIPS(XPackSettings.FIPS_MODE_ENABLED.get(settings)));
         }
         return null;
     }
@@ -1044,6 +1043,27 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             if (license != null && license.version() >= License.VERSION_CRYPTO_ALGORITHMS && node.getVersion().before(Version.V_6_4_0)) {
                 throw new IllegalStateException("node " + node + " is on version [" + node.getVersion() +
                     "] that cannot deserialize the license format [" + license.version() + "], upgrade node to at least 6.4.0");
+            }
+        }
+    }
+
+    static final class ValidateLicenseForFIPS implements BiConsumer<DiscoveryNode, ClusterState> {
+        private final boolean inFipsMode;
+
+        ValidateLicenseForFIPS(boolean inFipsMode) {
+            this.inFipsMode = inFipsMode;
+        }
+
+        @Override
+        public void accept(DiscoveryNode node, ClusterState state) {
+            if (inFipsMode) {
+                License license = LicenseService.getLicense(state.metaData());
+                if (license != null &&
+                    FIPS140LicenseBootstrapCheck.ALLOWED_LICENSE_OPERATION_MODES.contains(license.operationMode()) == false) {
+                    throw new IllegalStateException("FIPS mode cannot be used with a [" + license.operationMode() +
+                        "] license. It is only allowed with a Platinum or Trial license.");
+
+                }
             }
         }
     }

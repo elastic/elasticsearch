@@ -95,7 +95,7 @@ setup:
                     field:
                         script:
                             source: "doc.date.get(0)"
-    - match: { hits.hits.0.fields.field.0: '2017-01-01T12:11:12.000Z' }
+    - match: { hits.hits.0.fields.field.0: '2017-01-01T12:11:12Z' }
 
     - do:
         search:
@@ -104,7 +104,7 @@ setup:
                     field:
                         script:
                             source: "doc.date.value"
-    - match: { hits.hits.0.fields.field.0: '2017-01-01T12:11:12.000Z' }
+    - match: { hits.hits.0.fields.field.0: '2017-01-01T12:11:12Z' }
 
 ---
 "geo_point":

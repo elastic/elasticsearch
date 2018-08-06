@@ -20,6 +20,7 @@ package org.elasticsearch.protocol.xpack.ml.datafeed;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -54,20 +55,33 @@ public class DatafeedConfig implements ToXContentObject {
     public static final ParseField FREQUENCY = new ParseField("frequency");
     public static final ParseField INDEXES = new ParseField("indexes");
     public static final ParseField INDICES = new ParseField("indices");
+    public static final ParseField JOB_ID = new ParseField("job_id");
     public static final ParseField TYPES = new ParseField("types");
     public static final ParseField QUERY = new ParseField("query");
     public static final ParseField SCROLL_SIZE = new ParseField("scroll_size");
     public static final ParseField AGGREGATIONS = new ParseField("aggregations");
     public static final ParseField AGGS = new ParseField("aggs");
     public static final ParseField SCRIPT_FIELDS = new ParseField("script_fields");
-    public static final ParseField SOURCE = new ParseField("_source");
     public static final ParseField CHUNKING_CONFIG = new ParseField("chunking_config");
 
-    public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("datafeed_config", true, Builder::new);
+    public static final ConstructingObjectParser<Builder, Void> PARSER = new ConstructingObjectParser<>(
+        "datafeed_config", true, a -> new Builder((String)a[0], (String)a[1]));
 
     static {
-        PARSER.declareString(Builder::setId, ID);
-        PARSER.declareString(Builder::setJobId, Datafeed.JOB_ID);
+        PARSER.declareField(ConstructingObjectParser.constructorArg(), p -> {
+            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
+                return p.text();
+            }
+            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
+        }, ID, ObjectParser.ValueType.STRING);
+
+        PARSER.declareField(ConstructingObjectParser.constructorArg(), p -> {
+            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
+                return p.text();
+            }
+            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
+        }, JOB_ID, ObjectParser.ValueType.STRING);
+
         PARSER.declareStringArray(Builder::setIndices, INDEXES);
         PARSER.declareStringArray(Builder::setIndices, INDICES);
         PARSER.declareStringArray(Builder::setTypes, TYPES);
@@ -83,13 +97,9 @@ public class DatafeedConfig implements ToXContentObject {
             while (p.nextToken() != XContentParser.Token.END_OBJECT) {
                 parsedScriptFields.add(new SearchSourceBuilder.ScriptField(p));
             }
-            parsedScriptFields.sort(Comparator.comparing(SearchSourceBuilder.ScriptField::fieldName));
             return parsedScriptFields;
         }, SCRIPT_FIELDS);
         PARSER.declareInt(Builder::setScrollSize, SCROLL_SIZE);
-        // TODO this is to read former _source field. Remove in v7.0.0
-        PARSER.declareBoolean((builder, value) -> {
-        }, SOURCE);
         PARSER.declareObject(Builder::setChunkingConfig, ChunkingConfig.PARSER, CHUNKING_CONFIG);
     }
 
@@ -178,8 +188,10 @@ public class DatafeedConfig implements ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(ID.getPreferredName(), id);
-        builder.field(Datafeed.JOB_ID.getPreferredName(), jobId);
-        builder.field(QUERY_DELAY.getPreferredName(), queryDelay.getStringRep());
+        builder.field(JOB_ID.getPreferredName(), jobId);
+        if (queryDelay != null) {
+            builder.field(QUERY_DELAY.getPreferredName(), queryDelay.getStringRep());
+        }
         if (frequency != null) {
             builder.field(FREQUENCY.getPreferredName(), frequency.getStringRep());
         }
@@ -255,12 +267,9 @@ public class DatafeedConfig implements ToXContentObject {
         private Integer scrollSize = DEFAULT_SCROLL_SIZE;
         private ChunkingConfig chunkingConfig;
 
-        public Builder() {
-        }
-
         public Builder(String id, String jobId) {
             this.id = Objects.requireNonNull(id, ID.getPreferredName());
-            this.jobId = Objects.requireNonNull(jobId, Datafeed.JOB_ID.getPreferredName());
+            this.jobId = Objects.requireNonNull(jobId, JOB_ID.getPreferredName());
         }
 
         public Builder(DatafeedConfig config) {
@@ -275,16 +284,6 @@ public class DatafeedConfig implements ToXContentObject {
             this.scriptFields = config.scriptFields;
             this.scrollSize = config.scrollSize;
             this.chunkingConfig = config.chunkingConfig;
-        }
-
-        public Builder setId(String datafeedId) {
-            id = Objects.requireNonNull(datafeedId, ID.getPreferredName());
-            return this;
-        }
-
-        public Builder setJobId(String jobId) {
-            this.jobId = Objects.requireNonNull(jobId, Datafeed.JOB_ID.getPreferredName());
-            return this;
         }
 
         public Builder setIndices(List<String> indices) {
@@ -335,8 +334,6 @@ public class DatafeedConfig implements ToXContentObject {
         }
 
         public DatafeedConfig build() {
-            Objects.requireNonNull(id, ID.getPreferredName());
-            Objects.requireNonNull(jobId, Datafeed.JOB_ID.getPreferredName());
             return new DatafeedConfig(id, jobId, queryDelay, frequency, indices, types, query, aggregations, scriptFields, scrollSize,
                 chunkingConfig);
         }

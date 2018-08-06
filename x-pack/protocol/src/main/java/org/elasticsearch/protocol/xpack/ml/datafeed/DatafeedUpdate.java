@@ -20,6 +20,7 @@ package org.elasticsearch.protocol.xpack.ml.datafeed;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -43,11 +44,19 @@ import java.util.Objects;
  */
 public class DatafeedUpdate implements ToXContentObject {
 
-    public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("datafeed_update", true, Builder::new);
+    public static final ConstructingObjectParser<Builder, Void> PARSER = new ConstructingObjectParser<>(
+        "datafeed_update", true, a -> new Builder((String)a[0]));
 
     static {
+        PARSER.declareField(ConstructingObjectParser.constructorArg(), p -> {
+            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
+                return p.text();
+            }
+            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
+        }, DatafeedConfig.ID, ObjectParser.ValueType.STRING);
+
         PARSER.declareString(Builder::setId, DatafeedConfig.ID);
-        PARSER.declareString(Builder::setJobId, Datafeed.JOB_ID);
+        PARSER.declareString(Builder::setJobId, DatafeedConfig.JOB_ID);
         PARSER.declareStringArray(Builder::setIndices, DatafeedConfig.INDEXES);
         PARSER.declareStringArray(Builder::setIndices, DatafeedConfig.INDICES);
         PARSER.declareStringArray(Builder::setTypes, DatafeedConfig.TYPES);
@@ -55,8 +64,7 @@ public class DatafeedUpdate implements ToXContentObject {
             TimeValue.parseTimeValue(val, DatafeedConfig.QUERY_DELAY.getPreferredName())), DatafeedConfig.QUERY_DELAY);
         PARSER.declareString((builder, val) -> builder.setFrequency(
             TimeValue.parseTimeValue(val, DatafeedConfig.FREQUENCY.getPreferredName())), DatafeedConfig.FREQUENCY);
-        PARSER.declareObject(Builder::setQuery,
-            (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p), DatafeedConfig.QUERY);
+        PARSER.declareObject(Builder::setQuery, (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p), DatafeedConfig.QUERY);
         PARSER.declareObject(Builder::setAggregations, (p, c) -> AggregatorFactories.parseAggregators(p),
             DatafeedConfig.AGGREGATIONS);
         PARSER.declareObject(Builder::setAggregations, (p, c) -> AggregatorFactories.parseAggregators(p),
@@ -66,7 +74,6 @@ public class DatafeedUpdate implements ToXContentObject {
             while (p.nextToken() != XContentParser.Token.END_OBJECT) {
                 parsedScriptFields.add(new SearchSourceBuilder.ScriptField(p));
             }
-            parsedScriptFields.sort(Comparator.comparing(SearchSourceBuilder.ScriptField::fieldName));
             return parsedScriptFields;
         }, DatafeedConfig.SCRIPT_FIELDS);
         PARSER.declareInt(Builder::setScrollSize, DatafeedConfig.SCROLL_SIZE);
@@ -112,7 +119,7 @@ public class DatafeedUpdate implements ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(DatafeedConfig.ID.getPreferredName(), id);
-        addOptionalField(builder, Datafeed.JOB_ID, jobId);
+        addOptionalField(builder, DatafeedConfig.JOB_ID, jobId);
         if (queryDelay != null) {
             builder.field(DatafeedConfig.QUERY_DELAY.getPreferredName(), queryDelay.getStringRep());
         }
@@ -142,43 +149,43 @@ public class DatafeedUpdate implements ToXContentObject {
         }
     }
 
-    String getJobId() {
+    public String getJobId() {
         return jobId;
     }
 
-    TimeValue getQueryDelay() {
+    public TimeValue getQueryDelay() {
         return queryDelay;
     }
 
-    TimeValue getFrequency() {
+    public TimeValue getFrequency() {
         return frequency;
     }
 
-    List<String> getIndices() {
+    public List<String> getIndices() {
         return indices;
     }
 
-    List<String> getTypes() {
+    public List<String> getTypes() {
         return types;
     }
 
-    Integer getScrollSize() {
+    public Integer getScrollSize() {
         return scrollSize;
     }
 
-    QueryBuilder getQuery() {
+    public QueryBuilder getQuery() {
         return query;
     }
 
-    AggregatorFactories.Builder getAggregations() {
+    public AggregatorFactories.Builder getAggregations() {
         return aggregations;
     }
 
-    List<SearchSourceBuilder.ScriptField> getScriptFields() {
+    public List<SearchSourceBuilder.ScriptField> getScriptFields() {
         return scriptFields == null ? Collections.emptyList() : scriptFields;
     }
 
-    ChunkingConfig getChunkingConfig() {
+    public ChunkingConfig getChunkingConfig() {
         return chunkingConfig;
     }
 
@@ -218,18 +225,6 @@ public class DatafeedUpdate implements ToXContentObject {
             chunkingConfig);
     }
 
-    boolean isNoop(DatafeedConfig datafeed) {
-        return (frequency == null || Objects.equals(frequency, datafeed.getFrequency()))
-            && (queryDelay == null || Objects.equals(queryDelay, datafeed.getQueryDelay()))
-            && (indices == null || Objects.equals(indices, datafeed.getIndices()))
-            && (types == null || Objects.equals(types, datafeed.getTypes()))
-            && (query == null || Objects.equals(query, datafeed.getQuery()))
-            && (scrollSize == null || Objects.equals(scrollSize, datafeed.getQueryDelay()))
-            && (aggregations == null || Objects.equals(aggregations, datafeed.getAggregations()))
-            && (scriptFields == null || Objects.equals(scriptFields, datafeed.getScriptFields()))
-            && (chunkingConfig == null || Objects.equals(chunkingConfig, datafeed.getChunkingConfig()));
-    }
-
     public static class Builder {
 
         private String id;
@@ -243,9 +238,6 @@ public class DatafeedUpdate implements ToXContentObject {
         private List<SearchSourceBuilder.ScriptField> scriptFields;
         private Integer scrollSize;
         private ChunkingConfig chunkingConfig;
-
-        public Builder() {
-        }
 
         public Builder(String id) {
             this.id = Objects.requireNonNull(id, DatafeedConfig.ID.getPreferredName());

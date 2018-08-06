@@ -39,7 +39,6 @@ public class ChunkingConfig implements ToXContentObject {
     public static final ParseField MODE_FIELD = new ParseField("mode");
     public static final ParseField TIME_SPAN_FIELD = new ParseField("time_span");
 
-    // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ConstructingObjectParser<ChunkingConfig, Void> PARSER = new ConstructingObjectParser<>(
         "chunking_config", true, a -> new ChunkingConfig((Mode) a[0], (TimeValue) a[1]));
 

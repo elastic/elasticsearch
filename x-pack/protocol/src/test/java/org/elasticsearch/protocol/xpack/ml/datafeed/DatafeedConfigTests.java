@@ -24,7 +24,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -45,8 +44,7 @@ public class DatafeedConfigTests extends AbstractXContentTestCase<DatafeedConfig
     @Override
     protected DatafeedConfig createTestInstance() {
         long bucketSpanMillis = 3600000;
-        String jobId = randomAlphaOfLength(10);
-        DatafeedConfig.Builder builder = new DatafeedConfig.Builder(randomValidDatafeedId(), jobId);
+        DatafeedConfig.Builder builder = constructBuilder();
         builder.setIndices(randomStringList(1, 10));
         builder.setTypes(randomStringList(0, 10));
         if (randomBoolean()) {
@@ -63,7 +61,7 @@ public class DatafeedConfigTests extends AbstractXContentTestCase<DatafeedConfig
             builder.setScriptFields(scriptFields);
         }
         Long aggHistogramInterval = null;
-        if (randomBoolean() && addScriptFields == false) {
+        if (randomBoolean()) {
             // can only test with a single agg as the xcontent order gets randomized by test base class and then
             // the actual xcontent isn't the same and test fail.
             // Testing with a single agg is ok as we don't have special list xcontent logic
@@ -117,7 +115,7 @@ public class DatafeedConfigTests extends AbstractXContentTestCase<DatafeedConfig
 
     @Override
     protected boolean supportsUnknownFields() {
-        return true;
+        return false;
     }
 
     private static final String FUTURE_DATAFEED = "{\n" +
@@ -144,45 +142,36 @@ public class DatafeedConfigTests extends AbstractXContentTestCase<DatafeedConfig
         }
     }
 
-    public void testCheckValid_GivenNullId() {
-        DatafeedConfig.Builder conf = new DatafeedConfig.Builder();
-        expectThrows(NullPointerException.class, () -> conf.setId(null));
+    public void testCheckValid_GivenNullIdInConstruction() {
+        expectThrows(NullPointerException.class, () -> new DatafeedConfig.Builder(null, null));
     }
 
     public void testCheckValid_GivenNullJobId() {
-        DatafeedConfig.Builder conf = new DatafeedConfig.Builder();
-        expectThrows(NullPointerException.class, () -> conf.setJobId(null));
+        expectThrows(NullPointerException.class, () -> new DatafeedConfig.Builder(randomValidDatafeedId(), null));
     }
 
     public void testCheckValid_GivenNullIndices() {
-        DatafeedConfig.Builder conf = new DatafeedConfig.Builder();
+        DatafeedConfig.Builder conf = constructBuilder();
         expectThrows(NullPointerException.class, () -> conf.setIndices(null));
     }
 
     public void testCheckValid_GivenNullType() {
-        DatafeedConfig.Builder conf = new DatafeedConfig.Builder();
+        DatafeedConfig.Builder conf = constructBuilder();
         expectThrows(NullPointerException.class, () -> conf.setTypes(null));
     }
 
     public void testCheckValid_GivenNullQuery() {
-        DatafeedConfig.Builder conf = new DatafeedConfig.Builder();
+        DatafeedConfig.Builder conf = constructBuilder();
         expectThrows(NullPointerException.class, () -> conf.setQuery(null));
-    }
-
-    public void testCheckValid_BuildGivenNullId() {
-        DatafeedConfig.Builder conf = new DatafeedConfig.Builder();
-        expectThrows(NullPointerException.class, conf::build);
-    }
-
-    public void testCheckValid_BuildGivenNullJobId() {
-        DatafeedConfig.Builder conf = new DatafeedConfig.Builder();
-        conf.setId(randomValidDatafeedId());
-        expectThrows(NullPointerException.class, conf::build);
     }
 
     public static String randomValidDatafeedId() {
         CodepointSetGenerator generator = new CodepointSetGenerator("abcdefghijklmnopqrstuvwxyz".toCharArray());
         return generator.ofCodePointsLength(random(), 10, 10);
+    }
+
+    private static DatafeedConfig.Builder constructBuilder() {
+        return new DatafeedConfig.Builder(randomValidDatafeedId(), randomAlphaOfLength(10));
     }
 
 }

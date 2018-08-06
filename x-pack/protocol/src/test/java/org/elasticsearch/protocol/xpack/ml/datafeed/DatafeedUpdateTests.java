@@ -18,15 +18,19 @@
  */
 package org.elasticsearch.protocol.xpack.ml.datafeed;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class DatafeedUpdateTests extends AbstractXContentTestCase<DatafeedUpdate> {
@@ -85,7 +89,13 @@ public class DatafeedUpdateTests extends AbstractXContentTestCase<DatafeedUpdate
 
     @Override
     protected boolean supportsUnknownFields() {
-        return true;
+        return false;
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
 }

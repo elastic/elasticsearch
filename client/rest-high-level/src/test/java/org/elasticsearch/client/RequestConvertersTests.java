@@ -126,6 +126,8 @@ import org.elasticsearch.index.rankeval.RankEvalSpec;
 import org.elasticsearch.index.rankeval.RatedRequest;
 import org.elasticsearch.index.rankeval.RestRankEvalAction;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
+import org.elasticsearch.protocol.xpack.indexlifecycle.OperationMode;
+import org.elasticsearch.protocol.xpack.indexlifecycle.PutOperationModeRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
@@ -2599,6 +2601,26 @@ public class RequestConvertersTests extends ESTestCase {
         assertThat(request.getEndpoint(),
             equalTo("/" + (idxString.isEmpty() ? "" : (idxString + "/")) +
                 "_ilm/" + policyName));
+        assertThat(request.getParameters(), equalTo(expectedParams));
+    }
+
+    public void testPutOperationMode() throws Exception {
+        PutOperationModeRequest req = new PutOperationModeRequest(OperationMode.RUNNING);
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomMasterTimeout(req, expectedParams);
+
+        Request request = RequestConverters.putOperationMode(req);
+        assertThat(request.getMethod(), equalTo(HttpPut.METHOD_NAME));
+        assertThat(request.getEndpoint(), equalTo("/_ilm/start"));
+        assertThat(request.getParameters(), equalTo(expectedParams));
+
+        req = new PutOperationModeRequest(OperationMode.STOPPING);
+        expectedParams = new HashMap<>();
+        setRandomMasterTimeout(req, expectedParams);
+
+        request = RequestConverters.putOperationMode(req);
+        assertThat(request.getMethod(), equalTo(HttpPut.METHOD_NAME));
+        assertThat(request.getEndpoint(), equalTo("/_ilm/stop"));
         assertThat(request.getParameters(), equalTo(expectedParams));
     }
 

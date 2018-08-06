@@ -172,13 +172,17 @@ public class PublicationTests extends ESTestCase {
         assertThat(publication.pendingPublications.keySet(), equalTo(discoNodes));
         assertTrue(publication.pendingCommits.isEmpty());
         AtomicBoolean processedNode1PublishResponse = new AtomicBoolean();
+        boolean delayProcessingNode2PublishResponse = randomBoolean();
         publication.pendingPublications.entrySet().stream().collect(shuffle()).forEach(e -> {
+            if (delayProcessingNode2PublishResponse && e.getKey().equals(n2)) {
+                return;
+            }
             PublishResponse publishResponse = nodeResolver.apply(e.getKey()).coordinationState.handlePublishRequest(
                 publication.publishRequest);
             assertNotEquals(processedNode1PublishResponse.get(), publication.pendingCommits.isEmpty());
             assertFalse(publication.possibleJoins.containsKey(e.getKey()));
             PublishWithJoinResponse publishWithJoinResponse = new PublishWithJoinResponse(publishResponse,
-                randomBoolean() ? Optional.empty() : Optional.of(new Join(e.getKey(), n1, randomNonNegativeLong(),
+                randomBoolean() ? Optional.empty() : Optional.of(new Join(e.getKey(), randomFrom(n1, n2, n3), randomNonNegativeLong(),
                     randomNonNegativeLong(), randomNonNegativeLong())));
             e.getValue().onResponse(publishWithJoinResponse);
             assertTrue(publication.possibleJoins.containsKey(e.getKey()));
@@ -189,7 +193,11 @@ public class PublicationTests extends ESTestCase {
             assertNotEquals(processedNode1PublishResponse.get(), publication.pendingCommits.isEmpty());
         });
 
-        assertThat(publication.pendingCommits.keySet(), equalTo(discoNodes));
+        if (delayProcessingNode2PublishResponse) {
+            assertThat(publication.pendingCommits.keySet(), equalTo(Sets.newHashSet(n1, n3)));
+        } else {
+            assertThat(publication.pendingCommits.keySet(), equalTo(discoNodes));
+        }
         assertNotNull(publication.applyCommit);
         assertEquals(publication.applyCommit.getTerm(), publication.publishRequest.getAcceptedState().term());
         assertEquals(publication.applyCommit.getVersion(), publication.publishRequest.getAcceptedState().version());
@@ -199,6 +207,19 @@ public class PublicationTests extends ESTestCase {
             nodeResolver.apply(e.getKey()).coordinationState.handleCommit(publication.applyCommit);
             e.getValue().onResponse(TransportResponse.Empty.INSTANCE);
         });
+
+        if (delayProcessingNode2PublishResponse) {
+            assertFalse(publication.completed);
+            assertFalse(publication.committed);
+            PublishResponse publishResponse = nodeResolver.apply(n2).coordinationState.handlePublishRequest(
+                publication.publishRequest);
+            publication.pendingPublications.get(n2).onResponse(new PublishWithJoinResponse(publishResponse, Optional.empty()));
+            assertThat(publication.pendingCommits.keySet(), equalTo(discoNodes));
+
+            assertFalse(publication.completed);
+            assertFalse(publication.committed);
+            publication.pendingCommits.get(n2).onResponse(TransportResponse.Empty.INSTANCE);
+        }
 
         assertTrue(publication.completed);
         assertTrue(publication.committed);

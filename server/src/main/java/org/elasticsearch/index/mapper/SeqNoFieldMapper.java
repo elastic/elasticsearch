@@ -92,6 +92,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
     public static final String CONTENT_TYPE = "_seq_no";
     public static final String PRIMARY_TERM_NAME = "_primary_term";
     public static final String TOMBSTONE_NAME = "_tombstone";
+    public static final String UPDATED_BY_SEQNO_NAME = "_updated_by_seqno";
 
     public static class SeqNoDefaults {
         public static final String NAME = SeqNoFieldMapper.NAME;

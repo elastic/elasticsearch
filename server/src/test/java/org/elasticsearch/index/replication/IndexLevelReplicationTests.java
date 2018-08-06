@@ -210,6 +210,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31637")
     public void testConflictingOpsOnReplica() throws Exception {
         Map<String, String> mappings =
                 Collections.singletonMap("type", "{ \"type\": { \"properties\": { \"f\": { \"type\": \"keyword\"} }}}");

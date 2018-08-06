@@ -49,6 +49,7 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
@@ -619,15 +620,24 @@ public abstract class EngineTestCase extends ESTestCase {
 
     public static List<Engine.Operation> generateSingleDocHistory(boolean forReplica, VersionType versionType,
                                                                   long primaryTerm, int minOpCount, int maxOpCount, String docId) {
+        return generateMultipleDocumentsHistory(forReplica, versionType, primaryTerm, minOpCount, maxOpCount,
+            Collections.singletonList(docId), true, System::currentTimeMillis);
+    }
+
+    public static List<Engine.Operation> generateMultipleDocumentsHistory(boolean forReplica, VersionType versionType, long primaryTerm,
+                                                                          int minOpCount, int maxOpCount, List<String> docIds,
+                                                                          boolean allowGapInSeqNo, LongSupplier currentTimeInMsSupplier) {
         final int numOfOps = randomIntBetween(minOpCount, maxOpCount);
         final List<Engine.Operation> ops = new ArrayList<>();
-        final Term id = newUid(docId);
         final int startWithSeqNo = 0;
-        final String valuePrefix = (forReplica ? "r_" : "p_" ) + docId + "_";
         final boolean incrementTermWhenIntroducingSeqNo = randomBoolean();
+        final int seqNoGap = allowGapInSeqNo && randomBoolean() ? 2 : 1;
         for (int i = 0; i < numOfOps; i++) {
             final Engine.Operation op;
             final long version;
+            String docId = randomFrom(docIds);
+            final Term id = newUid(docId);
+            final String valuePrefix = (forReplica ? "r_" : "p_" ) + docId + "_";
             switch (versionType) {
                 case INTERNAL:
                     version = forReplica ? i : Versions.MATCH_ANY;
@@ -646,25 +656,38 @@ public abstract class EngineTestCase extends ESTestCase {
             }
             if (randomBoolean()) {
                 op = new Engine.Index(id, testParsedDocument(docId, null, testDocumentWithTextField(valuePrefix + i), B_1, null),
-                    forReplica && i >= startWithSeqNo ? i * 2 : SequenceNumbers.UNASSIGNED_SEQ_NO,
+                    forReplica && i >= startWithSeqNo ? i * seqNoGap : SequenceNumbers.UNASSIGNED_SEQ_NO,
                     forReplica && i >= startWithSeqNo && incrementTermWhenIntroducingSeqNo ? primaryTerm + 1 : primaryTerm,
                     version,
                     forReplica ? null : versionType,
                     forReplica ? REPLICA : PRIMARY,
-                    System.currentTimeMillis(), -1, false
+                    currentTimeInMsSupplier.getAsLong(), -1, false
                 );
             } else {
                 op = new Engine.Delete("test", docId, id,
-                    forReplica && i >= startWithSeqNo ? i * 2 : SequenceNumbers.UNASSIGNED_SEQ_NO,
+                    forReplica && i >= startWithSeqNo ? i * seqNoGap : SequenceNumbers.UNASSIGNED_SEQ_NO,
                     forReplica && i >= startWithSeqNo && incrementTermWhenIntroducingSeqNo ? primaryTerm + 1 : primaryTerm,
                     version,
                     forReplica ? null : versionType,
                     forReplica ? REPLICA : PRIMARY,
-                    System.currentTimeMillis());
+                    currentTimeInMsSupplier.getAsLong());
             }
             ops.add(op);
         }
         return ops;
+    }
+
+    /**
+     * Partitions a list of operations into a multiple sub-lists, then shuffles each sub-list.
+     * This method shuffles operations in a more realistic way than {@link Randomness#shuffle(List)}.
+     */
+    public void realisticShuffleOperations(List<Engine.Operation> operations) {
+        int index = 0;
+        while (index < operations.size()) {
+            int to = Math.min(operations.size(), index + between(10, 50));
+            Randomness.shuffle(operations.subList(index, to)); // subList is a direct view
+            index = to;
+        }
     }
 
     public static void assertOpsOnReplica(

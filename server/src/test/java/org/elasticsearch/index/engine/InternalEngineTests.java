@@ -30,6 +30,7 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -68,6 +69,7 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
@@ -82,14 +84,23 @@ import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
+import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TieredMergePolicy;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ReferenceManager;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
@@ -101,6 +112,7 @@ import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
@@ -110,6 +122,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -127,6 +140,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
@@ -158,6 +172,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 
@@ -1343,24 +1358,31 @@ public class InternalEngineTests extends EngineTestCase {
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetaData);
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         final MapperService mapperService = createMapperService("test");
-        final Set<String> liveDocs = new HashSet<>();
+        final Map<String, Long> liveDocs = new HashMap<>();
+        final Map<Long, Long> updatedBy = new HashMap<>();
         try (Store store = createStore();
-             InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get))) {
+             InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(),
+                 newMergePolicy(), null, null, globalCheckpoint::get))) {
             int numDocs = scaledRandomIntBetween(10, 100);
             for (int i = 0; i < numDocs; i++) {
-                ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), B_1, null);
-                engine.index(indexForDoc(doc));
-                liveDocs.add(doc.id());
+                ParsedDocument doc = testParsedDocument(Integer.toString(between(i, i+5)), null, testDocument(), B_1, null);
+                liveDocs.put(doc.id(), engine.index(indexForDoc(doc)).getSeqNo());
             }
             for (int i = 0; i < numDocs; i++) {
-                ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), B_1, null);
+                ParsedDocument doc = testParsedDocument(Integer.toString(between(i, i+5)), null, testDocument(), B_1, null);
                 if (randomBoolean()) {
-                    engine.delete(new Engine.Delete(doc.type(), doc.id(), newUid(doc.id()), primaryTerm.get()));
+                    Engine.DeleteResult delete = engine.delete(new Engine.Delete(doc.type(), doc.id(), newUid(doc.id()), primaryTerm.get()));
+                    if (liveDocs.containsKey(doc.id())) {
+                        updatedBy.put(liveDocs.get(doc.id()), delete.getSeqNo());
+                    }
                     liveDocs.remove(doc.id());
                 }
                 if (randomBoolean()) {
-                    engine.index(indexForDoc(doc));
-                    liveDocs.add(doc.id());
+                    Engine.IndexResult index = engine.index(indexForDoc(doc));
+                    if (liveDocs.containsKey(doc.id())) {
+                        updatedBy.put(liveDocs.get(doc.id()), index.getSeqNo());
+                    }
+                    liveDocs.put(doc.id(), index.getSeqNo());
                 }
                 if (randomBoolean()) {
                     engine.flush(randomBoolean(), true);
@@ -1377,20 +1399,36 @@ public class InternalEngineTests extends EngineTestCase {
             }
             engine.forceMerge(true, 1, false, false, false);
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService);
-            Map<Long, Translog.Operation> ops = readAllOperationsInLucene(engine, mapperService)
-                .stream().collect(Collectors.toMap(Translog.Operation::seqNo, Function.identity()));
-            for (long seqno = 0; seqno <= localCheckpoint; seqno++) {
-                long minSeqNoToRetain = Math.min(globalCheckpoint.get() + 1 - retainedExtraOps, safeCommitCheckpoint + 1);
-                String msg = "seq# [" + seqno + "], global checkpoint [" + globalCheckpoint + "], retained-ops [" + retainedExtraOps + "]";
-                if (seqno < minSeqNoToRetain) {
-                    Translog.Operation op = ops.get(seqno);
-                    if (op != null) {
-                        assertThat(op, instanceOf(Translog.Index.class));
-                        assertThat(msg, ((Translog.Index) op).id(), isIn(liveDocs));
-                        assertEquals(msg, ((Translog.Index) op).source(), B_1);
+            engine.refresh("test");
+            long minSeqNoToRetain = Math.min(globalCheckpoint.get() + 1 - retainedExtraOps, safeCommitCheckpoint + 1);
+            try (Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+                DirectoryReader reader = Lucene.wrapAllDocsLive(searcher.getDirectoryReader());
+                Set<Long> keptSeqNos = new HashSet<>();
+                for (LeafReaderContext leaf : reader.leaves()) {
+                    DocIdSetIterator docIterator = new IndexSearcher(reader).createWeight(new MatchAllDocsQuery(), false, 1.0f)
+                        .scorer(leaf).iterator();
+                    NumericDocValues seqNoDV = leaf.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
+                    NumericDocValues updatedByDV = leaf.reader().getNumericDocValues(SeqNoFieldMapper.UPDATED_BY_SEQNO_NAME);
+                    int doc;
+                    while ((doc = docIterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                        assertTrue(seqNoDV.advanceExact(doc));
+                        keptSeqNos.add(seqNoDV.longValue());
+                        // documents whose seqno < min_seqno_to_retain are not merged away because
+                        // they're live or updated by an op whose seqno is greater than global checkpoint.
+                        if (seqNoDV.longValue() < minSeqNoToRetain && liveDocs.values().contains(seqNoDV.longValue()) == false) {
+                            String msg = "seq_no=" + seqNoDV.longValue() + ",global_checkpoint=" + globalCheckpoint;
+                            assertTrue(msg, updatedByDV.advanceExact(doc));
+                            assertThat(msg, updatedByDV.longValue(), greaterThan(globalCheckpoint.get()));
+                        }
                     }
-                } else {
-                    assertThat(msg, ops.get(seqno), notNullValue());
+                }
+                for (long seqno = 0; seqno < localCheckpoint; seqno++) {
+                    if (seqno >= minSeqNoToRetain) {
+                        assertThat("seq_no=" + seqno + " required for changes", keptSeqNos, hasItem(seqno));
+                    }
+                    if (updatedBy.getOrDefault(seqno, Long.MIN_VALUE) > globalCheckpoint.get()) {
+                        assertThat("seq_no=" + seqno + " required for rollback", keptSeqNos, hasItem(seqno));
+                    }
                 }
             }
             settings.put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0);
@@ -4949,6 +4987,248 @@ public class InternalEngineTests extends EngineTestCase {
         try (InternalEngine recoveringEngine = new InternalEngine(engine.config())) {
             assertThat(recoveringEngine.getMinRetainedSeqNo(), equalTo(lastMinRetainedSeqNo));
         }
+    }
+
+    public void testRecordUpdatedBySeqNo() throws Exception {
+        CheckedFunction<InternalEngine, List<Tuple<Long, Long>>, IOException> readUpdatedBySeqNos = (engine) -> {
+            engine.refresh("test");
+            List<Tuple<Long, Long>> updates = new ArrayList<>();
+            try (Searcher engineSearcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+                DirectoryReader reader = Lucene.wrapAllDocsLive(engineSearcher.getDirectoryReader());
+                for (LeafReaderContext leaf : reader.leaves()) {
+                    NumericDocValues seqNoDV = leaf.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
+                    NumericDocValues updatedByDV = leaf.reader().getNumericDocValues(SeqNoFieldMapper.UPDATED_BY_SEQNO_NAME);
+                    DocIdSetIterator iterator = new IndexSearcher(reader).createWeight(new MatchAllDocsQuery(), false, 1.0f)
+                        .scorer(leaf).iterator();
+                    int doc;
+                    while((doc = iterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                        assertThat(seqNoDV.advanceExact(doc), equalTo(true));
+                        if (updatedByDV.advanceExact(doc)) {
+                            assertThat(updatedByDV.longValue(), greaterThanOrEqualTo(0L));
+                            updates.add(Tuple.tuple(seqNoDV.longValue(), updatedByDV.longValue()));
+                        }else {
+                            updates.add(Tuple.tuple(seqNoDV.longValue(), null));
+                        }
+                    }
+                }
+            }
+            return updates;
+        };
+        Settings.Builder settings = Settings.builder()
+            .put(defaultSettings.getSettings())
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
+        final IndexMetaData indexMetaData = IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetaData);
+        // On replica
+        AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        try (Store store = createStore();
+             InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(),
+                 newMergePolicy(), null, null, globalCheckpoint::get))) {
+            engine.index(replicaIndexForDoc(createParsedDoc("1", null), 1, 0, false));
+            engine.index(replicaIndexForDoc(createParsedDoc("1", null), 2, 1, false));
+            // IndexWriter allows softUpdateDocuments soft-deleted docs again until it's refreshed.
+            engine.refresh("test");
+            engine.delete(replicaDeleteForDoc("1", 4, 3, threadPool.relativeTimeInMillis()));
+            engine.index(replicaIndexForDoc(createParsedDoc("1", null), 3, 2, false));
+            engine.index(replicaIndexForDoc(createParsedDoc("1", null), 6, 5, false));
+            engine.delete(replicaDeleteForDoc("1", 5, 4, threadPool.relativeTimeInMillis()));
+            List<Tuple<Long, Long>> seqNos = readUpdatedBySeqNos.apply(engine);
+            // index#0 -> index#1 -> delete#3 -> index#2 -> index#5 -> delete#4
+            assertThat(seqNos, containsInAnyOrder(
+                Tuple.tuple(0L, 1L),   // 0 -> 1 - seq#0 should be updated once because of refresh
+                Tuple.tuple(1L, 5L),   // 1 -> 5 (deleted by #3, then updated by #5)
+                Tuple.tuple(2L, 3L),   // index#2 is stale by delete#3, thus should never be updated again.
+                Tuple.tuple(3L, null), // the first delete tombstone without updated_by_seqno
+                Tuple.tuple(3L, 5L),   // the second delete tombstone without updated_by_seqno
+                Tuple.tuple(4L, 5L),   // delete#4 is stale, thus having updated_by_seqno=5
+                Tuple.tuple(5L, null)  // still alive
+            ));
+        }
+        // On primary
+        try (Store store = createStore();
+             InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(),
+                 newMergePolicy(), null, null, globalCheckpoint::get))) {
+            engine.index(indexForDoc(createParsedDoc("1", null)));
+            engine.index(indexForDoc(createParsedDoc("1", null)));
+            engine.refresh("test");
+            engine.delete(new Engine.Delete("test", "1", newUid("1"), primaryTerm.get()));
+            engine.index(indexForDoc(createParsedDoc("1", null)));
+            engine.delete(new Engine.Delete("test", "1", newUid("1"), primaryTerm.get()));
+            engine.refresh("test");
+            List<Tuple<Long, Long>> seqNos = readUpdatedBySeqNos.apply(engine);
+            // index#0 -> index#1 -> delete#2 -> index#3 -> delete#4
+            assertThat(seqNos, containsInAnyOrder(
+                Tuple.tuple(0L, 1L),   // index#0 -> index#1 -> refresh
+                Tuple.tuple(1L, 4L),   // index#1 -> delete#2 -> index#3 -> delete#4
+                Tuple.tuple(2L, null), // the first delete tombstone without updated_by_seqno
+                Tuple.tuple(2L, 3L),   // the second delete tombstone with updated_by_seqno
+                Tuple.tuple(3L, 4L),   // index#3 -> delete#4
+                Tuple.tuple(4L, null)  // still alive
+            ));
+        }
+    }
+
+    @TestLogging("_ROOT:DEBUG")
+    public void testKeepDocsForRollback() throws Exception {
+        IOUtils.close(engine, store);
+        threadPool = spy(threadPool);
+        AtomicLong clockTime = new AtomicLong();
+        when(threadPool.relativeTimeInMillis()).thenAnswer(i -> clockTime.incrementAndGet());
+        Settings.Builder settings = Settings.builder()
+            .put(defaultSettings.getSettings())
+            .put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), TimeValue.timeValueMillis(between(0, 100)).getStringRep())
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
+        final IndexMetaData indexMetaData = IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetaData);
+        long globalCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
+        Map<Long, Engine.Operation> processedOps = new HashMap<>();
+        SetOnce<IndexWriter> indexWriter = new SetOnce<>();
+        IndexWriterFactory indexWriterFactory = (iwc, dir) -> {
+            indexWriter.set(new IndexWriter(iwc, dir));
+            return indexWriter.get();
+        };
+        Set<Long> lastTombstones = Collections.emptySet();
+        try (Store store = createStore();
+             InternalEngine engine = createEngine(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE, indexWriterFactory)) {
+            List<Engine.Operation> operations = generateMultipleDocumentsHistory(true, VersionType.EXTERNAL, 1L,
+                10, 200, Arrays.asList("1", "2", "3", "4", "5"), false, () -> between(1, 100));
+            realisticShuffleOperations(operations);
+            for (Engine.Operation op : operations) {
+                Set<Long> tombstones = engine.getDeletedTombstones().stream().map(del -> del.seqNo).collect(Collectors.toSet());
+                if (op instanceof Engine.Index) {
+                    logger.debug("index  id={} seq={} gcp={} tombstones={}", op.id(), op.seqNo(), globalCheckpoint, tombstones);
+                    engine.index((Engine.Index) op);
+                } else if (op instanceof Engine.Delete) {
+                    logger.debug("delete id={} seq={} gcp={} tombstones={}", op.id(), op.seqNo(), globalCheckpoint, tombstones);
+                    engine.delete((Engine.Delete) op);
+                }
+                processedOps.put(op.seqNo(), op);
+                if (randomInt(100) < 20) {
+                    assertDocumentsForRollback(engine, globalCheckpoint, processedOps);
+                }
+                // Trigger merge to reclaim some deleted documents
+                if (randomBoolean()) {
+                    BooleanQuery retentionQuery = new BooleanQuery.Builder()
+                        .add(LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, globalCheckpoint + 1, Long.MAX_VALUE),
+                            BooleanClause.Occur.SHOULD)
+                        .add(NumericDocValuesField.newSlowRangeQuery(SeqNoFieldMapper.UPDATED_BY_SEQNO_NAME, globalCheckpoint + 1, Long.MAX_VALUE),
+                            BooleanClause.Occur.SHOULD)
+                        .build();
+                    List<Engine.Operation> reclaimedOps = simulateMerge(engine, indexWriter.get(), retentionQuery)
+                        .stream().map(processedOps::get).collect(Collectors.toList());
+                    for (Engine.Operation reclaimedOp : reclaimedOps) {
+                        logger.debug("merge reclaim id={} seq={}", reclaimedOp.id(), reclaimedOp.seqNo());
+                    }
+                }
+                // Prune some delete tombstone
+                if (randomBoolean()) {
+                    engine.maybePruneDeletes();
+                }
+                Set<Long> prunedTombstone = Sets.difference(lastTombstones, tombstones);
+                for (long prunedSeqNo : prunedTombstone) {
+                    logger.debug("prune tombstone id={} seq={}", processedOps.get(prunedSeqNo).id(), prunedSeqNo);
+                }
+                lastTombstones = tombstones;
+                globalCheckpoint = randomLongBetween(globalCheckpoint, engine.getLocalCheckpoint());
+            }
+            assertDocumentsForRollback(engine, globalCheckpoint, processedOps);
+        }
+    }
+
+    /**
+     * Here we simulate Lucene merges for these purposes:
+     * - The simulation can randomly reclaim a subset of reclaimable operations instead of all docs like the actual merges
+     * - The simulation is more deterministic than the actual merge and can return the operations have been reclaimed.
+     *
+     * @param retentionQuery deleted documents matching this query won't be reclaimed (see {@link SoftDeletesPolicy#getRetentionQuery()}
+     * @return a list of operations have been reclaimed
+     */
+    private List<Long> simulateMerge(InternalEngine engine, IndexWriter indexWriter, Query retentionQuery) throws IOException {
+        try (Searcher engineSearcher = engine.acquireSearcher("simulate-merge", Engine.SearcherScope.INTERNAL)) {
+            IndexSearcher searcher = new IndexSearcher(Lucene.wrapAllDocsLive(engineSearcher.getDirectoryReader()));
+            BooleanQuery reclaimQuery = new BooleanQuery.Builder()
+                .add(new DocValuesFieldExistsQuery(Lucene.SOFT_DELETE_FIELD), BooleanClause.Occur.MUST)
+                .add(retentionQuery, BooleanClause.Occur.MUST_NOT).build();
+            TopDocs reclaimableDocs = searcher.search(reclaimQuery, Integer.MAX_VALUE);
+            if (reclaimableDocs.scoreDocs.length == 0) {
+                return Collections.emptyList();
+            }
+            List<ScoreDoc> docsToReclaim = randomSubsetOf(Arrays.asList(reclaimableDocs.scoreDocs));
+            DirectoryReader inReader = engineSearcher.getDirectoryReader();
+            while (inReader instanceof FilterDirectoryReader) {
+                inReader = ((FilterDirectoryReader) inReader).getDelegate();
+            }
+            List<Long> reclaimedOps = new ArrayList<>();
+            for (ScoreDoc docToReclaim : docsToReclaim) {
+                if (indexWriter.tryDeleteDocument(inReader, docToReclaim.doc) != -1) {
+                    reclaimedOps.add(readSeqNo(inReader, docToReclaim.doc));
+                }
+            }
+            return reclaimedOps;
+        }
+    }
+
+    /**
+     * This assertion asserts that the previous copy of every operation after the global_checkpoint is retained for rollback:
+     * 1. If the previous copy is an index, that copy must be retained
+     * 2. If the previous copy is a delete, either that copy or another delete or nothing is retained, but must not an index
+     */
+    private void assertDocumentsForRollback(InternalEngine engine, long globalCheckpoint,
+                                            Map<Long, Engine.Operation> processedOps) throws IOException {
+        List<Engine.Operation> rollbackOps = new ArrayList<>();
+        Map<String, Engine.Operation> restoringVersions = new HashMap<>();
+        for (Engine.Operation op : processedOps.values()) {
+            if (op.seqNo() > globalCheckpoint) {
+                rollbackOps.add(op);
+            } else {
+                restoringVersions.compute(op.id(), (id, v) -> v == null || v.seqNo() < op.seqNo() ? op : v);
+            }
+        }
+        engine.refresh("test", Engine.SearcherScope.INTERNAL);
+        try (Searcher engineSearcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+            DirectoryReader reader = Lucene.wrapAllDocsLive(engineSearcher.getDirectoryReader());
+            IndexSearcher searcher = new IndexSearcher(reader);
+            searcher.setQueryCache(null);
+            for (Engine.Operation rollbackOp : rollbackOps) {
+                Engine.Operation restoringVersion = restoringVersions.get(rollbackOp.id());
+                if (restoringVersion == null) {
+                    continue;
+                }
+                BooleanQuery previousQuery = new BooleanQuery.Builder()
+                    .add(new TermQuery(rollbackOp.uid()), BooleanClause.Occur.FILTER)
+                    .add(LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, 0, globalCheckpoint), BooleanClause.Occur.FILTER)
+                    .build();
+                TopDocs previousDocs = searcher.search(previousQuery, 1,
+                    new Sort(new SortedNumericSortField(SeqNoFieldMapper.NAME, SortField.Type.LONG, true)));
+                // If the previous copy is an index, that copy must be retained
+                if (restoringVersion instanceof Engine.Index) {
+                    assertThat("restoring operation id=" + restoringVersion.id() + " seq=" + restoringVersion.seqNo() +
+                            " has been reclaimed", previousDocs.totalHits, greaterThanOrEqualTo(1L));
+                    long foundSeqNo = readSeqNo(reader, previousDocs.scoreDocs[0].doc);
+                    assertThat("rollback id=" + rollbackOp.id() + " seq=" + rollbackOp.seqNo(), foundSeqNo, equalTo(restoringVersion.seqNo()));
+                    // If the previous copy is a delete, either that copy or another delete or nothing is retained, but must not an index
+                } else {
+                    if (previousDocs.totalHits > 0) {
+                        long actualSeqNo = readSeqNo(reader, previousDocs.scoreDocs[0].doc);
+                        Engine.Operation foundOp = processedOps.get(actualSeqNo);
+                        assertThat("rollback id=" + rollbackOp.id() + " seq=" + rollbackOp.seqNo() + ", found seq=" + foundOp.seqNo()
+                            + ", expected seq=" + restoringVersion.seqNo(), foundOp, instanceOf(Engine.Delete.class));
+                    }
+                }
+            }
+        }
+    }
+
+    private long readSeqNo(DirectoryReader reader, int docId) throws IOException {
+        List<LeafReaderContext> leaves = reader.leaves();
+        LeafReaderContext leaf = leaves.get(ReaderUtil.subIndex(docId, leaves));
+        int segmentDocId = docId - leaf.docBase;
+        NumericDocValues dv = leaf.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
+        assert dv != null : "SeqNoDV does not exist";
+        if (dv.advanceExact(segmentDocId) == false) {
+            throw new AssertionError("doc " + docId + " does not have SeqNoDV");
+        }
+        return dv.longValue();
     }
 
     private static void trimUnsafeCommits(EngineConfig config) throws IOException {

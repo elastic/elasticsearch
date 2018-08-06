@@ -267,7 +267,7 @@ public abstract class PeerFinder extends AbstractComponent {
                         requestPeers();
                     }
                 } else {
-                    logger.trace("{} no longer connected to {}", this, discoveryNode);
+                    logger.trace("{} no longer connected to {}", this);
                     removePeer();
                 }
             }
@@ -314,7 +314,7 @@ public abstract class PeerFinder extends AbstractComponent {
             final DiscoveryNode discoveryNode = getDiscoveryNode();
             assert discoveryNode != null : "cannot request peers without first connecting";
 
-            logger.trace("{} requesting peers from {}", this, discoveryNode);
+            logger.trace("{} requesting peers", this);
             peersRequestInFlight = true;
 
             List<DiscoveryNode> knownNodes = getFoundPeersUnderLock();
@@ -330,7 +330,7 @@ public abstract class PeerFinder extends AbstractComponent {
 
                     @Override
                     public void handleResponse(PeersResponse response) {
-                        logger.trace("{} received {} from {}", Peer.this, response, discoveryNode);
+                        logger.trace("{} received {}", Peer.this, response);
                         synchronized (mutex) {
                             if (active == false) {
                                 return;
@@ -352,7 +352,7 @@ public abstract class PeerFinder extends AbstractComponent {
                     @Override
                     public void handleException(TransportException exp) {
                         peersRequestInFlight = false;
-                        logger.debug("PeersRequest failed", exp);
+                        logger.debug(new ParameterizedMessage("{} peers request failed", this), exp);
                     }
 
                     @Override
@@ -364,7 +364,11 @@ public abstract class PeerFinder extends AbstractComponent {
 
         @Override
         public String toString() {
-            return "Peer{" + transportAddress + " peersRequestInFlight=" + peersRequestInFlight + "}";
+            return "Peer{" +
+                "transportAddress=" + transportAddress +
+                ", discoveryNode=" + discoveryNode.get() +
+                ", peersRequestInFlight=" + peersRequestInFlight +
+                '}';
         }
     }
 }

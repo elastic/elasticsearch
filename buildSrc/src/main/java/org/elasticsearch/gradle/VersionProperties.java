@@ -38,6 +38,8 @@ public class VersionProperties {
             baseVersion.getMajor(),
             baseVersion.getMinor(),
             baseVersion.getRevision(),
+            // TODO: Change default to "" after CI "warm-up" by adding -Dbuild.version_qualifier="" to ML jobs to produce
+            //       a snapshot.
             System.getProperty("build.version_qualifier", "alpha1"),
             Boolean.parseBoolean(System.getProperty("build.snapshot", "true"))
         );

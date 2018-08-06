@@ -279,7 +279,7 @@ public abstract class PeerFinder extends AbstractComponent {
                         requestPeers();
                     }
                 } else {
-                    logger.trace("{} no longer connected to {}", this);
+                    logger.trace("{} no longer connected", this);
                     removePeer();
                 }
             }

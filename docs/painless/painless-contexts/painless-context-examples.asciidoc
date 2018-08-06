@@ -34,7 +34,7 @@ Each document contains the following fields:
 `time` ({ref}/keyword.html[`keyword`])::
         The time of the play as a keyword.
 
-. {ref}/running-elasticsearch.html[Start] Elasticsearch. Note these
+. {defguide}/running-elasticsearch.html[Start] Elasticsearch. Note these
 examples assume Elasticsearch and Kibana are running locally. To use the Console
 editor in a remote Kibana instance, click the settings icon and enter the
 Console URL. Edit a request to submit a cURL request to a remote Elasticsearch

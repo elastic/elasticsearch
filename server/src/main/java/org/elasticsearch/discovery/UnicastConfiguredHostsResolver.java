@@ -77,6 +77,7 @@ public class UnicastConfiguredHostsResolver extends AbstractLifecycleComponent i
             transportService.getThreadPool().generic().execute(new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
+                    logger.debug("failure when resolving unicast hosts list", e);
                 }
 
                 @Override

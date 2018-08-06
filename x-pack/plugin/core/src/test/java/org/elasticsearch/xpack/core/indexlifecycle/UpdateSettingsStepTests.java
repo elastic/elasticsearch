@@ -11,7 +11,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsTestHelper;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
@@ -23,6 +22,8 @@ import org.junit.Before;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class UpdateSettingsStepTests extends AbstractStepTestCase<UpdateSettingsStep> {
 
@@ -70,7 +71,7 @@ public class UpdateSettingsStepTests extends AbstractStepTestCase<UpdateSettings
         return new UpdateSettingsStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(), instance.getSettings());
     }
 
-    public void testPerformAction() {
+    public void testPerformAction() throws Exception {
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
@@ -81,6 +82,7 @@ public class UpdateSettingsStepTests extends AbstractStepTestCase<UpdateSettings
 
         Mockito.when(client.admin()).thenReturn(adminClient);
         Mockito.when(adminClient.indices()).thenReturn(indicesClient);
+
         Mockito.doAnswer(new Answer<Void>() {
 
             @Override
@@ -88,8 +90,9 @@ public class UpdateSettingsStepTests extends AbstractStepTestCase<UpdateSettings
                 UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
                 @SuppressWarnings("unchecked")
                 ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
-                UpdateSettingsTestHelper.assertSettingsRequest(request, step.getSettings(), indexMetaData.getIndex().getName());
-                listener.onResponse(UpdateSettingsTestHelper.createMockResponse(true));
+                assertThat(request.settings(), equalTo(step.getSettings()));
+                assertThat(request.indices(), equalTo(new String[] {indexMetaData.getIndex().getName()}));
+                listener.onResponse(new UpdateSettingsResponse(true));
                 return null;
             }
 
@@ -135,7 +138,8 @@ public class UpdateSettingsStepTests extends AbstractStepTestCase<UpdateSettings
                 UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
                 @SuppressWarnings("unchecked")
                 ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
-                UpdateSettingsTestHelper.assertSettingsRequest(request, step.getSettings(), indexMetaData.getIndex().getName());
+                assertThat(request.settings(), equalTo(step.getSettings()));
+                assertThat(request.indices(), equalTo(new String[] {indexMetaData.getIndex().getName()}));
                 listener.onFailure(exception);
                 return null;
             }

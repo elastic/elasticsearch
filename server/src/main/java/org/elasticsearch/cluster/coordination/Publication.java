@@ -112,7 +112,7 @@ public abstract class Publication extends AbstractComponent {
         isCompleted = true;
         onCompletion(true);
         assert applyCommitRequest.isPresent();
-        logger.trace("onPossibleCompletion: [{}] was successful, applying new state locally", this);
+        logger.trace("onPossibleCompletion: [{}] was successful", this);
     }
 
     // For assertions only: verify that this invariant holds

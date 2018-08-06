@@ -217,6 +217,10 @@ fi
     install_and_check_plugin discovery azure-classic azure-core-*.jar
 }
 
+@test "[$GROUP] install discovery-azure-arm plugin" {
+    install_and_check_plugin discovery azure-arm azure-mgmt-compute-*.jar
+}
+
 @test "[$GROUP] install discovery-ec2 plugin" {
     install_and_check_plugin discovery ec2 aws-java-sdk-core-*.jar
 }
@@ -351,6 +355,10 @@ fi
 
 @test "[$GROUP] remove discovery-azure-classic plugin" {
     remove_plugin discovery-azure-classic
+}
+
+@test "[$GROUP] remove discovery-azure-arm plugin" {
+    remove_plugin discovery-azure-arm
 }
 
 @test "[$GROUP] remove discovery-ec2 plugin" {

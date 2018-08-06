@@ -16,37 +16,24 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.protocol.xpack.ml.job.results;
 
-package org.elasticsearch.script;
-
-import java.util.Map;
+import org.elasticsearch.common.ParseField;
 
 /**
- * An executable script, can't be used concurrently.
+ * Contains common attributes for results.
  */
-public interface ExecutableScript {
+public final class Result {
 
     /**
-     * Sets a runtime script parameter.
-     * <p>
-     * Note that this method may be slow, involving put() and get() calls
-     * to a hashmap or similar.
-     * @param name parameter name
-     * @param value parameter value
+     * Serialisation fields
      */
-    void setNextVar(String name, Object value);
+    public static final ParseField JOB_ID = new ParseField("job_id");
+    public static final ParseField TYPE = new ParseField("result");
+    public static final ParseField RESULT_TYPE = new ParseField("result_type");
+    public static final ParseField TIMESTAMP = new ParseField("timestamp");
+    public static final ParseField IS_INTERIM = new ParseField("is_interim");
 
-    /**
-     * Executes the script.
-     */
-    Object run();
-
-    interface Factory {
-        ExecutableScript newInstance(Map<String, Object> params);
+    private Result() {
     }
-
-    ScriptContext<Factory> CONTEXT = new ScriptContext<>("executable", Factory.class);
-
-    // TODO: remove these once each has its own script interface
-    ScriptContext<Factory> UPDATE_CONTEXT = new ScriptContext<>("update", Factory.class);
 }

@@ -357,8 +357,9 @@ public class PublicationTests extends ESTestCase {
         List<Tuple<DiscoveryNode, Throwable>> errors = ackListener.awaitErrors(0L, TimeUnit.SECONDS);
         assertThat(errors.size(), equalTo(3));
         assertThat(errors.stream().map(Tuple::v1).collect(Collectors.toList()), containsInAnyOrder(n1, n2, n3));
-        errors.stream().map(Tuple::v2).forEach(throwable ->
-            assertThat(throwable.getMessage(), containsString(timeOut ? "timed out" : "dummy failure")));
+        errors.stream().forEach(tuple ->
+            assertThat(tuple.v2().getMessage(), containsString(timeOut ? "timed out" :
+                tuple.v1().equals(n2) ? "dummy failure" : "non-failed nodes do not form a quorum")));
     }
 
     public void testClusterStatePublishingTimesOutAfterCommit() throws InterruptedException {

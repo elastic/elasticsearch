@@ -201,7 +201,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             if (randomBoolean()) {
                 // create a new translog
                 translogUUIDtoUse = Translog.createEmptyTranslog(replica.shardPath().resolveTranslog(), flushedDocs,
-                    replica.shardId(), replica.getPrimaryTerm());
+                    replica.shardId(), replica.getPendingPrimaryTerm());
                 translogGenToUse = 1;
             } else {
                 translogUUIDtoUse = translogGeneration.translogUUID;
@@ -261,7 +261,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
         }
         IndexShard replicaShard = newShard(primaryShard.shardId(), false);
         updateMappings(replicaShard, primaryShard.indexSettings().getIndexMetaData());
-        recoverReplica(replicaShard, primaryShard);
+        recoverReplica(replicaShard, primaryShard, true);
         List<IndexCommit> commits = DirectoryReader.listCommits(replicaShard.store().directory());
         long maxSeqNo = Long.parseLong(commits.get(0).getUserData().get(SequenceNumbers.MAX_SEQ_NO));
         assertThat(maxSeqNo, lessThanOrEqualTo(globalCheckpoint));

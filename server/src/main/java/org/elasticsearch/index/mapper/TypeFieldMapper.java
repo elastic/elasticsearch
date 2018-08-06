@@ -35,6 +35,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -89,6 +91,8 @@ public class TypeFieldMapper extends MetadataFieldMapper {
     }
 
     static final class TypeFieldType extends StringFieldType {
+
+        private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(ESLoggerFactory.getLogger(TypeFieldType.class));
 
         TypeFieldType() {
         }
@@ -154,6 +158,29 @@ public class TypeFieldMapper extends MetadataFieldMapper {
             }
         }
 
+        @Override
+        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
+            DEPRECATION_LOGGER.deprecatedAndMaybeLog("range_single_type",
+                    "Running [range] query on [_type] field for an index with a single type. As types are deprecated, this functionality will be removed in future releases.");
+            Query result = new MatchAllDocsQuery();
+            String type = context.getMapperService().documentMapper().type();
+            if (type != null) {
+                BytesRef typeBytes = new BytesRef(type);
+                if (lowerTerm != null) {
+                    int comp = indexedValueForSearch(lowerTerm).compareTo(typeBytes);
+                    if (comp > 0 || (comp == 0 && includeLower == false)) {
+                        result = new MatchNoDocsQuery("[_type] was lexicographically smaller than lower bound of range");
+                    }
+                }
+                if (upperTerm != null) {
+                    int comp = indexedValueForSearch(upperTerm).compareTo(typeBytes);
+                    if (comp < 0 || (comp == 0 && includeUpper == false)) {
+                        result = new MatchNoDocsQuery("[_type] was lexicographically greater than upper bound of range");
+                    }
+                }
+            }
+            return result;
+        }
     }
 
     /**

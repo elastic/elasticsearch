@@ -30,9 +30,9 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
@@ -52,7 +52,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapsho
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.process.autodetect.UpdateParams;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
@@ -86,7 +86,7 @@ public class JobManager extends AbstractComponent {
             new DeprecationLogger(Loggers.getLogger(JobManager.class));
 
     private final Environment environment;
-    private final JobProvider jobProvider;
+    private final JobResultsProvider jobResultsProvider;
     private final ClusterService clusterService;
     private final Auditor auditor;
     private final Client client;
@@ -97,11 +97,12 @@ public class JobManager extends AbstractComponent {
     /**
      * Create a JobManager
      */
-    public JobManager(Environment environment, Settings settings, JobProvider jobProvider, ClusterService clusterService, Auditor auditor,
+    public JobManager(Environment environment, Settings settings, JobResultsProvider jobResultsProvider,
+                      ClusterService clusterService, Auditor auditor,
                       Client client, UpdateJobProcessNotifier updateJobProcessNotifier) {
         super(settings);
         this.environment = environment;
-        this.jobProvider = Objects.requireNonNull(jobProvider);
+        this.jobResultsProvider = Objects.requireNonNull(jobResultsProvider);
         this.clusterService = Objects.requireNonNull(clusterService);
         this.auditor = Objects.requireNonNull(auditor);
         this.client = Objects.requireNonNull(client);
@@ -165,11 +166,6 @@ public class JobManager extends AbstractComponent {
         }
         logger.debug("Returning jobs matching [" + expression + "]");
         return new QueryPage<>(jobs, jobs.size(), Job.RESULTS_FIELD);
-    }
-
-    public JobState getJobState(String jobId) {
-        PersistentTasksCustomMetaData tasks = clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-        return MlMetadata.getJobState(jobId, tasks);
     }
 
     /**
@@ -249,12 +245,12 @@ public class JobManager extends AbstractComponent {
 
         ActionListener<Boolean> checkForLeftOverDocs = ActionListener.wrap(
                 response -> {
-                    jobProvider.createJobResultIndex(job, state, putJobListener);
+                    jobResultsProvider.createJobResultIndex(job, state, putJobListener);
                 },
                 actionListener::onFailure
         );
 
-        jobProvider.checkForLeftOverDocuments(job, checkForLeftOverDocs);
+        jobResultsProvider.checkForLeftOverDocuments(job, checkForLeftOverDocs);
     }
 
     public void updateJob(UpdateJobAction.Request request, ActionListener<PutJobAction.Response> actionListener) {
@@ -275,14 +271,14 @@ public class JobManager extends AbstractComponent {
     private void validateModelSnapshotIdUpdate(Job job, String modelSnapshotId, ChainTaskExecutor chainTaskExecutor) {
         if (modelSnapshotId != null) {
             chainTaskExecutor.add(listener -> {
-                jobProvider.getModelSnapshot(job.getId(), modelSnapshotId, newModelSnapshot -> {
+                jobResultsProvider.getModelSnapshot(job.getId(), modelSnapshotId, newModelSnapshot -> {
                     if (newModelSnapshot == null) {
                         String message = Messages.getMessage(Messages.REST_NO_SUCH_MODEL_SNAPSHOT, modelSnapshotId,
                                 job.getId());
                         listener.onFailure(new ResourceNotFoundException(message));
                         return;
                     }
-                    jobProvider.getModelSnapshot(job.getId(), job.getModelSnapshotId(), oldModelSnapshot -> {
+                    jobResultsProvider.getModelSnapshot(job.getId(), job.getModelSnapshotId(), oldModelSnapshot -> {
                         if (oldModelSnapshot != null
                                 && newModelSnapshot.result.getTimestamp().before(oldModelSnapshot.result.getTimestamp())) {
                             String message = "Job [" + job.getId() + "] has a more recent model snapshot [" +
@@ -307,7 +303,7 @@ public class JobManager extends AbstractComponent {
                         + " while the job is open"));
                 return;
             }
-            jobProvider.modelSizeStats(job.getId(), modelSizeStats -> {
+            jobResultsProvider.modelSizeStats(job.getId(), modelSizeStats -> {
                 if (modelSizeStats != null) {
                     ByteSizeValue modelSize = new ByteSizeValue(modelSizeStats.getModelBytes(), ByteSizeUnit.BYTES);
                     if (newModelMemoryLimit < modelSize.getMb()) {
@@ -411,7 +407,7 @@ public class JobManager extends AbstractComponent {
 
     private boolean isJobOpen(ClusterState clusterState, String jobId) {
         PersistentTasksCustomMetaData persistentTasks = clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
-        JobState jobState = MlMetadata.getJobState(jobId, persistentTasks);
+        JobState jobState = MlTasks.getJobState(jobId, persistentTasks);
         return jobState == JobState.OPENED;
     }
 
@@ -539,7 +535,7 @@ public class JobManager extends AbstractComponent {
 
         // Step 2. Remove the job from any calendars
         CheckedConsumer<Boolean, Exception> removeFromCalendarsHandler = response -> {
-            jobProvider.removeJobFromCalendars(jobId, ActionListener.<Boolean>wrap(deleteJobStateHandler::accept,
+            jobResultsProvider.removeJobFromCalendars(jobId, ActionListener.<Boolean>wrap(deleteJobStateHandler::accept,
                     actionListener::onFailure ));
         };
 
@@ -607,7 +603,7 @@ public class JobManager extends AbstractComponent {
 
         // Step 0. Find the appropriate established model memory for the reverted job
         // -------
-        jobProvider.getEstablishedMemoryUsage(request.getJobId(), modelSizeStats.getTimestamp(), modelSizeStats, clusterStateHandler,
+        jobResultsProvider.getEstablishedMemoryUsage(request.getJobId(), modelSizeStats.getTimestamp(), modelSizeStats, clusterStateHandler,
                 actionListener::onFailure);
     }
 
@@ -618,7 +614,7 @@ public class JobManager extends AbstractComponent {
     private static ClusterState buildNewClusterState(ClusterState currentState, MlMetadata.Builder builder) {
         XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
         ClusterState.Builder newState = ClusterState.builder(currentState);
-        newState.metaData(MetaData.builder(currentState.getMetaData()).putCustom(MLMetadataField.TYPE, builder.build()).build());
+        newState.metaData(MetaData.builder(currentState.getMetaData()).putCustom(MlMetadata.TYPE, builder.build()).build());
         return newState.build();
     }
 }

@@ -58,14 +58,14 @@ public final class EInstanceof extends AExpression {
 
         // ensure the specified type is part of the definition
         try {
-            clazz = locals.getPainlessLookup().getJavaClassFromPainlessType(this.type);
+            clazz = locals.getPainlessLookup().canonicalTypeNameToType(this.type);
         } catch (IllegalArgumentException exception) {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }
 
         // map to wrapped type for primitive types
-        resolvedType = clazz.isPrimitive() ? PainlessLookupUtility.getBoxedAnyType(clazz) :
-                PainlessLookupUtility.painlessDefTypeToJavaObjectType(clazz);
+        resolvedType = clazz.isPrimitive() ? PainlessLookupUtility.typeToBoxedType(clazz) :
+                PainlessLookupUtility.typeToJavaType(clazz);
 
         // analyze and cast the expression
         expression.analyze(locals);
@@ -76,7 +76,7 @@ public final class EInstanceof extends AExpression {
         primitiveExpression = expression.actual.isPrimitive();
         // map to wrapped type for primitive types
         expressionType = expression.actual.isPrimitive() ?
-            PainlessLookupUtility.getBoxedAnyType(expression.actual) : PainlessLookupUtility.painlessDefTypeToJavaObjectType(clazz);
+            PainlessLookupUtility.typeToBoxedType(expression.actual) : PainlessLookupUtility.typeToJavaType(clazz);
 
         actual = boolean.class;
     }

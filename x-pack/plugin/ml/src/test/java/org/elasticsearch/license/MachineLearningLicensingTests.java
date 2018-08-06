@@ -99,7 +99,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
             PutJobAction.Response response = putJobListener.actionGet();
             assertNotNull(response);
         }
-        
+
         // Pick a license that does not allow machine learning
         License.OperationMode mode = randomInvalidLicenseType();
         enableLicensing(mode);
@@ -151,7 +151,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
             PutJobAction.Response putJobResponse = putJobListener.actionGet();
             assertNotNull(putJobResponse);
         }
-        
+
         // Pick a license that does not allow machine learning
         License.OperationMode mode = randomInvalidLicenseType();
         enableLicensing(mode);
@@ -551,7 +551,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
 
     public static void disableLicensing(License.OperationMode operationMode) {
         for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-            licenseState.update(operationMode, false);
+            licenseState.update(operationMode, false, null);
         }
     }
 
@@ -561,7 +561,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
 
     public static void enableLicensing(License.OperationMode operationMode) {
         for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-            licenseState.update(operationMode, true);
+            licenseState.update(operationMode, true, null);
         }
     }
 }

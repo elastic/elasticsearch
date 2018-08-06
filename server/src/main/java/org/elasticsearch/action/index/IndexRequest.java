@@ -185,6 +185,10 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             validationException = addValidationError("an id must be provided if version type or value are set", validationException);
         }
 
+        if (pipeline != null && pipeline.isEmpty()) {
+            validationException = addValidationError("pipeline cannot be an empty string", validationException);
+        }
+
         return validationException;
     }
 
@@ -496,7 +500,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     /* resolve the routing if needed */
     public void resolveRouting(MetaData metaData) {
-        routing(metaData.resolveIndexRouting(routing, index));
+        routing(metaData.resolveWriteIndexRouting(routing, index));
     }
 
     @Override

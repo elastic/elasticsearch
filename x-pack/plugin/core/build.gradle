@@ -6,6 +6,9 @@ import java.nio.file.Paths
 import java.nio.file.StandardCopyOption
 
 apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'nebula.maven-base-publish'
+apply plugin: 'nebula.maven-scm'
+apply plugin: 'com.github.johnrengelman.shadow'
 
 archivesBaseName = 'x-pack-core'
 
@@ -18,7 +21,6 @@ esplugin {
 }
 
 dependencyLicenses {
-  mapping from: /bc.*/, to: 'bouncycastle'
   mapping from: /http.*/, to: 'httpclient' // pulled in by rest client
   mapping from: /commons-.*/, to: 'commons' // pulled in by rest client
 }
@@ -26,19 +28,17 @@ dependencyLicenses {
 dependencies {
     compileOnly "org.elasticsearch:elasticsearch:${version}"
     compile project(':x-pack:protocol')
-    compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-    compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
-    compile "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
-    compile "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
+    shadow "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+    shadow "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+    shadow "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
+    shadow "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
 
-    compile "commons-logging:commons-logging:${versions.commonslogging}"
-    compile "commons-codec:commons-codec:${versions.commonscodec}"
+    shadow "commons-logging:commons-logging:${versions.commonslogging}"
+    shadow "commons-codec:commons-codec:${versions.commonscodec}"
 
     // security deps
-    compile 'com.unboundid:unboundid-ldapsdk:3.2.0'
-    compile 'org.bouncycastle:bcprov-jdk15on:1.59'
-    compile 'org.bouncycastle:bcpkix-jdk15on:1.59'
-    compile project(path: ':modules:transport-netty4', configuration: 'runtime')
+    shadow 'com.unboundid:unboundid-ldapsdk:3.2.0'
+    shadow project(path: ':modules:transport-netty4', configuration: 'runtime')
 
     testCompile 'org.elasticsearch:securemock:1.2'
     testCompile "org.elasticsearch:mocksocket:${versions.mocksocket}"
@@ -108,12 +108,14 @@ test {
 // TODO: don't publish test artifacts just to run messy tests, fix the tests!
 // https://github.com/elastic/x-plugins/issues/724
 configurations {
-    testArtifacts.extendsFrom testRuntime
+    testArtifacts.extendsFrom(testRuntime, shadow)
+    testArtifacts.exclude(group: project(':x-pack:protocol').group, module: project(':x-pack:protocol').name)
 }
 task testJar(type: Jar) {
     appendix 'test'
     from sourceSets.test.output
 }
+
 artifacts {
     // normal es plugins do not publish the jar but we need to since users need it for Transport Clients and extensions
     archives jar

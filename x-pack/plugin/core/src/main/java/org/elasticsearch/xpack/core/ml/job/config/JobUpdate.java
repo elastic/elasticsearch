@@ -44,8 +44,8 @@ public class JobUpdate implements Writeable, ToXContentObject {
             parser.declareStringArray(Builder::setGroups, Job.GROUPS);
             parser.declareStringOrNull(Builder::setDescription, Job.DESCRIPTION);
             parser.declareObjectArray(Builder::setDetectorUpdates, DetectorUpdate.PARSER, DETECTORS);
-            parser.declareObject(Builder::setModelPlotConfig, ModelPlotConfig.CONFIG_PARSER, Job.MODEL_PLOT_CONFIG);
-            parser.declareObject(Builder::setAnalysisLimits, AnalysisLimits.CONFIG_PARSER, Job.ANALYSIS_LIMITS);
+            parser.declareObject(Builder::setModelPlotConfig, ModelPlotConfig.STRICT_PARSER, Job.MODEL_PLOT_CONFIG);
+            parser.declareObject(Builder::setAnalysisLimits, AnalysisLimits.STRICT_PARSER, Job.ANALYSIS_LIMITS);
             parser.declareString((builder, val) -> builder.setBackgroundPersistInterval(
                     TimeValue.parseTimeValue(val, Job.BACKGROUND_PERSIST_INTERVAL.getPreferredName())), Job.BACKGROUND_PERSIST_INTERVAL);
             parser.declareLong(Builder::setRenormalizationWindowDays, Job.RENORMALIZATION_WINDOW_DAYS);
@@ -533,7 +533,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
             PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), Detector.DETECTOR_INDEX);
             PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), Job.DESCRIPTION);
             PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), (parser, parseFieldMatcher) ->
-                    DetectionRule.CONFIG_PARSER.apply(parser, parseFieldMatcher).build(), Detector.CUSTOM_RULES_FIELD);
+                    DetectionRule.STRICT_PARSER.apply(parser, parseFieldMatcher).build(), Detector.CUSTOM_RULES_FIELD);
         }
 
         private int detectorIndex;

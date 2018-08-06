@@ -24,16 +24,6 @@ apply plugin: 'nebula.optional-base'
 apply plugin: 'nebula.maven-base-publish'
 apply plugin: 'nebula.maven-scm'
 
-publishing {
-    publications {
-        nebula {
-            artifactId 'elasticsearch-cli'
-        }
-    }
-}
-
-archivesBaseName = 'elasticsearch-cli'
-
 dependencies {
     compile 'net.sf.jopt-simple:jopt-simple:5.0.2'
     compile "org.elasticsearch:elasticsearch-core:${version}"

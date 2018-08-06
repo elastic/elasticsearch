@@ -183,14 +183,14 @@ public class ScriptClassInfo {
 
     private static Class<?> definitionTypeForClass(PainlessLookup painlessLookup, Class<?> type,
                                                    Function<Class<?>, String> unknownErrorMessageSource) {
-        type = PainlessLookupUtility.javaObjectTypeToPainlessDefType(type);
+        type = PainlessLookupUtility.javaTypeToType(type);
         Class<?> componentType = type;
 
         while (componentType.isArray()) {
             componentType = componentType.getComponentType();
         }
 
-        if (painlessLookup.getPainlessStructFromJavaClass(componentType) == null) {
+        if (painlessLookup.lookupPainlessClass(componentType) == null) {
             throw new IllegalArgumentException(unknownErrorMessageSource.apply(componentType));
         }
 

@@ -127,7 +127,12 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      */
     final Map<String, CheckpointState> checkpoints;
 
-    final LongConsumer onGlobalCheckpointUpdated;
+    /**
+     * A callback invoked when the global checkpoint is updated. For primary mode this occurs if the computed global checkpoint advances on
+     * the basis of state changes tracked here. For non-primary mode this occurs if the local knowledge of the global checkpoint advances
+     * due to an update from the primary.
+     */
+    private final LongConsumer onGlobalCheckpointUpdated;
 
     /**
      * This set contains allocation IDs for which there is a thread actively waiting for the local checkpoint to advance to at least the

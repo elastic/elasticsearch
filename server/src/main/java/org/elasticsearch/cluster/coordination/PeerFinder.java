@@ -180,7 +180,7 @@ public abstract class PeerFinder extends AbstractComponent {
         }
 
         if (active == false) {
-            logger.trace("ActivePeerFinder#handleWakeUp(): not running");
+            logger.trace("PeerFinder: not running");
             return;
         }
 

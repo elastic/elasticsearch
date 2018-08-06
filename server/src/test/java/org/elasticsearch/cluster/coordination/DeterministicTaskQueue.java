@@ -24,7 +24,6 @@ import org.apache.lucene.util.Counter;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolInfo;
 import org.elasticsearch.threadpool.ThreadPoolStats;
@@ -49,6 +48,29 @@ public class DeterministicTaskQueue extends AbstractComponent {
 
     public DeterministicTaskQueue(Settings settings) {
         super(settings);
+    }
+
+    public void runAllTasks() {
+        while (true) {
+            runAllRunnableTasks();
+            if (hasDeferredTasks()) {
+                advanceTime();
+            } else {
+                break;
+            }
+        }
+    }
+
+    public void runAllRunnableTasks() {
+        while (hasRunnableTasks()) {
+            runNextTask();
+        }
+    }
+
+    public void runAllRunnableTasks(Random random) {
+        while (hasRunnableTasks()) {
+            runRandomTask(random);
+        }
     }
 
     /**
@@ -316,16 +338,6 @@ public class DeterministicTaskQueue extends AbstractComponent {
 
             @Override
             public ScheduledExecutorService scheduler() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public void close() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public ThreadContext getThreadContext() {
                 throw new UnsupportedOperationException();
             }
         };

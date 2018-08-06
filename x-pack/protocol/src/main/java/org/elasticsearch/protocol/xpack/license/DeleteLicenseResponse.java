@@ -19,21 +19,9 @@
 package org.elasticsearch.protocol.xpack.license;
 
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 
-import java.io.IOException;
-
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-
 public class DeleteLicenseResponse extends AcknowledgedResponse {
-
-    private static final ConstructingObjectParser<DeleteLicenseResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "delete_license_response", true, (a, v) -> new DeleteLicenseResponse((Boolean) a[0]));
-
-    static {
-        PARSER.declareBoolean(constructorArg(), AcknowledgedResponse.ACKNOWLEDGED);
-    }
 
     public DeleteLicenseResponse() {
     }
@@ -42,7 +30,7 @@ public class DeleteLicenseResponse extends AcknowledgedResponse {
         super(acknowledged);
     }
 
-    public static DeleteLicenseResponse fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+    public static DeleteLicenseResponse fromXContent(XContentParser parser) {
+        return new DeleteLicenseResponse(parseAcknowledged(parser));
     }
 }

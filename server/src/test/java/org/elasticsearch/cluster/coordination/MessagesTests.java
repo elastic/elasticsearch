@@ -146,4 +146,3 @@ public class MessagesTests extends ESTestCase {
             randomLong());
     }
 }
-

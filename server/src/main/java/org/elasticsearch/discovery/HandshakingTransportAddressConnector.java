@@ -19,7 +19,6 @@
 
 package org.elasticsearch.discovery;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -31,6 +30,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.discovery.PeerFinder.TransportAddressConnector;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.Transport.Connection;
 import org.elasticsearch.transport.TransportRequestOptions.Type;
@@ -86,13 +86,12 @@ public class HandshakingTransportAddressConnector extends AbstractComponent impl
                     IOUtils.closeWhileHandlingException(connection);
                 }
 
-                // NOMERGE better exceptions for failure cases?
                 if (remoteNode.equals(transportService.getLocalNode())) {
                     // TODO cache this result for some time? forever?
-                    listener.onFailure(new ElasticsearchException("[" + transportAddress + "] is local node"));
+                    listener.onFailure(new ConnectTransportException(remoteNode, "local node found"));
                 } else if (remoteNode.isMasterNode() == false) {
                     // TODO cache this result for some time?
-                    listener.onFailure(new ElasticsearchException("[" + transportAddress + "] is not master eligible"));
+                    listener.onFailure(new ConnectTransportException(remoteNode, "non-master-eligible node found"));
                 } else {
                     transportService.connectToNode(remoteNode);
                     logger.trace("[{}] full connection successful: {}", this, remoteNode);

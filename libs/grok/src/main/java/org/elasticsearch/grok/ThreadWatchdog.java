@@ -21,6 +21,8 @@ package org.elasticsearch.grok;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
 
@@ -104,6 +106,8 @@ public interface ThreadWatchdog {
         private final long maxExecutionTime;
         private final LongSupplier relativeTimeSupplier;
         private final BiFunction<Long, Runnable, ScheduledFuture<?>> scheduler;
+        private final AtomicInteger registered = new AtomicInteger(0);
+        private final AtomicBoolean running = new AtomicBoolean(false);
         final ConcurrentHashMap<Thread, Long> registry = new ConcurrentHashMap<>();
         
         private Default(long interval,
@@ -114,11 +118,14 @@ public interface ThreadWatchdog {
             this.maxExecutionTime = maxExecutionTime;
             this.relativeTimeSupplier = relativeTimeSupplier;
             this.scheduler = scheduler;
-            scheduler.apply(interval, this::interruptLongRunningExecutions);
         }
         
         public void register() {
+            registered.getAndIncrement();
             Long previousValue = registry.put(Thread.currentThread(), relativeTimeSupplier.getAsLong());
+            if (running.compareAndSet(false, true) == true) {
+                scheduler.apply(interval, this::interruptLongRunningExecutions);
+            }
             assert previousValue == null;
         }
     
@@ -129,6 +136,7 @@ public interface ThreadWatchdog {
     
         public void unregister() {
             Long previousValue = registry.remove(Thread.currentThread());
+            registered.decrementAndGet();
             assert previousValue != null;
         }
         
@@ -140,7 +148,11 @@ public interface ThreadWatchdog {
                     // not removing the entry here, this happens in the unregister() method.
                 }
             }
-            scheduler.apply(interval, this::interruptLongRunningExecutions);
+            if (registered.get() > 0) {
+                scheduler.apply(interval, this::interruptLongRunningExecutions);
+            } else {
+                running.set(false);
+            }
         }
         
     }

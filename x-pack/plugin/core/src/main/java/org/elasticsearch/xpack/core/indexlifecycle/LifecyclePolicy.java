@@ -11,11 +11,11 @@ import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -45,19 +45,15 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
     private static final Logger logger = ESLoggerFactory.getLogger(LifecyclePolicy.class);
 
     public static final ParseField PHASES_FIELD = new ParseField("phases");
-    public static final ParseField TYPE_FIELD = new ParseField("type");
 
     @SuppressWarnings("unchecked")
-    public static ConstructingObjectParser<LifecyclePolicy, String> PARSER = new ConstructingObjectParser<>("lifecycle_policy", false,
-            (a, name) -> {
-                LifecycleType type = (LifecycleType) a[0];
-                List<Phase> phases = (List<Phase>) a[1];
+    public static ConstructingObjectParser<LifecyclePolicy, Tuple<String, LifecycleType>> PARSER = new ConstructingObjectParser<>("lifecycle_policy", false,
+            (a, nameAndType) -> {
+                List<Phase> phases = (List<Phase>) a[0];
                 Map<String, Phase> phaseMap = phases.stream().collect(Collectors.toMap(Phase::getName, Function.identity()));
-                return new LifecyclePolicy(type, name, phaseMap);
+                return new LifecyclePolicy(nameAndType.v2(), nameAndType.v1(), phaseMap);
             });
     static {
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.namedObject(LifecycleType.class, p.text(), null),
-                TYPE_FIELD, ValueType.STRING);
         PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, n) -> Phase.parse(p, n), v -> {
             throw new IllegalArgumentException("ordered " + PHASES_FIELD.getPreferredName() + " are not supported");
         }, PHASES_FIELD);
@@ -75,11 +71,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
      *            {@link LifecyclePolicy}.
      */
     public LifecyclePolicy(LifecycleType type, String name, Map<String, Phase> phases) {
-        if (type == null) {
-            this.type = TimeseriesLifecycleType.INSTANCE;
-        } else {
-            this.type = type;
-        }
+        this.type = type;
         this.name = name;
         this.phases = phases;
         this.type.validate(phases.values());
@@ -94,8 +86,8 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         phases = Collections.unmodifiableMap(in.readMap(StreamInput::readString, Phase::new));
     }
 
-    public static LifecyclePolicy parse(XContentParser parser, String name) {
-        return PARSER.apply(parser, name);
+    public static LifecyclePolicy parse(XContentParser parser, String name, LifecycleType type) {
+        return PARSER.apply(parser, new Tuple<>(name, type));
     }
 
     @Override
@@ -130,7 +122,6 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(TYPE_FIELD.getPreferredName(), type.getWriteableName());
             builder.startObject(PHASES_FIELD.getPreferredName());
                 for (Phase phase : phases.values()) {
                     builder.field(phase.getName(), phase);
@@ -183,7 +174,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
 
             // add `after` step for phase before next
             if (phase != null) {
-                // after step should have the name of the previous phase since the index is still in the 
+                // after step should have the name of the previous phase since the index is still in the
                 // previous phase until the after condition is reached
                 Step.StepKey afterStepKey = new Step.StepKey(previousPhase.getName(), PhaseAfterStep.NAME, PhaseAfterStep.NAME);
                 Step phaseAfterStep = new PhaseAfterStep(nowSupplier, phase.getAfter(), afterStepKey, lastStepKey);
@@ -278,7 +269,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
             }
         }
     }
-    
+
     private StepKey getNextAfterStep(String currentPhaseName) {
         String nextPhaseName = type.getNextPhaseName(currentPhaseName, phases);
         if (nextPhaseName == null) {
@@ -335,7 +326,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
             return false;
         }
         LifecyclePolicy other = (LifecyclePolicy) obj;
-        return Objects.equals(name, other.name) && 
+        return Objects.equals(name, other.name) &&
                 Objects.equals(phases, other.phases);
     }
 

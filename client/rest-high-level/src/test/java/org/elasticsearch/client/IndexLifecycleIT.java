@@ -39,7 +39,6 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         // TODO: NORELEASE convert this to using the high level client once there are APIs for it
         String jsonString = "{\n" +
             "   \"policy\": {\n" +
-            "     \"type\": \"timeseries\",\n" +
             "     \"phases\": {\n" +
             "       \"hot\": {\n" +
             "         \"after\": \"60s\",\n" +

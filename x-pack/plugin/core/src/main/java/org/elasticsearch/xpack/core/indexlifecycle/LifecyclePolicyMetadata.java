@@ -18,20 +18,70 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 public class LifecyclePolicyMetadata extends AbstractDiffable<LifecyclePolicyMetadata>
         implements ToXContentObject, Diffable<LifecyclePolicyMetadata> {
 
+    public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField POLICY = new ParseField("policy");
     public static final ParseField HEADERS = new ParseField("headers");
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<LifecyclePolicyMetadata, String> PARSER = new ConstructingObjectParser<>("policy_metadata",
-            a -> new LifecyclePolicyMetadata((LifecyclePolicy) a[0], (Map<String, String>) a[1]));
+            a -> {
+                LifecycleType type = (LifecycleType) a[0];
+                LifecyclePolicy dummyPolicy = (LifecyclePolicy) a[1];
+                LifecyclePolicy policy = new LifecyclePolicy(type, dummyPolicy.getName(), dummyPolicy.getPhases());
+                return new LifecyclePolicyMetadata(policy, (Map<String, String>) a[2]);
+            });
     static {
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> LifecyclePolicy.parse(p, c), POLICY);
-        PARSER.declareField(ConstructingObjectParser.constructorArg(), p -> p.mapStrings(), HEADERS, ValueType.OBJECT);
+        // this class is here for parsing purposes
+        LifecycleType dummyType = new LifecycleType() {
+            @Override
+            public List<Phase> getOrderedPhases(Map<String, Phase> phases) {
+                return null;
+            }
+
+            @Override
+            public String getNextPhaseName(String currentPhaseName, Map<String, Phase> phases) {
+                return null;
+            }
+
+            @Override
+            public String getPreviousPhaseName(String currentPhaseName, Map<String, Phase> phases) {
+                return null;
+            }
+
+            @Override
+            public List<LifecycleAction> getOrderedActions(Phase phase) {
+                return null;
+            }
+
+            @Override
+            public String getNextActionName(String currentActionName, Phase phase) {
+                return null;
+            }
+
+            @Override
+            public void validate(Collection<Phase> phases) {
+            }
+
+            @Override
+            public String getWriteableName() {
+                return null;
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) {
+            }
+        };
+        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.namedObject(LifecycleType.class, p.text(), null),
+            TYPE_FIELD, ValueType.STRING);
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> LifecyclePolicy.parse(p, c, dummyType), POLICY);
+        PARSER.declareField(ConstructingObjectParser.constructorArg(), XContentParser::mapStrings, HEADERS, ValueType.OBJECT);
     }
 
     public static LifecyclePolicyMetadata parse(XContentParser parser, String name) {
@@ -40,12 +90,12 @@ public class LifecyclePolicyMetadata extends AbstractDiffable<LifecyclePolicyMet
 
     private final LifecyclePolicy policy;
     private final Map<String, String> headers;
-    
+
     public LifecyclePolicyMetadata(LifecyclePolicy policy, Map<String, String> headers) {
         this.policy = policy;
         this.headers = headers;
     }
-    
+
     @SuppressWarnings("unchecked")
     public LifecyclePolicyMetadata(StreamInput in) throws IOException {
         this.policy = new LifecyclePolicy(in);
@@ -55,11 +105,11 @@ public class LifecyclePolicyMetadata extends AbstractDiffable<LifecyclePolicyMet
     public Map<String, String> getHeaders() {
         return headers;
     }
-    
+
     public LifecyclePolicy getPolicy() {
         return policy;
     }
-    
+
     public String getName() {
         return policy.getName();
     }
@@ -67,6 +117,7 @@ public class LifecyclePolicyMetadata extends AbstractDiffable<LifecyclePolicyMet
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        builder.field(TYPE_FIELD.getPreferredName(), policy.getType().getWriteableName());
         builder.field(POLICY.getPreferredName(), policy);
         builder.field(HEADERS.getPreferredName(), headers);
         builder.endObject();
@@ -78,12 +129,12 @@ public class LifecyclePolicyMetadata extends AbstractDiffable<LifecyclePolicyMet
         policy.writeTo(out);
         out.writeGenericValue(headers);
     }
-    
+
     @Override
     public int hashCode() {
         return Objects.hash(policy, headers);
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (obj == null) {
@@ -94,7 +145,7 @@ public class LifecyclePolicyMetadata extends AbstractDiffable<LifecyclePolicyMet
         }
         LifecyclePolicyMetadata other = (LifecyclePolicyMetadata) obj;
         return Objects.equals(policy, other.policy) &&
-                Objects.equals(headers, other.headers);
+            Objects.equals(headers, other.headers);
     }
 
 }

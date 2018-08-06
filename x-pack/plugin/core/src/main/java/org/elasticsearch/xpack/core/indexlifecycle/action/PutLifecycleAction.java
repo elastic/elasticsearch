@@ -18,6 +18,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
+import org.elasticsearch.xpack.core.indexlifecycle.TimeseriesLifecycleType;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -51,7 +52,8 @@ public class PutLifecycleAction extends Action<PutLifecycleAction.Response> {
         private static final ConstructingObjectParser<Request, String> PARSER =
             new ConstructingObjectParser<>("put_lifecycle_request", a -> new Request((LifecyclePolicy) a[0]));
         static {
-            PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, name) -> LifecyclePolicy.parse(p, name), POLICY_FIELD);
+            PARSER.declareObject(ConstructingObjectParser.constructorArg(),
+                (p, name) -> LifecyclePolicy.parse(p, name, TimeseriesLifecycleType.INSTANCE), POLICY_FIELD);
         }
 
         private LifecyclePolicy policy;

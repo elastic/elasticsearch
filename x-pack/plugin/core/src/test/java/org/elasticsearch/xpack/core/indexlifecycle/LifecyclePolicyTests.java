@@ -41,7 +41,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
 
     @Override
     protected LifecyclePolicy doParseInstance(XContentParser parser) {
-        return LifecyclePolicy.parse(parser, lifecycleName);
+        return LifecyclePolicy.parse(parser, lifecycleName, TestLifecycleType.INSTANCE);
     }
 
     @Override
@@ -104,11 +104,6 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
     @Override
     protected Reader<LifecyclePolicy> instanceReader() {
         return LifecyclePolicy::new;
-    }
-
-    public void testDefaultLifecycleType() {
-        LifecyclePolicy policy = new LifecyclePolicy(null, randomAlphaOfLength(10), Collections.emptyMap());
-        assertSame(TimeseriesLifecycleType.INSTANCE, policy.getType());
     }
 
     public void testFirstAndLastSteps() {

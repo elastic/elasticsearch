@@ -47,7 +47,8 @@ public class PutOperationModeRequestTests extends AbstractStreamableTestCase<Put
     }
 
     public void testStoppedMode() {
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new PutOperationModeRequest(OperationMode.STOPPED));
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+                () -> new PutOperationModeRequest(OperationMode.STOPPED));
         assertEquals("cannot directly stop index-lifecycle", exception.getMessage());
     }
 

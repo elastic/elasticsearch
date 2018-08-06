@@ -205,67 +205,87 @@ public class PublicationTests extends ESTestCase {
         assertThat(ackListener.await(0L, TimeUnit.SECONDS), containsInAnyOrder(n1, n2, n3));
     }
 
-    public void testClusterStatePublishingWithFaultyNode() throws InterruptedException {
+    public void testClusterStatePublishingWithFaultyNodeBeforeCommit() throws InterruptedException {
         VotingConfiguration singleNodeConfig = new VotingConfiguration(Sets.newHashSet(n1.getId()));
         initializeCluster(singleNodeConfig);
 
         AssertingAckListener ackListener = new AssertingAckListener(nodes.size());
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(n1).add(n2).add(n3).localNodeId(n1.getId()).build();
 
-        boolean failNodeWhenCommitting = randomBoolean();
-        boolean publicationDidNotMakeItToNode2 = randomBoolean();
-        AtomicInteger remainingActions = new AtomicInteger(
-            failNodeWhenCommitting ? (publicationDidNotMakeItToNode2 ? 2 : 3) : 4);
+        AtomicInteger remainingActions = new AtomicInteger(4); // number of publish actions + initial faulty nodes injection
         int injectFaultAt = randomInt(remainingActions.get() - 1);
-        logger.info("Injecting fault at: {}, failNodeWhenCommitting: {}, publicationDidNotMakeItToNode2: {}", injectFaultAt,
-            failNodeWhenCommitting, publicationDidNotMakeItToNode2);
+        logger.info("Injecting fault at: {}", injectFaultAt);
 
-        Set<DiscoveryNode> initialFaultyNodes =
-            failNodeWhenCommitting == false && remainingActions.decrementAndGet() == injectFaultAt ?
-                Collections.singleton(n2) : Collections.emptySet();
+        Set<DiscoveryNode> initialFaultyNodes = remainingActions.decrementAndGet() == injectFaultAt ?
+            Collections.singleton(n2) : Collections.emptySet();
         MockPublication publication = node1.publish(CoordinationStateTests.clusterState(1L, 2L,
             discoveryNodes, singleNodeConfig, singleNodeConfig, 42L), ackListener, initialFaultyNodes);
 
         publication.pendingPublications.entrySet().stream().collect(shuffle()).forEach(e -> {
-            if (failNodeWhenCommitting == false) {
-                if (remainingActions.decrementAndGet() == injectFaultAt) {
-                    publication.onFaultyNode(n2);
-                }
-                if (e.getKey().equals(n2) == false || randomBoolean()) {
-                    PublishResponse publishResponse = nodeResolver.apply(e.getKey()).coordinationState.handlePublishRequest(
-                        publication.publishRequest);
-                    e.getValue().onResponse(new PublishWithJoinResponse(publishResponse, Optional.empty()));
-                }
-            } else {
-                if (e.getKey().equals(n2) == false || publicationDidNotMakeItToNode2 == false) {
-                    PublishResponse publishResponse = nodeResolver.apply(e.getKey()).coordinationState.handlePublishRequest(
-                        publication.publishRequest);
-                    e.getValue().onResponse(new PublishWithJoinResponse(publishResponse, Optional.empty()));
-                }
+            if (remainingActions.decrementAndGet() == injectFaultAt) {
+                publication.onFaultyNode(n2);
+            }
+            if (e.getKey().equals(n2) == false || randomBoolean()) {
+                PublishResponse publishResponse = nodeResolver.apply(e.getKey()).coordinationState.handlePublishRequest(
+                    publication.publishRequest);
+                e.getValue().onResponse(new PublishWithJoinResponse(publishResponse, Optional.empty()));
             }
         });
 
         publication.pendingCommits.entrySet().stream().collect(shuffle()).forEach(e -> {
-            if (failNodeWhenCommitting == false) {
+            nodeResolver.apply(e.getKey()).coordinationState.handleCommit(publication.applyCommit);
+            e.getValue().onResponse(TransportResponse.Empty.INSTANCE);
+        });
+
+        assertTrue(publication.completed);
+        assertTrue(publication.committed);
+
+        publication.onFaultyNode(randomFrom(n1, n3)); // has no influence
+
+        List<Tuple<DiscoveryNode, Throwable>> errors = ackListener.awaitErrors(0L, TimeUnit.SECONDS);
+        assertThat(errors.size(), equalTo(1));
+        assertThat(errors.get(0).v1(), equalTo(n2));
+    }
+
+    public void testClusterStatePublishingWithFaultyNodeAfterCommit() throws InterruptedException {
+        VotingConfiguration singleNodeConfig = new VotingConfiguration(Sets.newHashSet(n1.getId()));
+        initializeCluster(singleNodeConfig);
+
+        AssertingAckListener ackListener = new AssertingAckListener(nodes.size());
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(n1).add(n2).add(n3).localNodeId(n1.getId()).build();
+
+        boolean publicationDidNotMakeItToNode2 = randomBoolean();
+        AtomicInteger remainingActions = new AtomicInteger(publicationDidNotMakeItToNode2 ? 2 : 3);
+        int injectFaultAt = randomInt(remainingActions.get() - 1);
+        logger.info("Injecting fault at: {}, publicationDidNotMakeItToNode2: {}", injectFaultAt, publicationDidNotMakeItToNode2);
+
+        MockPublication publication = node1.publish(CoordinationStateTests.clusterState(1L, 2L,
+            discoveryNodes, singleNodeConfig, singleNodeConfig, 42L), ackListener, Collections.emptySet());
+
+        publication.pendingPublications.entrySet().stream().collect(shuffle()).forEach(e -> {
+            if (e.getKey().equals(n2) == false || publicationDidNotMakeItToNode2 == false) {
+                PublishResponse publishResponse = nodeResolver.apply(e.getKey()).coordinationState.handlePublishRequest(
+                    publication.publishRequest);
+                e.getValue().onResponse(new PublishWithJoinResponse(publishResponse, Optional.empty()));
+            }
+        });
+
+        publication.pendingCommits.entrySet().stream().collect(shuffle()).forEach(e -> {
+            if (e.getKey().equals(n2)) {
+                // we must fail node before committing for the node, otherwise failing the node is ignored
+                publication.onFaultyNode(n2);
+            }
+            if (remainingActions.decrementAndGet() == injectFaultAt) {
+                publication.onFaultyNode(n2);
+            }
+            if (e.getKey().equals(n2) == false || randomBoolean()) {
                 nodeResolver.apply(e.getKey()).coordinationState.handleCommit(publication.applyCommit);
                 e.getValue().onResponse(TransportResponse.Empty.INSTANCE);
-            } else {
-                if (e.getKey().equals(n2)) {
-                    // we must fail node before committing for the node, otherwise failing the node is ignored
-                    publication.onFaultyNode(n2);
-                }
-                if (remainingActions.decrementAndGet() == injectFaultAt) {
-                    publication.onFaultyNode(n2);
-                }
-                if (e.getKey().equals(n2) == false || randomBoolean()) {
-                    nodeResolver.apply(e.getKey()).coordinationState.handleCommit(publication.applyCommit);
-                    e.getValue().onResponse(TransportResponse.Empty.INSTANCE);
-                }
             }
         });
 
         // we need to complete publication by failing the node
-        if (failNodeWhenCommitting && publicationDidNotMakeItToNode2 && remainingActions.get() > injectFaultAt) {
+        if (publicationDidNotMakeItToNode2 && remainingActions.get() > injectFaultAt) {
             publication.onFaultyNode(n2);
         }
 

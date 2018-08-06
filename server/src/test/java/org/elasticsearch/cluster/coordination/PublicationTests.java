@@ -42,6 +42,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -49,6 +50,7 @@ import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PublicationTests extends ESTestCase {
@@ -97,6 +99,7 @@ public class PublicationTests extends ESTestCase {
 
         Map<DiscoveryNode, ActionListener<PublishWithJoinResponse>> pendingPublications = new HashMap<>();
         Map<DiscoveryNode, ActionListener<TransportResponse.Empty>> pendingCommits = new HashMap<>();
+        Map<DiscoveryNode, PublishWithJoinResponse> possibleJoins = new HashMap<>();
 
         MockPublication(Settings settings, PublishRequest publishRequest, Discovery.AckListener ackListener,
                                LongSupplier currentTimeSupplier) {
@@ -106,13 +109,14 @@ public class PublicationTests extends ESTestCase {
 
         @Override
         protected void onCompletion(boolean committed) {
+            assertFalse(completed);
             completed = true;
             this.committed = committed;
         }
 
         @Override
         protected void onPossibleJoin(DiscoveryNode sourceNode, PublishWithJoinResponse response) {
-
+            assertNull(possibleJoins.put(sourceNode, response));
         }
 
         @Override
@@ -166,10 +170,22 @@ public class PublicationTests extends ESTestCase {
 
         assertThat(publication.pendingPublications.keySet(), equalTo(discoNodes));
         assertTrue(publication.pendingCommits.isEmpty());
+        AtomicBoolean processedNode1PublishResponse = new AtomicBoolean();
         publication.pendingPublications.entrySet().stream().collect(shuffle()).forEach(e -> {
             PublishResponse publishResponse = nodeResolver.apply(e.getKey()).coordinationState.handlePublishRequest(
                 publication.publishRequest);
-            e.getValue().onResponse(new PublishWithJoinResponse(publishResponse, Optional.empty()));
+            assertNotEquals(processedNode1PublishResponse.get(), publication.pendingCommits.isEmpty());
+            assertFalse(publication.possibleJoins.containsKey(e.getKey()));
+            PublishWithJoinResponse publishWithJoinResponse = new PublishWithJoinResponse(publishResponse,
+                randomBoolean() ? Optional.empty() : Optional.of(new Join(e.getKey(), n1, randomNonNegativeLong(),
+                    randomNonNegativeLong(), randomNonNegativeLong())));
+            e.getValue().onResponse(publishWithJoinResponse);
+            assertTrue(publication.possibleJoins.containsKey(e.getKey()));
+            assertEquals(publishWithJoinResponse, publication.possibleJoins.get(e.getKey()));
+            if (e.getKey().equals(n1)) {
+                processedNode1PublishResponse.set(true);
+            }
+            assertNotEquals(processedNode1PublishResponse.get(), publication.pendingCommits.isEmpty());
         });
 
         assertThat(publication.pendingCommits.keySet(), equalTo(discoNodes));
@@ -177,6 +193,8 @@ public class PublicationTests extends ESTestCase {
         assertEquals(publication.applyCommit.getTerm(), publication.publishRequest.getAcceptedState().term());
         assertEquals(publication.applyCommit.getVersion(), publication.publishRequest.getAcceptedState().version());
         publication.pendingCommits.entrySet().stream().collect(shuffle()).forEach(e -> {
+            assertFalse(publication.completed);
+            assertFalse(publication.committed);
             nodeResolver.apply(e.getKey()).coordinationState.handleCommit(publication.applyCommit);
             e.getValue().onResponse(TransportResponse.Empty.INSTANCE);
         });
@@ -184,7 +202,7 @@ public class PublicationTests extends ESTestCase {
         assertTrue(publication.completed);
         assertTrue(publication.committed);
 
-        assertThat(ackListener.await(0L, TimeUnit.SECONDS).size(), equalTo(3));
+        assertThat(ackListener.await(0L, TimeUnit.SECONDS), containsInAnyOrder(n1, n2, n3));
     }
 
     public void testClusterStatePublishingWithFaultyNode() throws InterruptedException {

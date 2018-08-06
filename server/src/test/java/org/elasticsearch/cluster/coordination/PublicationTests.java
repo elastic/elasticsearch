@@ -51,6 +51,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PublicationTests extends ESTestCase {
@@ -245,6 +246,7 @@ public class PublicationTests extends ESTestCase {
         List<Tuple<DiscoveryNode, Throwable>> errors = ackListener.awaitErrors(0L, TimeUnit.SECONDS);
         assertThat(errors.size(), equalTo(1));
         assertThat(errors.get(0).v1(), equalTo(n2));
+        assertThat(errors.get(0).v2().getMessage(), containsString("faulty node"));
     }
 
     public void testClusterStatePublishingWithFaultyNodeAfterCommit() throws InterruptedException {
@@ -297,6 +299,7 @@ public class PublicationTests extends ESTestCase {
         List<Tuple<DiscoveryNode, Throwable>> errors = ackListener.awaitErrors(0L, TimeUnit.SECONDS);
         assertThat(errors.size(), equalTo(1));
         assertThat(errors.get(0).v1(), equalTo(n2));
+        assertThat(errors.get(0).v2().getMessage(), containsString("faulty node"));
     }
 
     public void testClusterStatePublishingFailsOrTimesOutBeforeCommit() throws InterruptedException {

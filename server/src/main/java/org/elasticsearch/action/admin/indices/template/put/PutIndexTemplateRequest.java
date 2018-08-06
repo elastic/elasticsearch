@@ -27,7 +27,6 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -87,8 +86,6 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     private Map<String, String> mappings = new HashMap<>();
 
     private final Set<Alias> aliases = new HashSet<>();
-
-    private Map<String, IndexMetaData.Custom> customs = new HashMap<>();
 
     private Integer version;
 
@@ -352,16 +349,6 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
                 }
             } else if (name.equals("aliases")) {
                 aliases((Map<String, Object>) entry.getValue());
-            } else {
-                // maybe custom?
-                IndexMetaData.Custom proto = IndexMetaData.lookupPrototype(name);
-                if (proto != null) {
-                    try {
-                        customs.put(name, proto.fromMap((Map<String, Object>) entry.getValue()));
-                    } catch (IOException e) {
-                        throw new ElasticsearchParseException("failed to parse custom metadata for [{}]", name);
-                    }
-                }
             }
         }
         return this;
@@ -393,15 +380,6 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      */
     public PutIndexTemplateRequest source(BytesReference source, XContentType xContentType) {
         return source(XContentHelper.convertToMap(source, true, xContentType).v2());
-    }
-
-    public PutIndexTemplateRequest custom(IndexMetaData.Custom custom) {
-        customs.put(custom.type(), custom);
-        return this;
-    }
-
-    public Map<String, IndexMetaData.Custom> customs() {
-        return this.customs;
     }
 
     public Set<Alias> aliases() {
@@ -499,11 +477,11 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             }
             mappings.put(type, mappingSource);
         }
-        int customSize = in.readVInt();
-        for (int i = 0; i < customSize; i++) {
-            String type = in.readString();
-            IndexMetaData.Custom customIndexMetaData = IndexMetaData.lookupPrototypeSafe(type).readFrom(in);
-            customs.put(type, customIndexMetaData);
+        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+            int customSize = in.readVInt();
+            if (customSize > 0) {
+                throw new IllegalArgumentException("Custom index metadata is not supported in create template request");
+            }
         }
         int aliasesSize = in.readVInt();
         for (int i = 0; i < aliasesSize; i++) {
@@ -530,10 +508,8 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             out.writeString(entry.getKey());
             out.writeString(entry.getValue());
         }
-        out.writeVInt(customs.size());
-        for (Map.Entry<String, IndexMetaData.Custom> entry : customs.entrySet()) {
-            out.writeString(entry.getKey());
-            entry.getValue().writeTo(out);
+        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+            out.writeVInt(0); // customs
         }
         out.writeVInt(aliases.size());
         for (Alias alias : aliases) {
@@ -569,10 +545,6 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             alias.toXContent(builder, params);
         }
         builder.endObject();
-
-        for (Map.Entry<String, IndexMetaData.Custom> entry : customs.entrySet()) {
-            builder.field(entry.getKey(), entry.getValue(), params);
-        }
 
         return builder;
     }

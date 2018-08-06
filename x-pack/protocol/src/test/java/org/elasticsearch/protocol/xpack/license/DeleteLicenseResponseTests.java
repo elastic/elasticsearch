@@ -21,8 +21,6 @@ package org.elasticsearch.protocol.xpack.license;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 
-import java.io.IOException;
-
 public class DeleteLicenseResponseTests extends AbstractStreamableXContentTestCase<DeleteLicenseResponse> {
 
     @Override
@@ -36,7 +34,7 @@ public class DeleteLicenseResponseTests extends AbstractStreamableXContentTestCa
     }
 
     @Override
-    protected DeleteLicenseResponse doParseInstance(XContentParser parser) throws IOException {
+    protected DeleteLicenseResponse doParseInstance(XContentParser parser) {
         return DeleteLicenseResponse.fromXContent(parser);
     }
 

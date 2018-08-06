@@ -43,35 +43,35 @@ public class GroupConfig implements Writeable, ToXContentObject {
     private static final ParseField HISTO = new ParseField("histogram");
     private static final ParseField TERMS = new ParseField("terms");
 
-    private final DateHistoGroupConfig dateHisto;
-    private final HistoGroupConfig histo;
+    private final DateHistogramGroupConfig dateHisto;
+    private final HistogramGroupConfig histo;
     private final TermsGroupConfig terms;
 
     public static final ObjectParser<GroupConfig.Builder, Void> PARSER = new ObjectParser<>(NAME, GroupConfig.Builder::new);
 
     static {
-        PARSER.declareObject(GroupConfig.Builder::setDateHisto, (p,c) -> DateHistoGroupConfig.PARSER.apply(p,c).build(), DATE_HISTO);
-        PARSER.declareObject(GroupConfig.Builder::setHisto, (p,c) -> HistoGroupConfig.PARSER.apply(p,c).build(), HISTO);
+        PARSER.declareObject(GroupConfig.Builder::setDateHisto, (p,c) -> DateHistogramGroupConfig.fromXContent(p), DATE_HISTO);
+        PARSER.declareObject(GroupConfig.Builder::setHisto, (p,c) -> HistogramGroupConfig.fromXContent(p), HISTO);
         PARSER.declareObject(GroupConfig.Builder::setTerms, (p,c) -> TermsGroupConfig.fromXContent(p), TERMS);
     }
 
-    private GroupConfig(DateHistoGroupConfig dateHisto, @Nullable HistoGroupConfig histo, @Nullable TermsGroupConfig terms) {
+    private GroupConfig(DateHistogramGroupConfig dateHisto, @Nullable HistogramGroupConfig histo, @Nullable TermsGroupConfig terms) {
         this.dateHisto = Objects.requireNonNull(dateHisto, "A date_histogram group is mandatory");
         this.histo = histo;
         this.terms = terms;
     }
 
     GroupConfig(StreamInput in) throws IOException {
-        dateHisto = new DateHistoGroupConfig(in);
-        histo = in.readOptionalWriteable(HistoGroupConfig::new);
+        dateHisto = new DateHistogramGroupConfig(in);
+        histo = in.readOptionalWriteable(HistogramGroupConfig::new);
         terms = in.readOptionalWriteable(TermsGroupConfig::new);
     }
 
-    public DateHistoGroupConfig getDateHisto() {
+    public DateHistogramGroupConfig getDateHisto() {
         return dateHisto;
     }
 
-    public HistoGroupConfig getHisto() {
+    public HistogramGroupConfig getHisto() {
         return histo;
     }
 
@@ -83,7 +83,7 @@ public class GroupConfig implements Writeable, ToXContentObject {
         Set<String> fields = new HashSet<>();
         fields.add(dateHisto.getField());
         if (histo != null) {
-            fields.addAll(histo.getAllFields());
+            fields.addAll(asList(histo.getFields()));
         }
         if (terms != null) {
             fields.addAll(asList(terms.getFields()));
@@ -105,13 +105,9 @@ public class GroupConfig implements Writeable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.startObject(DATE_HISTO.getPreferredName());
-        dateHisto.toXContent(builder, params);
-        builder.endObject();
+        builder.field(DATE_HISTO.getPreferredName(), dateHisto);
         if (histo != null) {
-            builder.startObject(HISTO.getPreferredName());
-            histo.toXContent(builder, params);
-            builder.endObject();
+            builder.field(HISTO.getPreferredName(), histo);
         }
         if (terms != null) {
             builder.field(TERMS.getPreferredName(), terms);
@@ -155,24 +151,24 @@ public class GroupConfig implements Writeable, ToXContentObject {
     }
 
     public static class Builder {
-        private DateHistoGroupConfig dateHisto;
-        private HistoGroupConfig histo;
+        private DateHistogramGroupConfig dateHisto;
+        private HistogramGroupConfig histo;
         private TermsGroupConfig terms;
 
-        public DateHistoGroupConfig getDateHisto() {
+        public DateHistogramGroupConfig getDateHisto() {
             return dateHisto;
         }
 
-        public GroupConfig.Builder setDateHisto(DateHistoGroupConfig dateHisto) {
+        public GroupConfig.Builder setDateHisto(DateHistogramGroupConfig dateHisto) {
             this.dateHisto = dateHisto;
             return this;
         }
 
-        public HistoGroupConfig getHisto() {
+        public HistogramGroupConfig getHisto() {
             return histo;
         }
 
-        public GroupConfig.Builder setHisto(HistoGroupConfig histo) {
+        public GroupConfig.Builder setHisto(HistogramGroupConfig histo) {
             this.histo = histo;
             return this;
         }

@@ -929,7 +929,7 @@ public abstract class TransportReplicationAction<
         if (actualAllocationId.equals(allocationId) == false) {
             throw new ShardNotFoundException(shardId, "expected aID [{}] but found [{}]", allocationId, actualAllocationId);
         }
-        final long actualTerm = indexShard.getPrimaryTerm();
+        final long actualTerm = indexShard.getPendingPrimaryTerm();
         if (actualTerm != primaryTerm) {
             throw new ShardNotFoundException(shardId, "expected aID [{}] with term [{}] but found [{}]", allocationId,
                 primaryTerm, actualTerm);
@@ -983,7 +983,7 @@ public abstract class TransportReplicationAction<
         }
 
         public boolean isRelocated() {
-            return indexShard.isPrimaryMode() == false;
+            return indexShard.isRelocatedPrimary();
         }
 
         @Override

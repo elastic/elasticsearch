@@ -10,7 +10,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
-import org.elasticsearch.action.admin.indices.shrink.ResizeAction;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.client.AdminClient;
@@ -18,7 +17,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.indexlifecycle.AsyncActionStep.Listener;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
@@ -124,9 +122,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
                     .build()));
                 assertThat(request.getTargetIndexRequest().settings()
                         .getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, -1), equalTo(step.getNumberOfShards()));
-                ResizeResponse resizeResponse = ResizeAction.INSTANCE.newResponse();
-                resizeResponse.readFrom(StreamInput.wrap(new byte[] { 1, 1, 1, 1, 1 }));
-                listener.onResponse(resizeResponse);
+                listener.onResponse(new ResizeResponse(true, true, sourceIndexMetaData.getIndex().getName()));
                 return null;
             }
 
@@ -169,9 +165,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
             public Void answer(InvocationOnMock invocation) throws Throwable {
                 @SuppressWarnings("unchecked")
                 ActionListener<ResizeResponse> listener = (ActionListener<ResizeResponse>) invocation.getArguments()[1];
-                ResizeResponse resizeResponse = ResizeAction.INSTANCE.newResponse();
-                resizeResponse.readFrom(StreamInput.wrap(new byte[] { 0, 0, 0, 0, 0 }));
-                listener.onResponse(resizeResponse);
+                listener.onResponse(new ResizeResponse(false, false, indexMetaData.getIndex().getName()));
                 return null;
             }
 

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
@@ -16,7 +15,6 @@ import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.core.indexlifecycle.AsyncActionStep.Listener;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.junit.Before;
@@ -95,9 +93,7 @@ public class ShrinkSetAliasStepTests extends AbstractStepTestCase<ShrinkSetAlias
                 assertThat(request.getAliasActions(), equalTo(expectedAliasActions));
                 @SuppressWarnings("unchecked")
                 ActionListener<IndicesAliasesResponse> listener = (ActionListener<IndicesAliasesResponse>) invocation.getArguments()[1];
-                IndicesAliasesResponse response = IndicesAliasesAction.INSTANCE.newResponse();
-                response.readFrom(StreamInput.wrap(new byte[] { 1 }));
-                listener.onResponse(response);
+                listener.onResponse(new IndicesAliasesResponse(true));
                 return null;
             }
 

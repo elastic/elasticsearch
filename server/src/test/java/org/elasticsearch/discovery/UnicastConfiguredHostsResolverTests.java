@@ -56,13 +56,8 @@ public class UnicastConfiguredHostsResolverTests extends ESTestCase {
         TransportService transportService = mock(TransportService.class);
         when(transportService.getThreadPool()).thenReturn(threadPool);
 
-        unicastConfiguredHostsResolver = new UnicastConfiguredHostsResolver(
-            settings, transportService, hostsResolver -> transportAddresses, () -> {
-            final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory("thread-factory-name");
-            return EsExecutors.newScaling("executor-name",
-                0, 10, 60, TimeUnit.SECONDS, threadFactory, threadPool.getThreadContext());
-        });
-
+        unicastConfiguredHostsResolver
+            = new UnicastConfiguredHostsResolver(settings, transportService, hostsResolver -> transportAddresses);
         unicastConfiguredHostsResolver.start();
     }
 

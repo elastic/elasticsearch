@@ -44,7 +44,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
@@ -132,7 +134,7 @@ public abstract class PeerFinder extends AbstractComponent {
             if (active) {
                 startProbe(peersRequest.getSourceNode().getAddress());
                 peersRequest.getKnownPeers().stream().map(DiscoveryNode::getAddress).forEach(this::startProbe);
-                return new PeersResponse(Optional.empty(), getKnownPeers(), currentTerm);
+                return new PeersResponse(Optional.empty(), getFoundPeersUnderLock(), currentTerm);
             } else {
                 return new PeersResponse(leader, Collections.emptyList(), currentTerm);
             }
@@ -161,17 +163,10 @@ public abstract class PeerFinder extends AbstractComponent {
         void connectToRemoteMasterNode(TransportAddress transportAddress, ActionListener<DiscoveryNode> listener);
     }
 
-    private List<DiscoveryNode> getKnownPeers() {
+    private List<DiscoveryNode> getFoundPeersUnderLock() {
         assert active;
         assert holdsLock() : "PeerFinder mutex not held";
-        List<DiscoveryNode> knownPeers = new ArrayList<>(peersByAddress.size());
-        for (final Peer peer : peersByAddress.values()) {
-            DiscoveryNode peerNode = peer.getDiscoveryNode();
-            if (peerNode != null) {
-                knownPeers.add(peerNode);
-            }
-        }
-        return knownPeers;
+        return peersByAddress.values().stream().map(Peer::getDiscoveryNode).filter(Objects::nonNull).collect(Collectors.toList());
     }
 
     private Peer createConnectingPeer(TransportAddress transportAddress) {
@@ -325,7 +320,7 @@ public abstract class PeerFinder extends AbstractComponent {
             logger.trace("{} requesting peers from {}", this, discoveryNode);
             peersRequestInFlight = true;
 
-            List<DiscoveryNode> knownNodes = getKnownPeers();
+            List<DiscoveryNode> knownNodes = getFoundPeersUnderLock();
 
             transportService.sendRequest(discoveryNode, REQUEST_PEERS_ACTION_NAME,
                 new PeersRequest(getLocalNode(), knownNodes),

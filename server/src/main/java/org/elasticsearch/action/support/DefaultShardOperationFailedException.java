@@ -86,7 +86,7 @@ public class DefaultShardOperationFailedException extends ShardOperationFailedEx
 
     @Override
     public String toString() {
-        return shardId + " failed, reason [" + reason() + "]";
+        return "[" + index + "][" + shardId + "] failed, reason [" + reason() + "]";
     }
 
     @Override

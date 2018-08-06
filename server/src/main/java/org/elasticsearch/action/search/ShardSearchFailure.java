@@ -127,12 +127,10 @@ public class ShardSearchFailure extends ShardOperationFailedException {
         if (shardTarget != null) {
             builder.field(NODE_FIELD, shardTarget.getNodeId());
         }
-        if (cause != null) {
-            builder.field(REASON_FIELD);
-            builder.startObject();
-            ElasticsearchException.generateThrowableXContent(builder, params, cause);
-            builder.endObject();
-        }
+        builder.field(REASON_FIELD);
+        builder.startObject();
+        ElasticsearchException.generateThrowableXContent(builder, params, cause);
+        builder.endObject();
         return builder;
     }
 

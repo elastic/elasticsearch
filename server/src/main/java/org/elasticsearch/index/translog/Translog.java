@@ -727,6 +727,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                     newReaders.add(newReader);
                 }
             } catch (IOException e) {
+                IOUtils.closeWhileHandlingException(newReaders);
                 if (tragedy.compareAndSet(null, e)) {
                     closeOnTragicEvent(e);
                 }

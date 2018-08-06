@@ -74,6 +74,7 @@ public class UnicastConfiguredHostsResolver extends AbstractLifecycleComponent i
     protected void doClose() {
     }
 
+    @Override
     public void resolveConfiguredHosts(Consumer<List<TransportAddress>> consumer) {
         if (lifecycle.started() == false) {
             logger.debug("resolveConfiguredHosts: lifecycle is {}, not proceeding", lifecycle);

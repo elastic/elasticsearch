@@ -9,7 +9,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.rollup.job.DateHistoGroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import java.util.stream.Collectors;
@@ -24,6 +25,7 @@ import java.util.stream.IntStream;
 
 import static com.carrotsearch.randomizedtesting.generators.RandomNumbers.randomIntBetween;
 import static com.carrotsearch.randomizedtesting.generators.RandomStrings.randomAsciiAlphanumOfLengthBetween;
+import static org.elasticsearch.test.ESTestCase.randomDateTimeZone;
 
 public class ConfigTestHelpers {
 
@@ -38,18 +40,14 @@ public class ConfigTestHelpers {
         builder.setGroupConfig(ConfigTestHelpers.getGroupConfig().build());
         builder.setPageSize(ESTestCase.randomIntBetween(1,10));
         if (ESTestCase.randomBoolean()) {
-            List<MetricConfig> metrics = IntStream.range(1, ESTestCase.randomIntBetween(1,10))
-                    .mapToObj(n -> ConfigTestHelpers.getMetricConfig().build())
-                    .collect(Collectors.toList());
-
-            builder.setMetricsConfig(metrics);
+            builder.setMetricsConfig(randomMetricsConfigs(ESTestCase.random()));
         }
         return builder;
     }
 
     public static GroupConfig.Builder getGroupConfig() {
         GroupConfig.Builder groupBuilder = new GroupConfig.Builder();
-        groupBuilder.setDateHisto(getDateHisto().build());
+        groupBuilder.setDateHisto(randomDateHistogramGroupConfig(ESTestCase.random()));
         if (ESTestCase.randomBoolean()) {
             groupBuilder.setHisto(randomHistogramGroupConfig(ESTestCase.random()));
         }
@@ -59,48 +57,17 @@ public class ConfigTestHelpers {
         return groupBuilder;
     }
 
-    public static MetricConfig.Builder getMetricConfig() {
-        MetricConfig.Builder builder = new MetricConfig.Builder();
-        builder.setField(ESTestCase.randomAlphaOfLength(15));  // large names so we don't accidentally collide
-        List<String> metrics = new ArrayList<>();
-        if (ESTestCase.randomBoolean()) {
-            metrics.add("min");
-        }
-        if (ESTestCase.randomBoolean()) {
-            metrics.add("max");
-        }
-        if (ESTestCase.randomBoolean()) {
-            metrics.add("sum");
-        }
-        if (ESTestCase.randomBoolean()) {
-            metrics.add("avg");
-        }
-        if (ESTestCase.randomBoolean()) {
-            metrics.add("value_count");
-        }
-        if (metrics.size() == 0) {
-            metrics.add("min");
-        }
-        builder.setMetrics(metrics);
-        return builder;
-    }
-
     private static final String[] TIME_SUFFIXES = new String[]{"d", "h", "ms", "s", "m"};
     public static String randomPositiveTimeValue() {
         return ESTestCase.randomIntBetween(1, 1000) + ESTestCase.randomFrom(TIME_SUFFIXES);
     }
 
-    public static DateHistoGroupConfig.Builder getDateHisto() {
-        DateHistoGroupConfig.Builder dateHistoBuilder = new DateHistoGroupConfig.Builder();
-        dateHistoBuilder.setInterval(new DateHistogramInterval(randomPositiveTimeValue()));
-        if (ESTestCase.randomBoolean()) {
-            dateHistoBuilder.setTimeZone(ESTestCase.randomDateTimeZone());
-        }
-        if (ESTestCase.randomBoolean()) {
-            dateHistoBuilder.setDelay(new DateHistogramInterval(randomPositiveTimeValue()));
-        }
-        dateHistoBuilder.setField(ESTestCase.randomAlphaOfLengthBetween(5, 10));
-        return dateHistoBuilder;
+    public static DateHistogramGroupConfig randomDateHistogramGroupConfig(final Random random) {
+        final String field = randomField(random);
+        final DateHistogramInterval interval = randomInterval();
+        final DateHistogramInterval delay = random.nextBoolean() ? randomInterval() : null;
+        final String timezone = random.nextBoolean() ? randomDateTimeZone().toString() : null;
+        return new DateHistogramGroupConfig(field, interval, delay, timezone);
     }
 
     public static  List<String> getFields() {
@@ -123,6 +90,39 @@ public class ConfigTestHelpers {
         return new HistogramGroupConfig(randomInterval(random), randomFields(random));
     }
 
+    public static List<MetricConfig> randomMetricsConfigs(final Random random) {
+        final int numMetrics = randomIntBetween(random, 1, 10);
+        final List<MetricConfig> metrics = new ArrayList<>(numMetrics);
+        for (int i = 0; i < numMetrics; i++) {
+            metrics.add(randomMetricConfig(random));
+        }
+        return Collections.unmodifiableList(metrics);
+    }
+
+    public static MetricConfig randomMetricConfig(final Random random) {
+        final String field = randomAsciiAlphanumOfLengthBetween(random, 15, 25);  // large names so we don't accidentally collide
+        final List<String> metrics = new ArrayList<>();
+        if (random.nextBoolean()) {
+            metrics.add("min");
+        }
+        if (random.nextBoolean()) {
+            metrics.add("max");
+        }
+        if (random.nextBoolean()) {
+            metrics.add("sum");
+        }
+        if (random.nextBoolean()) {
+            metrics.add("avg");
+        }
+        if (random.nextBoolean()) {
+            metrics.add("value_count");
+        }
+        if (metrics.size() == 0) {
+            metrics.add("min");
+        }
+        return new MetricConfig(field, Collections.unmodifiableList(metrics));
+    }
+
     public static TermsGroupConfig randomTermsGroupConfig(final Random random) {
         return new TermsGroupConfig(randomFields(random));
     }
@@ -136,8 +136,12 @@ public class ConfigTestHelpers {
         return fields;
     }
 
-    private static String randomField(final Random random) {
+    public static String randomField(final Random random) {
         return randomAsciiAlphanumOfLengthBetween(random, 5, 10);
+    }
+
+    public static DateHistogramInterval randomInterval() {
+        return new DateHistogramInterval(randomPositiveTimeValue());
     }
 
     private static long randomInterval(final Random random) {

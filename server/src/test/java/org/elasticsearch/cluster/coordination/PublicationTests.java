@@ -363,7 +363,8 @@ public class PublicationTests extends ESTestCase {
     }
 
     public void testClusterStatePublishingTimesOutAfterCommit() throws InterruptedException {
-        VotingConfiguration config = new VotingConfiguration(Sets.newHashSet(n1.getId(), n2.getId()));
+        VotingConfiguration config = new VotingConfiguration(randomBoolean() ?
+            Sets.newHashSet(n1.getId(), n2.getId()) : Sets.newHashSet(n1.getId(), n2.getId(), n3.getId()));
         initializeCluster(config);
 
         AssertingAckListener ackListener = new AssertingAckListener(nodes.size());

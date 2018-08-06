@@ -180,12 +180,12 @@ public abstract class Publication extends AbstractComponent {
         APPLIED_COMMIT,
     }
 
-    private class PublicationTarget {
+    class PublicationTarget {
         private final DiscoveryNode discoveryNode;
         private boolean ackIsPending = true;
         private PublicationTargetState state = PublicationTargetState.NOT_STARTED;
 
-        private PublicationTarget(DiscoveryNode discoveryNode) {
+        PublicationTarget(DiscoveryNode discoveryNode) {
             this.discoveryNode = discoveryNode;
         }
 

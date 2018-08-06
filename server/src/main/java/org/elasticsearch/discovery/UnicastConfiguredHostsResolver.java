@@ -85,6 +85,11 @@ public class UnicastConfiguredHostsResolver extends AbstractLifecycleComponent i
 
                 @Override
                 protected void doRun() {
+                    if (lifecycle.started() == false) {
+                        logger.debug("resolveConfiguredHosts.doRun: lifecycle is {}, not proceeding", lifecycle);
+                        return;
+                    }
+
                     List<TransportAddress> providedAddresses
                         = hostsProvider.buildDynamicHosts((hosts, limitPortCounts)
                         -> UnicastZenPing.resolveHostsLists(executorService.get(), logger, hosts, limitPortCounts,

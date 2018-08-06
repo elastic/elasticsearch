@@ -119,7 +119,7 @@ public class PeerFinderTests extends ESTestCase {
                                 listener.onResponse(discoveryNode);
                                 return;
                             } else {
-                                listener.onFailure(new ElasticsearchException("non-master node " + discoveryNode)); // TODO better exception
+                                listener.onFailure(new ElasticsearchException("non-master node " + discoveryNode));
                                 return;
                             }
                         }

@@ -338,15 +338,8 @@ public abstract class PeerFinder extends AbstractComponent {
 
                             peersRequestInFlight = false;
 
-                            if (response.getMasterNode().isPresent()) {
-                                final DiscoveryNode masterNode = response.getMasterNode().get();
-                                if (masterNode.equals(discoveryNode) == false) {
-                                    startProbe(masterNode.getAddress());
-                                }
-                            } else {
-                                response.getKnownPeers().stream().map(DiscoveryNode::getAddress)
-                                    .forEach(PeerFinder.this::startProbe);
-                            }
+                            response.getMasterNode().map(DiscoveryNode::getAddress).ifPresent(PeerFinder.this::startProbe);
+                            response.getKnownPeers().stream().map(DiscoveryNode::getAddress).forEach(PeerFinder.this::startProbe);
                         }
 
                         if (response.getMasterNode().equals(Optional.of(discoveryNode))) {

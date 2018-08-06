@@ -375,7 +375,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
         synchronized (stateMutex) {
             if (clusterChangedEvent.previousState() != this.committedState.get()) {
-                throw new FailedToCommitClusterStateException("local state was mutated while CS update was published to other nodes");
+                publishListener.onFailure(new FailedToCommitClusterStateException("local state was mutated while CS update was published to other nodes"));
+                return;
             }
 
             boolean sentToApplier = processNextCommittedClusterState("master " + newState.nodes().getMasterNode() +
@@ -384,7 +385,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                 assert false : "cluster state published locally neither processed nor failed: " + newState;
                 logger.warn("cluster state with version [{}] that is published locally has neither been processed nor failed",
                     newState.version());
-                return;
+                publishListener.onFailure(new FailedToCommitClusterStateException("cluster state that is published locally has neither been processed nor failed"));
             }
         }
     }

@@ -16,25 +16,33 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.protocol.xpack.ml.job.results;
 
-package org.elasticsearch.action.admin.indices.settings.put;
-
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractXContentTestCase;
 
-/**
- * A response for an update index settings action
- */
-public class UpdateSettingsResponse extends AcknowledgedResponse {
+import java.util.ArrayList;
+import java.util.List;
 
-    UpdateSettingsResponse() {
+public class InfluenceTests extends AbstractXContentTestCase<Influence> {
+
+    @Override
+    protected Influence createTestInstance() {
+        int size = randomInt(10);
+        List<String> fieldValues = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            fieldValues.add(randomAlphaOfLengthBetween(1, 20));
+        }
+        return new Influence(randomAlphaOfLengthBetween(1, 30), fieldValues);
     }
 
-    public UpdateSettingsResponse(boolean acknowledged) {
-        super(acknowledged);
+    @Override
+    protected Influence doParseInstance(XContentParser parser) {
+        return Influence.PARSER.apply(parser, null);
     }
 
-    public static UpdateSettingsResponse fromXContent(XContentParser parser) {
-        return new UpdateSettingsResponse(parseAcknowledged(parser));
+    @Override
+    protected boolean supportsUnknownFields() {
+        return true;
     }
 }

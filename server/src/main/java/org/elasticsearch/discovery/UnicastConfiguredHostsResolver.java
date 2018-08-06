@@ -92,7 +92,6 @@ public class UnicastConfiguredHostsResolver extends AbstractLifecycleComponent i
 
                 @Override
                 public void onAfter() {
-                    super.onAfter();
                     resolveInProgress.set(false);
                 }
 

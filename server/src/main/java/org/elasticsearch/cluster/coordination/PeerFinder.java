@@ -87,12 +87,6 @@ public abstract class PeerFinder extends AbstractComponent {
             (request, channel, task) -> channel.sendResponse(handlePeersRequest(request)));
     }
 
-    public Iterable<DiscoveryNode> getFoundPeers() {
-        synchronized (mutex) {
-            return getKnownPeers();
-        }
-    }
-
     public void activate(final DiscoveryNodes lastAcceptedNodes) {
         logger.trace("activating PeerFinder {}", lastAcceptedNodes);
 
@@ -161,6 +155,12 @@ public abstract class PeerFinder extends AbstractComponent {
          * Identify the node at the given address and, if it is a master node and not the local node then establish a full connection to it.
          */
         void connectToRemoteMasterNode(TransportAddress transportAddress, ActionListener<DiscoveryNode> listener);
+    }
+
+    public Iterable<DiscoveryNode> getFoundPeers() {
+        synchronized (mutex) {
+            return getFoundPeersUnderLock();
+        }
     }
 
     private List<DiscoveryNode> getFoundPeersUnderLock() {

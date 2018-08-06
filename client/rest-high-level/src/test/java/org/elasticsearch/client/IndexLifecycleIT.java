@@ -159,11 +159,20 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         request.setEntity(entity);
         client().performRequest(request);
 
-        createIndex("foo", Settings.builder().put("index.lifecycle.name", "bar").build());
-        createIndex("baz", Settings.builder().put("index.lifecycle.name", "eggplant").build());
+        createIndex("foo", Settings.builder().put("index.lifecycle.name", policy).build());
+        createIndex("baz", Settings.builder().put("index.lifecycle.name", policy).build());
         createIndex("squash", Settings.EMPTY);
+        assertBusy(() -> {
+            GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices("foo", "baz");
+            GetSettingsResponse settingsResponse = highLevelClient().indices().getSettings(getSettingsRequest, RequestOptions.DEFAULT);
+            assertThat(settingsResponse.getSetting("foo", "index.lifecycle.name"), equalTo(policy));
+            assertThat(settingsResponse.getSetting("baz", "index.lifecycle.name"), equalTo(policy));
+            assertThat(settingsResponse.getSetting("foo", "index.lifecycle.phase"), equalTo("hot"));
+            assertThat(settingsResponse.getSetting("baz", "index.lifecycle.phase"), equalTo("hot"));
+        });
+
         ExplainLifecycleRequest req = new ExplainLifecycleRequest();
-        req.indices("foo", "baz");
+        req.indices("foo", "baz", "squash");
         ExplainLifecycleResponse response = execute(req, highLevelClient().indexLifecycle()::explainLifecycle,
                 highLevelClient().indexLifecycle()::explainLifecycleAsync);
         Map<String, IndexLifecycleExplainResponse> indexResponses = response.getIndexResponses();
@@ -178,13 +187,13 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         IndexLifecycleExplainResponse bazResponse = indexResponses.get("baz");
         assertNotNull(bazResponse);
         assertTrue(bazResponse.managedByILM());
-        assertEquals("baz", fooResponse.getIndex());
+        assertEquals("baz", bazResponse.getIndex());
         assertEquals("hot", bazResponse.getPhase());
         assertEquals("rollover", bazResponse.getAction());
         assertEquals("attempt_rollover", bazResponse.getStep());
         IndexLifecycleExplainResponse squashResponse = indexResponses.get("squash");
         assertNotNull(squashResponse);
         assertFalse(squashResponse.managedByILM());
-        assertEquals("squash", fooResponse.getIndex());
+        assertEquals("squash", squashResponse.getIndex());
     }
 }

@@ -37,6 +37,7 @@ public class RestExplainLifecycleAction extends BaseRestHandler {
         ExplainLifecycleRequest explainLifecycleRequest = new ExplainLifecycleRequest();
         explainLifecycleRequest.indices(indexes);
         explainLifecycleRequest.indicesOptions(IndicesOptions.fromRequest(restRequest, IndicesOptions.strictExpandOpen()));
+        explainLifecycleRequest.masterNodeTimeout(restRequest.param("master_timeout"));
 
         return channel -> client.execute(ExplainLifecycleAction.INSTANCE, explainLifecycleRequest, new RestToXContentListener<>(channel));
     }

@@ -245,6 +245,17 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
     }
 
     /**
+     * Get the persisted job document name from the Job Id.
+     *
+     * @param jobId The job id
+     * @return The id of document the job is persisted in
+     */
+    public static String documentId(String jobId) {
+        return "job-" + jobId;
+    }
+
+
+    /**
      * Return the Job Id.
      *
      * @return The job Id string

@@ -399,8 +399,8 @@ public abstract class RollupIndexer {
             builders.addAll(groupConfig.getDateHistogram().toBuilders());
             metadata.putAll(groupConfig.getDateHistogram().getMetadata());
             if (groupConfig.getHistogram() != null) {
-                builders.addAll(groupConfig.getDateHistogram().toBuilders());
-                metadata.putAll(groupConfig.getDateHistogram().getMetadata());
+                builders.addAll(groupConfig.getHistogram().toBuilders());
+                metadata.putAll(groupConfig.getHistogram().getMetadata());
             }
             if (groupConfig.getTerms() != null) {
                 builders.addAll(groupConfig.getTerms().toBuilders());

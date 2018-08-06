@@ -346,7 +346,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testIgnoreScriptfieldIfSizeZero() throws IOException{
+    public void testIgnoreScriptfieldIfSizeZero() throws IOException {
         createIndex("index");
         final SearchService service = getInstanceFromNode(SearchService.class);
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
@@ -354,15 +354,12 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         final IndexShard indexShard = indexService.getShard(0);
 
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-        
-        
         searchSourceBuilder.scriptField("field" + 0,
                 new Script(ScriptType.INLINE, MockScriptEngine.NAME, CustomScriptPlugin.DUMMY_SCRIPT, Collections.emptyMap()));
-        
         searchSourceBuilder.size(0);
         try (SearchContext context = service.createContext(new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.DEFAULT,
                 searchSourceBuilder, new String[0], false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, true, null, null))) {
-                    assertEquals(0, context.scriptFields().fields().size());
+                assertEquals(0, context.scriptFields().fields().size());
         }
     }
 

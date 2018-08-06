@@ -30,7 +30,7 @@ public class HasPrivilegesRequestTests extends ESTestCase {
 
     public void testSerializationV7() throws IOException {
         final HasPrivilegesRequest original = randomRequest();
-        final HasPrivilegesRequest copy = serializeAndDeserialize(original, Version.V_7_0_0_alpha1);
+        final HasPrivilegesRequest copy = serializeAndDeserialize(original, Version.V_7_0_0);
 
         assertThat(copy.username(), equalTo(original.username()));
         assertThat(copy.clusterPrivileges(), equalTo(original.clusterPrivileges()));

@@ -52,7 +52,7 @@ import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.new
 
 public abstract class PeerFinder extends AbstractComponent {
 
-    public static final String REQUEST_PEERS_ACTION_NAME = "internal:discovery/requestpeers";
+    public static final String REQUEST_PEERS_ACTION_NAME = "internal:discovery/request_peers";
 
     // the time between attempts to find all peers
     public static final Setting<TimeValue> DISCOVERY_FIND_PEERS_INTERVAL_SETTING =

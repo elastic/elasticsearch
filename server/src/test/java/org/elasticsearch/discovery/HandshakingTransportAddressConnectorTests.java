@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
@@ -62,7 +63,7 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
             .put(NODE_NAME_SETTING.getKey(), "node")
             .put(CLUSTER_NAME_SETTING.getKey(), "local-cluster")
             .build();
-        threadPool = new ThreadPool(settings);
+        threadPool = new TestThreadPool("node", settings);
 
         remoteNode = null;
         remoteClusterName = null;
@@ -91,9 +92,9 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
     }
 
     @After
-    public void stopServices() {
+    public void stopServices() throws InterruptedException {
         transportService.stop();
-        threadPool.shutdown();
+        terminate(threadPool);
     }
 
     public void testConnectsToMasterNode() throws InterruptedException {

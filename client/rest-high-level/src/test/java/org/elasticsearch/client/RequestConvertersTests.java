@@ -1307,6 +1307,7 @@ public class RequestConvertersTests extends ESTestCase {
 
         Map<String, String> expectedParams = new HashMap<>();
         expectedParams.put(RestSearchAction.TYPED_KEYS_PARAM, "true");
+        setRandomGroupShardFailures(multiSearchRequest::groupShardFailures, expectedParams);
         if (randomBoolean()) {
             multiSearchRequest.maxConcurrentSearchRequests(randomIntBetween(1, 8));
             expectedParams.put("max_concurrent_searches", Integer.toString(multiSearchRequest.maxConcurrentSearchRequests()));
@@ -1360,7 +1361,6 @@ public class RequestConvertersTests extends ESTestCase {
     }
 
     public void testSearchTemplate() throws Exception {
-        // Create a random request.
         String[] indices = randomIndicesNames(0, 5);
         SearchRequest searchRequest = new SearchRequest(indices);
 
@@ -1369,7 +1369,6 @@ public class RequestConvertersTests extends ESTestCase {
         setRandomIndicesOptions(searchRequest::indicesOptions, searchRequest::indicesOptions, expectedParams);
 
         SearchTemplateRequest searchTemplateRequest = new SearchTemplateRequest(searchRequest);
-
         searchTemplateRequest.setScript("{\"query\": { \"match\" : { \"{{field}}\" : \"{{value}}\" }}}");
         searchTemplateRequest.setScriptType(ScriptType.INLINE);
         searchTemplateRequest.setProfile(randomBoolean());
@@ -1421,21 +1420,28 @@ public class RequestConvertersTests extends ESTestCase {
     public void testMultiSearchTemplate() throws Exception {
         final int numSearchRequests = randomIntBetween(1, 10);
         MultiSearchTemplateRequest multiSearchTemplateRequest = new MultiSearchTemplateRequest();
+        Map<String, String> expectedParams = new HashMap<>();
+        expectedParams.put(RestSearchAction.TYPED_KEYS_PARAM, "true");
+        setRandomGroupShardFailures(multiSearchTemplateRequest::groupShardFailures, expectedParams);
+        if (randomBoolean()) {
+            multiSearchTemplateRequest.maxConcurrentSearchRequests(randomIntBetween(1, 8));
+            expectedParams.put("max_concurrent_searches", Integer.toString(multiSearchTemplateRequest.maxConcurrentSearchRequests()));
+        }
 
         for (int i = 0; i < numSearchRequests; i++) {
             // Create a random request.
             String[] indices = randomIndicesNames(0, 5);
             SearchRequest searchRequest = new SearchRequest(indices);
 
-            Map<String, String> expectedParams = new HashMap<>();
-            setRandomSearchParams(searchRequest, expectedParams);
+            Map<String, String> ignored = new HashMap<>();
+            setRandomSearchParams(searchRequest, ignored);
 
             // scroll is not supported in the current msearch or msearchtemplate api, so unset it:
             searchRequest.scroll((Scroll) null);
             // batched reduce size is currently not set-able on a per-request basis as it is a query string parameter only
             searchRequest.setBatchedReduceSize(SearchRequest.DEFAULT_BATCHED_REDUCE_SIZE);
 
-            setRandomIndicesOptions(searchRequest::indicesOptions, searchRequest::indicesOptions, expectedParams);
+            setRandomIndicesOptions(searchRequest::indicesOptions, searchRequest::indicesOptions, ignored);
 
             SearchTemplateRequest searchTemplateRequest = new SearchTemplateRequest(searchRequest);
 
@@ -1455,6 +1461,7 @@ public class RequestConvertersTests extends ESTestCase {
 
         assertEquals(HttpPost.METHOD_NAME, multiRequest.getMethod());
         assertEquals("/_msearch/template", multiRequest.getEndpoint());
+        assertEquals(expectedParams, multiRequest.getParameters());
         List<SearchTemplateRequest> searchRequests = multiSearchTemplateRequest.requests();
         assertEquals(numSearchRequests, searchRequests.size());
 
@@ -2624,6 +2631,7 @@ public class RequestConvertersTests extends ESTestCase {
     private static void setRandomSearchParams(SearchRequest searchRequest,
                                               Map<String, String> expectedParams) {
         expectedParams.put(RestSearchAction.TYPED_KEYS_PARAM, "true");
+        setRandomGroupShardFailures(searchRequest::groupShardFailures, expectedParams);
         if (randomBoolean()) {
             searchRequest.routing(randomAlphaOfLengthBetween(3, 10));
             expectedParams.put("routing", searchRequest.routing());
@@ -2681,6 +2689,15 @@ public class RequestConvertersTests extends ESTestCase {
                 expectedParams.put("include_defaults", String.valueOf(includeDefaults));
             }
         }
+    }
+
+    private static void setRandomGroupShardFailures(Consumer<Boolean> consumer, Map<String, String> expectedParams) {
+        boolean groupShardFailures = true;
+        if (randomBoolean()) {
+            groupShardFailures = randomBoolean();
+            consumer.accept(groupShardFailures);
+        }
+        expectedParams.put(RestSearchAction.GROUP_SHARD_FAILURES_PARAM, Boolean.toString(groupShardFailures));
     }
 
     private static void setRandomHumanReadable(GetIndexRequest request, Map<String, String> expectedParams) {

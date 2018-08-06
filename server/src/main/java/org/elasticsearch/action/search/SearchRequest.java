@@ -30,6 +30,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
@@ -65,6 +66,13 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     private SearchType searchType = SearchType.DEFAULT;
 
     private String[] indices = Strings.EMPTY_ARRAY;
+
+    /**
+     * Flag that controls whether shard failures are grouped by reason when outputting them
+     * using {@link SearchResponse#toXContent(XContentBuilder, ToXContent.Params)}. This flag is used
+     * in the high-level REST client while it has no effect in the transport client.
+     */
+    private boolean groupShardFailures = true;
 
     @Nullable
     private String routing;
@@ -212,6 +220,25 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     public SearchRequest indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = Objects.requireNonNull(indicesOptions, "indicesOptions must not be null");
         return this;
+    }
+
+    /**
+     * Controls whether shard failures should be grouped by reason when outputting them
+     * using {@link SearchResponse#toXContent(XContentBuilder, ToXContent.Params)}. This flag is used in the high-level REST client while
+     * it has no effect in the transport client.
+     */
+    public SearchRequest groupShardFailures(boolean groupShardFailures) {
+        this.groupShardFailures = groupShardFailures;
+        return this;
+    }
+
+    /**
+     * Returns whether shard failures will be grouped by reason when outputting them
+     * using {@link SearchResponse#toXContent(XContentBuilder, ToXContent.Params)}. This flag is used in the high-level REST client while
+     * it has no effect in the transport client.
+     */
+    public boolean groupShardFailures() {
+        return this.groupShardFailures;
     }
 
     /**

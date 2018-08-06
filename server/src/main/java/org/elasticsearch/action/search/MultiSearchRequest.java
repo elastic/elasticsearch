@@ -55,6 +55,13 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
 
     public static final int MAX_CONCURRENT_SEARCH_REQUESTS_DEFAULT = 0;
 
+    /**
+     * Flag that controls whether shard failures are grouped by reason when outputting them
+     * using {@link SearchResponse#toXContent(XContentBuilder, ToXContent.Params)}. This flag is used
+     * in the high-level REST client while it has no effect in the transport client.
+     */
+    private boolean groupShardFailures = true;
+
     private int maxConcurrentSearchRequests = 0;
     private List<SearchRequest> requests = new ArrayList<>();
 
@@ -127,6 +134,25 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
     public MultiSearchRequest indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
         return this;
+    }
+
+    /**
+     * Controls whether shard failures should be grouped by reason when outputting them
+     * using {@link SearchResponse#toXContent(XContentBuilder, ToXContent.Params)}. This flag is used in the high-level REST client while
+     * it has no effect in the transport client.
+     */
+    public MultiSearchRequest groupShardFailures(boolean groupShardFailures) {
+        this.groupShardFailures = groupShardFailures;
+        return this;
+    }
+
+    /**
+     * Returns whether shard failures will be grouped by reason when outputting them
+     * using {@link SearchResponse#toXContent(XContentBuilder, ToXContent.Params)}. This flag is used in the high-level REST client while
+     * it has no effect in the transport client.
+     */
+    public boolean groupShardFailures() {
+        return this.groupShardFailures;
     }
 
     @Override
@@ -287,7 +313,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         }
         return output.toByteArray();
     }
-    
+
     public static void writeSearchRequestParams(SearchRequest request, XContentBuilder xContentBuilder) throws IOException {
         xContentBuilder.startObject();
         if (request.indices() != null) {

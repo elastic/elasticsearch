@@ -34,9 +34,12 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -44,6 +47,9 @@ import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHead
 import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_AFTER;
 
 public class RestCountAction extends BaseRestHandler {
+
+    private static final Set<String> RESPONSE_PARAMS = Collections.singleton(RestSearchAction.GROUP_SHARD_FAILURES_PARAM);
+
     public RestCountAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(POST, "/_count", this);
@@ -106,4 +112,8 @@ public class RestCountAction extends BaseRestHandler {
         });
     }
 
+    @Override
+    protected Set<String> responseParams() {
+        return RESPONSE_PARAMS;
+    }
 }

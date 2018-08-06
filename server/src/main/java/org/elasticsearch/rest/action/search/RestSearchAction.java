@@ -44,7 +44,7 @@ import org.elasticsearch.search.suggest.term.TermSuggestionBuilder.SuggestMode;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.function.IntConsumer;
 
@@ -56,7 +56,8 @@ import static org.elasticsearch.search.suggest.SuggestBuilders.termSuggestion;
 public class RestSearchAction extends BaseRestHandler {
 
     public static final String TYPED_KEYS_PARAM = "typed_keys";
-    private static final Set<String> RESPONSE_PARAMS = Collections.singleton(TYPED_KEYS_PARAM);
+    public static final String GROUP_SHARD_FAILURES_PARAM = "group_shard_failures";
+    private static final Set<String> RESPONSE_PARAMS = new HashSet<>(Arrays.asList(TYPED_KEYS_PARAM, GROUP_SHARD_FAILURES_PARAM));
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(RestSearchAction.class));
 
     public RestSearchAction(Settings settings, RestController controller) {

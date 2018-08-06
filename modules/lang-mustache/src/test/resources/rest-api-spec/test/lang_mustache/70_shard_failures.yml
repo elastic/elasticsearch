@@ -1,0 +1,91 @@
+---
+"shard failures":
+  - do:
+      indices.create:
+        index: text
+        body:
+          settings:
+            number_of_replicas: 0
+            number_of_shards: 1
+          mappings:
+            doc:
+              properties:
+                creation_date:
+                  type: keyword
+
+  - do:
+      indices.create:
+        index: date
+        body:
+          settings:
+            number_of_replicas: 0
+            number_of_shards: 3
+          mappings:
+            doc:
+              properties:
+                creation_date:
+                  type: date
+
+  - do:
+      search_template:
+        body:
+          source:
+            query:
+              match:
+                creation_date: "{{text_value}}"
+          params:
+            text_value: "text"
+
+  - length: { _shards.failures: 1  }
+  - match: { _shards.failed: 3}
+  - match: { _shards.total: 4}
+  - match: { _shards.successful: 1}
+
+  - do:
+      search_template:
+        group_shard_failures: false
+        body:
+          source:
+            query:
+              match:
+                creation_date: "{{text_value}}"
+          params:
+            text_value: "text"
+
+  - length: { _shards.failures: 3  }
+  - match: { _shards.failed: 3}
+  - match: { _shards.total: 4}
+  - match: { _shards.successful: 1}
+
+  - do:
+      msearch_template:
+        body:
+          - index: text,date
+          - source:
+              query:
+                match:
+                 creation_date: "{{text_value}}"
+            params:
+              text_value: "text"
+
+  - length: { responses.0._shards.failures: 1  }
+  - match: { responses.0._shards.failed: 3}
+  - match: { responses.0._shards.total: 4}
+  - match: { responses.0._shards.successful: 1}
+
+  - do:
+      msearch_template:
+        group_shard_failures: false
+        body:
+          - index: text,date
+          - source:
+              query:
+                match:
+                 creation_date: "{{text_value}}"
+            params:
+              text_value: "text"
+
+  - length: { responses.0._shards.failures: 3  }
+  - match: { responses.0._shards.failed: 3}
+  - match: { responses.0._shards.total: 4}
+  - match: { responses.0._shards.successful: 1}

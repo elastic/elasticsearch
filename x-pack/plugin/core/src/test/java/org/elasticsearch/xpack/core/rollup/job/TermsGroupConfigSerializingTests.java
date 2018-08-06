@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -19,6 +18,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.rollup.ConfigTestHelpers.randomTermsGroupConfig;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -27,7 +27,7 @@ public class TermsGroupConfigSerializingTests extends AbstractSerializingTestCas
 
     @Override
     protected TermsGroupConfig doParseInstance(XContentParser parser) throws IOException {
-        return TermsGroupConfig.PARSER.apply(parser, null).build();
+        return TermsGroupConfig.fromXContent(parser);
     }
 
     @Override
@@ -37,23 +37,20 @@ public class TermsGroupConfigSerializingTests extends AbstractSerializingTestCas
 
     @Override
     protected TermsGroupConfig createTestInstance() {
-        return ConfigTestHelpers.getTerms().build();
+        return randomTermsGroupConfig(random());
     }
 
-    public void testValidateNoMapping() throws IOException {
+    public void testValidateNoMapping() {
         ActionRequestValidationException e = new ActionRequestValidationException();
         Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
 
-        TermsGroupConfig config = new TermsGroupConfig.Builder()
-                .setFields(Collections.singletonList("my_field"))
-                .build();
+        TermsGroupConfig config = new TermsGroupConfig("my_field");
         config.validateMappings(responseMap, e);
         assertThat(e.validationErrors().get(0), equalTo("Could not find a [numeric] or [keyword/text] field with name " +
                 "[my_field] in any of the indices matching the index pattern."));
     }
 
-    public void testValidateNomatchingField() throws IOException {
-
+    public void testValidateNomatchingField() {
         ActionRequestValidationException e = new ActionRequestValidationException();
         Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
 
@@ -61,16 +58,13 @@ public class TermsGroupConfigSerializingTests extends AbstractSerializingTestCas
         FieldCapabilities fieldCaps = mock(FieldCapabilities.class);
         responseMap.put("some_other_field", Collections.singletonMap("keyword", fieldCaps));
 
-        TermsGroupConfig config = new TermsGroupConfig.Builder()
-                .setFields(Collections.singletonList("my_field"))
-                .build();
+        TermsGroupConfig config = new TermsGroupConfig("my_field");
         config.validateMappings(responseMap, e);
         assertThat(e.validationErrors().get(0), equalTo("Could not find a [numeric] or [keyword/text] field with name " +
                 "[my_field] in any of the indices matching the index pattern."));
     }
 
-    public void testValidateFieldWrongType() throws IOException {
-
+    public void testValidateFieldWrongType() {
         ActionRequestValidationException e = new ActionRequestValidationException();
         Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
 
@@ -78,17 +72,13 @@ public class TermsGroupConfigSerializingTests extends AbstractSerializingTestCas
         FieldCapabilities fieldCaps = mock(FieldCapabilities.class);
         responseMap.put("my_field", Collections.singletonMap("geo_point", fieldCaps));
 
-        TermsGroupConfig config = new TermsGroupConfig.Builder()
-                .setFields(Collections.singletonList("my_field"))
-                .build();
+        TermsGroupConfig config = new TermsGroupConfig("my_field");
         config.validateMappings(responseMap, e);
         assertThat(e.validationErrors().get(0), equalTo("The field referenced by a terms group must be a [numeric] or " +
                 "[keyword/text] type, but found [geo_point] for field [my_field]"));
     }
 
-    public void testValidateFieldMatchingNotAggregatable() throws IOException {
-
-
+    public void testValidateFieldMatchingNotAggregatable() {
         ActionRequestValidationException e = new ActionRequestValidationException();
         Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
 
@@ -97,14 +87,12 @@ public class TermsGroupConfigSerializingTests extends AbstractSerializingTestCas
         when(fieldCaps.isAggregatable()).thenReturn(false);
         responseMap.put("my_field", Collections.singletonMap(getRandomType(), fieldCaps));
 
-        TermsGroupConfig config = new TermsGroupConfig.Builder()
-                .setFields(Collections.singletonList("my_field"))
-                .build();
+        TermsGroupConfig config = new TermsGroupConfig("my_field");
         config.validateMappings(responseMap, e);
         assertThat(e.validationErrors().get(0), equalTo("The field [my_field] must be aggregatable across all indices, but is not."));
     }
 
-    public void testValidateMatchingField() throws IOException {
+    public void testValidateMatchingField() {
         ActionRequestValidationException e = new ActionRequestValidationException();
         Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
         String type = getRandomType();
@@ -114,9 +102,7 @@ public class TermsGroupConfigSerializingTests extends AbstractSerializingTestCas
         when(fieldCaps.isAggregatable()).thenReturn(true);
         responseMap.put("my_field", Collections.singletonMap(type, fieldCaps));
 
-        TermsGroupConfig config = new TermsGroupConfig.Builder()
-                .setFields(Collections.singletonList("my_field"))
-                .build();
+        TermsGroupConfig config = new TermsGroupConfig("my_field");
         config.validateMappings(responseMap, e);
         if (e.validationErrors().size() != 0) {
             fail(e.getMessage());

@@ -1,0 +1,144 @@
+[[java-rest-high-snapshot-restore-snapshot]]
+=== Restore Snapshot API
+
+The Restore Snapshot API allows to restore a snapshot.
+
+[[java-rest-high-snapshot-restore-snapshot-request]]
+==== Restore Snapshot Request
+
+A `RestoreSnapshotRequest`:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[restore-snapshot-request]
+--------------------------------------------------
+
+==== Limiting Indices to Restore
+
+By default all indices are restored. With the `indices` property you can
+provide a list of indices that should be restored:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[restore-snapshot-request-indices]
+--------------------------------------------------
+<1> Request that Elasticsearch only restores "test_index".
+
+==== Renaming Indices
+
+You can rename indices using regular expressions when restoring a snapshot:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[restore-snapshot-request-rename]
+--------------------------------------------------
+<1> A regular expression matching the indices that should be renamed.
+<2> A replacement pattern that references the group from the regular
+    expression as `$1`. "test_index" from the snapshot is restored as
+    "restored_index" in this example.
+
+==== Index Settings and Options
+
+You can also customize index settings and options when restoring:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[restore-snapshot-request-index-settings]
+--------------------------------------------------
+<1> Use `#indexSettings()` to set any specific index setting for the indices
+    that are restored.
+<2> Use `#ignoreIndexSettings()` to provide index settings that should be
+    ignored from the original indices.
+<3> Set `IndicesOptions.Option.IGNORE_UNAVAILABLE` in `#indicesOptions()` to
+    have the restore succeed even if indices are missing in the snapshot.
+
+==== Further Arguments
+
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[restore-snapshot-request-masterTimeout]
+--------------------------------------------------
+<1> Timeout to connect to the master node as a `TimeValue`
+<2> Timeout to connect to the master node as a `String`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[restore-snapshot-request-waitForCompletion]
+--------------------------------------------------
+<1> Boolean indicating whether to wait until the snapshot has been restored.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[restore-snapshot-request-partial]
+--------------------------------------------------
+<1> Boolean indicating whether the entire snapshot should succeed although one
+    or more indices participating in the snapshot don’t have all primary
+    shards available.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[restore-snapshot-request-include-global-state]
+--------------------------------------------------
+<1> Boolean indicating whether restored templates that don’t currently exist
+    in the cluster are added and existing templates with the same name are
+    replaced by the restored templates. The restored persistent settings are
+    added to the existing persistent settings.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[restore-snapshot-request-include-aliases]
+--------------------------------------------------
+<1> Boolean to control whether aliases should be restored. Set to `false` to
+    prevent aliases from being restored together with associated indices.
+
+[[java-rest-high-snapshot-restore-snapshot-sync]]
+==== Synchronous Execution
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[restore-snapshot-execute]
+--------------------------------------------------
+
+[[java-rest-high-snapshot-restore-snapshot-async]]
+==== Asynchronous Execution
+
+The asynchronous execution of a restore snapshot request requires both the
+`RestoreSnapshotRequest` instance and an `ActionListener` instance to be
+passed to the asynchronous method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[restore-snapshot-execute-async]
+--------------------------------------------------
+<1> The `RestoreSnapshotRequest` to execute and the `ActionListener`
+to use when the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `RestoreSnapshotResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[restore-snapshot-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+    provided as an argument.
+<2> Called in case of a failure. The raised exception is provided as an argument.
+
+[[java-rest-high-cluster-restore-snapshot-response]]
+==== Restore Snapshot Response
+
+The returned `RestoreSnapshotResponse` allows to retrieve information about the
+executed operation as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[restore-snapshot-response]
+--------------------------------------------------
+<1> The `RestoreInfo` contains details about the restored snapshot like the indices or
+    the number of successfully restored and failed shards.

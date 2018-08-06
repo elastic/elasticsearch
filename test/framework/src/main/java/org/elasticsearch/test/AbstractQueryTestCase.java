@@ -413,7 +413,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             context.setAllowUnmappedFields(true);
             QB firstQuery = createTestQueryBuilder();
             QB controlQuery = copyQuery(firstQuery);
-            SearchContext searchContext = getSearchContext(randomTypes, context);
+            SearchContext searchContext = getSearchContext(context);
             /* we use a private rewrite context here since we want the most realistic way of asserting that we are cacheable or not.
              * We do it this way in SearchService where
              * we first rewrite the query with a private context, then reset the context and then build the actual lucene query*/
@@ -443,7 +443,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 secondQuery.queryName(secondQuery.queryName() == null ? randomAlphaOfLengthBetween(1, 30) : secondQuery.queryName()
                         + randomAlphaOfLengthBetween(1, 10));
             }
-            searchContext = getSearchContext(randomTypes, context);
+            searchContext = getSearchContext(context);
             Query secondLuceneQuery = rewriteQuery(secondQuery, context).toQuery(context);
             assertNotNull("toQuery should not return null", secondLuceneQuery);
             assertLuceneQuery(secondQuery, secondLuceneQuery, searchContext);
@@ -668,10 +668,11 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      */
     protected static String getRandomFieldName() {
         // if no type is set then return a random field name
-        if (getCurrentTypes().length == 0 || randomBoolean()) {
+        if (randomBoolean()) {
             return randomAlphaOfLengthBetween(1, 10);
+        } else {
+            return randomFrom(MAPPED_LEAF_FIELD_NAMES);
         }
-        return randomFrom(MAPPED_LEAF_FIELD_NAMES);
     }
 
     /**

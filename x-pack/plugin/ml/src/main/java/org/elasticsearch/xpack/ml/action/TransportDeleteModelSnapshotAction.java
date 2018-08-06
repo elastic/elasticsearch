@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.JobDataDeleter;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.JobManager;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 
 import java.util.Collections;
@@ -32,17 +32,18 @@ public class TransportDeleteModelSnapshotAction extends HandledTransportAction<D
         DeleteModelSnapshotAction.Response> {
 
     private final Client client;
-    private final JobProvider jobProvider;
+    private final JobResultsProvider jobResultsProvider;
     private final ClusterService clusterService;
     private final Auditor auditor;
 
     @Inject
     public TransportDeleteModelSnapshotAction(Settings settings, TransportService transportService, ActionFilters actionFilters,
-                                              JobProvider jobProvider, ClusterService clusterService, Client client, Auditor auditor) {
+                                              JobResultsProvider jobResultsProvider, ClusterService clusterService, Client client,
+                                              Auditor auditor) {
         super(settings, DeleteModelSnapshotAction.NAME, transportService, actionFilters,
               DeleteModelSnapshotAction.Request::new);
         this.client = client;
-        this.jobProvider = jobProvider;
+        this.jobResultsProvider = jobResultsProvider;
         this.clusterService = clusterService;
         this.auditor = auditor;
     }
@@ -51,7 +52,7 @@ public class TransportDeleteModelSnapshotAction extends HandledTransportAction<D
     protected void doExecute(Task task, DeleteModelSnapshotAction.Request request,
                              ActionListener<DeleteModelSnapshotAction.Response> listener) {
         // Verify the snapshot exists
-        jobProvider.modelSnapshots(
+        jobResultsProvider.modelSnapshots(
                 request.getJobId(), 0, 1, null, null, null, true, request.getSnapshotId(),
                 page -> {
                     List<ModelSnapshot> deleteCandidates = page.results();

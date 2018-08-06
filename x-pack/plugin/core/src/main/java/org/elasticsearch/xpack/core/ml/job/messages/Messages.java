@@ -123,8 +123,6 @@ public final class Messages {
     public static final String JOB_CONFIG_INVALID_TIMEFORMAT = "Invalid Time format string ''{0}''";
     public static final String JOB_CONFIG_MISSING_ANALYSISCONFIG = "An analysis_config must be set";
     public static final String JOB_CONFIG_MISSING_DATA_DESCRIPTION = "A data_description must be set";
-    public static final String JOB_CONFIG_MULTIPLE_BUCKETSPANS_MUST_BE_MULTIPLE =
-            "Multiple bucket_span ''{0}'' must be a multiple of the main bucket_span ''{1}''";
     public static final String JOB_CONFIG_ANALYSIS_FIELD_MUST_BE_SET =
             "Unless a count or temporal function is used one of field_name, by_field_name or over_field_name must be set";
     public static final String JOB_CONFIG_NO_DETECTORS = "No detectors configured";

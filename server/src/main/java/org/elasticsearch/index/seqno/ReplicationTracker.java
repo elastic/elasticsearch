@@ -85,6 +85,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      *   computation from that point on.
      */
     volatile boolean primaryMode;
+
     /**
      * Boolean flag that indicates if a relocation handoff is in progress. A handoff is started by calling {@link #startRelocationHandoff}
      * and is finished by either calling {@link #completeRelocationHandoff} or {@link #abortRelocationHandoff}, depending on whether the
@@ -101,6 +102,11 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * information is conveyed through cluster state updates, and the new primary relocation target will also eventually learn about those.
      */
     boolean handoffInProgress;
+
+    /**
+     * Boolean flag that indicates whether a relocation handoff completed (see {@link #completeRelocationHandoff}).
+     */
+    volatile boolean relocated;
 
     /**
      * The global checkpoint tracker relies on the property that cluster state updates are applied in-order. After transferring a primary
@@ -261,6 +267,13 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     }
 
     /**
+     * Returns whether the replication tracker has relocated away to another shard copy.
+     */
+    public boolean isRelocated() {
+        return relocated;
+    }
+
+    /**
      * Class invariant that should hold before and after every invocation of public methods on this class. As Java lacks implication
      * as a logical operator, many of the invariants are written under the form (!A || B), they should be read as (A implies B) however.
      */
@@ -286,6 +299,9 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
 
         // relocation handoff can only occur in primary mode
         assert !handoffInProgress || primaryMode;
+
+        // a relocated copy is not in primary mode
+        assert !relocated || !primaryMode;
 
         // the current shard is marked as in-sync when the global checkpoint tracker operates in primary mode
         assert !primaryMode || checkpoints.get(shardAllocationId).inSync;
@@ -766,8 +782,10 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         assert invariant();
         assert primaryMode;
         assert handoffInProgress;
+        assert relocated == false;
         primaryMode = false;
         handoffInProgress = false;
+        relocated = true;
         // forget all checkpoint information except for global checkpoint of current shard
         checkpoints.entrySet().stream().forEach(e -> {
             final CheckpointState cps = e.getValue();

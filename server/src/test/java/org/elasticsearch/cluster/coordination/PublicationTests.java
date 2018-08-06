@@ -311,9 +311,10 @@ public class PublicationTests extends ESTestCase {
         MockPublication publication = node1.publish(CoordinationStateTests.clusterState(1L, 2L,
             discoveryNodes, config, config, 42L), ackListener, Collections.emptySet());
 
+        boolean timeOut = randomBoolean();
         publication.pendingPublications.entrySet().stream().collect(shuffle()).forEach(e -> {
             if (e.getKey().equals(n2)) {
-                if (randomBoolean()) {
+                if (timeOut) {
                     publication.onTimeout();
                 } else {
                     e.getValue().onFailure(new TransportException(new Exception("dummy failure")));
@@ -334,6 +335,9 @@ public class PublicationTests extends ESTestCase {
 
         List<Tuple<DiscoveryNode, Throwable>> errors = ackListener.awaitErrors(0L, TimeUnit.SECONDS);
         assertThat(errors.size(), equalTo(3));
+        assertThat(errors.stream().map(Tuple::v1).collect(Collectors.toList()), containsInAnyOrder(n1, n2, n3));
+        errors.stream().map(Tuple::v2).forEach(throwable ->
+            assertThat(throwable.getMessage(), containsString(timeOut ? "timed out" : "dummy failure")));
     }
 
     public void testClusterStatePublishingTimesOutAfterCommit() throws InterruptedException {

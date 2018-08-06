@@ -307,7 +307,8 @@ public abstract class Publication extends AbstractComponent {
                 } else {
                     logger.debug(() -> new ParameterizedMessage("PublishResponseHandler: [{}] failed", discoveryNode), exp);
                 }
-                setFailed(e);
+                assert ((TransportException) e).getRootCause() instanceof Exception;
+                setFailed((Exception) exp.getRootCause());
                 onPossibleCommitFailure();
                 assert publicationCompletedIffAllTargetsInactiveOrTimedOut();
             }
@@ -337,7 +338,8 @@ public abstract class Publication extends AbstractComponent {
                 } else {
                     logger.debug(() -> new ParameterizedMessage("ApplyCommitResponseHandler: [{}] failed", discoveryNode), exp);
                 }
-                setFailed(e);
+                assert ((TransportException) e).getRootCause() instanceof Exception;
+                setFailed((Exception) exp.getRootCause());
                 onPossibleCompletion();
                 assert publicationCompletedIffAllTargetsInactiveOrTimedOut();
             }

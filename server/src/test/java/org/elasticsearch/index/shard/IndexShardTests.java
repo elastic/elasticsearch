@@ -31,6 +31,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
@@ -571,17 +572,6 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         final long primaryTerm = indexShard.getPendingPrimaryTerm();
         assertEquals(0, indexShard.getActiveOperationsCount());
-        if (indexShard.routingEntry().isRelocationTarget() == false) {
-            try {
-                final PlainActionFuture<Releasable> permitAcquiredFuture = new PlainActionFuture<>();
-                indexShard.acquireReplicaOperationPermit(primaryTerm, indexShard.getGlobalCheckpoint(), permitAcquiredFuture,
-                    ThreadPool.Names.WRITE, "");
-                permitAcquiredFuture.actionGet();
-                fail("shard shouldn't accept operations as replica");
-            } catch (IllegalStateException ignored) {
-
-            }
-        }
         Releasable operation1 = acquirePrimaryOperationPermitBlockingly(indexShard);
         assertEquals(1, indexShard.getActiveOperationsCount());
         Releasable operation2 = acquirePrimaryOperationPermitBlockingly(indexShard);
@@ -647,11 +637,11 @@ public class IndexShardTests extends IndexShardTestCase {
         logger.info("shard routing to {}", shardRouting);
 
         assertEquals(0, indexShard.getActiveOperationsCount());
-        if (shardRouting.primary() == false) {
-            final IllegalStateException e =
-                    expectThrows(IllegalStateException.class,
+        if (shardRouting.primary() == false && Assertions.ENABLED) {
+            final AssertionError e =
+                    expectThrows(AssertionError.class,
                         () -> indexShard.acquirePrimaryOperationPermit(null, ThreadPool.Names.WRITE, ""));
-            assertThat(e, hasToString(containsString("shard " + shardRouting + " is not a primary")));
+            assertThat(e, hasToString(containsString("acquirePrimaryOperationPermit should only be called on primary shard")));
         }
 
         final long primaryTerm = indexShard.getPendingPrimaryTerm();

@@ -273,9 +273,9 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
 
         @Override
         protected ShardsIterator shards(ClusterState state, InternalRequest request) {
-            return state.routingTable()
-                    .index(request.concreteIndex())
-                    .shard(request.request().getShard().id())
+            return state
+                    .routingTable()
+                    .shardRoutingTable(request.concreteIndex(), request.request().getShard().id())
                     .activeInitializingShardsRandomIt();
         }
 

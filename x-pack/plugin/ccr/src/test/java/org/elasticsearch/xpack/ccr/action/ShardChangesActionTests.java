@@ -5,26 +5,39 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.mockito.Mockito;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class ShardChangesActionTests extends ESSingleNodeTestCase {
+
+    @Override
+    protected boolean resetNodeAfterTest() {
+        return true;
+    }
 
     public void testGetOperations() throws Exception {
         final Settings settings = Settings.builder()
@@ -117,6 +130,54 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
             ShardChangesAction.getOperations(indexShard, indexShard.getGlobalCheckpoint(), 0, 1, 0);
         assertThat(operations.length, equalTo(1));
         assertThat(operations[0].seqNo(), equalTo(0L));
+    }
+
+    public void testIndexNotFound() throws InterruptedException {
+        final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<Exception> reference = new AtomicReference<>();
+        final ShardChangesAction.TransportAction transportAction = node().injector().getInstance(ShardChangesAction.TransportAction.class);
+        transportAction.execute(
+                new ShardChangesAction.Request(new ShardId(new Index("non-existent", "uuid"), 0)),
+                new ActionListener<ShardChangesAction.Response>() {
+                    @Override
+                    public void onResponse(final ShardChangesAction.Response response) {
+                        fail();
+                    }
+
+                    @Override
+                    public void onFailure(final Exception e) {
+                        reference.set(e);
+                        latch.countDown();
+                    }
+        });
+        latch.await();
+        assertNotNull(reference.get());
+        assertThat(reference.get(), instanceOf(IndexNotFoundException.class));
+    }
+
+    public void testShardNotFound() throws InterruptedException {
+        final int numberOfShards = randomIntBetween(1, 5);
+        final IndexService indexService = createIndex("index", Settings.builder().put("index.number_of_shards", numberOfShards).build());
+        final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<Exception> reference = new AtomicReference<>();
+        final ShardChangesAction.TransportAction transportAction = node().injector().getInstance(ShardChangesAction.TransportAction.class);
+        transportAction.execute(
+                new ShardChangesAction.Request(new ShardId(indexService.getMetaData().getIndex(), numberOfShards)),
+                new ActionListener<ShardChangesAction.Response>() {
+                    @Override
+                    public void onResponse(final ShardChangesAction.Response response) {
+                        fail();
+                    }
+
+                    @Override
+                    public void onFailure(final Exception e) {
+                        reference.set(e);
+                        latch.countDown();
+                    }
+                });
+        latch.await();
+        assertNotNull(reference.get());
+        assertThat(reference.get(), instanceOf(ShardNotFoundException.class));
     }
 
 }

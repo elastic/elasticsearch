@@ -126,6 +126,7 @@ import org.elasticsearch.xpack.security.action.privilege.TransportGetPrivilegesA
 import org.elasticsearch.xpack.security.action.privilege.TransportPutPrivilegesAction;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.index.IndexAuditTrailField;
+import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
@@ -175,7 +176,6 @@ import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
-import org.elasticsearch.xpack.security.authc.kerberos.KerberosRealmBootstrapCheck;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.SecuritySearchOperationListener;
@@ -217,7 +217,6 @@ import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterce
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4HttpServerTransport;
 import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4ServerTransport;
-import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.security.transport.nio.SecurityNioHttpServerTransport;
 import org.elasticsearch.xpack.security.transport.nio.SecurityNioTransport;
 import org.joda.time.DateTime;
@@ -294,9 +293,6 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         this.enabled = XPackSettings.SECURITY_ENABLED.get(settings);
         if (enabled && transportClientMode == false) {
             validateAutoCreateIndex(settings);
-        }
-
-        if (enabled) {
             // we load them all here otherwise we can't access secure settings since they are closed once the checks are
             // fetched
             final List<BootstrapCheck> checks = new ArrayList<>();
@@ -305,9 +301,12 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 new PkiRealmBootstrapCheck(getSslService()),
                 new TLSLicenseBootstrapCheck(),
                 new PasswordHashingAlgorithmBootstrapCheck(),
-                new KerberosRealmBootstrapCheck(env)));
+                new FIPS140SecureSettingsBootstrapCheck(settings, env),
+                new FIPS140JKSKeystoreBootstrapCheck(settings),
+                new FIPS140PasswordHashingAlgorithmBootstrapCheck(settings)));
             checks.addAll(InternalRealms.getBootstrapChecks(settings, env));
             this.bootstrapChecks = Collections.unmodifiableList(checks);
+            Automatons.updateMaxDeterminizedStates(settings);
         } else {
             this.bootstrapChecks = Collections.emptyList();
         }
@@ -592,6 +591,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         }
 
         // The following just apply in node mode
+        settingsList.add(XPackSettings.FIPS_MODE_ENABLED);
 
         // IP Filter settings
         IPFilter.addSettings(settingsList);
@@ -601,13 +601,14 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         LoggingAuditTrail.registerSettings(settingsList);
         IndexAuditTrail.registerSettings(settingsList);
 
-        // authentication settings
+        // authentication and authorization settings
         AnonymousUser.addSettings(settingsList);
         RealmSettings.addSettings(settingsList, securityExtensions);
         NativeRolesStore.addSettings(settingsList);
         ReservedRealm.addSettings(settingsList);
         AuthenticationService.addSettings(settingsList);
         AuthorizationService.addSettings(settingsList);
+        settingsList.add(Automatons.MAX_DETERMINIZED_STATES_SETTING);
         settingsList.add(CompositeRolesStore.CACHE_SIZE_SETTING);
         settingsList.add(FieldPermissionsCache.CACHE_SIZE_SETTING);
         settingsList.add(TokenService.TOKEN_EXPIRATION);
@@ -997,7 +998,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             return new ValidateTLSOnJoin(XPackSettings.TRANSPORT_SSL_ENABLED.get(settings),
                     DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings))
                 .andThen(new ValidateUpgradedSecurityIndex())
-                .andThen(new ValidateLicenseCanBeDeserialized());
+                .andThen(new ValidateLicenseCanBeDeserialized())
+                .andThen(new ValidateLicenseForFIPS(XPackSettings.FIPS_MODE_ENABLED.get(settings)));
         }
         return null;
     }
@@ -1041,6 +1043,27 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             if (license != null && license.version() >= License.VERSION_CRYPTO_ALGORITHMS && node.getVersion().before(Version.V_6_4_0)) {
                 throw new IllegalStateException("node " + node + " is on version [" + node.getVersion() +
                     "] that cannot deserialize the license format [" + license.version() + "], upgrade node to at least 6.4.0");
+            }
+        }
+    }
+
+    static final class ValidateLicenseForFIPS implements BiConsumer<DiscoveryNode, ClusterState> {
+        private final boolean inFipsMode;
+
+        ValidateLicenseForFIPS(boolean inFipsMode) {
+            this.inFipsMode = inFipsMode;
+        }
+
+        @Override
+        public void accept(DiscoveryNode node, ClusterState state) {
+            if (inFipsMode) {
+                License license = LicenseService.getLicense(state.metaData());
+                if (license != null &&
+                    FIPS140LicenseBootstrapCheck.ALLOWED_LICENSE_OPERATION_MODES.contains(license.operationMode()) == false) {
+                    throw new IllegalStateException("FIPS mode cannot be used with a [" + license.operationMode() +
+                        "] license. It is only allowed with a Platinum or Trial license.");
+
+                }
             }
         }
     }

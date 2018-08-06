@@ -13,18 +13,17 @@ import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.InternalUserSerializationHelper;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
-import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.protocol.xpack.security.User;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 
 import java.util.Arrays;
-import java.util.Collections;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class UserTests extends ESTestCase {
+public class UserSerializationTests extends ESTestCase {
 
     public void testWriteToAndReadFrom() throws Exception {
         User user = new User(randomAlphaOfLengthBetween(4, 30),
@@ -140,16 +139,6 @@ public class UserTests extends ESTestCase {
         } catch (IllegalStateException e) {
             // expected
         }
-    }
-
-    public void testUserToString() throws Exception {
-        User user = new User("u1", "r1");
-        assertThat(user.toString(), is("User[username=u1,roles=[r1],fullName=null,email=null,metadata={}]"));
-        user = new User("u1", new String[] { "r1", "r2" }, "user1", "user1@domain.com", Collections.singletonMap("key", "val"), true);
-        assertThat(user.toString(), is("User[username=u1,roles=[r1,r2],fullName=user1,email=user1@domain.com,metadata={key=val}]"));
-        user = new User("u1", new String[] {"r1"}, new User("u2", "r2", "r3"));
-        assertThat(user.toString(), is("User[username=u1,roles=[r1],fullName=null,email=null,metadata={}," +
-                "authenticatedUser=[User[username=u2,roles=[r2,r3],fullName=null,email=null,metadata={}]]]"));
     }
 
     public void testReservedUserSerialization() throws Exception {

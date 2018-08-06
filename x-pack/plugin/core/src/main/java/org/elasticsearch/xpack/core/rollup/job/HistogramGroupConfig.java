@@ -12,9 +12,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.HistogramValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
@@ -27,8 +28,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * The configuration object for the histograms in the rollup config
@@ -42,28 +44,36 @@ import java.util.stream.Collectors;
  *     ]
  * }
  */
-public class HistoGroupConfig implements Writeable, ToXContentFragment {
-    private static final String NAME = "histo_group_config";
-    public static final ObjectParser<HistoGroupConfig.Builder, Void> PARSER
-            = new ObjectParser<>(NAME, HistoGroupConfig.Builder::new);
+public class HistogramGroupConfig implements Writeable, ToXContentObject {
 
-    private static final ParseField INTERVAL = new ParseField("interval");
-    private static final ParseField FIELDS = new ParseField("fields");
+    public static final String NAME = "histogram";
+    private static final String INTERVAL = "interval";
+    private static final String FIELDS = "fields";
+    private static final ConstructingObjectParser<HistogramGroupConfig, Void> PARSER;
+    static {
+        PARSER = new ConstructingObjectParser<>(NAME, args -> {
+            @SuppressWarnings("unchecked") List<String> fields = (List<String>) args[1];
+            return new HistogramGroupConfig((long) args[0], fields != null ? fields.toArray(new String[fields.size()]) : null);
+        });
+        PARSER.declareLong(constructorArg(), new ParseField(INTERVAL));
+        PARSER.declareStringArray(constructorArg(), new ParseField(FIELDS));
+    }
 
     private final long interval;
     private final String[] fields;
 
-    static {
-        PARSER.declareLong(HistoGroupConfig.Builder::setInterval, INTERVAL);
-        PARSER.declareStringArray(HistoGroupConfig.Builder::setFields, FIELDS);
-    }
-
-    private HistoGroupConfig(long interval, String[] fields) {
+    public HistogramGroupConfig(final long interval, final String... fields) {
+        if (interval <= 0) {
+            throw new IllegalArgumentException("Interval must be a positive long");
+        }
+        if (fields == null || fields.length == 0) {
+            throw new IllegalArgumentException("Fields must have at least one value");
+        }
         this.interval = interval;
         this.fields = fields;
     }
 
-    HistoGroupConfig(StreamInput in) throws IOException {
+    HistogramGroupConfig(final StreamInput in) throws IOException {
         interval = in.readVLong();
         fields = in.readStringArray();
     }
@@ -101,16 +111,12 @@ public class HistoGroupConfig implements Writeable, ToXContentFragment {
     public Map<String, Object> toAggCap() {
         Map<String, Object> map = new HashMap<>(2);
         map.put("agg", HistogramAggregationBuilder.NAME);
-        map.put(INTERVAL.getPreferredName(), interval);
+        map.put(INTERVAL, interval);
         return map;
     }
 
     public Map<String, Object> getMetadata() {
         return Collections.singletonMap(RollupField.formatMetaField(RollupField.INTERVAL), interval);
-    }
-
-    public Set<String> getAllFields() {
-        return Arrays.stream(fields).collect(Collectors.toSet());
     }
 
     public void validateMappings(Map<String, Map<String, FieldCapabilities>> fieldCapsResponse,
@@ -138,9 +144,13 @@ public class HistoGroupConfig implements Writeable, ToXContentFragment {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(INTERVAL.getPreferredName(), interval);
-        builder.field(FIELDS.getPreferredName(), fields);
+    public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
+        builder.startObject();
+        {
+            builder.field(INTERVAL, interval);
+            builder.field(FIELDS, fields);
+        }
+        builder.endObject();
         return builder;
     }
 
@@ -151,19 +161,15 @@ public class HistoGroupConfig implements Writeable, ToXContentFragment {
     }
 
     @Override
-    public boolean equals(Object other) {
+    public boolean equals(final Object other) {
         if (this == other) {
             return true;
         }
-
         if (other == null || getClass() != other.getClass()) {
             return false;
         }
-
-        HistoGroupConfig that = (HistoGroupConfig) other;
-
-        return Objects.equals(this.interval, that.interval)
-                && Arrays.equals(this.fields, that.fields);
+        final HistogramGroupConfig that = (HistogramGroupConfig) other;
+        return Objects.equals(interval, that.interval) && Arrays.equals(fields, that.fields);
     }
 
     @Override
@@ -176,36 +182,7 @@ public class HistoGroupConfig implements Writeable, ToXContentFragment {
         return Strings.toString(this, true, true);
     }
 
-    public static class Builder {
-        private long interval = 0;
-        private List<String> fields;
-
-        public long getInterval() {
-            return interval;
-        }
-
-        public HistoGroupConfig.Builder setInterval(long interval) {
-            this.interval = interval;
-            return this;
-        }
-
-        public List<String> getFields() {
-            return fields;
-        }
-
-        public HistoGroupConfig.Builder setFields(List<String> fields) {
-            this.fields = fields;
-            return this;
-        }
-
-        public HistoGroupConfig build() {
-            if (interval <= 0) {
-                throw new IllegalArgumentException("Parameter [" + INTERVAL.getPreferredName() + "] must be a positive long.");
-            }
-            if (fields == null || fields.isEmpty()) {
-                throw new IllegalArgumentException("Parameter [" + FIELDS + "] must have at least one value.");
-            }
-            return new HistoGroupConfig(interval, fields.toArray(new String[0]));
-        }
+    public static HistogramGroupConfig fromXContent(final XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null);
     }
 }

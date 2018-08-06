@@ -199,7 +199,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
             boolean hasChildren = in.readBoolean();
             assert hasChildren == false;
         }
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
             this.innerCollapseBuilder = in.readOptionalWriteable(CollapseBuilder::new);
         }
     }
@@ -247,7 +247,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
             }
         }
         out.writeOptionalWriteable(highlightBuilder);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
             out.writeOptionalWriteable(innerCollapseBuilder);
         }
     }

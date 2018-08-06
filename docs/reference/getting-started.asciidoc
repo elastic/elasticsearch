@@ -106,10 +106,11 @@ With that out of the way, let's get started with the fun part...
 
 [TIP]
 ==============
-You can skip installation completely by using our hosted
-Elasticsearch Service on https://www.elastic.co/cloud[Elastic Cloud], which is
-available on AWS and GCP. You can
-https://www.elastic.co/cloud/elasticsearch-service/signup[try out the hosted service] for free.
+You can skip having to install Elasticsearch by using our
+https://www.elastic.co/cloud/elasticsearch-service[hosted Elasticsearch Service]
+on Elastic Cloud. The Elasticsearch Service is available on both AWS and GCP.
+https://www.elastic.co/cloud/elasticsearch-service/signup[Try out the
+Elasticsearch Service for free].
 ==============
 
 Elasticsearch requires at least Java 8. Specifically as of this writing, it is recommended that you use the Oracle JDK version {jdk}. Java installation varies from platform to platform so we won't go into those details here. Oracle's recommended installation documentation can be found on http://docs.oracle.com/javase/8/docs/technotes/guides/install/install_overview.html[Oracle's website]. Suffice to say, before you install Elasticsearch, please check your Java version first by running (and then install/upgrade accordingly if needed):
@@ -1121,7 +1122,7 @@ In SQL, the above aggregation is similar in concept to:
 
 [source,sh]
 --------------------------------------------------
-SELECT state, COUNT(*) FROM bank GROUP BY state ORDER BY COUNT(*) DESC
+SELECT state, COUNT(*) FROM bank GROUP BY state ORDER BY COUNT(*) DESC LIMIT 10;
 --------------------------------------------------
 
 And the response (partially shown):

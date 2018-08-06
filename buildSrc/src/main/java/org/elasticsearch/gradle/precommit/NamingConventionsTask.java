@@ -16,6 +16,8 @@ import org.gradle.api.tasks.SourceSetContainer;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.net.URISyntaxException;
+import java.net.URL;
 import java.util.Objects;
 
 /**
@@ -30,16 +32,25 @@ public class NamingConventionsTask extends LoggedExec {
         final Project project = getProject();
 
         SourceSetContainer sourceSets = getJavaSourceSets();
-        final FileCollection classpath = project.files(
-            // This works because the class only depends on one class from junit that will be available from the
-            // tests compile classpath. It's the most straight forward way of telling Java where to find the main
-            // class.
-            NamingConventionsCheck.class.getProtectionDomain().getCodeSource().getLocation().getPath(),
-            // the tests to be loaded
-            checkForTestsInMain ? sourceSets.getByName("main").getRuntimeClasspath() : project.files(),
-            sourceSets.getByName("test").getCompileClasspath(),
-            sourceSets.getByName("test").getOutput()
-        );
+        final FileCollection classpath;
+        try {
+            URL location = NamingConventionsCheck.class.getProtectionDomain().getCodeSource().getLocation();
+            if (location.getProtocol().equals("file") == false) {
+                throw new GradleException("Unexpected location for NamingConventionCheck class: "+ location);
+            }
+            classpath = project.files(
+                    // This works because the class only depends on one class from junit that will be available from the
+                    // tests compile classpath. It's the most straight forward way of telling Java where to find the main
+                    // class.
+                    location.toURI().getPath(),
+                    // the tests to be loaded
+                    checkForTestsInMain ? sourceSets.getByName("main").getRuntimeClasspath() : project.files(),
+                    sourceSets.getByName("test").getCompileClasspath(),
+                    sourceSets.getByName("test").getOutput()
+            );
+        } catch (URISyntaxException e) {
+            throw new AssertionError(e);
+        }
         dependsOn(project.getTasks().matching(it -> "testCompileClasspath".equals(it.getName())));
         getInputs().files(classpath);
 
@@ -109,10 +120,6 @@ public class NamingConventionsTask extends LoggedExec {
 
     public void setSuccessMarker(File successMarker) {
         this.successMarker = successMarker;
-    }
-
-    public boolean getSkipIntegTestInDisguise() {
-        return skipIntegTestInDisguise;
     }
 
     public boolean isSkipIntegTestInDisguise() {

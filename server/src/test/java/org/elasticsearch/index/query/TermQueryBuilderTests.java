@@ -50,7 +50,7 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
                 break;
             case 1:
                 if (randomBoolean()) {
-                    fieldName = STRING_FIELD_NAME;
+                    fieldName = randomFrom(STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME);
                 }
                 if (frequently()) {
                     value = randomAlphaOfLengthBetween(1, 10);
@@ -96,7 +96,10 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
         MappedFieldType mapper = context.getQueryShardContext().fieldMapper(queryBuilder.fieldName());
         if (query instanceof TermQuery) {
             TermQuery termQuery = (TermQuery) query;
-            assertThat(termQuery.getTerm().field(), equalTo(queryBuilder.fieldName()));
+
+            String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
+            assertThat(termQuery.getTerm().field(), equalTo(expectedFieldName));
+
             if (mapper != null) {
                 Term term = ((TermQuery) mapper.termQuery(queryBuilder.value(), null)).getTerm();
                 assertThat(termQuery.getTerm(), equalTo(term));
@@ -135,7 +138,6 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
     }
 
     public void testGeo() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         TermQueryBuilder query = new TermQueryBuilder(GEO_POINT_FIELD_NAME, "2,3");
         QueryShardContext context = createShardContext();
         QueryShardException e = expectThrows(QueryShardException.class, () -> query.toQuery(context));

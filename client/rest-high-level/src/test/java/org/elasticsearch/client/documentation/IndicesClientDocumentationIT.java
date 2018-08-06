@@ -622,7 +622,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::get-mapping-request-indicesOptions
 
             // tag::get-mapping-execute
-            GetMappingsResponse getMappingResponse = client.indices().getMappings(request, RequestOptions.DEFAULT);
+            GetMappingsResponse getMappingResponse = client.indices().getMapping(request, RequestOptions.DEFAULT);
             // end::get-mapping-execute
 
             // tag::get-mapping-response
@@ -704,7 +704,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             });
 
             // tag::get-mapping-execute-async
-            client.indices().getMappingsAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            client.indices().getMappingAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::get-mapping-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
@@ -1344,7 +1344,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::force-merge-request-flush
 
             // tag::force-merge-execute
-            ForceMergeResponse forceMergeResponse = client.indices().forceMerge(request, RequestOptions.DEFAULT);
+            ForceMergeResponse forceMergeResponse = client.indices().forcemerge(request, RequestOptions.DEFAULT);
             // end::force-merge-execute
 
             // tag::force-merge-response
@@ -1369,14 +1369,14 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::force-merge-execute-listener
 
             // tag::force-merge-execute-async
-            client.indices().forceMergeAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            client.indices().forcemergeAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::force-merge-execute-async
         }
         {
             // tag::force-merge-notfound
             try {
                 ForceMergeRequest request = new ForceMergeRequest("does_not_exist");
-                client.indices().forceMerge(request, RequestOptions.DEFAULT);
+                client.indices().forcemerge(request, RequestOptions.DEFAULT);
             } catch (ElasticsearchException exception) {
                 if (exception.status() == RestStatus.NOT_FOUND) {
                     // <1>

@@ -1,5 +1,7 @@
 package org.elasticsearch.gradle.test;
 
+import org.gradle.testkit.runner.GradleRunner;
+
 import java.io.File;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -14,6 +16,16 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
                 "Note that these tests can only be ran by Gradle and are not currently supported by the IDE");
         }
         return new File(root, name);
+    }
+
+    protected GradleRunner getGradleRunner(String sampleProject) {
+        return GradleRunner.create()
+            .withProjectDir(getProjectDir(sampleProject))
+            .withPluginClasspath();
+    }
+
+    protected File getBuildDir(String name) {
+        return new File(getProjectDir(name), "build");
     }
 
     protected void assertOutputContains(String output, String... lines) {

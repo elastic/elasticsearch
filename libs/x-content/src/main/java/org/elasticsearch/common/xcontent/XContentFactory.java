@@ -230,49 +230,40 @@ public class XContentFactory {
     @Deprecated
     public static XContentType xContentType(InputStream si) throws IOException {
         /*
-         * We need to guess the content type. To do this, we look for up to GUESS_HEADER_LENGTH bytes of non-whitespace characters on which
-         * we can attempt to do content detection. We repeatedly read GUESS_HEADER_LENGTH bytes from the stream until we find a
-         * non-whitespace character after which we take GUESS_HEADER_LENGTH bytes (or to the end of the stream). We do this in a way that
-         * does not modify the initial read position in the underlying input stream. This is why the input stream must support mark/reset
-         * and why we repeatedly mark the read position and reset.
+         * We need to guess the content type. To do this, we look for the first non-whitespace character and then try to guess the content
+         * type on the GUESS_HEADER_LENGTH bytes that follow. We do this in a way that does not modify the initial read position in the
+         * underlying input stream. This is why the input stream must support mark/reset and why we repeatedly mark the read position and
+         * reset.
          */
         if (si.markSupported() == false) {
             throw new IllegalArgumentException("Cannot guess the xcontent type without mark/reset support on " + si.getClass());
         }
-        int iteration = 1;
-        while (true) {
-            si.mark(iteration * GUESS_HEADER_LENGTH);
-            try {
-                final byte[] firstBytes = new byte[iteration * GUESS_HEADER_LENGTH];
-                int read = 0;
-                while (read < iteration * GUESS_HEADER_LENGTH) {
-                    final int r = si.read(firstBytes, read, iteration * GUESS_HEADER_LENGTH - read);
-                    if (r == -1) {
-                        break;
-                    }
-                    read += r;
+        si.mark(Integer.MAX_VALUE);
+        try {
+            // scan until we find the first non-whitespace character or the end of the stream
+            int current;
+            do {
+                current = si.read();
+                if (current == -1) {
+                    return null;
                 }
-                /*
-                 * We know that all blocks prior to the previous one must be all whitespace, so we start looking for non-whitespace from the
-                 * previous one.
-                 */
-                int position = (iteration - 1) * GUESS_HEADER_LENGTH;
-                while (position < firstBytes.length && Character.isWhitespace(firstBytes[position])) {
-                    position++;
+            } while (Character.isWhitespace((char) current));
+            // now guess the content type off the next GUESS_HEADER_LENGTH bytes including the current byte
+            final byte[] firstBytes = new byte[GUESS_HEADER_LENGTH];
+            firstBytes[0] = (byte) current;
+            int read = 1;
+            while (read < GUESS_HEADER_LENGTH) {
+                final int r = si.read(firstBytes, read, GUESS_HEADER_LENGTH - read);
+                if (r == -1) {
+                    break;
                 }
-                /*
-                 * If we have more than GUESS_HEADER_LENGTH initial bytes or we are at the end of the stream, we can now try to guess the
-                 * content type. Otherwise, we go back to the stream for more bytes until we have at least GUESS_HEADER_LENGTH bytes off
-                 * which to guess.
-                 */
-                if (firstBytes.length - position > GUESS_HEADER_LENGTH || read < iteration * GUESS_HEADER_LENGTH) {
-                    return xContentType(firstBytes, 0, read);
-                }
-                iteration++;
-            } finally {
-                si.reset();
+                read += r;
             }
+            return xContentType(firstBytes, 0, read);
+        } finally {
+            si.reset();
         }
+
     }
 
     /**

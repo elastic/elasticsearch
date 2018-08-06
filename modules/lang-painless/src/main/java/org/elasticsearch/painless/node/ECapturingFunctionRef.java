@@ -77,18 +77,18 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
             // static case
             if (captured.clazz != def.class) {
                 try {
-                    ref = new FunctionRef(locals.getPainlessLookup(), expected,
+                    ref = FunctionRef.resolveFromLookup(locals.getPainlessLookup(), expected,
                             PainlessLookupUtility.typeToCanonicalTypeName(captured.clazz), call, 1);
 
                     // check casts between the interface method and the delegate method are legal
-                    for (int i = 0; i < ref.interfaceMethod.arguments.size(); ++i) {
-                        Class<?> from = ref.interfaceMethod.arguments.get(i);
-                        Class<?> to = ref.delegateMethod.arguments.get(i);
+                    for (int i = 0; i < ref.interfaceMethod.typeParameters.size(); ++i) {
+                        Class<?> from = ref.interfaceMethod.typeParameters.get(i);
+                        Class<?> to = ref.delegateTypeParameters.get(i);
                         AnalyzerCaster.getLegalCast(location, from, to, false, true);
                     }
 
-                    if (ref.interfaceMethod.rtn != void.class) {
-                        AnalyzerCaster.getLegalCast(location, ref.delegateMethod.rtn, ref.interfaceMethod.rtn, false, true);
+                    if (ref.interfaceMethod.returnType != void.class) {
+                        AnalyzerCaster.getLegalCast(location, ref.delegateReturnType, ref.interfaceMethod.returnType, false, true);
                     }
                 } catch (IllegalArgumentException e) {
                     throw createError(e);

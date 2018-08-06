@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ssl;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -173,6 +174,8 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
     }
 
     public void testCertificateWithUntrustedNameFails() throws Exception {
+        // see https://github.com/elastic/elasticsearch/issues/29989
+        assumeTrue("test fails on JDK 11 currently", JavaVersion.current().compareTo(JavaVersion.parse("11")) < 0);
         writeRestrictions("*.trusted");
         try {
             tryConnect(untrustedCert);
@@ -183,6 +186,8 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
     }
 
     public void testRestrictionsAreReloaded() throws Exception {
+        // see https://github.com/elastic/elasticsearch/issues/29989
+        assumeTrue("test fails on JDK 11 currently", JavaVersion.current().compareTo(JavaVersion.parse("11")) < 0);
         writeRestrictions("*");
         assertBusy(() -> {
             try {

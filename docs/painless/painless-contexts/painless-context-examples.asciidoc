@@ -1,48 +1,47 @@
 [[painless-context-examples]]
 === Context examples
 
-Use the commands below to setup an Elasticsearch cluster to execute the example
-scripts for each context where an example is provided. Each example must be
-executed in the order of the table in the
-<<painless-contexts, previous section>> to work correctly.
-
+Each example must be run in the order of the table in the
+<<painless-contexts, previous section>> to work correctly.  To run each example,
+first index the sample data into Elasticsearch:
 
 . Download the
-https://download.elastic.co/demos/painless/contexts/seats.json[seat data]
-for use in the examples. The data is a fictional set of plays and their
-locations and times where each individual document represents a single seat in
-a theater for a single play.
+https://download.elastic.co/demos/painless/contexts/seats.json[seat data]. This
+data set contains booking information for a collection of plays. Each document
+represents a single seat for a play at a particular theater on a specific date
+and time.
 +
-Each document contains the following values:
+Each document contains the following fields:
 +
-`theatre` ({es_version}/keyword.html[`keyword`])::
+`theatre` ({ref}/keyword.html[`keyword`])::
         The name of the theater the play is in.
-`play` ({es_version}/text.html[`text`])::
+`play` ({ref}/text.html[`text`])::
         The name of the play.
-`actors` ({es_version}/text.html[`text`])::
+`actors` ({ref}/text.html[`text`])::
         A list of actors in the play.
-`row` ({es_version}/number.html[`integer`])::
+`row` ({ref}/number.html[`integer`])::
         The row of the seat.
-`number` ({es_version}/number.html[`integer`])::
+`number` ({ref}/number.html[`integer`])::
         The number of the seat within a row.
-`cost` ({es_version}/number.html[`double`])::
+`cost` ({ref}/number.html[`double`])::
         The cost of the ticket for the seat.
-`sold` ({es_version}/boolean.html[`boolean`])::
+`sold` ({ref}/boolean.html[`boolean`])::
         Whether or not the seat is sold.
-`datetime` ({es_version}/date.html[`date`])::
+`datetime` ({ref}/date.html[`date`])::
         The date and time of the play as a date object.
-`date` ({es_version}/keyword.html[`keyword`])::
+`date` ({ref}/keyword.html[`keyword`])::
         The date of the play as a keyword.
-`time` ({es_version}/keyword.html[`keyword`])::
+`time` ({ref}/keyword.html[`keyword`])::
         The time of the play as a keyword.
 
-. {es_version}/running-elasticsearch.html[Run] an elasticsearch cluster. The
-examples assume the cluster is running locally. Modify the examples as necessary
-to execute against a remote cluster.
+. {ref}/running-elasticsearch.html[Start] Elasticsearch. Note these
+examples assume Elasticsearch and Kibana are running locally. To use the Console
+editor in a remote Kibana instance, click the settings icon and enter the
+Console URL. Edit a request to submit a cURL request to a remote Elasticsearch
+instance.
 
-. Create {es_version}/mapping.html[mappings] using the following console
-command:
-
+. Create {ref}/mapping.html[mappings] for the sample data:
++
 [source,js]
 ----
 PUT /seats
@@ -65,12 +64,13 @@ PUT /seats
   }
 }
 ----
++
 // CONSOLE
 
-. Execute the <<painless-ingest-processor-context, ingest>> example.  This is a
+. Run the <<painless-ingest-processor-context, ingest>> example.  This is a
 requirement to upload the seat data for use in all the examples.
 
-. Upload the seat data using the following console command:
+. Upload the seat data:
 +
 [source,js]
 ----

@@ -42,18 +42,18 @@ The standard <<painless-api-reference, Painless API>> is available.
 
 *Example*
 
-To use this example first follow the steps outlined in
+To run this example, first follow the steps in
 <<painless-context-examples, context examples>>.
 
-The original seat data gives a date `String` with the format `YYYY-MM-DD` where
-the second digit of each the month and the day is optional and gives a time
-`String` with the format `HH:MM*` where the second digit of each the hours and
-the minutes is optional and the star represents a `String` of either `AM` or
-`PM`. The following ingest script processor converts the given date and time
-`Strings` into a useful format for storage into a date field. Upon completion of
-the script each document will have its `datetime` field value filled in.
+The seat data contains:
 
-The following script is used as the ingest script processor:
+* A date in the format `YYYY-MM-DD` where the second digit of both month and day
+  is optional.
+* A time in the format HH:MM* where the second digit of both hours and minutes
+  is optional. The star (*) represents either the `String` `AM` or `PM`.
+
+The following ingest script processes the date and time `Strings` and stores the
+result in a `datetime` field.
 
 [source,Painless]
 ----
@@ -136,9 +136,13 @@ The following script is used as the ingest script processor:
     substring into an array type value of `Strings`.
 <6> Collects the last substring into the array type value of `Strings`.
 <7> Uses the `split` function to separate the date `String` from the seat data
-    into year, month, and day `Strings`. Note the use of a `String` type value
-    to `char` type value <<string-character-casting, cast>> as part of the
-    second argument since character literals do not exist.
+    into year, month, and day `Strings`.
+    Note::
+    * The use of a `String` type value to `char` type value
+      <<string-character-casting, cast>> as part of the second argument since
+      character literals do not exist.
+    * The use of the `ctx` ingest processor context variable to retrieve the
+      data from the `date` field.
 <8> Appends the <<string-literals, string literal>> `"0"` value to a single
     digit month since the format of the seat data allows for this case.
 <9> Appends the <<string-literals, string literal>> `"0"` value to a single
@@ -146,12 +150,19 @@ The following script is used as the ingest script processor:
 <10> Sets the <<primitive-types, `boolean type`>>
      <<painless-variables, variable>> to `true` if the time `String` is a time
      in the afternoon or evening.
+     Note::
+     * The use of the `ctx` ingest processor context variable to retrieve the
+       data from the `time` field.
 <11> Uses the `split` function to separate the time `String` from the seat data
-     into hours and minutes `Strings`. Note the use of the `substring` method to
-     remove the `AM` or `PM` portion of the time `String`. Also note the use of
-     a `String` type value to `char` type value
-     <<string-character-casting, cast>> as part of the second argument since
-     character literals do not exist.
+     into hours and minutes `Strings`.
+     Note::
+     * The use of the `substring` method to remove the `AM` or `PM` portion of
+       the time `String`.
+     * The use of a `String` type value to `char` type value
+       <<string-character-casting, cast>> as part of the second argument since
+       character literals do not exist.
+     * The use of the `ctx` ingest processor context variable to retrieve the
+       data from the `date` field.
 <12> If the time `String` is an afternoon or evening value adds the
      <<integer-literals, integer literal>> `12` to the existing hours to move to
      a 24-hour based time.
@@ -159,11 +170,13 @@ The following script is used as the ingest script processor:
 <14> Creates a `ZonedDateTime` <<reference-types, reference type>> value by using
      the API method `parse` to parse the new time `String`.
 <15> Sets the datetime field `datetime` to the number of milliseconds retrieved
-     from the API method `getLong`. Note the use of the `ctx` ingest processor
-     context variable to set the field `datetime`. Manipulate each document's
-     fields with the `ctx` variable as each document is indexed.
+     from the API method `getLong`.
+     Note::
+     * The use of the `ctx` ingest processor context variable to set the field
+       `datetime`. Manipulate each document's fields with the `ctx` variable as
+       each document is indexed.
 
-Use the following curl command to create the ingest script processor:
+Submit the following request:
 
 [source,js]
 ----

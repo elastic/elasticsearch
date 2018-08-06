@@ -116,7 +116,7 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
             }
         });
 
-        assertTrue(completionLatch.await(1, TimeUnit.SECONDS));
+        assertTrue(completionLatch.await(30, TimeUnit.SECONDS));
         assertEquals(remoteNode, receivedNode.get());
     }
 
@@ -172,7 +172,7 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
         }
 
         void assertFailure() throws InterruptedException {
-            assertTrue(completionLatch.await(1, TimeUnit.SECONDS));
+            assertTrue(completionLatch.await(30, TimeUnit.SECONDS));
         }
     }
 }

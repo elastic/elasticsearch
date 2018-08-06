@@ -129,7 +129,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
     private static int queryNameId = 0;
     private static Settings nodeSettings;
     private static Index index;
-    private static Index indexWithNoType;
+    private static long nowInMillis;
 
     protected static Index getIndex() {
         return index;
@@ -150,7 +150,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             .build();
 
         index = new Index(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLength(10));
-        indexWithNoType = new Index(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLength(10));
+        nowInMillis = randomNonNegativeLong();
     }
 
     @Override
@@ -202,13 +202,13 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         // creating ServiceHolder just once. The other times are necessary so that further random
         // generation stays the same for all test that is run, otherwise reproducability breaks
         Settings indexSettings = createTestIndexSettings();
-        long now = randomNonNegativeLong();
+
         if (serviceHolder == null) {
-            serviceHolder = new ServiceHolder(nodeSettings, indexSettings, getPlugins(), now, this, true);
+            serviceHolder = new ServiceHolder(nodeSettings, indexSettings, getPlugins(), nowInMillis, this, true);
         }
         serviceHolder.clientInvocationHandler.delegate = this;
         if (serviceHolderWithNoType == null) {
-            serviceHolderWithNoType = new ServiceHolder(nodeSettings, indexSettings, getPlugins(), now, this, false);
+            serviceHolderWithNoType = new ServiceHolder(nodeSettings, indexSettings, getPlugins(), nowInMillis, this, false);
         }
         serviceHolderWithNoType.clientInvocationHandler.delegate = this;
     }

@@ -286,6 +286,9 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
                 if (fullHttpRequest != null) {
                     fullHttpRequest.release();
                 }
+                if (pipelinedRequest != null) {
+                    pipelinedRequest.release();
+                }
             }
         }
 

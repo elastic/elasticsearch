@@ -127,6 +127,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      */
     final Map<String, CheckpointState> checkpoints;
 
+    final LongConsumer onGlobalCheckpointUpdated;
+
     /**
      * This set contains allocation IDs for which there is a thread actively waiting for the local checkpoint to advance to at least the
      * current global checkpoint.
@@ -391,7 +393,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             final ShardId shardId,
             final String allocationId,
             final IndexSettings indexSettings,
-            final long globalCheckpoint) {
+            final long globalCheckpoint,
+            final LongConsumer onGlobalCheckpointUpdated) {
         super(shardId, indexSettings);
         assert globalCheckpoint >= SequenceNumbers.UNASSIGNED_SEQ_NO : "illegal initial global checkpoint: " + globalCheckpoint;
         this.shardAllocationId = allocationId;
@@ -400,6 +403,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         this.appliedClusterStateVersion = -1L;
         this.checkpoints = new HashMap<>(1 + indexSettings.getNumberOfReplicas());
         checkpoints.put(allocationId, new CheckpointState(SequenceNumbers.UNASSIGNED_SEQ_NO, globalCheckpoint, false, false));
+        this.onGlobalCheckpointUpdated = onGlobalCheckpointUpdated;
         this.pendingInSync = new HashSet<>();
         this.routingTable = null;
         this.replicationGroup = null;
@@ -487,6 +491,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         if (cps != null && globalCheckpoint > cps.globalCheckpoint) {
             ifUpdated.accept(cps.globalCheckpoint);
             cps.globalCheckpoint = globalCheckpoint;
+            onGlobalCheckpointUpdated.accept(globalCheckpoint);
         }
     }
 
@@ -739,6 +744,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         if (globalCheckpoint != computedGlobalCheckpoint) {
             logger.trace("global checkpoint updated to [{}]", computedGlobalCheckpoint);
             cps.globalCheckpoint = computedGlobalCheckpoint;
+            onGlobalCheckpointUpdated.accept(computedGlobalCheckpoint);
         }
     }
 

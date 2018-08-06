@@ -23,7 +23,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * This test aims to catch regressions where,
@@ -68,8 +72,14 @@ public class RestoreModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
         openJob(job.getId());
         String forecastId = forecast(job.getId(), TimeValue.timeValueHours(3), null);
         waitForecastToFinish(job.getId(), forecastId);
-        ForecastRequestStats forecastStats = getForecastStats(job.getId(), forecastId);
-        assertThat(forecastStats.getStatus(), equalTo(ForecastRequestStats.ForecastRequestStatus.FINISHED));
+        // In a multi-node cluster the replica may not be up to date
+        // so wait for the change
+        assertBusy(() -> {
+            ForecastRequestStats forecastStats = getForecastStats(job.getId(), forecastId);
+            assertThat(forecastStats.getMessages(), anyOf(nullValue(), empty()));
+            assertThat(forecastStats.getMemoryUsage(), greaterThan(0L));
+            assertThat(forecastStats.getRecordCount(), equalTo(3L));
+        });
 
         closeJob(job.getId());
 

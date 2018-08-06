@@ -67,6 +67,10 @@ public class XPackSettings {
     public static final Setting<Boolean> LOGSTASH_ENABLED = Setting.boolSetting("xpack.logstash.enabled", true,
             Setting.Property.NodeScope);
 
+    /** Setting for enabling or disabling Beats extensions. Defaults to true. */
+    public static final Setting<Boolean> BEATS_ENABLED = Setting.boolSetting("xpack.beats.enabled", true,
+        Setting.Property.NodeScope);
+
     /** Setting for enabling or disabling TLS. Defaults to false. */
     public static final Setting<Boolean> TRANSPORT_SSL_ENABLED = Setting.boolSetting("xpack.security.transport.ssl.enabled", false,
             Property.NodeScope);
@@ -82,6 +86,10 @@ public class XPackSettings {
     /** Setting for enabling or disabling the token service. Defaults to true */
     public static final Setting<Boolean> TOKEN_SERVICE_ENABLED_SETTING = Setting.boolSetting("xpack.security.authc.token.enabled",
         XPackSettings.HTTP_SSL_ENABLED::getRaw, Setting.Property.NodeScope);
+
+    /** Setting for enabling or disabling FIPS mode. Defaults to false */
+    public static final Setting<Boolean> FIPS_MODE_ENABLED =
+        Setting.boolSetting("xpack.security.fips_mode.enabled", false, Property.NodeScope);
 
     /** Setting for enabling or disabling sql. Defaults to true. */
     public static final Setting<Boolean> SQL_ENABLED = Setting.boolSetting("xpack.sql.enabled", true, Setting.Property.NodeScope);

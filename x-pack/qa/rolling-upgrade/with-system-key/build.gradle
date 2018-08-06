@@ -1,0 +1,1 @@
+group = "${group}.x-pack.qa.rolling-upgrade.with-system-key"

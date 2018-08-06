@@ -105,13 +105,17 @@ public class SamlRealmTests extends SamlTestCase {
         final Path path = getDataPath("idp1.xml");
         final String body = new String(Files.readAllBytes(path), StandardCharsets.UTF_8);
         final MockSecureSettings mockSecureSettings = new MockSecureSettings();
-        mockSecureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
+        mockSecureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode");
         final Settings settings = Settings.builder()
-                .put("xpack.ssl.keystore.path",
-                        getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"))
-                .put("path.home", createTempDir())
-                .setSecureSettings(mockSecureSettings)
-                .build();
+            .put("xpack.ssl.key",
+                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))
+            .put("xpack.ssl.certificate",
+                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
+            .put("xpack.ssl.certificate_authorities",
+                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
+            .put("path.home", createTempDir())
+            .setSecureSettings(mockSecureSettings)
+            .build();
         TestsSSLService sslService = new TestsSSLService(settings, TestEnvironment.newEnvironment(settings));
         try (MockWebServer proxyServer = new MockWebServer(sslService.sslContext(Settings.EMPTY), false)) {
             proxyServer.start();
@@ -563,17 +567,21 @@ public class SamlRealmTests extends SamlTestCase {
 
     private Settings.Builder buildSettings(String idpMetaDataPath) {
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString(REALM_SETTINGS_PREFIX + ".ssl.keystore.secure_password", "testnode");
+        secureSettings.setString(REALM_SETTINGS_PREFIX + ".ssl.secure_key_passphrase", "testnode");
         return Settings.builder()
-                .put(REALM_SETTINGS_PREFIX + ".ssl.verification_mode", "certificate")
-                .put(REALM_SETTINGS_PREFIX + ".ssl.keystore.path",
-                        getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"))
-                .put(REALM_SETTINGS_PREFIX + ".type", "saml")
-                .put(REALM_SETTINGS_PREFIX + "." + SamlRealmSettings.IDP_METADATA_PATH.getKey(), idpMetaDataPath)
-                .put(REALM_SETTINGS_PREFIX + "." + SamlRealmSettings.IDP_ENTITY_ID.getKey(), TEST_IDP_ENTITY_ID)
-                .put(REALM_SETTINGS_PREFIX + "." + SamlRealmSettings.IDP_METADATA_HTTP_REFRESH.getKey(), METADATA_REFRESH + "ms")
-                .put("path.home", createTempDir())
-                .setSecureSettings(secureSettings);
+            .put(REALM_SETTINGS_PREFIX + ".ssl.verification_mode", "certificate")
+            .put(REALM_SETTINGS_PREFIX + ".ssl.key",
+                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))
+            .put(REALM_SETTINGS_PREFIX + ".ssl.certificate",
+                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
+            .put(REALM_SETTINGS_PREFIX + ".ssl.certificate_authorities",
+                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
+            .put(REALM_SETTINGS_PREFIX + ".type", "saml")
+            .put(REALM_SETTINGS_PREFIX + "." + SamlRealmSettings.IDP_METADATA_PATH.getKey(), idpMetaDataPath)
+            .put(REALM_SETTINGS_PREFIX + "." + SamlRealmSettings.IDP_ENTITY_ID.getKey(), TEST_IDP_ENTITY_ID)
+            .put(REALM_SETTINGS_PREFIX + "." + SamlRealmSettings.IDP_METADATA_HTTP_REFRESH.getKey(), METADATA_REFRESH + "ms")
+            .put("path.home", createTempDir())
+            .setSecureSettings(secureSettings);
     }
 
     private RealmConfig realmConfigFromRealmSettings(Settings realmSettings) {

@@ -82,7 +82,7 @@ public class NotificationServiceTests extends ESTestCase {
 
         TestNotificationService(Settings settings) {
             super(settings, "test");
-            setAccountSetting(settings);
+            reload(settings);
         }
 
         @Override

@@ -20,7 +20,6 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
@@ -36,6 +35,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.transport.netty4.SecurityNetty4Transport;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
+import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
@@ -51,17 +51,15 @@ import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 
 public class SecurityServerTransportInterceptor extends AbstractComponent implements TransportInterceptor {
 
-    private static final Function<String, Setting<String>> TRANSPORT_TYPE_SETTING_TEMPLATE = (key) -> new Setting<>(key,
-            "node", v
-            -> {
-            if (v.equals("node") || v.equals("client")) {
-                return v;
-            }
-            throw new IllegalArgumentException("type must be one of [client, node]");
+    private static final Function<String, Setting<String>> TRANSPORT_TYPE_SETTING_TEMPLATE = key -> new Setting<>(key, "node", v -> {
+        if (v.equals("node") || v.equals("client")) {
+            return v;
+        }
+        throw new IllegalArgumentException("type must be one of [client, node]");
     }, Setting.Property.NodeScope);
     private static final String TRANSPORT_TYPE_SETTING_KEY = "xpack.security.type";
 
-    public static final Setting<String> TRANSPORT_TYPE_PROFILE_SETTING = Setting.affixKeySetting("transport.profiles.",
+    public static final Setting.AffixSetting<String> TRANSPORT_TYPE_PROFILE_SETTING = Setting.affixKeySetting("transport.profiles.",
             TRANSPORT_TYPE_SETTING_KEY, TRANSPORT_TYPE_SETTING_TEMPLATE);
 
     private final AuthenticationService authcService;
@@ -175,17 +173,17 @@ public class SecurityServerTransportInterceptor extends AbstractComponent implem
     }
 
     protected Map<String, ServerTransportFilter> initializeProfileFilters(DestructiveOperations destructiveOperations) {
-        Map<String, Settings> profileSettingsMap = settings.getGroups("transport.profiles.", true);
-        Map<String, ServerTransportFilter> profileFilters = new HashMap<>(profileSettingsMap.size() + 1);
+        final SSLConfiguration transportSslConfiguration = sslService.getSSLConfiguration(setting("transport.ssl"));
+        final Map<String, SSLConfiguration> profileConfigurations = SecurityNetty4Transport.getTransportProfileConfigurations(settings,
+            sslService, transportSslConfiguration);
 
-        final Settings transportSSLSettings = settings.getByPrefix(setting("transport.ssl."));
+        Map<String, ServerTransportFilter> profileFilters = new HashMap<>(profileConfigurations.size() + 1);
+
         final boolean transportSSLEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
-        for (Map.Entry<String, Settings> entry : profileSettingsMap.entrySet()) {
-            Settings profileSettings = entry.getValue();
-            final Settings profileSslSettings = SecurityNetty4Transport.profileSslSettings(profileSettings);
-            final boolean extractClientCert = transportSSLEnabled &&
-                    sslService.isSSLClientAuthEnabled(profileSslSettings, transportSSLSettings);
-            String type = TRANSPORT_TYPE_SETTING_TEMPLATE.apply(TRANSPORT_TYPE_SETTING_KEY).get(entry.getValue());
+        for (Map.Entry<String, SSLConfiguration> entry : profileConfigurations.entrySet()) {
+            final SSLConfiguration profileConfiguration = entry.getValue();
+            final boolean extractClientCert = transportSSLEnabled && sslService.isSSLClientAuthEnabled(profileConfiguration);
+            final String type = TRANSPORT_TYPE_PROFILE_SETTING.getConcreteSettingForNamespace(entry.getKey()).get(settings);
             switch (type) {
                 case "client":
                     profileFilters.put(entry.getKey(), new ServerTransportFilter.ClientProfile(authcService, authzService,
@@ -200,12 +198,6 @@ public class SecurityServerTransportInterceptor extends AbstractComponent implem
                 default:
                    throw new IllegalStateException("unknown profile type: " + type);
             }
-        }
-
-        if (!profileFilters.containsKey(TcpTransport.DEFAULT_PROFILE)) {
-            final boolean extractClientCert = transportSSLEnabled && sslService.isSSLClientAuthEnabled(transportSSLSettings);
-            profileFilters.put(TcpTransport.DEFAULT_PROFILE, new ServerTransportFilter.NodeProfile(authcService, authzService,
-                    threadPool.getThreadContext(), extractClientCert, destructiveOperations, reservedRealmEnabled, securityContext));
         }
 
         return Collections.unmodifiableMap(profileFilters);

@@ -56,10 +56,11 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -685,7 +686,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
                         return lookupPrototypeSafe(key).readFrom(in);
                     }
 
-                    @SuppressWarnings("unchecked")
                     @Override
                     public Diff<Custom> readDiff(StreamInput in, String key) throws IOException {
                         return lookupPrototypeSafe(key).readDiffFrom(in);
@@ -1345,7 +1345,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         }
         Long creationDate = settings.getAsLong(SETTING_CREATION_DATE, null);
         if (creationDate != null) {
-            DateTime creationDateTime = new DateTime(creationDate, DateTimeZone.UTC);
+            ZonedDateTime creationDateTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(creationDate), ZoneOffset.UTC);
             builder.put(SETTING_CREATION_DATE_STRING, creationDateTime.toString());
         }
         return builder.build();

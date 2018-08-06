@@ -29,7 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.protocol.license.LicenseStatus;
+import org.elasticsearch.protocol.xpack.license.LicenseStatus;
 
 /**
  * Data structure for license. Use {@link Builder} to build a license.

@@ -47,7 +47,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -282,7 +281,9 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     private static Tuple<Version, Version> readVersionsFromCatNodes(RestClient restClient) throws IOException {
         // we simply go to the _cat/nodes API and parse all versions in the cluster
-        Response response = restClient.performRequest("GET", "/_cat/nodes", Collections.singletonMap("h", "version,master"));
+        Request request = new Request("GET", "/_cat/nodes");
+        request.addParameter("h", "version,master");
+        Response response = restClient.performRequest(request);
         ClientYamlTestResponse restTestResponse = new ClientYamlTestResponse(response);
         String nodesCatResponse = restTestResponse.getBodyAsString();
         String[] split = nodesCatResponse.split("\n");
@@ -310,7 +311,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         Version version = null;
         for (int i = 0; i < numHosts; i++) {
             //we don't really use the urls here, we rely on the client doing round-robin to touch all the nodes in the cluster
-            Response response = restClient.performRequest("GET", "/");
+            Response response = restClient.performRequest(new Request("GET", "/"));
             ClientYamlTestResponse restTestResponse = new ClientYamlTestResponse(response);
             Object latestVersion = restTestResponse.evaluate("version.number");
             if (latestVersion == null) {

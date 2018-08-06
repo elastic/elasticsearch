@@ -105,8 +105,8 @@ For all other aggregations, if the aggregation name doesn't match the field name
 there are limitations in the drill-down functionality within the {ml} page in
 {kib}.
 
-{dfeeds} support complex nested aggregations, this example uses the `derivative`
-pipeline aggregation to find the 1st order derivative of the counter
+{dfeeds-cap} support complex nested aggregations, this example uses the `derivative`
+pipeline aggregation to find the first order derivative of the counter
 `system.network.out.bytes` for each value of the field `beat.name`.
 
 [source,js]

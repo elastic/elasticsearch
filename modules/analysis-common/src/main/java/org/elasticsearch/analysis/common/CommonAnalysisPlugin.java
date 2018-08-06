@@ -135,7 +135,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-import static org.elasticsearch.plugins.AnalysisPlugin.requriesAnalysisSettings;
+import static org.elasticsearch.plugins.AnalysisPlugin.requiresAnalysisSettings;
 
 public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
 
@@ -201,11 +201,11 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         filters.put("cjk_width", CJKWidthFilterFactory::new);
         filters.put("classic", ClassicFilterFactory::new);
         filters.put("czech_stem", CzechStemTokenFilterFactory::new);
-        filters.put("common_grams", requriesAnalysisSettings(CommonGramsTokenFilterFactory::new));
+        filters.put("common_grams", requiresAnalysisSettings(CommonGramsTokenFilterFactory::new));
         filters.put("decimal_digit", DecimalDigitFilterFactory::new);
         filters.put("delimited_payload_filter", LegacyDelimitedPayloadTokenFilterFactory::new);
         filters.put("delimited_payload", DelimitedPayloadTokenFilterFactory::new);
-        filters.put("dictionary_decompounder", requriesAnalysisSettings(DictionaryCompoundWordTokenFilterFactory::new));
+        filters.put("dictionary_decompounder", requiresAnalysisSettings(DictionaryCompoundWordTokenFilterFactory::new));
         filters.put("dutch_stem", DutchStemTokenFilterFactory::new);
         filters.put("edge_ngram", EdgeNGramTokenFilterFactory::new);
         filters.put("edgeNGram", EdgeNGramTokenFilterFactory::new);
@@ -216,11 +216,11 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         filters.put("german_normalization", GermanNormalizationFilterFactory::new);
         filters.put("german_stem", GermanStemTokenFilterFactory::new);
         filters.put("hindi_normalization", HindiNormalizationFilterFactory::new);
-        filters.put("hyphenation_decompounder", requriesAnalysisSettings(HyphenationCompoundWordTokenFilterFactory::new));
+        filters.put("hyphenation_decompounder", requiresAnalysisSettings(HyphenationCompoundWordTokenFilterFactory::new));
         filters.put("indic_normalization", IndicNormalizationFilterFactory::new);
-        filters.put("keep", requriesAnalysisSettings(KeepWordFilterFactory::new));
-        filters.put("keep_types", requriesAnalysisSettings(KeepTypesFilterFactory::new));
-        filters.put("keyword_marker", requriesAnalysisSettings(KeywordMarkerTokenFilterFactory::new));
+        filters.put("keep", requiresAnalysisSettings(KeepWordFilterFactory::new));
+        filters.put("keep_types", requiresAnalysisSettings(KeepTypesFilterFactory::new));
+        filters.put("keyword_marker", requiresAnalysisSettings(KeywordMarkerTokenFilterFactory::new));
         filters.put("kstem", KStemTokenFilterFactory::new);
         filters.put("length", LengthTokenFilterFactory::new);
         filters.put("limit", LimitTokenCountFilterFactory::new);
@@ -229,8 +229,8 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         filters.put("multiplexer", MultiplexerTokenFilterFactory::new);
         filters.put("ngram", NGramTokenFilterFactory::new);
         filters.put("nGram", NGramTokenFilterFactory::new);
-        filters.put("pattern_capture", requriesAnalysisSettings(PatternCaptureGroupTokenFilterFactory::new));
-        filters.put("pattern_replace", requriesAnalysisSettings(PatternReplaceTokenFilterFactory::new));
+        filters.put("pattern_capture", requiresAnalysisSettings(PatternCaptureGroupTokenFilterFactory::new));
+        filters.put("pattern_replace", requiresAnalysisSettings(PatternReplaceTokenFilterFactory::new));
         filters.put("persian_normalization", PersianNormalizationFilterFactory::new);
         filters.put("porter_stem", PorterStemTokenFilterFactory::new);
         filters.put("remove_duplicates", RemoveDuplicatesTokenFilterFactory::new);
@@ -241,10 +241,10 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         filters.put("serbian_normalization", SerbianNormalizationFilterFactory::new);
         filters.put("snowball", SnowballTokenFilterFactory::new);
         filters.put("sorani_normalization", SoraniNormalizationFilterFactory::new);
-        filters.put("stemmer_override", requriesAnalysisSettings(StemmerOverrideTokenFilterFactory::new));
+        filters.put("stemmer_override", requiresAnalysisSettings(StemmerOverrideTokenFilterFactory::new));
         filters.put("stemmer", StemmerTokenFilterFactory::new);
         filters.put("trim", TrimTokenFilterFactory::new);
-        filters.put("truncate", requriesAnalysisSettings(TruncateTokenFilterFactory::new));
+        filters.put("truncate", requiresAnalysisSettings(TruncateTokenFilterFactory::new));
         filters.put("unique", UniqueTokenFilterFactory::new);
         filters.put("uppercase", UpperCaseTokenFilterFactory::new);
         filters.put("word_delimiter_graph", WordDelimiterGraphTokenFilterFactory::new);
@@ -256,8 +256,8 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
     public Map<String, AnalysisProvider<CharFilterFactory>> getCharFilters() {
         Map<String, AnalysisProvider<CharFilterFactory>> filters = new TreeMap<>();
         filters.put("html_strip", HtmlStripCharFilterFactory::new);
-        filters.put("pattern_replace", requriesAnalysisSettings(PatternReplaceCharFilterFactory::new));
-        filters.put("mapping", requriesAnalysisSettings(MappingCharFilterFactory::new));
+        filters.put("pattern_replace", requiresAnalysisSettings(PatternReplaceCharFilterFactory::new));
+        filters.put("mapping", requiresAnalysisSettings(MappingCharFilterFactory::new));
         return filters;
     }
 

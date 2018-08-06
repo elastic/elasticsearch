@@ -52,12 +52,6 @@ import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
 
 public class DateFormatters {
 
-    private static final DateTimeFormatter TIME_ZONE_FORMATTER = new DateTimeFormatterBuilder()
-        .optionalStart().appendZoneId().optionalEnd()
-        .optionalStart().appendOffset("+HHmm", "Z").optionalEnd()
-        .optionalStart().appendOffset("+HH:mm", "Z").optionalEnd()
-        .toFormatter(Locale.ROOT);
-
     private static final DateTimeFormatter TIME_ZONE_FORMATTER_ZONE_ID = new DateTimeFormatterBuilder()
         .appendZoneId()
         .toFormatter(Locale.ROOT);
@@ -70,11 +64,79 @@ public class DateFormatters {
         .appendOffset("+HH:mm", "Z")
         .toFormatter(Locale.ROOT);
 
+    private static final DateTimeFormatter TIME_ZONE_FORMATTER = new DateTimeFormatterBuilder()
+        .optionalStart().appendZoneId().optionalEnd()
+        .optionalStart().appendOffset("+HHmm", "Z").optionalEnd()
+        .optionalStart().appendOffset("+HH:mm", "Z").optionalEnd()
+        .toFormatter(Locale.ROOT);
+
     private static final DateTimeFormatter OPTIONAL_TIME_ZONE_FORMATTER = new DateTimeFormatterBuilder()
         .optionalStart()
         .append(TIME_ZONE_FORMATTER)
         .optionalEnd()
         .toFormatter(Locale.ROOT);
+
+    private static final DateTimeFormatter STRICT_YEAR_MONTH_DAY_FORMATTER = new DateTimeFormatterBuilder()
+        .appendValue(ChronoField.YEAR, 4, 10, SignStyle.EXCEEDS_PAD)
+        .appendLiteral("-")
+        .appendValue(MONTH_OF_YEAR, 2, 2, SignStyle.NOT_NEGATIVE)
+        .appendLiteral('-')
+        .appendValue(DAY_OF_MONTH, 2, 2, SignStyle.NOT_NEGATIVE)
+        .toFormatter(Locale.ROOT);
+
+    private static final DateTimeFormatter STRICT_HOUR_MINUTE_SECOND_FORMATTER = new DateTimeFormatterBuilder()
+        .appendValue(HOUR_OF_DAY, 2, 2, SignStyle.NOT_NEGATIVE)
+        .appendLiteral(':')
+        .appendValue(MINUTE_OF_HOUR, 2, 2, SignStyle.NOT_NEGATIVE)
+        .appendLiteral(':')
+        .appendValue(SECOND_OF_MINUTE, 2, 2, SignStyle.NOT_NEGATIVE)
+        .toFormatter(Locale.ROOT);
+
+    private static final DateTimeFormatter STRICT_DATE_OPTIONAL_TIME_FORMATTER_1 = new DateTimeFormatterBuilder()
+        .append(STRICT_YEAR_MONTH_DAY_FORMATTER)
+        .optionalStart()
+        .appendLiteral('T')
+        .append(STRICT_HOUR_MINUTE_SECOND_FORMATTER)
+        .optionalStart()
+        .appendFraction(MILLI_OF_SECOND, 3, 3, true)
+        .optionalEnd()
+        .optionalStart()
+        .append(TIME_ZONE_FORMATTER_WITHOUT_COLON)
+        .optionalEnd()
+        .optionalEnd()
+        .toFormatter(Locale.ROOT);
+
+    private static final DateTimeFormatter STRICT_DATE_OPTIONAL_TIME_FORMATTER_2 = new DateTimeFormatterBuilder()
+        .append(STRICT_YEAR_MONTH_DAY_FORMATTER)
+        .optionalStart()
+        .appendLiteral('T')
+        .append(STRICT_HOUR_MINUTE_SECOND_FORMATTER)
+        .optionalStart()
+        .appendFraction(MILLI_OF_SECOND, 3, 3, true)
+        .optionalEnd()
+        .optionalStart()
+        .append(TIME_ZONE_FORMATTER_WITH_COLON)
+        .optionalEnd()
+        .optionalEnd()
+        .toFormatter(Locale.ROOT);
+
+    private static final DateTimeFormatter STRICT_DATE_OPTIONAL_TIME_FORMATTER_3 = new DateTimeFormatterBuilder()
+        .append(STRICT_YEAR_MONTH_DAY_FORMATTER)
+        .optionalStart()
+        .appendLiteral('T')
+        .append(STRICT_HOUR_MINUTE_SECOND_FORMATTER)
+        .optionalStart()
+        .appendFraction(MILLI_OF_SECOND, 3, 3, true)
+        .optionalEnd()
+        .optionalStart()
+        .append(TIME_ZONE_FORMATTER_ZONE_ID)
+        .optionalEnd()
+        .optionalEnd()
+        .toFormatter(Locale.ROOT);
+
+    private static final CompoundDateTimeFormatter STRICT_DATE_OPTIONAL_TIME =
+        new CompoundDateTimeFormatter(STRICT_DATE_OPTIONAL_TIME_FORMATTER_1, STRICT_DATE_OPTIONAL_TIME_FORMATTER_2,
+            STRICT_DATE_OPTIONAL_TIME_FORMATTER_3);
 
     private static final DateTimeFormatter BASIC_TIME_NO_MILLIS_FORMATTER = new DateTimeFormatterBuilder()
         .appendValue(HOUR_OF_DAY, 2, 2, SignStyle.NOT_NEGATIVE)
@@ -258,7 +320,8 @@ public class DateFormatters {
         .append(OPTIONAL_TIME_ZONE_FORMATTER)
         .toFormatter(Locale.ROOT));
 
-    private static final CompoundDateTimeFormatter DATE_OPTIONAL_TIME = new CompoundDateTimeFormatter(new DateTimeFormatterBuilder()
+    private static final CompoundDateTimeFormatter DATE_OPTIONAL_TIME = new CompoundDateTimeFormatter(STRICT_DATE_OPTIONAL_TIME.printer,
+        new DateTimeFormatterBuilder()
         .append(DATE_FORMATTER)
         .parseLenient()
         .optionalStart()
@@ -560,14 +623,6 @@ public class DateFormatters {
     private static final CompoundDateTimeFormatter STRICT_DATE_HOUR_MINUTE = new CompoundDateTimeFormatter(
         DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm", Locale.ROOT));
 
-    private static final DateTimeFormatter STRICT_YEAR_MONTH_DAY_FORMATTER = new DateTimeFormatterBuilder()
-        .appendValue(ChronoField.YEAR, 4, 10, SignStyle.EXCEEDS_PAD)
-        .appendLiteral("-")
-        .appendValue(MONTH_OF_YEAR, 2, 2, SignStyle.NOT_NEGATIVE)
-        .appendLiteral('-')
-        .appendValue(DAY_OF_MONTH, 2, 2, SignStyle.NOT_NEGATIVE)
-        .toFormatter(Locale.ROOT);
-
     private static final CompoundDateTimeFormatter STRICT_YEAR_MONTH_DAY = new CompoundDateTimeFormatter(STRICT_YEAR_MONTH_DAY_FORMATTER);
 
     private static final CompoundDateTimeFormatter STRICT_YEAR_MONTH = new CompoundDateTimeFormatter(new DateTimeFormatterBuilder()
@@ -580,14 +635,6 @@ public class DateFormatters {
         .appendValue(ChronoField.YEAR, 4, 10, SignStyle.EXCEEDS_PAD)
         .toFormatter(Locale.ROOT));
 
-    private static final DateTimeFormatter STRICT_HOUR_MINUTE_SECOND_FORMATTER = new DateTimeFormatterBuilder()
-        .appendValue(HOUR_OF_DAY, 2, 2, SignStyle.NOT_NEGATIVE)
-        .appendLiteral(':')
-        .appendValue(MINUTE_OF_HOUR, 2, 2, SignStyle.NOT_NEGATIVE)
-        .appendLiteral(':')
-        .appendValue(SECOND_OF_MINUTE, 2, 2, SignStyle.NOT_NEGATIVE)
-        .toFormatter(Locale.ROOT);
-
     private static final CompoundDateTimeFormatter STRICT_HOUR_MINUTE_SECOND =
         new CompoundDateTimeFormatter(STRICT_HOUR_MINUTE_SECOND_FORMATTER);
 
@@ -599,18 +646,6 @@ public class DateFormatters {
         .appendFraction(MILLI_OF_SECOND, 3, 3, true)
         .optionalEnd()
         .append(OPTIONAL_TIME_ZONE_FORMATTER)
-        .toFormatter(Locale.ROOT));
-
-    private static final CompoundDateTimeFormatter STRICT_DATE_OPTIONAL_TIME = new CompoundDateTimeFormatter(new DateTimeFormatterBuilder()
-        .append(STRICT_YEAR_MONTH_DAY_FORMATTER)
-        .optionalStart()
-        .appendLiteral('T')
-        .append(STRICT_HOUR_MINUTE_SECOND_FORMATTER)
-        .optionalStart()
-        .appendFraction(MILLI_OF_SECOND, 3, 3, true)
-        .optionalEnd()
-        .append(OPTIONAL_TIME_ZONE_FORMATTER)
-        .optionalEnd()
         .toFormatter(Locale.ROOT));
 
     private static final CompoundDateTimeFormatter STRICT_ORDINAL_DATE_TIME_NO_MILLIS = new CompoundDateTimeFormatter(
@@ -918,8 +953,8 @@ public class DateFormatters {
                 return forPattern(formats[0], locale);
             } else {
                 Collection<DateTimeFormatter> parsers = new LinkedHashSet<>(formats.length);
-                for (int i = 0; i < formats.length; i++) {
-                    CompoundDateTimeFormatter dateTimeFormatter = forPattern(formats[i], locale);
+                for (String format : formats) {
+                    CompoundDateTimeFormatter dateTimeFormatter = forPattern(format, locale);
                     try {
                         parsers.addAll(Arrays.asList(dateTimeFormatter.parsers));
                     } catch (IllegalArgumentException e) {

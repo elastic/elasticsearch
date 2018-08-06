@@ -5,14 +5,8 @@
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
-import org.apache.lucene.analysis.Analyzer;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.analyze.TransportAnalyzeAction;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -22,17 +16,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.index.analysis.CharFilterFactory;
-import org.elasticsearch.index.analysis.CustomAnalyzer;
-import org.elasticsearch.index.analysis.CustomAnalyzerProvider;
-import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.index.analysis.TokenizerFactory;
-import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.rest.action.admin.indices.RestAnalyzeAction;
-import org.elasticsearch.xpack.core.ml.MlParserType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -42,12 +26,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-
 /**
  * Configuration for the categorization analyzer.
  *
  * The syntax is a subset of what can be supplied to the {@linkplain RestAnalyzeAction <code>_analyze</code> endpoint}.
- * To summarise, the first option is to specify the name of an out-of-the-box analyzer:
+ * To summarize, the first option is to specify the name of an out-of-the-box analyzer:
  * <code>
  *     "categorization_analyzer" : "standard"
  * </code>
@@ -66,11 +49,6 @@ import java.util.Objects;
  *         { "type" : "pattern_replace", "pattern": "^[0-9].*" }
  *     ]
  * </code>
- *
- * Unfortunately there is no easy to to reuse a subset of the <code>_analyze</code> action implementation, so much
- * of the code in this file is copied from {@link TransportAnalyzeAction}.  Unfortunately the logic required here is
- * not quite identical to that of {@link TransportAnalyzeAction}, and the required code is hard to partially reuse.
- * TODO: consider refactoring ES core to allow more reuse.
  */
 public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeable {
 
@@ -82,7 +60,8 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
     /**
      * This method is only used in the unit tests - in production code this config is always parsed as a fragment.
      */
-    public static CategorizationAnalyzerConfig buildFromXContentObject(XContentParser parser, MlParserType parserType) throws IOException {
+    public static CategorizationAnalyzerConfig buildFromXContentObject(XContentParser parser, boolean ignoreUnknownFields)
+        throws IOException {
 
         if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
             throw new IllegalArgumentException("Expected start object but got [" + parser.currentToken() + "]");
@@ -92,7 +71,7 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
             throw new IllegalArgumentException("Expected [" + CATEGORIZATION_ANALYZER + "] field but got [" + parser.currentToken() + "]");
         }
         parser.nextToken();
-        CategorizationAnalyzerConfig categorizationAnalyzerConfig = buildFromXContentFragment(parser, parserType);
+        CategorizationAnalyzerConfig categorizationAnalyzerConfig = buildFromXContentFragment(parser, ignoreUnknownFields);
         parser.nextToken();
         return categorizationAnalyzerConfig;
     }
@@ -104,7 +83,7 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
      *
      * The parser is strict when parsing config and lenient when parsing cluster state.
      */
-    static CategorizationAnalyzerConfig buildFromXContentFragment(XContentParser parser, MlParserType parserType) throws IOException {
+    static CategorizationAnalyzerConfig buildFromXContentFragment(XContentParser parser, boolean ignoreUnknownFields) throws IOException {
 
         CategorizationAnalyzerConfig.Builder builder = new CategorizationAnalyzerConfig.Builder();
 
@@ -152,7 +131,7 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
                         }
                     }
                 // Be lenient when parsing cluster state - assume unknown fields are from future versions
-                } else if (parserType == MlParserType.CONFIG) {
+                } else if (ignoreUnknownFields == false) {
                     throw new IllegalArgumentException("Parameter [" + currentFieldName + "] in [" + CATEGORIZATION_ANALYZER +
                             "] is unknown or of the wrong type [" + token + "]");
                 }
@@ -350,175 +329,6 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
         return builder;
     }
 
-    /**
-     * Convert the config to an {@link Analyzer}.  This may be a global analyzer or a newly created custom analyzer.
-     * In the case of a global analyzer the caller must NOT close it when they have finished with it.  In the case of
-     * a newly created custom analyzer the caller is responsible for closing it.
-     * @return The first tuple member is the {@link Analyzer}; the second indicates whether the caller is responsible
-     *         for closing it.
-     */
-    public Tuple<Analyzer, Boolean> toAnalyzer(AnalysisRegistry analysisRegistry, Environment environment) throws IOException {
-        if (analyzer != null) {
-            Analyzer globalAnalyzer = analysisRegistry.getAnalyzer(analyzer);
-            if (globalAnalyzer == null) {
-                throw new IllegalArgumentException("Failed to find global analyzer [" + analyzer + "]");
-            }
-            return new Tuple<>(globalAnalyzer, Boolean.FALSE);
-        } else {
-            List<CharFilterFactory> charFilterFactoryList =
-                    parseCharFilterFactories(analysisRegistry, environment);
-
-            Tuple<String, TokenizerFactory> tokenizerFactory = parseTokenizerFactory(analysisRegistry,
-                    environment);
-
-            List<TokenFilterFactory> tokenFilterFactoryList = parseTokenFilterFactories(analysisRegistry,
-                    environment, tokenizerFactory, charFilterFactoryList);
-
-            return new Tuple<>(new CustomAnalyzer(tokenizerFactory.v1(), tokenizerFactory.v2(),
-                    charFilterFactoryList.toArray(new CharFilterFactory[charFilterFactoryList.size()]),
-                    tokenFilterFactoryList.toArray(new TokenFilterFactory[tokenFilterFactoryList.size()])), Boolean.TRUE);
-        }
-    }
-
-
-    /**
-     * Get char filter factories for each configured char filter.  Each configuration
-     * element can be the name of an out-of-the-box char filter, or a custom definition.
-     */
-    private List<CharFilterFactory> parseCharFilterFactories(AnalysisRegistry analysisRegistry,
-                                                             Environment environment) throws IOException {
-        final List<CharFilterFactory> charFilterFactoryList = new ArrayList<>();
-        for (NameOrDefinition charFilter : charFilters) {
-            final CharFilterFactory charFilterFactory;
-            if (charFilter.name != null) {
-                AnalysisModule.AnalysisProvider<CharFilterFactory> charFilterFactoryFactory =
-                        analysisRegistry.getCharFilterProvider(charFilter.name);
-                if (charFilterFactoryFactory == null) {
-                    throw new IllegalArgumentException("Failed to find global char filter under [" + charFilter.name + "]");
-                }
-                charFilterFactory = charFilterFactoryFactory.get(environment, charFilter.name);
-            } else {
-                String charFilterTypeName = charFilter.definition.get("type");
-                if (charFilterTypeName == null) {
-                    throw new IllegalArgumentException("Missing [type] setting for char filter: " + charFilter.definition);
-                }
-                AnalysisModule.AnalysisProvider<CharFilterFactory> charFilterFactoryFactory =
-                        analysisRegistry.getCharFilterProvider(charFilterTypeName);
-                if (charFilterFactoryFactory == null) {
-                    throw new IllegalArgumentException("Failed to find global char filter under [" + charFilterTypeName + "]");
-                }
-                Settings settings = augmentSettings(charFilter.definition);
-                // Need to set anonymous "name" of char_filter
-                charFilterFactory = charFilterFactoryFactory.get(buildDummyIndexSettings(settings), environment,
-                        "_anonymous_charfilter", settings);
-            }
-            if (charFilterFactory == null) {
-                throw new IllegalArgumentException("Failed to find char filter [" + charFilter + "]");
-            }
-            charFilterFactoryList.add(charFilterFactory);
-        }
-        return charFilterFactoryList;
-    }
-
-    /**
-     * Get the tokenizer factory for the configured tokenizer.  The configuration
-     * can be the name of an out-of-the-box tokenizer, or a custom definition.
-     */
-    private Tuple<String, TokenizerFactory> parseTokenizerFactory(AnalysisRegistry analysisRegistry,
-                                                                  Environment environment) throws IOException {
-        final String name;
-        final TokenizerFactory tokenizerFactory;
-        if (tokenizer.name != null) {
-            name = tokenizer.name;
-            AnalysisModule.AnalysisProvider<TokenizerFactory> tokenizerFactoryFactory = analysisRegistry.getTokenizerProvider(name);
-            if (tokenizerFactoryFactory == null) {
-                throw new IllegalArgumentException("Failed to find global tokenizer under [" + name + "]");
-            }
-            tokenizerFactory = tokenizerFactoryFactory.get(environment, name);
-        } else {
-            String tokenizerTypeName = tokenizer.definition.get("type");
-            if (tokenizerTypeName == null) {
-                throw new IllegalArgumentException("Missing [type] setting for tokenizer: " + tokenizer.definition);
-            }
-            AnalysisModule.AnalysisProvider<TokenizerFactory> tokenizerFactoryFactory =
-                    analysisRegistry.getTokenizerProvider(tokenizerTypeName);
-            if (tokenizerFactoryFactory == null) {
-                throw new IllegalArgumentException("Failed to find global tokenizer under [" + tokenizerTypeName + "]");
-            }
-            Settings settings = augmentSettings(tokenizer.definition);
-            // Need to set anonymous "name" of tokenizer
-            name = "_anonymous_tokenizer";
-            tokenizerFactory = tokenizerFactoryFactory.get(buildDummyIndexSettings(settings), environment, name, settings);
-        }
-        return new Tuple<>(name, tokenizerFactory);
-    }
-
-    /**
-     * Get token filter factories for each configured token filter.  Each configuration
-     * element can be the name of an out-of-the-box token filter, or a custom definition.
-     */
-    private List<TokenFilterFactory> parseTokenFilterFactories(AnalysisRegistry analysisRegistry, Environment environment,
-                                                               Tuple<String, TokenizerFactory> tokenizerFactory,
-                                                               List<CharFilterFactory> charFilterFactoryList) throws IOException {
-        final List<TokenFilterFactory> tokenFilterFactoryList = new ArrayList<>();
-        for (NameOrDefinition tokenFilter : tokenFilters) {
-            TokenFilterFactory tokenFilterFactory;
-            if (tokenFilter.name != null) {
-                AnalysisModule.AnalysisProvider<TokenFilterFactory> tokenFilterFactoryFactory;
-                tokenFilterFactoryFactory = analysisRegistry.getTokenFilterProvider(tokenFilter.name);
-                if (tokenFilterFactoryFactory == null) {
-                    throw new IllegalArgumentException("Failed to find global token filter under [" + tokenFilter.name + "]");
-                }
-                tokenFilterFactory = tokenFilterFactoryFactory.get(environment, tokenFilter.name);
-            } else {
-                String filterTypeName = tokenFilter.definition.get("type");
-                if (filterTypeName == null) {
-                    throw new IllegalArgumentException("Missing [type] setting for token filter: " + tokenFilter.definition);
-                }
-                AnalysisModule.AnalysisProvider<TokenFilterFactory> tokenFilterFactoryFactory =
-                        analysisRegistry.getTokenFilterProvider(filterTypeName);
-                if (tokenFilterFactoryFactory == null) {
-                    throw new IllegalArgumentException("Failed to find global token filter under [" + filterTypeName + "]");
-                }
-                Settings settings = augmentSettings(tokenFilter.definition);
-                // Need to set anonymous "name" of token_filter
-                tokenFilterFactory = tokenFilterFactoryFactory.get(buildDummyIndexSettings(settings), environment,
-                        "_anonymous_tokenfilter", settings);
-                tokenFilterFactory = CustomAnalyzerProvider.checkAndApplySynonymFilter(tokenFilterFactory, tokenizerFactory.v1(),
-                        tokenizerFactory.v2(), tokenFilterFactoryList, charFilterFactoryList, environment);
-            }
-            if (tokenFilterFactory == null) {
-                throw new IllegalArgumentException("Failed to find or create token filter [" + tokenFilter + "]");
-            }
-            tokenFilterFactoryList.add(tokenFilterFactory);
-        }
-        return tokenFilterFactoryList;
-    }
-
-    /**
-     * The Elasticsearch analysis functionality is designed to work with indices.  For
-     * categorization we have to pretend we've got some index settings.
-     */
-    private IndexSettings buildDummyIndexSettings(Settings settings) {
-        IndexMetaData metaData = IndexMetaData.builder(IndexMetaData.INDEX_UUID_NA_VALUE).settings(settings).build();
-        return new IndexSettings(metaData, Settings.EMPTY);
-    }
-
-    /**
-     * The behaviour of Elasticsearch analyzers can vary between versions.
-     * For categorization we'll always use the latest version of the text analysis.
-     * The other settings are just to stop classes that expect to be associated with
-     * an index from complaining.
-     */
-    private Settings augmentSettings(Settings settings) {
-        return Settings.builder().put(settings)
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-                .build();
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -608,18 +418,6 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
                         + TOKEN_FILTERS + "] field");
             }
             return new CategorizationAnalyzerConfig(analyzer, charFilters, tokenizer, tokenFilters);
-        }
-
-        /**
-         * Verify that the builder will build a valid config.  This is not done as part of the basic build
-         * because it verifies that the names of analyzers/tokenizers/filters referenced by the config are
-         * known, and the validity of these names could change over time.
-         */
-        public void verify(AnalysisRegistry analysisRegistry, Environment environment) throws IOException {
-            Tuple<Analyzer, Boolean> tuple = build().toAnalyzer(analysisRegistry, environment);
-            if (tuple.v2()) {
-                tuple.v1().close();
-            }
         }
     }
 }

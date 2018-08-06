@@ -317,6 +317,7 @@ public abstract class Publication extends AbstractComponent {
                     return;
                 }
 
+                // TODO: check if we need to pass the full response here or if it's sufficient to just pass the optional join.
                 onPossibleJoin(discoveryNode, response);
 
                 publicationTargetStateMachine.setState(PublicationTargetState.WAITING_FOR_QUORUM);

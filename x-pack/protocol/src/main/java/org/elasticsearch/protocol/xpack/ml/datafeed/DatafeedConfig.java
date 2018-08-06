@@ -21,7 +21,6 @@ package org.elasticsearch.protocol.xpack.ml.datafeed;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -68,19 +67,8 @@ public class DatafeedConfig implements ToXContentObject {
         "datafeed_config", true, a -> new Builder((String)a[0], (String)a[1]));
 
     static {
-        PARSER.declareField(ConstructingObjectParser.constructorArg(), p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return p.text();
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, ID, ObjectParser.ValueType.STRING);
-
-        PARSER.declareField(ConstructingObjectParser.constructorArg(), p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return p.text();
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, JOB_ID, ObjectParser.ValueType.STRING);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), ID);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), JOB_ID);
 
         PARSER.declareStringArray(Builder::setIndices, INDEXES);
         PARSER.declareStringArray(Builder::setIndices, INDICES);

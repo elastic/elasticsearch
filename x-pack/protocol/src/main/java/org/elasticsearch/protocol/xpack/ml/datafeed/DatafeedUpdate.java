@@ -21,7 +21,6 @@ package org.elasticsearch.protocol.xpack.ml.datafeed;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -48,14 +47,8 @@ public class DatafeedUpdate implements ToXContentObject {
         "datafeed_update", true, a -> new Builder((String)a[0]));
 
     static {
-        PARSER.declareField(ConstructingObjectParser.constructorArg(), p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return p.text();
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, DatafeedConfig.ID, ObjectParser.ValueType.STRING);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), DatafeedConfig.ID);
 
-        PARSER.declareString(Builder::setId, DatafeedConfig.ID);
         PARSER.declareString(Builder::setJobId, DatafeedConfig.JOB_ID);
         PARSER.declareStringArray(Builder::setIndices, DatafeedConfig.INDEXES);
         PARSER.declareStringArray(Builder::setIndices, DatafeedConfig.INDICES);
@@ -255,11 +248,6 @@ public class DatafeedUpdate implements ToXContentObject {
             this.scriptFields = config.scriptFields;
             this.scrollSize = config.scrollSize;
             this.chunkingConfig = config.chunkingConfig;
-        }
-
-        public Builder setId(String datafeedId) {
-            id = Objects.requireNonNull(datafeedId, DatafeedConfig.ID.getPreferredName());
-            return this;
         }
 
         public Builder setJobId(String jobId) {

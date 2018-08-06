@@ -41,7 +41,7 @@ Object httpPrincipal = new Object() {
     @Override
     String toString() {
         InetAddress resolvedAddress = InetAddress.getByName('127.0.0.1')
-        return "HTTP/" + resolvedAddress.getHostName()
+        return "HTTP/" + resolvedAddress.getCanonicalHostName()
     }
 }
 

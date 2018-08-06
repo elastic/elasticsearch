@@ -2610,7 +2610,7 @@ public class RequestConvertersTests extends ESTestCase {
         setRandomMasterTimeout(req, expectedParams);
 
         Request request = RequestConverters.putOperationMode(req);
-        assertThat(request.getMethod(), equalTo(HttpPut.METHOD_NAME));
+        assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
         assertThat(request.getEndpoint(), equalTo("/_ilm/start"));
         assertThat(request.getParameters(), equalTo(expectedParams));
 
@@ -2619,7 +2619,7 @@ public class RequestConvertersTests extends ESTestCase {
         setRandomMasterTimeout(req, expectedParams);
 
         request = RequestConverters.putOperationMode(req);
-        assertThat(request.getMethod(), equalTo(HttpPut.METHOD_NAME));
+        assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
         assertThat(request.getEndpoint(), equalTo("/_ilm/stop"));
         assertThat(request.getParameters(), equalTo(expectedParams));
     }

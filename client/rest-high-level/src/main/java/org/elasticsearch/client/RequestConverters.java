@@ -1173,7 +1173,7 @@ final class RequestConverters {
     }
 
     static Request putOperationMode(PutOperationModeRequest putOperationModeRequest) {
-        Request request = new Request(HttpPut.METHOD_NAME,
+        Request request = new Request(HttpPost.METHOD_NAME,
             new EndpointBuilder()
                 .addPathPartAsIs("_ilm")
                 .addPathPartAsIs(putOperationModeRequest.getMode() == OperationMode.RUNNING ? "start" : "stop")

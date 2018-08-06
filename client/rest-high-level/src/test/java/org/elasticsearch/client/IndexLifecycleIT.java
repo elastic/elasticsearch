@@ -34,6 +34,7 @@ import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleResponse;
 import org.elasticsearch.protocol.xpack.indexlifecycle.IndexLifecycleExplainResponse;
 import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyResponse;
+import org.hamcrest.Matchers;
 
 import java.util.Map;
 
@@ -166,6 +167,13 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         createIndex("foo", Settings.builder().put("index.lifecycle.name", "bar").build());
         createIndex("baz", Settings.builder().put("index.lifecycle.name", "eggplant").build());
         createIndex("squash", Settings.EMPTY);
+
+        // TODO: NORELEASE convert this to using the high level client once
+        // there are APIs for it
+        Request statusReq = new Request("GET", "/_ilm/status");
+        Response statusResponse = client().performRequest(statusReq);
+        String statusResponseString = EntityUtils.toString(statusResponse.getEntity());
+        assertEquals("{\"operation_mode\":\"RUNNING\"}", statusResponseString);
         
         PutOperationModeRequest req = new PutOperationModeRequest(OperationMode.STOPPING);
         PutOperationModeResponse response = execute(req, highLevelClient().indexLifecycle()::putOperationMode,
@@ -173,10 +181,11 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         assertTrue(response.isAcknowledged());
 
         // TODO: NORELEASE convert this to using the high level client once there are APIs for it
-        Request statusReq = new Request("GET", "/_ilm/status" + policy);
-        Response statusResponse = client().performRequest(statusReq);
-        String statusResponseString = EntityUtils.toString(statusResponse.getEntity());
-        assertEquals("{ \"operation_mode\": \"STOPPED\" }", statusResponseString);
+        statusReq = new Request("GET", "/_ilm/status");
+        statusResponse = client().performRequest(statusReq);
+        statusResponseString = EntityUtils.toString(statusResponse.getEntity());
+        assertThat(statusResponseString,
+                Matchers.anyOf(equalTo("{\"operation_mode\":\"STOPPING\"}"), equalTo("{\"operation_mode\":\"STOPPED\"}")));
         
         req = new PutOperationModeRequest(OperationMode.RUNNING);
         response = execute(req, highLevelClient().indexLifecycle()::putOperationMode,
@@ -184,10 +193,10 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         assertTrue(response.isAcknowledged());
 
         // TODO: NORELEASE convert this to using the high level client once there are APIs for it
-        statusReq = new Request("GET", "/_ilm/status" + policy);
+        statusReq = new Request("GET", "/_ilm/status");
         statusResponse = client().performRequest(statusReq);
         statusResponseString = EntityUtils.toString(statusResponse.getEntity());
-        assertEquals("{ \"operation_mode\": \"RUNNING\" }", statusResponseString);
+        assertEquals("{\"operation_mode\":\"RUNNING\"}", statusResponseString);
     }
 
     public void testExplainLifecycle() throws Exception {

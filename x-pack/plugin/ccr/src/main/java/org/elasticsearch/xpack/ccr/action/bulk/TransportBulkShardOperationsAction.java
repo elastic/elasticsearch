@@ -78,7 +78,7 @@ public class TransportBulkShardOperationsAction
                             index.type(),
                             index.id(),
                             index.seqNo(),
-                            primary.getPrimaryTerm(),
+                            primary.getOperationPrimaryTerm(),
                             index.version(),
                             index.versionType(),
                             BytesReference.toBytes(index.source()),
@@ -93,13 +93,13 @@ public class TransportBulkShardOperationsAction
                             delete.id(),
                             delete.uid(),
                             delete.seqNo(),
-                            primary.getPrimaryTerm(),
+                            primary.getOperationPrimaryTerm(),
                             delete.version(),
                             delete.versionType());
                     break;
                 case NO_OP:
                     final Translog.NoOp noOp = (Translog.NoOp) operation;
-                    operationWithPrimaryTerm = new Translog.NoOp(noOp.seqNo(), primary.getPrimaryTerm(), noOp.reason());
+                    operationWithPrimaryTerm = new Translog.NoOp(noOp.seqNo(), primary.getOperationPrimaryTerm(), noOp.reason());
                     break;
                 default:
                     throw new IllegalStateException("unexpected operation type [" + operation.opType() + "]");

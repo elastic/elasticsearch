@@ -5,46 +5,41 @@
  */
 package org.elasticsearch.xpack.rollup.config;
 
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.rollup.job.DateHistoGroupConfig;
+import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
+import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
-import org.elasticsearch.xpack.core.rollup.job.HistoGroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
-import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.joda.time.DateTimeZone;
 
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
-
+//TODO split this into dedicated unit test classes (one for each config object)
 public class ConfigTests extends ESTestCase {
 
     public void testEmptyField() {
-        MetricConfig.Builder config = ConfigTestHelpers.getMetricConfig();
-        config.setField(null);
-        Exception e = expectThrows(IllegalArgumentException.class, config::build);
-        assertThat(e.getMessage(), equalTo("Parameter [field] must be a non-null, non-empty string."));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new MetricConfig(null, singletonList("max")));
+        assertThat(e.getMessage(), equalTo("Field must be a non-null, non-empty string"));
 
-        config.setField("");
-        e = expectThrows(IllegalArgumentException.class, config::build);
-        assertThat(e.getMessage(), equalTo("Parameter [field] must be a non-null, non-empty string."));
+        e = expectThrows(IllegalArgumentException.class, () -> new MetricConfig("", singletonList("max")));
+        assertThat(e.getMessage(), equalTo("Field must be a non-null, non-empty string"));
     }
 
     public void testEmptyMetrics() {
-        MetricConfig.Builder config = ConfigTestHelpers.getMetricConfig();
-        config.setMetrics(null);
-        Exception e = expectThrows(IllegalArgumentException.class, config::build);
-        assertThat(e.getMessage(), equalTo("Parameter [metrics] must be a non-null, non-empty array of strings."));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new MetricConfig("foo", emptyList()));
+        assertThat(e.getMessage(), equalTo("Metrics must be a non-null, non-empty array of strings"));
 
-        config.setMetrics(Collections.emptyList());
-        e = expectThrows(IllegalArgumentException.class, config::build);
-        assertThat(e.getMessage(), equalTo("Parameter [metrics] must be a non-null, non-empty array of strings."));
+        e = expectThrows(IllegalArgumentException.class, () -> new MetricConfig("foo", null));
+        assertThat(e.getMessage(), equalTo("Metrics must be a non-null, non-empty array of strings"));
     }
 
     public void testEmptyGroup() {
@@ -59,8 +54,8 @@ public class ConfigTests extends ESTestCase {
 
     public void testNoDateHisto() {
         GroupConfig.Builder groupConfig = new GroupConfig.Builder();
-        groupConfig.setTerms(ConfigTestHelpers.getTerms().build());
-        groupConfig.setHisto(ConfigTestHelpers.getHisto().build());
+        groupConfig.setTerms(ConfigTestHelpers.randomTermsGroupConfig(random()));
+        groupConfig.setHisto(ConfigTestHelpers.randomHistogramGroupConfig(random()));
 
         Exception e = expectThrows(IllegalArgumentException.class, groupConfig::build);
         assertThat(e.getMessage(), equalTo("A date_histogram group is mandatory"));
@@ -176,61 +171,60 @@ public class ConfigTests extends ESTestCase {
     }
 
     public void testEmptyDateHistoField() {
-        DateHistoGroupConfig.Builder config = ConfigTestHelpers.getDateHisto();
-        config.setField(null);
-        Exception e = expectThrows(IllegalArgumentException.class, config::build);
-        assertThat(e.getMessage(), equalTo("Parameter [field] is mandatory."));
+        Exception e = expectThrows(IllegalArgumentException.class,
+            () -> new DateHistogramGroupConfig(null, DateHistogramInterval.HOUR));
+        assertThat(e.getMessage(), equalTo("Field must be a non-null, non-empty string"));
 
-        config.setField("");
-        e = expectThrows(IllegalArgumentException.class, config::build);
-        assertThat(e.getMessage(), equalTo("Parameter [field] is mandatory."));
+        e = expectThrows(IllegalArgumentException.class, () -> new DateHistogramGroupConfig("", DateHistogramInterval.HOUR));
+        assertThat(e.getMessage(), equalTo("Field must be a non-null, non-empty string"));
     }
 
     public void testEmptyDateHistoInterval() {
-        DateHistoGroupConfig.Builder config = ConfigTestHelpers.getDateHisto();
-        config.setField("foo");
-        config.setInterval(null);
-        Exception e = expectThrows(IllegalArgumentException.class, config::build);
-        assertThat(e.getMessage(), equalTo("Parameter [interval] is mandatory."));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new DateHistogramGroupConfig("foo", null));
+        assertThat(e.getMessage(), equalTo("Interval must be non-null"));
     }
 
     public void testNullTimeZone() {
-        DateHistoGroupConfig.Builder config = ConfigTestHelpers.getDateHisto();
-        config.setTimeZone(null);
-        DateHistoGroupConfig finalConfig = config.build();
-        assertThat(finalConfig.getTimeZone(), equalTo(DateTimeZone.UTC));
+        DateHistogramGroupConfig config = new DateHistogramGroupConfig("foo", DateHistogramInterval.HOUR, null, null);
+        assertThat(config.getTimeZone(), equalTo(DateTimeZone.UTC.getID()));
+    }
+
+    public void testEmptyTimeZone() {
+        DateHistogramGroupConfig config = new DateHistogramGroupConfig("foo", DateHistogramInterval.HOUR, null, "");
+        assertThat(config.getTimeZone(), equalTo(DateTimeZone.UTC.getID()));
+    }
+
+    public void testDefaultTimeZone() {
+        DateHistogramGroupConfig config = new DateHistogramGroupConfig("foo", DateHistogramInterval.HOUR);
+        assertThat(config.getTimeZone(), equalTo(DateTimeZone.UTC.getID()));
+    }
+
+    public void testUnkownTimeZone() {
+        Exception e = expectThrows(IllegalArgumentException.class,
+            () -> new DateHistogramGroupConfig("foo", DateHistogramInterval.HOUR, null, "FOO"));
+        assertThat(e.getMessage(), equalTo("The datetime zone id 'FOO' is not recognised"));
     }
 
     public void testEmptyHistoField() {
-        HistoGroupConfig.Builder config = ConfigTestHelpers.getHisto();
-        config.setFields(null);
-        Exception e = expectThrows(IllegalArgumentException.class, config::build);
-        assertThat(e.getMessage(), equalTo("Parameter [fields] must have at least one value."));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new HistogramGroupConfig(1L, (String[]) null));
+        assertThat(e.getMessage(), equalTo("Fields must have at least one value"));
 
-        config.setFields(Collections.emptyList());
-        e = expectThrows(IllegalArgumentException.class, config::build);
-        assertThat(e.getMessage(), equalTo("Parameter [fields] must have at least one value."));
+        e = expectThrows(IllegalArgumentException.class, () -> new HistogramGroupConfig(1L, new String[0]));
+        assertThat(e.getMessage(), equalTo("Fields must have at least one value"));
     }
 
     public void testBadHistoIntervals() {
-        HistoGroupConfig.Builder config = new HistoGroupConfig.Builder().setFields(Collections.singletonList("foo"));
-        Exception e = expectThrows(IllegalArgumentException.class, config::build);
-        assertThat(e.getMessage(), equalTo("Parameter [interval] must be a positive long."));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new HistogramGroupConfig(0L, "foo", "bar"));
+        assertThat(e.getMessage(), equalTo("Interval must be a positive long"));
 
-        config.setInterval(-1);
-        e = expectThrows(IllegalArgumentException.class, config::build);
-        assertThat(e.getMessage(), equalTo("Parameter [interval] must be a positive long."));
+        e = expectThrows(IllegalArgumentException.class, () -> new HistogramGroupConfig(-1L, "foo", "bar"));
+        assertThat(e.getMessage(), equalTo("Interval must be a positive long"));
     }
 
     public void testEmptyTermsField() {
-        TermsGroupConfig.Builder config = ConfigTestHelpers.getTerms();
-        config.setFields(null);
-        Exception e = expectThrows(IllegalArgumentException.class, config::build);
-        assertThat(e.getMessage(), equalTo("Parameter [fields] must have at least one value."));
-
-        config.setFields(Collections.emptyList());
-        e = expectThrows(IllegalArgumentException.class, config::build);
-        assertThat(e.getMessage(), equalTo("Parameter [fields] must have at least one value."));
+        final String[] fields = randomBoolean() ? new String[0] : null;
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new TermsGroupConfig(fields));
+        assertThat(e.getMessage(), equalTo("Fields must have at least one value"));
     }
 
     public void testNoHeadersInJSON() {
@@ -242,12 +236,5 @@ public class ConfigTests extends ESTestCase {
         String json = job.toString();
         assertFalse(json.contains("authentication"));
         assertFalse(json.contains("security"));
-    }
-
-    public void testUnsupportedMetric() {
-        MetricConfig.Builder config = ConfigTestHelpers.getMetricConfig();
-        config.setMetrics(Arrays.asList("max","foo"));
-        Exception e = expectThrows(IllegalArgumentException.class, config::build);
-        assertThat(e.getMessage(), equalTo("Unsupported metric [foo].  Supported metrics include: [max, min, sum, avg, value_count]"));
     }
 }

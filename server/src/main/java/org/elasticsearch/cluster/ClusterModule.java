@@ -116,23 +116,6 @@ public class ClusterModule extends AbstractModule {
         this.allocationService = new AllocationService(settings, allocationDeciders, shardsAllocator, clusterInfoService);
     }
 
-    public static Map<String, Supplier<ClusterState.Custom>> getClusterStateCustomSuppliers(List<ClusterPlugin> clusterPlugins) {
-        final Map<String, Supplier<ClusterState.Custom>> customSupplier = new HashMap<>();
-        customSupplier.put(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress::new);
-        customSupplier.put(RestoreInProgress.TYPE, RestoreInProgress::new);
-        customSupplier.put(SnapshotsInProgress.TYPE, SnapshotsInProgress::new);
-        for (ClusterPlugin plugin : clusterPlugins) {
-            Map<String, Supplier<ClusterState.Custom>> initialCustomSupplier = plugin.getInitialClusterStateCustomSupplier();
-            for (String key : initialCustomSupplier.keySet()) {
-                if (customSupplier.containsKey(key)) {
-                    throw new IllegalStateException("custom supplier key [" + key + "] is registered more than once");
-                }
-            }
-            customSupplier.putAll(initialCustomSupplier);
-        }
-        return Collections.unmodifiableMap(customSupplier);
-    }
-
     public static List<Entry> getNamedWriteables() {
         List<Entry> entries = new ArrayList<>();
         // Cluster State

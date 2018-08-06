@@ -38,7 +38,7 @@ public class QueryShardException extends ElasticsearchException {
 
     public QueryShardException(QueryShardContext context, String msg, Throwable cause, Object... args) {
         super(msg, cause, args);
-        setIndex(context.index());
+        setIndex(context.getFullyQualifiedIndexName());
     }
 
     /**

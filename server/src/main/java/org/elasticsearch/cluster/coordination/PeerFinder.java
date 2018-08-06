@@ -25,6 +25,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Setting;
@@ -252,6 +253,7 @@ public abstract class PeerFinder extends AbstractComponent {
             this.transportAddress = transportAddress;
         }
 
+        @Nullable
         DiscoveryNode getDiscoveryNode() {
             return discoveryNode.get();
         }

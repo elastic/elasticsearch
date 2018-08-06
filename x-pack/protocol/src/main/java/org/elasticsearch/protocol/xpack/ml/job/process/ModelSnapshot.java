@@ -47,9 +47,6 @@ public class ModelSnapshot implements ToXContentObject {
     public static final ParseField MIN_VERSION = new ParseField("min_version");
     public static final ParseField SNAPSHOT_ID = new ParseField("snapshot_id");
 
-    // Used for QueryPage
-    public static final ParseField RESULTS_FIELD = new ParseField("model_snapshots");
-
     public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("model_snapshot", true, Builder::new);
 
     static {

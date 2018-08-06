@@ -14,6 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.AllocateAction;
 import org.elasticsearch.xpack.core.indexlifecycle.DeleteAction;
@@ -47,9 +48,20 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     private String policy;
 
     @Before
-    public void refreshIndex() {
+    public void refreshIndex() throws IOException {
         index = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         policy = randomAlphaOfLength(5);
+        Request request = new Request("PUT", "/_cluster/settings");
+        XContentBuilder pollIntervalEntity = JsonXContent.contentBuilder();
+        pollIntervalEntity.startObject();
+        {
+            pollIntervalEntity.startObject("transient");
+            {
+                pollIntervalEntity.field(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, "1s");
+            }pollIntervalEntity.endObject();
+        } pollIntervalEntity.endObject();
+        request.setJsonEntity(Strings.toString(pollIntervalEntity));
+        assertOK(adminClient().performRequest(request));
     }
 
     public static void updatePolicy(String indexName, String policy) throws IOException {

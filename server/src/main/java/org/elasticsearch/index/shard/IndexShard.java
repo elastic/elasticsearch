@@ -380,6 +380,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return this.pendingPrimaryTerm;
     }
 
+    /** Returns the primary term that is currently being used to assign to operations */
+    public long getOperationPrimaryTerm() {
+        return this.operationPrimaryTerm;
+    }
+
     /**
      * Returns the latest cluster routing entry received with this shard.
      */

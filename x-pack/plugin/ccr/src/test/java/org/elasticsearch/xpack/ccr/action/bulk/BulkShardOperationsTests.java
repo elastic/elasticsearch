@@ -65,12 +65,12 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
             assertThat(snapshot.totalOperations(), equalTo(operations.size()));
             Translog.Operation operation;
             while ((operation = snapshot.next()) != null) {
-                assertThat(operation.primaryTerm(), equalTo(followerPrimary.getPrimaryTerm()));
+                assertThat(operation.primaryTerm(), equalTo(followerPrimary.getOperationPrimaryTerm()));
             }
         }
 
         for (final Translog.Operation operation : result.replicaRequest().getOperations()) {
-            assertThat(operation.primaryTerm(), equalTo(followerPrimary.getPrimaryTerm()));
+            assertThat(operation.primaryTerm(), equalTo(followerPrimary.getOperationPrimaryTerm()));
         }
 
         closeShards(followerPrimary);

@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.action.DeleteCalendarAction;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.ml.job.JobManager;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -34,18 +34,18 @@ public class TransportDeleteCalendarAction extends HandledTransportAction<Delete
 
     private final Client client;
     private final JobManager jobManager;
-    private final JobProvider jobProvider;
+    private final JobResultsProvider jobResultsProvider;
 
     @Inject
     public TransportDeleteCalendarAction(Settings settings, ThreadPool threadPool,
                                          TransportService transportService, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver,
-                                         Client client, JobManager jobManager, JobProvider jobProvider) {
+                                         Client client, JobManager jobManager, JobResultsProvider jobResultsProvider) {
         super(settings, DeleteCalendarAction.NAME, threadPool, transportService, actionFilters,
                 indexNameExpressionResolver, DeleteCalendarAction.Request::new);
         this.client = client;
         this.jobManager = jobManager;
-        this.jobProvider = jobProvider;
+        this.jobResultsProvider = jobResultsProvider;
     }
 
     @Override
@@ -71,7 +71,7 @@ public class TransportDeleteCalendarAction extends HandledTransportAction<Delete
                 listener::onFailure
         );
 
-        jobProvider.calendar(calendarId, calendarListener);
+        jobResultsProvider.calendar(calendarId, calendarListener);
     }
 
     private DeleteByQueryRequest buildDeleteByQuery(String calendarId) {

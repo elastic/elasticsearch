@@ -17,23 +17,23 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.PutCalendarAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateCalendarJobAction;
 import org.elasticsearch.xpack.ml.job.JobManager;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 
 import java.util.Set;
 
 public class TransportUpdateCalendarJobAction extends HandledTransportAction<UpdateCalendarJobAction.Request, PutCalendarAction.Response> {
 
-    private final JobProvider jobProvider;
+    private final JobResultsProvider jobResultsProvider;
     private final JobManager jobManager;
 
     @Inject
     public TransportUpdateCalendarJobAction(Settings settings, ThreadPool threadPool,
                                             TransportService transportService, ActionFilters actionFilters,
                                             IndexNameExpressionResolver indexNameExpressionResolver,
-                                            JobProvider jobProvider, JobManager jobManager) {
+                                            JobResultsProvider jobResultsProvider, JobManager jobManager) {
         super(settings, UpdateCalendarJobAction.NAME, threadPool, transportService, actionFilters,
                 indexNameExpressionResolver, UpdateCalendarJobAction.Request::new);
-        this.jobProvider = jobProvider;
+        this.jobResultsProvider = jobResultsProvider;
         this.jobManager = jobManager;
     }
 
@@ -43,7 +43,7 @@ public class TransportUpdateCalendarJobAction extends HandledTransportAction<Upd
         Set<String> jobIdsToAdd = Strings.tokenizeByCommaToSet(request.getJobIdsToAddExpression());
         Set<String> jobIdsToRemove = Strings.tokenizeByCommaToSet(request.getJobIdsToRemoveExpression());
 
-        jobProvider.updateCalendar(request.getCalendarId(), jobIdsToAdd, jobIdsToRemove,
+        jobResultsProvider.updateCalendar(request.getCalendarId(), jobIdsToAdd, jobIdsToRemove,
                 c -> {
                     jobManager.updateProcessOnCalendarChanged(c.getJobIds());
                     listener.onResponse(new PutCalendarAction.Response(c));

@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.BucketInfluencer;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobRenormalizedResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.MockBatchedDocumentsIterator;
 import org.junit.Before;
@@ -52,7 +52,7 @@ public class ScoresUpdaterTests extends ESTestCase {
     private static final long DEFAULT_BUCKET_SPAN = 3600;
     private static final long DEFAULT_START_TIME = 0;
 
-    private JobProvider jobProvider = mock(JobProvider.class);
+    private JobResultsProvider jobResultsProvider = mock(JobResultsProvider.class);
     private JobRenormalizedResultsPersister jobRenormalizedResultsPersister = mock(JobRenormalizedResultsPersister.class);
     private Normalizer normalizer = mock(Normalizer.class);
     private NormalizerFactory normalizerFactory = mock(NormalizerFactory.class);
@@ -79,7 +79,7 @@ public class ScoresUpdaterTests extends ESTestCase {
 
         job = jobBuilder.build(new Date());
 
-        scoresUpdater = new ScoresUpdater(job, jobProvider, jobRenormalizedResultsPersister, normalizerFactory);
+        scoresUpdater = new ScoresUpdater(job, jobResultsProvider, jobRenormalizedResultsPersister, normalizerFactory);
 
         givenProviderReturnsNoBuckets();
         givenProviderReturnsNoRecords();
@@ -211,7 +211,7 @@ public class ScoresUpdaterTests extends ESTestCase {
         MockBatchedDocumentsIterator<AnomalyRecord> recordIter = new MockBatchedDocumentsIterator<>(
                 recordBatches, AnomalyRecord.RESULT_TYPE_VALUE);
         recordIter.requireIncludeInterim(false);
-        when(jobProvider.newBatchedRecordsIterator(JOB_ID)).thenReturn(recordIter);
+        when(jobResultsProvider.newBatchedRecordsIterator(JOB_ID)).thenReturn(recordIter);
 
         scoresUpdater.update(QUANTILES_STATE, 3600, 0, false);
 
@@ -377,7 +377,7 @@ public class ScoresUpdaterTests extends ESTestCase {
 
         MockBatchedDocumentsIterator<Bucket> bucketIter = new MockBatchedDocumentsIterator<>(batchesWithIndex, Bucket.RESULT_TYPE_VALUE);
         bucketIter.requireIncludeInterim(false);
-        when(jobProvider.newBatchedBucketsIterator(JOB_ID)).thenReturn(bucketIter);
+        when(jobResultsProvider.newBatchedBucketsIterator(JOB_ID)).thenReturn(bucketIter);
     }
 
     private void givenProviderReturnsNoRecords() {
@@ -395,7 +395,7 @@ public class ScoresUpdaterTests extends ESTestCase {
         MockBatchedDocumentsIterator<AnomalyRecord> recordIter = new MockBatchedDocumentsIterator<>(
                 batches, AnomalyRecord.RESULT_TYPE_VALUE);
         recordIter.requireIncludeInterim(false);
-        when(jobProvider.newBatchedRecordsIterator(JOB_ID)).thenReturn(recordIter);
+        when(jobResultsProvider.newBatchedRecordsIterator(JOB_ID)).thenReturn(recordIter);
     }
 
     private void givenProviderReturnsNoInfluencers() {
@@ -411,7 +411,7 @@ public class ScoresUpdaterTests extends ESTestCase {
         batches.add(queue);
         MockBatchedDocumentsIterator<Influencer> iterator = new MockBatchedDocumentsIterator<>(batches, Influencer.RESULT_TYPE_VALUE);
         iterator.requireIncludeInterim(false);
-        when(jobProvider.newBatchedInfluencersIterator(JOB_ID)).thenReturn(iterator);
+        when(jobResultsProvider.newBatchedInfluencersIterator(JOB_ID)).thenReturn(iterator);
     }
 
     private void verifyNormalizerWasInvoked(int times) throws IOException {

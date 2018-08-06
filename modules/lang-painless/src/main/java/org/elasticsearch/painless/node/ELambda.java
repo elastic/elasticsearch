@@ -119,6 +119,7 @@ public final class ELambda extends AExpression implements ILambda {
                     actualParamTypeStrs.add(type);
                 }
             }
+
         } else {
             // we know the method statically, infer return type and any unknown/def types
             interfaceMethod = locals.getPainlessLookup().lookupPainlessClass(expected).functionalMethod;
@@ -173,7 +174,7 @@ public final class ELambda extends AExpression implements ILambda {
         desugared = new SFunction(reserved, location, PainlessLookupUtility.typeToCanonicalTypeName(returnType), name,
                                   paramTypes, paramNames, statements, true);
         desugared.generateSignature(locals.getPainlessLookup());
-        desugared.analyze(Locals.newLambdaScope(locals.getProgramScope(), returnType,
+        desugared.analyze(Locals.newLambdaScope(locals.getProgramScope(), desugared.name, returnType,
                                                 desugared.parameters, captures.size(), reserved.getMaxLoopCounter()));
 
         // setup method reference to synthetic method

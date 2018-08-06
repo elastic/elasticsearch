@@ -102,10 +102,8 @@ public abstract class PeerFinder extends AbstractComponent {
     public void deactivate(DiscoveryNode leader) {
         synchronized (mutex) {
             logger.trace("deactivating PeerFinder and setting leader to {}", leader);
-            if (active) {
-                active = false;
-                handleWakeUp();
-            }
+            active = false;
+            handleWakeUp();
             this.leader = Optional.of(leader);
             assert assertInactiveWithNoKnownPeers();
         }

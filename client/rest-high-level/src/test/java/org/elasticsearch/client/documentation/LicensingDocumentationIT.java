@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client.documentation;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
@@ -43,6 +44,7 @@ import static org.hamcrest.Matchers.startsWith;
 public class LicensingDocumentationIT extends ESRestHighLevelClientTestCase {
 
     public void testPutLicense() throws Exception {
+        assumeTrue("License is only valid when tested against snapshot/test builds", Build.CURRENT.isSnapshot());
         RestHighLevelClient client = highLevelClient();
         String license = "{\"license\": {\"uid\":\"893361dc-9749-4997-93cb-802e3d7fa4a8\",\"type\":\"gold\"," +
             "\"issue_date_in_millis\":1411948800000,\"expiry_date_in_millis\":1914278399999,\"max_nodes\":1,\"issued_to\":\"issued_to\"," +
@@ -60,7 +62,7 @@ public class LicensingDocumentationIT extends ESRestHighLevelClientTestCase {
             request.setLicenseDefinition(license);  // <1>
             request.setAcknowledge(false);          // <2>
 
-            PutLicenseResponse response = client.xpack().license().putLicense(request, RequestOptions.DEFAULT);
+            PutLicenseResponse response = client.license().putLicense(request, RequestOptions.DEFAULT);
             //end::put-license-execute
 
             //tag::put-license-response
@@ -96,7 +98,7 @@ public class LicensingDocumentationIT extends ESRestHighLevelClientTestCase {
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::put-license-execute-async
-            client.xpack().license().putLicenseAsync(
+            client.license().putLicenseAsync(
                     request, RequestOptions.DEFAULT, listener); // <1>
             // end::put-license-execute-async
 

@@ -31,7 +31,6 @@ import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -40,7 +39,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
@@ -127,18 +125,14 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
     }
 
     private static ServiceHolder serviceHolder;
+    private static ServiceHolder serviceHolderWithNoType;
     private static int queryNameId = 0;
     private static Settings nodeSettings;
     private static Index index;
-    private static String[] currentTypes;
-    protected static String[] randomTypes;
+    private static Index indexWithNoType;
 
     protected static Index getIndex() {
         return index;
-    }
-
-    protected static String[] getCurrentTypes() {
-        return currentTypes;
     }
 
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -151,40 +145,12 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
     @BeforeClass
     public static void beforeClass() {
         nodeSettings = Settings.builder()
-                .put("node.name", AbstractQueryTestCase.class.toString())
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                .build();
+            .put("node.name", AbstractQueryTestCase.class.toString())
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .build();
 
-        index = new Index(randomAlphaOfLengthBetween(1, 10), "_na_");
-
-        // Set a single type in the index
-        switch (random().nextInt(3)) {
-        case 0:
-            currentTypes = new String[0]; // no types
-            break;
-        default:
-            currentTypes = new String[] { "_doc" };
-            break;
-        }
-        randomTypes = getRandomTypes();
-    }
-
-    private static String[] getRandomTypes() {
-        String[] types;
-        if (currentTypes.length > 0 && randomBoolean()) {
-            int numberOfQueryTypes = randomIntBetween(1, currentTypes.length);
-            types = new String[numberOfQueryTypes];
-            for (int i = 0; i < numberOfQueryTypes; i++) {
-                types[i] = randomFrom(currentTypes);
-            }
-        } else {
-            if (randomBoolean()) {
-                types = new String[]{MetaData.ALL};
-            } else {
-                types = new String[0];
-            }
-        }
-        return types;
+        index = new Index(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLength(10));
+        indexWithNoType = new Index(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLength(10));
     }
 
     @Override
@@ -208,7 +174,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
     protected Settings createTestIndexSettings() {
         // we have to prefer CURRENT since with the range of versions we support it's rather unlikely to get the current actually.
         Version indexVersionCreated = randomBoolean() ? Version.CURRENT
-                : VersionUtils.randomVersionBetween(random(), null, Version.CURRENT);
+                : VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.CURRENT);
         return Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, indexVersionCreated)
             .build();
@@ -219,16 +185,15 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
     }
 
     protected static String expectedFieldName(String builderFieldName) {
-        if (currentTypes.length == 0) {
-            return builderFieldName;
-        }
         return ALIAS_TO_CONCRETE_FIELD_NAME.getOrDefault(builderFieldName, builderFieldName);
     }
 
     @AfterClass
     public static void afterClass() throws Exception {
-        IOUtils.close(serviceHolder);
+        org.apache.lucene.util.IOUtils.close(serviceHolder);
+        org.apache.lucene.util.IOUtils.close(serviceHolderWithNoType);
         serviceHolder = null;
+        serviceHolderWithNoType = null;
     }
 
     @Before
@@ -239,12 +204,16 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         Settings indexSettings = createTestIndexSettings();
         long now = randomNonNegativeLong();
         if (serviceHolder == null) {
-            serviceHolder = new ServiceHolder(nodeSettings, indexSettings, getPlugins(), now, this);
+            serviceHolder = new ServiceHolder(nodeSettings, indexSettings, getPlugins(), now, this, true);
         }
         serviceHolder.clientInvocationHandler.delegate = this;
+        if (serviceHolderWithNoType == null) {
+            serviceHolderWithNoType = new ServiceHolder(nodeSettings, indexSettings, getPlugins(), now, this, false);
+        }
+        serviceHolderWithNoType.clientInvocationHandler.delegate = this;
     }
 
-    protected static SearchContext getSearchContext(String[] types, QueryShardContext context) {
+    protected static SearchContext getSearchContext(QueryShardContext context) {
         TestSearchContext testSearchContext = new TestSearchContext(context) {
             @Override
             public MapperService mapperService() {
@@ -257,13 +226,13 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             }
 
         };
-        testSearchContext.getQueryShardContext().setTypes(types);
         return testSearchContext;
     }
 
     @After
     public void afterTest() {
         serviceHolder.clientInvocationHandler.delegate = null;
+        serviceHolderWithNoType.clientInvocationHandler.delegate = null;
     }
 
     /**
@@ -285,6 +254,13 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
      */
     protected static QueryShardContext createShardContext(IndexReader reader) {
         return serviceHolder.createShardContext(reader);
+    }
+
+    /**
+     * @return a new {@link QueryShardContext} based on an index with no type registered
+     */
+    protected static QueryShardContext createShardContextWithNoType() {
+        return serviceHolderWithNoType.createShardContext(null);
     }
 
     /**
@@ -338,8 +314,12 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         private final Client client;
         private final long nowInMillis;
 
-        ServiceHolder(Settings nodeSettings, Settings indexSettings,
-                      Collection<Class<? extends Plugin>> plugins, long nowInMillis, AbstractBuilderTestCase testCase) throws IOException {
+        ServiceHolder(Settings nodeSettings,
+                        Settings indexSettings,
+                        Collection<Class<? extends Plugin>> plugins,
+                        long nowInMillis,
+                        AbstractBuilderTestCase testCase,
+                        boolean registerType) throws IOException {
             this.nowInMillis = nowInMillis;
             Environment env = InternalSettingsPreparer.prepareEnvironment(nodeSettings);
             PluginsService pluginsService;
@@ -387,9 +367,8 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 }
             });
 
-
-            for (String type : currentTypes) {
-                mapperService.merge(type, new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(type,
+            if (registerType) {
+                mapperService.merge("_doc", new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef("_doc",
                     STRING_FIELD_NAME, "type=text",
                     STRING_FIELD_NAME_2, "type=keyword",
                     STRING_ALIAS_FIELD_NAME, "type=alias,path=" + STRING_FIELD_NAME,
@@ -407,12 +386,12 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                     GEO_SHAPE_FIELD_NAME, "type=geo_shape"
                 ))), MapperService.MergeReason.MAPPING_UPDATE);
                 // also add mappings for two inner field in the object field
-                mapperService.merge(type, new CompressedXContent("{\"properties\":{\"" + OBJECT_FIELD_NAME + "\":{\"type\":\"object\","
-                                + "\"properties\":{\"" + DATE_FIELD_NAME + "\":{\"type\":\"date\"},\"" +
-                                INT_FIELD_NAME + "\":{\"type\":\"integer\"}}}}}"),
-                        MapperService.MergeReason.MAPPING_UPDATE);
+                mapperService.merge("_doc", new CompressedXContent("{\"properties\":{\"" + OBJECT_FIELD_NAME + "\":{\"type\":\"object\","
+                        + "\"properties\":{\"" + DATE_FIELD_NAME + "\":{\"type\":\"date\"},\"" +
+                        INT_FIELD_NAME + "\":{\"type\":\"integer\"}}}}}"),
+                    MapperService.MergeReason.MAPPING_UPDATE);
+                testCase.initializeAdditionalMappings(mapperService);
             }
-            testCase.initializeAdditionalMappings(mapperService);
         }
 
         @Override
@@ -431,5 +410,4 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             return new ScriptModule(Settings.EMPTY, scriptPlugins);
         }
     }
-
 }

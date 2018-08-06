@@ -54,11 +54,14 @@ The Java High Level REST Client supports the following Miscellaneous APIs:
 * <<java-rest-high-main>>
 * <<java-rest-high-ping>>
 * <<java-rest-high-x-pack-info>>
+* <<java-rest-high-x-pack-watcher-put-watch>>
+* <<java-rest-high-x-pack-watcher-delete-watch>>
 
 include::miscellaneous/main.asciidoc[]
 include::miscellaneous/ping.asciidoc[]
 include::x-pack/x-pack-info.asciidoc[]
 include::x-pack/watcher/put-watch.asciidoc[]
+include::x-pack/watcher/delete-watch.asciidoc[]
 
 == Indices APIs
 

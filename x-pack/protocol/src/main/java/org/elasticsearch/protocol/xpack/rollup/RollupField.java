@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.rollup;
+package org.elasticsearch.protocol.xpack.rollup;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -54,7 +54,7 @@ public class RollupField {
      * @param extra The type of value this field is (VALUE, INTERVAL, etc)
      * @return formatted field name
      */
-    public static String formatFieldName(ValuesSourceAggregationBuilder source, String extra) {
+    public static String formatFieldName(ValuesSourceAggregationBuilder<?, ?> source, String extra) {
         return source.field() + "." + source.getType() + "." + extra;
     }
 

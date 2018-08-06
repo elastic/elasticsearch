@@ -9,6 +9,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.protocol.xpack.rollup.job.TermsGroupConfig;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 

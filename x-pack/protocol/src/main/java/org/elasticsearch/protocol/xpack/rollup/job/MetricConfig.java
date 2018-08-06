@@ -1,9 +1,22 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
-package org.elasticsearch.xpack.core.rollup.job;
+package org.elasticsearch.protocol.xpack.rollup.job;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
@@ -16,6 +29,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.protocol.xpack.rollup.RollupField;
 import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.min.MinAggregationBuilder;
@@ -23,7 +37,6 @@ import org.elasticsearch.search.aggregations.metrics.sum.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
-import org.elasticsearch.xpack.core.rollup.RollupField;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -93,7 +106,7 @@ public class MetricConfig implements Writeable, ToXContentObject {
         this.metrics = metrics;
     }
 
-    MetricConfig(final StreamInput in) throws IOException {
+    public MetricConfig(final StreamInput in) throws IOException {
         field = in.readString();
         metrics = in.readList(StreamInput::readString);
     }
@@ -116,14 +129,14 @@ public class MetricConfig implements Writeable, ToXContentObject {
      * This returns a set of aggregation builders which represent the configured
      * set of metrics.  Used by the rollup indexer to iterate over historical data
      */
-    public List<ValuesSourceAggregationBuilder.LeafOnly> toBuilders() {
+    public List<ValuesSourceAggregationBuilder.LeafOnly<?, ?>> toBuilders() {
         if (metrics.size() == 0) {
             return Collections.emptyList();
         }
 
-        List<ValuesSourceAggregationBuilder.LeafOnly> aggs = new ArrayList<>(metrics.size());
+        List<ValuesSourceAggregationBuilder.LeafOnly<?, ?>> aggs = new ArrayList<>(metrics.size());
         for (String metric : metrics) {
-            ValuesSourceAggregationBuilder.LeafOnly newBuilder;
+            ValuesSourceAggregationBuilder.LeafOnly<?, ?> newBuilder;
             if (metric.equals(MIN.getPreferredName())) {
                 newBuilder = new MinAggregationBuilder(RollupField.formatFieldName(field, MinAggregationBuilder.NAME, RollupField.VALUE));
             } else if (metric.equals(MAX.getPreferredName())) {
@@ -131,7 +144,7 @@ public class MetricConfig implements Writeable, ToXContentObject {
             } else if (metric.equals(AVG.getPreferredName())) {
                 // Avgs are sum + count
                 newBuilder = new SumAggregationBuilder(RollupField.formatFieldName(field, AvgAggregationBuilder.NAME, RollupField.VALUE));
-                ValuesSourceAggregationBuilder.LeafOnly countBuilder
+                ValuesSourceAggregationBuilder.LeafOnly<?, ?> countBuilder
                         = new ValueCountAggregationBuilder(
                                 RollupField.formatFieldName(field, AvgAggregationBuilder.NAME, RollupField.COUNT_FIELD), ValueType.NUMERIC);
                 countBuilder.field(field);

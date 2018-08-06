@@ -22,16 +22,17 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.HashMap;
+import java.util.Map;
 
 public class ExplainLifecycleResponseTests extends AbstractStreamableXContentTestCase<ExplainLifecycleResponse> {
 
     @Override
     protected ExplainLifecycleResponse createTestInstance() {
-        Set<IndexLifecycleExplainResponse> indexResponses = new HashSet<>();
+        Map<String, IndexLifecycleExplainResponse> indexResponses = new HashMap<>();
         for (int i = 0; i < randomIntBetween(0, 2); i++) {
-            indexResponses.add(IndexExplainResponseTests.randomIndexExplainResponse());
+            IndexLifecycleExplainResponse indexResponse = IndexExplainResponseTests.randomIndexExplainResponse();
+            indexResponses.put(indexResponse.getIndex(), indexResponse);
         }
         return new ExplainLifecycleResponse(indexResponses);
     }
@@ -43,12 +44,9 @@ public class ExplainLifecycleResponseTests extends AbstractStreamableXContentTes
 
     @Override
     protected ExplainLifecycleResponse mutateInstance(ExplainLifecycleResponse response) {
-        Set<IndexLifecycleExplainResponse> indexResponses = new HashSet<>(response.getIndexResponses());
-        if (indexResponses.size() > 0) {
-            indexResponses.add(IndexExplainResponseTests.randomIndexExplainResponse());
-        } else {
-            indexResponses.add(IndexExplainResponseTests.randomIndexExplainResponse());
-        }
+        Map<String, IndexLifecycleExplainResponse> indexResponses = new HashMap<>(response.getIndexResponses());
+        IndexLifecycleExplainResponse indexResponse = IndexExplainResponseTests.randomIndexExplainResponse();
+        indexResponses.put(indexResponse.getIndex(), indexResponse);
         return new ExplainLifecycleResponse(indexResponses);
     }
 

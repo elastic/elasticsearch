@@ -27,8 +27,8 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.action.ExplainLifecycleAction;
 
-import java.util.HashSet;
-import java.util.Set;
+import java.util.HashMap;
+import java.util.Map;
 
 public class TransportExplainLifecycleAction
         extends TransportClusterInfoAction<ExplainLifecycleRequest, ExplainLifecycleResponse> {
@@ -59,7 +59,7 @@ public class TransportExplainLifecycleAction
 
     @Override
     protected void doMasterOperation(ExplainLifecycleRequest request, String[] concreteIndices, ClusterState state, ActionListener<ExplainLifecycleResponse> listener) {
-        Set<IndexLifecycleExplainResponse> indexReponses = new HashSet<>();
+        Map<String, IndexLifecycleExplainResponse> indexReponses = new HashMap<>();
         for (String index : concreteIndices) {
             IndexMetaData idxMetadata = state.metaData().index(index);
             Settings idxSettings = idxMetadata.getSettings();
@@ -80,7 +80,7 @@ public class TransportExplainLifecycleAction
             } else {
                 indexResponse = IndexLifecycleExplainResponse.newUnmanagedIndexResponse(index);
             }
-            indexReponses.add(indexResponse);
+            indexReponses.put(indexResponse.getIndex(), indexResponse);
         }
         listener.onResponse(new ExplainLifecycleResponse(indexReponses));
     }

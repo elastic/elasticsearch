@@ -30,22 +30,23 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class ExplainLifecycleResponse extends ActionResponse implements ToXContentObject {
 
     public static final ParseField INDICES_FIELD = new ParseField("indices");
 
-    private Set<IndexLifecycleExplainResponse> indexResponses;
+    private Map<String, IndexLifecycleExplainResponse> indexResponses;
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<ExplainLifecycleResponse, Void> PARSER = new ConstructingObjectParser<>(
-            "explain_lifecycle_response",
-            a -> new ExplainLifecycleResponse(((List<IndexLifecycleExplainResponse>) a[0]).stream().collect(Collectors.toSet())));
+            "explain_lifecycle_response", a -> new ExplainLifecycleResponse(((List<IndexLifecycleExplainResponse>) a[0]).stream()
+                    .collect(Collectors.toMap(IndexLifecycleExplainResponse::getIndex, Function.identity()))));
     static {
         PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, n) -> IndexLifecycleExplainResponse.PARSER.apply(p, c),
                 INDICES_FIELD);
@@ -58,11 +59,11 @@ public class ExplainLifecycleResponse extends ActionResponse implements ToXConte
     public ExplainLifecycleResponse() {
     }
 
-    public ExplainLifecycleResponse(Set<IndexLifecycleExplainResponse> indexResponses) {
+    public ExplainLifecycleResponse(Map<String, IndexLifecycleExplainResponse> indexResponses) {
         this.indexResponses = indexResponses;
     }
 
-    public Set<IndexLifecycleExplainResponse> getIndexResponses() {
+    public Map<String, IndexLifecycleExplainResponse> getIndexResponses() {
         return indexResponses;
     }
 
@@ -70,7 +71,7 @@ public class ExplainLifecycleResponse extends ActionResponse implements ToXConte
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.startObject(INDICES_FIELD.getPreferredName());
-        for (IndexLifecycleExplainResponse indexResponse : indexResponses) {
+        for (IndexLifecycleExplainResponse indexResponse : indexResponses.values()) {
             builder.field(indexResponse.getIndex(), indexResponse);
         }
         builder.endObject();
@@ -81,9 +82,10 @@ public class ExplainLifecycleResponse extends ActionResponse implements ToXConte
     @Override
     public void readFrom(StreamInput in) throws IOException {
         int size = in.readVInt();
-        Set<IndexLifecycleExplainResponse> indexResponses = new HashSet<>(size);
+        Map<String, IndexLifecycleExplainResponse> indexResponses = new HashMap<>(size);
         for (int i = 0; i < size; i++) {
-            indexResponses.add(new IndexLifecycleExplainResponse(in));
+            IndexLifecycleExplainResponse indexResponse = new IndexLifecycleExplainResponse(in);
+            indexResponses.put(indexResponse.getIndex(), indexResponse);
         }
         this.indexResponses = indexResponses;
     }
@@ -91,7 +93,7 @@ public class ExplainLifecycleResponse extends ActionResponse implements ToXConte
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(indexResponses.size());
-        for (IndexLifecycleExplainResponse e : indexResponses) {
+        for (IndexLifecycleExplainResponse e : indexResponses.values()) {
             e.writeTo(out);
         }
     }

@@ -22,7 +22,7 @@ package org.elasticsearch.search.aggregations.pipeline.bucketselector;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.BucketAggregationSelectorScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
@@ -82,7 +82,8 @@ public class BucketSelectorPipelineAggregator extends PipelineAggregator {
                 (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket>) aggregation;
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = originalAgg.getBuckets();
 
-        ExecutableScript.Factory factory = reduceContext.scriptService().compile(script, ExecutableScript.AGGS_CONTEXT);
+        BucketAggregationSelectorScript.Factory factory =
+            reduceContext.scriptService().compile(script, BucketAggregationSelectorScript.CONTEXT);
         List<InternalMultiBucketAggregation.InternalBucket> newBuckets = new ArrayList<>();
         for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
             Map<String, Object> vars = new HashMap<>();
@@ -96,17 +97,8 @@ public class BucketSelectorPipelineAggregator extends PipelineAggregator {
                 vars.put(varName, value);
             }
             // TODO: can we use one instance of the script for all buckets? it should be stateless?
-            ExecutableScript executableScript = factory.newInstance(vars);
-            Object scriptReturnValue = executableScript.run();
-            final boolean keepBucket;
-            // TODO: WTF!!!!!
-            if ("expression".equals(script.getLang())) {
-                double scriptDoubleValue = (double) scriptReturnValue;
-                keepBucket = scriptDoubleValue == 1.0;
-            } else {
-                keepBucket = (boolean) scriptReturnValue;
-            }
-            if (keepBucket) {
+            BucketAggregationSelectorScript executableScript = factory.newInstance(vars);
+            if (executableScript.execute()) {
                 newBuckets.add(bucket);
             }
         }

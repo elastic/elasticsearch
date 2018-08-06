@@ -207,14 +207,23 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
                 HttpUtil.setContentLength(request, contentLength);
 
                 final FullHttpResponse response = client.post(remoteAddress.address(), request);
-                assertThat(response.status(), equalTo(expectedStatus));
-                if (expectedStatus.equals(HttpResponseStatus.CONTINUE)) {
-                    final FullHttpRequest continuationRequest =
-                        new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/", Unpooled.EMPTY_BUFFER);
-                    final FullHttpResponse continuationResponse = client.post(remoteAddress.address(), continuationRequest);
-
-                    assertThat(continuationResponse.status(), is(HttpResponseStatus.OK));
-                    assertThat(new String(ByteBufUtil.getBytes(continuationResponse.content()), StandardCharsets.UTF_8), is("done"));
+                try {
+                    assertThat(response.status(), equalTo(expectedStatus));
+                    if (expectedStatus.equals(HttpResponseStatus.CONTINUE)) {
+                        final FullHttpRequest continuationRequest =
+                            new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/", Unpooled.EMPTY_BUFFER);
+                        final FullHttpResponse continuationResponse = client.post(remoteAddress.address(), continuationRequest);
+                        try {
+                            assertThat(continuationResponse.status(), is(HttpResponseStatus.OK));
+                            assertThat(
+                                new String(ByteBufUtil.getBytes(continuationResponse.content()), StandardCharsets.UTF_8), is("done")
+                            );
+                        } finally {
+                            continuationResponse.release();
+                        }
+                    }
+                } finally {
+                    response.release();
                 }
             }
         }
@@ -280,10 +289,14 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, url);
 
                 final FullHttpResponse response = client.post(remoteAddress.address(), request);
-                assertThat(response.status(), equalTo(HttpResponseStatus.BAD_REQUEST));
-                assertThat(
+                try {
+                    assertThat(response.status(), equalTo(HttpResponseStatus.BAD_REQUEST));
+                    assertThat(
                         new String(response.content().array(), Charset.forName("UTF-8")),
                         containsString("you sent a bad request and you should feel bad"));
+                } finally {
+                    response.release();
+                }
             }
         }
 

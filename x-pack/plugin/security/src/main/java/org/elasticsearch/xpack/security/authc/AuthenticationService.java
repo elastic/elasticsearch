@@ -31,7 +31,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
-import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.protocol.xpack.security.User;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 
@@ -271,7 +271,9 @@ public class AuthenticationService extends AbstractComponent {
                                 if (result.getStatus() == AuthenticationResult.Status.TERMINATE) {
                                     logger.info("Authentication of [{}] was terminated by realm [{}] - {}",
                                             authenticationToken.principal(), realm.name(), result.getMessage());
-                                    userListener.onFailure(Exceptions.authenticationError(result.getMessage(), result.getException()));
+                                    Exception e = (result.getException() != null) ? result.getException()
+                                            : Exceptions.authenticationError(result.getMessage());
+                                    userListener.onFailure(e);
                                 } else {
                                     if (result.getMessage() != null) {
                                         messages.put(realm, new Tuple<>(result.getMessage(), result.getException()));
@@ -541,7 +543,6 @@ public class AuthenticationService extends AbstractComponent {
 
         private final RestRequest request;
 
-        @SuppressWarnings("unchecked")
         AuditableRestRequest(AuditTrail auditTrail, AuthenticationFailureHandler failureHandler, ThreadContext threadContext,
                              RestRequest request) {
             super(auditTrail, failureHandler, threadContext);

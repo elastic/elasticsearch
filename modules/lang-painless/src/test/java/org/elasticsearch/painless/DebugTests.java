@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 
 public class DebugTests extends ScriptTestCase {
-    private final PainlessLookup painlessLookup = new PainlessLookupBuilder(Whitelist.BASE_WHITELISTS).build();
+    private final PainlessLookup painlessLookup = PainlessLookupBuilder.buildFromWhitelists(Whitelist.BASE_WHITELISTS);
 
     public void testExplain() {
         // Debug.explain can explain an object

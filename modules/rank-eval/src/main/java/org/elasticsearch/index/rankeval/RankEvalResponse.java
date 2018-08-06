@@ -48,15 +48,15 @@ import java.util.stream.Collectors;
 public class RankEvalResponse extends ActionResponse implements ToXContentObject {
 
     /** The overall evaluation result. */
-    private double evaluationResult;
+    private double metricScore;
     /** details about individual ranking evaluation queries, keyed by their id */
     private Map<String, EvalQueryQuality> details;
     /** exceptions for specific ranking evaluation queries, keyed by their id */
     private Map<String, Exception> failures;
 
-    public RankEvalResponse(double qualityLevel, Map<String, EvalQueryQuality> partialResults,
+    public RankEvalResponse(double metricScore, Map<String, EvalQueryQuality> partialResults,
             Map<String, Exception> failures) {
-        this.evaluationResult = qualityLevel;
+        this.metricScore = metricScore;
         this.details =  new HashMap<>(partialResults);
         this.failures = new HashMap<>(failures);
     }
@@ -65,8 +65,8 @@ public class RankEvalResponse extends ActionResponse implements ToXContentObject
         // only used in RankEvalAction#newResponse()
     }
 
-    public double getEvaluationResult() {
-        return evaluationResult;
+    public double getMetricScore() {
+        return metricScore;
     }
 
     public Map<String, EvalQueryQuality> getPartialResults() {
@@ -85,7 +85,7 @@ public class RankEvalResponse extends ActionResponse implements ToXContentObject
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeDouble(evaluationResult);
+        out.writeDouble(metricScore);
         out.writeVInt(details.size());
         for (String queryId : details.keySet()) {
             out.writeString(queryId);
@@ -101,7 +101,7 @@ public class RankEvalResponse extends ActionResponse implements ToXContentObject
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        this.evaluationResult = in.readDouble();
+        this.metricScore = in.readDouble();
         int partialResultSize = in.readVInt();
         this.details = new HashMap<>(partialResultSize);
         for (int i = 0; i < partialResultSize; i++) {
@@ -120,7 +120,7 @@ public class RankEvalResponse extends ActionResponse implements ToXContentObject
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("quality_level", evaluationResult);
+        builder.field("metric_score", metricScore);
         builder.startObject("details");
         for (String key : details.keySet()) {
             details.get(key).toXContent(builder, params);
@@ -137,7 +137,6 @@ public class RankEvalResponse extends ActionResponse implements ToXContentObject
         return builder;
     }
 
-    private static final ParseField QUALITY_LEVEL_FIELD = new ParseField("quality_level");
     private static final ParseField DETAILS_FIELD = new ParseField("details");
     private static final ParseField FAILURES_FIELD = new ParseField("failures");
     @SuppressWarnings("unchecked")
@@ -147,7 +146,7 @@ public class RankEvalResponse extends ActionResponse implements ToXContentObject
                     ((List<EvalQueryQuality>) a[1]).stream().collect(Collectors.toMap(EvalQueryQuality::getId, Function.identity())),
                     ((List<Tuple<String, Exception>>) a[2]).stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2))));
     static {
-        PARSER.declareDouble(ConstructingObjectParser.constructorArg(), QUALITY_LEVEL_FIELD);
+        PARSER.declareDouble(ConstructingObjectParser.constructorArg(), EvalQueryQuality.METRIC_SCORE_FIELD);
         PARSER.declareNamedObjects(ConstructingObjectParser.optionalConstructorArg(), (p, c, n) -> EvalQueryQuality.fromXContent(p, n),
                 DETAILS_FIELD);
         PARSER.declareNamedObjects(ConstructingObjectParser.optionalConstructorArg(), (p, c, n) -> {

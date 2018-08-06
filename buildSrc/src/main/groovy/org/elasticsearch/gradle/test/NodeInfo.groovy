@@ -181,6 +181,7 @@ class NodeInfo {
 
         args.addAll("-E", "node.portsfile=true")
         env = [:]
+        env.putAll(config.environmentVariables)
         for (Map.Entry<String, String> property : System.properties.entrySet()) {
             if (property.key.startsWith('tests.es.')) {
                 args.add("-E")

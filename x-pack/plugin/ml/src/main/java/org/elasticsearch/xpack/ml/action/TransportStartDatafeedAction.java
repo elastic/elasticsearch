@@ -29,8 +29,8 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedJobValidator;
@@ -89,7 +89,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             throw ExceptionsHelper.missingJobException(datafeed.getJobId());
         }
         DatafeedJobValidator.validate(datafeed, job);
-        JobState jobState = MlMetadata.getJobState(datafeed.getJobId(), tasks);
+        JobState jobState = MlTasks.getJobState(datafeed.getJobId(), tasks);
         if (jobState.isAnyOf(JobState.OPENING, JobState.OPENED) == false) {
             throw ExceptionsHelper.conflictStatusException("cannot start datafeed [" + datafeedId + "] because job [" + job.getId() +
                     "] is " + jobState);
@@ -167,7 +167,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                                              listener) {
         DataExtractorFactory.create(client, datafeed, job, ActionListener.wrap(
                 dataExtractorFactory ->
-                        persistentTasksService.sendStartRequest(MLMetadataField.datafeedTaskId(params.getDatafeedId()),
+                        persistentTasksService.sendStartRequest(MlTasks.datafeedTaskId(params.getDatafeedId()),
                                 StartDatafeedAction.TASK_NAME, params, listener)
                 , listener::onFailure));
     }

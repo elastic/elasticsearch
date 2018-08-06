@@ -20,6 +20,7 @@ package org.elasticsearch.gradle
 
 import com.carrotsearch.gradle.junit4.RandomizedTestingTask
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
+import org.apache.commons.io.IOUtils
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.eclipse.jgit.lib.Constants
 import org.eclipse.jgit.lib.RepositoryBuilder
@@ -53,6 +54,7 @@ import org.gradle.internal.jvm.Jvm
 import org.gradle.process.ExecResult
 import org.gradle.util.GradleVersion
 
+import java.nio.charset.StandardCharsets
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
 /**
@@ -66,6 +68,14 @@ class BuildPlugin implements Plugin<Project> {
               throw new InvalidUserDataException('elasticsearch.standalone-test, '
                 + 'elasticearch.standalone-rest-test, and elasticsearch.build '
                 + 'are mutually exclusive')
+        }
+        final String minimumGradleVersion
+        InputStream is = getClass().getResourceAsStream("/minimumGradleVersion")
+        try { minimumGradleVersion = IOUtils.toString(is, StandardCharsets.UTF_8.toString()) } finally { is.close() }
+        if (GradleVersion.current() < GradleVersion.version(minimumGradleVersion.trim())) {
+            throw new GradleException(
+                    "Gradle ${minimumGradleVersion}+ is required to use elasticsearch.build plugin"
+            )
         }
         project.pluginManager.apply('java')
         project.pluginManager.apply('carrotsearch.randomized-testing')
@@ -131,6 +141,9 @@ class BuildPlugin implements Plugin<Project> {
                 runtimeJavaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(project, runtimeJavaHome))
             }
 
+            String inFipsJvmScript = 'print(java.security.Security.getProviders()[0].name.toLowerCase().contains("fips"));'
+            boolean inFipsJvm = Boolean.parseBoolean(runJavascript(project, runtimeJavaHome, inFipsJvmScript))
+
             // Build debugging info
             println '======================================='
             println 'Elasticsearch Build Hamster says Hello!'
@@ -149,14 +162,6 @@ class BuildPlugin implements Plugin<Project> {
                 println "  JAVA_HOME             : ${gradleJavaHome}"
             }
             println "  Random Testing Seed   : ${project.testSeed}"
-
-            // enforce Gradle version
-            final GradleVersion currentGradleVersion = GradleVersion.current();
-
-            final GradleVersion minGradle = GradleVersion.version('4.3')
-            if (currentGradleVersion < minGradle) {
-                throw new GradleException("${minGradle} or above is required to build Elasticsearch")
-            }
 
             // enforce Java version
             if (compilerJavaVersionEnum < minimumCompilerVersion) {
@@ -202,6 +207,7 @@ class BuildPlugin implements Plugin<Project> {
             project.rootProject.ext.buildChecksDone = true
             project.rootProject.ext.minimumCompilerVersion = minimumCompilerVersion
             project.rootProject.ext.minimumRuntimeVersion = minimumRuntimeVersion
+            project.rootProject.ext.inFipsJvm = inFipsJvm
         }
 
         project.targetCompatibility = project.rootProject.ext.minimumRuntimeVersion
@@ -213,6 +219,7 @@ class BuildPlugin implements Plugin<Project> {
         project.ext.compilerJavaVersion = project.rootProject.ext.compilerJavaVersion
         project.ext.runtimeJavaVersion = project.rootProject.ext.runtimeJavaVersion
         project.ext.javaVersions = project.rootProject.ext.javaVersions
+        project.ext.inFipsJvm = project.rootProject.ext.inFipsJvm
     }
 
     private static String findCompilerJavaHome() {
@@ -222,7 +229,11 @@ class BuildPlugin implements Plugin<Project> {
                 // IntelliJ does not set JAVA_HOME, so we use the JDK that Gradle was run with
                 return Jvm.current().javaHome
             } else {
-                throw new GradleException("JAVA_HOME must be set to build Elasticsearch")
+                throw new GradleException(
+                        "JAVA_HOME must be set to build Elasticsearch. " +
+                                "Note that if the variable was just set you might have to run `./gradlew --stop` for " +
+                                "it to be picked up. See https://github.com/elastic/elasticsearch/issues/31399 details."
+                )
             }
         }
         return javaHome
@@ -382,6 +393,9 @@ class BuildPlugin implements Plugin<Project> {
         project.configurations.compile.dependencies.all(disableTransitiveDeps)
         project.configurations.testCompile.dependencies.all(disableTransitiveDeps)
         project.configurations.compileOnly.dependencies.all(disableTransitiveDeps)
+        project.plugins.withType(ShadowPlugin).whenPluginAdded {
+            project.configurations.shadow.dependencies.all(disableTransitiveDeps)
+        }
     }
 
     /** Adds repositories used by ES dependencies */
@@ -394,6 +408,10 @@ class BuildPlugin implements Plugin<Project> {
             repos.mavenLocal()
         }
         repos.mavenCentral()
+        repos.maven {
+            name "elastic"
+            url "https://artifacts.elastic.co/maven"
+        }
         String luceneVersion = VersionProperties.lucene
         if (luceneVersion.contains('-snapshot')) {
             // extract the revision number from the version with a regex matcher
@@ -753,7 +771,6 @@ class BuildPlugin implements Plugin<Project> {
             systemProperty 'tests.task', path
             systemProperty 'tests.security.manager', 'true'
             systemProperty 'jna.nosys', 'true'
-            systemProperty 'es.scripting.exception_for_missing_value', 'true'
             // TODO: remove setting logging level via system property
             systemProperty 'tests.logger.level', 'WARN'
             for (Map.Entry<String, String> property : System.properties.entrySet()) {
@@ -766,6 +783,15 @@ class BuildPlugin implements Plugin<Project> {
                     }
                     systemProperty property.getKey(), property.getValue()
                 }
+            }
+
+            // TODO: remove this once joda time is removed from scriptin in 7.0
+            systemProperty 'es.scripting.use_java_time', 'true'
+
+            // Set the system keystore/truststore password if we're running tests in a FIPS-140 JVM
+            if (project.inFipsJvm) {
+                systemProperty 'javax.net.ssl.trustStorePassword', 'password'
+                systemProperty 'javax.net.ssl.keyStorePassword', 'password'
             }
 
             boolean assertionsEnabled = Boolean.parseBoolean(System.getProperty('tests.asserts', 'true'))
@@ -870,11 +896,20 @@ class BuildPlugin implements Plugin<Project> {
         project.dependencyLicenses.dependencies = project.configurations.runtime.fileCollection {
             it.group.startsWith('org.elasticsearch') == false
         } - project.configurations.compileOnly
+        project.plugins.withType(ShadowPlugin).whenPluginAdded {
+            project.dependencyLicenses.dependencies += project.configurations.shadow.fileCollection {
+                it.group.startsWith('org.elasticsearch') == false
+            }
+        }
     }
 
     private static configureDependenciesInfo(Project project) {
         Task deps = project.tasks.create("dependenciesInfo", DependenciesInfoTask.class)
         deps.runtimeConfiguration = project.configurations.runtime
+        project.plugins.withType(ShadowPlugin).whenPluginAdded {
+            deps.runtimeConfiguration = project.configurations.create('infoDeps')
+            deps.runtimeConfiguration.extendsFrom(project.configurations.runtime, project.configurations.shadow)
+        }
         deps.compileOnlyConfiguration = project.configurations.compileOnly
         project.afterEvaluate {
             deps.mappings = project.dependencyLicenses.mappings

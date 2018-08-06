@@ -74,7 +74,7 @@ field alias to query over multiple target fields in a single clause.
 ==== Unsupported APIs
 
 Writes to field aliases are not supported: attempting to use an alias in an index or update request
-will result in a failure. Likewise, aliases cannot be used as the target of `copy_to`.
+will result in a failure. Likewise, aliases cannot be used as the target of `copy_to` or in multi-fields.
 
 Because alias names are not present in the document source, aliases cannot be used when performing
 source filtering. For example, the following request will return an empty result for `_source`:

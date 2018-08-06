@@ -47,6 +47,7 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSIndexStore;
 
 import java.nio.file.DirectoryStream;
@@ -485,6 +486,8 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         }
     }
 
+    @TestLogging("org.elasticsearch.action.admin.cluster.settings:TRACE,org.elasticsearch.cluster.service:TRACE," +
+        "org.elasticsearch.cluster.NodeConnectionsService:TRACE") // Until #32358 fixed
     public void testRecoveryDifferentNodeOrderStartup() throws Exception {
         // we need different data paths so we make sure we start the second node fresh
 

@@ -30,7 +30,7 @@ public class UpdateSettingsResponse extends AcknowledgedResponse {
     UpdateSettingsResponse() {
     }
 
-    UpdateSettingsResponse(boolean acknowledged) {
+    public UpdateSettingsResponse(boolean acknowledged) {
         super(acknowledged);
     }
 

@@ -71,7 +71,10 @@ public class UnicastConfiguredHostsResolver extends AbstractLifecycleComponent i
     }
 
     public void resolveConfiguredHosts(Consumer<List<TransportAddress>> consumer) {
-        assert lifecycle.started() : lifecycle;
+        if (lifecycle.started() == false) {
+            logger.debug("resolveConfiguredHosts: lifecycle is {}, not proceeding", lifecycle);
+            return;
+        }
 
         if (resolveInProgress.compareAndSet(false, true)) {
             transportService.getThreadPool().generic().execute(new AbstractRunnable() {

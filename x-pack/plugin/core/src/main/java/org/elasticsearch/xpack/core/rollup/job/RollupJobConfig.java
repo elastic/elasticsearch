@@ -89,7 +89,7 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
                            final int pageSize,
                            final GroupConfig groupConfig,
                            final List<MetricConfig> metricsConfig,
-                           final TimeValue timeout) {
+                           final @Nullable TimeValue timeout) {
         if (id == null || id.isEmpty()) {
             throw new IllegalArgumentException("Id must be a non-null, non-empty string");
         }

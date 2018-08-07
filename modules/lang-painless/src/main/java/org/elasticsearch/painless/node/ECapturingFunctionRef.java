@@ -20,7 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.FunctionReference;
+import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
@@ -41,7 +41,7 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
     private final String variable;
     private final String call;
 
-    private FunctionReference ref;
+    private FunctionRef ref;
     private Variable captured;
     private String defPointer;
 
@@ -73,7 +73,7 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
             defPointer = null;
             // static case
             if (captured.clazz != def.class) {
-                ref = FunctionReference.create(locals.getPainlessLookup(), locals.getMethods(), location,
+                ref = FunctionRef.create(locals.getPainlessLookup(), locals.getMethods(), location,
                         expected, PainlessLookupUtility.typeToCanonicalTypeName(captured.clazz), call, 1);
             }
             actual = expected;

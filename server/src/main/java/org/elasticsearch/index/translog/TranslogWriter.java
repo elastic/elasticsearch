@@ -29,7 +29,6 @@ import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.translog.source.TranslogAssertionSource;
 
 import java.io.BufferedOutputStream;
 import java.io.Closeable;
@@ -202,9 +201,9 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             final Tuple<BytesReference, Exception> previous = seenSequenceNumbers.get(seqNo);
             if (previous.v1().equals(data) == false) {
                 Translog.Operation newOp = Translog.readOperation(
-                        new BufferedChecksumStreamInput(data.streamInput(), new TranslogAssertionSource()));
+                        new BufferedChecksumStreamInput(data.streamInput(), "assertion"));
                 Translog.Operation prvOp = Translog.readOperation(
-                        new BufferedChecksumStreamInput(previous.v1().streamInput(), new TranslogAssertionSource()));
+                        new BufferedChecksumStreamInput(previous.v1().streamInput(), "assertion"));
                 if (newOp.equals(prvOp) == false) {
                     throw new AssertionError(
                         "seqNo [" + seqNo + "] was processed twice in generation [" + generation + "], with different data. " +
@@ -224,7 +223,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 final Translog.Operation op;
                 try {
                     op = Translog.readOperation(
-                            new BufferedChecksumStreamInput(e.getValue().v1().streamInput(), new TranslogAssertionSource()));
+                            new BufferedChecksumStreamInput(e.getValue().v1().streamInput(), "assertion"));
                 } catch (IOException ex) {
                     throw new RuntimeException(ex);
                 }

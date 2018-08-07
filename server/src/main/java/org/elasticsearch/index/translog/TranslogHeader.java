@@ -29,7 +29,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
-import org.elasticsearch.index.translog.source.TranslogFileSource;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;
@@ -113,13 +112,13 @@ final class TranslogHeader {
         final BufferedChecksumStreamInput in =
             new BufferedChecksumStreamInput(
                     new InputStreamStreamInput(java.nio.channels.Channels.newInputStream(channel), channel.size()),
-                    new TranslogFileSource(path));
+                    path.toString());
         final int version;
         try {
             version = CodecUtil.checkHeader(new InputStreamDataInput(in), TRANSLOG_CODEC, VERSION_CHECKSUMS, VERSION_PRIMARY_TERM);
         } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException e) {
             tryReportOldVersionError(path, channel);
-            throw new TranslogCorruptedException(new TranslogFileSource(path), "translog header corrupted", e);
+            throw new TranslogCorruptedException(path.toString(), "translog header corrupted", e);
         }
         if (version == VERSION_CHECKSUMS) {
             throw new IllegalStateException("pre-2.0 translog found [" + path + "]");
@@ -128,7 +127,7 @@ final class TranslogHeader {
         final int uuidLen = in.readInt();
         if (uuidLen > channel.size()) {
             throw new TranslogCorruptedException(
-                    new TranslogFileSource(path),
+                    path.toString(),
                     "UUID length can't be larger than the translog");
         }
         final BytesRef uuid = new BytesRef(uuidLen);
@@ -137,7 +136,7 @@ final class TranslogHeader {
         final BytesRef expectedUUID = new BytesRef(translogUUID);
         if (uuid.bytesEquals(expectedUUID) == false) {
             throw new TranslogCorruptedException(
-                    new TranslogFileSource(path),
+                    path.toString(),
                     "expected shard UUID " + expectedUUID + " but got: " + uuid +
                             " this translog file belongs to a different translog");
         }
@@ -172,7 +171,7 @@ final class TranslogHeader {
         final byte b1 = Channels.readFromFileChannel(channel, 0, 1)[0];
         if (b1 == 0x3f) { // LUCENE_CODEC_HEADER_BYTE
             throw new TranslogCorruptedException(
-                    new TranslogFileSource(path),
+                    path.toString(),
                     "translog looks like version 1 or later, but has corrupted header" );
         } else if (b1 == 0x00) { // UNVERSIONED_TRANSLOG_HEADER_BYTE
             throw new IllegalStateException("pre-1.4 translog found [" + path + "]");

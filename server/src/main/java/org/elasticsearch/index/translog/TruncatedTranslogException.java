@@ -20,7 +20,6 @@
 package org.elasticsearch.index.translog;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.index.translog.source.TranslogSource;
 
 import java.io.IOException;
 
@@ -30,7 +29,7 @@ public class TruncatedTranslogException extends TranslogCorruptedException {
         super(in);
     }
 
-    public TruncatedTranslogException(TranslogSource source, String details, Throwable cause) {
+    public TruncatedTranslogException(String source, String details, Throwable cause) {
         super(source, details, cause);
     }
 

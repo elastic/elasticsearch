@@ -44,8 +44,6 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.translog.source.TranslogFileSource;
-import org.elasticsearch.index.translog.source.TranslogSource;
 
 import java.io.Closeable;
 import java.io.EOFException;
@@ -1437,7 +1435,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     /**
      * Reads a list of operations written with {@link #writeOperations(StreamOutput, List)}
      */
-    public static List<Operation> readOperations(StreamInput input, TranslogSource source) throws IOException {
+    public static List<Operation> readOperations(StreamInput input, String source) throws IOException {
         ArrayList<Operation> operations = new ArrayList<>();
         int numOps = input.readInt();
         final BufferedChecksumStreamInput checksumStreamInput = new BufferedChecksumStreamInput(input, source);
@@ -1475,7 +1473,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     /**
      * Writes all operations in the given iterable to the given output stream including the size of the array
-     * use {@link #readOperations(StreamInput, TranslogSource)} to read it back.
+     * use {@link #readOperations(StreamInput, String)} to read it back.
      */
     public static void writeOperations(StreamOutput outStream, List<Operation> toWrite) throws IOException {
         final ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(BigArrays.NON_RECYCLING_INSTANCE);
@@ -1716,7 +1714,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         } catch (TranslogCorruptedException ex) {
             throw ex; // just bubble up.
         } catch (Exception ex) {
-            throw new TranslogCorruptedException(new TranslogFileSource(location), ex);
+            throw new TranslogCorruptedException(location.toString(), ex);
         }
         return checkpoint;
     }

@@ -22,7 +22,6 @@ package org.elasticsearch.index.translog;
 import org.apache.lucene.store.BufferedChecksum;
 import org.elasticsearch.common.io.stream.FilterStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.index.translog.source.TranslogSource;
 
 import java.io.IOException;
 import java.util.zip.CRC32;
@@ -36,9 +35,9 @@ public final class BufferedChecksumStreamInput extends FilterStreamInput {
     private static final int SKIP_BUFFER_SIZE = 1024;
     private byte[] skipBuffer;
     private final Checksum digest;
-    private final TranslogSource source;
+    private final String source;
 
-    public BufferedChecksumStreamInput(StreamInput in, TranslogSource source, BufferedChecksumStreamInput reuse) {
+    public BufferedChecksumStreamInput(StreamInput in, String source, BufferedChecksumStreamInput reuse) {
         super(in);
         this.source = source;
         if (reuse == null ) {
@@ -50,7 +49,7 @@ public final class BufferedChecksumStreamInput extends FilterStreamInput {
         }
     }
 
-    public BufferedChecksumStreamInput(StreamInput in, TranslogSource source) {
+    public BufferedChecksumStreamInput(StreamInput in, String source) {
         this(in, source, null);
     }
 
@@ -114,7 +113,7 @@ public final class BufferedChecksumStreamInput extends FilterStreamInput {
         digest.reset();
     }
 
-    public TranslogSource getSource(){
+    public String getSource(){
         return source;
     }
 }

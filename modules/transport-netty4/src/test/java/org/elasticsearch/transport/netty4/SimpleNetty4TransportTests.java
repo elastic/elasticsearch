@@ -31,6 +31,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.test.StopNettyThreads;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
@@ -45,12 +46,17 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Collections;
+import org.junit.ClassRule;
+import org.junit.rules.ExternalResource;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 
 public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase {
+
+    @ClassRule
+    public static final ExternalResource STOP_NETTY_RESOURCE = new StopNettyThreads();
 
     public static MockTransportService nettyFromThreadPool(Settings settings, ThreadPool threadPool, final Version version,
                                                            ClusterSettings clusterSettings, boolean doHandshake) {

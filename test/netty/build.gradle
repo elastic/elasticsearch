@@ -24,14 +24,8 @@ description = "Contains utilities for use in tests that involve Netty."
 compileJava.options.compilerArgs << '-Xlint:-cast,-rawtypes,-try,-unchecked'
 
 dependencies {
-  compile "org.elasticsearch:elasticsearch:${version}"
   compile "io.netty:netty-common:4.1.28.Final"
-  compile "io.netty:netty-transport:4.1.28.Final"
-  compile "io.netty:netty-buffer:4.1.28.Final"
-  compile "io.netty:netty-codec-http:4.1.28.Final"
-  compile "io.netty:netty-codec:4.1.28.Final"
-  compile "io.netty:netty-handler:4.1.28.Final"
-  compile "junit:junit:${versions.junit}"
+  compile "org.elasticsearch.test:framework:${version}"
 }
 
 test.enabled = false // No tests in this project

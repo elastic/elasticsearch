@@ -34,7 +34,7 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.config.RuleScope;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzerTests;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.UpdateParams;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.junit.Before;
@@ -68,7 +68,7 @@ public class JobManagerTests extends ESTestCase {
     private AnalysisRegistry analysisRegistry;
     private Client client;
     private ClusterService clusterService;
-    private JobProvider jobProvider;
+    private JobResultsProvider jobResultsProvider;
     private Auditor auditor;
     private UpdateJobProcessNotifier updateJobProcessNotifier;
 
@@ -79,7 +79,7 @@ public class JobManagerTests extends ESTestCase {
         analysisRegistry = CategorizationAnalyzerTests.buildTestAnalysisRegistry(environment);
         client = mock(Client.class);
         clusterService = mock(ClusterService.class);
-        jobProvider = mock(JobProvider.class);
+        jobResultsProvider = mock(JobResultsProvider.class);
         auditor = mock(Auditor.class);
         updateJobProcessNotifier = mock(UpdateJobProcessNotifier.class);
     }
@@ -131,7 +131,7 @@ public class JobManagerTests extends ESTestCase {
             ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[2];
             listener.onResponse(true);
             return null;
-        }).when(jobProvider).createJobResultIndex(requestCaptor.capture(), any(ClusterState.class), any(ActionListener.class));
+        }).when(jobResultsProvider).createJobResultIndex(requestCaptor.capture(), any(ClusterState.class), any(ActionListener.class));
 
         ClusterState clusterState = createClusterState();
 
@@ -404,7 +404,8 @@ public class JobManagerTests extends ESTestCase {
         ClusterSettings clusterSettings = new ClusterSettings(environment.settings(),
                 Collections.singleton(MachineLearningField.MAX_MODEL_MEMORY_LIMIT));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
-        return new JobManager(environment, environment.settings(), jobProvider, clusterService, auditor, client, updateJobProcessNotifier);
+        return new JobManager(environment, environment.settings(), jobResultsProvider, clusterService,
+                auditor, client, updateJobProcessNotifier);
     }
 
     private ClusterState createClusterState() {

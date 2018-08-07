@@ -76,8 +76,6 @@ thirdPartyAudit.excludes = [
         'com.fasterxml.jackson.dataformat.xml.JacksonXmlModule',
         'com.fasterxml.jackson.dataformat.xml.XmlMapper',
         'com.fasterxml.jackson.dataformat.xml.util.DefaultXmlPrettyPrinter',
-        'com.fasterxml.jackson.databind.node.JsonNodeFactory',
-        'com.fasterxml.jackson.databind.node.ObjectNode',
         'com.lmax.disruptor.BlockingWaitStrategy',
         'com.lmax.disruptor.BusySpinWaitStrategy',
         'com.lmax.disruptor.EventFactory',
@@ -116,12 +114,6 @@ thirdPartyAudit.excludes = [
         'javax.mail.internet.MimeMultipart',
         'javax.mail.internet.MimeUtility',
         'javax.mail.util.ByteArrayDataSource',
-        'javax.persistence.AttributeConverter',
-        'javax.persistence.EntityManager',
-        'javax.persistence.EntityManagerFactory',
-        'javax.persistence.EntityTransaction',
-        'javax.persistence.Persistence',
-        'javax.persistence.PersistenceException',
         'org.apache.commons.compress.compressors.CompressorStreamFactory',
         'org.apache.commons.compress.utils.IOUtils',
         'org.apache.commons.csv.CSVFormat',
@@ -150,3 +142,13 @@ thirdPartyAudit.excludes = [
         'org.zeromq.ZMQ$Socket',
         'org.zeromq.ZMQ'
 ]
+
+if (JavaVersion.current() <= JavaVersion.VERSION_1_8) {
+    // Used by Log4J 2.11.1
+    thirdPartyAudit.excludes += [
+      'java.io.ObjectInputFilter',
+      'java.io.ObjectInputFilter$Config',
+      'java.io.ObjectInputFilter$FilterInfo',
+      'java.io.ObjectInputFilter$Status'
+    ]
+}

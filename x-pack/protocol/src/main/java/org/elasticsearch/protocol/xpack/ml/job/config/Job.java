@@ -16,23 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.protocol.xpack.ml.job.results;
+package org.elasticsearch.protocol.xpack.ml.job.config;
 
 import org.elasticsearch.common.ParseField;
 
-/**
- * Contains common attributes for results.
- */
-public final class Result {
-
-    /**
-     * Serialisation fields
-     */
-    public static final ParseField TYPE = new ParseField("result");
-    public static final ParseField RESULT_TYPE = new ParseField("result_type");
-    public static final ParseField TIMESTAMP = new ParseField("timestamp");
-    public static final ParseField IS_INTERIM = new ParseField("is_interim");
-
-    private Result() {
-    }
+public class Job {
+    public static final ParseField ID = new ParseField("job_id");
 }

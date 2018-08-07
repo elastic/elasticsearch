@@ -145,12 +145,6 @@ thirdPartyAudit.excludes = [
   'com.microsoft.azure.management.sql.implementation.SqlServerManager',
   'com.microsoft.azure.management.trafficmanager.TrafficManagerProfiles',
   'com.microsoft.azure.management.trafficmanager.implementation.TrafficManager',
-  'javax.activation.ActivationDataFlavor',
-  'javax.activation.DataContentHandler',
-  'javax.activation.DataHandler',
-  'javax.activation.DataSource',
-  'javax.activation.FileDataSource',
-  'javax.activation.FileTypeMap',
   'javax.servlet.http.HttpServletRequest',
   'javax.servlet.http.HttpServletResponse',
   'rx.Completable$CompletableOnSubscribe',
@@ -184,3 +178,15 @@ thirdPartyAudit.excludes = [
   'rx.internal.util.unsafe.SpscUnboundedArrayQueue',
   'rx.internal.util.unsafe.UnsafeAccess',
 ]
+
+if (JavaVersion.current() > JavaVersion.VERSION_1_8) {
+  // jarhell with jdk (intentionally, because jaxb was removed from default modules in java 9)
+  thirdPartyAudit.excludes += [
+          'javax.activation.ActivationDataFlavor',
+          'javax.activation.DataContentHandler',
+          'javax.activation.DataHandler',
+          'javax.activation.DataSource',
+          'javax.activation.FileDataSource',
+          'javax.activation.FileTypeMap'
+  ]
+}

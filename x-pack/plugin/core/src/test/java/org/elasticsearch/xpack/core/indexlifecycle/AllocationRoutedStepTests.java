@@ -269,7 +269,6 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
         Settings.Builder node1Settings = Settings.builder();
         Settings.Builder node2Settings = Settings.builder();
         requires.forEach((k, v) -> {
-            existingSettings.put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + k, v);
             expectedSettings.put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + k, v);
         });
 

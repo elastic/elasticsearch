@@ -103,11 +103,11 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     public static final String RULE_FIELD_NAME = "rule";
     public static final String OPAQUE_ID_FIELD_NAME = "opaque_id";
     public static final String NAME = "logfile";
-    public static final Setting<Boolean> HOST_ADDRESS_SETTING = Setting.boolSetting(setting("audit.logfile.prefix.emit_node_host_address"),
+    public static final Setting<Boolean> EMIT_HOST_ADDRESS_SETTING = Setting.boolSetting(setting("audit.logfile.prefix.emit_node_host_address"),
             false, Property.NodeScope, Property.Dynamic);
-    public static final Setting<Boolean> HOST_NAME_SETTING = Setting.boolSetting(setting("audit.logfile.prefix.emit_node_host_name"), false,
+    public static final Setting<Boolean> EMIT_HOST_NAME_SETTING = Setting.boolSetting(setting("audit.logfile.prefix.emit_node_host_name"), false,
             Property.NodeScope, Property.Dynamic);
-    public static final Setting<Boolean> NODE_NAME_SETTING = Setting.boolSetting(setting("audit.logfile.prefix.emit_node_name"), true,
+    public static final Setting<Boolean> EMIT_NODE_NAME_SETTING = Setting.boolSetting(setting("audit.logfile.prefix.emit_node_name"), true,
             Property.NodeScope, Property.Dynamic);
     private static final List<String> DEFAULT_EVENT_INCLUDES = Arrays.asList(ACCESS_DENIED.toString(), ACCESS_GRANTED.toString(),
             ANONYMOUS_ACCESS_DENIED.toString(), AUTHENTICATION_FAILED.toString(), CONNECTION_DENIED.toString(), TAMPERED_REQUEST.toString(),
@@ -169,7 +169,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             // `entryCommonFields` and `includeRequestBody` writes happen-before! `events` is
             // always read before `entryCommonFields` and `includeRequestBody`.
             this.events = parse(INCLUDE_EVENT_SETTINGS.get(newSettings), EXCLUDE_EVENT_SETTINGS.get(newSettings));
-        }, Arrays.asList(HOST_ADDRESS_SETTING, HOST_NAME_SETTING, NODE_NAME_SETTING, INCLUDE_EVENT_SETTINGS, EXCLUDE_EVENT_SETTINGS,
+        }, Arrays.asList(EMIT_HOST_ADDRESS_SETTING, EMIT_HOST_NAME_SETTING, EMIT_NODE_NAME_SETTING, INCLUDE_EVENT_SETTINGS, EXCLUDE_EVENT_SETTINGS,
                 INCLUDE_REQUEST_BODY));
         clusterService.getClusterSettings().addAffixUpdateConsumer(FILTER_POLICY_IGNORE_PRINCIPALS, (policyName, filtersList) -> {
             final Optional<EventFilterPolicy> policy = eventFilterPolicyRegistry.get(policyName);
@@ -647,13 +647,13 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
         assert LOCAL_ORIGIN_FIELD_VALUE.equals(logEntry.get(ORIGIN_TYPE_FIELD_NAME)); // this is the default
         final InetSocketAddress restAddress = RemoteHostHeader.restRemoteAddress(threadContext);
         if (restAddress != null) {
-            logEntry.with(ORIGIN_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE).with(ORIGIN_ADDRESS_FIELD_NAME,
-                    NetworkAddress.format(restAddress.getAddress()));
+            logEntry.with(ORIGIN_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
+                    .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(restAddress.getAddress()));
         } else {
             final TransportAddress address = message.remoteAddress();
             if (address != null) {
-                logEntry.with(ORIGIN_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE).with(ORIGIN_ADDRESS_FIELD_NAME,
-                        NetworkAddress.format(address.address().getAddress()));
+                logEntry.with(ORIGIN_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
+                        .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(address.address().getAddress()));
             }
         }
         // fall through to local_node default
@@ -682,9 +682,9 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     }
 
     public static void registerSettings(List<Setting<?>> settings) {
-        settings.add(HOST_ADDRESS_SETTING);
-        settings.add(HOST_NAME_SETTING);
-        settings.add(NODE_NAME_SETTING);
+        settings.add(EMIT_HOST_ADDRESS_SETTING);
+        settings.add(EMIT_HOST_NAME_SETTING);
+        settings.add(EMIT_NODE_NAME_SETTING);
         settings.add(INCLUDE_EVENT_SETTINGS);
         settings.add(EXCLUDE_EVENT_SETTINGS);
         settings.add(INCLUDE_REQUEST_BODY);
@@ -895,28 +895,28 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
         EntryCommonFields(Settings settings, @Nullable DiscoveryNode newLocalNode) {
             this.settings = settings;
             this.localNode = newLocalNode;
-            final MapBuilder<String, String> rootFieldsBuilder = new MapBuilder<>();
-            rootFieldsBuilder.put(EVENT_CATEGORY_FIELD_NAME, "elasticsearch-audit");
-            if (NODE_NAME_SETTING.get(settings)) {
+            final MapBuilder<String, String> commonFieldsBuilder = new MapBuilder<>();
+            commonFieldsBuilder.put(EVENT_CATEGORY_FIELD_NAME, "elasticsearch-audit");
+            if (EMIT_NODE_NAME_SETTING.get(settings)) {
                 final String nodeName = Node.NODE_NAME_SETTING.get(settings);
                 if (Strings.hasLength(nodeName)) {
-                    rootFieldsBuilder.put(NODE_NAME_FIELD_NAME, nodeName);
+                    commonFieldsBuilder.put(NODE_NAME_FIELD_NAME, nodeName);
                 }
             }
             if (newLocalNode != null) {
-                if (HOST_ADDRESS_SETTING.get(settings) && Strings.hasLength(newLocalNode.getHostAddress())) {
-                    rootFieldsBuilder.put(HOST_ADDRESS_FIELD_NAME, newLocalNode.getHostAddress());
+                if (EMIT_HOST_ADDRESS_SETTING.get(settings) && Strings.hasLength(newLocalNode.getHostAddress())) {
+                    commonFieldsBuilder.put(HOST_ADDRESS_FIELD_NAME, newLocalNode.getHostAddress());
                 }
-                if (HOST_NAME_SETTING.get(settings) && Strings.hasLength(newLocalNode.getHostName())) {
-                    rootFieldsBuilder.put(HOST_NAME_FIELD_NAME, newLocalNode.getHostName());
+                if (EMIT_HOST_NAME_SETTING.get(settings) && Strings.hasLength(newLocalNode.getHostName())) {
+                    commonFieldsBuilder.put(HOST_NAME_FIELD_NAME, newLocalNode.getHostName());
                 }
             }
             // the default origin is local
-            rootFieldsBuilder.put(ORIGIN_TYPE_FIELD_NAME, LOCAL_ORIGIN_FIELD_VALUE);
+            commonFieldsBuilder.put(ORIGIN_TYPE_FIELD_NAME, LOCAL_ORIGIN_FIELD_VALUE);
             if (newLocalNode != null) {
-                rootFieldsBuilder.put(ORIGIN_ADDRESS_FIELD_NAME, newLocalNode.getHostAddress());
+                commonFieldsBuilder.put(ORIGIN_ADDRESS_FIELD_NAME, newLocalNode.getHostAddress());
             }
-            this.commonFields = rootFieldsBuilder.immutableMap();
+            this.commonFields = commonFieldsBuilder.immutableMap();
         }
 
         EntryCommonFields withNewSettings(Settings newSettings) {

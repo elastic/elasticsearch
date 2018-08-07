@@ -106,9 +106,9 @@ public class AuditTrailSettingsUpdateTests extends SecurityIntegTestCase {
     public void testDynamicHostSettings() {
         final boolean persistent = randomBoolean();
         final Settings.Builder settingsBuilder = Settings.builder();
-        settingsBuilder.put(LoggingAuditTrail.HOST_ADDRESS_SETTING.getKey(), true);
-        settingsBuilder.put(LoggingAuditTrail.HOST_NAME_SETTING.getKey(), true);
-        settingsBuilder.put(LoggingAuditTrail.NODE_NAME_SETTING.getKey(), true);
+        settingsBuilder.put(LoggingAuditTrail.EMIT_HOST_ADDRESS_SETTING.getKey(), true);
+        settingsBuilder.put(LoggingAuditTrail.EMIT_HOST_NAME_SETTING.getKey(), true);
+        settingsBuilder.put(LoggingAuditTrail.EMIT_NODE_NAME_SETTING.getKey(), true);
         updateSettings(settingsBuilder.build(), persistent);
         final LoggingAuditTrail loggingAuditTrail = ((LoggingAuditTrail) internalCluster().getInstances(AuditTrailService.class)
                 .iterator()
@@ -117,15 +117,15 @@ public class AuditTrailSettingsUpdateTests extends SecurityIntegTestCase {
                 .iterator()
                 .next());
         assertTrue(Pattern.matches("\\[127\\.0\\.0\\.1\\] \\[127\\.0\\.0\\.1\\] \\[node_.*\\] ", loggingAuditTrail.entryCommonFields.prefix));
-        settingsBuilder.put(LoggingAuditTrail.HOST_ADDRESS_SETTING.getKey(), false);
+        settingsBuilder.put(LoggingAuditTrail.EMIT_HOST_ADDRESS_SETTING.getKey(), false);
         updateSettings(settingsBuilder.build(), persistent);
         assertTrue(Pattern.matches("\\[127\\.0\\.0\\.1\\] \\[node_.*\\] ", loggingAuditTrail.entryCommonFields.prefix));
-        settingsBuilder.put(LoggingAuditTrail.HOST_ADDRESS_SETTING.getKey(), true);
-        settingsBuilder.put(LoggingAuditTrail.HOST_NAME_SETTING.getKey(), false);
+        settingsBuilder.put(LoggingAuditTrail.EMIT_HOST_ADDRESS_SETTING.getKey(), true);
+        settingsBuilder.put(LoggingAuditTrail.EMIT_HOST_NAME_SETTING.getKey(), false);
         updateSettings(settingsBuilder.build(), persistent);
         assertTrue(Pattern.matches("\\[127\\.0\\.0\\.1\\] \\[node_.*\\] ", loggingAuditTrail.entryCommonFields.prefix));
-        settingsBuilder.put(LoggingAuditTrail.HOST_NAME_SETTING.getKey(), true);
-        settingsBuilder.put(LoggingAuditTrail.NODE_NAME_SETTING.getKey(), false);
+        settingsBuilder.put(LoggingAuditTrail.EMIT_HOST_NAME_SETTING.getKey(), true);
+        settingsBuilder.put(LoggingAuditTrail.EMIT_NODE_NAME_SETTING.getKey(), false);
         updateSettings(settingsBuilder.build(), persistent);
         assertTrue(Pattern.matches("\\[127\\.0\\.0\\.1\\] \\[127\\.0\\.0\\.1\\] ", loggingAuditTrail.entryCommonFields.prefix));
     }

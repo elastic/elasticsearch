@@ -772,7 +772,7 @@ public class SearchActionTests extends ESTestCase {
         MultiSearchResponse.Item rolledResponse = new MultiSearchResponse.Item(responseWithout, null);
 
         MultiSearchResponse msearchResponse
-                = new MultiSearchResponse(new MultiSearchResponse.Item[]{unrolledResponse, rolledResponse}, 123);
+                = new MultiSearchResponse(new MultiSearchResponse.Item[]{unrolledResponse, rolledResponse});
         SearchResponse response = TransportRollupSearchAction.processResponses(separateIndices, msearchResponse,
                 mock(InternalAggregation.ReduceContext.class));
 

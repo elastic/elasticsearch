@@ -23,26 +23,39 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 
 import java.io.IOException;
+import java.util.Objects;
+
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Suggestion entry returned from the {@link PhraseSuggester}.
  */
 public class PhraseSuggestion extends Suggest.Suggestion<PhraseSuggestion.Entry> {
 
-    public static final String NAME = "phrase";
+    @Deprecated
     public static final int TYPE = 3;
 
-    public PhraseSuggestion() {
-    }
+    public PhraseSuggestion() {}
 
     public PhraseSuggestion(String name, int size) {
         super(name, size);
+    }
+
+    public PhraseSuggestion(StreamInput in) throws IOException {
+        super(in);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return PhraseSuggestionBuilder.SUGGESTION_NAME;
     }
 
     @Override
@@ -51,13 +64,13 @@ public class PhraseSuggestion extends Suggest.Suggestion<PhraseSuggestion.Entry>
     }
 
     @Override
-    protected String getType() {
-        return NAME;
+    protected Entry newEntry() {
+        return new Entry();
     }
 
     @Override
-    protected Entry newEntry() {
-        return new Entry();
+    protected Entry newEntry(StreamInput in) throws IOException {
+        return new Entry(in);
     }
 
     public static PhraseSuggestion fromXContent(XContentParser parser, String name) throws IOException {
@@ -75,7 +88,15 @@ public class PhraseSuggestion extends Suggest.Suggestion<PhraseSuggestion.Entry>
             this.cutoffScore = cutoffScore;
         }
 
-        Entry() {
+        public Entry(Text text, int offset, int length) {
+            super(text, offset, length);
+        }
+
+        Entry() {}
+
+        public Entry(StreamInput in) throws IOException {
+            super(in);
+            cutoffScore = in.readDouble();
         }
 
         /**
@@ -118,15 +139,70 @@ public class PhraseSuggestion extends Suggest.Suggestion<PhraseSuggestion.Entry>
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            cutoffScore = in.readDouble();
+        protected Option newOption() {
+            return new Option();
+        }
+
+        @Override
+        protected Option newOption(StreamInput in) throws IOException {
+            return new Option(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeDouble(cutoffScore);
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return super.equals(other)
+                && Objects.equals(cutoffScore, ((Entry) other).cutoffScore);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), cutoffScore);
+        }
+
+        public static class Option extends Suggestion.Entry.Option {
+
+            public Option() {
+                super();
+            }
+
+            public Option(Text text, Text highlighted, float score, Boolean collateMatch) {
+                super(text, highlighted, score, collateMatch);
+            }
+
+            public Option(Text text, Text highlighted, float score) {
+                super(text, highlighted, score);
+            }
+
+            public Option(StreamInput in) throws IOException {
+                super(in);
+            }
+
+            private static final ConstructingObjectParser<Option, Void> PARSER = new ConstructingObjectParser<>("PhraseOptionParser",
+                true, args -> {
+                    Text text = new Text((String) args[0]);
+                    float score = (Float) args[1];
+                    String highlighted = (String) args[2];
+                    Text highlightedText = highlighted == null ? null : new Text(highlighted);
+                    Boolean collateMatch = (Boolean) args[3];
+                    return new Option(text, highlightedText, score, collateMatch);
+            });
+
+            static {
+                PARSER.declareString(constructorArg(), TEXT);
+                PARSER.declareFloat(constructorArg(), SCORE);
+                PARSER.declareString(optionalConstructorArg(), HIGHLIGHTED);
+                PARSER.declareBoolean(optionalConstructorArg(), COLLATE_MATCH);
+            }
+
+            public static Option fromXContent(XContentParser parser) {
+                    return PARSER.apply(parser, null);
+            }
         }
     }
 }

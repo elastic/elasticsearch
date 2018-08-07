@@ -73,7 +73,7 @@ import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 
 /**
- * Tiny helper to send http requests over netty.
+ * Tiny helper to send http requests over nio.
  */
 class NioHttpClient implements Closeable {
 

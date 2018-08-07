@@ -1466,7 +1466,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             operation = Translog.Operation.readOperation(in);
             verifyChecksum(in);
         } catch (EOFException e) {
-            throw new TruncatedTranslogException(in.getSource(), "Reached premature end of file, translog is truncated", e);
+            throw new TruncatedTranslogException(in.getSource(), "reached premature end of file, translog is truncated", e);
         }
         return operation;
     }

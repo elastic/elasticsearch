@@ -51,9 +51,7 @@ public final class BufferedChecksumStreamInput extends FilterStreamInput {
     }
 
     public BufferedChecksumStreamInput(StreamInput in, TranslogSource source) {
-        super(in);
-        this.source = source;
-        this.digest = new BufferedChecksum(new CRC32());
+        this(in, source, null);
     }
 
     public long getChecksum() {

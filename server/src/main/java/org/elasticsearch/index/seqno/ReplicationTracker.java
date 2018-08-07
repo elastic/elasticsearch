@@ -39,6 +39,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.function.Function;
@@ -408,7 +409,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         this.appliedClusterStateVersion = -1L;
         this.checkpoints = new HashMap<>(1 + indexSettings.getNumberOfReplicas());
         checkpoints.put(allocationId, new CheckpointState(SequenceNumbers.UNASSIGNED_SEQ_NO, globalCheckpoint, false, false));
-        this.onGlobalCheckpointUpdated = onGlobalCheckpointUpdated;
+        this.onGlobalCheckpointUpdated = Objects.requireNonNull(onGlobalCheckpointUpdated);
         this.pendingInSync = new HashSet<>();
         this.routingTable = null;
         this.replicationGroup = null;

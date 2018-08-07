@@ -273,7 +273,7 @@ public class RollupIndexerStateTests extends ESTestCase {
         // and make sure the appropriate error is thrown
         when(config.getGroupConfig()).then((Answer<GroupConfig>) invocationOnMock -> {
             state.set(IndexerState.STOPPED);
-            return ConfigTestHelpers.getGroupConfig().build();
+            return ConfigTestHelpers.randomGroupConfig(random());
         });
         RollupJob job = new RollupJob(config, Collections.emptyMap());
 

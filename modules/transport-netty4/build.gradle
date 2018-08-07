@@ -41,8 +41,6 @@ dependencies {
     compile "io.netty:netty-handler:4.1.28.Final"
     compile "io.netty:netty-resolver:4.1.28.Final"
     compile "io.netty:netty-transport:4.1.28.Final"
-
-    testCompile project(':test:netty')
 }
 
 dependencyLicenses {

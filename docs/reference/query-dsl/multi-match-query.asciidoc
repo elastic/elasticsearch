@@ -83,8 +83,8 @@ parameter, which can be set to:
                     were one big field. Looks for each word in *any*
                     field. See <<type-cross-fields>>.
 
-`phrase`::          Runs a `match_phrase` query on each field and combines
-                    the `_score` from each field.  See <<type-phrase>>.
+`phrase`::          Runs a `match_phrase` query on each field and uses the  `_score` 
+                    from the best field.  See <<type-phrase>>.
 
 `phrase_prefix`::   Runs a `match_phrase_prefix` query on each field and
                     combines the `_score` from each field.  See <<type-phrase>>.

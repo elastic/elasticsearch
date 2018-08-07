@@ -37,7 +37,7 @@ public class ConfigTestHelpers {
         String indexPattern = ESTestCase.randomAlphaOfLengthBetween(1,10);
         builder.setIndexPattern(indexPattern);
         builder.setRollupIndex("rollup_" + indexPattern); // to ensure the index pattern != rollup index
-        builder.setGroupConfig(ConfigTestHelpers.getGroupConfig().build());
+        builder.setGroupConfig(ConfigTestHelpers.randomGroupConfig(ESTestCase.random()));
         builder.setPageSize(ESTestCase.randomIntBetween(1,10));
         if (ESTestCase.randomBoolean()) {
             builder.setMetricsConfig(randomMetricsConfigs(ESTestCase.random()));
@@ -45,16 +45,11 @@ public class ConfigTestHelpers {
         return builder;
     }
 
-    public static GroupConfig.Builder getGroupConfig() {
-        GroupConfig.Builder groupBuilder = new GroupConfig.Builder();
-        groupBuilder.setDateHisto(randomDateHistogramGroupConfig(ESTestCase.random()));
-        if (ESTestCase.randomBoolean()) {
-            groupBuilder.setHisto(randomHistogramGroupConfig(ESTestCase.random()));
-        }
-        if (ESTestCase.randomBoolean()) {
-            groupBuilder.setTerms(randomTermsGroupConfig(ESTestCase.random()));
-        }
-        return groupBuilder;
+    public static GroupConfig randomGroupConfig(final Random random) {
+        DateHistogramGroupConfig dateHistogram = randomDateHistogramGroupConfig(random);
+        HistogramGroupConfig histogram = random.nextBoolean() ? randomHistogramGroupConfig(random) : null;
+        TermsGroupConfig terms = random.nextBoolean() ? randomTermsGroupConfig(random) : null;
+        return new GroupConfig(dateHistogram, histogram, terms);
     }
 
     private static final String[] TIME_SUFFIXES = new String[]{"d", "h", "ms", "s", "m"};

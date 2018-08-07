@@ -95,21 +95,17 @@ public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
         Files.write(
             tmpDir.newFile("settings.gradle").toPath(), "enableFeaturePreview('STABLE_PUBLISHING')\n".getBytes(StandardCharsets.UTF_8)
         );
-        // Add a repositories section to be able to resolve from snapshots.
-        // !NOTE! that the plugin build will use be using stale artifacts, not the ones produced in the current build
-        // TODO: Add "http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${revision}" 
-        //       (revision = (luceneVersion =~ /\w+-snapshot-([a-z0-9]+)/)[0][1])
+        // Add a repositories section to be able to resolve dependencies
         Files.write(
             new File(tmpDir.getRoot(), "build.gradle").toPath(),
             ("\n" +
                 "repositories {\n" +
                 "  maven {\n" +
-                "    url \"https://snapshots.elastic.co/maven\"\n" +
+                "    url \"" + getLocalTestRepoPath()  + "\"\n" +
                 "  }\n" +
                 "  maven {\n" +
-                "    url \"http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/608f0277b0\"\n" + // FIXME
+                "    url \"http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/" + getLuceneSnapshotRevision() + "\"\n" +
                 "  }\n" +
-                "  mavenLocal()\n" + // FIXME
                 "}\n").getBytes(StandardCharsets.UTF_8),
             StandardOpenOption.APPEND
         );
@@ -124,6 +120,18 @@ public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
             .withArguments("clean", "check", "-s", "-i", "--warning-mode=all", "--scan")
             .withPluginClasspath()
             .build();
+    }
+
+    private String getLuceneSnapshotRevision() {
+        return System.getProperty("test.luceene-snapshot-revision", "not-a-snapshot");
+    }
+
+    private String getLocalTestRepoPath() {
+        String property = System.getProperty("test.local-test-repo-path");
+        Objects.requireNonNull(property, "test.local-test-repo-path not passed to tests");
+        File file = new File(property);
+        assertTrue("Expected " + property + " to exist, but it did not!", file.exists());
+        return file.getAbsolutePath();
     }
 
 }

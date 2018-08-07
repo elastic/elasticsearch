@@ -74,7 +74,7 @@ public class CoordinationStateTests extends ESTestCase {
         cs3 = createCoordinationState(new InMemoryPersistedState(0L, initialStateNode3), node3);
     }
 
-    private DiscoveryNode createNode(String id) {
+    public static DiscoveryNode createNode(String id) {
         return new DiscoveryNode(id, buildNewFakeTransportAddress(), Version.CURRENT);
     }
 

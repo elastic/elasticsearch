@@ -561,12 +561,15 @@ public class IndexShardTests extends IndexShardTestCase {
             ShardRouting primaryRouting = newShardRouting(replicaRouting.shardId(), replicaRouting.currentNodeId(), null,
                 true, ShardRoutingState.STARTED, replicaRouting.allocationId());
             final long newPrimaryTerm = indexShard.getPendingPrimaryTerm() + between(1, 1000);
+            CountDownLatch latch = new CountDownLatch(1);
             indexShard.updateShardState(primaryRouting, newPrimaryTerm, (shard, listener) -> {
                     assertThat(TestTranslog.getCurrentTerm(getTranslog(indexShard)), equalTo(newPrimaryTerm));
+                    latch.countDown();
                 }, 0L,
                 Collections.singleton(indexShard.routingEntry().allocationId().getId()),
                 new IndexShardRoutingTable.Builder(indexShard.shardId()).addShard(primaryRouting).build(),
                 Collections.emptySet());
+            latch.await();
         } else {
             indexShard = newStartedShard(true);
         }
@@ -579,6 +582,22 @@ public class IndexShardTests extends IndexShardTestCase {
 
         Releasables.close(operation1, operation2);
         assertEquals(0, indexShard.getActiveOperationsCount());
+
+        if (Assertions.ENABLED && indexShard.routingEntry().isRelocationTarget() == false) {
+            assertThat(expectThrows(AssertionError.class, () -> indexShard.acquireReplicaOperationPermit(primaryTerm,
+                indexShard.getGlobalCheckpoint(), new ActionListener<Releasable>() {
+                    @Override
+                    public void onResponse(Releasable releasable) {
+                        fail();
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        fail();
+                    }
+                },
+                ThreadPool.Names.WRITE, "")).getMessage(), containsString("in primary mode cannot be a replication target"));
+        }
 
         closeShards(indexShard);
     }

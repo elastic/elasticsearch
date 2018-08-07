@@ -87,8 +87,23 @@ subprojects {
           }
         }
       }
+      repositories {
+        maven {
+          name = 'localTest'
+          url = "$rootProject.buildDir/local-test-repo"
+        }
+      }
     }
   }
+  // Make nebula and shadow play nice together, Gradle doesn't like it how one jar task replaces the output of another
+  // if both are part of published artifacts
+  project.afterEvaluate {
+    if (plugins.hasPlugin(MavenPublishPlugin) && plugins.hasPlugin(ShadowPlugin)) {
+      project.publishing.publications.nebula.artifacts = [project.tasks.shadowJar]
+    }
+  }
+
+
   plugins.withType(BuildPlugin).whenPluginAdded {
     project.licenseFile = project.rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
     project.noticeFile = project.rootProject.file('NOTICE.txt')

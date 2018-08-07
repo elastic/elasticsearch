@@ -24,7 +24,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.protocol.xpack.ml.job.Job;
+import org.elasticsearch.protocol.xpack.ml.job.config.Job;
 
 import java.io.IOException;
 import java.util.Date;
@@ -262,12 +262,12 @@ public class ModelSnapshot implements ToXContentObject {
             return this;
         }
 
-        public Builder setMinVersion(Version minVersion) {
+        Builder setMinVersion(Version minVersion) {
             this.minVersion = minVersion;
             return this;
         }
 
-        public Builder setMinVersion(String minVersion) {
+        Builder setMinVersion(String minVersion) {
             this.minVersion = Version.fromString(minVersion);
             return this;
         }

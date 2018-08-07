@@ -23,7 +23,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.protocol.xpack.ml.job.Job;
+import org.elasticsearch.protocol.xpack.ml.job.config.Job;
 
 import java.io.IOException;
 import java.util.Date;
@@ -139,7 +139,7 @@ public class DataCounts implements ToXContentObject {
         this.latestSparseBucketTimeStamp = latestSparseBucketTimeStamp;
     }
 
-    public DataCounts(String jobId) {
+    DataCounts(String jobId) {
         this.jobId = jobId;
     }
 

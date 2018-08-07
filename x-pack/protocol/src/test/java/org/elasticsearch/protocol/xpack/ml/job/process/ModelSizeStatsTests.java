@@ -96,9 +96,4 @@ public class ModelSizeStatsTests extends AbstractXContentTestCase<ModelSizeStats
     protected boolean supportsUnknownFields() {
         return true;
     }
-
-    public void testId() {
-        ModelSizeStats stats = new ModelSizeStats.Builder("job-foo").setLogTime(new Date(100)).build();
-        assertEquals("job-foo_model_size_stats_100", stats.getId());
-    }
 }

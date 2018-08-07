@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.protocol.xpack.ml.job;
+package org.elasticsearch.protocol.xpack.ml.job.config;
 
 import org.elasticsearch.common.ParseField;
 

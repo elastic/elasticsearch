@@ -25,6 +25,8 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -88,10 +90,10 @@ public final class QueryParserHelper {
      * @param mapperService The mapper service where to find the mapping.
      * @param field The field name to search.
      */
-    public static FieldMapper getFieldMapper(MapperService mapperService, String field) {
+    public static Mapper getFieldMapper(MapperService mapperService, String field) {
         DocumentMapper mapper = mapperService.documentMapper();
         if (mapper != null) {
-            FieldMapper fieldMapper = mapper.mappers().getMapper(field);
+            Mapper fieldMapper = mapper.mappers().getMapper(field);
             if (fieldMapper != null) {
                 return fieldMapper;
             }
@@ -167,21 +169,25 @@ public final class QueryParserHelper {
             if (fieldSuffix != null && context.fieldMapper(fieldName + fieldSuffix) != null) {
                 fieldName = fieldName + fieldSuffix;
             }
-            FieldMapper mapper = getFieldMapper(context.getMapperService(), fieldName);
-            if (mapper == null) {
-                // Unmapped fields are not ignored
-                fields.put(fieldOrPattern, weight);
+
+            MappedFieldType fieldType = context.getMapperService().fullName(fieldName);
+            if (fieldType == null) {
+                // Note that we don't ignore unmapped fields.
+                fields.put(fieldName, weight);
                 continue;
             }
-            if (acceptMetadataField == false && mapper instanceof MetadataFieldMapper) {
-                // Ignore metadata fields
-                continue;
-            }
+
             // Ignore fields that are not in the allowed mapper types. Some
             // types do not support term queries, and thus we cannot generate
             // a special query for them.
-            String mappingType = mapper.fieldType().typeName();
+            String mappingType = fieldType.typeName();
             if (acceptAllTypes == false && ALLOWED_QUERY_MAPPER_TYPES.contains(mappingType) == false) {
+                continue;
+            }
+
+            // Ignore metadata fields.
+            Mapper mapper = getFieldMapper(context.getMapperService(), fieldName);
+            if (acceptMetadataField == false && mapper instanceof MetadataFieldMapper) {
                 continue;
             }
             fields.put(fieldName, weight);

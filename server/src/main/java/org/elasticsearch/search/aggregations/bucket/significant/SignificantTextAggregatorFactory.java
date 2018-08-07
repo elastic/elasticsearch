@@ -71,12 +71,19 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory<Signific
             AggregatorFactories.Builder subFactoriesBuilder, String fieldName, String [] sourceFieldNames,
             boolean filterDuplicateText, Map<String, Object> metaData) throws IOException {
         super(name, context, parent, subFactoriesBuilder, metaData);
+
+        // Note that if the field is unmapped (its field type is null), we don't fail,
+        // and just use the given field name as a placeholder.
+        this.fieldType = context.getQueryShardContext().fieldMapper(fieldName);
+        this.indexedFieldName = fieldType != null ? fieldType.name() : fieldName;
+        this.sourceFieldNames = sourceFieldNames == null
+            ? new String[] { indexedFieldName }
+            : sourceFieldNames;
+
         this.includeExclude = includeExclude;
         this.filter = filterBuilder == null
                 ? null
                 : filterBuilder.toQuery(context.getQueryShardContext());
-        this.indexedFieldName = fieldName;
-        this.sourceFieldNames = sourceFieldNames;
         this.filterDuplicateText = filterDuplicateText;
         IndexSearcher searcher = context.searcher();
         // Important - need to use the doc count that includes deleted docs
@@ -86,10 +93,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory<Signific
                 : searcher.count(filter);
         this.bucketCountThresholds = bucketCountThresholds;
         this.significanceHeuristic = significanceHeuristic;
-        fieldType = context.getQueryShardContext().fieldMapper(indexedFieldName);
-
     }
-
 
     /**
      * Get the number of docs in the superset.
@@ -133,13 +137,13 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory<Signific
         }
         return context.searcher().count(query);
     }
-    
+
     public long getBackgroundFrequency(BytesRef termBytes) throws IOException {
         String value = format.format(termBytes).toString();
         return getBackgroundFrequency(value);
-    }    
+    }
 
-    
+
     @Override
     public void close() {
         try {
@@ -154,11 +158,11 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory<Signific
     @Override
     protected Aggregator createInternal(Aggregator parent, boolean collectsFromSingleBucket,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-            throws IOException {        
+            throws IOException {
         if (collectsFromSingleBucket == false) {
             return asMultiBucketAggregator(this, context, parent);
         }
-        
+
         numberOfAggregatorsCreated++;
         BucketCountThresholds bucketCountThresholds = new BucketCountThresholds(this.bucketCountThresholds);
         if (bucketCountThresholds.getShardSize() == SignificantTextAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {
@@ -166,7 +170,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory<Signific
             // Use default heuristic to avoid any wrong-ranking caused by
             // distributed counting but request double the usual amount.
             // We typically need more than the number of "top" terms requested
-            // by other aggregations as the significance algorithm is in less 
+            // by other aggregations as the significance algorithm is in less
             // of a position to down-select at shard-level - some of the things
             // we want to find have only one occurrence on each shard and as
             // such are impossible to differentiate from non-significant terms
@@ -177,9 +181,9 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory<Signific
 
 //        TODO - need to check with mapping that this is indeed a text field....
 
-        IncludeExclude.StringFilter incExcFilter = includeExclude == null ? null: 
+        IncludeExclude.StringFilter incExcFilter = includeExclude == null ? null:
             includeExclude.convertToStringFilter(DocValueFormat.RAW);
-        
+
         return new SignificantTextAggregator(name, factories, context, parent, pipelineAggregators, bucketCountThresholds,
                 incExcFilter, significanceHeuristic, this, indexedFieldName, sourceFieldNames, filterDuplicateText, metaData);
 

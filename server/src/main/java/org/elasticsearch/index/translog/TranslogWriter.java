@@ -200,11 +200,15 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         } else if (seenSequenceNumbers.containsKey(seqNo)) {
             final Tuple<BytesReference, Exception> previous = seenSequenceNumbers.get(seqNo);
             if (previous.v1().equals(data) == false) {
-                Translog.Operation newOp = Translog.readOperation(new BufferedChecksumStreamInput(data.streamInput()));
-                Translog.Operation prvOp = Translog.readOperation(new BufferedChecksumStreamInput(previous.v1().streamInput()));
-                throw new AssertionError(
-                    "seqNo [" + seqNo + "] was processed twice in generation [" + generation + "], with different data. " +
-                        "prvOp [" + prvOp + "], newOp [" + newOp + "]", previous.v2());
+                Translog.Operation newOp = Translog.readOperation(
+                        new BufferedChecksumStreamInput(data.streamInput(), "assertion"));
+                Translog.Operation prvOp = Translog.readOperation(
+                        new BufferedChecksumStreamInput(previous.v1().streamInput(), "assertion"));
+                if (newOp.equals(prvOp) == false) {
+                    throw new AssertionError(
+                        "seqNo [" + seqNo + "] was processed twice in generation [" + generation + "], with different data. " +
+                            "prvOp [" + prvOp + "], newOp [" + newOp + "]", previous.v2());
+                }
             }
         } else {
             seenSequenceNumbers.put(seqNo,
@@ -218,7 +222,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             .forEach(e -> {
                 final Translog.Operation op;
                 try {
-                    op = Translog.readOperation(new BufferedChecksumStreamInput(e.getValue().v1().streamInput()));
+                    op = Translog.readOperation(
+                            new BufferedChecksumStreamInput(e.getValue().v1().streamInput(), "assertion"));
                 } catch (IOException ex) {
                     throw new RuntimeException(ex);
                 }

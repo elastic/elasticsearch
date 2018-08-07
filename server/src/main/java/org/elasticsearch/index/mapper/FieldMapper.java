@@ -247,6 +247,11 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         return fieldType().name();
     }
 
+    @Override
+    public String typeName() {
+        return fieldType.typeName();
+    }
+
     public MappedFieldType fieldType() {
         return fieldType;
     }

@@ -96,6 +96,30 @@ public class MockScriptEngine implements ScriptEngine {
                 }
             };
             return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(BucketAggregationScript.class)) {
+            BucketAggregationScript.Factory factory = parameters -> new BucketAggregationScript(parameters) {
+                @Override
+                public double execute() {
+                    return ((Number) script.apply(getParams())).doubleValue();
+                }
+            };
+            return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(BucketAggregationSelectorScript.class)) {
+            BucketAggregationSelectorScript.Factory factory = parameters -> new BucketAggregationSelectorScript(parameters) {
+                @Override
+                public boolean execute() {
+                    return (boolean) script.apply(getParams());
+                }
+            };
+            return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(SignificantTermsHeuristicScoreScript.class)) {
+            SignificantTermsHeuristicScoreScript.Factory factory = () -> new SignificantTermsHeuristicScoreScript() {
+                @Override
+                public double execute(Map<String, Object> vars) {
+                    return ((Number) script.apply(vars)).doubleValue();
+                }
+            };
+            return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(TemplateScript.class)) {
             TemplateScript.Factory factory = vars -> {
                 // TODO: need a better way to implement all these new contexts

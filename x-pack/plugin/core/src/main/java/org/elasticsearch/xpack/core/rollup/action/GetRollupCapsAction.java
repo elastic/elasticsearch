@@ -139,7 +139,7 @@ public class GetRollupCapsAction extends Action<GetRollupCapsAction.Response> {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             for (Map.Entry<String, RollableIndexCaps> entry : jobs.entrySet()) {
-               entry.getValue().toXContent(builder, params);
+                entry.getValue().toXContent(builder, params);
             }
             builder.endObject();
             return builder;

@@ -145,6 +145,8 @@ public final class CsvTestUtils {
                 return "double";
             case "ts":
                 return "timestamp";
+            case "bt":
+                return "byte";
             default:
                 return type;
         }

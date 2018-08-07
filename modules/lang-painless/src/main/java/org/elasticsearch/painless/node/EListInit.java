@@ -19,13 +19,15 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.lookup.PainlessMethod;
-import org.elasticsearch.painless.lookup.PainlessMethodKey;
-import org.elasticsearch.painless.lookup.PainlessLookup.def;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.PainlessConstructor;
+import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.lookup.def;
+import org.objectweb.asm.Type;
+import org.objectweb.asm.commons.Method;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,7 +39,7 @@ import java.util.Set;
 public final class EListInit extends AExpression {
     private final List<AExpression> values;
 
-    private PainlessMethod constructor = null;
+    private PainlessConstructor constructor = null;
     private PainlessMethod method = null;
 
     public EListInit(Location location, List<AExpression> values) {
@@ -61,17 +63,16 @@ public final class EListInit extends AExpression {
 
         actual = ArrayList.class;
 
-        constructor =
-                locals.getPainlessLookup().getPainlessStructFromJavaClass(actual).constructors.get(new PainlessMethodKey("<init>", 0));
-
-        if (constructor == null) {
-            throw createError(new IllegalStateException("Illegal tree structure."));
+        try {
+            constructor = locals.getPainlessLookup().lookupPainlessConstructor(actual, 0);
+        } catch (IllegalArgumentException iae) {
+            throw createError(iae);
         }
 
-        method = locals.getPainlessLookup().getPainlessStructFromJavaClass(actual).methods.get(new PainlessMethodKey("add", 1));
-
-        if (method == null) {
-            throw createError(new IllegalStateException("Illegal tree structure."));
+        try {
+            method = locals.getPainlessLookup().lookupPainlessMethod(actual, false, "add", 1);
+        } catch (IllegalArgumentException iae) {
+            throw createError(iae);
         }
 
         for (int index = 0; index < values.size(); ++index) {
@@ -90,12 +91,13 @@ public final class EListInit extends AExpression {
 
         writer.newInstance(MethodWriter.getType(actual));
         writer.dup();
-        writer.invokeConstructor(constructor.owner.type, constructor.method);
+        writer.invokeConstructor(
+                    Type.getType(constructor.javaConstructor.getDeclaringClass()), Method.getMethod(constructor.javaConstructor));
 
         for (AExpression value : values) {
             writer.dup();
             value.write(writer, globals);
-            method.write(writer);
+            writer.invokeMethodCall(method);
             writer.pop();
         }
     }

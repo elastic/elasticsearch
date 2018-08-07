@@ -24,7 +24,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateApplier;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -73,12 +72,16 @@ public class PipelineExecutionService implements ClusterStateApplier {
                         UpdateRequest updateRequest = (UpdateRequest) actionRequest;
                         indexRequest = updateRequest.docAsUpsert() ? updateRequest.doc() : updateRequest.upsertRequest();
                     }
-                    if (indexRequest != null && Strings.hasText(indexRequest.getPipeline())) {
+                    if (indexRequest == null) {
+                        continue;
+                    }
+                    String pipeline = indexRequest.getPipeline();
+                    if (IngestService.NOOP_PIPELINE_NAME.equals(pipeline) == false) {
                         try {
                             innerExecute(indexRequest, getPipeline(indexRequest.getPipeline()));
                             //this shouldn't be needed here but we do it for consistency with index api
                             // which requires it to prevent double execution
-                            indexRequest.setPipeline(null);
+                            indexRequest.setPipeline(IngestService.NOOP_PIPELINE_NAME);
                         } catch (Exception e) {
                             itemFailureHandler.accept(indexRequest, e);
                         }

@@ -19,12 +19,13 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.lookup.PainlessLookup;
-import org.elasticsearch.painless.lookup.PainlessField;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.PainlessField;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.objectweb.asm.Type;
 
 import java.lang.reflect.Modifier;
 import java.util.Objects;
@@ -50,22 +51,24 @@ final class PSubField extends AStoreable {
 
     @Override
     void analyze(Locals locals) {
-         if (write && Modifier.isFinal(field.modifiers)) {
-             throw createError(new IllegalArgumentException(
-                 "Cannot write to read-only field [" + field.name + "] for type [" + PainlessLookup.ClassToName(field.clazz) + "]."));
+         if (write && Modifier.isFinal(field.javaField.getModifiers())) {
+             throw createError(new IllegalArgumentException("Cannot write to read-only field [" + field.javaField.getName() + "] " +
+                     "for type [" + PainlessLookupUtility.typeToCanonicalTypeName(field.javaField.getDeclaringClass()) + "]."));
          }
 
-        actual = field.clazz;
+        actual = field.typeParameter;
     }
 
     @Override
     void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        if (java.lang.reflect.Modifier.isStatic(field.modifiers)) {
-            writer.getStatic(field.owner.type, field.javaName, MethodWriter.getType(field.clazz));
+        if (java.lang.reflect.Modifier.isStatic(field.javaField.getModifiers())) {
+            writer.getStatic(Type.getType(
+                    field.javaField.getDeclaringClass()), field.javaField.getName(), MethodWriter.getType(field.typeParameter));
         } else {
-            writer.getField(field.owner.type, field.javaName, MethodWriter.getType(field.clazz));
+            writer.getField(Type.getType(
+                    field.javaField.getDeclaringClass()), field.javaField.getName(), MethodWriter.getType(field.typeParameter));
         }
     }
 
@@ -93,10 +96,12 @@ final class PSubField extends AStoreable {
     void load(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        if (java.lang.reflect.Modifier.isStatic(field.modifiers)) {
-            writer.getStatic(field.owner.type, field.javaName, MethodWriter.getType(field.clazz));
+        if (java.lang.reflect.Modifier.isStatic(field.javaField.getModifiers())) {
+            writer.getStatic(Type.getType(
+                    field.javaField.getDeclaringClass()), field.javaField.getName(), MethodWriter.getType(field.typeParameter));
         } else {
-            writer.getField(field.owner.type, field.javaName, MethodWriter.getType(field.clazz));
+            writer.getField(Type.getType(
+                    field.javaField.getDeclaringClass()), field.javaField.getName(), MethodWriter.getType(field.typeParameter));
         }
     }
 
@@ -104,15 +109,17 @@ final class PSubField extends AStoreable {
     void store(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        if (java.lang.reflect.Modifier.isStatic(field.modifiers)) {
-            writer.putStatic(field.owner.type, field.javaName, MethodWriter.getType(field.clazz));
+        if (java.lang.reflect.Modifier.isStatic(field.javaField.getModifiers())) {
+            writer.putStatic(Type.getType(
+                    field.javaField.getDeclaringClass()), field.javaField.getName(), MethodWriter.getType(field.typeParameter));
         } else {
-            writer.putField(field.owner.type, field.javaName, MethodWriter.getType(field.clazz));
+            writer.putField(Type.getType(
+                    field.javaField.getDeclaringClass()), field.javaField.getName(), MethodWriter.getType(field.typeParameter));
         }
     }
 
     @Override
     public String toString() {
-        return singleLineToString(prefix, field.name);
+        return singleLineToString(prefix, field.javaField.getName());
     }
 }

@@ -21,7 +21,8 @@ import static org.hamcrest.CoreMatchers.is;
 
 // TODO delete this test?
 public class IPHostnameVerificationTests extends SecurityIntegTestCase {
-    Path keystore;
+    private Path certPath;
+    private Path keyPath;
 
     @Override
     protected boolean transportSSLEnabled() {
@@ -46,36 +47,37 @@ public class IPHostnameVerificationTests extends SecurityIntegTestCase {
                 .putList("discovery.zen.ping.unicast.hosts", newUnicastAddresses);
 
         try {
-            //This keystore uses a cert with a CN of "Elasticsearch Test Node" and IPv4+IPv6 ip addresses as SubjectAlternativeNames
-            keystore = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-ip-only.jks");
-            assertThat(Files.exists(keystore), is(true));
+            //Use a cert with a CN of "Elasticsearch Test Node" and IPv4+IPv6 ip addresses as SubjectAlternativeNames
+            certPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-ip-only.crt");
+            keyPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-ip-only.pem");
+            assertThat(Files.exists(certPath), is(true));
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
 
         SecuritySettingsSource.addSecureSettings(settingsBuilder, secureSettings -> {
-            secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode-ip-only");
-            secureSettings.setString("xpack.ssl.truststore.secure_password", "testnode-ip-only");
+            secureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode-ip-only");
         });
-        return settingsBuilder.put("xpack.ssl.keystore.path", keystore.toAbsolutePath()) // settings for client truststore
-                .put("xpack.ssl.truststore.path", keystore.toAbsolutePath()) // settings for client truststore
-                .put(TcpTransport.BIND_HOST.getKey(), "127.0.0.1")
-                .put("network.host", "127.0.0.1")
-                .put("xpack.ssl.client_authentication", SSLClientAuth.NONE)
-                .put("xpack.ssl.verification_mode", "full")
-                .build();
+        return settingsBuilder.put("xpack.ssl.key", keyPath.toAbsolutePath())
+            .put("xpack.ssl.certificate", certPath.toAbsolutePath())
+            .put("xpack.ssl.certificate_authorities", certPath.toAbsolutePath())
+            .put(TcpTransport.BIND_HOST.getKey(), "127.0.0.1")
+            .put("network.host", "127.0.0.1")
+            .put("xpack.ssl.client_authentication", SSLClientAuth.NONE)
+            .put("xpack.ssl.verification_mode", "full")
+            .build();
     }
 
     @Override
     protected Settings transportClientSettings() {
         Settings clientSettings = super.transportClientSettings();
         return Settings.builder().put(clientSettings.filter(k -> k.startsWith("xpack.ssl.") == false))
-                .put("xpack.ssl.verification_mode", "certificate")
-                .put("xpack.ssl.keystore.path", keystore.toAbsolutePath())
-                .put("xpack.ssl.keystore.password", "testnode-ip-only")
-                .put("xpack.ssl.truststore.path", keystore.toAbsolutePath())
-                .put("xpack.ssl.truststore.password", "testnode-ip-only")
-                .build();
+            .put("xpack.ssl.verification_mode", "certificate")
+            .put("xpack.ssl.key", keyPath.toAbsolutePath())
+            .put("xpack.ssl.certificate", certPath.toAbsolutePath())
+            .put("xpack.ssl.key_passphrase", "testnode-ip-only")
+            .put("xpack.ssl.certificate_authorities", certPath)
+            .build();
     }
 
     public void testTransportClientConnectionWorksWithIPOnlyHostnameVerification() throws Exception {

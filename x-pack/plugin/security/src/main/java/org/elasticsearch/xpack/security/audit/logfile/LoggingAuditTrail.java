@@ -205,9 +205,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             restUri(request, logEntry);
             principal(user, logEntry);
             restOrigin(request, logEntry);
-            if (includeRequestBody) {
-                logEntry.with(REQUEST_BODY_FIELD_NAME, restRequestContent(request));
-            }
+            requestBody(request, logEntry);
             opaqueId(threadContext, logEntry);
             logger.info(logEntry);
         }
@@ -266,9 +264,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                     .with(EVENT_ACTION_FIELD_NAME, "anonymous_access_denied");
             restUri(request, logEntry);
             restOrigin(request, logEntry);
-            if (includeRequestBody) {
-                logEntry.with(REQUEST_BODY_FIELD_NAME, restRequestContent(request));
-            }
+            requestBody(request, logEntry);
             opaqueId(threadContext, logEntry);
             logger.info(logEntry);
         }
@@ -304,9 +300,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                     .with(EVENT_ACTION_FIELD_NAME, "authentication_failed");
             restUri(request, logEntry);
             restOrigin(request, logEntry);
-            if (includeRequestBody) {
-                logEntry.with(REQUEST_BODY_FIELD_NAME, restRequestContent(request));
-            }
+            requestBody(request, logEntry);
             opaqueId(threadContext, logEntry);
             logger.info(logEntry);
         }
@@ -343,9 +337,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                     .with(PRINCIPAL_FIELD_NAME, token.principal());
             restUri(request, logEntry);
             restOrigin(request, logEntry);
-            if (includeRequestBody) {
-                logEntry.with(REQUEST_BODY_FIELD_NAME, restRequestContent(request));
-            }
+            requestBody(request, logEntry);
             opaqueId(threadContext, logEntry);
             logger.info(logEntry);
         }
@@ -385,9 +377,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                     .with(PRINCIPAL_FIELD_NAME, token.principal());
             restUri(request, logEntry);
             restOrigin(request, logEntry);
-            if (includeRequestBody) {
-                logEntry.with(REQUEST_BODY_FIELD_NAME, restRequestContent(request));
-            }
+            requestBody(request, logEntry);
             opaqueId(threadContext, logEntry);
             logger.info(logEntry);
         }
@@ -449,9 +439,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                     .with(EVENT_ACTION_FIELD_NAME, "tampered_request");
             restUri(request, logEntry);
             restOrigin(request, logEntry);
-            if (includeRequestBody) {
-                logEntry.with(REQUEST_BODY_FIELD_NAME, restRequestContent(request));
-            }
+            requestBody(request, logEntry);
             opaqueId(threadContext, logEntry);
             logger.info(logEntry);
         }
@@ -588,11 +576,18 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             restUri(request, logEntry);
             runAsSubject(authentication, logEntry);
             restOrigin(request, logEntry);
-            if (includeRequestBody) {
-                logEntry.with(REQUEST_BODY_FIELD_NAME, restRequestContent(request));
-            }
+            requestBody(request, logEntry);
             opaqueId(threadContext, logEntry);
             logger.info(logEntry);
+        }
+    }
+
+    private void requestBody(RestRequest request, StringMapMessage logEntry) {
+        if (includeRequestBody) {
+            final String requestContent = restRequestContent(request);
+            if (Strings.hasLength(requestContent)) {
+                logEntry.with(REQUEST_BODY_FIELD_NAME, requestContent);
+            }
         }
     }
 

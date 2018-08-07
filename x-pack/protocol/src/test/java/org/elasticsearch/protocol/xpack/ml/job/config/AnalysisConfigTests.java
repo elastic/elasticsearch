@@ -106,9 +106,7 @@ public class AnalysisConfigTests extends AbstractXContentTestCase<AnalysisConfig
 
     @Override
     protected AnalysisConfig createTestInstance() {
-        AnalysisConfig config = createRandomized().build();
-        System.out.println(config.toString());
-        return config;
+        return createRandomized().build();
     }
 
     @Override

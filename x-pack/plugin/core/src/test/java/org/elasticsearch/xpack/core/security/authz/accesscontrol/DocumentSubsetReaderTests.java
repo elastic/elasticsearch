@@ -80,6 +80,7 @@ public class DocumentSubsetReaderTests extends ESTestCase {
         bitsetFilterCache.close();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32457")
     public void testSearch() throws Exception {
         IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig());
 

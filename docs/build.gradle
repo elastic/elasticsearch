@@ -379,9 +379,9 @@ buildRestTests.setups['exams'] = '''
           refresh: true
           body: |
             {"index":{}}
-            {"grade": 100}
+            {"grade": 100, "weight": 2}
             {"index":{}}
-            {"grade": 50}'''
+            {"grade": 50, "weight": 3}'''
 
 buildRestTests.setups['stored_example_script'] = '''
   # Simple script to load a field. Not really a good example, but a simple one.

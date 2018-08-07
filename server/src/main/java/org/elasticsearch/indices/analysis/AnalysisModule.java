@@ -54,7 +54,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.plugins.AnalysisPlugin.requriesAnalysisSettings;
+import static org.elasticsearch.plugins.AnalysisPlugin.requiresAnalysisSettings;
 
 /**
  * Sets up {@link AnalysisRegistry}.
@@ -118,7 +118,7 @@ public final class AnalysisModule {
         tokenFilters.register("stop", StopTokenFilterFactory::new);
         tokenFilters.register("standard", StandardTokenFilterFactory::new);
         tokenFilters.register("shingle", ShingleTokenFilterFactory::new);
-        tokenFilters.register("hunspell", requriesAnalysisSettings((indexSettings, env, name, settings) -> new HunspellTokenFilterFactory
+        tokenFilters.register("hunspell", requiresAnalysisSettings((indexSettings, env, name, settings) -> new HunspellTokenFilterFactory
             (indexSettings, name, settings, hunspellService)));
 
         tokenFilters.extractAndRegister(plugins, AnalysisPlugin::getTokenFilters);

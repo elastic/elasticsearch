@@ -38,6 +38,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -123,6 +124,7 @@ import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInputFactory;
 import org.elasticsearch.xpack.watcher.input.transform.TransformInput;
 import org.elasticsearch.xpack.watcher.input.transform.TransformInputFactory;
+import org.elasticsearch.xpack.watcher.notification.NotificationService;
 import org.elasticsearch.xpack.watcher.notification.email.Account;
 import org.elasticsearch.xpack.watcher.notification.email.EmailService;
 import org.elasticsearch.xpack.watcher.notification.email.HtmlSanitizer;
@@ -194,7 +196,7 @@ import java.util.function.UnaryOperator;
 
 import static java.util.Collections.emptyList;
 
-public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin {
+public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, ReloadablePlugin {
 
     // This setting is only here for backward compatibility reasons as 6.x indices made use of it. It can be removed in 8.x.
     @Deprecated
@@ -221,6 +223,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin {
     protected final boolean transportClient;
     protected final boolean enabled;
     protected final Environment env;
+    protected List<NotificationService> reloadableServices = new ArrayList<>();
 
     public Watcher(final Settings settings) {
         this.settings = settings;
@@ -274,6 +277,12 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin {
         JiraService jiraService = new JiraService(settings, httpClient, clusterService.getClusterSettings());
         SlackService slackService = new SlackService(settings, httpClient, clusterService.getClusterSettings());
         PagerDutyService pagerDutyService = new PagerDutyService(settings, httpClient, clusterService.getClusterSettings());
+
+        reloadableServices.add(emailService);
+        reloadableServices.add(hipChatService);
+        reloadableServices.add(jiraService);
+        reloadableServices.add(slackService);
+        reloadableServices.add(pagerDutyService);
 
         TextTemplateEngine templateEngine = new TextTemplateEngine(settings, scriptService);
         Map<String, EmailAttachmentParser> emailAttachmentParsers = new HashMap<>();
@@ -612,5 +621,16 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin {
     @Override
     public void close() throws IOException {
         IOUtils.closeWhileHandlingException(httpClient);
+    }
+
+    /**
+     * Reloads all the reloadable services in watcher.
+     */
+    @Override
+    public void reload(Settings settings) {
+        if (enabled == false || transportClient) {
+            return;
+        }
+        reloadableServices.forEach(s -> s.reload(settings));
     }
 }

@@ -6,8 +6,10 @@
 package org.elasticsearch.xpack.test.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.http.HttpStatus;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.settings.Settings;
@@ -127,18 +129,22 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
                     () -> "Exception when waiting for [" + template + "] template to be created");
             }
 
-            boolean existsWatcherIndex = adminClient().performRequest("HEAD", ".watches").getStatusLine().getStatusCode() == 200;
+            boolean existsWatcherIndex = adminClient()
+                    .performRequest(new Request("HEAD", ".watches"))
+                    .getStatusLine().getStatusCode() == 200;
             if (existsWatcherIndex == false) {
                 return;
             }
-            Response response = adminClient().performRequest("GET", ".watches/_search", Collections.singletonMap("size", "1000"));
+            Request searchWatchesRequest = new Request("GET", ".watches/_search");
+            searchWatchesRequest.addParameter("size", "1000");
+            Response response = adminClient().performRequest(searchWatchesRequest);
             ObjectPath objectPathResponse = ObjectPath.createFromResponse(response);
             int totalHits = objectPathResponse.evaluate("hits.total");
             if (totalHits > 0) {
                 List<Map<String, Object>> hits = objectPathResponse.evaluate("hits.hits");
                 for (Map<String, Object> hit : hits) {
                     String id = (String) hit.get("_id");
-                    assertOK(adminClient().performRequest("DELETE", "_xpack/watcher/watch/" + id));
+                    adminClient().performRequest(new Request("DELETE", "_xpack/watcher/watch/" + id));
                 }
             }
         }
@@ -219,7 +225,6 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
                     @SuppressWarnings("unchecked")
                     final Map<String, Object> node = (Map<String, Object>) nodes.values().iterator().next();
 
-                    @SuppressWarnings("unchecked")
                     final Number activeWrites = (Number) extractValue("thread_pool.write.active", node);
                     return activeWrites != null && activeWrites.longValue() == 0L;
                 } catch (Exception e) {
@@ -263,7 +268,7 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
      */
     private void clearRollupState() throws Exception {
         if (isRollupTest()) {
-            new RollupRestTestStateCleaner(logger, adminClient()).clearRollupMetadata();
+            RollupRestTestStateCleaner.clearRollupMetadata(adminClient());
         }
     }
 

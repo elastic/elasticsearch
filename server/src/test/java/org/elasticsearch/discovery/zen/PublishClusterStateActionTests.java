@@ -65,8 +65,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -816,6 +818,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
     public static class AssertingAckListener implements Discovery.AckListener {
         private final List<Tuple<DiscoveryNode, Throwable>> errors = new CopyOnWriteArrayList<>();
+        private final Set<DiscoveryNode> successfulAcks = Collections.synchronizedSet(new HashSet<>());
         private final CountDownLatch countDown;
         private final CountDownLatch commitCountDown;
 
@@ -833,13 +836,16 @@ public class PublishClusterStateActionTests extends ESTestCase {
         public void onNodeAck(DiscoveryNode node, @Nullable Exception e) {
             if (e != null) {
                 errors.add(new Tuple<>(node, e));
+            } else {
+                successfulAcks.add(node);
             }
             countDown.countDown();
         }
 
-        public void await(long timeout, TimeUnit unit) throws InterruptedException {
+        public Set<DiscoveryNode> await(long timeout, TimeUnit unit) throws InterruptedException {
             assertThat(awaitErrors(timeout, unit), emptyIterable());
             assertTrue(commitCountDown.await(timeout, unit));
+            return new HashSet<>(successfulAcks);
         }
 
         public List<Tuple<DiscoveryNode, Throwable>> awaitErrors(long timeout, TimeUnit unit) throws InterruptedException {

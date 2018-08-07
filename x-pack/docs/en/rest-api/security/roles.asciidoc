@@ -140,6 +140,7 @@ role. If the role is not defined in the `native` realm, the request 404s.
       },
       "query" : "{\"match\": {\"title\": \"foo\"}}"
     } ],
+    "applications" : [ ],
     "run_as" : [ "other_user" ],
     "metadata" : {
       "version" : 1

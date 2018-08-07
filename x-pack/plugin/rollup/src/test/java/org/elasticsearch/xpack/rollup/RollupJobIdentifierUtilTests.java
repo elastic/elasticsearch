@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.HistoGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
+import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
 import org.joda.time.DateTimeZone;
 
 import java.util.Arrays;
@@ -297,7 +298,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
         GroupConfig.Builder group2 = ConfigTestHelpers.getGroupConfig();
         group2.setDateHisto(new DateHistoGroupConfig.Builder().setField("foo").setInterval(new DateHistogramInterval("1h")).build())
                 .setHisto(null)
-                .setTerms(ConfigTestHelpers.getTerms().setFields(Collections.singletonList("bar")).build());
+            .setTerms(new TermsGroupConfig("bar"));
         job2.setGroupConfig(group2.build());
         RollupJobCaps cap2 = new RollupJobCaps(job2.build());
 
@@ -467,7 +468,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
                 .field("bar")
                 .subAggregation(new MaxAggregationBuilder("the_max").field("max_field"))
                 .subAggregation(new AvgAggregationBuilder("the_avg").field("avg_field"));
-        
+
         RollupJobConfig job = ConfigTestHelpers.getRollupJob("foo")
                 .setGroupConfig(ConfigTestHelpers.getGroupConfig()
                         .setDateHisto(new DateHistoGroupConfig.Builder()

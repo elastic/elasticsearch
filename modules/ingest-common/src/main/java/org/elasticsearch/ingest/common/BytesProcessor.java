@@ -35,9 +35,13 @@ public final class BytesProcessor extends AbstractStringProcessor {
         super(processorTag, field, ignoreMissing, targetField);
     }
 
+    public static long apply(String value) {
+        return ByteSizeValue.parseBytesSizeValue(value, null, "Ingest Field").getBytes();
+    }
+
     @Override
     protected Long process(String value) {
-        return ByteSizeValue.parseBytesSizeValue(value, null, getField()).getBytes();
+        return apply(value);
     }
 
     @Override

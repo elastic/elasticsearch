@@ -334,7 +334,7 @@ public final class Def {
         Class<?> interfaceType = painlessLookup.canonicalTypeNameToType(interfaceClass);
         PainlessMethod interfaceMethod = painlessLookup.lookupFunctionalInterfacePainlessMethod(interfaceType);
         if (interfaceMethod == null) {
-            throw new IllegalArgumentException("Class [" + interfaceClass + "] is not a functional interface"); \
+            throw new IllegalArgumentException("Class [" + interfaceClass + "] is not a functional interface");
         }
         int arity = interfaceMethod.typeParameters.size();
         PainlessMethod implMethod = lookupMethodInternal(painlessLookup, receiverClass, name, arity);

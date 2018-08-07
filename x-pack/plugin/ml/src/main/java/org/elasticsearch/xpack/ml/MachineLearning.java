@@ -635,8 +635,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             }
 
             try (XContentBuilder configMapping = ElasticsearchMappings.configMapping()) {
-                IndexTemplateMetaData configTemplate = IndexTemplateMetaData.builder(AnomalyDetectorsIndex.jobConfigIndexName())
-                        .patterns(Collections.singletonList(AnomalyDetectorsIndex.jobConfigIndexName()))
+                IndexTemplateMetaData configTemplate = IndexTemplateMetaData.builder(AnomalyDetectorsIndex.configIndexName())
+                        .patterns(Collections.singletonList(AnomalyDetectorsIndex.configIndexName()))
                         .settings(Settings.builder()
                                 // Our indexes are small and one shard puts the
                                 // least possible burden on Elasticsearch
@@ -646,9 +646,9 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                         .version(Version.CURRENT.id)
                         .putMapping(ElasticsearchMappings.DOC_TYPE, Strings.toString(configMapping))
                         .build();
-                templates.put(AnomalyDetectorsIndex.jobConfigIndexName(), configTemplate);
+                templates.put(AnomalyDetectorsIndex.configIndexName(), configTemplate);
             } catch (IOException e) {
-                logger.warn("Error loading the template for the " + AnomalyDetectorsIndex.jobConfigIndexName() + " index", e);
+                logger.warn("Error loading the template for the " + AnomalyDetectorsIndex.configIndexName() + " index", e);
             }
 
             try (XContentBuilder stateMapping = ElasticsearchMappings.stateMapping()) {

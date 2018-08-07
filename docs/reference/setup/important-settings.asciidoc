@@ -32,4 +32,6 @@ include::important-settings/heap-dump-path.asciidoc[]
 
 include::important-settings/gc-logging.asciidoc[]
 
+include::important-settings/es-tmpdir.asciidoc[]
+
 include::important-settings/error-file.asciidoc[]

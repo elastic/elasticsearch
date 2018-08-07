@@ -728,9 +728,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 }
             } catch (IOException e) {
                 IOUtils.closeWhileHandlingException(newReaders);
-                if (tragedy.compareAndSet(null, e)) {
-                    closeOnTragicEvent(e);
-                }
+                tragedy.compareAndSet(null, e);
+                closeOnTragicEvent(e);
                 throw e;
             }
 
@@ -1562,9 +1561,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 current = createWriter(current.getGeneration() + 1);
                 logger.trace("current translog set to [{}]", current.getGeneration());
             } catch (final Exception e) {
-                if (tragedy.compareAndSet(null, e)) {
-                    closeOnTragicEvent(e);
-                }
+                tragedy.compareAndSet(null, e);
+                closeOnTragicEvent(e);
                 throw e;
             }
         }

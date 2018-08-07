@@ -261,7 +261,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         indexLifecycleService.clusterChanged(noChangeEvent);
         assertThat(indexLifecycleService.getScheduler().jobCount(), equalTo(1));
         assertThat(((TimeValueSchedule) indexLifecycleService.getScheduledJob().getSchedule()).getInterval(),
-                equalTo(TimeValue.timeValueSeconds(3)));
+                equalTo(LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING.getDefault(previousState.metaData().settings())));
         indexLifecycleService.applyClusterState(event);
         indexLifecycleService.clusterChanged(event);
         assertThat(indexLifecycleService.getScheduler().jobCount(), equalTo(1));

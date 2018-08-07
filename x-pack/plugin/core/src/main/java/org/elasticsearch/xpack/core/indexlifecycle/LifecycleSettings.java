@@ -25,9 +25,8 @@ public class LifecycleSettings {
     public static final String LIFECYCLE_STEP_INFO = "index.lifecycle.step_info";
     public static final String LIFECYCLE_SKIP = "index.lifecycle.skip";
 
-    // NORELEASE: we should probably change the default to something other than three seconds for initial release
     public static final Setting<TimeValue> LIFECYCLE_POLL_INTERVAL_SETTING = Setting.positiveTimeSetting(LIFECYCLE_POLL_INTERVAL,
-        TimeValue.timeValueSeconds(3), Setting.Property.Dynamic, Setting.Property.NodeScope);
+        TimeValue.timeValueMinutes(10), Setting.Property.Dynamic, Setting.Property.NodeScope);
     public static final Setting<String> LIFECYCLE_NAME_SETTING = Setting.simpleString(LIFECYCLE_NAME,
         Setting.Property.Dynamic, Setting.Property.IndexScope, Setting.Property.InternalIndex);
     public static final Setting<String> LIFECYCLE_PHASE_SETTING = Setting.simpleString(LIFECYCLE_PHASE,

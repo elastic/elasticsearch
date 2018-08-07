@@ -91,7 +91,7 @@ class BulkPrimaryExecutionContext {
     }
 
     /** move to the next item to execute */
-    public void advance() {
+    private void advance() {
         assert currentItemState == ItemProcessingState.COMPLETED || currentIndex == -1 :
             "moving to next but current item wasn't completed (state: " + currentItemState + ")";
         currentItemState = ItemProcessingState.INITIAL;
@@ -142,6 +142,13 @@ class BulkPrimaryExecutionContext {
      */
     public boolean isCompleted() {
         return currentItemState == ItemProcessingState.COMPLETED;
+    }
+
+    /**
+     * returns true if the current request is in INITIAL state
+     */
+    public boolean isInitial() {
+        return currentItemState == ItemProcessingState.INITIAL;
     }
 
     /**
@@ -294,6 +301,7 @@ class BulkPrimaryExecutionContext {
         }
         getCurrentItem().setPrimaryResponse(translatedResponse);
         currentItemState = ItemProcessingState.COMPLETED;
+        advance();
     }
 
     /** builds the bulk shard response to return to the user */

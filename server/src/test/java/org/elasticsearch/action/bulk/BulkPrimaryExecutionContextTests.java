@@ -56,7 +56,7 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
         ArrayList<DocWriteRequest<?>> visitedRequests = new ArrayList<>();
         for (BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(shardRequest, null);
              context.hasMoreOperationsToExecute();
-             context.advance()) {
+             ) {
             visitedRequests.add(context.getCurrent());
             context.setRequestToExecute(context.getCurrent());
             // using failures prevents caring about types
@@ -105,7 +105,7 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
         long translogOffset = 0;
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(shardRequest, primary);
-        for (; context.hasMoreOperationsToExecute(); context.advance()) {
+        while (context.hasMoreOperationsToExecute()) {
             final Engine.Result result;
             final DocWriteRequest<?> current = context.getCurrent();
             final boolean failure = rarely();

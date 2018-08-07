@@ -35,7 +35,6 @@ import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -72,7 +71,6 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -168,8 +166,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         UpdateHelper updateHelper = null;
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
-            new NoopMappingUpdatePerformer());
-        context.advance(); // complete all operations and give access to getLocationToSync
+            new NoopMappingUpdatePerformer(), () -> {});
+        assertFalse(context.hasMoreOperationsToExecute());
 
         // Translog should change, since there were no problems
         assertNotNull(context.getLocationToSync());
@@ -192,8 +190,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         BulkPrimaryExecutionContext secondContext = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(secondContext, updateHelper,
-            threadPool::absoluteTimeInMillis, new ThrowingMappingUpdatePerformer(new RuntimeException("fail")));
-        secondContext.advance(); // complete all operations and give access to getLocationToSync
+            threadPool::absoluteTimeInMillis, new ThrowingMappingUpdatePerformer(new RuntimeException("fail")), () -> {});
+        assertFalse(context.hasMoreOperationsToExecute());
 
         assertNull(secondContext.getLocationToSync());
 
@@ -244,7 +242,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         UpdateHelper updateHelper = null;
         WritePrimaryResult<BulkShardRequest, BulkShardResponse> result = TransportShardBulkAction.performOnPrimary(
             bulkShardRequest, shard, updateHelper, threadPool::absoluteTimeInMillis, new NoopMappingUpdatePerformer(),
-            new ClusterStateObserver(clusterService, logger, threadPool.getThreadContext()), clusterService.localNode());
+            () -> {});
 
         // since at least 1 item passed, the tran log location should exist,
         assertThat(result.location, notNullValue());
@@ -276,7 +274,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
     public void testExecuteBulkIndexRequestWithMappingUpdates() throws Exception {
 
-        BulkItemRequest[] items = new BulkItemRequest[3];
+        BulkItemRequest[] items = new BulkItemRequest[1];
         DocWriteRequest<IndexRequest> writeRequest = new IndexRequest("index", "_doc", "id")
             .source(Requests.INDEX_CONTENT_TYPE, "foo", "bar");
         items[0] = new BulkItemRequest(0, writeRequest);
@@ -291,7 +289,6 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         IndexShard shard = mock(IndexShard.class);
         when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyBoolean())).thenReturn(mappingUpdate);
 
-
         // Pretend the mappings haven't made it to the node yet
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         AtomicInteger updateCalled = new AtomicInteger();
@@ -300,8 +297,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 // There should indeed be a mapping update
                 assertNotNull(update);
                 updateCalled.incrementAndGet();
-            });
-        assertTrue(context.requiresWaitingForMappingUpdate());
+            }, () -> {});
+        assertTrue(context.isInitial());
+        assertTrue(context.hasMoreOperationsToExecute());
 
         assertThat("mappings were \"updated\" once", updateCalled.get(), equalTo(1));
 
@@ -309,10 +307,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         verify(shard, times(2)).applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyBoolean());
 
         when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyBoolean())).thenReturn(success);
-        context.resetForExecutionAfterRetry();
 
         TransportShardBulkAction.executeBulkItemRequest(context, null, threadPool::absoluteTimeInMillis,
-            (update, shardId, type) -> fail("should not have had to update the mappings"));
+            (update, shardId, type) -> fail("should not have had to update the mappings"), () -> {});
 
 
         // Verify that the shard "executed" the operation only once (2 for previous invocations plus
@@ -347,8 +344,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
-            new ThrowingMappingUpdatePerformer(err));
-        context.advance(); // complete all operations and give access to getLocationToSync
+            new ThrowingMappingUpdatePerformer(err), () -> {});
+        assertFalse(context.hasMoreOperationsToExecute());
 
         // Translog shouldn't be synced, as there were conflicting mappings
         assertThat(context.getLocationToSync(), nullValue());
@@ -385,8 +382,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
-            new NoopMappingUpdatePerformer());
-        context.advance(); // complete all operations and give access to getLocationToSync
+            new NoopMappingUpdatePerformer(), () -> {});
+        assertFalse(context.hasMoreOperationsToExecute());
 
         // Translog changes, even though the document didn't exist
         assertThat(context.getLocationToSync(), not(location));
@@ -425,8 +422,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
-            new NoopMappingUpdatePerformer());
-        context.advance(); // complete all operations and give access to getLocationToSync
+            new NoopMappingUpdatePerformer(), () -> {});
+        assertFalse(context.hasMoreOperationsToExecute());
 
         // Translog changes, because the document was deleted
         assertThat(context.getLocationToSync(), not(location));
@@ -479,10 +476,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
-            new NoopMappingUpdatePerformer());
+            new NoopMappingUpdatePerformer(), () -> {});
 
-        assertTrue(context.isCompleted());
-        context.advance(); // complete all operations and give access to getLocationToSync
+        assertFalse(context.hasMoreOperationsToExecute());
 
         // Basically nothing changes in the request since it's a noop
         assertThat(context.getLocationToSync(), nullValue());
@@ -522,8 +518,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
-            new NoopMappingUpdatePerformer());
-        context.advance(); // complete all operations and give access to getLocationToSync
+            new NoopMappingUpdatePerformer(), () -> {});
+        assertFalse(context.hasMoreOperationsToExecute());
 
         // Since this was not a conflict failure, the primary response
         // should be filled out with the failure information
@@ -570,8 +566,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
-            new NoopMappingUpdatePerformer());
-        context.advance(); // complete all operations and give access to getLocationToSync
+            new NoopMappingUpdatePerformer(), () -> {});
+        assertFalse(context.hasMoreOperationsToExecute());
 
         assertNull(context.getLocationToSync());
         BulkItemResponse primaryResponse = bulkShardRequest.items()[0].getPrimaryResponse();
@@ -615,8 +611,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
-            new NoopMappingUpdatePerformer());
-        context.advance(); // complete all operations and give access to getLocationToSync
+            new NoopMappingUpdatePerformer(), () -> {});
+        assertFalse(context.hasMoreOperationsToExecute());
 
         // Check that the translog is successfully advanced
         assertThat(context.getLocationToSync(), equalTo(resultLocation));
@@ -660,8 +656,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
-            new NoopMappingUpdatePerformer());
-        context.advance(); // complete all operations and give access to getLocationToSync
+            new NoopMappingUpdatePerformer(), () -> {});
+        assertFalse(context.hasMoreOperationsToExecute());
 
         // Check that the translog is successfully advanced
         assertThat(context.getLocationToSync(), equalTo(resultLocation));
@@ -693,8 +689,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
-            new NoopMappingUpdatePerformer());
-        context.advance(); // complete all operations and give access to getLocationToSync
+            new NoopMappingUpdatePerformer(), () -> {});
+        assertFalse(context.hasMoreOperationsToExecute());
 
         assertNull(context.getLocationToSync());
         BulkItemResponse primaryResponse = bulkShardRequest.items()[0].getPrimaryResponse();
@@ -724,9 +720,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
-        for (; context.hasMoreOperationsToExecute(); context.advance()) {
+        while (context.hasMoreOperationsToExecute()) {
             TransportShardBulkAction.executeBulkItemRequest(context, null, threadPool::absoluteTimeInMillis,
-                new NoopMappingUpdatePerformer());
+                new NoopMappingUpdatePerformer(), () -> {});
         }
 
         assertTrue(shard.isSyncNeeded());
@@ -809,16 +805,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkShardRequest bulkShardRequest =
             new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
-
-        final ClusterStateObserver observer = mock(ClusterStateObserver.class);
-        doAnswer(invocationOnMock -> {
-            ((ClusterStateObserver.Listener) invocationOnMock.getArguments()[0]).onNewClusterState(null);
-            return null;
-        })
-            .when(observer).waitForNextChange(any());
         WritePrimaryResult<BulkShardRequest, BulkShardResponse> result = TransportShardBulkAction.performOnPrimary(
             bulkShardRequest, shard, updateHelper, threadPool::absoluteTimeInMillis, new NoopMappingUpdatePerformer(),
-            observer, clusterService.localNode());
+            () -> {});
 
         assertThat(result.location, equalTo(resultLocation));
         BulkItemResponse primaryResponse = result.replicaRequest().items()[0].getPrimaryResponse();

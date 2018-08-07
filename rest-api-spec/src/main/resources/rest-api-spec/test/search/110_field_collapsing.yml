@@ -352,8 +352,8 @@ setup:
 ---
 "field collapsing on a field alias":
   - skip:
-      version: " - 6.99.99"
-      reason: The associated bugfix is pending backport to 6.x.
+      version: " - 6.3.99"
+      reason: Field aliases were introduced in 6.4.0.
   - do:
       search:
         index: test

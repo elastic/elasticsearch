@@ -62,7 +62,6 @@ import org.joda.time.format.DateTimeFormat;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.singletonMap;
@@ -629,7 +628,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         validateBulkResponses(nbItems, errors, bulkResponse, bulkRequest);
     }
 
-    public void testReindex() throws IOException, InterruptedException {
+    public void testReindex() throws IOException {
         final String sourceIndex = "source1";
         final String destinationIndex = "dest";
         {
@@ -647,18 +646,19 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                         .add(new IndexRequest(sourceIndex, "type", "1")
                             .source(Collections.singletonMap("foo", "bar"), XContentType.JSON))
                         .add(new IndexRequest(sourceIndex, "type", "2")
-                            .source(Collections.singletonMap("foo2", "bar2"), XContentType.JSON)),
+                            .source(Collections.singletonMap("foo2", "bar2"), XContentType.JSON))
+                        .setRefreshPolicy(RefreshPolicy.IMMEDIATE),
                     RequestOptions.DEFAULT
                 ).status()
             );
         }
         {
-            TimeUnit.SECONDS.sleep(1);
             // test1: create one doc in dest
             ReindexRequest reindexRequest = new ReindexRequest();
             reindexRequest.setSourceIndices(sourceIndex);
             reindexRequest.setDestIndex(destinationIndex);
             reindexRequest.setSourceQuery(new IdsQueryBuilder().addIds("1").types("type"));
+            reindexRequest.setRefresh(true);
             BulkByScrollResponse bulkResponse = execute(reindexRequest, highLevelClient()::reindex, highLevelClient()::reindexAsync);
             assertEquals(1, bulkResponse.getCreated());
             assertEquals(1, bulkResponse.getTotal());
@@ -672,7 +672,6 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals(0, bulkResponse.getSearchFailures().size());
         }
         {
-            TimeUnit.SECONDS.sleep(1);
             // test2: create 1 and update 1
             ReindexRequest reindexRequest = new ReindexRequest();
             reindexRequest.setSourceIndices(sourceIndex);

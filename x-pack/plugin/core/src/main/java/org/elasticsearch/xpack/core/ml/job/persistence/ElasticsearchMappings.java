@@ -333,9 +333,6 @@ public class ElasticsearchMappings {
         .endObject()
         .startObject(Job.RESULTS_INDEX_NAME.getPreferredName())
             .field(TYPE, KEYWORD)
-        .endObject()
-        .startObject(Job.DELETED.getPreferredName())  // TODO can this be removed?
-            .field(TYPE, BOOLEAN)
         .endObject();
     }
 

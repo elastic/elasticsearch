@@ -19,23 +19,35 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
+import org.elasticsearch.index.reindex.BulkByScrollTask.Status;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Response used for actions that index many documents using a scroll request.
@@ -46,6 +58,41 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
     private List<Failure> bulkFailures;
     private List<ScrollableHitSource.SearchFailure> searchFailures;
     private boolean timedOut;
+
+    private static final String TOOK_FIELD = "took";
+    private static final String TIMED_OUT_FIELD = "timed_out";
+    private static final String FAILURES_FIELD = "failures";
+
+    @SuppressWarnings("unchecked")
+    private static final ConstructingObjectParser<BulkByScrollResponse, Void> PARSER =
+        new ConstructingObjectParser<>(
+            "bulk_by_scroll_response",
+            true,
+            a -> {
+                TimeValue took = new TimeValue((long)a[0], TimeUnit.MILLISECONDS);
+                boolean timedOut = (Boolean)a[1];
+                // start deciphering failures
+                ArrayList<Object> failures = a[2] != null ? (ArrayList<Object>) a[2] : new ArrayList<>();
+                Status status = Status.constructFromObjectArray(a, 3);
+                List<Failure> bulkFailures = new ArrayList<>();
+                List<SearchFailure> searchFailures = new ArrayList<>();
+                for (Object object: failures) {
+                    if (object instanceof Failure) {
+                        bulkFailures.add((Failure) object);
+                    } else if (object instanceof SearchFailure) {
+                        searchFailures.add((SearchFailure) object);
+                    }
+                }
+                return new BulkByScrollResponse(took, status, bulkFailures, searchFailures, timedOut);
+            }
+        );
+    static {
+        PARSER.declareLong(constructorArg(), new ParseField(TOOK_FIELD));
+        PARSER.declareBoolean(constructorArg(), new ParseField(TIMED_OUT_FIELD));
+        PARSER.declareObjectArray(constructorArg(), (p, c) -> parseFailure(p), new ParseField(FAILURES_FIELD));
+        // since the result of BulkByScrollResponse.Status are mixed we also parse that in this
+        Status.declareFields(PARSER);
+    }
 
     public BulkByScrollResponse() {
     }
@@ -85,6 +132,10 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
 
     public long getCreated() {
         return status.getCreated();
+    }
+
+    public long getTotal() {
+        return status.getTotal();
     }
 
     public long getDeleted() {
@@ -171,8 +222,8 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("took", took.millis());
-        builder.field("timed_out", timedOut);
+        builder.field(TOOK_FIELD, took.millis());
+        builder.field(TIMED_OUT_FIELD, timedOut);
         status.innerXContent(builder, params);
         builder.startArray("failures");
         for (Failure failure: bulkFailures) {
@@ -185,6 +236,80 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
         }
         builder.endArray();
         return builder;
+    }
+
+    public static BulkByScrollResponse fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
+    }
+
+    private static Object parseFailure(XContentParser parser) throws IOException {
+       ensureExpectedToken(Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+       Token token;
+       String index = null;
+       String type = null;
+       String id = null;
+       Integer status = null;
+       Integer shardId = null;
+       String nodeId = null;
+       ElasticsearchException bulkExc = null;
+       ElasticsearchException searchExc = null;
+       while ((token = parser.nextToken()) != Token.END_OBJECT) {
+           ensureExpectedToken(Token.FIELD_NAME, token, parser::getTokenLocation);
+           String name = parser.currentName();
+           token = parser.nextToken();
+           if (token == Token.START_ARRAY) {
+               parser.skipChildren();
+           } else if (token == Token.START_OBJECT) {
+               switch (name) {
+                   case SearchFailure.REASON_FIELD:
+                       bulkExc = ElasticsearchException.fromXContent(parser);
+                       break;
+                   case Failure.CAUSE_FIELD:
+                       searchExc = ElasticsearchException.fromXContent(parser);
+                       break;
+                   default:
+                       parser.skipChildren();
+               }
+           } else if (token == Token.VALUE_STRING) {
+               switch (name) {
+                   // This field is the same as SearchFailure.index
+                   case Failure.INDEX_FIELD:
+                       index = parser.text();
+                       break;
+                   case Failure.TYPE_FIELD:
+                       type = parser.text();
+                       break;
+                   case Failure.ID_FIELD:
+                       id = parser.text();
+                       break;
+                   case SearchFailure.NODE_FIELD:
+                       nodeId = parser.text();
+                       break;
+                   default:
+                       // Do nothing
+                       break;
+               }
+           } else if (token == Token.VALUE_NUMBER) {
+               switch (name) {
+                   case Failure.STATUS_FIELD:
+                       status = parser.intValue();
+                       break;
+                   case SearchFailure.SHARD_FIELD:
+                       shardId = parser.intValue();
+                       break;
+                   default:
+                       // Do nothing
+                       break;
+               }
+           }
+       }
+       if (bulkExc != null) {
+           return new Failure(index, type, id, bulkExc, RestStatus.fromCode(status));
+       } else if (searchExc != null) {
+           return new SearchFailure(searchExc, index, shardId, nodeId);
+       } else {
+           throw new ElasticsearchParseException("failed to parse failures array. At least one of {reason,cause} must be present");
+       }
     }
 
     @Override

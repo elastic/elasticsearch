@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.painless.Locals.LocalMethod;
 import org.elasticsearch.painless.lookup.PainlessClass;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
@@ -232,8 +233,10 @@ public final class Def {
      * @throws IllegalArgumentException if no matching whitelisted method was found.
      * @throws Throwable if a method reference cannot be converted to an functional interface
      */
-    static MethodHandle lookupMethod(PainlessLookup painlessLookup, MethodHandles.Lookup methodHandlesLookup, MethodType callSiteType,
-                                     Class<?> receiverClass, String name, Object args[]) throws Throwable {
+    static MethodHandle lookupMethod(PainlessLookup painlessLookup, Map<String, LocalMethod> localMethods,
+            MethodHandles.Lookup methodHandlesLookup, MethodType callSiteType, Class<?> receiverClass, String name, Object args[])
+            throws Throwable {
+
          String recipeString = (String) args[0];
          int numArguments = callSiteType.parameterCount();
          // simple case: no lambdas
@@ -286,6 +289,7 @@ public final class Def {
                      // the implementation is strongly typed, now that we know the interface type,
                      // we have everything.
                      filter = lookupReferenceInternal(painlessLookup,
+                                                      localMethods,
                                                       methodHandlesLookup,
                                                       interfaceType,
                                                       type,
@@ -297,6 +301,7 @@ public final class Def {
                      // this cache). It won't blow up since we never nest here (just references)
                      MethodType nestedType = MethodType.methodType(interfaceType, captures);
                      CallSite nested = DefBootstrap.bootstrap(painlessLookup,
+                                                              localMethods,
                                                               methodHandlesLookup,
                                                               call,
                                                               nestedType,
@@ -324,8 +329,8 @@ public final class Def {
       * This is just like LambdaMetaFactory, only with a dynamic type. The interface type is known,
       * so we simply need to lookup the matching implementation method based on receiver type.
       */
-    static MethodHandle lookupReference(PainlessLookup painlessLookup, MethodHandles.Lookup methodHandlesLookup, String interfaceClass,
-                                        Class<?> receiverClass, String name) throws Throwable {
+    static MethodHandle lookupReference(PainlessLookup painlessLookup, Map<String, LocalMethod> localMethods,
+            MethodHandles.Lookup methodHandlesLookup, String interfaceClass, Class<?> receiverClass, String name) throws Throwable {
          Class<?> interfaceType = painlessLookup.canonicalTypeNameToType(interfaceClass);
          PainlessMethod interfaceMethod = painlessLookup.lookupPainlessClass(interfaceType).functionalMethod;
          if (interfaceMethod == null) {
@@ -333,15 +338,14 @@ public final class Def {
          }
          int arity = interfaceMethod.typeParameters.size();
          PainlessMethod implMethod = lookupMethodInternal(painlessLookup, receiverClass, name, arity);
-        return lookupReferenceInternal(painlessLookup, methodHandlesLookup, interfaceType,
-                PainlessLookupUtility.typeToCanonicalTypeName(implMethod.targetClass),
+        return lookupReferenceInternal(painlessLookup, localMethods, methodHandlesLookup,
+                interfaceType, PainlessLookupUtility.typeToCanonicalTypeName(implMethod.targetClass),
                 implMethod.javaMethod.getName(), receiverClass);
      }
 
      /** Returns a method handle to an implementation of clazz, given method reference signature. */
-    private static MethodHandle lookupReferenceInternal(PainlessLookup painlessLookup, MethodHandles.Lookup methodHandlesLookup,
-                                                        Class<?> clazz, String type, String call, Class<?>... captures)
-            throws Throwable {
+    private static MethodHandle lookupReferenceInternal(PainlessLookup painlessLookup, Map<String, LocalMethod> localMethods,
+            MethodHandles.Lookup methodHandlesLookup, Class<?> clazz, String type, String call, Class<?>... captures) throws Throwable {
          final FunctionRef ref;
          if ("this".equals(type)) {
              // user written method
@@ -351,13 +355,8 @@ public final class Def {
                          "to [" + PainlessLookupUtility.typeToCanonicalTypeName(clazz) + "], not a functional interface");
              }
              int arity = interfaceMethod.typeParameters.size() + captures.length;
-             final MethodHandle handle;
-             try {
-                 MethodHandle accessor = methodHandlesLookup.findStaticGetter(methodHandlesLookup.lookupClass(),
-                                                                              getUserFunctionHandleFieldName(call, arity),
-                                                                              MethodHandle.class);
-                 handle = (MethodHandle)accessor.invokeExact();
-             } catch (NoSuchFieldException | IllegalAccessException e) {
+             LocalMethod localMethod = localMethods.get(Locals.buildLocalMethodKey(call, arity));
+             if (localMethod == null) {
                  // is it a synthetic method? If we generated the method ourselves, be more helpful. It can only fail
                  // because the arity does not match the expected interface type.
                  if (call.contains("$")) {
@@ -366,7 +365,7 @@ public final class Def {
                  }
                  throw new IllegalArgumentException("Unknown call [" + call + "] with [" + arity + "] arguments.");
              }
-             ref = new FunctionRef(clazz, interfaceMethod, call, handle.type(), captures.length);
+             ref = new FunctionRef(clazz, interfaceMethod, call, localMethod.methodType, captures.length);
          } else {
              // whitelist lookup
              ref = FunctionRef.resolveFromLookup(painlessLookup, clazz, type, call, captures.length);
@@ -383,11 +382,6 @@ public final class Def {
              ref.isDelegateInterface ? 1 : 0
          );
          return callSite.dynamicInvoker().asType(MethodType.methodType(clazz, captures));
-     }
-
-     /** gets the field name used to lookup up the MethodHandle for a function. */
-     public static String getUserFunctionHandleFieldName(String name, int arity) {
-         return "handle$" + name + "$" + arity;
      }
 
     /**

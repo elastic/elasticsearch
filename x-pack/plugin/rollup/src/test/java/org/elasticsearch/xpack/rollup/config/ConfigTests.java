@@ -22,6 +22,8 @@ import java.util.Map;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.core.rollup.ConfigTestHelpers.randomHistogramGroupConfig;
+import static org.elasticsearch.xpack.core.rollup.ConfigTestHelpers.randomTermsGroupConfig;
 import static org.hamcrest.Matchers.equalTo;
 //TODO split this into dedicated unit test classes (one for each config object)
 public class ConfigTests extends ESTestCase {
@@ -43,22 +45,14 @@ public class ConfigTests extends ESTestCase {
     }
 
     public void testEmptyGroup() {
-        GroupConfig.Builder groupConfig = ConfigTestHelpers.getGroupConfig();
-        groupConfig.setDateHisto(null);
-        groupConfig.setTerms(null);
-        groupConfig.setHisto(null);
-
-        Exception e = expectThrows(IllegalArgumentException.class, groupConfig::build);
-        assertThat(e.getMessage(), equalTo("A date_histogram group is mandatory"));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new GroupConfig(null, null, null));
+        assertThat(e.getMessage(), equalTo("Date histogram must not be null"));
     }
 
     public void testNoDateHisto() {
-        GroupConfig.Builder groupConfig = new GroupConfig.Builder();
-        groupConfig.setTerms(ConfigTestHelpers.randomTermsGroupConfig(random()));
-        groupConfig.setHisto(ConfigTestHelpers.randomHistogramGroupConfig(random()));
-
-        Exception e = expectThrows(IllegalArgumentException.class, groupConfig::build);
-        assertThat(e.getMessage(), equalTo("A date_histogram group is mandatory"));
+        Exception e = expectThrows(IllegalArgumentException.class,
+            () -> new GroupConfig(null, randomHistogramGroupConfig(random()), randomTermsGroupConfig(random())));
+        assertThat(e.getMessage(), equalTo("Date histogram must not be null"));
     }
 
     public void testEmptyGroupAndMetrics() {

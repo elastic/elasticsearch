@@ -30,7 +30,7 @@ esplugin {
 }
 
 dependencies {
-  compileOnly project(':modules:lang-painless')
+  compileOnly "org.elasticsearch.plugin:elasticsearch-scripting-painless-spi:${version}"
 }
 
 if (System.getProperty('tests.distribution') == null) {

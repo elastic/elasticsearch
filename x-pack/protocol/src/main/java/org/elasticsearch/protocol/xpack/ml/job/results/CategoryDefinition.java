@@ -22,6 +22,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.protocol.xpack.ml.job.config.Job;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -49,7 +50,7 @@ public class CategoryDefinition implements ToXContentObject {
         new ConstructingObjectParser<>(TYPE.getPreferredName(), true, a -> new CategoryDefinition((String) a[0]));
 
     static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), Result.JOB_ID);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
         PARSER.declareLong(CategoryDefinition::setCategoryId, CATEGORY_ID);
         PARSER.declareString(CategoryDefinition::setTerms, TERMS);
         PARSER.declareString(CategoryDefinition::setRegex, REGEX);
@@ -130,7 +131,7 @@ public class CategoryDefinition implements ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(Result.JOB_ID.getPreferredName(), jobId);
+        builder.field(Job.ID.getPreferredName(), jobId);
         builder.field(CATEGORY_ID.getPreferredName(), categoryId);
         builder.field(TERMS.getPreferredName(), terms);
         builder.field(REGEX.getPreferredName(), regex);

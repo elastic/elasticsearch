@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.protocol.xpack.ml.job.config.Job;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
@@ -54,7 +55,6 @@ public class DatafeedConfig implements ToXContentObject {
     public static final ParseField FREQUENCY = new ParseField("frequency");
     public static final ParseField INDEXES = new ParseField("indexes");
     public static final ParseField INDICES = new ParseField("indices");
-    public static final ParseField JOB_ID = new ParseField("job_id");
     public static final ParseField TYPES = new ParseField("types");
     public static final ParseField QUERY = new ParseField("query");
     public static final ParseField SCROLL_SIZE = new ParseField("scroll_size");
@@ -68,7 +68,7 @@ public class DatafeedConfig implements ToXContentObject {
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ID);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), JOB_ID);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
 
         PARSER.declareStringArray(Builder::setIndices, INDEXES);
         PARSER.declareStringArray(Builder::setIndices, INDICES);
@@ -176,7 +176,7 @@ public class DatafeedConfig implements ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(ID.getPreferredName(), id);
-        builder.field(JOB_ID.getPreferredName(), jobId);
+        builder.field(Job.ID.getPreferredName(), jobId);
         if (queryDelay != null) {
             builder.field(QUERY_DELAY.getPreferredName(), queryDelay.getStringRep());
         }
@@ -257,7 +257,7 @@ public class DatafeedConfig implements ToXContentObject {
 
         public Builder(String id, String jobId) {
             this.id = Objects.requireNonNull(id, ID.getPreferredName());
-            this.jobId = Objects.requireNonNull(jobId, JOB_ID.getPreferredName());
+            this.jobId = Objects.requireNonNull(jobId, Job.ID.getPreferredName());
         }
 
         public Builder(DatafeedConfig config) {

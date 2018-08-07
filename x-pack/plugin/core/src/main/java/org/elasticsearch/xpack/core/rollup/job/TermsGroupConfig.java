@@ -45,7 +45,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
  */
 public class TermsGroupConfig implements Writeable, ToXContentObject {
 
-    private static final String NAME = "terms";
+    static final String NAME = "terms";
     private static final String FIELDS = "fields";
 
     private static final List<String> FLOAT_TYPES = Arrays.asList("half_float", "float", "double", "scaled_float");

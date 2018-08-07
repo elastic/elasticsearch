@@ -229,7 +229,7 @@ public class ElasticsearchMappings {
                             .endObject()
                         .endObject()
                         .startObject(Detector.DETECTOR_INDEX.getPreferredName())
-                            .field(TYPE, LONG)
+                            .field(TYPE, INTEGER)
                         .endObject()
                     .endObject()
                 .endObject()

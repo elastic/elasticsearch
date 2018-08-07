@@ -266,18 +266,18 @@ public final class ReservedFieldNames {
     };
 
     /**
-     * Test if fieldName is one of the reserved names or if it contains dots then
-     * that the segment before the first dot is not a reserved name. A fieldName
-     * containing dots represents nested fields in which case we only care about
-     * the top level.
+     * Test if fieldName is one of the reserved result fieldnames or if it contains
+     * dots then that the segment before the first dot is not a reserved results
+     * fieldname. A fieldName containing dots represents nested fields in which
+     * case we only care about the top level.
      *
      * @param fieldName Document field name. This may contain dots '.'
-     * @return True if fieldName is not a reserved name or the top level segment
+     * @return True if fieldName is not a reserved results fieldname or the top level segment
      * is not a reserved name.
      */
     public static boolean isValidFieldName(String fieldName) {
         String[] segments = DOT_PATTERN.split(fieldName);
-        return RESERVED_RESULT_FIELD_NAMES.contains(segments[0]) == false && RESERVED_CONFIG_FIELD_NAMES.contains(segments[0]) == false;
+        return RESERVED_RESULT_FIELD_NAMES.contains(segments[0]) == false;
     }
 
     /**

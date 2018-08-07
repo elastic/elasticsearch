@@ -19,7 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.FunctionReference;
+import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
@@ -74,7 +74,7 @@ public final class ELambda extends AExpression implements ILambda {
     // captured variables
     private List<Variable> captures;
     // static parent, static lambda
-    private FunctionReference ref;
+    private FunctionRef ref;
     // dynamic parent, deferred until link time
     private String defPointer;
 
@@ -180,7 +180,7 @@ public final class ELambda extends AExpression implements ILambda {
             defPointer = "Sthis." + name + "," + captures.size();
         } else {
             defPointer = null;
-            ref = FunctionReference.create(
+            ref = FunctionRef.create(
                     locals.getPainlessLookup(), locals.getMethods(), location, expected, "this", desugared.name, captures.size());
             actual = expected;
         }

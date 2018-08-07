@@ -284,22 +284,22 @@ public final class Def {
       */
     static MethodHandle lookupReference(PainlessLookup painlessLookup, Map<String, LocalMethod> localMethods,
             MethodHandles.Lookup methodHandlesLookup, String interfaceClass, Class<?> receiverClass, String name) throws Throwable {
-            Class<?> interfaceType = painlessLookup.canonicalTypeNameToType(interfaceClass);
-            PainlessMethod interfaceMethod = painlessLookup.lookupFunctionalInterfacePainlessMethod(interfaceType);
-            if (interfaceMethod == null) {
-             throw new IllegalArgumentException("Class [" + interfaceClass + "] is not a functional interface");
-            }
-            int arity = interfaceMethod.typeParameters.size();
-            PainlessMethod implMethod = painlessLookup.lookupRuntimePainlessMethod(receiverClass, name, arity);
-            return lookupReferenceInternal(painlessLookup, localMethods, methodHandlesLookup,
-                interfaceType, PainlessLookupUtility.typeToCanonicalTypeName(implMethod.targetClass),
-                implMethod.javaMethod.getName(), 1);
+        Class<?> interfaceType = painlessLookup.canonicalTypeNameToType(interfaceClass);
+        PainlessMethod interfaceMethod = painlessLookup.lookupFunctionalInterfacePainlessMethod(interfaceType);
+        if (interfaceMethod == null) {
+         throw new IllegalArgumentException("Class [" + interfaceClass + "] is not a functional interface");
+        }
+        int arity = interfaceMethod.typeParameters.size();
+        PainlessMethod implMethod = painlessLookup.lookupRuntimePainlessMethod(receiverClass, name, arity);
+        return lookupReferenceInternal(painlessLookup, localMethods, methodHandlesLookup,
+            interfaceType, PainlessLookupUtility.typeToCanonicalTypeName(implMethod.targetClass),
+            implMethod.javaMethod.getName(), 1);
      }
 
      /** Returns a method handle to an implementation of clazz, given method reference signature. */
     private static MethodHandle lookupReferenceInternal(PainlessLookup painlessLookup, Map<String, LocalMethod> localMethods,
             MethodHandles.Lookup methodHandlesLookup, Class<?> clazz, String type, String call, int captures) throws Throwable {
-        final FunctionReference ref = FunctionReference.create(painlessLookup, localMethods, null, clazz, type, call, captures);
+        final FunctionRef ref = FunctionRef.create(painlessLookup, localMethods, null, clazz, type, call, captures);
         final CallSite callSite = LambdaBootstrap.lambdaBootstrap(
             methodHandlesLookup,
             ref.interfaceMethodName,

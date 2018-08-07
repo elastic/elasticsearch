@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.protocol.xpack.ml.job.config.Job;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
@@ -49,7 +50,7 @@ public class DatafeedUpdate implements ToXContentObject {
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), DatafeedConfig.ID);
 
-        PARSER.declareString(Builder::setJobId, DatafeedConfig.JOB_ID);
+        PARSER.declareString(Builder::setJobId, Job.ID);
         PARSER.declareStringArray(Builder::setIndices, DatafeedConfig.INDEXES);
         PARSER.declareStringArray(Builder::setIndices, DatafeedConfig.INDICES);
         PARSER.declareStringArray(Builder::setTypes, DatafeedConfig.TYPES);
@@ -112,7 +113,7 @@ public class DatafeedUpdate implements ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(DatafeedConfig.ID.getPreferredName(), id);
-        addOptionalField(builder, DatafeedConfig.JOB_ID, jobId);
+        addOptionalField(builder, Job.ID, jobId);
         if (queryDelay != null) {
             builder.field(DatafeedConfig.QUERY_DELAY.getPreferredName(), queryDelay.getStringRep());
         }

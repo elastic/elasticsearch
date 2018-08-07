@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.protocol.xpack.ml.job.config.Job;
 
 import java.io.IOException;
 import java.time.format.DateTimeFormatter;
@@ -61,7 +62,7 @@ public class Bucket implements ToXContentObject {
         new ConstructingObjectParser<>(RESULT_TYPE_VALUE, true, a -> new Bucket((String) a[0], (Date) a[1], (long) a[2]));
 
     static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), Result.JOB_ID);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
         PARSER.declareField(ConstructingObjectParser.constructorArg(), p -> {
             if (p.currentToken() == Token.VALUE_NUMBER) {
                 return new Date(p.longValue());
@@ -104,7 +105,7 @@ public class Bucket implements ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(Result.JOB_ID.getPreferredName(), jobId);
+        builder.field(Job.ID.getPreferredName(), jobId);
         builder.timeField(Result.TIMESTAMP.getPreferredName(), Result.TIMESTAMP.getPreferredName() + "_string", timestamp.getTime());
         builder.field(ANOMALY_SCORE.getPreferredName(), anomalyScore);
         builder.field(BUCKET_SPAN.getPreferredName(), bucketSpan);

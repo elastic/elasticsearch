@@ -20,6 +20,7 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.bootstrap.BootstrapInfo;
+import org.elasticsearch.painless.Locals.LocalMethod;
 import org.elasticsearch.painless.antlr.Walker;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.node.SSource;
@@ -32,6 +33,7 @@ import java.net.URL;
 import java.security.CodeSource;
 import java.security.SecureClassLoader;
 import java.security.cert.Certificate;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.painless.WriterConstants.CLASS_NAME;
@@ -200,7 +202,7 @@ final class Compiler {
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
         SSource root = Walker.buildPainlessTree(scriptClassInfo, reserved, name, source, settings, painlessLookup,
                 null);
-        root.analyze(painlessLookup);
+        Map<String, LocalMethod> localMethods = root.analyze(painlessLookup);
         root.write();
 
         try {
@@ -209,6 +211,7 @@ final class Compiler {
             clazz.getField("$SOURCE").set(null, source);
             clazz.getField("$STATEMENTS").set(null, root.getStatements());
             clazz.getField("$DEFINITION").set(null, painlessLookup);
+            clazz.getField("$LOCALS").set(null, localMethods);
 
             return clazz.getConstructors()[0];
         } catch (Exception exception) { // Catch everything to let the user know this is something caused internally.

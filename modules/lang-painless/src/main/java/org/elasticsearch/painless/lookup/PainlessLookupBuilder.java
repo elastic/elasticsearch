@@ -570,7 +570,6 @@ public final class PainlessLookupBuilder {
             PainlessMethod painlessMethod = painlessClassBuilder.staticMethods.get(painlessMethodKey);
 
             if (painlessMethod == null) {
-                org.objectweb.asm.commons.Method asmMethod = org.objectweb.asm.commons.Method.getMethod(javaMethod);
                 MethodHandle methodHandle;
 
                 if (augmentedClass == null) {
@@ -876,7 +875,7 @@ public final class PainlessLookupBuilder {
             } else if (javaMethods.size() == 1) {
                 java.lang.reflect.Method javaMethod = javaMethods.get(0);
                 String painlessMethodKey = buildPainlessMethodKey(javaMethod.getName(), javaMethod.getParameterCount());
-                painlessClassBuilder.functionalMethod = painlessClassBuilder.methods.get(painlessMethodKey);
+                painlessClassBuilder.functionalInterfaceMethod = painlessClassBuilder.methods.get(painlessMethodKey);
             }
         }
     }

@@ -201,8 +201,9 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         } else if (seenSequenceNumbers.containsKey(seqNo)) {
             final Tuple<BytesReference, Exception> previous = seenSequenceNumbers.get(seqNo);
             if (previous.v1().equals(data) == false) {
-                Translog.Operation newOp = Translog.readOperation(new BufferedChecksumStreamInput(data.streamInput()));
-                Translog.Operation prvOp = Translog.readOperation(new BufferedChecksumStreamInput(previous.v1().streamInput()));
+                Translog.Operation newOp = Translog.readOperation(new BufferedChecksumStreamInput(data.streamInput(), "assertion"));
+                Translog.Operation prvOp = Translog.readOperation(new BufferedChecksumStreamInput(previous.v1().streamInput(),
+                        "assertion"));
                 // we need to exclude versionType from this check because it's removed in 7.0
                 final boolean sameOp;
                 if (prvOp instanceof Translog.Index && newOp instanceof Translog.Index) {
@@ -237,7 +238,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             .forEach(e -> {
                 final Translog.Operation op;
                 try {
-                    op = Translog.readOperation(new BufferedChecksumStreamInput(e.getValue().v1().streamInput()));
+                    op = Translog.readOperation(
+                            new BufferedChecksumStreamInput(e.getValue().v1().streamInput(), "assertion"));
                 } catch (IOException ex) {
                     throw new RuntimeException(ex);
                 }

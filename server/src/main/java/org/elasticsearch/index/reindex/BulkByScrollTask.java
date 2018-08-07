@@ -202,6 +202,115 @@ public class BulkByScrollTask extends CancellableTask {
         return true;
     }
 
+    private static class StatusBuilder {
+        private Integer sliceId = null;
+        private Long total = null;
+        private Long updated = null;
+        private Long created = null;
+        private Long deleted = null;
+        private Integer batches = null;
+        private Long versionConflicts = null;
+        private Long noops = null;
+        private Long bulkRetries = null;
+        private Long searchRetries = null;
+        private TimeValue throttled = null;
+        private Float requestsPerSecond = null;
+        private String reasonCancelled = null;
+        private TimeValue throttledUntil = null;
+        private List<StatusOrException> sliceStatuses = emptyList();
+
+        public void setSliceId(Integer sliceId) {
+            this.sliceId = sliceId;
+        }
+
+        public void setTotal(Long total) {
+            this.total = total;
+        }
+
+        public void setUpdated(Long updated) {
+            this.updated = updated;
+        }
+
+        public void setCreated(Long created) {
+            this.created = created;
+        }
+
+        public void setDeleted(Long deleted) {
+            this.deleted = deleted;
+        }
+
+        public void setBatches(Integer batches) {
+            this.batches = batches;
+        }
+
+        public void setVersionConflicts(Long versionConflicts) {
+            this.versionConflicts = versionConflicts;
+        }
+
+        public void setNoops(Long noops) {
+            this.noops = noops;
+        }
+
+        public void setRetries(Tuple<Long, Long> retries) {
+            if (retries != null) {
+                setBulkRetries(retries.v1());
+                setSearchRetries(retries.v2());
+            }
+        }
+
+        public void setBulkRetries(Long bulkRetries) {
+            this.bulkRetries = bulkRetries;
+        }
+
+        public void setSearchRetries(Long searchRetries) {
+            this.searchRetries = searchRetries;
+        }
+
+        public void setThrottled(Long throttled) {
+            if (throttled != null) {
+                this.throttled = new TimeValue(throttled, TimeUnit.MILLISECONDS);
+            }
+        }
+
+        public void setRequestsPerSecond(Float requestsPerSecond) {
+            if (requestsPerSecond != null) {
+                requestsPerSecond = requestsPerSecond == -1 ? Float.POSITIVE_INFINITY : requestsPerSecond;
+                this.requestsPerSecond = requestsPerSecond;
+            }
+        }
+
+        public void setReasonCancelled(String reasonCancelled) {
+            this.reasonCancelled = reasonCancelled;
+        }
+
+        public void setThrottledUntil(Long throttledUntil) {
+            if (throttledUntil != null) {
+                this.throttledUntil = new TimeValue(throttledUntil, TimeUnit.MILLISECONDS);
+            }
+        }
+
+        public void setSliceStatuses(List<StatusOrException> sliceStatuses) {
+            if (sliceStatuses != null) {
+                this.sliceStatuses = sliceStatuses;
+            }
+        }
+
+        public Status build() {
+            if (sliceStatuses.isEmpty()) {
+                try {
+                    return new Status(
+                        sliceId, total, updated, created, deleted, batches, versionConflicts, noops, bulkRetries,
+                        searchRetries, throttled, requestsPerSecond, reasonCancelled, throttledUntil
+                    );
+                } catch (NullPointerException npe) {
+                    throw new IllegalArgumentException("a required field is null when building Status");
+                }
+            } else {
+                return new Status(sliceStatuses, reasonCancelled);
+            }
+        }
+    }
+
     public static class Status implements Task.Status, SuccessfullyProcessed {
         public static final String NAME = "bulk-by-scroll";
 
@@ -277,34 +386,22 @@ public class BulkByScrollTask extends CancellableTask {
          */
         @SuppressWarnings("unchecked")
         public static Status constructFromObjectArray(Object[] a, int startIndex) {
-            Integer sliceId = (Integer) a[startIndex];
-            Long total = (Long) a[startIndex + 1];
-            Long updated = (Long) a[startIndex + 2];
-            Long created = (Long) a[startIndex + 3];
-            Long deleted = (Long) a[startIndex + 4];
-            Integer batches = (Integer) a[startIndex + 5];
-            Long versionConflicts = (Long) a[startIndex + 6];
-            Long noops = (Long) a[startIndex + 7];
-            Tuple<Long, Long> retries = (Tuple<Long, Long>) a[startIndex + 8];
-            Long bulkRetries = retries.v1();
-            Long searchRetries = retries.v2();
-            TimeValue throttled =
-                a[startIndex + 9] != null ? new TimeValue((Long)a[startIndex + 9], TimeUnit.MILLISECONDS) : null;
-            Float requestsPerSecond = (Float) a[startIndex + 10];
-            requestsPerSecond = requestsPerSecond == -1 ? Float.POSITIVE_INFINITY : requestsPerSecond;
-            String reasonCancelled = (String) a[startIndex + 11];
-            TimeValue throttledUntil =
-                a[startIndex + 12] != null ? new TimeValue((Long) a[startIndex + 12], TimeUnit.MILLISECONDS) : null;
-            List<StatusOrException> sliceStatuses =
-                a[startIndex + 13] != null ? (ArrayList<StatusOrException>) a[startIndex + 13] : emptyList();
-            if (sliceStatuses.isEmpty()) {
-                return new Status(
-                    sliceId, total, updated, created, deleted, batches, versionConflicts, noops, bulkRetries,
-                    searchRetries, throttled, requestsPerSecond, reasonCancelled, throttledUntil
-                );
-            } else {
-                return new Status(sliceStatuses, reasonCancelled);
-            }
+            StatusBuilder builder = new StatusBuilder();
+            builder.setSliceId((Integer) a[startIndex]);
+            builder.setTotal((Long) a[startIndex + 1]);
+            builder.setUpdated((Long) a[startIndex + 2]);
+            builder.setCreated((Long) a[startIndex + 3]);
+            builder.setDeleted((Long) a[startIndex + 4]);
+            builder.setBatches((Integer) a[startIndex + 5]);
+            builder.setVersionConflicts((Long) a[startIndex + 6]);
+            builder.setNoops((Long) a[startIndex + 7]);
+            builder.setRetries((Tuple<Long, Long>) a[startIndex + 8]);
+            builder.setThrottled((Long)a[startIndex + 9]);
+            builder.setRequestsPerSecond((Float) a[startIndex + 10]);
+            builder.setReasonCancelled((String) a[startIndex + 11]);
+            builder.setThrottledUntil((Long) a[startIndex + 12]);
+            builder.setSliceStatuses((ArrayList<StatusOrException>) a[startIndex + 13]);
+            return builder.build();
         }
 
         public static<Value> void declareFields(ConstructingObjectParser<Value, Void> parser) {

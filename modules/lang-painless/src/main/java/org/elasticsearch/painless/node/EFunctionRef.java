@@ -19,7 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.FunctionReference;
+import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -36,7 +36,7 @@ public final class EFunctionRef extends AExpression implements ILambda {
     private final String type;
     private final String call;
 
-    private FunctionReference ref;
+    private FunctionRef ref;
     private String defPointer;
 
     public EFunctionRef(Location location, String type, String call) {
@@ -57,7 +57,7 @@ public final class EFunctionRef extends AExpression implements ILambda {
             defPointer = "S" + type + "." + call + ",0";
         } else {
             defPointer = null;
-            ref = FunctionReference.create(locals.getPainlessLookup(), locals.getMethods(), location, expected, type, call, 0);
+            ref = FunctionRef.create(locals.getPainlessLookup(), locals.getMethods(), location, expected, type, call, 0);
             actual = expected;
         }
     }

@@ -38,10 +38,15 @@ import static org.objectweb.asm.Opcodes.H_INVOKESTATIC;
 import static org.objectweb.asm.Opcodes.H_INVOKEVIRTUAL;
 import static org.objectweb.asm.Opcodes.H_NEWINVOKESPECIAL;
 
-public class FunctionReference {
+/**
+ * Contains all the values necessary to write the instruction to initiate a
+ * {@link LambdaBootstrap} for either a function reference or a user-defined
+ * lambda function.
+ */
+public class FunctionRef {
 
     /**
-     * Creates a new FunctionReference which will resolve {@code type::call} from the whitelist.
+     * Creates a new FunctionRef which will resolve {@code type::call} from the whitelist.
      * @param painlessLookup the whitelist against which this script is being compiled
      * @param localMethods user-defined and synthetic methods generated directly on the script class
      * @param location the character number within the script at compile-time
@@ -50,7 +55,7 @@ public class FunctionReference {
      * @param methodName the right hand side of a method reference expression
      * @param numberOfCaptures number of captured arguments
      */
-    public static FunctionReference create(PainlessLookup painlessLookup, Map<String, LocalMethod> localMethods, Location location,
+    public static FunctionRef create(PainlessLookup painlessLookup, Map<String, LocalMethod> localMethods, Location location,
             Class<?> targetClass, String typeName, String methodName, int numberOfCaptures) {
 
         Objects.requireNonNull(painlessLookup);
@@ -195,7 +200,7 @@ public class FunctionReference {
                     delegateMethodType.dropParameterTypes(numberOfCaptures, delegateMethodType.parameterCount()));
             delegateMethodType = delegateMethodType.dropParameterTypes(0, numberOfCaptures);
 
-            return new FunctionReference(interfaceMethodName, interfaceMethodType,
+            return new FunctionRef(interfaceMethodName, interfaceMethodType,
                     delegateClassName, isDelegateInterface, delegateInvokeType, delegateMethodName, delegateMethodType,
                     factoryMethodType
             );
@@ -225,7 +230,7 @@ public class FunctionReference {
     /** factory (CallSite) method signature */
     public final MethodType factoryMethodType;
 
-    private FunctionReference(
+    private FunctionRef(
             String interfaceMethodName, MethodType interfaceMethodType,
             String delegateClassName, boolean isDelegateInterface,
             int delegateInvokeType, String delegateMethodName, MethodType delegateMethodType,

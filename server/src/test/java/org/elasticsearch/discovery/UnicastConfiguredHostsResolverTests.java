@@ -79,7 +79,7 @@ public class UnicastConfiguredHostsResolverTests extends ESTestCase {
 
         unicastConfiguredHostsResolver.resolveConfiguredHosts(resolvedAddresses -> {
             try {
-                assertTrue(startLatch.await(1, TimeUnit.SECONDS));
+                assertTrue(startLatch.await(30, TimeUnit.SECONDS));
             } catch (InterruptedException e) {
                 throw new AssertionError(e);
             }
@@ -93,7 +93,7 @@ public class UnicastConfiguredHostsResolverTests extends ESTestCase {
 
         assertThat(resolvedAddressesRef.get(), nullValue());
         startLatch.countDown();
-        assertTrue(endLatch.await(1, TimeUnit.SECONDS));
+        assertTrue(endLatch.await(30, TimeUnit.SECONDS));
         assertThat(resolvedAddressesRef.get(), equalTo(transportAddresses));
     }
 }

@@ -91,6 +91,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 
@@ -101,11 +102,13 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.index.shard.IndexShardTestCase.getTranslog;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -729,4 +732,29 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertTrue(shard.isSearchIdle());
         assertHitCount(client().prepareSearch().get(), 3);
     }
+
+    public void testGlobalCheckpointListeners() throws IOException {
+        createIndex("test", Settings.builder().put("index.number_of_replicas", 0).build());
+        ensureGreen();
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexService test = indicesService.indexService(resolveIndex("test"));
+        final IndexShard shard = test.getShardOrNull(0);
+        final int numberOfUpdates = randomIntBetween(1, 128);
+        for (int i = 0; i < numberOfUpdates; i++) {
+            final AtomicLong globalCheckpoint = new AtomicLong();
+            shard.addGlobalCheckpointListener((g, e) -> globalCheckpoint.set(g));
+            client().prepareIndex("test", "_doc", Integer.toString(i)).setSource("{}", XContentType.JSON).get();
+            assertThat(globalCheckpoint.get(), equalTo((long) i));
+        }
+        final AtomicBoolean invoked = new AtomicBoolean();
+        shard.addGlobalCheckpointListener((g, e) -> {
+            invoked.set(true);
+            assert g == UNASSIGNED_SEQ_NO;
+            assert e != null;
+            assertThat(e.getShardId(), equalTo(shard.shardId()));
+        });
+        shard.close("closed", randomBoolean());
+        assertTrue(invoked.get());
+    }
+
 }

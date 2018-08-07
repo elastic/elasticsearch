@@ -93,7 +93,8 @@ Which will yield the following response:
             "page_size" : 1000
           },
           "status" : {
-            "job_state" : "stopped"
+            "job_state" : "stopped",
+            "upgraded_doc_id": true
           },
           "stats" : {
             "pages_processed" : 0,
@@ -212,7 +213,8 @@ Which will yield the following response:
             "page_size" : 1000
           },
           "status" : {
-            "job_state" : "stopped"
+            "job_state" : "stopped",
+            "upgraded_doc_id": true
           },
           "stats" : {
             "pages_processed" : 0,
@@ -260,7 +262,8 @@ Which will yield the following response:
             "page_size" : 1000
           },
           "status" : {
-            "job_state" : "stopped"
+            "job_state" : "stopped",
+            "upgraded_doc_id": true
           },
           "stats" : {
             "pages_processed" : 0,

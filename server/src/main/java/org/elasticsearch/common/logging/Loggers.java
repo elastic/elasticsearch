@@ -31,13 +31,9 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.node.Node;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 
-import static java.util.Arrays.asList;
 import static org.elasticsearch.common.util.CollectionUtils.asArrayList;
 
 /**
@@ -71,29 +67,19 @@ public class Loggers {
     }
 
     public static Logger getLogger(Class<?> clazz, Settings settings, String... prefixes) {
-        final List<String> prefixesList = prefixesList(settings, prefixes);
-        return Loggers.getLogger(clazz, prefixesList.toArray(new String[prefixesList.size()]));
+        return Loggers.getLogger(clazz, prefixes);
     }
 
     public static Logger getLogger(String loggerName, Settings settings, String... prefixes) {
-        final List<String> prefixesList = prefixesList(settings, prefixes);
-        return Loggers.getLogger(loggerName, prefixesList.toArray(new String[prefixesList.size()]));
-    }
-
-    private static List<String> prefixesList(Settings settings, String... prefixes) {
-        List<String> prefixesList = new ArrayList<>();
-        if (Node.NODE_NAME_SETTING.exists(settings)) {
-            prefixesList.add(Node.NODE_NAME_SETTING.get(settings));
-        }
-        if (prefixes != null && prefixes.length > 0) {
-            prefixesList.addAll(asList(prefixes));
-        }
-        return prefixesList;
+        return Loggers.getLogger(loggerName, prefixes);
     }
 
     public static Logger getLogger(Logger parentLogger, String s) {
-        assert parentLogger instanceof PrefixLogger;
-        return ESLoggerFactory.getLogger(((PrefixLogger)parentLogger).prefix(), parentLogger.getName() + s);
+        String prefix = null;
+        if (parentLogger instanceof PrefixLogger) {
+            prefix = ((PrefixLogger)parentLogger).prefix();
+        }
+        return ESLoggerFactory.getLogger(prefix, parentLogger.getName() + s);
     }
 
     public static Logger getLogger(String s) {
@@ -126,7 +112,6 @@ public class Loggers {
                 }
             }
             if (sb.length() > 0) {
-                sb.append(" ");
                 prefix = sb.toString();
             }
         }

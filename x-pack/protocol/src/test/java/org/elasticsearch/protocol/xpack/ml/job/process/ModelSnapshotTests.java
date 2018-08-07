@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.protocol.xpack.ml.job.process;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
@@ -137,7 +136,6 @@ public class ModelSnapshotTests extends AbstractXContentTestCase<ModelSnapshot> 
     private static ModelSnapshot.Builder createFullyPopulated() {
         ModelSnapshot.Builder modelSnapshot = new ModelSnapshot.Builder();
         modelSnapshot.setJobId("foo");
-        modelSnapshot.setMinVersion(Version.CURRENT);
         modelSnapshot.setTimestamp(DEFAULT_TIMESTAMP);
         modelSnapshot.setDescription(DEFAULT_DESCRIPTION);
         modelSnapshot.setSnapshotId(DEFAULT_ID);
@@ -159,7 +157,6 @@ public class ModelSnapshotTests extends AbstractXContentTestCase<ModelSnapshot> 
 
     public static ModelSnapshot createRandomized() {
         ModelSnapshot.Builder modelSnapshot = new ModelSnapshot.Builder(randomAlphaOfLengthBetween(1, 20));
-        modelSnapshot.setMinVersion(Version.CURRENT);
         modelSnapshot.setTimestamp(new Date(TimeValue.parseTimeValue(randomTimeValue(), "test").millis()));
         modelSnapshot.setDescription(randomAlphaOfLengthBetween(1, 20));
         modelSnapshot.setSnapshotId(randomAlphaOfLengthBetween(1, 20));

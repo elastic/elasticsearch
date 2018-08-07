@@ -247,7 +247,6 @@ public class ReplicationTrackerTests extends ESTestCase {
         assigned.putAll(active);
         assigned.putAll(initializing);
         AllocationId primaryId = active.keySet().iterator().next();
-        updatedGlobalCheckpoint.set(UNASSIGNED_SEQ_NO);
         final ReplicationTracker tracker = newTracker(primaryId);
         tracker.updateFromMaster(randomNonNegativeLong(), ids(active.keySet()), routingTable(initializing.keySet(), primaryId), emptySet());
         tracker.activatePrimaryMode(NO_OPS_PERFORMED);
@@ -275,7 +274,6 @@ public class ReplicationTrackerTests extends ESTestCase {
         logger.info("active: {}, initializing: {}", active, initializing);
 
         AllocationId primaryId = active.keySet().iterator().next();
-        updatedGlobalCheckpoint.set(NO_OPS_PERFORMED);
         final ReplicationTracker tracker = newTracker(primaryId);
         tracker.updateFromMaster(randomNonNegativeLong(), ids(active.keySet()), routingTable(initializing.keySet(), primaryId), emptySet());
         tracker.activatePrimaryMode(NO_OPS_PERFORMED);
@@ -560,7 +558,6 @@ public class ReplicationTrackerTests extends ESTestCase {
                             == SequenceNumbers.UNASSIGNED_SEQ_NO));
 
         // the tracking allocation IDs should play no role in determining the global checkpoint
-        updatedGlobalCheckpoint.set(UNASSIGNED_SEQ_NO);
         final Map<AllocationId, Integer> activeLocalCheckpoints =
                 newActiveAllocationIds.stream().collect(Collectors.toMap(Function.identity(), a -> randomIntBetween(1, 1024)));
         activeLocalCheckpoints.forEach((a, l) -> updateLocalCheckpoint(tracker, a.getId(), l));

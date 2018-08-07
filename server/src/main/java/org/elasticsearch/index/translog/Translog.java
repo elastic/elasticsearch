@@ -67,6 +67,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.LongSupplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -312,8 +313,21 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         return closed.get() == false;
     }
 
+    private boolean calledFromOutsideOrViaTragedyClose(){
+       List<StackTraceElement> frames = Stream.of(Thread.currentThread().getStackTrace()).
+               skip(3). //skip getStackTrace, current method and close method frames
+               limit(10). //limit depth of analysis to 10 frames, it should be enough to catch closing with, e.g. IOUtils
+               filter(f -> f.getClassName().equals(Translog.class.getName())). //find all inner callers
+               collect(Collectors.toList());
+
+       //the list of inner callers should be either empty or should contain closeOnTragicEvent method
+       return frames.isEmpty() || frames.stream().anyMatch(f -> f.getMethodName().equals("closeOnTragicEvent"));
+    }
+
     @Override
     public void close() throws IOException {
+        assert calledFromOutsideOrViaTragedyClose() :
+                "Translog.close method is called from inside Translog, but not via closeOnTragicEvent method";
         if (closed.compareAndSet(false, true)) {
             try (ReleasableLock lock = writeLock.acquire()) {
                 try {

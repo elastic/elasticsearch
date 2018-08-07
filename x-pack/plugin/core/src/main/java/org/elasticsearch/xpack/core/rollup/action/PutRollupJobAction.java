@@ -52,9 +52,8 @@ public class PutRollupJobAction extends Action<PutRollupJobAction.Response> {
 
         }
 
-        public static Request parseRequest(String id, XContentParser parser) {
-            RollupJobConfig.Builder config = RollupJobConfig.Builder.fromXContent(id, parser);
-            return new Request(config.build());
+        public static Request fromXContent(final XContentParser parser, final String id) throws IOException {
+            return new Request(RollupJobConfig.fromXContent(parser, id));
         }
 
         public RollupJobConfig getConfig() {

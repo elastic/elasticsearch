@@ -46,7 +46,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
  */
 public class HistogramGroupConfig implements Writeable, ToXContentObject {
 
-    public static final String NAME = "histogram";
+    static final String NAME = "histogram";
     private static final String INTERVAL = "interval";
     private static final String FIELDS = "fields";
     private static final ConstructingObjectParser<HistogramGroupConfig, Void> PARSER;

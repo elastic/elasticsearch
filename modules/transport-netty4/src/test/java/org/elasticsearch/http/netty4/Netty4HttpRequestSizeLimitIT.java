@@ -34,7 +34,6 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 import java.util.Collection;
-import org.elasticsearch.test.Netty4HttpClient;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;

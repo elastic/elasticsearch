@@ -28,7 +28,6 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 
 import java.util.Collection;
 import java.util.Locale;
-import org.elasticsearch.test.Netty4HttpClient;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;

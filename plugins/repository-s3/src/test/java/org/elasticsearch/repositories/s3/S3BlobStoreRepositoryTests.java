@@ -51,6 +51,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 
@@ -84,8 +85,11 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
     }
 
     @Override
-    protected void createTestRepository(final String name) {
-        assertAcked(client().admin().cluster().preparePutRepository(name).setType(S3Repository.TYPE).setSettings(Settings.builder()
+    protected void createTestRepository(final String name, boolean verify) {
+        assertAcked(client().admin().cluster().preparePutRepository(name)
+            .setType(S3Repository.TYPE)
+            .setVerify(verify)
+            .setSettings(Settings.builder()
                 .put(S3Repository.BUCKET_SETTING.getKey(), bucket)
                 .put(S3Repository.CLIENT_NAME.getKey(), client)
                 .put(S3Repository.BUFFER_SIZE_SETTING.getKey(), bufferSize)
@@ -94,6 +98,11 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
                 .put(S3Repository.STORAGE_CLASS_SETTING.getKey(), storageClass)
                 .put(S3Repository.ACCESS_KEY_SETTING.getKey(), "not_used_but_this_is_a_secret")
                 .put(S3Repository.SECRET_KEY_SETTING.getKey(), "not_used_but_this_is_a_secret")));
+    }
+
+    @Override
+    protected void afterCreationCheck(Repository repository) {
+        assertThat(repository, instanceOf(S3Repository.class));
     }
 
     @Override
@@ -125,7 +134,7 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
 
     public void testInsecureRepositoryCredentials() throws Exception {
         final String repositoryName = "testInsecureRepositoryCredentials";
-        createTestRepository(repositoryName);
+        createAndCheckTestRepository(repositoryName);
         final NodeClient nodeClient = internalCluster().getInstance(NodeClient.class);
         final RestGetRepositoriesAction getRepoAction = new RestGetRepositoriesAction(Settings.EMPTY, mock(RestController.class),
                 internalCluster().getInstance(SettingsFilter.class));

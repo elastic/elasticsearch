@@ -34,6 +34,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
 
@@ -66,7 +67,7 @@ public class ShardSearchFailure implements ShardOperationFailedException {
 
     public ShardSearchFailure(Exception e, @Nullable SearchShardTarget shardTarget) {
         final Throwable actual = ExceptionsHelper.unwrapCause(e);
-        if (actual != null && actual instanceof SearchException) {
+        if (actual instanceof SearchException) {
             this.shardTarget = ((SearchException) actual).shard();
         } else if (shardTarget != null) {
             this.shardTarget = shardTarget;
@@ -105,7 +106,7 @@ public class ShardSearchFailure implements ShardOperationFailedException {
     @Override
     public String index() {
         if (shardTarget != null) {
-            return shardTarget.getIndex();
+            return shardTarget.getFullyQualifiedIndexName();
         }
         return null;
     }
@@ -186,6 +187,7 @@ public class ShardSearchFailure implements ShardOperationFailedException {
         String currentFieldName = null;
         int shardId = -1;
         String indexName = null;
+        String clusterAlias = null;
         String nodeId = null;
         ElasticsearchException exception = null;
         while((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -196,6 +198,11 @@ public class ShardSearchFailure implements ShardOperationFailedException {
                     shardId  = parser.intValue();
                 } else if (INDEX_FIELD.equals(currentFieldName)) {
                     indexName  = parser.text();
+                    int indexOf = indexName.indexOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR);
+                    if (indexOf > 0) {
+                        clusterAlias = indexName.substring(0, indexOf);
+                        indexName = indexName.substring(indexOf + 1);
+                    }
                 } else if (NODE_FIELD.equals(currentFieldName)) {
                     nodeId  = parser.text();
                 } else {
@@ -214,7 +221,7 @@ public class ShardSearchFailure implements ShardOperationFailedException {
         SearchShardTarget searchShardTarget = null;
         if (nodeId != null) {
             searchShardTarget = new SearchShardTarget(nodeId,
-                    new ShardId(new Index(indexName, IndexMetaData.INDEX_UUID_NA_VALUE), shardId), null, OriginalIndices.NONE);
+                    new ShardId(new Index(indexName, IndexMetaData.INDEX_UUID_NA_VALUE), shardId), clusterAlias, OriginalIndices.NONE);
         }
         return new ShardSearchFailure(exception, searchShardTarget);
     }

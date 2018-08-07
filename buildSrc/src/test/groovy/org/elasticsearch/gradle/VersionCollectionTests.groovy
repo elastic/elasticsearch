@@ -8,7 +8,7 @@ class VersionCollectionTests extends GradleUnitTestCase {
   String formatVersion(String version) {
     return " public static final Version V_${version.replaceAll("\\.", "_")} "
   }
-  def allVersions = [formatVersion('5.0.0'), formatVersion('5.0.0_alpha1'), formatVersion('5.0.0_alpha2'), formatVersion('5.0.0_beta1'),
+  List<String> allVersions = [formatVersion('5.0.0'), formatVersion('5.0.0_alpha1'), formatVersion('5.0.0_alpha2'), formatVersion('5.0.0_beta1'),
                      formatVersion('5.0.0_rc1'),formatVersion('5.0.0_rc2'),formatVersion('5.0.1'), formatVersion('5.0.2'),
                      formatVersion('5.1.1'), formatVersion('5.1.2'), formatVersion('5.2.0'), formatVersion('5.2.1'), formatVersion('6.0.0'),
                      formatVersion('6.0.1'), formatVersion('6.1.0'), formatVersion('6.1.1'), formatVersion('6.2.0'), formatVersion('6.3.0'),
@@ -223,7 +223,8 @@ class VersionCollectionTests extends GradleUnitTestCase {
                            Version.fromString("5.1.1"), Version.fromString("5.2.0"), Version.fromString("5.2.1"),
                            Version.fromString("5.3.0"), Version.fromString("5.3.1")]
 
-    assertTrue(wireCompatList.containsAll(vc.wireCompatible))
+    List<Version> compatible = vc.wireCompatible
+    assertTrue(wireCompatList.containsAll(compatible))
     assertTrue(vc.wireCompatible.containsAll(wireCompatList))
 
     assertEquals(vc.snapshotsIndexCompatible.size(), 1)

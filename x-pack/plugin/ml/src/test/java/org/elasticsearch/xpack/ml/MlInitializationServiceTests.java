@@ -18,7 +18,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.junit.Before;
 
@@ -99,7 +98,7 @@ public class MlInitializationServiceTests extends ESTestCase {
                         .localNodeId("_node_id")
                         .masterNodeId("_node_id"))
                 .metaData(MetaData.builder()
-                        .putCustom(MLMetadataField.TYPE, new MlMetadata.Builder().build()))
+                        .putCustom(MlMetadata.TYPE, new MlMetadata.Builder().build()))
                 .build();
         MlDailyMaintenanceService initialDailyMaintenanceService = mock(MlDailyMaintenanceService.class);
         initializationService.setDailyMaintenanceService(initialDailyMaintenanceService);

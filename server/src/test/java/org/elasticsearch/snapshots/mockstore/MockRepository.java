@@ -92,8 +92,6 @@ public class MockRepository extends FsRepository {
 
     private final long waitAfterUnblock;
 
-    private final MockBlobStore mockBlobStore;
-
     private final String randomPrefix;
 
     private volatile boolean blockOnInitialization;
@@ -128,7 +126,6 @@ public class MockRepository extends FsRepository {
         waitAfterUnblock = metadata.settings().getAsLong("wait_after_unblock", 0L);
         allowAtomicOperations = metadata.settings().getAsBoolean("allow_atomic_operations", true);
         logger.info("starting mock repository with random prefix {}", randomPrefix);
-        mockBlobStore = new MockBlobStore(super.blobStore());
     }
 
     @Override
@@ -163,8 +160,8 @@ public class MockRepository extends FsRepository {
     }
 
     @Override
-    protected BlobStore blobStore() {
-        return mockBlobStore;
+    protected BlobStore createBlobStore() throws Exception {
+        return new MockBlobStore(super.createBlobStore());
     }
 
     public synchronized void unblock() {
@@ -195,7 +192,7 @@ public class MockRepository extends FsRepository {
     }
 
     private synchronized boolean blockExecution() {
-        logger.debug("Blocking execution");
+        logger.debug("[{}] Blocking execution", metadata.name());
         boolean wasBlocked = false;
         try {
             while (blockOnDataFiles || blockOnControlFiles || blockOnInitialization || blockOnWriteIndexFile ||
@@ -207,7 +204,7 @@ public class MockRepository extends FsRepository {
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
         }
-        logger.debug("Unblocking execution");
+        logger.debug("[{}] Unblocking execution", metadata.name());
         return wasBlocked;
     }
 
@@ -285,7 +282,7 @@ public class MockRepository extends FsRepository {
             }
 
             private void blockExecutionAndMaybeWait(final String blobName) {
-                logger.info("blocking I/O operation for file [{}] at path [{}]", blobName, path());
+                logger.info("[{}] blocking I/O operation for file [{}] at path [{}]", metadata.name(), blobName, path());
                 if (blockExecution() && waitAfterUnblock > 0) {
                     try {
                         // Delay operation after unblocking

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
@@ -37,8 +38,8 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         cleanUp();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pulls/122")
     public void testTooManyPartitions() throws Exception {
+        assumeFalse("AwaitsFix(bugUrl = \"https://github.com/elastic/elasticsearch/issues/32033\")", Constants.WINDOWS);
         Detector.Builder detector = new Detector.Builder("count", null);
         detector.setPartitionFieldName("user");
 
@@ -63,7 +64,7 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         long timestamp = now - 8 * bucketSpan.seconds();
         List<String> data = new ArrayList<>();
         while (timestamp < now) {
-            for (int i = 0; i < 10000; i++) {
+            for (int i = 0; i < 11000; i++) {
                 // It's important that the values used here are either always represented in less than 16 UTF-8 bytes or
                 // always represented in more than 22 UTF-8 bytes.  Otherwise platform differences in when the small string
                 // optimisation is used will make the results of this test very different for the different platforms.
@@ -83,7 +84,6 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         assertThat(modelSizeStats.getMemoryStatus(), equalTo(ModelSizeStats.MemoryStatus.HARD_LIMIT));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pulls/122")
     public void testTooManyByFields() throws Exception {
         Detector.Builder detector = new Detector.Builder("count", null);
         detector.setByFieldName("user");
@@ -129,7 +129,6 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         assertThat(modelSizeStats.getMemoryStatus(), equalTo(ModelSizeStats.MemoryStatus.HARD_LIMIT));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pulls/122")
     public void testTooManyByAndOverFields() throws Exception {
         Detector.Builder detector = new Detector.Builder("count", null);
         detector.setByFieldName("department");
@@ -179,7 +178,6 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         assertThat(modelSizeStats.getMemoryStatus(), equalTo(ModelSizeStats.MemoryStatus.HARD_LIMIT));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pulls/122")
     public void testManyDistinctOverFields() throws Exception {
         Detector.Builder detector = new Detector.Builder("sum", "value");
         detector.setOverFieldName("user");

@@ -394,6 +394,10 @@ public final class InternalTestCluster extends TestCluster {
             builder.put(MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING.getKey(), new TimeValue(RandomNumbers.randomIntBetween(random, 10, 30), TimeUnit.SECONDS));
         }
 
+        // turning on the real memory circuit breaker leads to spurious test failures. As have no full control over heap usage, we
+        // turn it off for these tests.
+        builder.put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false);
+
         if (random.nextInt(10) == 0) {
             builder.put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING.getKey(), "noop");
             builder.put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_TYPE_SETTING.getKey(), "noop");

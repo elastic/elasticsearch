@@ -40,7 +40,7 @@ import java.util.List;
 import java.util.Map.Entry;
 import java.util.Set;
 
-import static org.elasticsearch.index.rankeval.EvaluationMetric.filterUnknownDocuments;
+import static org.elasticsearch.index.rankeval.EvaluationMetric.filterUnratedDocuments;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -114,13 +114,13 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         // the expected Prec@ for the first query is 4/6 and the expected Prec@ for the
         // second is 1/6, divided by 2 to get the average
         double expectedPrecision = (1.0 / 6.0 + 4.0 / 6.0) / 2.0;
-        assertEquals(expectedPrecision, response.getEvaluationResult(), Double.MIN_VALUE);
+        assertEquals(expectedPrecision, response.getMetricScore(), Double.MIN_VALUE);
         Set<Entry<String, EvalQueryQuality>> entrySet = response.getPartialResults().entrySet();
         assertEquals(2, entrySet.size());
         for (Entry<String, EvalQueryQuality> entry : entrySet) {
             EvalQueryQuality quality = entry.getValue();
             if (entry.getKey() == "amsterdam_query") {
-                assertEquals(2, filterUnknownDocuments(quality.getHitsAndRatings()).size());
+                assertEquals(2, filterUnratedDocuments(quality.getHitsAndRatings()).size());
                 List<RatedSearchHit> hitsAndRatings = quality.getHitsAndRatings();
                 assertEquals(6, hitsAndRatings.size());
                 for (RatedSearchHit hit : hitsAndRatings) {
@@ -133,7 +133,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
                 }
             }
             if (entry.getKey() == "berlin_query") {
-                assertEquals(5, filterUnknownDocuments(quality.getHitsAndRatings()).size());
+                assertEquals(5, filterUnratedDocuments(quality.getHitsAndRatings()).size());
                 List<RatedSearchHit> hitsAndRatings = quality.getHitsAndRatings();
                 assertEquals(6, hitsAndRatings.size());
                 for (RatedSearchHit hit : hitsAndRatings) {
@@ -157,7 +157,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         // if we look only at top 3 documente, the expected P@3 for the first query is
         // 2/3 and the expected Prec@ for the second is 1/3, divided by 2 to get the average
         expectedPrecision = (1.0 / 3.0 + 2.0 / 3.0) / 2.0;
-        assertEquals(expectedPrecision, response.getEvaluationResult(), Double.MIN_VALUE);
+        assertEquals(expectedPrecision, response.getMetricScore(), Double.MIN_VALUE);
     }
 
     /**
@@ -186,7 +186,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
                 new RankEvalRequest(task, new String[] { TEST_INDEX }));
 
         RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet();
-        assertEquals(DiscountedCumulativeGainTests.EXPECTED_DCG, response.getEvaluationResult(), 10E-14);
+        assertEquals(DiscountedCumulativeGainTests.EXPECTED_DCG, response.getMetricScore(), 10E-14);
 
         // test that a different window size k affects the result
         metric = new DiscountedCumulativeGain(false, null, 3);
@@ -195,7 +195,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest(task, new String[] { TEST_INDEX }));
 
         response = client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet();
-        assertEquals(12.39278926071437, response.getEvaluationResult(), 10E-14);
+        assertEquals(12.39278926071437, response.getMetricScore(), 10E-14);
     }
 
     public void testMRRRequest() {
@@ -218,7 +218,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         // the expected reciprocal rank for the berlin_query is 1/1
         // dividing by 2 to get the average
         double expectedMRR = (1.0 + 1.0 / 5.0) / 2.0;
-        assertEquals(expectedMRR, response.getEvaluationResult(), 0.0);
+        assertEquals(expectedMRR, response.getMetricScore(), 0.0);
 
         // test that a different window size k affects the result
         metric = new MeanReciprocalRank(1, 3);
@@ -231,7 +231,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         // the reciprocal rank for the berlin_query is 1/1
         // dividing by 2 to get the average
         expectedMRR = 1.0 / 2.0;
-        assertEquals(expectedMRR, response.getEvaluationResult(), 0.0);
+        assertEquals(expectedMRR, response.getMetricScore(), 0.0);
     }
 
     /**

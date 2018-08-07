@@ -94,6 +94,7 @@ public class SimpleMockNioTransportTests extends AbstractSimpleTransportTestCase
         return transportService;
     }
 
+    @Override
     protected int channelsPerNodeConnection() {
         return 3;
     }

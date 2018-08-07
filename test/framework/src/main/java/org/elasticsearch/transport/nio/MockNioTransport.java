@@ -134,15 +134,15 @@ public class MockNioTransport extends TcpTransport {
 
     @Override
     protected ConnectionProfile resolveConnectionProfile(ConnectionProfile connectionProfile) {
-        ConnectionProfile connectionProfile1 = resolveConnectionProfile(connectionProfile, defaultConnectionProfile);
-        if (connectionProfile1.getNumConnections() <= 3) {
-            return connectionProfile1;
+        ConnectionProfile resolvedProfile = resolveConnectionProfile(connectionProfile, defaultConnectionProfile);
+        if (resolvedProfile.getNumConnections() <= 3) {
+            return resolvedProfile;
         }
         ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
         Set<TransportRequestOptions.Type> allTypesWithConnection = new HashSet<>();
         Set<TransportRequestOptions.Type> allTypesWithoutConnection = new HashSet<>();
-        for (TransportRequestOptions.Type type :TransportRequestOptions.Type.values()) {
-            int numConnections = connectionProfile1.getNumConnectionsPerType(type);
+        for (TransportRequestOptions.Type type : TransportRequestOptions.Type.values()) {
+            int numConnections = resolvedProfile.getNumConnectionsPerType(type);
             if (numConnections > 0) {
                 allTypesWithConnection.add(type);
             } else {
@@ -155,8 +155,8 @@ public class MockNioTransport extends TcpTransport {
         if (allTypesWithoutConnection.isEmpty() == false) {
             builder.addConnections(0, allTypesWithoutConnection.toArray(new TransportRequestOptions.Type[0]));
         }
-        builder.setHandshakeTimeout(connectionProfile1.getHandshakeTimeout());
-        builder.setConnectTimeout(connectionProfile1.getConnectTimeout());
+        builder.setHandshakeTimeout(resolvedProfile.getHandshakeTimeout());
+        builder.setConnectTimeout(resolvedProfile.getConnectTimeout());
         return builder.build();
     }
 

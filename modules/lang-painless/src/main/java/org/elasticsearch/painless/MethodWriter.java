@@ -56,6 +56,7 @@ import static org.elasticsearch.painless.WriterConstants.DEF_TO_SHORT_EXPLICIT;
 import static org.elasticsearch.painless.WriterConstants.DEF_TO_SHORT_IMPLICIT;
 import static org.elasticsearch.painless.WriterConstants.DEF_UTIL_TYPE;
 import static org.elasticsearch.painless.WriterConstants.INDY_STRING_CONCAT_BOOTSTRAP_HANDLE;
+import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
 import static org.elasticsearch.painless.WriterConstants.MAX_INDY_STRING_CONCAT_ARGS;
 import static org.elasticsearch.painless.WriterConstants.PAINLESS_ERROR_TYPE;
 import static org.elasticsearch.painless.WriterConstants.STRINGBUILDER_APPEND_BOOLEAN;
@@ -438,5 +439,19 @@ public final class MethodWriter extends GeneratorAdapter {
         } else {
             invokeVirtual(type, method);
         }
+    }
+
+    public void invokeLambdaCall(FunctionRef functionRef) {
+        invokeDynamic(
+                functionRef.interfaceMethodName,
+                functionRef.factoryMethodType.toMethodDescriptorString(),
+                LAMBDA_BOOTSTRAP_HANDLE,
+                Type.getMethodType(functionRef.interfaceMethodType.toMethodDescriptorString()),
+                functionRef.delegateClassName,
+                functionRef.delegateInvokeType,
+                functionRef.delegateMethodName,
+                Type.getMethodType(functionRef.delegateMethodType.toMethodDescriptorString()),
+                functionRef.isDelegateInterface ? 1 : 0
+        );
     }
 }

@@ -760,8 +760,7 @@ public class CoordinationStateTests extends ESTestCase {
     }
 
     public void testSafety() {
-        Cluster cluster = new Cluster(randomIntBetween(1, 5));
-        cluster.runRandomly(10000);
+        new Cluster(randomIntBetween(1, 5)).runRandomly();
     }
 
     public static CoordinationState createCoordinationState(PersistedState storage, DiscoveryNode localNode) {
@@ -937,7 +936,8 @@ public class CoordinationStateTests extends ESTestCase {
             }
         }
 
-        void runRandomly(int iterations) {
+        void runRandomly() {
+            final int iterations = 10000;
             final long maxTerm = 4;
             long nextTerm = 1;
             for (int i = 0; i < iterations; i++) {
@@ -975,7 +975,7 @@ public class CoordinationStateTests extends ESTestCase {
                 }
             }
 
-            // check system invariants
+            // check system invariants. It's sufficient to do this at the end as these invariants are monotonic.
             invariant();
         }
 

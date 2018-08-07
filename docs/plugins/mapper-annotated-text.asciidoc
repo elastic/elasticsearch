@@ -37,7 +37,76 @@ PUT my_index
 
 Such a mapping would allow marked-up text eg wikipedia articles to be indexed as both text
 and structured tokens. The annotations use a markdown-like syntax using URL encoding of
-either untyped values or typed key=value pairs:
+either untyped values or typed key=value pairs.
+
+
+We can use the "_analyze" api to test how an example annotation would be stored as tokens
+in the search index:
+
+
+[source,js]
+--------------------------
+GET my_index/_analyze
+{
+  "field": "my_field", 
+  "text":"Investors in [Apple](Apple+Inc.) rejoiced."
+}
+--------------------------
+// NOTCONSOLE
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+  "tokens": [
+    {
+      "token": "investors",
+      "start_offset": 0,
+      "end_offset": 9,
+      "type": "<ALPHANUM>",
+      "position": 0
+    },
+    {
+      "token": "in",
+      "start_offset": 10,
+      "end_offset": 12,
+      "type": "<ALPHANUM>",
+      "position": 1
+    },
+    {
+      "token": "Apple Inc.", <1> 
+      "start_offset": 13,
+      "end_offset": 18,
+      "type": "annotation",
+      "position": 2
+    },
+    {
+      "token": "apple",
+      "start_offset": 13,
+      "end_offset": 18,
+      "type": "<ALPHANUM>",
+      "position": 2
+    },
+    {
+      "token": "rejoiced",
+      "start_offset": 19,
+      "end_offset": 27,
+      "type": "<ALPHANUM>",
+      "position": 3
+    }
+  ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+<1> Note the whole annotation token `Apple Inc.` is placed, unchanged as a single token in
+the token stream and at the same position (position 2) as the text token (`apple`) it annotates.
+
+
+We can now perform searches for annotations using regular `term` queries that don't tokenize
+the provided search values. Annotations are a more precise way of matching as can be seen 
+in this example where a search for `Donald Trump` will not match `Donald Trump Jr` :
 
 [source,js]
 --------------------------
@@ -52,6 +121,7 @@ PUT my_index/my_type/2
   "my_field": "[Donald Trump](person=Donald+Trump&role=President) flew to Singapore"<2>
 }
 
+# Example search
 GET my_index/_search
 {
   "query": {

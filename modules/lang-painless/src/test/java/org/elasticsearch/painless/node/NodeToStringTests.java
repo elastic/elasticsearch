@@ -404,7 +404,7 @@ public class NodeToStringTests extends ESTestCase {
 
     public void testPSubCallInvoke() {
         Location l = new Location(getTestName(), 0);
-        PainlessClass c = painlessLookup.getPainlessStructFromJavaClass(Integer.class);
+        PainlessClass c = painlessLookup.lookupPainlessClass(Integer.class);
         PainlessMethod m = c.methods.get(PainlessLookupUtility.buildPainlessMethodKey("toString", 0));
         PSubCallInvoke node = new PSubCallInvoke(l, m, null, emptyList());
         node.prefix = new EVariable(l, "a");
@@ -459,7 +459,7 @@ public class NodeToStringTests extends ESTestCase {
 
     public void testPSubField() {
         Location l = new Location(getTestName(), 0);
-        PainlessClass s = painlessLookup.getPainlessStructFromJavaClass(Boolean.class);
+        PainlessClass s = painlessLookup.lookupPainlessClass(Boolean.class);
         PainlessField f = s.staticFields.get("TRUE");
         PSubField node = new PSubField(l, f);
         node.prefix = new EStatic(l, "Boolean");
@@ -497,7 +497,7 @@ public class NodeToStringTests extends ESTestCase {
 
     public void testPSubShortcut() {
         Location l = new Location(getTestName(), 0);
-        PainlessClass s = painlessLookup.getPainlessStructFromJavaClass(FeatureTest.class);
+        PainlessClass s = painlessLookup.lookupPainlessClass(FeatureTest.class);
         PainlessMethod getter = s.methods.get(PainlessLookupUtility.buildPainlessMethodKey("getX", 0));
         PainlessMethod setter = s.methods.get(PainlessLookupUtility.buildPainlessMethodKey("setX", 1));
         PSubShortcut node = new PSubShortcut(l, "x", FeatureTest.class.getName(), getter, setter);

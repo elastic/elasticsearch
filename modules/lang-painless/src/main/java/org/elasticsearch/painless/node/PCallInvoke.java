@@ -23,8 +23,6 @@ import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.lookup.PainlessClass;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
 
@@ -66,26 +64,16 @@ public final class PCallInvoke extends AExpression {
         prefix.expected = prefix.actual;
         prefix = prefix.cast(locals);
 
-        if (prefix.actual.isArray()) {
-            throw createError(new IllegalArgumentException("Illegal call [" + name + "] on array type."));
-        }
-
-        PainlessClass struct = locals.getPainlessLookup().getPainlessStructFromJavaClass(prefix.actual);
-
-        if (prefix.actual.isPrimitive()) {
-            struct = locals.getPainlessLookup().getPainlessStructFromJavaClass(PainlessLookupUtility.typeToBoxedType(prefix.actual));
-        }
-
-        String methodKey = PainlessLookupUtility.buildPainlessMethodKey(name, arguments.size());
-        PainlessMethod method = prefix instanceof EStatic ? struct.staticMethods.get(methodKey) : struct.methods.get(methodKey);
-
-        if (method != null) {
-            sub = new PSubCallInvoke(location, method, prefix.actual, arguments);
-        } else if (prefix.actual == def.class) {
+        if (prefix.actual == def.class) {
             sub = new PSubDefCall(location, name, arguments);
         } else {
-            throw createError(new IllegalArgumentException("Unknown call [" + name + "] with [" + arguments.size() + "] arguments " +
-                    "on type [" + PainlessLookupUtility.typeToCanonicalTypeName(prefix.actual) + "]."));
+            try {
+                PainlessMethod method =
+                        locals.getPainlessLookup().lookupPainlessMethod(prefix.actual, prefix instanceof EStatic, name, arguments.size());
+                sub = new PSubCallInvoke(location, method, prefix.actual, arguments);
+            } catch (IllegalArgumentException iae) {
+                throw createError(iae);
+            }
         }
 
         if (nullSafe) {

@@ -588,7 +588,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      * takes a {@link ConnectionProfile} that have been passed as a parameter to the public methods
      * and resolves it to a fully specified (i.e., no nulls) profile
      */
-    static ConnectionProfile resolveConnectionProfile(@Nullable ConnectionProfile connectionProfile,
+    protected static ConnectionProfile resolveConnectionProfile(@Nullable ConnectionProfile connectionProfile,
                                                       ConnectionProfile defaultConnectionProfile) {
         Objects.requireNonNull(defaultConnectionProfile);
         if (connectionProfile == null) {

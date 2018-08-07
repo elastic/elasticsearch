@@ -102,14 +102,8 @@ public class ReplicationTrackerTests extends ESTestCase {
     }
 
     private void updateLocalCheckpoint(final ReplicationTracker tracker, final String allocationId, final long localCheckpoint) {
-        final long globalCheckpoint = tracker.getGlobalCheckpoint();
-        updatedGlobalCheckpoint.set(globalCheckpoint);
         tracker.updateLocalCheckpoint(allocationId, localCheckpoint);
-        if (globalCheckpoint == tracker.getGlobalCheckpoint()) {
-            assertThat(updatedGlobalCheckpoint.get(), equalTo(globalCheckpoint));
-        } else {
-            assertThat(updatedGlobalCheckpoint.get(), equalTo(tracker.getGlobalCheckpoint()));
-        }
+        assertThat(updatedGlobalCheckpoint.get(), equalTo(tracker.getGlobalCheckpoint()));
     }
     
     public void testGlobalCheckpointUpdate() {
@@ -433,7 +427,7 @@ public class ReplicationTrackerTests extends ESTestCase {
         thread.join();
     }
     
-    private AtomicLong updatedGlobalCheckpoint = new AtomicLong();
+    private AtomicLong updatedGlobalCheckpoint = new AtomicLong(UNASSIGNED_SEQ_NO);
 
     private ReplicationTracker newTracker(final AllocationId allocationId) {
         return new ReplicationTracker(

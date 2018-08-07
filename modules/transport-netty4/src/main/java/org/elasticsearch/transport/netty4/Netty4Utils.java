@@ -137,30 +137,6 @@ public class Netty4Utils {
         return new ByteBufBytesReference(buffer, size);
     }
 
-    public static void closeChannels(final Collection<Channel> channels) throws IOException {
-        IOException closingExceptions = null;
-        final List<ChannelFuture> futures = new ArrayList<>();
-        for (final Channel channel : channels) {
-            try {
-                if (channel != null && channel.isOpen()) {
-                    futures.add(channel.close());
-                }
-            } catch (Exception e) {
-                if (closingExceptions == null) {
-                    closingExceptions = new IOException("failed to close channels");
-                }
-                closingExceptions.addSuppressed(e);
-            }
-        }
-        for (final ChannelFuture future : futures) {
-            future.awaitUninterruptibly();
-        }
-
-        if (closingExceptions != null) {
-            throw closingExceptions;
-        }
-    }
-
     /**
      * If the specified cause is an unrecoverable error, this method will rethrow the cause on a separate thread so that it can not be
      * caught and bubbles up to the uncaught exception handler.

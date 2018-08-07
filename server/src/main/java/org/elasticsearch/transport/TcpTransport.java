@@ -1303,6 +1303,33 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         return new CompositeBytesReference(header, messageBody, zeroCopyBuffer);
     }
 
+    public int consumeReadsMultiple(TcpChannel channel, BytesReference bytesReference) throws IOException {
+        BytesReference refToConsume = bytesReference;
+        int bytesConsumed = 0;
+        boolean continueConsuming = true;
+        while (continueConsuming && refToConsume.length() > 0) {
+            BytesReference message = decodeFrame(bytesReference);
+
+            if (message == null) {
+                continueConsuming = false;
+            } else {
+                int messageLengthWithHeader = BYTES_NEEDED_FOR_MESSAGE_SIZE + message.length();
+                refToConsume = refToConsume.slice(messageLengthWithHeader, refToConsume.length() - messageLengthWithHeader);
+                bytesConsumed += messageLengthWithHeader;
+                // Message length of 0 is a ping and does not need to be handled.
+                if (message.length() != 0) {
+                    try {
+                        messageReceived(message, channel);
+                    } catch (Exception e) {
+                        onException(channel, e);
+                    }
+                }
+            }
+        }
+
+        return bytesConsumed;
+    }
+
     /**
      * Consumes bytes that are available from network reads. This method returns the number of bytes consumed
      * in this call.
@@ -1344,7 +1371,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      * @throws IllegalArgumentException if the message length is greater that the maximum allowed frame size.
      *                                  This is dependent on the available memory.
      */
-    public static BytesReference decodeFrame(BytesReference networkBytes) throws IOException {
+    static BytesReference decodeFrame(BytesReference networkBytes) throws IOException {
         int messageLength = readMessageLength(networkBytes);
         if (messageLength == -1) {
             return null;

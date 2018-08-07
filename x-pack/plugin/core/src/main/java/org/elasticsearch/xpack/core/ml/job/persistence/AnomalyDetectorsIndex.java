@@ -62,8 +62,8 @@ public final class AnomalyDetectorsIndex {
      * is stored
      * @return The index name
      */
-    public static String jobConfigIndexName() {
-        return AnomalyDetectorsIndexFields.JOB_CONFIG_INDEX;
+    public static String configIndexName() {
+        return AnomalyDetectorsIndexFields.CONFIG_INDEX;
     }
 
 }

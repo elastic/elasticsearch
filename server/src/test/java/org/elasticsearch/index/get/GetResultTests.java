@@ -90,7 +90,6 @@ public class GetResultTests extends ESTestCase {
         XContentType xContentType = randomFrom(XContentType.values());
         Tuple<GetResult, GetResult> tuple = randomGetResult(xContentType);
         GetResult getResult = tuple.v1();
-
         // We don't expect to retrieve the index/type/id of the GetResult because they are not rendered
         // by the toXContentEmbedded method.
         GetResult expectedGetResult = new GetResult(null, null, null, -1,
@@ -106,7 +105,6 @@ public class GetResultTests extends ESTestCase {
             parsedEmbeddedGetResult = GetResult.fromXContentEmbedded(parser);
             assertNull(parser.nextToken());
         }
-
         assertEquals(expectedGetResult, parsedEmbeddedGetResult);
         //print the parsed object out and test that the output is the same as the original output
         BytesReference finalBytes = toXContentEmbedded(parsedEmbeddedGetResult, xContentType, humanReadable);
@@ -203,16 +201,17 @@ public class GetResultTests extends ESTestCase {
         return Tuple.tuple(getResult, expectedGetResult);
     }
 
-    private static Tuple<Map<String, DocumentField>,Map<String, DocumentField>> randomDocumentFields(XContentType xContentType) {
+    public static Tuple<Map<String, DocumentField>,Map<String, DocumentField>> randomDocumentFields(XContentType xContentType) {
         int numFields = randomIntBetween(2, 10);
         Map<String, DocumentField> fields = new HashMap<>(numFields);
         Map<String, DocumentField> expectedFields = new HashMap<>(numFields);
-        for (int i = 0; i < numFields; i++) {
+        while (fields.size() < numFields) {
             Tuple<DocumentField, DocumentField> tuple = randomDocumentField(xContentType);
             DocumentField getField = tuple.v1();
             DocumentField expectedGetField = tuple.v2();
-            fields.put(getField.getName(), getField);
-            expectedFields.put(expectedGetField.getName(), expectedGetField);
+            if (fields.putIfAbsent(getField.getName(), getField) == null) {
+                assertNull(expectedFields.putIfAbsent(expectedGetField.getName(), expectedGetField));
+            }
         }
         return Tuple.tuple(fields, expectedFields);
     }

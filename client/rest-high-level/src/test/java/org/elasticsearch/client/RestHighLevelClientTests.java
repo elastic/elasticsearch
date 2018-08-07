@@ -20,6 +20,7 @@
 package org.elasticsearch.client;
 
 import com.fasterxml.jackson.core.JsonParseException;
+
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
@@ -60,6 +61,7 @@ import org.elasticsearch.common.xcontent.cbor.CborXContent;
 import org.elasticsearch.common.xcontent.smile.SmileXContent;
 import org.elasticsearch.index.rankeval.DiscountedCumulativeGain;
 import org.elasticsearch.index.rankeval.EvaluationMetric;
+import org.elasticsearch.index.rankeval.ExpectedReciprocalRank;
 import org.elasticsearch.index.rankeval.MeanReciprocalRank;
 import org.elasticsearch.index.rankeval.MetricDetail;
 import org.elasticsearch.index.rankeval.PrecisionAtK;
@@ -616,7 +618,7 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     public void testProvidedNamedXContents() {
         List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getProvidedNamedXContents();
-        assertEquals(8, namedXContents.size());
+        assertEquals(10, namedXContents.size());
         Map<Class<?>, Integer> categories = new HashMap<>();
         List<String> names = new ArrayList<>();
         for (NamedXContentRegistry.Entry namedXContent : namedXContents) {
@@ -630,14 +632,16 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertEquals(Integer.valueOf(2), categories.get(Aggregation.class));
         assertTrue(names.contains(ChildrenAggregationBuilder.NAME));
         assertTrue(names.contains(MatrixStatsAggregationBuilder.NAME));
-        assertEquals(Integer.valueOf(3), categories.get(EvaluationMetric.class));
+        assertEquals(Integer.valueOf(4), categories.get(EvaluationMetric.class));
         assertTrue(names.contains(PrecisionAtK.NAME));
         assertTrue(names.contains(DiscountedCumulativeGain.NAME));
         assertTrue(names.contains(MeanReciprocalRank.NAME));
-        assertEquals(Integer.valueOf(3), categories.get(MetricDetail.class));
+        assertTrue(names.contains(ExpectedReciprocalRank.NAME));
+        assertEquals(Integer.valueOf(4), categories.get(MetricDetail.class));
         assertTrue(names.contains(PrecisionAtK.NAME));
         assertTrue(names.contains(MeanReciprocalRank.NAME));
         assertTrue(names.contains(DiscountedCumulativeGain.NAME));
+        assertTrue(names.contains(ExpectedReciprocalRank.NAME));
     }
 
     public void testApiNamingConventions() throws Exception {
@@ -661,7 +665,6 @@ public class RestHighLevelClientTests extends ESTestCase {
             "reindex_rethrottle",
             "render_search_template",
             "scripts_painless_execute",
-            "snapshot.restore",
             "tasks.get",
             "termvectors",
             "update_by_query"
@@ -724,8 +727,8 @@ public class RestHighLevelClientTests extends ESTestCase {
                 assertEquals(0, method.getExceptionTypes().length);
                 assertEquals(3, method.getParameterTypes().length);
                 assertThat(method.getParameterTypes()[0].getSimpleName(), endsWith("Request"));
-                assertThat(method.getParameterTypes()[1].getName(), equalTo(RequestOptions.class.getName()));
-                assertThat(method.getParameterTypes()[2].getName(), equalTo(ActionListener.class.getName()));
+                assertThat(method.getParameterTypes()[1], equalTo(RequestOptions.class));
+                assertThat(method.getParameterTypes()[2], equalTo(ActionListener.class));
             } else {
                 //A few methods return a boolean rather than a response object
                 if (apiName.equals("ping") || apiName.contains("exist")) {
@@ -738,18 +741,25 @@ public class RestHighLevelClientTests extends ESTestCase {
                 //a few methods don't accept a request object as argument
                 if (apiName.equals("ping") || apiName.equals("info")) {
                     assertEquals(1, method.getParameterTypes().length);
-                    assertThat(method.getParameterTypes()[0].getName(), equalTo(RequestOptions.class.getName()));
+                    assertThat(method.getParameterTypes()[0], equalTo(RequestOptions.class));
                 } else {
                     assertEquals(apiName, 2, method.getParameterTypes().length);
                     assertThat(method.getParameterTypes()[0].getSimpleName(), endsWith("Request"));
-                    assertThat(method.getParameterTypes()[1].getName(), equalTo(RequestOptions.class.getName()));
+                    assertThat(method.getParameterTypes()[1], equalTo(RequestOptions.class));
                 }
 
                 boolean remove = apiSpec.remove(apiName);
-                if (remove == false && deprecatedMethods.contains(apiName) == false) {
-                    //TODO xpack api are currently ignored, we need to load xpack yaml spec too
-                    if (apiName.startsWith("xpack.") == false) {
-                        apiNotFound.add(apiName);
+                if (remove == false) {
+                    if (deprecatedMethods.contains(apiName)) {
+                        assertTrue("method [" + method.getName() + "], api [" + apiName + "] should be deprecated",
+                            method.isAnnotationPresent(Deprecated.class));
+                    } else {
+                        //TODO xpack api are currently ignored, we need to load xpack yaml spec too
+                        if (apiName.startsWith("xpack.") == false &&
+                            apiName.startsWith("license.") == false &&
+                            apiName.startsWith("watcher.") == false) {
+                            apiNotFound.add(apiName);
+                        }
                     }
                 }
             }

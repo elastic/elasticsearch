@@ -129,7 +129,8 @@ public class SuggestionEntryTests extends ESTestCase {
     }
 
     public void testToXContent() throws IOException {
-        PhraseSuggestion.Entry.Option phraseOption = new PhraseSuggestion.Entry.Option(new Text("someText"), new Text("somethingHighlighted"),
+        PhraseSuggestion.Entry.Option phraseOption = new PhraseSuggestion.Entry.Option(new Text("someText"),
+                new Text("somethingHighlighted"),
             1.3f, true);
         PhraseSuggestion.Entry phraseEntry = new PhraseSuggestion.Entry(new Text("entryText"), 42, 313);
         phraseEntry.addOption(phraseOption);

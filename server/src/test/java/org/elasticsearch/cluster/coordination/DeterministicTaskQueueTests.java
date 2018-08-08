@@ -30,6 +30,7 @@ import java.util.Random;
 import java.util.concurrent.ExecutorService;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.elasticsearch.threadpool.ThreadPool.Names.GENERIC;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
@@ -262,24 +263,24 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         assertThat(strings, containsInAnyOrder("foo", "bar"));
     }
 
-    public void testFutureExecutorSchedulesTasks() {
+    public void testThreadPoolSchedulesFutureTasks() {
         final DeterministicTaskQueue taskQueue = newTaskQueue();
         advanceToRandomTime(taskQueue);
         final long startTime = taskQueue.getCurrentTimeMillis();
 
         final List<String> strings = new ArrayList<>(5);
 
-        final FutureExecutor futureExecutor = taskQueue.getFutureExecutor();
+        final ThreadPool threadPool = taskQueue.getThreadPool();
         final long delayMillis = randomLongBetween(1, 100);
 
-        futureExecutor.schedule(() -> strings.add("deferred"), TimeValue.timeValueMillis(delayMillis));
+        threadPool.schedule(TimeValue.timeValueMillis(delayMillis), GENERIC, () -> strings.add("deferred"));
         assertFalse(taskQueue.hasRunnableTasks());
         assertTrue(taskQueue.hasDeferredTasks());
 
-        futureExecutor.schedule(() -> strings.add("runnable"), TimeValue.ZERO);
+        threadPool.schedule(TimeValue.ZERO, GENERIC, () -> strings.add("runnable"));
         assertTrue(taskQueue.hasRunnableTasks());
 
-        futureExecutor.schedule(() -> strings.add("also runnable"), TimeValue.MINUS_ONE);
+        threadPool.schedule(TimeValue.MINUS_ONE, GENERIC, () -> strings.add("also runnable"));
 
         taskQueue.runAllTasks();
 
@@ -289,8 +290,8 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         final long delayMillis1 = randomLongBetween(2, 100);
         final long delayMillis2 = randomLongBetween(1, delayMillis1 - 1);
 
-        futureExecutor.schedule(() -> strings.add("further deferred"), TimeValue.timeValueMillis(delayMillis1));
-        futureExecutor.schedule(() -> strings.add("not quite so deferred"), TimeValue.timeValueMillis(delayMillis2));
+        threadPool.schedule(TimeValue.timeValueMillis(delayMillis1), GENERIC, () -> strings.add("further deferred"));
+        threadPool.schedule(TimeValue.timeValueMillis(delayMillis2), GENERIC, () -> strings.add("not quite so deferred"));
 
         assertFalse(taskQueue.hasRunnableTasks());
         assertTrue(taskQueue.hasDeferredTasks());

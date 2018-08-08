@@ -20,19 +20,20 @@
 package org.elasticsearch.common.time;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.collect.Tuple;
 
 import java.time.DateTimeException;
+import java.time.DayOfWeek;
 import java.time.Instant;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
+import java.time.temporal.TemporalAccessor;
+import java.time.temporal.TemporalAdjusters;
 import java.time.temporal.TemporalField;
 import java.time.temporal.TemporalQueries;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.LongSupplier;
@@ -88,7 +89,8 @@ public class DateMathParser {
         return parseMath(mathString, time, roundUp, timeZone);
     }
 
-    private long parseMath(String mathString, long time, boolean roundUp, ZoneId timeZone) throws ElasticsearchParseException {
+    private long parseMath(final String mathString, final long time, final boolean roundUp,
+                           ZoneId timeZone) throws ElasticsearchParseException {
         if (timeZone == null) {
             timeZone = ZoneOffset.UTC;
         }
@@ -134,100 +136,83 @@ public class DateMathParser {
                 }
             }
             char unit = mathString.charAt(i++);
-            ChronoField propertyToAdd = null;
-            List<Tuple<ChronoField, Integer>> propertiesToRound = new ArrayList<>();
             switch (unit) {
                 case 'y':
                     if (round) {
-                        // TODO this used to be year of century, lets see if this works
-                        propertyToAdd = ChronoField.YEAR;
-                        propertiesToRound.add(Tuple.tuple(ChronoField.MONTH_OF_YEAR, 1));
-                        propertiesToRound.add(Tuple.tuple(ChronoField.DAY_OF_MONTH, 1));
-                        propertiesToRound.add(Tuple.tuple(ChronoField.HOUR_OF_DAY, 0));
-                        propertiesToRound.add(Tuple.tuple(ChronoField.MINUTE_OF_HOUR, 0));
-                        propertiesToRound.add(Tuple.tuple(ChronoField.SECOND_OF_MINUTE, 0));
-                        propertiesToRound.add(Tuple.tuple(ChronoField.NANO_OF_SECOND, 0));
+                        dateTime = dateTime.withDayOfYear(1).with(LocalTime.MIN);
                     } else {
                         dateTime = dateTime.plusYears(sign * num);
+                    }
+                    if (roundUp) {
+                        dateTime = dateTime.plusYears(1);
                     }
                     break;
                 case 'M':
                     if (round) {
-                        propertyToAdd = ChronoField.MONTH_OF_YEAR;
-                        propertiesToRound.add(Tuple.tuple(ChronoField.DAY_OF_MONTH, 1));
-                        propertiesToRound.add(Tuple.tuple(ChronoField.HOUR_OF_DAY, 0));
-                        propertiesToRound.add(Tuple.tuple(ChronoField.MINUTE_OF_HOUR, 0));
-                        propertiesToRound.add(Tuple.tuple(ChronoField.SECOND_OF_MINUTE, 0));
-                        propertiesToRound.add(Tuple.tuple(ChronoField.NANO_OF_SECOND, 0));
+                        dateTime = dateTime.withDayOfMonth(1).with(LocalTime.MIN);
                     } else {
                         dateTime = dateTime.plusMonths(sign * num);
+                    }
+                    if (roundUp) {
+                        dateTime = dateTime.plusMonths(1);
                     }
                     break;
                 case 'w':
                     if (round) {
-                        propertyToAdd = ChronoField.ALIGNED_WEEK_OF_YEAR;
-                        propertiesToRound.add(Tuple.tuple(ChronoField.DAY_OF_WEEK, 1));
-                        propertiesToRound.add(Tuple.tuple(ChronoField.HOUR_OF_DAY, 0));
-                        propertiesToRound.add(Tuple.tuple(ChronoField.MINUTE_OF_HOUR, 0));
-                        propertiesToRound.add(Tuple.tuple(ChronoField.SECOND_OF_MINUTE, 0));
-                        propertiesToRound.add(Tuple.tuple(ChronoField.NANO_OF_SECOND, 0));
+                        dateTime = dateTime.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).with(LocalTime.MIN);
                     } else {
                         dateTime = dateTime.plusWeeks(sign * num);
+                    }
+                    if (roundUp) {
+                        dateTime = dateTime.plusWeeks(1);
                     }
                     break;
                 case 'd':
                     if (round) {
-                        propertyToAdd = ChronoField.DAY_OF_MONTH;
-                        propertiesToRound.add(Tuple.tuple(ChronoField.HOUR_OF_DAY, 0));
-                        propertiesToRound.add(Tuple.tuple(ChronoField.MINUTE_OF_HOUR, 0));
-                        propertiesToRound.add(Tuple.tuple(ChronoField.SECOND_OF_MINUTE, 0));
-                        propertiesToRound.add(Tuple.tuple(ChronoField.NANO_OF_SECOND, 0));
+                        dateTime = dateTime.with(LocalTime.MIN);
                     } else {
                         dateTime = dateTime.plusDays(sign * num);
+                    }
+                    if (roundUp) {
+                        dateTime = dateTime.plusDays(1);
                     }
                     break;
                 case 'h':
                 case 'H':
                     if (round) {
-                        propertyToAdd = ChronoField.HOUR_OF_DAY;
-                        propertiesToRound.add(Tuple.tuple(ChronoField.MINUTE_OF_HOUR, 0));
-                        propertiesToRound.add(Tuple.tuple(ChronoField.SECOND_OF_MINUTE, 0));
-                        propertiesToRound.add(Tuple.tuple(ChronoField.NANO_OF_SECOND, 0));
+                        dateTime = dateTime.withMinute(0).withSecond(0).withNano(0);
                     } else {
                         dateTime = dateTime.plusHours(sign * num);
+                    }
+                    if (roundUp) {
+                        dateTime = dateTime.plusHours(1);
                     }
                     break;
                 case 'm':
                     if (round) {
-                        propertyToAdd = ChronoField.MINUTE_OF_HOUR;
-                        propertiesToRound.add(Tuple.tuple(ChronoField.SECOND_OF_MINUTE, 0));
-                        propertiesToRound.add(Tuple.tuple(ChronoField.NANO_OF_SECOND, 0));
+                        dateTime = dateTime.withSecond(0).withNano(0);
                     } else {
                         dateTime = dateTime.plusMinutes(sign * num);
+                    }
+                    if (roundUp) {
+                        dateTime = dateTime.plusMinutes(1);
                     }
                     break;
                 case 's':
                     if (round) {
-                        propertyToAdd = ChronoField.SECOND_OF_MINUTE;
-                        propertiesToRound.add(Tuple.tuple(ChronoField.NANO_OF_SECOND, 0));
+                        dateTime = dateTime.withNano(0);
                     } else {
                         dateTime = dateTime.plusSeconds(sign * num);
+                    }
+                    if (roundUp) {
+                        dateTime = dateTime.plusSeconds(1);
                     }
                     break;
                 default:
                     throw new ElasticsearchParseException("unit [{}] not supported for date math [{}]", unit, mathString);
             }
             if (roundUp) {
-                // we want to go up to the next whole value, even if we are already on a rounded value
-                dateTime = dateTime.plus(1, propertyToAdd.getBaseUnit());
-                for (Tuple<ChronoField, Integer> tuple : propertiesToRound) {
-                    dateTime = dateTime.with(tuple.v1(), tuple.v2());
-                }
                 dateTime = dateTime.minus(1, ChronoField.MILLI_OF_SECOND.getBaseUnit());
-            } else {
-                for (Tuple<ChronoField, Integer> tuple : propertiesToRound) {
-                    dateTime = dateTime.with(tuple.v1(), tuple.v2());
-                }
             }
         }
         return dateTime.toInstant().toEpochMilli();
@@ -239,17 +224,13 @@ public class DateMathParser {
             if (timeZone == null) {
                 return DateFormatters.toZonedDateTime(formatter.parse(value)).toInstant().toEpochMilli();
             } else {
-                // if a timezone is specified in the formatter, then that timezone is used, no matter if one was specified
-                // this requires us to parse the the twice actually, which is pretty inefficient
-                // FIXME this currently parses dates twice to extract the timezone
-                ZoneId zoneId = TemporalQueries.zone().queryFrom(formatter.parse(value));
+                TemporalAccessor accessor = formatter.parse(value);
+                ZoneId zoneId = TemporalQueries.zone().queryFrom(accessor);
                 if (zoneId != null) {
                     timeZone = zoneId;
                 }
 
-                return DateFormatters.toZonedDateTime(formatter.withZone(timeZone).parse(value))
-                    .withZoneSameLocal(timeZone)
-                    .toInstant().toEpochMilli();
+                return DateFormatters.toZonedDateTime(accessor).withZoneSameLocal(timeZone).toInstant().toEpochMilli();
             }
         } catch (IllegalArgumentException | DateTimeException e) {
             throw new ElasticsearchParseException("failed to parse date field [{}]: [{}]", e, value, e.getMessage());

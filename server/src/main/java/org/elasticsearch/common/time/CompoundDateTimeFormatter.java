@@ -35,7 +35,6 @@ import java.util.function.Consumer;
  */
 public class CompoundDateTimeFormatter {
 
-    private static final Consumer<DateTimeFormatter[]> NOOP_VALIDATOR = (parsers) -> {};
     private static final Consumer<DateTimeFormatter[]> SAME_TIME_ZONE_VALIDATOR = (parsers) -> {
         long distinctZones = Arrays.stream(parsers).map(DateTimeFormatter::getZone).distinct().count();
         if (distinctZones > 1) {
@@ -45,21 +44,14 @@ public class CompoundDateTimeFormatter {
 
     final DateTimeFormatter printer;
     final DateTimeFormatter[] parsers;
-    private final Consumer<DateTimeFormatter[]> validator;
 
-    CompoundDateTimeFormatter(Consumer<DateTimeFormatter[]> validator, DateTimeFormatter ... parsers) {
+    CompoundDateTimeFormatter(DateTimeFormatter ... parsers) {
         if (parsers.length == 0) {
             throw new IllegalArgumentException("at least one date time formatter is required");
         }
-        validator.accept(parsers);
         SAME_TIME_ZONE_VALIDATOR.accept(parsers);
         this.printer = parsers[0];
         this.parsers = parsers;
-        this.validator = validator;
-    }
-
-    CompoundDateTimeFormatter(DateTimeFormatter ... parsers) {
-        this(NOOP_VALIDATOR, parsers);
     }
 
     public TemporalAccessor parse(String input) {
@@ -97,7 +89,7 @@ public class CompoundDateTimeFormatter {
             parsersWithZone[i] = parsers[i].withZone(zoneId);
         }
 
-        return new CompoundDateTimeFormatter(validator, parsersWithZone);
+        return new CompoundDateTimeFormatter(parsersWithZone);
     }
 
     /**
@@ -111,7 +103,7 @@ public class CompoundDateTimeFormatter {
             parsersWithDefaulting[i] = builder.toFormatter(Locale.ROOT);
         }
 
-        return new CompoundDateTimeFormatter(validator, parsersWithDefaulting);
+        return new CompoundDateTimeFormatter(parsersWithDefaulting);
     }
 
     public String format(TemporalAccessor accessor) {

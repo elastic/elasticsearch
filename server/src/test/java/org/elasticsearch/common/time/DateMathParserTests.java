@@ -191,7 +191,13 @@ public class DateMathParserTests extends ESTestCase {
 
         assertDateMathEquals("2014-11-18T14||/w", "2014-11-17", 0, false, null);
         assertDateMathEquals("2014-11-18T14||/w", "2014-11-23T23:59:59.999", 0, true, null);
-        assertDateMathEquals("2014-11-18||/w", "2014-11-17", 0, false, null);
+        assertDateMathEquals("2014-11-17T14||/w", "2014-11-17", 0, false, null);
+        assertDateMathEquals("2014-11-18T14||/w", "2014-11-17", 0, false, null);
+        assertDateMathEquals("2014-11-19T14||/w", "2014-11-17", 0, false, null);
+        assertDateMathEquals("2014-11-20T14||/w", "2014-11-17", 0, false, null);
+        assertDateMathEquals("2014-11-21T14||/w", "2014-11-17", 0, false, null);
+        assertDateMathEquals("2014-11-22T14||/w", "2014-11-17", 0, false, null);
+        assertDateMathEquals("2014-11-23T14||/w", "2014-11-17", 0, false, null);
         assertDateMathEquals("2014-11-18||/w", "2014-11-23T23:59:59.999", 0, true, null);
         assertDateMathEquals("2014-11-18||/w", "2014-11-16T23:00:00.000Z", 0, false, ZoneId.of("+01:00"));
         assertDateMathEquals("2014-11-18||/w", "2014-11-17T01:00:00.000Z", 0, false, ZoneId.of("-01:00"));
@@ -277,14 +283,6 @@ public class DateMathParserTests extends ESTestCase {
         assertFalse(called.get());
         parser.parse("now/d", now, false, null);
         assertTrue(called.get());
-    }
-
-    public void testThatUnixTimestampMayNotHaveTimeZone() {
-        DateMathParser parser = new DateMathParser(DateFormatters.forPattern("epoch_millis"));
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
-            () -> parser.parse("1234567890123", () -> 42, false, ZoneId.of("CET")));
-
-        assertThat(e.getMessage(), containsString("epoch parsers must be in time zone UTC, found CET"));
     }
 
     private void assertDateMathEquals(String toTest, String expected) {

@@ -599,15 +599,7 @@ public class DateFormatters {
         .appendValue(ChronoField.INSTANT_SECONDS)
         .toFormatter(Locale.ROOT));
 
-    private static final Consumer<DateTimeFormatter[]> UTC_ONLY_VALIDATOR = (parsers) -> {
-        for (DateTimeFormatter parser : parsers) {
-            if (parser.getZone() != null && ZoneOffset.UTC.equals(parser.getZone()) == false) {
-                throw new IllegalArgumentException("epoch parsers must be in time zone UTC, found " + parser.getZone());
-            }
-        }
-    };
-    private static final CompoundDateTimeFormatter EPOCH_MILLIS = new CompoundDateTimeFormatter(UTC_ONLY_VALIDATOR,
-        new DateTimeFormatterBuilder()
+    private static final CompoundDateTimeFormatter EPOCH_MILLIS = new CompoundDateTimeFormatter(new DateTimeFormatterBuilder()
         .appendValue(ChronoField.INSTANT_SECONDS, 1, 19, SignStyle.NEVER)
         .appendValue(ChronoField.MILLI_OF_SECOND, 3)
         .toFormatter(Locale.ROOT));

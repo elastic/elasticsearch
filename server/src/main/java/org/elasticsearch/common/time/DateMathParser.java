@@ -38,6 +38,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.LongSupplier;
 
+/**
+ * A parser for date/time formatted text with optional date math.
+ *
+ * The format of the datetime is configurable, and unix timestamps can also be used. Datemath
+ * is appended to a datetime with the following syntax:
+ * <code>||[+-/](\d+)?[yMwdhHms]</code>.
+ */
 public class DateMathParser {
 
     // base fields which should be used for default parsing, when we round up

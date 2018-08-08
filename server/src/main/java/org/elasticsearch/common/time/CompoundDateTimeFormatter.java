@@ -76,7 +76,7 @@ public class CompoundDateTimeFormatter {
      * Configure a specific time zone for a date formatter
      *
      * @param zoneId The zoneId this formatter shoulduse
-     * @return
+     * @return       The new formatter with all parsers switched to the specified timezone
      */
     public CompoundDateTimeFormatter withZone(ZoneId zoneId) {
         // shortcurt to not create new objects unnecessarily

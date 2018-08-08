@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -15,6 +16,9 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 
 import java.util.Collection;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 /**
  * An extention to {@link ESSingleNodeTestCase} that adds node settings specifically needed for ML test cases.
@@ -49,6 +53,34 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
             assertTrue("Timed out waiting for the ML templates to be installed",
                     MachineLearning.allTemplatesInstalled(state));
         });
+    }
+
+    protected <T> void blockingCall(Consumer<ActionListener<T>> function, AtomicReference<T> response,
+                                  AtomicReference<Exception> error) throws InterruptedException {
+        CountDownLatch latch = new CountDownLatch(1);
+        ActionListener<T> listener = ActionListener.wrap(
+                r -> {
+                    response.set(r);
+                    latch.countDown();
+                },
+                e -> {
+                    error.set(e);
+                    latch.countDown();
+                }
+        );
+
+        function.accept(listener);
+        latch.await();
+    }
+
+    protected <T> T blockingCall(Consumer<ActionListener<T>> function) throws Exception {
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+        AtomicReference<T> responseHolder = new AtomicReference<>();
+        blockingCall(function, responseHolder, exceptionHolder);
+        if (exceptionHolder.get() != null) {
+            assertNotNull(exceptionHolder.get().getMessage(), exceptionHolder.get());
+        }
+        return responseHolder.get();
     }
 
 }

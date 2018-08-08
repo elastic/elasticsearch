@@ -202,6 +202,16 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         }
     }
 
+    /**
+     * The name of datafeed configuration document name from the datafeed ID.
+     *
+     * @param datafeedId The datafeed ID
+     * @return The ID of document the datafeed config is persisted in
+     */
+    public static String documentId(String datafeedId) {
+        return "datafeed-" + datafeedId;
+    }
+
     public String getId() {
         return id;
     }

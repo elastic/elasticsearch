@@ -40,6 +40,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -47,20 +48,24 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.plugins.spi.NamedXContentProvider;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.ServiceLoader;
 import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
  * A request to create an index. Best created with {@link org.elasticsearch.client.Requests#createIndexRequest(String)}.
@@ -374,8 +379,16 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     /**
      * Sets the settings and mappings as a single source.
      */
-    @SuppressWarnings("unchecked")
     public CreateIndexRequest source(Map<String, ?> source, DeprecationHandler deprecationHandler) {
+        return source(source, deprecationHandler, null);
+    }
+
+
+    /**
+     * Sets the settings, mappings and customs as a single source, using specified registry to parse customs
+     */
+    @SuppressWarnings("unchecked")
+    public CreateIndexRequest source(Map<String, ?> source, DeprecationHandler deprecationHandler, NamedXContentRegistry customsRegistry) {
         for (Map.Entry<String, ?> entry : source.entrySet()) {
             String name = entry.getKey();
             if (SETTINGS.match(name, deprecationHandler)) {
@@ -389,15 +402,20 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
                 aliases((Map<String, Object>) entry.getValue());
             } else {
                 // maybe custom?
-                IndexMetaData.Custom proto = IndexMetaData.lookupPrototype(name);
-                if (proto != null) {
+                if (entry.getValue() instanceof Map) {
+                    if (customsRegistry == null) {
+                        // Custom registry wasn't specified - we are in client mode let's try loading it from SPI
+                        customsRegistry = new NamedXContentRegistry(getProvidedNamedXContents());
+                    }
                     try {
-                        customs.put(name, proto.fromMap((Map<String, Object>) entry.getValue()));
+                        customs.put(name, IndexMetaData.parseCustom(name, (Map<String, Object>) entry.getValue(), deprecationHandler,
+                            customsRegistry));
                     } catch (IOException e) {
-                        throw new ElasticsearchParseException("failed to parse custom metadata for [{}]", name);
+                        throw new ElasticsearchParseException("failed to parse custom metadata for [{}]", e, name);
+                    } catch (NamedObjectNotFoundException e) {
+                        throw new ElasticsearchParseException("unknown key [{}] for create index", e, name);
                     }
                 } else {
-                    // found a key which is neither custom defined nor one of the supported ones
                     throw new ElasticsearchParseException("unknown key [{}] for create index", name);
                 }
             }
@@ -417,7 +435,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * Adds custom metadata to the index to be created.
      */
     public CreateIndexRequest custom(IndexMetaData.Custom custom) {
-        customs.put(custom.type(), custom);
+        customs.put(custom.getWriteableName(), custom);
         return this;
     }
 
@@ -476,9 +494,8 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         }
         int customSize = in.readVInt();
         for (int i = 0; i < customSize; i++) {
-            String type = in.readString();
-            IndexMetaData.Custom customIndexMetaData = IndexMetaData.lookupPrototypeSafe(type).readFrom(in);
-            customs.put(type, customIndexMetaData);
+            IndexMetaData.Custom customIndexMetaData = in.readNamedWriteable(IndexMetaData.Custom.class);;
+            customs.put(customIndexMetaData.getWriteableName(), customIndexMetaData);
         }
         int aliasesSize = in.readVInt();
         for (int i = 0; i < aliasesSize; i++) {
@@ -502,9 +519,8 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             out.writeString(entry.getValue());
         }
         out.writeVInt(customs.size());
-        for (Map.Entry<String, IndexMetaData.Custom> entry : customs.entrySet()) {
-            out.writeString(entry.getKey());
-            entry.getValue().writeTo(out);
+        for (IndexMetaData.Custom custom : customs.values()) {
+            out.writeNamedWriteable(custom);
         }
         out.writeVInt(aliases.size());
         for (Alias alias : aliases) {
@@ -547,5 +563,16 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             builder.field(entry.getKey(), entry.getValue(), params);
         }
         return builder;
+    }
+
+    /**
+     * Loads and returns the {@link NamedXContentRegistry.Entry} parsers provided by plugins.
+     */
+    public static List<NamedXContentRegistry.Entry> getProvidedNamedXContents() {
+        List<NamedXContentRegistry.Entry> entries = new ArrayList<>();
+        for (NamedXContentProvider service : ServiceLoader.load(NamedXContentProvider.class)) {
+            entries.addAll(service.getNamedXContentParsers());
+        }
+        return entries;
     }
 }

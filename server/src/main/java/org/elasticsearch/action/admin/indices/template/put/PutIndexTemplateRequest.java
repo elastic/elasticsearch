@@ -39,6 +39,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -61,9 +62,10 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.action.admin.indices.create.CreateIndexRequest.getProvidedNamedXContents;
+import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
  * A request to create an index template.
@@ -305,11 +307,16 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         }
     }
 
+    @SuppressWarnings("unchecked")
+    public PutIndexTemplateRequest source(Map<String, Object> templateSource) {
+        return source(templateSource, null);
+    }
+
     /**
      * The template source definition.
      */
     @SuppressWarnings("unchecked")
-    public PutIndexTemplateRequest source(Map<String, Object> templateSource) {
+    public PutIndexTemplateRequest source(Map<String, Object> templateSource, NamedXContentRegistry customsRegistry) {
         Map<String, Object> source = templateSource;
         for (Map.Entry<String, Object> entry : source.entrySet()) {
             String name = entry.getKey();
@@ -354,13 +361,21 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
                 aliases((Map<String, Object>) entry.getValue());
             } else {
                 // maybe custom?
-                IndexMetaData.Custom proto = IndexMetaData.lookupPrototype(name);
-                if (proto != null) {
-                    try {
-                        customs.put(name, proto.fromMap((Map<String, Object>) entry.getValue()));
-                    } catch (IOException e) {
-                        throw new ElasticsearchParseException("failed to parse custom metadata for [{}]", name);
+                if (entry.getValue() instanceof Map) {
+                    if (customsRegistry == null) {
+                        // Custom registry wasn't specified - we are in client mode let's try loading it from SPI
+                        customsRegistry = new NamedXContentRegistry(getProvidedNamedXContents());
                     }
+                    try {
+                        customs.put(name, IndexMetaData.parseCustom(name, (Map<String, Object>) entry.getValue(),
+                            LoggingDeprecationHandler.INSTANCE, customsRegistry));
+                    } catch (IOException e) {
+                        throw new ElasticsearchParseException("failed to parse custom metadata for [{}]", e, name);
+                    } catch (NamedObjectNotFoundException e) {
+                        throw new ElasticsearchParseException("unknown key [{}] in the template", e, name);
+                    }
+                } else {
+                    throw new ElasticsearchParseException("unknown key [{}] in the template ", name);
                 }
             }
         }
@@ -389,6 +404,13 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     }
 
     /**
+     * The template source definition that should be parsed using specified customs registry.
+     */
+    public PutIndexTemplateRequest source(BytesReference source, XContentType xContentType, NamedXContentRegistry customsRegistry) {
+        return source(XContentHelper.convertToMap(source, true, xContentType).v2(), customsRegistry);
+    }
+
+    /**
      * The template source definition.
      */
     public PutIndexTemplateRequest source(BytesReference source, XContentType xContentType) {
@@ -396,7 +418,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     }
 
     public PutIndexTemplateRequest custom(IndexMetaData.Custom custom) {
-        customs.put(custom.type(), custom);
+        customs.put(custom.getWriteableName(), custom);
         return this;
     }
 
@@ -501,9 +523,8 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         }
         int customSize = in.readVInt();
         for (int i = 0; i < customSize; i++) {
-            String type = in.readString();
-            IndexMetaData.Custom customIndexMetaData = IndexMetaData.lookupPrototypeSafe(type).readFrom(in);
-            customs.put(type, customIndexMetaData);
+            IndexMetaData.Custom customIndexMetaData = in.readNamedWriteable(IndexMetaData.Custom.class);
+            customs.put(customIndexMetaData.getWriteableName(), customIndexMetaData);
         }
         int aliasesSize = in.readVInt();
         for (int i = 0; i < aliasesSize; i++) {
@@ -531,9 +552,8 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             out.writeString(entry.getValue());
         }
         out.writeVInt(customs.size());
-        for (Map.Entry<String, IndexMetaData.Custom> entry : customs.entrySet()) {
-            out.writeString(entry.getKey());
-            entry.getValue().writeTo(out);
+        for (IndexMetaData.Custom custom : customs.values()) {
+            out.writeNamedWriteable(custom);
         }
         out.writeVInt(aliases.size());
         for (Alias alias : aliases) {

@@ -58,7 +58,7 @@ public class RestCreateIndexAction extends BaseRestHandler {
                 newSourceAsMap.put("mappings", Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, sourceAsMap.get("mappings")));
                 sourceAsMap = newSourceAsMap;
             }
-            createIndexRequest.source(sourceAsMap, LoggingDeprecationHandler.INSTANCE);
+            createIndexRequest.source(sourceAsMap, LoggingDeprecationHandler.INSTANCE, request.getXContentRegistry());
         }
         createIndexRequest.timeout(request.paramAsTime("timeout", createIndexRequest.timeout()));
         createIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", createIndexRequest.masterNodeTimeout()));

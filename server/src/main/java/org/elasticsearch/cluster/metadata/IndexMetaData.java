@@ -23,30 +23,39 @@ import com.carrotsearch.hppc.LongArrayList;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
+import org.elasticsearch.cluster.NamedDiffable;
+import org.elasticsearch.cluster.NamedDiffableValueSerializer;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.cluster.routing.allocation.IndexMetaDataUpdater;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.UnknownNamedObjectException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -64,7 +73,6 @@ import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Locale;
@@ -80,28 +88,12 @@ import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 
 public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragment {
 
+    private static final Logger logger = Loggers.getLogger(IndexMetaData.class);
+
     /**
-     * This class will be removed in v7.0
+     * Custom index metadata components
      */
-    @Deprecated
-    public interface Custom extends Diffable<Custom>, ToXContent {
-
-        String type();
-
-        Custom fromMap(Map<String, Object> map) throws IOException;
-
-        Custom fromXContent(XContentParser parser) throws IOException;
-
-        /**
-         * Reads the {@link org.elasticsearch.cluster.Diff} from StreamInput
-         */
-        Diff<Custom> readDiffFrom(StreamInput in) throws IOException;
-
-        /**
-         * Reads an object of this type from the provided {@linkplain StreamInput}. The receiving instance remains unchanged.
-         */
-        Custom readFrom(StreamInput in) throws IOException;
-
+    public interface Custom extends NamedDiffable<Custom>, ToXContent, NamedWriteable, ClusterState.FeatureAware {
         /**
          * Merges from this to another, with this being more important, i.e., if something exists in this and another,
          * this will prevail.
@@ -109,28 +101,27 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         Custom mergeWith(Custom another);
     }
 
-    public static Map<String, Custom> customPrototypes = new HashMap<>();
+    public static Custom parseCustom(String name, Map<String, Object> map, DeprecationHandler deprecationHandler,
+                                     NamedXContentRegistry customsRegistry) throws IOException {
+        XContentBuilder customXContent = XContentFactory.jsonBuilder()
+            .startObject()
+            .field(name, map)
+            .endObject();
 
-    /**
-     * Register a custom index meta data factory. Make sure to call it from a static block.
-     */
-    public static void registerPrototype(String type, Custom proto) {
-        customPrototypes.put(type, proto);
-    }
-
-    @Nullable
-    public static <T extends Custom> T lookupPrototype(String type) {
-        //noinspection unchecked
-        return (T) customPrototypes.get(type);
-    }
-
-    public static <T extends Custom> T lookupPrototypeSafe(String type) {
-        //noinspection unchecked
-        T proto = (T) customPrototypes.get(type);
-        if (proto == null) {
-            throw new IllegalArgumentException("No custom metadata prototype registered for type [" + type + "]");
+        try (XContentParser parser = customXContent.generator().contentType().xContent()
+            .createParser(customsRegistry, deprecationHandler, BytesReference.bytes(customXContent).streamInput());) {
+            if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+                throw new IOException("Unexpected token " + parser.currentToken());
+            }
+            if (parser.nextToken() != XContentParser.Token.FIELD_NAME) {
+                throw new IOException("Unexpected token " + parser.currentToken());
+            }
+            Custom custom = parser.namedObject(Custom.class, name, null);
+            if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                throw new IOException("Unexpected token " + parser.currentToken());
+            }
+            return custom;
         }
-        return proto;
     }
 
     public static final ClusterBlock INDEX_READ_ONLY_BLOCK = new ClusterBlock(5, "index read-only (api)", false, false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
@@ -300,6 +291,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
     public static final String KEY_PRIMARY_TERMS = "primary_terms";
 
     public static final String INDEX_STATE_FILE_PREFIX = "state-";
+    private static final NamedDiffableValueSerializer<Custom> CUSTOM_VALUE_SERIALIZER = new NamedDiffableValueSerializer<>(Custom.class);
     private final int routingNumShards;
     private final int routingFactor;
     private final int routingPartitionSize;
@@ -662,7 +654,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             primaryTerms = after.primaryTerms;
             mappings = DiffableUtils.diff(before.mappings, after.mappings, DiffableUtils.getStringKeySerializer());
             aliases = DiffableUtils.diff(before.aliases, after.aliases, DiffableUtils.getStringKeySerializer());
-            customs = DiffableUtils.diff(before.customs, after.customs, DiffableUtils.getStringKeySerializer());
+            customs = DiffableUtils.diff(before.customs, after.customs, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
             inSyncAllocationIds = DiffableUtils.diff(before.inSyncAllocationIds, after.inSyncAllocationIds,
                 DiffableUtils.getVIntKeySerializer(), DiffableUtils.StringSetValueSerializer.getInstance());
             rolloverInfos = DiffableUtils.diff(before.rolloverInfos, after.rolloverInfos, DiffableUtils.getStringKeySerializer());
@@ -679,18 +671,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
                 MappingMetaData::readDiffFrom);
             aliases = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), AliasMetaData::new,
                 AliasMetaData::readDiffFrom);
-            customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(),
-                new DiffableUtils.DiffableValueSerializer<String, Custom>() {
-                    @Override
-                    public Custom read(StreamInput in, String key) throws IOException {
-                        return lookupPrototypeSafe(key).readFrom(in);
-                    }
-
-                    @Override
-                    public Diff<Custom> readDiff(StreamInput in, String key) throws IOException {
-                        return lookupPrototypeSafe(key).readDiffFrom(in);
-                    }
-                });
+            customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
             inSyncAllocationIds = DiffableUtils.readImmutableOpenIntMapDiff(in, DiffableUtils.getVIntKeySerializer(),
                 DiffableUtils.StringSetValueSerializer.getInstance());
             if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
@@ -755,9 +736,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         }
         int customSize = in.readVInt();
         for (int i = 0; i < customSize; i++) {
-            String type = in.readString();
-            Custom customIndexMetaData = lookupPrototypeSafe(type).readFrom(in);
-            builder.putCustom(type, customIndexMetaData);
+            Custom customIndexMetaData = in.readNamedWriteable(Custom.class);
+            builder.putCustom(customIndexMetaData.getWriteableName(), customIndexMetaData);
         }
         int inSyncAllocationIdsSize = in.readVInt();
         for (int i = 0; i < inSyncAllocationIdsSize; i++) {
@@ -790,10 +770,18 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         for (ObjectCursor<AliasMetaData> cursor : aliases.values()) {
             cursor.value.writeTo(out);
         }
-        out.writeVInt(customs.size());
-        for (ObjectObjectCursor<String, Custom> cursor : customs) {
-            out.writeString(cursor.key);
-            cursor.value.writeTo(out);
+        // filter out custom metadata not supported by the other node
+        int numberOfCustoms = 0;
+        for (final ObjectCursor<Custom> cursor : customs.values()) {
+            if (ClusterState.FeatureAware.shouldSerialize(out, cursor.value)) {
+                numberOfCustoms++;
+            }
+        }
+        out.writeVInt(numberOfCustoms);
+        for (final ObjectCursor<Custom> cursor : customs.values()) {
+            if (ClusterState.FeatureAware.shouldSerialize(out, cursor.value)) {
+                out.writeNamedWriteable(cursor.value);
+            }
         }
         out.writeVInt(inSyncAllocationIds.size());
         for (IntObjectCursor<Set<String>> cursor : inSyncAllocationIds) {
@@ -1276,13 +1264,13 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
                         parser.skipChildren();
                     } else {
                         // check if its a custom index metadata
-                        Custom proto = lookupPrototype(currentFieldName);
-                        if (proto == null) {
-                            //TODO warn
+                        try {
+                            Custom custom = parser.namedObject(Custom.class, currentFieldName, null);
+                            builder.putCustom(custom.getWriteableName(), custom);
+                        } catch (UnknownNamedObjectException ex) {
+                            logger.warn("Skipping unknown custom index metadata object with type {}", currentFieldName);
+                            // Skip children in case the plugin the provided the metadata got uninstalled
                             parser.skipChildren();
-                        } else {
-                            Custom custom = proto.fromXContent(parser);
-                            builder.putCustom(custom.type(), custom);
                         }
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {

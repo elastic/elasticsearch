@@ -141,4 +141,15 @@ public class NamedXContentRegistry {
         return categoryClass.cast(entry.parser.parse(parser, context));
     }
 
+    /**
+     * Returns true if the given named object is supported by the current stream
+     */
+    public <T> boolean supportsNamedObject(Class<T> categoryClass, String name) {
+        Map<String, Entry> parsers = registry.get(categoryClass);
+        if (parsers == null || registry.isEmpty()) {
+            return false;
+        }
+        return parsers.containsKey(name);
+    }
+
 }

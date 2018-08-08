@@ -20,7 +20,7 @@ package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
@@ -37,6 +37,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.UnknownNamedObjectException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -51,6 +52,8 @@ import java.util.Objects;
 import java.util.Set;
 
 public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaData> {
+
+    private static final Logger logger = Loggers.getLogger(IndexTemplateMetaData.class);
 
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(IndexTemplateMetaData.class));
 
@@ -229,9 +232,8 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         }
         int customSize = in.readVInt();
         for (int i = 0; i < customSize; i++) {
-            String type = in.readString();
-            IndexMetaData.Custom customIndexMetaData = IndexMetaData.lookupPrototypeSafe(type).readFrom(in);
-            builder.putCustom(type, customIndexMetaData);
+            IndexMetaData.Custom customIndexMetaData = in.readNamedWriteable(IndexMetaData.Custom.class);;
+            builder.putCustom(customIndexMetaData.getWriteableName(), customIndexMetaData);
         }
         builder.version(in.readOptionalVInt());
         return builder.build();
@@ -261,9 +263,8 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             cursor.value.writeTo(out);
         }
         out.writeVInt(customs.size());
-        for (ObjectObjectCursor<String, IndexMetaData.Custom> cursor : customs) {
-            out.writeString(cursor.key);
-            cursor.value.writeTo(out);
+        for (ObjectCursor<IndexMetaData.Custom> cursor : customs.values()) {
+            out.writeNamedWriteable(cursor.value);
         }
         out.writeOptionalVInt(version);
     }
@@ -272,9 +273,6 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
 
         private static final Set<String> VALID_FIELDS = Sets.newHashSet(
             "template", "order", "mappings", "settings", "index_patterns", "aliases", "version");
-        static {
-            VALID_FIELDS.addAll(IndexMetaData.customPrototypes.keySet());
-        }
 
         private String name;
 
@@ -469,13 +467,13 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                         }
                     } else {
                         // check if its a custom index metadata
-                        IndexMetaData.Custom proto = IndexMetaData.lookupPrototype(currentFieldName);
-                        if (proto == null) {
-                            //TODO warn
+                        try {
+                            IndexMetaData.Custom custom = parser.namedObject(IndexMetaData.Custom.class, currentFieldName, null);
+                            builder.putCustom(custom.getWriteableName(), custom);
+                        } catch (UnknownNamedObjectException ex) {
+                            logger.warn("Skipping unknown custom index metadata object with type {}", currentFieldName);
+                            // Skip children in case the plugin the provided the metadata got uninstalled
                             parser.skipChildren();
-                        } else {
-                            IndexMetaData.Custom custom = proto.fromXContent(parser);
-                            builder.putCustom(custom.type(), custom);
                         }
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
@@ -521,7 +519,8 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                 token = parser.nextToken();
                 if (token == XContentParser.Token.FIELD_NAME) {
                     String currentFieldName = parser.currentName();
-                    if (VALID_FIELDS.contains(currentFieldName)) {
+                    if (VALID_FIELDS.contains(currentFieldName) ||
+                        parser.getXContentRegistry().supportsNamedObject(IndexMetaData.Custom.class, currentFieldName)) {
                         return currentFieldName;
                     } else {
                         // we just hit the template name, which should be ignored and we move on

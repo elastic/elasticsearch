@@ -15,7 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StepKey;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -79,7 +79,7 @@ public class ReplicasAction implements LifecycleAction {
     }
 
     @Override
-    public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
+    public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
         StepKey updateReplicasKey = new StepKey(phase, NAME, UpdateSettingsStep.NAME);
         StepKey enoughKey = new StepKey(phase, NAME, ReplicasAllocatedStep.NAME);
         Settings replicaSettings = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build();

@@ -13,7 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StepKey;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -83,7 +83,7 @@ public class ForceMergeAction implements LifecycleAction {
     }
 
     @Override
-    public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
+    public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
         StepKey forceMergeKey = new StepKey(phase, NAME, ForceMergeStep.NAME);
         StepKey countKey = new StepKey(phase, NAME, SegmentCountStep.NAME);
         ForceMergeStep forceMergeStep = new ForceMergeStep(forceMergeKey, countKey, client, maxNumSegments);

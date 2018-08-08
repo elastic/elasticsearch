@@ -10,8 +10,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StepKey;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
-import org.elasticsearch.xpack.core.indexlifecycle.Step;
 
 import java.io.IOException;
 import java.util.function.LongSupplier;
@@ -19,11 +19,11 @@ import java.util.function.LongSupplier;
 public class MoveToErrorStepUpdateTask extends ClusterStateUpdateTask {
     private final Index index;
     private final String policy;
-    private final Step.StepKey currentStepKey;
+    private final StepKey currentStepKey;
     private LongSupplier nowSupplier;
     private Exception cause;
 
-    public MoveToErrorStepUpdateTask(Index index, String policy, Step.StepKey currentStepKey, Exception cause, LongSupplier nowSupplier) {
+    public MoveToErrorStepUpdateTask(Index index, String policy, StepKey currentStepKey, Exception cause, LongSupplier nowSupplier) {
         this.index = index;
         this.policy = policy;
         this.currentStepKey = currentStepKey;
@@ -39,7 +39,7 @@ public class MoveToErrorStepUpdateTask extends ClusterStateUpdateTask {
         return policy;
     }
 
-    Step.StepKey getCurrentStepKey() {
+    StepKey getCurrentStepKey() {
         return currentStepKey;
     }
 

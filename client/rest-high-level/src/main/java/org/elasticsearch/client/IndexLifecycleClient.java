@@ -20,6 +20,8 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.protocol.xpack.indexlifecycle.MoveToStepRequest;
+import org.elasticsearch.protocol.xpack.indexlifecycle.MoveToStepResponse;
 import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyResponse;
 
@@ -61,5 +63,43 @@ public class IndexLifecycleClient {
                                              ActionListener<SetIndexLifecyclePolicyResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::setIndexLifecyclePolicy, options,
             SetIndexLifecyclePolicyResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Move an index to a specific step in the policy See
+     * <a href="https://fix-me-when-we-have-docs.com"> the docs</a> for more.
+     * 
+     * @param request
+     *            the request
+     * @param options
+     *            the request options (e.g. headers), use
+     *            {@link RequestOptions#DEFAULT} if nothing needs to be
+     *            customized
+     * @return the response
+     * @throws IOException
+     *             in case there is a problem sending the request or parsing
+     *             back the response
+     */
+    public MoveToStepResponse moveToStep(MoveToStepRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::moveToStep, options,
+                MoveToStepResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously move an index to a specific step in the policy See
+     * <a href="https://fix-me-when-we-have-docs.com"> the docs</a> for more.
+     * 
+     * @param request
+     *            the request
+     * @param options
+     *            the request options (e.g. headers), use
+     *            {@link RequestOptions#DEFAULT} if nothing needs to be
+     *            customized
+     * @param listener
+     *            the listener to be notified upon request completion
+     */
+    public void moveToStepAsync(MoveToStepRequest request, RequestOptions options, ActionListener<MoveToStepResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::moveToStep, options,
+                MoveToStepResponse::fromXContent, listener, emptySet());
     }
 }

@@ -21,6 +21,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StepKey;
 
 import java.util.ArrayList;
 import java.util.Collections;

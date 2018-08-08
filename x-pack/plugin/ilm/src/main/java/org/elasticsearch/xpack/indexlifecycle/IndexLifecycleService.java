@@ -20,12 +20,12 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StepKey;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 import org.elasticsearch.xpack.core.indexlifecycle.ShrinkAction;
-import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 
 import java.io.Closeable;

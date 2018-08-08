@@ -9,6 +9,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StepKey;
 
 import java.util.Objects;
 import java.util.function.LongSupplier;

@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StepKey;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
@@ -33,7 +34,6 @@ import org.elasticsearch.xpack.core.indexlifecycle.MockAction;
 import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 import org.elasticsearch.xpack.core.indexlifecycle.Phase;
 import org.elasticsearch.xpack.core.indexlifecycle.ShrinkAction;
-import org.elasticsearch.xpack.core.indexlifecycle.Step;
 import org.elasticsearch.xpack.core.indexlifecycle.TestLifecycleType;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.junit.After;
@@ -308,7 +308,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
     }
 
     public void testRequestedStopOnShrink() {
-        Step.StepKey mockShrinkStep = new Step.StepKey(randomAlphaOfLength(4), ShrinkAction.NAME, randomAlphaOfLength(5));
+        StepKey mockShrinkStep = new StepKey(randomAlphaOfLength(4), ShrinkAction.NAME, randomAlphaOfLength(5));
         String policyName = randomAlphaOfLengthBetween(1, 20);
         IndexLifecycleRunnerTests.MockClusterStateActionStep mockStep =
             new IndexLifecycleRunnerTests.MockClusterStateActionStep(mockShrinkStep, randomStepKey());
@@ -350,7 +350,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
 
     public void testRequestedStopOnSafeAction() {
         String policyName = randomAlphaOfLengthBetween(1, 20);
-        Step.StepKey currentStepKey = randomStepKey();
+        StepKey currentStepKey = randomStepKey();
         IndexLifecycleRunnerTests.MockClusterStateActionStep mockStep =
             new IndexLifecycleRunnerTests.MockClusterStateActionStep(currentStepKey, randomStepKey());
         MockAction mockAction = new MockAction(Collections.singletonList(mockStep));

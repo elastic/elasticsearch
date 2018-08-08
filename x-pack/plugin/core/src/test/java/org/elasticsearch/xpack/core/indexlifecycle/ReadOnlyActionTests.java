@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StepKey;
 
 import java.util.List;
 

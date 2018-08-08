@@ -15,8 +15,8 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StepKey;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -129,7 +129,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         Client client = mock(Client.class);
         LongSupplier nowSupplier = () -> 0L;
         MockStep mockStep = new MockStep(
-            new Step.StepKey("test", "test", "test"), TerminalPolicyStep.KEY);
+            new StepKey("test", "test", "test"), TerminalPolicyStep.KEY);
 
         lifecycleName = randomAlphaOfLengthBetween(1, 20);
         Map<String, Phase> phases = new LinkedHashMap<>();

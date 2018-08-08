@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StepKey;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.ErrorStep;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
@@ -35,7 +36,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class PolicyStepsRegistryTests extends ESTestCase {
-    private static final Step.StepKey MOCK_STEP_KEY = new Step.StepKey("mock", "mock", "mock");
+    private static final StepKey MOCK_STEP_KEY = new StepKey("mock", "mock", "mock");
 
     public void testGetFirstStep() {
         String policyName = randomAlphaOfLengthBetween(2, 10);
@@ -58,7 +59,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
     public void testGetStep() {
         String policyName = randomAlphaOfLengthBetween(2, 10);
         Step expectedStep = new MockStep(MOCK_STEP_KEY, null);
-        Map<String, Map<Step.StepKey, Step>> stepMap =
+        Map<String, Map<StepKey, Step>> stepMap =
             Collections.singletonMap(policyName, Collections.singletonMap(MOCK_STEP_KEY, expectedStep));
         PolicyStepsRegistry registry = new PolicyStepsRegistry(null, null, stepMap);
         Step actualStep = registry.getStep(policyName, MOCK_STEP_KEY);
@@ -67,9 +68,9 @@ public class PolicyStepsRegistryTests extends ESTestCase {
 
     public void testGetStepErrorStep() {
         String policyName = randomAlphaOfLengthBetween(2, 10);
-        Step.StepKey errorStepKey = new Step.StepKey(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10), ErrorStep.NAME);
+        StepKey errorStepKey = new StepKey(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10), ErrorStep.NAME);
         Step expectedStep = new ErrorStep(errorStepKey);
-        Map<String, Map<Step.StepKey, Step>> stepMap = Collections.singletonMap(policyName,
+        Map<String, Map<StepKey, Step>> stepMap = Collections.singletonMap(policyName,
                 Collections.singletonMap(MOCK_STEP_KEY, expectedStep));
         PolicyStepsRegistry registry = new PolicyStepsRegistry(null, null, stepMap);
         Step actualStep = registry.getStep(policyName, errorStepKey);
@@ -85,10 +86,10 @@ public class PolicyStepsRegistryTests extends ESTestCase {
     public void testGetStepUnknownStepKey() {
         String policyName = randomAlphaOfLengthBetween(2, 10);
         Step expectedStep = new MockStep(MOCK_STEP_KEY, null);
-        Map<String, Map<Step.StepKey, Step>> stepMap =
+        Map<String, Map<StepKey, Step>> stepMap =
             Collections.singletonMap(policyName, Collections.singletonMap(MOCK_STEP_KEY, expectedStep));
         PolicyStepsRegistry registry = new PolicyStepsRegistry(null, null, stepMap);
-        Step.StepKey unknownStepKey = new Step.StepKey(MOCK_STEP_KEY.getPhase(),
+        StepKey unknownStepKey = new StepKey(MOCK_STEP_KEY.getPhase(),
             MOCK_STEP_KEY.getAction(),MOCK_STEP_KEY.getName() + "not");
         assertNull(registry.getStep(policyName, unknownStepKey));
     }
@@ -131,7 +132,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         assertThat(registry.getLifecyclePolicyMap().get(newPolicy.getName()).getHeaders(), equalTo(headers));
         assertThat(registry.getFirstStepMap().size(), equalTo(1));
         assertThat(registry.getStepMap().size(), equalTo(1));
-        Map<Step.StepKey, Step> registeredStepsForPolicy = registry.getStepMap().get(newPolicy.getName());
+        Map<StepKey, Step> registeredStepsForPolicy = registry.getStepMap().get(newPolicy.getName());
         assertThat(registeredStepsForPolicy.size(), equalTo(policySteps.size()));
         for (Step step : policySteps) {
             assertThat(registeredStepsForPolicy.get(step.getKey()), equalTo(step));
@@ -140,7 +141,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
 
         Map<String, LifecyclePolicyMetadata> registryPolicyMap = registry.getLifecyclePolicyMap();
         Map<String, Step> registryFirstStepMap = registry.getFirstStepMap();
-        Map<String, Map<Step.StepKey, Step>> registryStepMap = registry.getStepMap();
+        Map<String, Map<StepKey, Step>> registryStepMap = registry.getStepMap();
         registry.update(lifecycleMetadata, client, () -> 0L);
         assertThat(registry.getLifecyclePolicyMap(), equalTo(registryPolicyMap));
         assertThat(registry.getFirstStepMap(), equalTo(registryFirstStepMap));

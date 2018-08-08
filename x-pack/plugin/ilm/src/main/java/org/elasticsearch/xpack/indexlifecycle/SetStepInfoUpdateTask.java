@@ -12,18 +12,18 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StepKey;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
-import org.elasticsearch.xpack.core.indexlifecycle.Step;
 
 import java.io.IOException;
 
 public class SetStepInfoUpdateTask extends ClusterStateUpdateTask {
     private final Index index;
     private final String policy;
-    private final Step.StepKey currentStepKey;
+    private final StepKey currentStepKey;
     private ToXContentObject stepInfo;
 
-    public SetStepInfoUpdateTask(Index index, String policy, Step.StepKey currentStepKey, ToXContentObject stepInfo) {
+    public SetStepInfoUpdateTask(Index index, String policy, StepKey currentStepKey, ToXContentObject stepInfo) {
         this.index = index;
         this.policy = policy;
         this.currentStepKey = currentStepKey;
@@ -38,7 +38,7 @@ public class SetStepInfoUpdateTask extends ClusterStateUpdateTask {
         return policy;
     }
 
-    Step.StepKey getCurrentStepKey() {
+    StepKey getCurrentStepKey() {
         return currentStepKey;
     }
 

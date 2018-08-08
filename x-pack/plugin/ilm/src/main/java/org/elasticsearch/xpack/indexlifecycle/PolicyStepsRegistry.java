@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StepKey;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.indexlifecycle.ErrorStep;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
@@ -32,7 +33,7 @@ public class PolicyStepsRegistry {
     // keeps track of what the first step in a policy is
     private Map<String, Step> firstStepMap;
     // keeps track of a mapping from policy/step-name to respective Step
-    private Map<String, Map<Step.StepKey, Step>> stepMap;
+    private Map<String, Map<StepKey, Step>> stepMap;
 
     public PolicyStepsRegistry() {
         this.lifecyclePolicyMap = new TreeMap<>();
@@ -41,7 +42,7 @@ public class PolicyStepsRegistry {
     }
 
     PolicyStepsRegistry(SortedMap<String, LifecyclePolicyMetadata> lifecyclePolicyMap,
-                        Map<String, Step> firstStepMap, Map<String, Map<Step.StepKey, Step>> stepMap) {
+                        Map<String, Step> firstStepMap, Map<String, Map<StepKey, Step>> stepMap) {
         this.lifecyclePolicyMap = lifecyclePolicyMap;
         this.firstStepMap = firstStepMap;
         this.stepMap = stepMap;
@@ -55,7 +56,7 @@ public class PolicyStepsRegistry {
         return firstStepMap;
     }
 
-    Map<String, Map<Step.StepKey, Step>> getStepMap() {
+    Map<String, Map<StepKey, Step>> getStepMap() {
         return stepMap;
     }
 
@@ -76,7 +77,7 @@ public class PolicyStepsRegistry {
                 if (policyAsSteps.isEmpty() == false) {
                     firstStepMap.put(policyMetadata.getName(), policyAsSteps.get(0));
                     stepMap.put(policyMetadata.getName(), new HashMap<>());
-                    Map<Step.StepKey, Step> stepMapForPolicy = stepMap.get(policyMetadata.getName());
+                    Map<StepKey, Step> stepMapForPolicy = stepMap.get(policyMetadata.getName());
                     for (Step step : policyAsSteps) {
                         assert ErrorStep.NAME.equals(step.getKey().getName()) == false;
                         stepMapForPolicy.put(step.getKey(), step);
@@ -101,11 +102,11 @@ public class PolicyStepsRegistry {
      * @param stepKey the key to the requested {@link Step}
      * @return step
      */
-    public Step getStep(String policy, Step.StepKey stepKey) {
+    public Step getStep(String policy, StepKey stepKey) {
         if (ErrorStep.NAME.equals(stepKey.getName())) {
-            return new ErrorStep(new Step.StepKey(stepKey.getPhase(), stepKey.getAction(), ErrorStep.NAME));
+            return new ErrorStep(new StepKey(stepKey.getPhase(), stepKey.getAction(), ErrorStep.NAME));
         }
-        Map<Step.StepKey, Step> steps = stepMap.get(policy);
+        Map<StepKey, Step> steps = stepMap.get(policy);
         if (steps == null) {
             return null;
         }

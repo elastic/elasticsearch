@@ -8,13 +8,14 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StepKey;
 
 import java.io.IOException;
 
 public class MockStep extends Step implements Writeable {
     public static final String NAME = "TEST_STEP";
 
-    public MockStep(StepKey stepKey, Step.StepKey nextStepKey) {
+    public MockStep(StepKey stepKey, StepKey nextStepKey) {
         super(stepKey, nextStepKey);
     }
 

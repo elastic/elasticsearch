@@ -15,8 +15,8 @@ import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StepKey;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.mockito.Mockito;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -28,7 +28,7 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
 
     @Override
     public ForceMergeStep createRandomInstance() {
-        Step.StepKey stepKey = randomStepKey();
+        StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
         int maxNumSegments = randomIntBetween(1, 10);
 
@@ -67,7 +67,7 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
     public void testPerformActionComplete() {
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-        Step.StepKey stepKey = randomStepKey();
+        StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
         int maxNumSegments = randomIntBetween(1, 10);
         Client client = mock(Client.class);
@@ -106,7 +106,7 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         Exception exception = new RuntimeException("error");
-        Step.StepKey stepKey = randomStepKey();
+        StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
         int maxNumSegments = randomIntBetween(1, 10);
         Client client = mock(Client.class);

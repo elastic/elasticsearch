@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StepKey;
 
 import java.io.IOException;
 import java.util.Objects;

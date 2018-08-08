@@ -12,6 +12,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StepKey;
 
 import java.util.Objects;
 

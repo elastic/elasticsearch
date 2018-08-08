@@ -25,8 +25,11 @@ import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.protocol.xpack.indexlifecycle.MoveToStepRequest;
+import org.elasticsearch.protocol.xpack.indexlifecycle.MoveToStepResponse;
 import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyResponse;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StepKey;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -99,5 +102,82 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         GetSettingsResponse settingsResponse = highLevelClient().indices().getSettings(getSettingsRequest, RequestOptions.DEFAULT);
         assertThat(settingsResponse.getSetting("foo", "index.lifecycle.name"), equalTo(policy));
         assertThat(settingsResponse.getSetting("baz", "index.lifecycle.name"), equalTo(policy));
+    }
+
+    public void testMoveToStep() throws Exception {
+        String policy = randomAlphaOfLength(10);
+
+        // TODO: NORELEASE convert this to using the high level client once there are APIs for it
+        String jsonString = "{\n" +
+            "   \"policy\": {\n" +
+            "     \"type\": \"timeseries\",\n" +
+            "     \"phases\": {\n" +
+            "       \"hot\": {\n" +
+            "         \"actions\": {\n" +
+            "          \"rollover\": {\n" +
+            "            \"max_age\": \"500d\"\n" +
+            "          }        \n" +
+            "         }\n" +
+            "       },\n" +
+            "       \"warm\": {\n" +
+            "         \"after\": \"100d\",\n" +
+            "         \"actions\": {\n" +
+            "           \"allocate\": {\n" +
+            "             \"require\": { \"_name\": \"node-1\" },\n" +
+            "             \"include\": {},\n" +
+            "             \"exclude\": {}\n" +
+            "           },\n" +
+            "           \"shrink\": {\n" +
+            "             \"number_of_shards\": 1\n" +
+            "           },\n" +
+            "           \"forcemerge\": {\n" +
+            "             \"max_num_segments\": 1000\n" +
+            "           }\n" +
+            "         }\n" +
+            "       },\n" +
+            "       \"cold\": {\n" +
+            "         \"after\": \"200d\",\n" +
+            "         \"actions\": {\n" +
+            "          \"replicas\": {\n" +
+            "            \"number_of_replicas\": 0\n" +
+            "          }\n" +
+            "         }\n" +
+            "       },\n" +
+            "       \"delete\": {\n" +
+            "         \"after\": \"300d\",\n" +
+            "         \"actions\": {\n" +
+            "           \"delete\": {}\n" +
+            "         }\n" +
+            "       }\n" +
+            "     }\n" +
+            "   }\n" +
+            "}";
+        HttpEntity entity = new NStringEntity(jsonString, ContentType.APPLICATION_JSON);
+        Request request = new Request("PUT", "/_ilm/" + policy);
+        request.setEntity(entity);
+        client().performRequest(request);
+
+        createIndex("foo", Settings.builder().put("index.lifecycle.name", policy).build());
+        
+        assertBusy(() -> {
+            GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices("foo");
+            GetSettingsResponse settingsResponse = highLevelClient().indices().getSettings(getSettingsRequest, RequestOptions.DEFAULT);
+            assertThat(settingsResponse.getSetting("foo", "index.lifecycle.name"), equalTo(policy));
+            assertThat(settingsResponse.getSetting("foo", "index.lifecycle.phase"), equalTo("hot"));
+            assertThat(settingsResponse.getSetting("foo", "index.lifecycle.action"), equalTo("rollover"));
+            assertThat(settingsResponse.getSetting("foo", "index.lifecycle.step"), equalTo("attempt_rollover"));
+        });
+        
+        MoveToStepRequest req = new MoveToStepRequest("foo", new StepKey("hot", "rollover", "attempt_rollover"), new StepKey("warm", "after", "after"));
+        MoveToStepResponse response = execute(req, highLevelClient().indexLifecycle()::moveToStep,
+                highLevelClient().indexLifecycle()::moveToStepAsync);
+        assertThat(response.isAcknowledged(), is(true));
+
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices("foo");
+        GetSettingsResponse settingsResponse = highLevelClient().indices().getSettings(getSettingsRequest, RequestOptions.DEFAULT);
+        assertThat(settingsResponse.getSetting("foo", "index.lifecycle.name"), equalTo(policy));
+        assertThat(settingsResponse.getSetting("foo", "index.lifecycle.phase"), equalTo("warm"));
+        assertThat(settingsResponse.getSetting("foo", "index.lifecycle.action"), equalTo("after"));
+        assertThat(settingsResponse.getSetting("foo", "index.lifecycle.step"), equalTo("after"));
     }
 }

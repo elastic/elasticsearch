@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StepKey;
 
 public class UpdateRolloverLifecycleDateStep extends ClusterStateActionStep {
     public static final String NAME = "update-rollover-lifecycle-date";

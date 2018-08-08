@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
-import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StepKey;
 
 public class TerminalPolicyStepTests extends AbstractStepTestCase<TerminalPolicyStep> {
 
@@ -35,7 +35,7 @@ public class TerminalPolicyStepTests extends AbstractStepTestCase<TerminalPolicy
         return new TerminalPolicyStep(instance.getKey(), instance.getNextStepKey());
     }
     public void testInstance() {
-        assertEquals(new Step.StepKey("completed", "completed", "completed"), TerminalPolicyStep.INSTANCE.getKey());
+        assertEquals(new StepKey("completed", "completed", "completed"), TerminalPolicyStep.INSTANCE.getKey());
         assertNull(TerminalPolicyStep.INSTANCE.getNextStepKey());
     }
 }

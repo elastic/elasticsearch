@@ -10,11 +10,12 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StepKey;
 
 public final class InitializePolicyContextStep extends ClusterStateActionStep {
     public static final StepKey KEY = new StepKey("pre-phase", "pre-action", "init");
 
-    public InitializePolicyContextStep(Step.StepKey key, StepKey nextStepKey) {
+    public InitializePolicyContextStep(StepKey key, StepKey nextStepKey) {
         super(key, nextStepKey);
     }
 

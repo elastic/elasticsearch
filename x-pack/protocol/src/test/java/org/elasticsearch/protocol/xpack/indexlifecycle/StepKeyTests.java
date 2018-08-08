@@ -3,13 +3,13 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.indexlifecycle;
+package org.elasticsearch.protocol.xpack.indexlifecycle;
 
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StepKey;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
 public class StepKeyTests extends AbstractSerializingTestCase<StepKey> {
 

@@ -18,14 +18,14 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.protocol.xpack.indexlifecycle.MoveToStepRequest;
+import org.elasticsearch.protocol.xpack.indexlifecycle.MoveToStepResponse;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.indexlifecycle.action.MoveToStepAction;
-import org.elasticsearch.xpack.core.indexlifecycle.action.MoveToStepAction.Request;
-import org.elasticsearch.xpack.core.indexlifecycle.action.MoveToStepAction.Response;
 import org.elasticsearch.xpack.indexlifecycle.IndexLifecycleService;
 
-public class TransportMoveToStepAction extends TransportMasterNodeAction<Request, Response> {
+public class TransportMoveToStepAction extends TransportMasterNodeAction<MoveToStepRequest, MoveToStepResponse> {
     IndexLifecycleService indexLifecycleService;
     @Inject
     public TransportMoveToStepAction(Settings settings, TransportService transportService, ClusterService clusterService,
@@ -33,7 +33,7 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Request
                                      IndexNameExpressionResolver indexNameExpressionResolver,
                                      IndexLifecycleService indexLifecycleService) {
         super(settings, MoveToStepAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-                Request::new);
+                MoveToStepRequest::new);
         this.indexLifecycleService = indexLifecycleService;
     }
 
@@ -43,19 +43,19 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Request
     }
 
     @Override
-    protected Response newResponse() {
-        return new Response();
+    protected MoveToStepResponse newResponse() {
+        return new MoveToStepResponse();
     }
 
     @Override
-    protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) {
+    protected void masterOperation(MoveToStepRequest request, ClusterState state, ActionListener<MoveToStepResponse> listener) {
         IndexMetaData indexMetaData = state.metaData().index(request.getIndex());
         if (indexMetaData == null) {
             listener.onFailure(new IllegalArgumentException("index [" + request.getIndex() + "] does not exist"));
             return;
         }
         clusterService.submitStateUpdateTask("index[" + request.getIndex() + "]-move-to-step",
-            new AckedClusterStateUpdateTask<Response>(request, listener) {
+            new AckedClusterStateUpdateTask<MoveToStepResponse>(request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     return indexLifecycleService.moveClusterStateToStep(currentState, request.getIndex(), request.getCurrentStepKey(),
@@ -63,14 +63,14 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Request
                 }
 
                 @Override
-                protected Response newResponse(boolean acknowledged) {
-                    return new Response(acknowledged);
+                protected MoveToStepResponse newResponse(boolean acknowledged) {
+                    return new MoveToStepResponse(acknowledged);
                 }
             });
     }
 
     @Override
-    protected ClusterBlockException checkBlock(Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(MoveToStepRequest request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 }

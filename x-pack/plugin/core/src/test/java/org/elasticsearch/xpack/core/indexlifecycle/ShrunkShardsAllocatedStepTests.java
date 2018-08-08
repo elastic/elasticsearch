@@ -20,8 +20,8 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StepKey;
 import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateWaitStep.Result;
-import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
 public class ShrunkShardsAllocatedStepTests extends AbstractStepTestCase<ShrunkShardsAllocatedStep> {
 

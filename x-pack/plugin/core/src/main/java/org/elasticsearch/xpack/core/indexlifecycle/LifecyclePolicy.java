@@ -16,10 +16,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StepKey;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -173,7 +173,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
 
         // final step so that policy can properly update cluster-state with last action completed
         steps.add(TerminalPolicyStep.INSTANCE);
-        Step.StepKey lastStepKey = TerminalPolicyStep.KEY;
+        StepKey lastStepKey = TerminalPolicyStep.KEY;
 
         Phase phase = null;
         // add steps for each phase, in reverse
@@ -185,7 +185,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
             if (phase != null) {
                 // after step should have the name of the previous phase since the index is still in the 
                 // previous phase until the after condition is reached
-                Step.StepKey afterStepKey = new Step.StepKey(previousPhase.getName(), PhaseAfterStep.NAME, PhaseAfterStep.NAME);
+                StepKey afterStepKey = new StepKey(previousPhase.getName(), PhaseAfterStep.NAME, PhaseAfterStep.NAME);
                 Step phaseAfterStep = new PhaseAfterStep(nowSupplier, phase.getAfter(), afterStepKey, lastStepKey);
                 steps.add(phaseAfterStep);
                 lastStepKey = phaseAfterStep.getKey();
@@ -209,7 +209,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
 
         if (phase != null) {
             // The very first after step is in a phase before the hot phase so call this "new"
-            Step.StepKey afterStepKey = new Step.StepKey("new", PhaseAfterStep.NAME, PhaseAfterStep.NAME);
+            StepKey afterStepKey = new StepKey("new", PhaseAfterStep.NAME, PhaseAfterStep.NAME);
             Step phaseAfterStep = new PhaseAfterStep(nowSupplier, phase.getAfter(), afterStepKey, lastStepKey);
             steps.add(phaseAfterStep);
             lastStepKey = phaseAfterStep.getKey();

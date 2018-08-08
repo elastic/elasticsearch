@@ -14,9 +14,9 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StepKey;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
-import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.junit.Before;
 
 import static org.hamcrest.Matchers.equalTo;

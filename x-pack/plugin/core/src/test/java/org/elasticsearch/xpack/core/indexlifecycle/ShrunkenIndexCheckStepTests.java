@@ -10,8 +10,8 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StepKey;
 import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateWaitStep.Result;
-import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
 import static org.hamcrest.Matchers.equalTo;
 

@@ -10,6 +10,7 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StepKey;
 
 public class DeleteStep extends AsyncActionStep {
     public static final String NAME = "delete";

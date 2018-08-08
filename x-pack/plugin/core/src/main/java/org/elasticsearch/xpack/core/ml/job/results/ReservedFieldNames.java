@@ -198,7 +198,6 @@ public final class ReservedFieldNames {
             Job.RESULTS_RETENTION_DAYS.getPreferredName(),
             Job.MODEL_SNAPSHOT_ID.getPreferredName(),
             Job.RESULTS_INDEX_NAME.getPreferredName(),
-            Job.DELETED.getPreferredName(),
 
             AnalysisConfig.BUCKET_SPAN.getPreferredName(),
             AnalysisConfig.CATEGORIZATION_FIELD_NAME.getPreferredName(),

@@ -35,8 +35,8 @@ import java.util.Set;
 import java.util.function.Function;
 
 /**
- * Autodetect analysis configuration options describes which fields are
- * analysed and the functions to use.
+ * Analysis configuration options that describe which fields are
+ * analyzed and which functions are used to detect anomalies.
  * <p>
  * The configuration can contain multiple detectors, a new anomaly detector will
  * be created for each detector configuration. The fields
@@ -63,7 +63,6 @@ public class AnalysisConfig implements ToXContentObject {
     public static final ParseField OVERLAPPING_BUCKETS = new ParseField("overlapping_buckets");
     public static final ParseField RESULT_FINALIZATION_WINDOW = new ParseField("result_finalization_window");
     public static final ParseField MULTIVARIATE_BY_FIELDS = new ParseField("multivariate_by_fields");
-    public static final ParseField USER_PER_PARTITION_NORMALIZATION = new ParseField("use_per_partition_normalization");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<Builder, Void> PARSER = new ConstructingObjectParser<>(ANALYSIS_CONFIG.getPreferredName(),
@@ -88,7 +87,6 @@ public class AnalysisConfig implements ToXContentObject {
         PARSER.declareBoolean(Builder::setOverlappingBuckets, OVERLAPPING_BUCKETS);
         PARSER.declareLong(Builder::setResultFinalizationWindow, RESULT_FINALIZATION_WINDOW);
         PARSER.declareBoolean(Builder::setMultivariateByFields, MULTIVARIATE_BY_FIELDS);
-        PARSER.declareBoolean(Builder::setUsePerPartitionNormalization, USER_PER_PARTITION_NORMALIZATION);
     }
 
     /**
@@ -105,13 +103,12 @@ public class AnalysisConfig implements ToXContentObject {
     private final Boolean overlappingBuckets;
     private final Long resultFinalizationWindow;
     private final Boolean multivariateByFields;
-    private final boolean usePerPartitionNormalization;
 
     private AnalysisConfig(TimeValue bucketSpan, String categorizationFieldName, List<String> categorizationFilters,
                            CategorizationAnalyzerConfig categorizationAnalyzerConfig, TimeValue latency, String summaryCountFieldName,
                            List<Detector> detectors, List<String> influencers, Boolean overlappingBuckets, Long resultFinalizationWindow,
-                           Boolean multivariateByFields, boolean usePerPartitionNormalization) {
-        this.detectors = detectors;
+                           Boolean multivariateByFields) {
+        this.detectors = Collections.unmodifiableList(detectors);
         this.bucketSpan = bucketSpan;
         this.latency = latency;
         this.categorizationFieldName = categorizationFieldName;
@@ -122,7 +119,6 @@ public class AnalysisConfig implements ToXContentObject {
         this.overlappingBuckets = overlappingBuckets;
         this.resultFinalizationWindow = resultFinalizationWindow;
         this.multivariateByFields = multivariateByFields;
-        this.usePerPartitionNormalization = usePerPartitionNormalization;
     }
 
     /**
@@ -191,10 +187,6 @@ public class AnalysisConfig implements ToXContentObject {
 
     public Boolean getMultivariateByFields() {
         return multivariateByFields;
-    }
-
-    public boolean getUsePerPartitionNormalization() {
-        return usePerPartitionNormalization;
     }
 
     private static void addIfNotNull(Set<String> fields, String field) {
@@ -272,9 +264,6 @@ public class AnalysisConfig implements ToXContentObject {
         if (multivariateByFields != null) {
             builder.field(MULTIVARIATE_BY_FIELDS.getPreferredName(), multivariateByFields);
         }
-        if (usePerPartitionNormalization) {
-            builder.field(USER_PER_PARTITION_NORMALIZATION.getPreferredName(), usePerPartitionNormalization);
-        }
         builder.endObject();
         return builder;
     }
@@ -291,7 +280,6 @@ public class AnalysisConfig implements ToXContentObject {
 
         AnalysisConfig that = (AnalysisConfig) object;
         return Objects.equals(latency, that.latency) &&
-            usePerPartitionNormalization == that.usePerPartitionNormalization &&
             Objects.equals(bucketSpan, that.bucketSpan) &&
             Objects.equals(categorizationFieldName, that.categorizationFieldName) &&
             Objects.equals(categorizationFilters, that.categorizationFilters) &&
@@ -309,8 +297,7 @@ public class AnalysisConfig implements ToXContentObject {
         return Objects.hash(
             bucketSpan, categorizationFieldName, categorizationFilters, categorizationAnalyzerConfig, latency,
             summaryCountFieldName, detectors, influencers, overlappingBuckets, resultFinalizationWindow,
-            multivariateByFields, usePerPartitionNormalization
-        );
+            multivariateByFields);
     }
 
     public static class Builder {
@@ -326,7 +313,6 @@ public class AnalysisConfig implements ToXContentObject {
         private Boolean overlappingBuckets;
         private Long resultFinalizationWindow;
         private Boolean multivariateByFields;
-        private boolean usePerPartitionNormalization = false;
 
         public Builder(List<Detector> detectors) {
             setDetectors(detectors);
@@ -345,14 +331,10 @@ public class AnalysisConfig implements ToXContentObject {
             this.overlappingBuckets = analysisConfig.overlappingBuckets;
             this.resultFinalizationWindow = analysisConfig.resultFinalizationWindow;
             this.multivariateByFields = analysisConfig.multivariateByFields;
-            this.usePerPartitionNormalization = analysisConfig.usePerPartitionNormalization;
         }
 
         public void setDetectors(List<Detector> detectors) {
-            if (detectors == null) {
-                this.detectors = null;
-                return;
-            }
+            Objects.requireNonNull(detectors,  "[" + DETECTORS.getPreferredName() + "] must not be null");
             // We always assign sequential IDs to the detectors that are correct for this analysis config
             int detectorIndex = 0;
             List<Detector> sequentialIndexDetectors = new ArrayList<>(detectors.size());
@@ -408,15 +390,11 @@ public class AnalysisConfig implements ToXContentObject {
             this.multivariateByFields = multivariateByFields;
         }
 
-        public void setUsePerPartitionNormalization(boolean usePerPartitionNormalization) {
-            this.usePerPartitionNormalization = usePerPartitionNormalization;
-        }
-
         public AnalysisConfig build() {
 
             return new AnalysisConfig(bucketSpan, categorizationFieldName, categorizationFilters, categorizationAnalyzerConfig,
                 latency, summaryCountFieldName, detectors, influencers, overlappingBuckets,
-                resultFinalizationWindow, multivariateByFields, usePerPartitionNormalization);
+                resultFinalizationWindow, multivariateByFields);
         }
     }
 }

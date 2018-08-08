@@ -96,11 +96,7 @@ public class AnalysisConfigTests extends AbstractXContentTestCase<AnalysisConfig
             builder.setResultFinalizationWindow(randomNonNegativeLong());
         }
 
-        boolean usePerPartitionNormalisation = randomBoolean();
-        builder.setUsePerPartitionNormalization(usePerPartitionNormalisation);
-        if (!usePerPartitionNormalisation) { // influencers can't be used with per partition normalisation
-            builder.setInfluencers(Arrays.asList(generateRandomStringArray(10, 10, false)));
-        }
+        builder.setInfluencers(Arrays.asList(generateRandomStringArray(10, 10, false)));
         return builder;
     }
 
@@ -119,23 +115,10 @@ public class AnalysisConfigTests extends AbstractXContentTestCase<AnalysisConfig
         return false;
     }
 
-    public void testBuild_GivenMlCategoryUsedAsByFieldAndCategorizationFieldName() {
-        Detector.Builder detector = new Detector.Builder();
-        detector.setFunction("count");
-        detector.setOverFieldName("mlcategory");
-        AnalysisConfig.Builder ac = new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
-        ac.setCategorizationFieldName("msg");
-        ac.build();
-    }
-
-    public void testBuild_GivenNonOverlappingNestedFields() {
-        Detector.Builder detector = new Detector.Builder();
-        detector.setFunction("count");
-        detector.setByFieldName("a.b.c");
-        AnalysisConfig.Builder ac = new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
-        ac.setInfluencers(Arrays.asList("a.b.c", "a.b.d"));
-
-        ac.build();
+    public void testBuilder_WithNullDetectors() {
+        AnalysisConfig.Builder builder = new AnalysisConfig.Builder(new ArrayList<>());
+        NullPointerException ex = expectThrows(NullPointerException.class, () ->  builder.setDetectors(null));
+        assertEquals("[detectors] must not be null", ex.getMessage());
     }
 
     public void testEquals_GivenSameReference() {

@@ -472,7 +472,7 @@ public class Job implements ToXContentObject {
             return id;
         }
 
-        private Builder setJobType(String jobType) {
+        public Builder setJobType(String jobType) {
             this.jobType = jobType;
             return this;
         }
@@ -578,7 +578,8 @@ public class Job implements ToXContentObject {
          * @return The job
          */
         public Job build() {
-
+            Objects.requireNonNull(id,  "[" + ID.getPreferredName() + "] must not be null");
+            Objects.requireNonNull(jobType,  "[" + JOB_TYPE.getPreferredName() + "] must not be null");
             return new Job(
                 id, jobType, groups, description, createTime, finishedTime, lastDataTime, establishedModelMemory,
                 analysisConfig, analysisLimits, dataDescription, modelPlotConfig, renormalizationWindowDays,

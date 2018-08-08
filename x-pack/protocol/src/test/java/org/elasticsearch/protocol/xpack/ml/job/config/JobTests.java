@@ -73,7 +73,7 @@ public class JobTests extends AbstractXContentTestCase<Job> {
     public void testFutureMetadataParse() throws IOException {
         XContentParser parser = XContentFactory.xContent(XContentType.JSON)
             .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, FUTURE_JOB);
-        // Unlike the config version of this test, the metadata parser should tolerate the unknown future field
+        // The parser should tolerate unknown fields
         assertNotNull(Job.PARSER.apply(parser, null).build());
     }
 
@@ -164,14 +164,24 @@ public class JobTests extends AbstractXContentTestCase<Job> {
         assertFalse(jobDetails1.build().equals(jobDetails2.build()));
     }
 
-    // JobConfigurationVerifierTests:
-
     public void testCopyConstructor() {
         for (int i = 0; i < NUMBER_OF_TEST_RUNS; i++) {
             Job job = createTestInstance();
             Job copy = new Job.Builder(job).build();
             assertEquals(job, copy);
         }
+    }
+
+    public void testBuilder_WithNullID() {
+        Job.Builder builder = new Job.Builder("anything").setId(null);
+        NullPointerException ex = expectThrows(NullPointerException.class, builder::build);
+        assertEquals("[job_id] must not be null", ex.getMessage());
+    }
+
+    public void testBuilder_WithNullJobType() {
+        Job.Builder builder = new Job.Builder("anything").setJobType(null);
+        NullPointerException ex = expectThrows(NullPointerException.class, builder::build);
+        assertEquals("[job_type] must not be null", ex.getMessage());
     }
 
     public static Job.Builder buildJobBuilder(String id, Date date) {

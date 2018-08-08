@@ -273,7 +273,7 @@ class VagrantTestPlugin implements Plugin<Project> {
         Task createVersionFile = project.tasks.create('createVersionFile', FileContentsTask) {
             dependsOn copyPackagingArchives
             file "${archivesDir}/version"
-            contents Version.fromString(project.version).dropSnapshot().dropQualifier().toString()
+            contents project.version
         }
 
         Task createUpgradeFromFile = project.tasks.create('createUpgradeFromFile', FileContentsTask) {

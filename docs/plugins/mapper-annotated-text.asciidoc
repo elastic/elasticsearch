@@ -1,11 +1,19 @@
 [[mapper-annotated-text]]
 === Mapper Annotated Text Plugin
 
+experimental[]
+
 The mapper-annotated-text plugin provides the ability to index text that is a
 combination of free-text and special markup that is typically used to identify
 items of interest such as people or organisations (see NER or Named Entity Recognition
-tools).
-The markup allows one or more additional tokens to be injected, unchanged, into the token
+tools). 
+While NER only aims to mark the positions and types of name uses in text,
+`entity resolution` goes a step further and associates an ID with the text.
+The ID is used to resolve any number of aliases or distinguish between people with the
+same name. The hyperlinks connecting Wikipedia's articles are a good example of resolved 
+entity IDs woven into text.
+
+The elasticsearch markup allows one or more additional tokens to be injected, unchanged, into the token
 stream at the same position as the underlying text it annotates.
 
 :plugin_name: mapper-annotated-text
@@ -106,19 +114,19 @@ the token stream and at the same position (position 2) as the text token (`apple
 
 We can now perform searches for annotations using regular `term` queries that don't tokenize
 the provided search values. Annotations are a more precise way of matching as can be seen 
-in this example where a search for `Donald Trump` will not match `Donald Trump Jr` :
+in this example where a search for `Beck` will not match `Jeff Beck` :
 
 [source,js]
 --------------------------
 # Example documents
 PUT my_index/my_type/1
 {
-  "my_field": "The lawyer met [Donald Trump Jr](Donald+Trump+Jr)"<1>
+  "my_field": "[Beck](Beck) announced a new tour"<2>
 }
 
 PUT my_index/my_type/2
 {
-  "my_field": "[Donald Trump](person=Donald+Trump&role=President) flew to Singapore"<2>
+  "my_field": "[Jeff Beck](person=Jeff+Beck&role=Guitarist) plays a strat"<1>
 }
 
 # Example search
@@ -126,23 +134,23 @@ GET my_index/_search
 {
   "query": {
     "term": {
-        "my_field": "Donald Trump" <3>
+        "my_field": "Beck" <3>
     }
   }
 }
 --------------------------
 // CONSOLE
 
-<1> As well as tokenising the plain text into single words here we inject a single token 
-value `Donald Trump Jr` at position 4 in the token stream.
+<1> As well as tokenising the plain text into single words e.g. `beck`, here we 
+inject the single token value `Beck` at the same position as `beck` in the token stream.
 <2> Note annotations can inject multiple tokens at the same position - here we inject both
-the very specific value `Donald Trump` and the broader term `President`. This enables
-broader positional queries e.g. finding mentions of any `President` near to the country
-`Singapore`. In this example the optional type information (`person` and `role`) is not 
+the very specific value `Jeff Beck` and the broader term `Guitarist`. This enables
+broader positional queries e.g. finding mentions of a `Guitarist` near to `strat`.
+In this example the optional type information (`person` and `role`) is not 
 indexed or searchable but may be of use to client applications that want to render text in 
 special ways according to the annotation type.
-<3> A benefit of searching for these special, singular, annotation tokens is that a query for 
-`Donald Trump` will not match the document that only contains `Donald Trump Jr`
+<3> A benefit of searching with these carefully defined annotation tokens is that a query for 
+`Beck` will not match document 2 that contains the tokens `jeff`, `beck` and `Jeff Beck`
 
 
 
@@ -186,22 +194,22 @@ Applications would then typically provide content and discover it as follows:
 # Example documents
 PUT my_index/my_type/1
 {
-  "my_unstructured_text_field": "The Russians met [Donald Trump Jr.](Donald+Trump+Jr.)",
-  "my_structured_people_field": ["Donald Trump Jr."] <1>
+  "my_unstructured_text_field": "[Shay](%40kimchy) created elasticsearch",
+  "my_twitter_handles": ["@kimchy"] <1>
 }
 
 GET my_index/_search
 {
   "query": {
     "query_string": {
-        "query": "(met OR meeting) AND Russians",<2>
+        "query": "elasticsearch OR logstash OR kibana",<2>
         "default_field": "my_unstructured_text_field"
     }
   },
   "aggregations": {
   	"top_people" :{
   	    "significant_terms" : { <3>
-	       "field" : "my_structured_people_field.keyword"
+	       "field" : "my_twitter_handles.keyword"
   	    }
   	}
   }
@@ -209,13 +217,14 @@ GET my_index/_search
 --------------------------
 // CONSOLE
 
-<1> Note the `my_structured_people_field` contains a list of the annotation values
-found in the unstructured text. By using exactly the same case and punctuation as the
-annotation values this application has ensured that the tokens discovered in the structured
-field can be used for search and highlighting in the unstructured field.  
-<2> In this example we search for documents that are about meeting Russians.
-<3> We use the `my_structured_people_field` here to discover people who are significantly
-associated with reports of meeting with Russians.
+<1> Note the `my_twitter_handles` contains a list of the annotation values
+also used in the unstructured text. (Note the annotated_text syntax requires escaping). 
+By repeating the annotation values in a structured field this application has ensured that 
+the tokens discovered in the structured field can be used for search and highlighting 
+in the unstructured field.  
+<2> In this example we search for documents that talk about components of the elastic stack
+<3> We use the `my_twitter_handles` field here to discover people who are significantly
+associated with the elastic stack.
 
 ===== Avoiding over-matching annotations
 By design, the regular text tokens and the annotation tokens co-exist in the same indexed 
@@ -226,13 +235,13 @@ The tokens for these named entities are inserted untokenized, and differ from ty
 tokens because they are normally:
 
 * Mixed case e.g. `Madonna`
-* Multiple words e.g. `Donald Trump`
-* Can have punctuation or numbers e.g. `Apple Inc.` or `IMDB_Movie:36473`
+* Multiple words e.g. `Jeff Beck`
+* Can have punctuation or numbers e.g. `Apple Inc.` or `@kimchy`
 
 This means, for the most part, a search for a named entity in the annotated text field will
-not have any false positives e.g. when selecting `Donald Trump Jr.` or `Apple Inc.` from an
-aggregation result you can drill down to highlight uses in the text without "over matching" 
-on any text tokens like the word `apple` in this context:
+not have any false positives e.g. when selecting `Apple Inc.` from an aggregation result 
+you can drill down to highlight uses in the text without "over matching" on any text tokens 
+like the word `apple` in this context:
 
     the apple was very juicy
     

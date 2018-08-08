@@ -28,7 +28,7 @@ import java.util.List;
 public class AnnotatedTextParsingTests extends ESTestCase {
     
     private void checkParsing(String markup, String expectedPlainText, AnnotationToken... expectedTokens) {
-        AnnotatedText at = new AnnotatedText(markup);
+        AnnotatedText at = AnnotatedText.parse(markup);
         assertEquals(expectedPlainText, at.textMinusMarkup);
         List<AnnotationToken> actualAnnotations = at.annotations;
         assertEquals(expectedTokens.length, actualAnnotations.size());

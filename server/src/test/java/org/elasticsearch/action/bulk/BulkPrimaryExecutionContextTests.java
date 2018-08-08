@@ -60,7 +60,7 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
             visitedRequests.add(context.getCurrent());
             context.setRequestToExecute(context.getCurrent());
             // using failures prevents caring about types
-            context.markOperationAsExecuted(new Engine.IndexResult(new ElasticsearchException("bla"), 1));
+            context.markOperationAsExecuted(new Engine.IndexResult(new ElasticsearchException("bla"), 1, 1));
             context.markAsCompleted(context.getExecutionResult());
         }
 
@@ -100,13 +100,12 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
         Translog.Location expectedLocation = null;
         final IndexShard primary = mock(IndexShard.class);
         when(primary.shardId()).thenReturn(shardRequest.shardId());
-        when(primary.getPrimaryTerm()).thenReturn(1L);
 
         long translogGen = 0;
         long translogOffset = 0;
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(shardRequest, primary);
-        for (;context.hasMoreOperationsToExecute(); context.advance()) {
+        for (; context.hasMoreOperationsToExecute(); context.advance()) {
             final Engine.Result result;
             final DocWriteRequest<?> current = context.getCurrent();
             final boolean failure = rarely();
@@ -123,25 +122,25 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
                 case CREATE:
                     context.setRequestToExecute(current);
                     if (failure) {
-                        result = new Engine.IndexResult(new ElasticsearchException("bla"), 1);
+                        result = new Engine.IndexResult(new ElasticsearchException("bla"), 1, 1);
                     } else {
-                        result = new FakeIndexResult(1, randomLongBetween(0, 200), randomBoolean(), location);
+                        result = new FakeIndexResult(1, 1, randomLongBetween(0, 200), randomBoolean(), location);
                     }
                     break;
                 case UPDATE:
                     context.setRequestToExecute(new IndexRequest(current.index(), current.type(), current.id()));
                     if (failure) {
-                        result = new Engine.IndexResult(new ElasticsearchException("bla"), 1);
+                        result = new Engine.IndexResult(new ElasticsearchException("bla"), 1, 1, 1);
                     } else {
-                        result = new FakeIndexResult(1, randomLongBetween(0, 200), randomBoolean(), location);
+                        result = new FakeIndexResult(1, 1, randomLongBetween(0, 200), randomBoolean(), location);
                     }
                     break;
                 case DELETE:
                     context.setRequestToExecute(current);
                     if (failure) {
-                        result = new Engine.DeleteResult(new ElasticsearchException("bla"), 1);
+                        result = new Engine.DeleteResult(new ElasticsearchException("bla"), 1, 1);
                     } else {
-                        result = new FakeDeleteResult(1, randomLongBetween(0, 200), randomBoolean(), location);
+                        result = new FakeDeleteResult(1, 1, randomLongBetween(0, 200), randomBoolean(), location);
                     }
                     break;
                 default:

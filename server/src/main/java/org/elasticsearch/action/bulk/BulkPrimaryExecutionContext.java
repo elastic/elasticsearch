@@ -246,11 +246,11 @@ class BulkPrimaryExecutionContext {
                 if (result.getOperationType() == Engine.Operation.TYPE.INDEX) {
                     Engine.IndexResult indexResult = (Engine.IndexResult) result;
                     response = new IndexResponse(primary.shardId(), requestToExecute.type(), requestToExecute.id(),
-                        result.getSeqNo(), primary.getPrimaryTerm(), indexResult.getVersion(), indexResult.isCreated());
+                        result.getSeqNo(), result.getTerm(), indexResult.getVersion(), indexResult.isCreated());
                 } else if (result.getOperationType() == Engine.Operation.TYPE.DELETE) {
                     Engine.DeleteResult deleteResult = (Engine.DeleteResult) result;
                     response = new DeleteResponse(primary.shardId(), requestToExecute.type(), requestToExecute.id(),
-                        deleteResult.getSeqNo(), primary.getPrimaryTerm(), deleteResult.getVersion(), deleteResult.isFound());
+                        deleteResult.getSeqNo(), result.getTerm(), deleteResult.getVersion(), deleteResult.isFound());
 
                 } else {
                     throw new AssertionError("unknown result type :" + result.getResultType());

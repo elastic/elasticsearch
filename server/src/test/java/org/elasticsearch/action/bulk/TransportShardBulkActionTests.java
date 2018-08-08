@@ -286,7 +286,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         Engine.IndexResult mappingUpdate =
             new Engine.IndexResult(new Mapping(null, null, new MetadataFieldMapper[0], Collections.emptyMap()));
         Translog.Location resultLocation = new Translog.Location(42, 42, 42);
-        Engine.IndexResult success = new FakeIndexResult(1, 13, true, resultLocation);
+        Engine.IndexResult success = new FakeIndexResult(1, 1, 13, true, resultLocation);
 
         IndexShard shard = mock(IndexShard.class);
         when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyBoolean())).thenReturn(mappingUpdate);
@@ -505,7 +505,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         IndexRequest updateResponse = new IndexRequest("index", "_doc", "id").source(Requests.INDEX_CONTENT_TYPE, "field", "value");
 
         Exception err = new ElasticsearchException("I'm dead <(x.x)>");
-        Engine.IndexResult indexResult = new Engine.IndexResult(err, 0, 0);
+        Engine.IndexResult indexResult = new Engine.IndexResult(err, 0, 0, 0);
         IndexShard shard = mock(IndexShard.class);
         when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyBoolean())).thenReturn(indexResult);
         when(shard.indexSettings()).thenReturn(indexSettings);
@@ -553,7 +553,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         Exception err = new VersionConflictEngineException(shardId, "_doc", "id",
             "I'm conflicted <(;_;)>");
-        Engine.IndexResult indexResult = new Engine.IndexResult(err, 0, 0);
+        Engine.IndexResult indexResult = new Engine.IndexResult(err, 0, 0, 0);
         IndexShard shard = mock(IndexShard.class);
         when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyBoolean())).thenReturn(indexResult);
         when(shard.indexSettings()).thenReturn(indexSettings);
@@ -598,7 +598,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         boolean created = randomBoolean();
         Translog.Location resultLocation = new Translog.Location(42, 42, 42);
-        Engine.IndexResult indexResult = new FakeIndexResult(1, 13, created, resultLocation);
+        Engine.IndexResult indexResult = new FakeIndexResult(1, 1, 13, created, resultLocation);
         IndexShard shard = mock(IndexShard.class);
         when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyBoolean())).thenReturn(indexResult);
         when(shard.indexSettings()).thenReturn(indexSettings);
@@ -643,7 +643,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         boolean found = randomBoolean();
         Translog.Location resultLocation = new Translog.Location(42, 42, 42);
         final long resultSeqNo = 13;
-        Engine.DeleteResult deleteResult = new FakeDeleteResult(1, resultSeqNo, found, resultLocation);
+        Engine.DeleteResult deleteResult = new FakeDeleteResult(1, 1, resultSeqNo, found, resultLocation);
         IndexShard shard = mock(IndexShard.class);
         when(shard.applyDeleteOperationOnPrimary(anyLong(), any(), any(), any())).thenReturn(deleteResult);
         when(shard.indexSettings()).thenReturn(indexSettings);
@@ -785,7 +785,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         Engine.IndexResult mappingUpdate =
             new Engine.IndexResult(new Mapping(null, null, new MetadataFieldMapper[0], Collections.emptyMap()));
         Translog.Location resultLocation = new Translog.Location(42, 42, 42);
-        Engine.IndexResult success = new FakeIndexResult(1, 13, true, resultLocation);
+        Engine.IndexResult success = new FakeIndexResult(1, 1, 13, true, resultLocation);
 
         IndexShard shard = mock(IndexShard.class);
         when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyBoolean())).thenAnswer(ir -> {
@@ -837,8 +837,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         private final Translog.Location location;
 
-        protected FakeIndexResult(long version, long seqNo, boolean created, Translog.Location location) {
-            super(version, seqNo, created);
+        protected FakeIndexResult(long version, long term, long seqNo, boolean created, Translog.Location location) {
+            super(version, term, seqNo, created);
             this.location = location;
         }
 
@@ -855,8 +855,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         private final Translog.Location location;
 
-        protected FakeDeleteResult(long version, long seqNo, boolean found, Translog.Location location) {
-            super(version, seqNo, found);
+        protected FakeDeleteResult(long version, long term, long seqNo, boolean found, Translog.Location location) {
+            super(version, term, seqNo, found);
             this.location = location;
         }
 

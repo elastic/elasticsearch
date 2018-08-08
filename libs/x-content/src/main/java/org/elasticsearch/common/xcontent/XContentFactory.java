@@ -35,7 +35,7 @@ import java.io.OutputStream;
  */
 public class XContentFactory {
 
-    private static final int GUESS_HEADER_LENGTH = 20;
+    static final int GUESS_HEADER_LENGTH = 20;
 
     /**
      * Returns a content builder using JSON format ({@link org.elasticsearch.common.xcontent.XContentType#JSON}.
@@ -153,8 +153,10 @@ public class XContentFactory {
             return XContentType.JSON;
         }
         // Should we throw a failure here? Smile idea is to use it in bytes....
-        if (length > 2 && first == SmileConstants.HEADER_BYTE_1 && content.charAt(1) == SmileConstants.HEADER_BYTE_2 &&
-            content.charAt(2) == SmileConstants.HEADER_BYTE_3) {
+        if (length > 2
+                && first == SmileConstants.HEADER_BYTE_1
+                && content.charAt(1) == SmileConstants.HEADER_BYTE_2
+                && content.charAt(2) == SmileConstants.HEADER_BYTE_3) {
             return XContentType.SMILE;
         }
         if (length > 2 && first == '-' && content.charAt(1) == '-' && content.charAt(2) == '-') {
@@ -227,13 +229,29 @@ public class XContentFactory {
      */
     @Deprecated
     public static XContentType xContentType(InputStream si) throws IOException {
+        /*
+         * We need to guess the content type. To do this, we look for the first non-whitespace character and then try to guess the content
+         * type on the GUESS_HEADER_LENGTH bytes that follow. We do this in a way that does not modify the initial read position in the
+         * underlying input stream. This is why the input stream must support mark/reset and why we repeatedly mark the read position and
+         * reset.
+         */
         if (si.markSupported() == false) {
             throw new IllegalArgumentException("Cannot guess the xcontent type without mark/reset support on " + si.getClass());
         }
-        si.mark(GUESS_HEADER_LENGTH);
+        si.mark(Integer.MAX_VALUE);
         try {
+            // scan until we find the first non-whitespace character or the end of the stream
+            int current;
+            do {
+                current = si.read();
+                if (current == -1) {
+                    return null;
+                }
+            } while (Character.isWhitespace((char) current));
+            // now guess the content type off the next GUESS_HEADER_LENGTH bytes including the current byte
             final byte[] firstBytes = new byte[GUESS_HEADER_LENGTH];
-            int read = 0;
+            firstBytes[0] = (byte) current;
+            int read = 1;
             while (read < GUESS_HEADER_LENGTH) {
                 final int r = si.read(firstBytes, read, GUESS_HEADER_LENGTH - read);
                 if (r == -1) {
@@ -245,6 +263,7 @@ public class XContentFactory {
         } finally {
             si.reset();
         }
+
     }
 
     /**
@@ -278,15 +297,17 @@ public class XContentFactory {
         if (first == '{') {
             return XContentType.JSON;
         }
-        if (length > 2 && first == SmileConstants.HEADER_BYTE_1 && bytes[offset + 1] == SmileConstants.HEADER_BYTE_2 &&
-            bytes[offset + 2] == SmileConstants.HEADER_BYTE_3) {
+        if (length > 2
+                && first == SmileConstants.HEADER_BYTE_1
+                && bytes[offset + 1] == SmileConstants.HEADER_BYTE_2
+                && bytes[offset + 2] == SmileConstants.HEADER_BYTE_3) {
             return XContentType.SMILE;
         }
         if (length > 2 && first == '-' && bytes[offset + 1] == '-' && bytes[offset + 2] == '-') {
             return XContentType.YAML;
         }
         // CBOR logic similar to CBORFactory#hasCBORFormat
-        if (first == CBORConstants.BYTE_OBJECT_INDEFINITE && length > 1){
+        if (first == CBORConstants.BYTE_OBJECT_INDEFINITE && length > 1) {
             return XContentType.CBOR;
         }
         if (CBORConstants.hasMajorType(CBORConstants.MAJOR_TYPE_TAG, first) && length > 2) {

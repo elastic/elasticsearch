@@ -192,7 +192,7 @@ public class NioHttpServerTransportTests extends ESTestCase {
             xContentRegistry(), dispatcher)) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
-            try (Netty4HttpClient client = new Netty4HttpClient()) {
+            try (NioHttpClient client = new NioHttpClient()) {
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/");
                 request.headers().set(HttpHeaderNames.EXPECT, expectation);
                 HttpUtil.setContentLength(request, contentLength);
@@ -275,7 +275,7 @@ public class NioHttpServerTransportTests extends ESTestCase {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
-            try (Netty4HttpClient client = new Netty4HttpClient()) {
+            try (NioHttpClient client = new NioHttpClient()) {
                 final String url = "/" + new String(new byte[maxInitialLineLength], Charset.forName("UTF-8"));
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, url);
 

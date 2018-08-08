@@ -9,6 +9,7 @@ dependencies {
 task copyILMRestTests(type: Copy) {
   into project.sourceSets.test.output.resourcesDir
   from xpackProject('plugin').sourceSets.test.resources.srcDirs
+  include 'rest-api-spec/api/ilm.*'
   include 'rest-api-spec/test/ilm/**'
 }
 

@@ -51,6 +51,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
@@ -63,7 +64,7 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 
 import java.io.IOException;
@@ -94,19 +95,20 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
     private final XPackLicenseState licenseState;
     private final PersistentTasksService persistentTasksService;
     private final Client client;
-    private final JobProvider jobProvider;
+    private final JobResultsProvider jobResultsProvider;
 
     @Inject
     public TransportOpenJobAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                   XPackLicenseState licenseState, ClusterService clusterService,
                                   PersistentTasksService persistentTasksService, ActionFilters actionFilters,
-                                  IndexNameExpressionResolver indexNameExpressionResolver, Client client, JobProvider jobProvider) {
+                                  IndexNameExpressionResolver indexNameExpressionResolver, Client client,
+                                  JobResultsProvider jobResultsProvider) {
         super(settings, OpenJobAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
                 OpenJobAction.Request::new);
         this.licenseState = licenseState;
         this.persistentTasksService = persistentTasksService;
         this.client = client;
-        this.jobProvider = jobProvider;
+        this.jobResultsProvider = jobResultsProvider;
     }
 
     /**
@@ -489,7 +491,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
             // Step 4. Start job task
             ActionListener<PutJobAction.Response> establishedMemoryUpdateListener = ActionListener.wrap(
-                    response -> persistentTasksService.sendStartRequest(MlMetadata.jobTaskId(jobParams.getJobId()),
+                    response -> persistentTasksService.sendStartRequest(MlTasks.jobTaskId(jobParams.getJobId()),
                             OpenJobAction.TASK_NAME, jobParams, finalListener),
                     listener::onFailure
             );
@@ -503,7 +505,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                             Long jobEstablishedModelMemory = job.getEstablishedModelMemory();
                             if ((jobVersion == null || jobVersion.before(Version.V_6_1_0))
                                     && (jobEstablishedModelMemory == null || jobEstablishedModelMemory == 0)) {
-                                jobProvider.getEstablishedMemoryUsage(job.getId(), null, null, establishedModelMemory -> {
+                                jobResultsProvider.getEstablishedMemoryUsage(job.getId(), null, null, establishedModelMemory -> {
                                     if (establishedModelMemory != null && establishedModelMemory > 0) {
                                         JobUpdate update = new JobUpdate.Builder(job.getId())
                                                 .setEstablishedModelMemory(establishedModelMemory).build();

@@ -45,7 +45,6 @@ public class QueryExplanation  implements Streamable, ToXContentFragment {
 
     public static final int RANDOM_SHARD = -1;
 
-    @SuppressWarnings("unchecked")
     static ConstructingObjectParser<QueryExplanation, Void> PARSER = new ConstructingObjectParser<>(
         "query_explanation",
         true,

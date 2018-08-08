@@ -12,7 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.core.security.user.InternalUserSerializationHelper;
-import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.protocol.xpack.security.User;
 
 import java.io.IOException;
 import java.util.Base64;
@@ -88,13 +88,17 @@ public class Authentication {
             throws IOException, IllegalArgumentException {
         assert ctx.getTransient(AuthenticationField.AUTHENTICATION_KEY) == null;
 
+        Authentication authentication = decode(header);
+        ctx.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
+        return authentication;
+    }
+
+    public static Authentication decode(String header) throws IOException {
         byte[] bytes = Base64.getDecoder().decode(header);
         StreamInput input = StreamInput.wrap(bytes);
         Version version = Version.readVersion(input);
         input.setVersion(version);
-        Authentication authentication = new Authentication(input);
-        ctx.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
-        return authentication;
+        return new Authentication(input);
     }
 
     /**

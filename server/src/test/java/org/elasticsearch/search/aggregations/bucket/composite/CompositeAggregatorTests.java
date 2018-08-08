@@ -1746,7 +1746,6 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    @SuppressWarnings("unchecked")
     private static Map<String, Object> createAfterKey(Object... fields) {
         assert fields.length % 2 == 0;
         final Map<String, Object> map = new HashMap<>();

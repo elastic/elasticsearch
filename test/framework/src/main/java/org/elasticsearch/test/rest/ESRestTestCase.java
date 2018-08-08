@@ -148,7 +148,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 }
                 String host = stringUrl.substring(0, portSeparator);
                 int port = Integer.valueOf(stringUrl.substring(portSeparator + 1));
-                hosts.add(new HttpHost(host, port, getProtocol()));
+                hosts.add(buildHttpHost(host, port));
             }
             clusterHosts = unmodifiableList(hosts);
             logger.info("initializing REST clients against {}", clusterHosts);
@@ -158,6 +158,13 @@ public abstract class ESRestTestCase extends ESTestCase {
         assert client != null;
         assert adminClient != null;
         assert clusterHosts != null;
+    }
+
+    /**
+     * Construct a HttpHost from the given host and port
+     */
+    protected HttpHost buildHttpHost(String host, int port) {
+        return new HttpHost(host, port, getProtocol());
     }
 
     /**
@@ -533,6 +540,11 @@ public abstract class ESRestTestCase extends ESTestCase {
         Request request = new Request("PUT", "/" + name);
         request.setJsonEntity("{\n \"settings\": " + Strings.toString(settings)
                 + ", \"mappings\" : {" + mapping + "} }");
+        client().performRequest(request);
+    }
+
+    protected static void deleteIndex(String name) throws IOException {
+        Request request = new Request("DELETE", "/" + name);
         client().performRequest(request);
     }
 

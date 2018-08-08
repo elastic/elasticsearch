@@ -24,7 +24,6 @@ import org.elasticsearch.gradle.VersionProperties
 import org.gradle.api.DefaultTask
 import org.gradle.api.Project
 import org.gradle.api.Task
-import org.gradle.api.Transformer
 import org.gradle.api.execution.TaskExecutionAdapter
 import org.gradle.api.internal.tasks.options.Option
 import org.gradle.api.provider.Property
@@ -217,7 +216,7 @@ public class RestIntegTestTask extends DefaultTask {
      * @param project The project to add the copy task to
      * @param includePackagedTests true if the packaged tests should be copied, false otherwise
      */
-    private static Task createCopyRestSpecTask(Project project, Provider<Boolean> includePackagedTests) {
+    static Task createCopyRestSpecTask(Project project, Provider<Boolean> includePackagedTests) {
         project.configurations {
             restSpec
         }

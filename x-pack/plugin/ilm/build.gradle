@@ -29,8 +29,6 @@ integTestCluster {
     module project(xpackModule('core'))
 }
 
-check.dependsOn('qa:with-security:integTestRunner')
-
 run {
     plugin xpackModule('core')
 }

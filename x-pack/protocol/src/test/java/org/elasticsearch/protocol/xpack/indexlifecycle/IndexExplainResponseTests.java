@@ -158,7 +158,7 @@ public class IndexExplainResponseTests extends AbstractSerializingTestCase<Index
         private final String key;
         private final String value;
 
-        public RandomStepInfo(Supplier<String> randomStringSupplier) {
+        RandomStepInfo(Supplier<String> randomStringSupplier) {
             this.key = randomStringSupplier.get();
             this.value = randomStringSupplier.get();
         }

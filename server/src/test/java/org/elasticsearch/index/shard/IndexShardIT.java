@@ -102,6 +102,7 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.index.shard.IndexShardTestCase.getTranslog;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -742,7 +743,11 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         for (int i = 0; i < numberOfUpdates; i++) {
             final int index = i;
             final AtomicLong globalCheckpoint = new AtomicLong();
-            shard.addGlobalCheckpointListener((g, e) -> globalCheckpoint.set(g));
+            shard.addGlobalCheckpointListener((g, e) -> {
+                assert g >= NO_OPS_PERFORMED;
+                assert e == null;
+                globalCheckpoint.set(g);
+            });
             client().prepareIndex("test", "_doc", Integer.toString(i)).setSource("{}", XContentType.JSON).get();
             assertBusy(() -> assertThat(globalCheckpoint.get(), equalTo((long) index)));
         }

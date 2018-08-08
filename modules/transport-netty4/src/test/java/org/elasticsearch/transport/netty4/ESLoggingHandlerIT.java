@@ -28,7 +28,7 @@ import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 2)
-@TestLogging(value = "org.elasticsearch.transport.netty4.ESLoggingHandler:trace")
+@TestLogging(value = "org.elasticsearch.transport.netty4.ESLoggingHandler:trace,org.elasticsearch.transport.TransportLogger:trace")
 public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
 
     private MockLogAppender appender;

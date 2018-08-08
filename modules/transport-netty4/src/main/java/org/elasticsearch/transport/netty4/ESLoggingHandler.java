@@ -41,21 +41,21 @@ final class ESLoggingHandler extends LoggingHandler {
         super(LogLevel.TRACE);
     }
 
-    @Override
-    protected String format(final ChannelHandlerContext ctx, final String eventName, final Object arg) {
-        if (arg instanceof ByteBuf) {
-            try {
-                return format(ctx, eventName, (ByteBuf) arg);
-            } catch (final Exception e) {
-                // we really do not want to allow a bug in the formatting handling to escape
-                logger.trace("an exception occurred formatting a trace message", e);
-                // we are going to let this be formatted via the default formatting
-                return super.format(ctx, eventName, arg);
-            }
-        } else {
-            return super.format(ctx, eventName, arg);
-        }
-    }
+//    @Override
+//    protected String format(final ChannelHandlerContext ctx, final String eventName, final Object arg) {
+//        if (arg instanceof ByteBuf) {
+//            try {
+//                return format(ctx, eventName, (ByteBuf) arg);
+//            } catch (final Exception e) {
+//                // we really do not want to allow a bug in the formatting handling to escape
+//                logger.trace("an exception occurred formatting a trace message", e);
+//                // we are going to let this be formatted via the default formatting
+//                return super.format(ctx, eventName, arg);
+//            }
+//        } else {
+//            return super.format(ctx, eventName, arg);
+//        }
+//    }
 
     private static final int MESSAGE_LENGTH_OFFSET = TcpHeader.MARKER_BYTES_SIZE;
     private static final int REQUEST_ID_OFFSET = MESSAGE_LENGTH_OFFSET + TcpHeader.MESSAGE_LENGTH_SIZE;

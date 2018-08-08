@@ -233,6 +233,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private final MeanMetric transmittedBytesMetric = new MeanMetric();
     private volatile Map<String, RequestHandlerRegistry> requestHandlers = Collections.emptyMap();
     private final ResponseHandlers responseHandlers = new ResponseHandlers();
+    private final TransportLogger transportLogger;
 
     public TcpTransport(String transportName, Settings settings, ThreadPool threadPool, BigArrays bigArrays,
                         CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
@@ -248,6 +249,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.compress = Transport.TRANSPORT_TCP_COMPRESS.get(settings);
         this.networkService = networkService;
         this.transportName = transportName;
+        this.transportLogger = new TransportLogger(settings);
         defaultConnectionProfile = buildDefaultConnectionProfile(settings);
         final Settings defaultFeatures = DEFAULT_FEATURES_SETTING.get(settings);
         if (defaultFeatures == null) {
@@ -1303,11 +1305,17 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         return new CompositeBytesReference(header, messageBody, zeroCopyBuffer);
     }
 
+    /**
+     * Handles inbound message that has been decoded.
+     *
+     * @param channel the channel the message if fomr
+     * @param message the message
+     */
     public void inboundMessage(TcpChannel channel, BytesReference message) {
         try {
-            if (message.length() == 0) {
-                // This is a ping. Skip
-            } else {
+            transportLogger.logInboundMessage(channel, message);
+            // Message length of 0 is a ping
+            if (message.length() != 0) {
                 messageReceived(message, channel);
             }
         } catch (Exception e) {

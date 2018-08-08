@@ -23,10 +23,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
+import java.util.Objects;
+import java.util.function.Supplier;
 
 public class IndexExplainResponseTests extends AbstractSerializingTestCase<IndexLifecycleExplainResponse> {
 
@@ -146,6 +150,47 @@ public class IndexExplainResponseTests extends AbstractSerializingTestCase<Index
             default:
                 throw new AssertionError("Illegal randomisation branch");
             }
+        }
+    }
+
+    private static class RandomStepInfo implements ToXContentObject {
+
+        private final String key;
+        private final String value;
+
+        public RandomStepInfo(Supplier<String> randomStringSupplier) {
+            this.key = randomStringSupplier.get();
+            this.value = randomStringSupplier.get();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(key, value);
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(key, value);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            RandomStepInfo other = (RandomStepInfo) obj;
+            return Objects.equals(key, other.key) && Objects.equals(value, other.value);
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this);
         }
     }
 

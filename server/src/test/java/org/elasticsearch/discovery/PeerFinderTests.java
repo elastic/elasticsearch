@@ -23,7 +23,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
-import org.elasticsearch.cluster.coordination.FutureExecutor;
 import org.elasticsearch.cluster.coordination.PeersResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -143,9 +142,8 @@ public class PeerFinderTests extends ESTestCase {
         DiscoveryNode discoveredMasterNode;
         OptionalLong discoveredMasterTerm = OptionalLong.empty();
 
-        TestPeerFinder(Settings settings, TransportService transportService, FutureExecutor futureExecutor,
-                       TransportAddressConnector transportAddressConnector) {
-            super(settings, transportService, futureExecutor, transportAddressConnector, PeerFinderTests.this::resolveConfiguredHosts);
+        TestPeerFinder(Settings settings, TransportService transportService, TransportAddressConnector transportAddressConnector) {
+            super(settings, transportService, transportAddressConnector, PeerFinderTests.this::resolveConfiguredHosts);
         }
 
         @Override
@@ -209,8 +207,7 @@ public class PeerFinderTests extends ESTestCase {
 
         lastAcceptedNodes = DiscoveryNodes.builder().localNodeId(localNode.getId()).add(localNode).build();
 
-        peerFinder = new TestPeerFinder(settings, transportService,
-            deterministicTaskQueue.getFutureExecutor(), transportAddressConnector);
+        peerFinder = new TestPeerFinder(settings, transportService, transportAddressConnector);
     }
 
     @After

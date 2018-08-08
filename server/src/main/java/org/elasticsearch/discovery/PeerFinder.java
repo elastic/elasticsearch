@@ -23,7 +23,6 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.coordination.FutureExecutor;
 import org.elasticsearch.cluster.coordination.PeersResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -64,7 +63,6 @@ public abstract class PeerFinder extends AbstractComponent {
 
     private final Object mutex = new Object();
     private final TransportService transportService;
-    private final FutureExecutor futureExecutor;
     private final TransportAddressConnector transportAddressConnector;
     private final ConfiguredHostsResolver configuredHostsResolver;
 
@@ -74,12 +72,11 @@ public abstract class PeerFinder extends AbstractComponent {
     private final Map<TransportAddress, Peer> peersByAddress = newConcurrentMap();
     private Optional<DiscoveryNode> leader = Optional.empty();
 
-    PeerFinder(Settings settings, TransportService transportService, FutureExecutor futureExecutor,
+    PeerFinder(Settings settings, TransportService transportService,
                TransportAddressConnector transportAddressConnector, ConfiguredHostsResolver configuredHostsResolver) {
         super(settings);
         findPeersDelay = DISCOVERY_FIND_PEERS_INTERVAL_SETTING.get(settings);
         this.transportService = transportService;
-        this.futureExecutor = futureExecutor;
         this.transportAddressConnector = transportAddressConnector;
         this.configuredHostsResolver = configuredHostsResolver;
 
@@ -208,7 +205,7 @@ public abstract class PeerFinder extends AbstractComponent {
             }
         });
 
-        futureExecutor.schedule(new AbstractRunnable() {
+        transportService.getThreadPool().schedule(findPeersDelay, Names.GENERIC, new AbstractRunnable() {
             @Override
             public boolean isForceExecution() {
                 return true;
@@ -231,7 +228,7 @@ public abstract class PeerFinder extends AbstractComponent {
             public String toString() {
                 return "PeerFinder::handleWakeUp";
             }
-        }, findPeersDelay);
+        });
     }
 
     private void startProbe(TransportAddress transportAddress) {

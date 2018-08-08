@@ -126,7 +126,9 @@ import org.elasticsearch.index.rankeval.RankEvalSpec;
 import org.elasticsearch.index.rankeval.RatedRequest;
 import org.elasticsearch.index.rankeval.RestRankEvalAction;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
+import org.elasticsearch.protocol.xpack.indexlifecycle.MoveToStepRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyRequest;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StepKey;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -2599,6 +2601,21 @@ public class RequestConvertersTests extends ESTestCase {
             equalTo("/" + (idxString.isEmpty() ? "" : (idxString + "/")) +
                 "_ilm/" + policyName));
         assertThat(request.getParameters(), equalTo(expectedParams));
+    }
+
+    public void testMoveToStep() throws Exception {
+        String index = randomIndicesNames(1, 1)[0];
+        StepKey currentStep = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
+        StepKey nextStep = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
+        MoveToStepRequest req = new MoveToStepRequest(index, currentStep, nextStep);
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomMasterTimeout(req, expectedParams);
+
+        Request request = RequestConverters.moveToStep(req);
+        assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
+        assertThat(request.getEndpoint(), equalTo("/" + index + "/_ilm/move_to_step"));
+        assertThat(request.getParameters(), equalTo(expectedParams));
+        assertToXContentBody(req, request.getEntity());
     }
 
     public void testXPackDeleteWatch() {

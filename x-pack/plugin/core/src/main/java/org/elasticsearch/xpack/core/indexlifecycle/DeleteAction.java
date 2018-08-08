@@ -12,7 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StepKey;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -58,14 +58,14 @@ public class DeleteAction implements LifecycleAction {
     }
 
     @Override
-    public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
-        Step.StepKey deleteStepKey = new Step.StepKey(phase, NAME, DeleteStep.NAME);
+    public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
+        StepKey deleteStepKey = new StepKey(phase, NAME, DeleteStep.NAME);
         return Collections.singletonList(new DeleteStep(deleteStepKey, nextStepKey, client));
     }
 
     @Override
     public List<StepKey> toStepKeys(String phase) {
-        return Collections.singletonList(new Step.StepKey(phase, NAME, DeleteStep.NAME));
+        return Collections.singletonList(new StepKey(phase, NAME, DeleteStep.NAME));
     }
 
     @Override

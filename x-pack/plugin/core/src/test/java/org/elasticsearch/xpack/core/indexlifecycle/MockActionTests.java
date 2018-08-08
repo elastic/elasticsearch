@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StepKey;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,7 +39,7 @@ public class MockActionTests extends AbstractActionTestCase<MockAction> {
             if (steps.size() > 0) {
                 Step lastStep = steps.remove(steps.size() - 1);
                 if (randomBoolean()) {
-                    Step.StepKey additionalStepKey = randomStepKey();
+                    StepKey additionalStepKey = randomStepKey();
                     steps.add(new MockStep(lastStep.getKey(), additionalStepKey));
                     steps.add(new MockStep(additionalStepKey, null));
                 }
@@ -51,8 +52,8 @@ public class MockActionTests extends AbstractActionTestCase<MockAction> {
         return new MockAction(steps, safe);
     }
 
-    private static Step.StepKey randomStepKey() {
-        return new Step.StepKey(randomAlphaOfLength(5),
+    private static StepKey randomStepKey() {
+        return new StepKey(randomAlphaOfLength(5),
             randomAlphaOfLength(5), randomAlphaOfLength(5));
     }
 

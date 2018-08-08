@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
-import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StepKey;
 
 public class ErrorStepTests extends AbstractStepTestCase<ErrorStep> {
 

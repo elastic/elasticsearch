@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
+import org.elasticsearch.protocol.xpack.indexlifecycle.StepKey;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
-import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
 public abstract class AbstractStepTestCase<T extends Step> extends ESTestCase {
 

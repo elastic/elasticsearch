@@ -6,8 +6,8 @@
 
 package org.elasticsearch.xpack.core.indexlifecycle;
 
+import org.elasticsearch.protocol.xpack.indexlifecycle.StepKey;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
 import java.util.List;
 import java.util.stream.Collectors;

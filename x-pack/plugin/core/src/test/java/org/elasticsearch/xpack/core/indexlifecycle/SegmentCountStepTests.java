@@ -17,8 +17,8 @@ import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Segment;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StepKey;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.mockito.Mockito;
 
 import java.util.ArrayList;
@@ -34,7 +34,7 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
 
     @Override
     public SegmentCountStep createRandomInstance() {
-        Step.StepKey stepKey = randomStepKey();
+        StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
         int maxNumSegments = randomIntBetween(1, 10);
 
@@ -95,7 +95,7 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
         Mockito.when(client.admin()).thenReturn(adminClient);
         Mockito.when(adminClient.indices()).thenReturn(indicesClient);
 
-        Step.StepKey stepKey = randomStepKey();
+        StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
 
         Mockito.doAnswer(invocationOnMock -> {
@@ -152,7 +152,7 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
         Mockito.when(client.admin()).thenReturn(adminClient);
         Mockito.when(adminClient.indices()).thenReturn(indicesClient);
 
-        Step.StepKey stepKey = randomStepKey();
+        StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
 
         Mockito.doAnswer(invocationOnMock -> {
@@ -192,7 +192,7 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
         Mockito.when(client.admin()).thenReturn(adminClient);
         Mockito.when(adminClient.indices()).thenReturn(indicesClient);
 
-        Step.StepKey stepKey = randomStepKey();
+        StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
         int maxNumSegments = randomIntBetween(3, 10);
 

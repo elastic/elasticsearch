@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.indexlifecycle.action;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.protocol.xpack.indexlifecycle.MoveToStepRequest;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -22,7 +23,7 @@ public class RestMoveToStepAction extends BaseRestHandler {
 
     public RestMoveToStepAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.POST,"/_ilm/move/{name}", this);
+        controller.registerHandler(RestRequest.Method.POST, "{index}/_ilm/move_to_step", this);
     }
 
     @Override
@@ -32,9 +33,9 @@ public class RestMoveToStepAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        String index = restRequest.param("name");
+        String index = restRequest.param("index");
         XContentParser parser = restRequest.contentParser();
-        MoveToStepAction.Request request = MoveToStepAction.Request.parseRequest(index, parser);
+        MoveToStepRequest request = MoveToStepRequest.parseRequest(index, parser);
         request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
         request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
         return channel -> client.execute(MoveToStepAction.INSTANCE, request, new RestToXContentListener<>(channel));

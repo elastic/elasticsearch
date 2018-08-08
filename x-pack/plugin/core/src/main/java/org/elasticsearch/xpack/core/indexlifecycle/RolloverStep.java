@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StepKey;
 
 import java.util.Locale;
 import java.util.Objects;

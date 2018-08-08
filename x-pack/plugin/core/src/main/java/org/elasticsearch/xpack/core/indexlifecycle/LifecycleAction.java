@@ -9,7 +9,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StepKey;
 
 import java.util.List;
 
@@ -28,7 +28,7 @@ public interface LifecycleAction extends ToXContentObject, NamedWriteable {
      *                    correctly and not forget to link to this final step so that the policy can continue.
      * @return an ordered list of steps that represent the execution plan of the action
      */
-    List<Step> toSteps(Client client, String phase, @Nullable Step.StepKey nextStepKey);
+    List<Step> toSteps(Client client, String phase, @Nullable StepKey nextStepKey);
 
     /**
      * 

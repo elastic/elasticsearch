@@ -13,8 +13,8 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StepKey;
 import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateWaitStep.Result;
-import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
 import java.util.concurrent.TimeUnit;
 

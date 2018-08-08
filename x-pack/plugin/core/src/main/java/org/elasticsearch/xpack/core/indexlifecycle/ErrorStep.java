@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
+import org.elasticsearch.protocol.xpack.indexlifecycle.StepKey;
+
 public class ErrorStep extends Step {
     public static final String NAME = "ERROR";
 

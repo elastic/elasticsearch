@@ -2,6 +2,7 @@ package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -67,7 +68,9 @@ public class JobConfigProvider extends AbstractComponent {
     }
 
     /**
-     * Persist the anomaly detector job configuration to the configuration index
+     * Persist the anomaly detector job configuration to the configuration index.
+     * It is an error if an job with the same Id already exists - the config will
+     * not be overwritten.
      *
      * @param job The anomaly detector job configuration
      * @param listener Index response listener
@@ -78,6 +81,7 @@ public class JobConfigProvider extends AbstractComponent {
             IndexRequest indexRequest =  client.prepareIndex(AnomalyDetectorsIndex.configIndexName(),
                     ElasticsearchMappings.DOC_TYPE, Job.documentId(job.getId()))
                     .setSource(source)
+                    .setOpType(DocWriteRequest.OpType.CREATE)
                     .request();
 
             executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, listener);
@@ -124,7 +128,7 @@ public class JobConfigProvider extends AbstractComponent {
      * @param jobId The job id
      * @param actionListener Deleted job listener
      */
-    public void deleteJob(String jobId,  ActionListener<Boolean> actionListener) {
+    public void deleteJob(String jobId,  ActionListener<DeleteResponse> actionListener) {
         DeleteRequest request = new DeleteRequest(AnomalyDetectorsIndex.configIndexName(),
                 ElasticsearchMappings.DOC_TYPE, Job.documentId(jobId));
 
@@ -133,9 +137,11 @@ public class JobConfigProvider extends AbstractComponent {
             public void onResponse(DeleteResponse deleteResponse) {
                 if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
                     actionListener.onFailure(ExceptionsHelper.missingJobException(jobId));
+                    return;
                 }
 
-                actionListener.onResponse(deleteResponse.getResult() == DocWriteResponse.Result.DELETED);
+                assert deleteResponse.getResult() == DocWriteResponse.Result.DELETED;
+                actionListener.onResponse(deleteResponse);
             }
 
             @Override
@@ -182,7 +188,7 @@ public class JobConfigProvider extends AbstractComponent {
 
                         executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(
                                 indexResponse -> {
-                                    // TODO check the response DocWriteResponse.Result
+                                    assert indexResponse.getResult() == DocWriteResponse.Result.UPDATED;
                                     updatedJobListener.onResponse(updatedJob);
                                 },
                                 updatedJobListener::onFailure
@@ -230,8 +236,6 @@ public class JobConfigProvider extends AbstractComponent {
      * @param listener The expanded job IDs listener
      * @return the set of matching names
      */
-
-    // TODO port the allowNoJobs functionality
     public void expandJobsIds(String expression, boolean allowNoJobs, ActionListener<Set<String>> listener) {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildQuery(expression));
         sourceBuilder.sort(Job.ID.getPreferredName());
@@ -242,11 +246,19 @@ public class JobConfigProvider extends AbstractComponent {
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setSource(sourceBuilder).request();
 
+        final boolean isWildCardExpression = isWildCard(expression);
+
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
                 ActionListener.<SearchResponse>wrap(
                         response -> {
-                            Set<String> jobIds = new HashSet<>();
                             SearchHit[] hits = response.getHits().getHits();
+
+                            if (hits.length == 0 && isWildCardExpression && allowNoJobs == false) {
+                                listener.onFailure(ExceptionsHelper.missingJobException(expression));
+                                return;
+                            }
+
+                            Set<String> jobIds = new HashSet<>();
                             for (SearchHit hit : hits) {
                                 jobIds.add((String)hit.getSourceAsMap().get(Job.ID.getPreferredName()));
                             }
@@ -270,7 +282,6 @@ public class JobConfigProvider extends AbstractComponent {
      * @param listener The expanded jobs listener
      * @return The jobs with matching IDs
      */
-    // TODO port the allowNoJobs functionality
     // NORELEASE jobs should be paged or have a mechanism to return all jobs if there are many of them
     public void expandJobs(String expression, boolean allowNoJobs, ActionListener<List<Job.Builder>> listener) {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildQuery(expression));
@@ -280,18 +291,25 @@ public class JobConfigProvider extends AbstractComponent {
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setSource(sourceBuilder).request();
 
+        final boolean isWildCardExpression = isWildCard(expression);
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
                 ActionListener.<SearchResponse>wrap(
                         response -> {
-                            List<Job.Builder> jobs = new ArrayList<>();
+
                             SearchHit[] hits = response.getHits().getHits();
+                            if (hits.length == 0 && isWildCardExpression && allowNoJobs == false) {
+                                listener.onFailure(ExceptionsHelper.missingJobException(expression));
+                                return;
+                            }
+
+                            List<Job.Builder> jobs = new ArrayList<>();
                             for (SearchHit hit : hits) {
                                 try {
                                     BytesReference source = hit.getSourceRef();
                                     jobs.add(parseJobLenientlyFromSource(source));
                                 } catch (IOException e) {
-                                    // TODO handle this rather than just ignoring the error
+                                    // TODO A better way to handle this rather than just ignoring the error?
                                     logger.error("Error parsing anomaly detector job configuration [" + hit.getId() + "]", e);
                                 }
                             }
@@ -303,9 +321,13 @@ public class JobConfigProvider extends AbstractComponent {
 
     }
 
+    private boolean isWildCard(String expression) {
+        return ALL.equals(expression) || Regex.isMatchAllPattern(expression);
+    }
+
     private QueryBuilder buildQuery(String expression) {
         QueryBuilder jobQuery = new TermQueryBuilder(Job.JOB_TYPE.getPreferredName(), Job.ANOMALY_DETECTOR_JOB_TYPE);
-        if (ALL.equals(expression) || Regex.isMatchAllPattern(expression)) {
+        if (isWildCard(expression)) {
             return jobQuery;
         }
 

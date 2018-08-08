@@ -113,7 +113,7 @@ public final class GrokPatternCreator {
      * @return A tuple of (time field name, Grok string), or <code>null</code> if no suitable Grok pattern was found.
      */
     public static Tuple<String, String> findFullLineGrokPattern(Terminal terminal, Collection<String> sampleMessages,
-                                                                Map<String, Map<String, String>> mappings) {
+                                                                Map<String, Object> mappings) {
 
         for (FullMatchGrokPatternCandidate candidate : FULL_MATCH_GROK_PATTERNS) {
             if (candidate.matchesAll(sampleMessages)) {
@@ -134,7 +134,7 @@ public final class GrokPatternCreator {
      * @return The built Grok pattern.
      */
     public static String createGrokPatternFromExamples(Terminal terminal, Collection<String> sampleMessages, String seedPatternName,
-                                                       String seedFieldName, Map<String, Map<String, String>> mappings) {
+                                                       String seedFieldName, Map<String, Object> mappings) {
 
         GrokPatternCandidate seedCandidate = new NoMappingGrokPatternCandidate(seedPatternName, seedFieldName);
 
@@ -154,7 +154,7 @@ public final class GrokPatternCreator {
      */
     private static void processCandidateAndSplit(Terminal terminal, Map<String, Integer> fieldNameCountStore,
                                                  StringBuilder overallGrokPatternBuilder, GrokPatternCandidate chosenPattern,
-                                                 boolean isLast, Collection<String> snippets, Map<String, Map<String, String>> mappings,
+                                                 boolean isLast, Collection<String> snippets, Map<String, Object> mappings,
                                                  boolean ignoreKeyValueCandidateLeft, int ignoreValueOnlyCandidatesLeft,
                                                  boolean ignoreKeyValueCandidateRight, int ignoreValueOnlyCandidatesRight) {
 
@@ -175,7 +175,7 @@ public final class GrokPatternCreator {
      */
     static void appendBestGrokMatchForStrings(Terminal terminal, Map<String, Integer> fieldNameCountStore,
                                               StringBuilder overallGrokPatternBuilder, boolean isLast, Collection<String> snippets,
-                                              Map<String, Map<String, String>> mappings, boolean ignoreKeyValueCandidate,
+                                              Map<String, Object> mappings, boolean ignoreKeyValueCandidate,
                                               int ignoreValueOnlyCandidates) {
 
         snippets = adjustForPunctuation(snippets, overallGrokPatternBuilder);
@@ -354,7 +354,7 @@ public final class GrokPatternCreator {
          * @return The string that needs to be incorporated into the overall Grok pattern for the line.
          */
         String processCaptures(Map<String, Integer> fieldNameCountStore, Collection<String> snippets, Collection<String> prefaces,
-                               Collection<String> epilogues, Map<String, Map<String, String>> mappings);
+                               Collection<String> epilogues, Map<String, Object> mappings);
     }
 
     /**
@@ -411,7 +411,7 @@ public final class GrokPatternCreator {
          */
         @Override
         public String processCaptures(Map<String, Integer> fieldNameCountStore, Collection<String> snippets, Collection<String> prefaces,
-                                      Collection<String> epilogues, Map<String, Map<String, String>> mappings) {
+                                      Collection<String> epilogues, Map<String, Object> mappings) {
             String sampleValue = null;
             for (String snippet : snippets) {
                 Map<String, Object> captures = grok.captures(snippet);
@@ -481,7 +481,7 @@ public final class GrokPatternCreator {
 
         @Override
         public String processCaptures(Map<String, Integer> fieldNameCountStore, Collection<String> snippets, Collection<String> prefaces,
-                                      Collection<String> epilogues, Map<String, Map<String, String>> mappings) {
+                                      Collection<String> epilogues, Map<String, Object> mappings) {
             if (fieldName == null) {
                 throw new IllegalStateException("Cannot process KV matches until a field name has been determined");
             }
@@ -517,7 +517,7 @@ public final class GrokPatternCreator {
 
         @Override
         public String processCaptures(Map<String, Integer> fieldNameCountStore, Collection<String> snippets, Collection<String> prefaces,
-                                      Collection<String> epilogues, Map<String, Map<String, String>> mappings) {
+                                      Collection<String> epilogues, Map<String, Object> mappings) {
             return super.processCaptures(fieldNameCountStore, snippets, prefaces, epilogues, null);
         }
     }
@@ -546,7 +546,7 @@ public final class GrokPatternCreator {
          * @return A tuple of (time field name, Grok string).
          */
         public Tuple<String, String> processMatch(Terminal terminal, Collection<String> sampleMessages,
-                                                  Map<String, Map<String, String>> mappings) {
+                                                  Map<String, Object> mappings) {
 
             terminal.println(Verbosity.VERBOSE, "A full message Grok pattern [" + grokString.substring(2, grokString.length() - 1) +
                 "] looks appropriate");

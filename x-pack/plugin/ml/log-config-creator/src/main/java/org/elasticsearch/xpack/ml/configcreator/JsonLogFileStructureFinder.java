@@ -21,6 +21,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.SortedMap;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.json.JsonXContent.jsonXContent;
@@ -97,7 +98,7 @@ public class JsonLogFileStructureFinder extends AbstractStructuredLogFileStructu
         "        \"field\": \"%s\",\n" +
         "%s" +
         "        \"formats\": [ %s ]\n" +
-        "      }\n";
+        "      }";
     private static final String INGEST_PIPELINE_FROM_FILEBEAT_TEMPLATE = "PUT _ingest/pipeline/%s\n" +
         "{\n" +
         "  \"description\": \"Ingest pipeline for %s files\",\n" +
@@ -146,8 +147,11 @@ public class JsonLogFileStructureFinder extends AbstractStructuredLogFileStructu
                 .setNeedClientTimezone(timeField.v2().hasTimezoneDependentParsing());
         }
 
+        SortedMap<String, Object> mappings = guessMappings(sampleRecords);
+        mappings.put(DEFAULT_TIMESTAMP_FIELD, Collections.singletonMap(MAPPING_TYPE_SETTING, "date"));
+
         structure = structureBuilder
-            .setMappings(guessMappings(sampleRecords))
+            .setMappings(mappings)
             .setExplanation(Collections.singletonList("TODO")) // TODO
             .build();
     }

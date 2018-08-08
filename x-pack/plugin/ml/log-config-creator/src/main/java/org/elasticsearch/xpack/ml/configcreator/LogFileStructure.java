@@ -150,6 +150,7 @@ public class LogFileStructure implements ToXContentObject {
     static final ParseField INPUT_FIELDS = new ParseField("input_fields");
     static final ParseField HAS_HEADER_ROW = new ParseField("has_header_row");
     static final ParseField SEPARATOR = new ParseField("separator");
+    static final ParseField SHOULD_TRIM_FIELDS = new ParseField("should_trim_fields");
     static final ParseField GROK_PATTERN = new ParseField("grok_pattern");
     static final ParseField TIMESTAMP_FIELD = new ParseField("timestamp_field");
     static final ParseField TIMESTAMP_FORMATS = new ParseField("timestamp_formats");
@@ -171,20 +172,12 @@ public class LogFileStructure implements ToXContentObject {
         PARSER.declareStringArray(Builder::setInputFields, INPUT_FIELDS);
         PARSER.declareBoolean(Builder::setHasHeaderRow, HAS_HEADER_ROW);
         PARSER.declareString((p, c) -> p.setSeparator(c.charAt(0)), SEPARATOR);
+        PARSER.declareBoolean(Builder::setShouldTrimFields, SHOULD_TRIM_FIELDS);
         PARSER.declareString(Builder::setGrokPattern, GROK_PATTERN);
         PARSER.declareString(Builder::setTimestampField, TIMESTAMP_FIELD);
         PARSER.declareStringArray(Builder::setTimestampFormats, TIMESTAMP_FORMATS);
         PARSER.declareBoolean(Builder::setNeedClientTimezone, NEED_CLIENT_TIMEZONE);
-        PARSER.declareObject(Builder::setMappings, (p, c) -> {
-            Map<String, Object> parsedMap = p.map();
-            SortedMap<String, Map<String, String>> processedMap = new TreeMap<>();
-            for (Map.Entry<String, Object> entry : parsedMap.entrySet()) {
-                @SuppressWarnings("unchecked")
-                Map<String, String> value = (Map<String, String>) entry.getValue();
-                processedMap.put(entry.getKey(), value);
-            }
-            return processedMap;
-        }, MAPPINGS);
+        PARSER.declareObject(Builder::setMappings, (p, c) -> new TreeMap<>(p.map()), MAPPINGS);
         PARSER.declareStringArray(Builder::setExplanation, EXPLANATION);
     }
 
@@ -199,17 +192,18 @@ public class LogFileStructure implements ToXContentObject {
     private final List<String> inputFields;
     private final Boolean hasHeaderRow;
     private final Character separator;
+    private final Boolean shouldTrimFields;
     private final String grokPattern;
-    private final String timestampField;
     private final List<String> timestampFormats;
+    private final String timestampField;
     private final boolean needClientTimezone;
-    private final SortedMap<String, Map<String, String>> mappings;
+    private final SortedMap<String, Object> mappings;
     private final List<String> explanation;
 
     public LogFileStructure(int numLinesAnalyzed, int numMessagesAnalyzed, String sampleStart, String charset, Boolean hasByteOrderMarker,
                             Format format, String multilineStartPattern, String excludeLinesPattern, List<String> inputFields,
-                            Boolean hasHeaderRow, Character separator, String grokPattern, String timestampField,
-                            List<String> timestampFormats, boolean needClientTimezone, Map<String, Map<String, String>> mappings,
+                            Boolean hasHeaderRow, Character separator, Boolean shouldTrimFields, String grokPattern, String timestampField,
+                            List<String> timestampFormats, boolean needClientTimezone, Map<String, Object> mappings,
                             List<String> explanation) {
 
         this.numLinesAnalyzed = numLinesAnalyzed;
@@ -223,6 +217,7 @@ public class LogFileStructure implements ToXContentObject {
         this.inputFields = (inputFields == null) ? null : Collections.unmodifiableList(new ArrayList<>(inputFields));
         this.hasHeaderRow = hasHeaderRow;
         this.separator = separator;
+        this.shouldTrimFields = shouldTrimFields;
         this.grokPattern = grokPattern;
         this.timestampField = timestampField;
         this.timestampFormats = (timestampFormats == null) ? null : Collections.unmodifiableList(new ArrayList<>(timestampFormats));
@@ -275,6 +270,10 @@ public class LogFileStructure implements ToXContentObject {
         return separator;
     }
 
+    public Boolean getShouldTrimFields() {
+        return shouldTrimFields;
+    }
+
     public String getGrokPattern() {
         return grokPattern;
     }
@@ -291,7 +290,7 @@ public class LogFileStructure implements ToXContentObject {
         return needClientTimezone;
     }
 
-    public SortedMap<String, Map<String, String>> getMappings() {
+    public SortedMap<String, Object> getMappings() {
         return mappings;
     }
 
@@ -326,6 +325,9 @@ public class LogFileStructure implements ToXContentObject {
         if (separator != null) {
             builder.field(SEPARATOR.getPreferredName(), String.valueOf(separator));
         }
+        if (shouldTrimFields != null) {
+            builder.field(SHOULD_TRIM_FIELDS.getPreferredName(), shouldTrimFields.booleanValue());
+        }
         if (grokPattern != null && grokPattern.isEmpty() == false) {
             builder.field(GROK_PATTERN.getPreferredName(), grokPattern);
         }
@@ -347,8 +349,8 @@ public class LogFileStructure implements ToXContentObject {
     public int hashCode() {
 
         return Objects.hash(numLinesAnalyzed, numMessagesAnalyzed, sampleStart, charset, hasByteOrderMarker, format,
-            multilineStartPattern, excludeLinesPattern, inputFields, hasHeaderRow, separator, grokPattern, timestampField, timestampFormats,
-            needClientTimezone, mappings, explanation);
+            multilineStartPattern, excludeLinesPattern, inputFields, hasHeaderRow, separator, shouldTrimFields, grokPattern, timestampField,
+            timestampFormats, needClientTimezone, mappings, explanation);
     }
 
     @Override
@@ -375,6 +377,7 @@ public class LogFileStructure implements ToXContentObject {
             Objects.equals(this.inputFields, that.inputFields) &&
             Objects.equals(this.hasHeaderRow, that.hasHeaderRow) &&
             Objects.equals(this.separator, that.separator) &&
+            Objects.equals(this.shouldTrimFields, that.shouldTrimFields) &&
             Objects.equals(this.grokPattern, that.grokPattern) &&
             Objects.equals(this.timestampField, that.timestampField) &&
             Objects.equals(this.timestampFormats, that.timestampFormats) &&
@@ -395,11 +398,12 @@ public class LogFileStructure implements ToXContentObject {
         private List<String> inputFields;
         private Boolean hasHeaderRow;
         private Character separator;
+        private Boolean shouldTrimFields;
         private String grokPattern;
         private String timestampField;
         private List<String> timestampFormats;
         private boolean needClientTimezone;
-        private Map<String, Map<String, String>> mappings;
+        private Map<String, Object> mappings;
         private List<String> explanation;
 
         public Builder() {
@@ -461,6 +465,11 @@ public class LogFileStructure implements ToXContentObject {
             return this;
         }
 
+        public Builder setShouldTrimFields(Boolean shouldTrimFields) {
+            this.shouldTrimFields = shouldTrimFields;
+            return this;
+        }
+
         public Builder setSeparator(Character separator) {
             this.separator = separator;
             return this;
@@ -486,7 +495,7 @@ public class LogFileStructure implements ToXContentObject {
             return this;
         }
 
-        public Builder setMappings(Map<String, Map<String, String>> mappings) {
+        public Builder setMappings(Map<String, Object> mappings) {
             this.mappings = Objects.requireNonNull(mappings);
             return this;
         }
@@ -496,6 +505,7 @@ public class LogFileStructure implements ToXContentObject {
             return this;
         }
 
+        @SuppressWarnings("fallthrough")
         public LogFileStructure build() {
 
             if (numLinesAnalyzed <= 0) {
@@ -524,6 +534,10 @@ public class LogFileStructure implements ToXContentObject {
 
             switch (format) {
                 case JSON:
+                    if (shouldTrimFields != null) {
+                        throw new IllegalArgumentException("Should trim fields may not be specified for [" + format + "] structures.");
+                    }
+                    // $FALL-THROUGH$
                 case XML:
                     if (hasHeaderRow != null) {
                         throw new IllegalArgumentException("Has header row may not be specified for [" + format + "] structures.");
@@ -565,6 +579,9 @@ public class LogFileStructure implements ToXContentObject {
                     if (separator != null) {
                         throw new IllegalArgumentException("Separator may not be specified for [" + format + "] structures.");
                     }
+                    if (shouldTrimFields != null) {
+                        throw new IllegalArgumentException("Should trim fields may not be specified for [" + format + "] structures.");
+                    }
                     if (grokPattern == null || grokPattern.isEmpty()) {
                         throw new IllegalArgumentException("Grok pattern must be specified for [" + format + "] structures.");
                     }
@@ -590,8 +607,8 @@ public class LogFileStructure implements ToXContentObject {
             }
 
             return new LogFileStructure(numLinesAnalyzed, numMessagesAnalyzed, sampleStart, charset, hasByteOrderMarker, format,
-                multilineStartPattern, excludeLinesPattern, inputFields, hasHeaderRow, separator, grokPattern, timestampField,
-                timestampFormats, needClientTimezone, mappings, explanation);
+                multilineStartPattern, excludeLinesPattern, inputFields, hasHeaderRow, separator, shouldTrimFields, grokPattern,
+                timestampField, timestampFormats, needClientTimezone, mappings, explanation);
         }
     }
 }

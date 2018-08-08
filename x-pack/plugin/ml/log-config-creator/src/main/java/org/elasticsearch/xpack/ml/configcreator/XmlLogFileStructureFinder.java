@@ -26,10 +26,13 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Scanner;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.regex.Pattern;
 
 public class XmlLogFileStructureFinder extends AbstractStructuredLogFileStructureFinder implements LogFileStructureFinder {
@@ -91,7 +94,6 @@ public class XmlLogFileStructureFinder extends AbstractStructuredLogFileStructur
         "  }\n" +
         "}\n";
 
-    private final String topLevelTag; // TODO - add to log file structure via mappings
     private String filebeatToLogstashConfig;
     private String logstashFromFilebeatConfig;
     private String logstashFromFileConfig;
@@ -139,7 +141,7 @@ public class XmlLogFileStructureFinder extends AbstractStructuredLogFileStructur
 
         // If we get here the XML parser should have confirmed this
         assert messagePrefix.charAt(0) == '<';
-        topLevelTag = messagePrefix.substring(1);
+        String topLevelTag = messagePrefix.substring(1);
 
         LogFileStructure.Builder structureBuilder = new LogFileStructure.Builder(LogFileStructure.Format.XML)
             .setCharset(charsetName)
@@ -156,8 +158,16 @@ public class XmlLogFileStructureFinder extends AbstractStructuredLogFileStructur
                 .setNeedClientTimezone(timeField.v2().hasTimezoneDependentParsing());
         }
 
+        SortedMap<String, Object> innerMappings = guessMappings(sampleRecords);
+        Map<String, Object> secondLevelProperties = new LinkedHashMap<>();
+        secondLevelProperties.put(MAPPING_TYPE_SETTING, "object");
+        secondLevelProperties.put(MAPPING_PROPERTIES_SETTING, innerMappings);
+        SortedMap<String, Object> outerMappings = new TreeMap<>();
+        outerMappings.put(topLevelTag, secondLevelProperties);
+        outerMappings.put(DEFAULT_TIMESTAMP_FIELD, Collections.singletonMap(MAPPING_TYPE_SETTING, "date"));
+
         structure = structureBuilder
-            .setMappings(guessMappings(sampleRecords))
+            .setMappings(outerMappings)
             .setExplanation(Collections.singletonList("TODO")) // TODO
             .build();
     }
@@ -207,6 +217,10 @@ public class XmlLogFileStructureFinder extends AbstractStructuredLogFileStructur
 
     void createConfigs() {
 
+        assert structure.getMappings().isEmpty() == false;
+        String topLevelTag =
+            structure.getMappings().keySet().stream().filter(k -> DEFAULT_TIMESTAMP_FIELD.equals(k) == false).findFirst().get();
+
         String logstashFromFilebeatDateFilter = "";
         String logstashFromFileDateFilter = "";
         if (structure.getTimestampField() != null) {
@@ -246,7 +260,7 @@ public class XmlLogFileStructureFinder extends AbstractStructuredLogFileStructur
             createPreambleComment();
         }
 
-        writeMappingsConfigs(directory, topLevelTag, structure.getMappings());
+        writeMappingsConfigs(directory, structure.getMappings());
 
         writeConfigFile(directory, "filebeat-to-logstash.yml", filebeatToLogstashConfig);
         writeConfigFile(directory, "logstash-from-filebeat.conf", logstashFromFilebeatConfig);

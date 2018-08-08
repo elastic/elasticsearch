@@ -288,7 +288,7 @@ public class SeparatedValuesLogFileStructureFinderTests extends LogConfigCreator
     }
 
     public void testMakeColumnConversions() {
-        Map<String, Map<String, String>> mappings = new LinkedHashMap<>();
+        Map<String, Object> mappings = new LinkedHashMap<>();
         mappings.put("f1", Collections.singletonMap(AbstractLogFileStructureFinder.MAPPING_TYPE_SETTING, "long"));
         mappings.put("f2", Collections.singletonMap(AbstractLogFileStructureFinder.MAPPING_TYPE_SETTING, "date"));
         mappings.put("f3", Collections.singletonMap(AbstractLogFileStructureFinder.MAPPING_TYPE_SETTING, "text"));

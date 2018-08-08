@@ -186,8 +186,9 @@ public class TextLogFileStructureFinder extends AbstractLogFileStructureFinder i
             .setNumMessagesAnalyzed(sampleMessages.size())
             .setMultilineStartPattern(multiLineRegex);
 
-        SortedMap<String, Map<String, String>> mappings = new TreeMap<>();
+        SortedMap<String, Object> mappings = new TreeMap<>();
         mappings.put("message", Collections.singletonMap(MAPPING_TYPE_SETTING, "text"));
+        mappings.put(DEFAULT_TIMESTAMP_FIELD, Collections.singletonMap(MAPPING_TYPE_SETTING, "date"));
 
         // We can't parse directly into @timestamp using Grok, so parse to some other time field, which the date filter will then remove
         String interimTimestampField;

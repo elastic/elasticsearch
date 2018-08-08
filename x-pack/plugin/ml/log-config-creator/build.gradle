@@ -16,6 +16,9 @@ dependencies {
     compile 'com.ibm.icu:icu4j:61.1'
     compile 'joda-time:joda-time:2.10'
     compile 'net.sf.supercsv:super-csv:2.4.0'
+    compile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+    compile "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+    compile "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
 
     testCompile "org.elasticsearch.test:framework:${version}"
 }

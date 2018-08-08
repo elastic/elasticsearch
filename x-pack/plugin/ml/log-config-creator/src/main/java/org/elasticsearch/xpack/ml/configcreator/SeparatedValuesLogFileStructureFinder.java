@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
+import java.util.SortedMap;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -104,7 +105,6 @@ public class SeparatedValuesLogFileStructureFinder extends AbstractStructuredLog
         "  }\n" +
         "}\n";
 
-    private final boolean trimFields; // TODO - add to log file structure
     private String filebeatToLogstashConfig;
     private String logstashFromFilebeatConfig;
     private String logstashFromFileConfig;
@@ -115,7 +115,6 @@ public class SeparatedValuesLogFileStructureFinder extends AbstractStructuredLog
         throws IOException, UserException {
         super(terminal, sampleFileName, indexName, typeName, elasticsearchHost, logstashHost, logstashFileTimezone, charsetName,
             hasByteOrderMarker);
-        this.trimFields = trimFields;
 
         Tuple<List<List<String>>, List<Integer>> parsed = readRows(sample, csvPreference);
         List<List<String>> rows = parsed.v1();
@@ -149,6 +148,10 @@ public class SeparatedValuesLogFileStructureFinder extends AbstractStructuredLog
             .setNumMessagesAnalyzed(sampleRecords.size())
             .setHasHeaderRow(isCsvHeaderInFile)
             .setInputFields(Arrays.stream(csvHeaderWithNamedBlanks).collect(Collectors.toList()));
+
+        if (trimFields) {
+            structureBuilder.setShouldTrimFields(true);
+        }
 
         Tuple<String, TimestampMatch> timeField = guessTimestampField(sampleRecords);
         if (timeField != null) {
@@ -187,8 +190,11 @@ public class SeparatedValuesLogFileStructureFinder extends AbstractStructuredLog
                 .setMultilineStartPattern(timeLineRegex);
         }
 
+        SortedMap<String, Object> mappings = guessMappings(sampleRecords);
+        mappings.put(DEFAULT_TIMESTAMP_FIELD, Collections.singletonMap(MAPPING_TYPE_SETTING, "date"));
+
         structure = structureBuilder
-            .setMappings(guessMappings(sampleRecords))
+            .setMappings(mappings)
             .setExplanation(Collections.singletonList("TODO")) // TODO
             .build();
     }
@@ -531,7 +537,8 @@ public class SeparatedValuesLogFileStructureFinder extends AbstractStructuredLog
             .map(column -> (column.indexOf('"') >= 0) ? ("'" + column + "'") : ("\"" + column + "\"")).collect(Collectors.joining(", "));
         String separatorIfRequired = (delimiter == ',') ? "" : String.format(Locale.ROOT, SEPARATOR_TEMPLATE, delimiter);
         String logstashColumnConversions = makeColumnConversions(structure.getMappings());
-        String logstashStripFilter = trimFields ? String.format(Locale.ROOT, LOGSTASH_STRIP_FILTER_TEMPLATE, logstashColumns) : "";
+        String logstashStripFilter = Boolean.TRUE.equals(structure.getShouldTrimFields()) ?
+            String.format(Locale.ROOT, LOGSTASH_STRIP_FILTER_TEMPLATE, logstashColumns) : "";
         logstashFromFilebeatConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILEBEAT_TEMPLATE, separatorIfRequired, logstashColumns,
             logstashColumnConversions, logstashStripFilter, logstashFromFilebeatDateFilter, elasticsearchHost);
         String skipHeaderIfRequired = structure.getHasHeaderRow() ? "    skip_header => true\n": "";
@@ -566,13 +573,18 @@ public class SeparatedValuesLogFileStructureFinder extends AbstractStructuredLog
         writeConfigFile(directory, "logstash-from-file.conf", logstashFromFileConfig);
     }
 
-    static String makeColumnConversions(Map<String, Map<String, String>> mappings) {
+    static String makeColumnConversions(Map<String, Object> mappings) {
         StringBuilder builder = new StringBuilder();
 
-        for (Map.Entry<String, Map<String, String>> mapping : mappings.entrySet()) {
+        for (Map.Entry<String, Object> mapping : mappings.entrySet()) {
+
+            if (mapping.getValue() instanceof Map == false) {
+                continue;
+            }
 
             String fieldName = mapping.getKey();
-            Map<String, String> settings = mapping.getValue();
+            @SuppressWarnings("unchecked")
+            Map<String, String> settings = (Map<String, String>) mapping.getValue();
             if (settings.isEmpty()) {
                 continue;
             }

@@ -62,7 +62,7 @@ public class LogFileStructureTests extends AbstractXContentTestCase<LogFileStruc
             builder.setNeedClientTimezone(randomBoolean());
         }
 
-        Map<String, Map<String, String>> mappings = new TreeMap<>();
+        Map<String, Object> mappings = new TreeMap<>();
         for (String field : generateRandomStringArray(5, 20, false, false)) {
             mappings.put(field, Collections.singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(10)));
         }

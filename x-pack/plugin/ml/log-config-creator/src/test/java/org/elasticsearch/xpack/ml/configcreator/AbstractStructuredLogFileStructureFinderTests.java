@@ -260,7 +260,7 @@ public class AbstractStructuredLogFileStructureFinderTests extends LogConfigCrea
         sample2.put("bar", 17);
         sample2.put("nothing", null);
 
-        Map<String, Map<String, String>> mappings = testStructure.guessMappings(Arrays.asList(sample1, sample2));
+        Map<String, Object> mappings = testStructure.guessMappings(Arrays.asList(sample1, sample2));
         assertNotNull(mappings);
         assertEquals(Collections.singletonMap(AbstractLogFileStructureFinder.MAPPING_TYPE_SETTING, "keyword"), mappings.get("foo"));
         Map<String, String> expectedTimeMapping = new HashMap<>();

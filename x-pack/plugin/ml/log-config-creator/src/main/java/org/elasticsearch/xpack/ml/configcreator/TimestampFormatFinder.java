@@ -10,7 +10,7 @@ import org.elasticsearch.grok.Grok;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -331,7 +331,7 @@ public final class TimestampFormatFinder {
                 // There's no format for TAI64N in the date formats used in mappings
                 return Collections.singletonMap(AbstractLogFileStructureFinder.MAPPING_TYPE_SETTING, "keyword");
             }
-            Map<String, String> mapping = new HashMap<>();
+            Map<String, String> mapping = new LinkedHashMap<>();
             mapping.put(AbstractLogFileStructureFinder.MAPPING_TYPE_SETTING, "date");
             String formats = dateFormats.stream().flatMap(format -> {
                 switch (format) {

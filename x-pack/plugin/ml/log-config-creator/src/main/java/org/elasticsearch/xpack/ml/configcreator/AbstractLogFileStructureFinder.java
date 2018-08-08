@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.configcreator;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.grok.Grok;
@@ -22,7 +23,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.SortedMap;
-import java.util.stream.Collectors;
 
 public abstract class AbstractLogFileStructureFinder {
 
@@ -30,6 +30,7 @@ public abstract class AbstractLogFileStructureFinder {
     protected static final String DEFAULT_TIMESTAMP_FIELD = "@timestamp";
     protected static final String MAPPING_TYPE_SETTING = "type";
     protected static final String MAPPING_FORMAT_SETTING = "format";
+    protected static final String MAPPING_PROPERTIES_SETTING = "properties";
 
     private static final String BEAT_TIMEZONE_FIELD = "beat.timezone";
 
@@ -74,30 +75,8 @@ public abstract class AbstractLogFileStructureFinder {
 
     private static final String INGEST_PIPELINE_DATE_PARSE_TIMEZONE = "        \"timezone\": \"{{ " + BEAT_TIMEZONE_FIELD + " }}\",\n";
 
-    private static final String FIELD_MAPPING_FORMAT_TEMPLATE = ",\n" +
-        "%s  \"" + MAPPING_FORMAT_SETTING + "\": \"%s\"";
-    private static final String FIELD_MAPPING_TEMPLATE = "%s\"%s\": {\n" +
-        "%s  \"" + MAPPING_TYPE_SETTING + "\": \"%s\"%s\n" +
-        "%s}";
-    private static final String TOP_LEVEL_OBJECT_FIELD_MAPPING_TEMPLATE = "        \"%s\": {\n" +
-        "          \"" + MAPPING_TYPE_SETTING + "\": \"object\",\n" +
-        "          \"properties\": {\n" +
-        "%s\n" +
-        "          }\n" +
-        "        }";
     private static final String INDEX_MAPPINGS_TEMPLATE = "PUT %s\n" +
-        "{\n" +
-        "  \"mappings\": {\n" +
-        "    \"_doc\": {\n" +
-        "      \"properties\": {\n" +
-        "        \"" + DEFAULT_TIMESTAMP_FIELD + "\": {\n" +
-        "          \"" + MAPPING_TYPE_SETTING + "\": \"date\"\n" +
-        "        },\n" +
-        "%s\n" +
-        "      }\n" +
-        "    }\n" +
-        "  }\n" +
-        "}\n";
+        "%s\n";
 
     protected final Terminal terminal;
     protected final String sampleFileName;
@@ -149,25 +128,16 @@ public abstract class AbstractLogFileStructureFinder {
         writeConfigFile(directory, consoleFileName.replaceFirst("\\.console$", ".sh"), curlCommand);
     }
 
-    protected void writeMappingsConfigs(Path directory, SortedMap<String, Map<String, String>> fieldTypes) throws IOException {
-        writeMappingsConfigs(directory, null, fieldTypes);
-    }
+    protected void writeMappingsConfigs(Path directory, SortedMap<String, Object> fieldTypes) throws IOException {
 
-    protected void writeMappingsConfigs(Path directory, String topLevelObjectName, SortedMap<String, Map<String, String>> fieldTypes)
-        throws IOException {
         terminal.println(Verbosity.VERBOSE, "---");
-        String indent = (topLevelObjectName == null) ? "        " : "            ";
-        String fieldTypeMappings = fieldTypes.entrySet().stream().filter(entry -> entry.getValue().get(MAPPING_TYPE_SETTING) != null)
-            .map(entry -> {
-                Map<String, String> mappingData = entry.getValue();
-                String type = mappingData.get(MAPPING_TYPE_SETTING);
-                String format = mappingData.get(MAPPING_FORMAT_SETTING);
-                String formatSettingStr = (format == null) ? "" : String.format(Locale.ROOT, FIELD_MAPPING_FORMAT_TEMPLATE, indent, format);
-                return String.format(Locale.ROOT, FIELD_MAPPING_TEMPLATE, indent, entry.getKey(), indent, type, formatSettingStr, indent);
-            }).collect(Collectors.joining(",\n"));
-        if (topLevelObjectName != null) {
-            fieldTypeMappings = String.format(Locale.ROOT, TOP_LEVEL_OBJECT_FIELD_MAPPING_TEMPLATE, topLevelObjectName, fieldTypeMappings);
-        }
+
+        Map<String, Object> properties = Collections.singletonMap(MAPPING_PROPERTIES_SETTING, fieldTypes);
+        Map<String, Object> docType = Collections.singletonMap("_doc", properties);
+        Map<String, Object> mappings = Collections.singletonMap("mappings", docType);
+
+        String fieldTypeMappings = new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(mappings);
+
         writeRestCallConfigs(directory, "index-mappings.console", String.format(Locale.ROOT, INDEX_MAPPINGS_TEMPLATE, indexName,
             fieldTypeMappings));
     }

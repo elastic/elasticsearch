@@ -75,7 +75,7 @@ public class GrokPatternCreatorTests extends LogConfigCreatorTestCase {
 
         Map<String, Integer> fieldNameCountStore = new HashMap<>();
         StringBuilder overallGrokPatternBuilder = new StringBuilder();
-        Map<String, Map<String, String>> mappings = new HashMap<>();
+        Map<String, Object> mappings = new HashMap<>();
 
         GrokPatternCreator.appendBestGrokMatchForStrings(TEST_TERMINAL, fieldNameCountStore, overallGrokPatternBuilder, false, snippets,
             mappings, false, 0);
@@ -92,7 +92,7 @@ public class GrokPatternCreatorTests extends LogConfigCreatorTestCase {
 
         Map<String, Integer> fieldNameCountStore = new HashMap<>();
         StringBuilder overallGrokPatternBuilder = new StringBuilder();
-        Map<String, Map<String, String>> mappings = new HashMap<>();
+        Map<String, Object> mappings = new HashMap<>();
 
         GrokPatternCreator.appendBestGrokMatchForStrings(TEST_TERMINAL, fieldNameCountStore, overallGrokPatternBuilder, false, snippets,
             mappings, false, 0);
@@ -108,7 +108,7 @@ public class GrokPatternCreatorTests extends LogConfigCreatorTestCase {
 
         Map<String, Integer> fieldNameCountStore = new HashMap<>();
         StringBuilder overallGrokPatternBuilder = new StringBuilder();
-        Map<String, Map<String, String>> mappings = new HashMap<>();
+        Map<String, Object> mappings = new HashMap<>();
 
         GrokPatternCreator.appendBestGrokMatchForStrings(TEST_TERMINAL, fieldNameCountStore, overallGrokPatternBuilder, false, snippets,
             mappings, false, 0);
@@ -126,7 +126,7 @@ public class GrokPatternCreatorTests extends LogConfigCreatorTestCase {
 
         Map<String, Integer> fieldNameCountStore = new HashMap<>();
         StringBuilder overallGrokPatternBuilder = new StringBuilder();
-        Map<String, Map<String, String>> mappings = new HashMap<>();
+        Map<String, Object> mappings = new HashMap<>();
 
         GrokPatternCreator.appendBestGrokMatchForStrings(TEST_TERMINAL, fieldNameCountStore, overallGrokPatternBuilder, false, snippets,
             mappings, false, 0);
@@ -141,7 +141,7 @@ public class GrokPatternCreatorTests extends LogConfigCreatorTestCase {
 
         Map<String, Integer> fieldNameCountStore = new HashMap<>();
         StringBuilder overallGrokPatternBuilder = new StringBuilder();
-        Map<String, Map<String, String>> mappings = new HashMap<>();
+        Map<String, Object> mappings = new HashMap<>();
 
         GrokPatternCreator.appendBestGrokMatchForStrings(TEST_TERMINAL, fieldNameCountStore, overallGrokPatternBuilder, false, snippets,
             mappings, false, 0);
@@ -158,7 +158,7 @@ public class GrokPatternCreatorTests extends LogConfigCreatorTestCase {
 
         Map<String, Integer> fieldNameCountStore = new HashMap<>();
         StringBuilder overallGrokPatternBuilder = new StringBuilder();
-        Map<String, Map<String, String>> mappings = new HashMap<>();
+        Map<String, Object> mappings = new HashMap<>();
 
         GrokPatternCreator.appendBestGrokMatchForStrings(TEST_TERMINAL, fieldNameCountStore, overallGrokPatternBuilder, false, snippets,
             mappings, false, 0);
@@ -174,7 +174,7 @@ public class GrokPatternCreatorTests extends LogConfigCreatorTestCase {
 
         Map<String, Integer> fieldNameCountStore = new HashMap<>();
         StringBuilder overallGrokPatternBuilder = new StringBuilder();
-        Map<String, Map<String, String>> mappings = new HashMap<>();
+        Map<String, Object> mappings = new HashMap<>();
 
         GrokPatternCreator.appendBestGrokMatchForStrings(TEST_TERMINAL, fieldNameCountStore, overallGrokPatternBuilder, false, snippets,
             mappings, false, 0);
@@ -190,7 +190,7 @@ public class GrokPatternCreatorTests extends LogConfigCreatorTestCase {
 
         Map<String, Integer> fieldNameCountStore = new HashMap<>();
         StringBuilder overallGrokPatternBuilder = new StringBuilder();
-        Map<String, Map<String, String>> mappings = new HashMap<>();
+        Map<String, Object> mappings = new HashMap<>();
 
         GrokPatternCreator.appendBestGrokMatchForStrings(TEST_TERMINAL, fieldNameCountStore, overallGrokPatternBuilder, false, snippets,
             mappings, false, 0);
@@ -207,7 +207,7 @@ public class GrokPatternCreatorTests extends LogConfigCreatorTestCase {
 
         Map<String, Integer> fieldNameCountStore = new HashMap<>();
         StringBuilder overallGrokPatternBuilder = new StringBuilder();
-        Map<String, Map<String, String>> mappings = new HashMap<>();
+        Map<String, Object> mappings = new HashMap<>();
 
         GrokPatternCreator.appendBestGrokMatchForStrings(TEST_TERMINAL, fieldNameCountStore, overallGrokPatternBuilder, false, snippets,
             mappings, false, 0);
@@ -222,7 +222,7 @@ public class GrokPatternCreatorTests extends LogConfigCreatorTestCase {
             "Sep  8 11:55:08 linux named[22529]: error (unexpected RCODE REFUSED) resolving 'slack-imgs.com/A/IN': 95.110.64.205#53",
             "Sep  8 11:55:35 linux named[22529]: error (unexpected RCODE REFUSED) resolving 'www.elastic.co/A/IN': 95.110.68.206#53",
             "Sep  8 11:55:42 linux named[22529]: error (unexpected RCODE REFUSED) resolving 'b.akamaiedge.net/A/IN': 95.110.64.205#53");
-        Map<String, Map<String, String>> mappings = new HashMap<>();
+        Map<String, Object> mappings = new HashMap<>();
 
         assertEquals("%{SYSLOGTIMESTAMP:timestamp} .*? .*?\\[%{INT:field}\\]: %{LOGLEVEL:loglevel} \\(.*? .*? .*?\\) .*? " +
                 "%{QUOTEDSTRING:field2}: %{IP:ipaddress}#%{INT:field3}",
@@ -246,7 +246,7 @@ public class GrokPatternCreatorTests extends LogConfigCreatorTestCase {
                 "Invalid chunk ignored.",
             "Aug 29, 2009 12:03:57 AM org.apache.tomcat.util.http.Parameters processParameters\nWARNING: Parameters: " +
                 "Invalid chunk ignored.");
-        Map<String, Map<String, String>> mappings = new HashMap<>();
+        Map<String, Object> mappings = new HashMap<>();
 
         assertEquals("%{CATALINA_DATESTAMP:timestamp} .*? .*?\\n%{LOGLEVEL:loglevel}: .*",
             GrokPatternCreator.createGrokPatternFromExamples(TEST_TERMINAL, sampleMessages, "CATALINA_DATESTAMP", "timestamp", mappings));
@@ -266,7 +266,7 @@ public class GrokPatternCreatorTests extends LogConfigCreatorTestCase {
                 "Info\tsshd\tsubsystem request for sftp",
             "559550912603512850\t2016-04-20T14:06:53\t2016-04-20T21:06:53Z\t8907014\tserv02nw01\t192.168.118.208\tAuthpriv\t" +
                 "Info\tsshd\tsubsystem request for sftp");
-        Map<String, Map<String, String>> mappings = new HashMap<>();
+        Map<String, Object> mappings = new HashMap<>();
 
         assertEquals("%{INT:field}\\t%{TIMESTAMP_ISO8601:timestamp}\\t%{TIMESTAMP_ISO8601:extra_timestamp}\\t%{INT:field2}\\t.*?\\t" +
                 "%{IP:ipaddress}\\t.*?\\t%{LOGLEVEL:loglevel}\\t.*",
@@ -298,7 +298,7 @@ public class GrokPatternCreatorTests extends LogConfigCreatorTestCase {
                 "\"GET /presentations/logstash-monitorama-2013/images/sad-medic.png HTTP/1.1\" 200 430406 " +
                 "\"http://semicomplete.com/presentations/logstash-monitorama-2013/\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_1) " +
                 "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/32.0.1700.77 Safari/537.36\"");
-        Map<String, Map<String, String>> mappings = new HashMap<>();
+        Map<String, Object> mappings = new HashMap<>();
 
         assertEquals(new Tuple<>("timestamp", "%{COMBINEDAPACHELOG}"),
             GrokPatternCreator.findFullLineGrokPattern(TEST_TERMINAL, sampleMessages, mappings));

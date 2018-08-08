@@ -107,9 +107,9 @@ public abstract class AbstractStructuredLogFileStructureFinder extends AbstractL
      * @param sampleRecords The sampled records.
      * @return A map of field name to mapping settings.
      */
-    protected SortedMap<String, Map<String, String>> guessMappings(List<Map<String, ?>> sampleRecords) throws UserException {
+    protected SortedMap<String, Object> guessMappings(List<Map<String, ?>> sampleRecords) throws UserException {
 
-        SortedMap<String, Map<String, String>> mappings = new TreeMap<>();
+        SortedMap<String, Object> mappings = new TreeMap<>();
 
         if (sampleRecords != null) {
 

@@ -58,7 +58,8 @@ public class TransportExplainLifecycleAction
     }
 
     @Override
-    protected void doMasterOperation(ExplainLifecycleRequest request, String[] concreteIndices, ClusterState state, ActionListener<ExplainLifecycleResponse> listener) {
+    protected void doMasterOperation(ExplainLifecycleRequest request, String[] concreteIndices, ClusterState state,
+            ActionListener<ExplainLifecycleResponse> listener) {
         Map<String, IndexLifecycleExplainResponse> indexReponses = new HashMap<>();
         for (String index : concreteIndices) {
             IndexMetaData idxMetadata = state.metaData().index(index);

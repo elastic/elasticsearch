@@ -24,14 +24,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import static org.elasticsearch.cluster.coordination.ElectionScheduler.ELECTION_MAX_RETRY_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.ElectionScheduler.ELECTION_MIN_RETRY_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.ElectionScheduler.validationExceptionMessage;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -40,46 +36,48 @@ public class ElectionSchedulerTests extends ESTestCase {
 
     private ClusterSettings clusterSettings;
     private DeterministicTaskQueue deterministicTaskQueue;
-    private List<Long> electionTimes;
     private ElectionScheduler electionScheduler;
+    private boolean electionOccurred = false;
 
     @Before
     public void createObjects() {
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build();
         clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         deterministicTaskQueue = new DeterministicTaskQueue(settings);
-        electionTimes = new ArrayList<>();
         electionScheduler = new ElectionScheduler(settings, clusterSettings, random(), deterministicTaskQueue.getThreadPool()) {
             @Override
             protected void startElection() {
-                electionTimes.add(deterministicTaskQueue.getCurrentTimeMillis());
+                electionOccurred = true;
             }
         };
     }
 
-    private void runElections(int electionCount) {
+    private void runElectionsAndValidate(int electionCount, long minRetryInterval, long maxRetryInterval, long backoffStartPoint) {
         for (int i = 0; i < electionCount; i++) {
-            assertFalse(deterministicTaskQueue.hasRunnableTasks());
-            assertTrue(deterministicTaskQueue.hasDeferredTasks());
-            final int electionsSoFar = electionTimes.size();
-            deterministicTaskQueue.advanceTime();
-            deterministicTaskQueue.runNextTask();
-            assertFalse(deterministicTaskQueue.hasRunnableTasks());
-            assertTrue(deterministicTaskQueue.hasDeferredTasks());
-            assertThat(electionTimes.size(), is(electionsSoFar + 1));
+            final String description = "election " + i;
+
+            final long lastElectionTime = deterministicTaskQueue.getCurrentTimeMillis();
+            runElection(description);
+            final long thisElectionTime = deterministicTaskQueue.getCurrentTimeMillis();
+            final long electionDelay = thisElectionTime - lastElectionTime;
+
+            assertThat(description, electionDelay, greaterThanOrEqualTo(minRetryInterval));
+            assertThat(description, electionDelay, lessThanOrEqualTo(maxRetryInterval));
+            assertThat(description, electionDelay, lessThanOrEqualTo(backoffStartPoint + minRetryInterval * (i + 1)));
         }
     }
 
-    private void validateElectionTimes(long minRetryInterval, long maxRetryInterval, long lastElectionTime, long backoffStartPoint) {
-        for (int electionIndex = 0; electionIndex < electionTimes.size(); electionIndex++) {
-            long electionTime = electionTimes.get(electionIndex);
-            String description = "validating election index " + electionIndex;
-            assertThat(description, electionTime, greaterThanOrEqualTo(lastElectionTime + minRetryInterval));
-            assertThat(description, electionTime, lessThanOrEqualTo(lastElectionTime + maxRetryInterval));
-            assertThat(description, electionTime, lessThanOrEqualTo(lastElectionTime + backoffStartPoint
-                + minRetryInterval * (electionIndex + 1)));
-            lastElectionTime = electionTime;
+    private void runElection(String description) {
+        logger.debug("--> runElection: {}", description);
+        electionOccurred = false;
+        while (electionOccurred == false) {
+            assertFalse(description, deterministicTaskQueue.hasRunnableTasks());
+            assertTrue(description, deterministicTaskQueue.hasDeferredTasks());
+            deterministicTaskQueue.advanceTime();
+            deterministicTaskQueue.runAllRunnableTasks(random());
         }
+        assertFalse(description, deterministicTaskQueue.hasRunnableTasks());
+        assertTrue(description, deterministicTaskQueue.hasDeferredTasks());
     }
 
     public void testElectionScheduler() {
@@ -88,30 +86,24 @@ public class ElectionSchedulerTests extends ESTestCase {
 
         electionScheduler.start();
 
-        assertThat(electionTimes, empty());
-
-        runElections(randomInt(100));
-
         final long defaultMinRetryInterval = ELECTION_MIN_RETRY_INTERVAL_SETTING.get(Settings.EMPTY).millis();
         final long defaultMaxRetryInterval = ELECTION_MAX_RETRY_INTERVAL_SETTING.get(Settings.EMPTY).millis();
-        validateElectionTimes(defaultMinRetryInterval, defaultMaxRetryInterval, 0, defaultMinRetryInterval);
+        runElectionsAndValidate(randomInt(100), defaultMinRetryInterval, defaultMaxRetryInterval, defaultMinRetryInterval);
 
         clusterSettings.applySettings(Settings.builder()
             .put(ELECTION_MIN_RETRY_INTERVAL_SETTING.getKey(), "100ms")
             .put(ELECTION_MAX_RETRY_INTERVAL_SETTING.getKey(), "200ms")
             .build());
-        runElections(1); // change in retry interval is not picked up until the next election
-        long lastElectionTime = electionTimes.get(electionTimes.size() - 1);
-        electionTimes.clear();
-        runElections(randomInt(100));
-        validateElectionTimes(100, 200, lastElectionTime, 200);
+        runElection("pick up reduction in retry intervals"); // change in retry interval is not picked up until the next election
+        runElectionsAndValidate(randomInt(100), 100, 200, 200);
 
         clusterSettings.applySettings(Settings.EMPTY);
-        runElections(1); // change in retry interval is not picked up until the next election
-        lastElectionTime = electionTimes.get(electionTimes.size() - 1);
-        electionTimes.clear();
-        runElections(randomInt(100));
-        validateElectionTimes(defaultMinRetryInterval, defaultMaxRetryInterval, lastElectionTime, defaultMinRetryInterval);
+        runElection("pick up reset of retry intervals"); // change in retry interval is not picked up until the next election
+        runElectionsAndValidate(randomInt(100), defaultMinRetryInterval, defaultMaxRetryInterval, defaultMinRetryInterval);
+
+        electionScheduler.stop();
+        electionScheduler.start(); // should reset the backoff interval
+        runElectionsAndValidate(randomInt(100), defaultMinRetryInterval, defaultMaxRetryInterval, defaultMinRetryInterval);
     }
 
     public void testSettingsMustBeReasonable() {

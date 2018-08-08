@@ -114,6 +114,7 @@ public abstract class ElectionScheduler extends AbstractLifecycleComponent {
             ELECTION_MAX_RETRY_INTERVAL_SETTING_KEY, ELECTION_MIN_RETRY_INTERVAL_SETTING_KEY).getFormattedMessage();
     }
 
+    private Object currentScheduler; // only care about its identity
     private TimeValue electionMinRetryInterval;
     private TimeValue electionMaxRetryInterval;
     private final Object mutex = new Object();
@@ -131,7 +132,6 @@ public abstract class ElectionScheduler extends AbstractLifecycleComponent {
         synchronized (mutex) {
             electionMinRetryInterval = ELECTION_MIN_RETRY_INTERVAL_SETTING.get(settings);
             electionMaxRetryInterval = ELECTION_MAX_RETRY_INTERVAL_SETTING.get(settings);
-            currentDelayMillis = electionMinRetryInterval.millis();
         }
 
         clusterSettings.addSettingsUpdateConsumer(ELECTION_MIN_RETRY_INTERVAL_SETTING, this::setElectionMinRetryInterval);
@@ -152,11 +152,86 @@ public abstract class ElectionScheduler extends AbstractLifecycleComponent {
 
     @Override
     protected void doStart() {
-        scheduleNextWakeUp();
+        logger.trace("starting");
+        final Runnable newScheduler;
+        synchronized (mutex) {
+            currentDelayMillis = electionMinRetryInterval.millis();
+            assert currentScheduler == null;
+            currentScheduler = newScheduler = new Runnable() {
+                @Override
+                public String toString() {
+                    return "ElectionScheduler: next election scheduler";
+                }
+
+                private boolean isCurrentScheduler() {
+                    return this == currentScheduler;
+                }
+
+                private void scheduleNextElection() {
+                    final long delay;
+                    synchronized (mutex) {
+                        if (isCurrentScheduler() == false) {
+                            logger.trace("not scheduling election");
+                            return;
+                        }
+                        currentDelayMillis = Math.min(electionMaxRetryInterval.getMillis(),
+                            currentDelayMillis + electionMinRetryInterval.getMillis());
+
+                        delay = randomLongBetween(electionMinRetryInterval.getMillis(), currentDelayMillis + 1);
+                    }
+                    logger.trace("scheduling election after delay of [{}ms]", delay);
+                    threadPool.schedule(TimeValue.timeValueMillis(delay), Names.GENERIC, new AbstractLifecycleRunnable(lifecycle, logger) {
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.debug("unexpected exception in wakeup", e);
+                            assert false : e;
+                        }
+
+                        @Override
+                        protected void doRunInLifecycle() {
+                            synchronized (mutex) {
+                                if (isCurrentScheduler() == false) {
+                                    return;
+                                }
+                            }
+                            startElection();
+                        }
+
+                        @Override
+                        public void onAfterInLifecycle() {
+                            scheduleNextElection();
+                        }
+
+                        @Override
+                        public String toString() {
+                            return "ElectionScheduler: do election and schedule retry";
+                        }
+
+                        @Override
+                        public boolean isForceExecution() {
+                            // There are very few of these scheduled, and they back off, but it's important that they're not rejected as
+                            // this could prevent a cluster from ever forming.
+                            return true;
+                        }
+                    });
+                }
+
+                @Override
+                public void run() {
+                    scheduleNextElection();
+                }
+            };
+        }
+        newScheduler.run();
     }
 
     @Override
     protected void doStop() {
+        logger.trace("stopping");
+        synchronized (mutex) {
+            assert currentScheduler != null;
+            currentScheduler = null;
+        }
     }
 
     @Override
@@ -175,45 +250,6 @@ public abstract class ElectionScheduler extends AbstractLifecycleComponent {
     private long randomLongBetween(long lowerBound, long upperBound) {
         assert 0 < upperBound - lowerBound;
         return nonNegative(random.nextLong()) % (upperBound - lowerBound) + lowerBound;
-    }
-
-    private void scheduleNextWakeUp() {
-        final long delay;
-        synchronized (mutex) {
-            currentDelayMillis = Math.min(electionMaxRetryInterval.getMillis(), currentDelayMillis + electionMinRetryInterval.getMillis());
-            delay = randomLongBetween(electionMinRetryInterval.getMillis(), currentDelayMillis + 1);
-        }
-        logger.trace("scheduling next wake-up after [{}ms]", delay);
-        threadPool.schedule(TimeValue.timeValueMillis(delay), Names.GENERIC, new AbstractLifecycleRunnable(lifecycle, logger) {
-            @Override
-            public void onFailure(Exception e) {
-                logger.debug("unexpected exception in wakeup", e);
-                assert false : e;
-            }
-
-            @Override
-            protected void doRunInLifecycle() {
-                logger.trace("election triggered");
-                startElection();
-            }
-
-            @Override
-            public void onAfterInLifecycle() {
-                scheduleNextWakeUp();
-            }
-
-            @Override
-            public String toString() {
-                return "ElectionScheduler#scheduleNextWakeUp";
-            }
-
-            @Override
-            public boolean isForceExecution() {
-                // There are very few of these scheduled, and they back off, but it's important that they're not rejected as this could
-                // prevent a cluster from ever forming.
-                return true;
-            }
-        });
     }
 
     protected abstract void startElection();

@@ -37,6 +37,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
+
 /**
  * Support for dynamic type (def).
  * <p>
@@ -194,7 +196,14 @@ public final class Def {
          int numArguments = callSiteType.parameterCount();
          // simple case: no lambdas
          if (recipeString.isEmpty()) {
-             return painlessLookup.lookupRuntimePainlessMethod(receiverClass, name, numArguments - 1).methodHandle;
+             PainlessMethod painlessMethod =  painlessLookup.lookupRuntimePainlessMethod(receiverClass, name, numArguments - 1);
+
+             if (painlessMethod == null) {
+                 throw new IllegalArgumentException("dynamic method " +
+                         "[" + typeToCanonicalTypeName(receiverClass) + ", " + name + "/" + (numArguments - 1) + "] not found");
+             }
+
+             return painlessMethod.methodHandle;
          }
 
          // convert recipe string to a bitset for convenience (the code below should be refactored...)
@@ -218,6 +227,12 @@ public final class Def {
          // lookup the method with the proper arity, then we know everything (e.g. interface types of parameters).
          // based on these we can finally link any remaining lambdas that were deferred.
          PainlessMethod method = painlessLookup.lookupRuntimePainlessMethod(receiverClass, name, arity);
+
+        if (method == null) {
+            throw new IllegalArgumentException(
+                    "dynamic method [" + typeToCanonicalTypeName(receiverClass) + ", " + name + "/" + arity + "] not found");
+        }
+
          MethodHandle handle = method.methodHandle;
 
          int replaced = 0;
@@ -285,12 +300,20 @@ public final class Def {
     static MethodHandle lookupReference(PainlessLookup painlessLookup, Map<String, LocalMethod> localMethods,
             MethodHandles.Lookup methodHandlesLookup, String interfaceClass, Class<?> receiverClass, String name) throws Throwable {
         Class<?> interfaceType = painlessLookup.canonicalTypeNameToType(interfaceClass);
+        if (interfaceType == null) {
+            throw new IllegalArgumentException("type [" + interfaceClass + "] not found");
+        }
         PainlessMethod interfaceMethod = painlessLookup.lookupFunctionalInterfacePainlessMethod(interfaceType);
         if (interfaceMethod == null) {
-         throw new IllegalArgumentException("Class [" + interfaceClass + "] is not a functional interface");
+            throw new IllegalArgumentException("Class [" + interfaceClass + "] is not a functional interface");
         }
         int arity = interfaceMethod.typeParameters.size();
         PainlessMethod implMethod = painlessLookup.lookupRuntimePainlessMethod(receiverClass, name, arity);
+        if (implMethod == null) {
+            throw new IllegalArgumentException(
+                    "dynamic method [" + typeToCanonicalTypeName(receiverClass) + ", " + name + "/" + arity + "] not found");
+        }
+
         return lookupReferenceInternal(painlessLookup, localMethods, methodHandlesLookup,
             interfaceType, PainlessLookupUtility.typeToCanonicalTypeName(implMethod.targetClass),
             implMethod.javaMethod.getName(), 1);
@@ -342,31 +365,34 @@ public final class Def {
      */
     static MethodHandle lookupGetter(PainlessLookup painlessLookup, Class<?> receiverClass, String name) {
         // first try whitelist
-        try {
-            return painlessLookup.lookupRuntimeGetterMethodHandle(receiverClass, name);
-        } catch (IllegalArgumentException iae) {
-            // special case: arrays, maps, and lists
-            if (receiverClass.isArray() && "length".equals(name)) {
-                // arrays expose .length as a read-only getter
-                return arrayLengthGetter(receiverClass);
-            } else if (Map.class.isAssignableFrom(receiverClass)) {
-                // maps allow access like mymap.key
-                // wire 'key' as a parameter, its a constant in painless
-                return MethodHandles.insertArguments(MAP_GET, 1, name);
-            } else if (List.class.isAssignableFrom(receiverClass)) {
-                // lists allow access like mylist.0
-                // wire '0' (index) as a parameter, its a constant. this also avoids
-                // parsing the same integer millions of times!
-                try {
-                    int index = Integer.parseInt(name);
-                    return MethodHandles.insertArguments(LIST_GET, 1, index);
-                } catch (NumberFormatException exception) {
-                    throw new IllegalArgumentException("Illegal list shortcut value [" + name + "].");
-                }
-            }
+        MethodHandle getter = painlessLookup.lookupRuntimeGetterMethodHandle(receiverClass, name);
 
-            throw iae;
+        if (getter != null) {
+            return getter;
         }
+
+        // special case: arrays, maps, and lists
+        if (receiverClass.isArray() && "length".equals(name)) {
+            // arrays expose .length as a read-only getter
+            return arrayLengthGetter(receiverClass);
+        } else if (Map.class.isAssignableFrom(receiverClass)) {
+            // maps allow access like mymap.key
+            // wire 'key' as a parameter, its a constant in painless
+            return MethodHandles.insertArguments(MAP_GET, 1, name);
+        } else if (List.class.isAssignableFrom(receiverClass)) {
+            // lists allow access like mylist.0
+            // wire '0' (index) as a parameter, its a constant. this also avoids
+            // parsing the same integer millions of times!
+            try {
+                int index = Integer.parseInt(name);
+                return MethodHandles.insertArguments(LIST_GET, 1, index);
+            } catch (NumberFormatException exception) {
+                throw new IllegalArgumentException("Illegal list shortcut value [" + name + "].");
+            }
+        }
+
+        throw new IllegalArgumentException(
+                "dynamic getter [" + typeToCanonicalTypeName(receiverClass) + ", " + name + "] not found");
     }
 
     /**
@@ -395,28 +421,31 @@ public final class Def {
      */
     static MethodHandle lookupSetter(PainlessLookup painlessLookup, Class<?> receiverClass, String name) {
         // first try whitelist
-        try {
-            return painlessLookup.lookupRuntimeSetterMethodHandle(receiverClass, name);
-        } catch (IllegalArgumentException iae) {
-            // special case: maps, and lists
-            if (Map.class.isAssignableFrom(receiverClass)) {
-                // maps allow access like mymap.key
-                // wire 'key' as a parameter, its a constant in painless
-                return MethodHandles.insertArguments(MAP_PUT, 1, name);
-            } else if (List.class.isAssignableFrom(receiverClass)) {
-                // lists allow access like mylist.0
-                // wire '0' (index) as a parameter, its a constant. this also avoids
-                // parsing the same integer millions of times!
-                try {
-                    int index = Integer.parseInt(name);
-                    return MethodHandles.insertArguments(LIST_SET, 1, index);
-                } catch (final NumberFormatException exception) {
-                    throw new IllegalArgumentException("Illegal list shortcut value [" + name + "].");
-                }
-            }
+        MethodHandle setter = painlessLookup.lookupRuntimeSetterMethodHandle(receiverClass, name);
 
-            throw iae;
+        if (setter != null) {
+            return setter;
         }
+
+        // special case: maps, and lists
+        if (Map.class.isAssignableFrom(receiverClass)) {
+            // maps allow access like mymap.key
+            // wire 'key' as a parameter, its a constant in painless
+            return MethodHandles.insertArguments(MAP_PUT, 1, name);
+        } else if (List.class.isAssignableFrom(receiverClass)) {
+            // lists allow access like mylist.0
+            // wire '0' (index) as a parameter, its a constant. this also avoids
+            // parsing the same integer millions of times!
+            try {
+                int index = Integer.parseInt(name);
+                return MethodHandles.insertArguments(LIST_SET, 1, index);
+            } catch (final NumberFormatException exception) {
+                throw new IllegalArgumentException("Illegal list shortcut value [" + name + "].");
+            }
+        }
+
+        throw new IllegalArgumentException(
+                "dynamic getter [" + typeToCanonicalTypeName(receiverClass) + ", " + name + "] not found");
     }
 
     /**

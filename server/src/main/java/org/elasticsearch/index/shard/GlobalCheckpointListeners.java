@@ -62,12 +62,24 @@ public class GlobalCheckpointListeners implements Closeable {
     private final Executor executor;
     private final Logger logger;
 
+    /**
+     * Construct a global checkpoint listeners collection.
+     *
+     * @param shardId  the shard ID on which global checkpoint updates can be listened to
+     * @param executor the executor for listener notifications
+     * @param logger   a shard-level logger
+     */
     GlobalCheckpointListeners(final ShardId shardId, final Executor executor, final Logger logger) {
         this.shardId = Objects.requireNonNull(shardId);
         this.executor = Objects.requireNonNull(executor);
         this.logger = Objects.requireNonNull(logger);
     }
 
+    /**
+     * Add a global checkpoint listener.
+     *
+     * @param listener the listener
+     */
     synchronized void add(final GlobalCheckpointListener listener) {
         if (closed) {
             throw new IllegalStateException("can not listen for global checkpoint changes on a closed shard [" + shardId + "]");

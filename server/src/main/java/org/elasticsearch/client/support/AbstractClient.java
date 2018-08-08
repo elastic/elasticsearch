@@ -307,7 +307,6 @@ import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.ingest.SimulatePipelineRequestBuilder;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
-import org.elasticsearch.action.ingest.WritePipelineResponse;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollRequestBuilder;
@@ -325,6 +324,7 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchScrollRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.ThreadedActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequestBuilder;
@@ -1082,12 +1082,12 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         }
 
         @Override
-        public void putPipeline(PutPipelineRequest request, ActionListener<WritePipelineResponse> listener) {
+        public void putPipeline(PutPipelineRequest request, ActionListener<AcknowledgedResponse> listener) {
             execute(PutPipelineAction.INSTANCE, request, listener);
         }
 
         @Override
-        public ActionFuture<WritePipelineResponse> putPipeline(PutPipelineRequest request) {
+        public ActionFuture<AcknowledgedResponse> putPipeline(PutPipelineRequest request) {
             return execute(PutPipelineAction.INSTANCE, request);
         }
 
@@ -1102,12 +1102,12 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         }
 
         @Override
-        public void deletePipeline(DeletePipelineRequest request, ActionListener<WritePipelineResponse> listener) {
+        public void deletePipeline(DeletePipelineRequest request, ActionListener<AcknowledgedResponse> listener) {
             execute(DeletePipelineAction.INSTANCE, request, listener);
         }
 
         @Override
-        public ActionFuture<WritePipelineResponse> deletePipeline(DeletePipelineRequest request) {
+        public ActionFuture<AcknowledgedResponse> deletePipeline(DeletePipelineRequest request) {
             return execute(DeletePipelineAction.INSTANCE, request);
         }
 

@@ -25,8 +25,20 @@ import org.apache.tools.ant.taskdefs.condition.Os
 import org.eclipse.jgit.lib.Constants
 import org.eclipse.jgit.lib.RepositoryBuilder
 import org.elasticsearch.gradle.precommit.PrecommitTasks
-import org.gradle.api.*
-import org.gradle.api.artifacts.*
+import org.gradle.api.GradleException
+import org.gradle.api.InvalidUserDataException
+import org.gradle.api.JavaVersion
+import org.gradle.api.Plugin
+import org.gradle.api.Project
+import org.gradle.api.Task
+import org.gradle.api.XmlProvider
+import org.gradle.api.artifacts.Configuration
+import org.gradle.api.artifacts.Dependency
+import org.gradle.api.artifacts.ModuleDependency
+import org.gradle.api.artifacts.ModuleVersionIdentifier
+import org.gradle.api.artifacts.ProjectDependency
+import org.gradle.api.artifacts.ResolvedArtifact
+import org.gradle.api.artifacts.SelfResolvingDependency
 import org.gradle.api.artifacts.dsl.RepositoryHandler
 import org.gradle.api.execution.TaskExecutionGraph
 import org.gradle.api.plugins.JavaPlugin
@@ -104,7 +116,7 @@ class BuildPlugin implements Plugin<Project> {
 
             final Map<Integer, String> javaVersions = [:]
             for (int version = 7; version <= Integer.parseInt(minimumCompilerVersion.majorVersion); version++) {
-                javaVersions.put(version, findJavaHome(version));
+                javaVersions.put(version, findJavaHome(version.toString()));
             }
 
             String javaVendor = System.getProperty('java.vendor')
@@ -217,11 +229,7 @@ class BuildPlugin implements Plugin<Project> {
         final String compilerJavaHome = System.getenv('JAVA_HOME')
         final String compilerJavaProperty = System.getProperty('compiler.java')
         if (compilerJavaProperty != null) {
-            try {
-                compilerJavaHome = findJavaHome(Integer.parseInt(compilerJavaProperty))
-            } catch (NumberFormatException e) {
-                throw new GradleException("compiler.java property must be a number", e)
-            }
+            compilerJavaHome = findJavaHome(compilerJavaProperty)
         }
         if (compilerJavaHome == null) {
             if (System.getProperty("idea.active") != null || System.getProperty("eclipse.launcher") != null) {
@@ -238,8 +246,17 @@ class BuildPlugin implements Plugin<Project> {
         return compilerJavaHome
     }
 
-    private static String findJavaHome(int version) {
-        return System.getenv('JAVA' + version + '_HOME')
+    private static String findJavaHome(String version) {
+        def versionedVarName = 'JAVA' + version + '_HOME'
+        def versionedJavaHome = System.getenv(versionedVarName)
+        if (versionedJavaHome == null) {
+            throw new GradleException(
+                    "$versionedVarName must be set to build Elasticsearch. " +
+                            "Note that if the variable was just set you might have to run `./gradlew --stop` for " +
+                            "it to be picked up. See https://github.com/elastic/elasticsearch/issues/31399 details."
+            )
+        }
+        return versionedJavaHome
     }
 
     /** Add a check before gradle execution phase which ensures java home for the given java version is set. */
@@ -275,11 +292,7 @@ class BuildPlugin implements Plugin<Project> {
     private static String findRuntimeJavaHome(final String compilerJavaHome) {
         def runtimeJavaProperty = System.getProperty("runtime.java")
         if (runtimeJavaProperty != null) {
-            try {
-                return findJavaHome(Integer.parseInt(runtimeJavaProperty))
-            } catch (NumberFormatException e) {
-                throw new GradleException("runtime.java property must be a number", e)
-            }
+            return findJavaHome(runtimeJavaProperty)
         }
         return System.getenv('RUNTIME_JAVA_HOME') ?: compilerJavaHome
     }
@@ -778,7 +791,11 @@ class BuildPlugin implements Plugin<Project> {
             systemProperty 'tests.security.manager', 'true'
             systemProperty 'jna.nosys', 'true'
             systemProperty 'compiler.java', project.ext.compilerJavaVersion.getMajorVersion()
-            systemProperty 'runtime.java', project.ext.runtimeJavaVersion.getMajorVersion()
+            if (project.ext.inFipsJvm) {
+                systemProperty 'runtime.java', project.ext.runtimeJavaVersion.getMajorVersion() + "FIPS"
+            } else {
+                systemProperty 'runtime.java', project.ext.runtimeJavaVersion.getMajorVersion()
+            }
             // TODO: remove setting logging level via system property
             systemProperty 'tests.logger.level', 'WARN'
             for (Map.Entry<String, String> property : System.properties.entrySet()) {

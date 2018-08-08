@@ -138,8 +138,7 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
         builder.field("grouped", group); // notify that it's grouped
         builder.field("failed_shards");
         builder.startArray();
-        ShardOperationFailedException[] failures = params.paramAsBoolean("group_shard_failures", true) ?
-                ExceptionsHelper.groupBy(shardFailures) : shardFailures;
+        ShardOperationFailedException[] failures = group ? ExceptionsHelper.groupBy(shardFailures) : shardFailures;
         for (ShardOperationFailedException failure : failures) {
             builder.startObject();
             failure.toXContent(builder, params);

@@ -22,6 +22,7 @@ package org.elasticsearch.action.support;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestRequest;
@@ -316,21 +317,6 @@ public class IndicesOptions implements ToXContentFragment {
                 defaultSettings);
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startArray("expand_wildcards");
-        for (WildcardStates expandWildcard : expandWildcards) {
-            builder.value(expandWildcard.toString().toLowerCase(Locale.ROOT));
-        }
-        builder.endArray();
-        builder.field("ignore_unavailable", ignoreUnavailable());
-        builder.field("allow_no_indices", allowNoIndices());
-        builder.field("forbid_aliases_to_multiple_indices", allowAliasesToMultipleIndices() == false);
-        builder.field("forbid_closed_indices", forbidClosedIndices());
-        builder.field("ignore_aliases", ignoreAliases());
-        return builder;
-    }
-
     /**
      * Returns true if the name represents a valid name for one of the indices option
      * false otherwise
@@ -358,6 +344,18 @@ public class IndicesOptions implements ToXContentFragment {
                 defaultSettings.forbidClosedIndices(),
                 defaultSettings.ignoreAliases()
         );
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+        builder.startArray("expand_wildcards");
+        for (WildcardStates expandWildcard : expandWildcards) {
+            builder.value(expandWildcard.toString().toLowerCase(Locale.ROOT));
+        }
+        builder.endArray();
+        builder.field("ignore_unavailable", ignoreUnavailable());
+        builder.field("allow_no_indices", allowNoIndices());
+        return builder;
     }
 
     /**

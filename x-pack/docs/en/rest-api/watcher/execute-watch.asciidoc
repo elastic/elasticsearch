@@ -263,7 +263,8 @@ This is an example of the output:
           "type": "index"
         }
       ]
-    }
+    },
+    "user": "test_admin" <4>
   }
 }
 --------------------------------------------------
@@ -281,6 +282,7 @@ This is an example of the output:
 <1> The id of the watch record as it would be stored in the `.watcher-history` index.
 <2> The watch record document as it would be stored in the `.watcher-history` index.
 <3> The watch execution results.
+<4> The user used to execute the watch.
 
 You can set a different execution mode for every action by associating the mode
 name with the action id:

@@ -62,11 +62,11 @@ public class LdapTestUtils {
 
         final SSLConfiguration sslConfiguration;
         if (useGlobalSSL) {
-            sslConfiguration = sslService.getSSLConfiguration("_global");
+            sslConfiguration = sslService.getSSLConfiguration("xpack.ssl");
         } else {
             sslConfiguration = sslService.getSSLConfiguration("xpack.security.authc.realms.foo.ssl");
         }
         return LdapUtils.privilegedConnect(() -> new LDAPConnection(sslService.sslSocketFactory(sslConfiguration), options,
-                ldapurl.getHost(), ldapurl.getPort(), bindDN, bindPassword));
+            ldapurl.getHost(), ldapurl.getPort(), bindDN, bindPassword));
     }
 }

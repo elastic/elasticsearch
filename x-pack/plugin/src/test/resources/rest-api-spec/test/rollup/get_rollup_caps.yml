@@ -22,6 +22,18 @@ setup:
                 type: date
               value_field:
                 type: integer
+
+  - do:
+      indices.create:
+        index: foo3
+        include_type_name: false
+        body:
+          mappings:
+            properties:
+              the_field:
+                type: date
+              value_field:
+                type: integer
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
@@ -228,4 +240,3 @@ setup:
                 - agg: "min"
                 - agg: "max"
                 - agg: "sum"
-

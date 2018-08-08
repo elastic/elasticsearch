@@ -57,7 +57,7 @@ import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
-import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.protocol.xpack.security.User;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
@@ -178,8 +178,8 @@ public class AuthorizationService extends AbstractComponent {
 
         // first, we'll check if the action is a cluster action. If it is, we'll only check it against the cluster permissions
         if (ClusterPrivilege.ACTION_MATCHER.test(action)) {
-            ClusterPermission cluster = permission.cluster();
-            if (cluster.check(action) || checkSameUserPermissions(action, request, authentication)) {
+            final ClusterPermission cluster = permission.cluster();
+            if (cluster.check(action, request) || checkSameUserPermissions(action, request, authentication) ) {
                 putTransientIfNonExisting(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, IndicesAccessControl.ALLOW_ALL);
                 auditTrail.accessGranted(authentication, action, request, permission.names());
                 return;

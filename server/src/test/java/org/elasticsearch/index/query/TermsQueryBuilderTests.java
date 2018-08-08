@@ -77,9 +77,13 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         // terms query or lookup query
         if (randomBoolean()) {
             // make between 0 and 5 different values of the same type
-            String fieldName;
-            fieldName = randomValueOtherThanMany(choice -> choice.equals(GEO_POINT_FIELD_NAME) || choice.equals(GEO_SHAPE_FIELD_NAME)
-                    || choice.equals(INT_RANGE_FIELD_NAME) || choice.equals(DATE_RANGE_FIELD_NAME), () -> getRandomFieldName());
+            String fieldName = randomValueOtherThanMany(choice ->
+                    choice.equals(GEO_POINT_FIELD_NAME) ||
+                    choice.equals(GEO_POINT_ALIAS_FIELD_NAME) ||
+                    choice.equals(GEO_SHAPE_FIELD_NAME) ||
+                    choice.equals(INT_RANGE_FIELD_NAME) ||
+                    choice.equals(DATE_RANGE_FIELD_NAME),
+                () -> getRandomFieldName());
             Object[] values = new Object[randomInt(5)];
             for (int i = 0; i < values.length; i++) {
                 values[i] = getRandomValueForFieldName(fieldName);
@@ -129,7 +133,8 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
                 terms = queryBuilder.values();
             }
 
-            TermInSetQuery expected = new TermInSetQuery(queryBuilder.fieldName(),
+            String fieldName = expectedFieldName(queryBuilder.fieldName());
+            TermInSetQuery expected = new TermInSetQuery(fieldName,
                     terms.stream().filter(Objects::nonNull).map(Object::toString).map(BytesRef::new).collect(Collectors.toList()));
             assertEquals(expected, query);
         }
@@ -259,7 +264,6 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     }
 
     public void testGeo() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         TermsQueryBuilder query = new TermsQueryBuilder(GEO_POINT_FIELD_NAME, "2,3");
         QueryShardContext context = createShardContext();
         QueryShardException e = expectThrows(QueryShardException.class,

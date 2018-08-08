@@ -11,6 +11,10 @@
         "f1": {"type": "text"},
         "f2": {"type": "keyword"},
         "f3": {"type": "text"},
+        "f3_alias": {
+          "type": "alias",
+          "path": "f3"
+        },
         "f4": {
           "type": "text",
           "index_options": "docs"
@@ -42,6 +46,10 @@
           "format": "yyyy/MM/dd||epoch_millis"
         },
         "f_bool": {"type": "boolean"},
+        "f_bool_alias": {
+          "type": "alias",
+          "path": "f_bool"
+        },
         "f_byte": {"type": "byte"},
         "f_short": {"type": "short"},
         "f_int": {"type": "integer"},

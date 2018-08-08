@@ -33,6 +33,8 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotReq
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
@@ -53,12 +55,15 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.snapshots.SnapshotState;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -221,7 +226,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         // end::get-repository-request-masterTimeout
 
         // tag::get-repository-execute
-        GetRepositoriesResponse response = client.snapshot().getRepositories(request, RequestOptions.DEFAULT);
+        GetRepositoriesResponse response = client.snapshot().getRepository(request, RequestOptions.DEFAULT);
         // end::get-repository-execute
 
         // tag::get-repository-response
@@ -256,8 +261,109 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::get-repository-execute-async
-            client.snapshot().getRepositoriesAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            client.snapshot().getRepositoryAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::get-repository-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testRestoreSnapshot() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+
+        createTestRepositories();
+        createTestIndex();
+        createTestSnapshots();
+
+        // tag::restore-snapshot-request
+        RestoreSnapshotRequest request = new RestoreSnapshotRequest(repositoryName, snapshotName);
+        // end::restore-snapshot-request
+        // we need to restore as a different index name
+
+        // tag::restore-snapshot-request-masterTimeout
+        request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.masterNodeTimeout("1m"); // <2>
+        // end::restore-snapshot-request-masterTimeout
+
+        // tag::restore-snapshot-request-waitForCompletion
+        request.waitForCompletion(true); // <1>
+        // end::restore-snapshot-request-waitForCompletion
+
+        // tag::restore-snapshot-request-partial
+        request.partial(false); // <1>
+        // end::restore-snapshot-request-partial
+
+        // tag::restore-snapshot-request-include-global-state
+        request.includeGlobalState(false); // <1>
+        // end::restore-snapshot-request-include-global-state
+
+        // tag::restore-snapshot-request-include-aliases
+        request.includeAliases(false); // <1>
+        // end::restore-snapshot-request-include-aliases
+
+
+        // tag::restore-snapshot-request-indices
+        request.indices("test_index");
+        // end::restore-snapshot-request-indices
+
+        String restoredIndexName = "restored_index";
+        // tag::restore-snapshot-request-rename
+        request.renamePattern("test_(.+)"); // <1>
+        request.renameReplacement("restored_$1"); // <2>
+        // end::restore-snapshot-request-rename
+
+        // tag::restore-snapshot-request-index-settings
+        request.indexSettings(  // <1>
+            Settings.builder()
+            .put("index.number_of_replicas", 0)
+                .build());
+
+        request.ignoreIndexSettings("index.refresh_interval", "index.search.idle.after"); // <2>
+        request.indicesOptions(new IndicesOptions( // <3>
+            EnumSet.of(IndicesOptions.Option.IGNORE_UNAVAILABLE),
+            EnumSet.of(IndicesOptions.WildcardStates.OPEN)));
+        // end::restore-snapshot-request-index-settings
+
+        // tag::restore-snapshot-execute
+        RestoreSnapshotResponse response = client.snapshot().restore(request, RequestOptions.DEFAULT);
+        // end::restore-snapshot-execute
+
+        // tag::restore-snapshot-response
+        RestoreInfo restoreInfo = response.getRestoreInfo();
+        List<String> indices = restoreInfo.indices(); // <1>
+        // end::restore-snapshot-response
+        assertEquals(Collections.singletonList(restoredIndexName), indices);
+        assertEquals(0, restoreInfo.failedShards());
+        assertTrue(restoreInfo.successfulShards() > 0);
+    }
+
+    public void testRestoreSnapshotAsync() throws InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+        {
+            RestoreSnapshotRequest request = new RestoreSnapshotRequest();
+
+            // tag::restore-snapshot-execute-listener
+            ActionListener<RestoreSnapshotResponse> listener =
+                new ActionListener<RestoreSnapshotResponse>() {
+                    @Override
+                    public void onResponse(RestoreSnapshotResponse restoreSnapshotResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::restore-snapshot-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::restore-snapshot-execute-async
+            client.snapshot().restoreAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::restore-snapshot-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
@@ -425,7 +531,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         // end::create-snapshot-request-waitForCompletion
 
         // tag::create-snapshot-execute
-        CreateSnapshotResponse response = client.snapshot().createSnapshot(request, RequestOptions.DEFAULT);
+        CreateSnapshotResponse response = client.snapshot().create(request, RequestOptions.DEFAULT);
         // end::create-snapshot-execute
 
         // tag::create-snapshot-response
@@ -433,6 +539,12 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         // end::create-snapshot-response
 
         assertEquals(RestStatus.OK, status);
+
+        // tag::create-snapshot-response-snapshot-info
+        SnapshotInfo snapshotInfo = response.getSnapshotInfo(); // <1>
+        // end::create-snapshot-response-snapshot-info
+
+        assertNotNull(snapshotInfo);
     }
 
     public void testSnapshotCreateAsync() throws InterruptedException {
@@ -460,7 +572,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::create-snapshot-execute-async
-            client.snapshot().createSnapshotAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            client.snapshot().createAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::create-snapshot-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));

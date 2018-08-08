@@ -9,12 +9,12 @@ archivesBaseName = 'log-config-creator'
 description = 'Create log file import configurations'
 
 dependencies {
-    compile project(':libs:cli')
+    compile "org.elasticsearch:elasticsearch-cli:${version}"
     compile project(':libs:core')
     compile project(':libs:grok')
     compile project(':libs:x-content')
     compile 'com.ibm.icu:icu4j:61.1'
-    compile 'joda-time:joda-time:2.9.9'
+    compile 'joda-time:joda-time:2.10'
     compile 'net.sf.supercsv:super-csv:2.4.0'
 
     testCompile "org.elasticsearch.test:framework:${version}"

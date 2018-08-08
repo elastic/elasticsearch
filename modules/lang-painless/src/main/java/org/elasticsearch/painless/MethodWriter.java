@@ -20,7 +20,8 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.lookup.PainlessCast;
-import org.elasticsearch.painless.lookup.PainlessLookup.def;
+import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.lookup.def;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
@@ -28,6 +29,7 @@ import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.GeneratorAdapter;
 import org.objectweb.asm.commons.Method;
 
+import java.lang.reflect.Modifier;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -54,6 +56,7 @@ import static org.elasticsearch.painless.WriterConstants.DEF_TO_SHORT_EXPLICIT;
 import static org.elasticsearch.painless.WriterConstants.DEF_TO_SHORT_IMPLICIT;
 import static org.elasticsearch.painless.WriterConstants.DEF_UTIL_TYPE;
 import static org.elasticsearch.painless.WriterConstants.INDY_STRING_CONCAT_BOOTSTRAP_HANDLE;
+import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
 import static org.elasticsearch.painless.WriterConstants.MAX_INDY_STRING_CONCAT_ARGS;
 import static org.elasticsearch.painless.WriterConstants.PAINLESS_ERROR_TYPE;
 import static org.elasticsearch.painless.WriterConstants.STRINGBUILDER_APPEND_BOOLEAN;
@@ -225,14 +228,6 @@ public final class MethodWriter extends GeneratorAdapter {
         }
 
         return Type.getType(clazz);
-    }
-
-    public void writeBranch(final Label tru, final Label fals) {
-        if (tru != null) {
-            visitJumpInsn(Opcodes.IFNE, tru);
-        } else if (fals != null) {
-            visitJumpInsn(Opcodes.IFEQ, fals);
-        }
     }
 
     /** Starts a new string concat.
@@ -422,5 +417,41 @@ public final class MethodWriter extends GeneratorAdapter {
         args[1] = flavor;
         System.arraycopy(params, 0, args, 2, params.length);
         invokeDynamic(name, methodType.getDescriptor(), DEF_BOOTSTRAP_HANDLE, args);
+    }
+
+    public void invokeMethodCall(PainlessMethod painlessMethod) {
+        Type type = Type.getType(painlessMethod.javaMethod.getDeclaringClass());
+        Method method = Method.getMethod(painlessMethod.javaMethod);
+
+        if (Modifier.isStatic(painlessMethod.javaMethod.getModifiers())) {
+            // invokeStatic assumes that the owner class is not an interface, so this is a
+            // special case for interfaces where the interface method boolean needs to be set to
+            // true to reference the appropriate class constant when calling a static interface
+            // method since java 8 did not check, but java 9 and 10 do
+            if (painlessMethod.javaMethod.getDeclaringClass().isInterface()) {
+                visitMethodInsn(Opcodes.INVOKESTATIC, type.getInternalName(),
+                        painlessMethod.javaMethod.getName(), painlessMethod.methodType.toMethodDescriptorString(), true);
+            } else {
+                invokeStatic(type, method);
+            }
+        } else if (painlessMethod.javaMethod.getDeclaringClass().isInterface()) {
+            invokeInterface(type, method);
+        } else {
+            invokeVirtual(type, method);
+        }
+    }
+
+    public void invokeLambdaCall(FunctionRef functionRef) {
+        invokeDynamic(
+                functionRef.interfaceMethodName,
+                functionRef.factoryMethodType.toMethodDescriptorString(),
+                LAMBDA_BOOTSTRAP_HANDLE,
+                Type.getMethodType(functionRef.interfaceMethodType.toMethodDescriptorString()),
+                functionRef.delegateClassName,
+                functionRef.delegateInvokeType,
+                functionRef.delegateMethodName,
+                Type.getMethodType(functionRef.delegateMethodType.toMethodDescriptorString()),
+                functionRef.isDelegateInterface ? 1 : 0
+        );
     }
 }

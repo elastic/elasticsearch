@@ -69,17 +69,17 @@ public class ExpectedReciprocalRankTests extends ESTestCase {
      * 4    | 1         | 0.03125   | 0.078125 | 0.00244140625 |
      * }</pre>
      *
-     * err => sum of last column
+     * err = sum of last column
      */
     public void testERRAt() {
         List<RatedDocument> rated = new ArrayList<>();
         Integer[] relevanceRatings = new Integer[] { 3, 2, 0, 1};
         SearchHit[] hits = createSearchHits(rated, relevanceRatings);
         ExpectedReciprocalRank err = new ExpectedReciprocalRank(3, 0, 3);
-        assertEquals(0.8984375, err.evaluate("id", hits, rated).getQualityLevel(), DELTA);
+        assertEquals(0.8984375, err.evaluate("id", hits, rated).metricScore(), DELTA);
         // take 4th rank into window
         err = new ExpectedReciprocalRank(3, 0, 4);
-        assertEquals(0.8984375 + 0.00244140625, err.evaluate("id", hits, rated).getQualityLevel(), DELTA);
+        assertEquals(0.8984375 + 0.00244140625, err.evaluate("id", hits, rated).metricScore(), DELTA);
     }
 
     /**
@@ -94,7 +94,7 @@ public class ExpectedReciprocalRankTests extends ESTestCase {
      * 4    | 1         | 0.03125   | 0.125    | 0.00390625 |
      * }</pre>
      *
-     * err => sum of last column
+     * err = sum of last column
      */
     public void testERRMissingRatings() {
         List<RatedDocument> rated = new ArrayList<>();
@@ -102,11 +102,11 @@ public class ExpectedReciprocalRankTests extends ESTestCase {
         SearchHit[] hits = createSearchHits(rated, relevanceRatings);
         ExpectedReciprocalRank err = new ExpectedReciprocalRank(3, null, 4);
         EvalQueryQuality evaluation = err.evaluate("id", hits, rated);
-        assertEquals(0.875 + 0.00390625, evaluation.getQualityLevel(), DELTA);
+        assertEquals(0.875 + 0.00390625, evaluation.metricScore(), DELTA);
         assertEquals(1, ((ExpectedReciprocalRank.Detail) evaluation.getMetricDetails()).getUnratedDocs());
         // if we supply e.g. 2 as unknown docs rating, it should be the same as in the other test above
         err = new ExpectedReciprocalRank(3, 2, 4);
-        assertEquals(0.8984375 + 0.00244140625, err.evaluate("id", hits, rated).getQualityLevel(), DELTA);
+        assertEquals(0.8984375 + 0.00244140625, err.evaluate("id", hits, rated).metricScore(), DELTA);
     }
 
     private SearchHit[] createSearchHits(List<RatedDocument> rated, Integer[] relevanceRatings) {
@@ -126,7 +126,7 @@ public class ExpectedReciprocalRankTests extends ESTestCase {
      */
     public void testNoResults() throws Exception {
         ExpectedReciprocalRank err = new ExpectedReciprocalRank(5, 0, 10);
-        assertEquals(0.0, err.evaluate("id", new SearchHit[0], Collections.emptyList()).getQualityLevel(), DELTA);
+        assertEquals(0.0, err.evaluate("id", new SearchHit[0], Collections.emptyList()).metricScore(), DELTA);
     }
 
     public void testParseFromXContent() throws IOException {

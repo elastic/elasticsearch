@@ -85,8 +85,10 @@ import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBu
 import org.elasticsearch.search.aggregations.bucket.geogrid.ParsedGeoHashGrid;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.ParsedGlobal;
+import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.ParsedAutoDateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.ParsedDateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.ParsedHistogram;
 import org.elasticsearch.search.aggregations.bucket.missing.MissingAggregationBuilder;
@@ -161,8 +163,11 @@ import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativePipel
 import org.elasticsearch.search.aggregations.pipeline.derivative.ParsedDerivative;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
+import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
+import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
+import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -203,6 +208,8 @@ public class RestHighLevelClient implements Closeable {
     private final SnapshotClient snapshotClient = new SnapshotClient(this);
     private final TasksClient tasksClient = new TasksClient(this);
     private final XPackClient xPackClient = new XPackClient(this);
+    private final WatcherClient watcherClient = new WatcherClient(this);
+    private final LicenseClient licenseClient = new LicenseClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -294,17 +301,37 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * A wrapper for the {@link RestHighLevelClient} that provides methods for
-     * accessing the Elastic Licensed X-Pack APIs that are shipped with the
-     * default distribution of Elasticsearch. All of these APIs will 404 if run
-     * against the OSS distribution of Elasticsearch.
+     * Provides methods for accessing the Elastic Licensed X-Pack Info
+     * and Usage APIs that are shipped with the default distribution of
+     * Elasticsearch. All of these APIs will 404 if run against the OSS
+     * distribution of Elasticsearch.
      * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/xpack-api.html">
-     * X-Pack APIs on elastic.co</a> for more information.
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/info-api.html">
+     * Info APIs on elastic.co</a> for more information.
      */
     public final XPackClient xpack() {
         return xPackClient;
     }
+
+    /**
+     * Provides methods for accessing the Elastic Licensed Watcher APIs that
+     * are shipped with the default distribution of Elasticsearch. All of
+     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
+     * <p>
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api.html">
+     * Watcher APIs on elastic.co</a> for more information.
+     */
+    public WatcherClient watcher() { return watcherClient; }
+
+    /**
+     * Provides methods for accessing the Elastic Licensed Licensing APIs that
+     * are shipped with the default distribution of Elasticsearch. All of
+     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
+     * <p>
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/licensing-apis.html">
+     * Licensing APIs on elastic.co</a> for more information.
+     */
+    public LicenseClient license() { return licenseClient; }
 
     /**
      * Executes a bulk request using the Bulk API.
@@ -382,8 +409,23 @@ public class RestHighLevelClient implements Closeable {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
+     * @deprecated use {@link #mget(MultiGetRequest, RequestOptions)} instead
      */
+    @Deprecated
     public final MultiGetResponse multiGet(MultiGetRequest multiGetRequest, RequestOptions options) throws IOException {
+        return mget(multiGetRequest, options);
+    }
+
+
+    /**
+     * Retrieves multiple documents by id using the Multi Get API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-multi-get.html">Multi Get API on elastic.co</a>
+     * @param multiGetRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public final MultiGetResponse mget(MultiGetRequest multiGetRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(multiGetRequest, RequestConverters::multiGet, options, MultiGetResponse::fromXContent,
                 singleton(404));
     }
@@ -394,8 +436,21 @@ public class RestHighLevelClient implements Closeable {
      * @param multiGetRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @deprecated use {@link #mgetAsync(MultiGetRequest, RequestOptions, ActionListener)} instead
      */
+    @Deprecated
     public final void multiGetAsync(MultiGetRequest multiGetRequest, RequestOptions options, ActionListener<MultiGetResponse> listener) {
+        mgetAsync(multiGetRequest, options, listener);
+    }
+
+    /**
+     * Asynchronously retrieves multiple documents by id using the Multi Get API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-multi-get.html">Multi Get API on elastic.co</a>
+     * @param multiGetRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public final void mgetAsync(MultiGetRequest multiGetRequest, RequestOptions options, ActionListener<MultiGetResponse> listener) {
         performRequestAsyncAndParseEntity(multiGetRequest, RequestConverters::multiGet, options, MultiGetResponse::fromXContent, listener,
                 singleton(404));
     }
@@ -529,8 +584,23 @@ public class RestHighLevelClient implements Closeable {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
+     * @deprecated use {@link #msearch(MultiSearchRequest, RequestOptions)} instead
      */
+    @Deprecated
     public final MultiSearchResponse multiSearch(MultiSearchRequest multiSearchRequest, RequestOptions options) throws IOException {
+        return msearch(multiSearchRequest, options);
+    }
+
+    /**
+     * Executes a multi search using the msearch API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-multi-search.html">Multi search API on
+     * elastic.co</a>
+     * @param multiSearchRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public final MultiSearchResponse msearch(MultiSearchRequest multiSearchRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(multiSearchRequest, RequestConverters::multiSearch, options, MultiSearchResponse::fromXContext,
                 emptySet());
     }
@@ -542,9 +612,24 @@ public class RestHighLevelClient implements Closeable {
      * @param searchRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @deprecated use {@link #msearchAsync(MultiSearchRequest, RequestOptions, ActionListener)} instead
      */
+    @Deprecated
     public final void multiSearchAsync(MultiSearchRequest searchRequest, RequestOptions options,
-                                       ActionListener<MultiSearchResponse> listener) {
+                                   ActionListener<MultiSearchResponse> listener) {
+        msearchAsync(searchRequest, options, listener);
+    }
+
+    /**
+     * Asynchronously executes a multi search using the msearch API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-multi-search.html">Multi search API on
+     * elastic.co</a>
+     * @param searchRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public final void msearchAsync(MultiSearchRequest searchRequest, RequestOptions options,
+                                   ActionListener<MultiSearchResponse> listener) {
         performRequestAsyncAndParseEntity(searchRequest, RequestConverters::multiSearch, options, MultiSearchResponse::fromXContext,
                 listener, emptySet());
     }
@@ -557,8 +642,23 @@ public class RestHighLevelClient implements Closeable {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
+     * @deprecated use {@link #scroll(SearchScrollRequest, RequestOptions)} instead
      */
+    @Deprecated
     public final SearchResponse searchScroll(SearchScrollRequest searchScrollRequest, RequestOptions options) throws IOException {
+        return scroll(searchScrollRequest, options);
+    }
+
+    /**
+     * Executes a search using the Search Scroll API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-scroll.html">Search Scroll
+     * API on elastic.co</a>
+     * @param searchScrollRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public final SearchResponse scroll(SearchScrollRequest searchScrollRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(searchScrollRequest, RequestConverters::searchScroll, options, SearchResponse::fromXContent,
                 emptySet());
     }
@@ -570,9 +670,24 @@ public class RestHighLevelClient implements Closeable {
      * @param searchScrollRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @deprecated use {@link #scrollAsync(SearchScrollRequest, RequestOptions, ActionListener)} instead
      */
+    @Deprecated
     public final void searchScrollAsync(SearchScrollRequest searchScrollRequest, RequestOptions options,
-                                        ActionListener<SearchResponse> listener) {
+                                  ActionListener<SearchResponse> listener) {
+        scrollAsync(searchScrollRequest, options, listener);
+    }
+
+    /**
+     * Asynchronously executes a search using the Search Scroll API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-scroll.html">Search Scroll
+     * API on elastic.co</a>
+     * @param searchScrollRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public final void scrollAsync(SearchScrollRequest searchScrollRequest, RequestOptions options,
+                                  ActionListener<SearchResponse> listener) {
         performRequestAsyncAndParseEntity(searchScrollRequest, RequestConverters::searchScroll, options, SearchResponse::fromXContent,
                 listener, emptySet());
     }
@@ -689,8 +804,8 @@ public class RestHighLevelClient implements Closeable {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/multi-search-template.html">Multi Search Template API
      * on elastic.co</a>.
      */
-    public final MultiSearchTemplateResponse multiSearchTemplate(MultiSearchTemplateRequest multiSearchTemplateRequest,
-            RequestOptions options) throws IOException {
+    public final MultiSearchTemplateResponse msearchTemplate(MultiSearchTemplateRequest multiSearchTemplateRequest,
+                                                             RequestOptions options) throws IOException {
         return performRequestAndParseEntity(multiSearchTemplateRequest, RequestConverters::multiSearchTemplate,
                 options, MultiSearchTemplateResponse::fromXContext, emptySet());
     }
@@ -701,9 +816,9 @@ public class RestHighLevelClient implements Closeable {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/multi-search-template.html">Multi Search Template API
      * on elastic.co</a>.
      */
-    public final void multiSearchTemplateAsync(MultiSearchTemplateRequest multiSearchTemplateRequest,
-                                          RequestOptions options,
-                                          ActionListener<MultiSearchTemplateResponse> listener) {
+    public final void msearchTemplateAsync(MultiSearchTemplateRequest multiSearchTemplateRequest,
+                                           RequestOptions options,
+                                           ActionListener<MultiSearchTemplateResponse> listener) {
         performRequestAsyncAndParseEntity(multiSearchTemplateRequest, RequestConverters::multiSearchTemplate,
             options, MultiSearchTemplateResponse::fromXContext, listener, emptySet());
     }
@@ -1004,6 +1119,7 @@ public class RestHighLevelClient implements Closeable {
         map.put(GeoCentroidAggregationBuilder.NAME, (p, c) -> ParsedGeoCentroid.fromXContent(p, (String) c));
         map.put(HistogramAggregationBuilder.NAME, (p, c) -> ParsedHistogram.fromXContent(p, (String) c));
         map.put(DateHistogramAggregationBuilder.NAME, (p, c) -> ParsedDateHistogram.fromXContent(p, (String) c));
+        map.put(AutoDateHistogramAggregationBuilder.NAME, (p, c) -> ParsedAutoDateHistogram.fromXContent(p, (String) c));
         map.put(StringTerms.NAME, (p, c) -> ParsedStringTerms.fromXContent(p, (String) c));
         map.put(LongTerms.NAME, (p, c) -> ParsedLongTerms.fromXContent(p, (String) c));
         map.put(DoubleTerms.NAME, (p, c) -> ParsedDoubleTerms.fromXContent(p, (String) c));
@@ -1028,11 +1144,11 @@ public class RestHighLevelClient implements Closeable {
         List<NamedXContentRegistry.Entry> entries = map.entrySet().stream()
                 .map(entry -> new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(entry.getKey()), entry.getValue()))
                 .collect(Collectors.toList());
-        entries.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField(TermSuggestion.NAME),
+        entries.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField(TermSuggestionBuilder.SUGGESTION_NAME),
                 (parser, context) -> TermSuggestion.fromXContent(parser, (String)context)));
-        entries.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField(PhraseSuggestion.NAME),
+        entries.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField(PhraseSuggestionBuilder.SUGGESTION_NAME),
                 (parser, context) -> PhraseSuggestion.fromXContent(parser, (String)context)));
-        entries.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField(CompletionSuggestion.NAME),
+        entries.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField(CompletionSuggestionBuilder.SUGGESTION_NAME),
                 (parser, context) -> CompletionSuggestion.fromXContent(parser, (String)context)));
         return entries;
     }

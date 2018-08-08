@@ -37,12 +37,75 @@
             },
             "state": {
               "properties": {
+                "beat": {
+                  "properties": {
+                    "name": {
+                      "type": "keyword"
+                    }
+                  }
+                },
+                "host": {
+                  "properties": {
+                    "architecture": {
+                      "type": "keyword"
+                    },
+                    "name": {
+                      "type": "keyword"
+                    },
+                    "os": {
+                      "properties": {
+                        "build": {
+                          "type": "keyword"
+                        },
+                        "family": {
+                          "type": "keyword"
+                        },
+                        "platform": {
+                          "type": "keyword"
+                        },
+                        "version": {
+                          "type": "keyword"
+                        }
+                      }
+                    }
+                  }
+                },
+                "input": {
+                  "properties": {
+                    "count": {
+                      "type": "long"
+                    },
+                    "names": {
+                      "type": "keyword"
+                    }
+                  }
+                },
                 "module": {
                   "properties": {
                     "count": {
                       "type": "long"
                     },
                     "names": {
+                      "type": "keyword"
+                    }
+                  }
+                },
+                "output": {
+                  "properties": {
+                    "name": {
+                      "type": "keyword"
+                    }
+                  }
+                },
+                "service": {
+                  "properties": {
+                    "id": {
+                      "type": "keyword"
+                    },
+                    "name": {
+                      "type": "keyword"
+                    },
+                    "version": {
                       "type": "keyword"
                     }
                   }

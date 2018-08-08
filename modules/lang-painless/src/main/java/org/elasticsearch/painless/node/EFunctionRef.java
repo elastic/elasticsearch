@@ -19,10 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.lookup.PainlessLookup;
-import org.elasticsearch.painless.lookup.PainlessMethod;
-import org.elasticsearch.painless.lookup.PainlessMethodKey;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -32,8 +28,6 @@ import org.objectweb.asm.Type;
 
 import java.util.Objects;
 import java.util.Set;
-
-import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
 
 /**
  * Represents a function reference.
@@ -63,39 +57,7 @@ public final class EFunctionRef extends AExpression implements ILambda {
             defPointer = "S" + type + "." + call + ",0";
         } else {
             defPointer = null;
-            try {
-                if ("this".equals(type)) {
-                    // user's own function
-                    PainlessMethod interfaceMethod = locals.getPainlessLookup().getPainlessStructFromJavaClass(expected).functionalMethod;
-                    if (interfaceMethod == null) {
-                        throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
-                                                           "to [" + PainlessLookup.ClassToName(expected) + "], not a functional interface");
-                    }
-                    PainlessMethod delegateMethod = locals.getMethod(new PainlessMethodKey(call, interfaceMethod.arguments.size()));
-                    if (delegateMethod == null) {
-                        throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
-                                                           "to [" + PainlessLookup.ClassToName(expected) + "], function not found");
-                    }
-                    ref = new FunctionRef(expected, interfaceMethod, delegateMethod, 0);
-
-                    // check casts between the interface method and the delegate method are legal
-                    for (int i = 0; i < interfaceMethod.arguments.size(); ++i) {
-                        Class<?> from = interfaceMethod.arguments.get(i);
-                        Class<?> to = delegateMethod.arguments.get(i);
-                        AnalyzerCaster.getLegalCast(location, from, to, false, true);
-                    }
-
-                    if (interfaceMethod.rtn != void.class) {
-                        AnalyzerCaster.getLegalCast(location, delegateMethod.rtn, interfaceMethod.rtn, false, true);
-                    }
-                } else {
-                    // whitelist lookup
-                    ref = new FunctionRef(locals.getPainlessLookup(), expected, type, call, 0);
-                }
-
-            } catch (IllegalArgumentException e) {
-                throw createError(e);
-            }
+            ref = FunctionRef.create(locals.getPainlessLookup(), locals.getMethods(), location, expected, type, call, 0);
             actual = expected;
         }
     }
@@ -104,17 +66,7 @@ public final class EFunctionRef extends AExpression implements ILambda {
     void write(MethodWriter writer, Globals globals) {
         if (ref != null) {
             writer.writeDebugInfo(location);
-            writer.invokeDynamic(
-                ref.interfaceMethodName,
-                ref.factoryDescriptor,
-                LAMBDA_BOOTSTRAP_HANDLE,
-                ref.interfaceType,
-                ref.delegateClassName,
-                ref.delegateInvokeType,
-                ref.delegateMethodName,
-                ref.delegateType,
-                ref.isDelegateInterface ? 1 : 0
-            );
+            writer.invokeLambdaCall(ref);
         } else {
             // TODO: don't do this: its just to cutover :)
             writer.push((String)null);

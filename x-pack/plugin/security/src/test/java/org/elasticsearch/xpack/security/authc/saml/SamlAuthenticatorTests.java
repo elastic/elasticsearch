@@ -128,6 +128,8 @@ public class SamlAuthenticatorTests extends SamlTestCase {
 
     @BeforeClass
     public static void init() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, there is no DOM XMLSignature Factory so we can't sign XML documents", inFipsJvm());
+        // TODO: Refactor the signing to use org.opensaml.xmlsec.signature.support.Signer so that we can run the tests
         SamlUtils.initialize(Loggers.getLogger(SamlAuthenticatorTests.class));
         // Initialise Apache XML security so that the signDoc methods work correctly.
         Init.init();
@@ -218,7 +220,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
                 "<saml2:Issuer xmlns:saml2=\"urn:oasis:names:tc:SAML:2.0:assertion\">" +
                 IDP_ENTITY_ID + "</saml2:Issuer>" +
                 "<saml2p:Status><saml2p:StatusCode Value=\"urn:oasis:names:tc:SAML:2.0:status:Success\"/></saml2p:Status>" +
-                "</saml2p:Response>");
+            "</saml2p:Response>");
         final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
         assertThat(exception.getMessage(), containsString("No assertions found in SAML response"));
         assertThat(exception.getCause(), nullValue());

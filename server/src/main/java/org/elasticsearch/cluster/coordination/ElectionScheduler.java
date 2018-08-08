@@ -21,13 +21,13 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.AbstractLifecycleRunnable;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 
@@ -37,7 +37,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.function.Function;
 
-public abstract class ElectionScheduler extends AbstractLifecycleComponent {
+public abstract class ElectionScheduler extends AbstractComponent {
 
     /*
      * It's provably impossible to guarantee that any leader election algorithm ever elects a leader, but they generally work (with
@@ -150,8 +150,7 @@ public abstract class ElectionScheduler extends AbstractLifecycleComponent {
         }
     }
 
-    @Override
-    protected void doStart() {
+    public void start() {
         logger.trace("starting");
         final Runnable newScheduler;
         synchronized (mutex) {
@@ -180,7 +179,7 @@ public abstract class ElectionScheduler extends AbstractLifecycleComponent {
                         delay = randomLongBetween(electionMinRetryInterval.getMillis(), currentDelayMillis + 1);
                     }
                     logger.trace("scheduling election after delay of [{}ms]", delay);
-                    threadPool.schedule(TimeValue.timeValueMillis(delay), Names.GENERIC, new AbstractLifecycleRunnable(lifecycle, logger) {
+                    threadPool.schedule(TimeValue.timeValueMillis(delay), Names.GENERIC, new AbstractRunnable() {
                         @Override
                         public void onFailure(Exception e) {
                             logger.debug("unexpected exception in wakeup", e);
@@ -188,7 +187,7 @@ public abstract class ElectionScheduler extends AbstractLifecycleComponent {
                         }
 
                         @Override
-                        protected void doRunInLifecycle() {
+                        protected void doRun() {
                             synchronized (mutex) {
                                 if (isCurrentScheduler() == false) {
                                     return;
@@ -198,7 +197,7 @@ public abstract class ElectionScheduler extends AbstractLifecycleComponent {
                         }
 
                         @Override
-                        public void onAfterInLifecycle() {
+                        public void onAfter() {
                             scheduleNextElection();
                         }
 
@@ -225,17 +224,12 @@ public abstract class ElectionScheduler extends AbstractLifecycleComponent {
         newScheduler.run();
     }
 
-    @Override
-    protected void doStop() {
+    public void stop() {
         logger.trace("stopping");
         synchronized (mutex) {
             assert currentScheduler != null;
             currentScheduler = null;
         }
-    }
-
-    @Override
-    protected void doClose() {
     }
 
     @SuppressForbidden(reason = "Argument to Math.abs() is definitely not Long.MIN_VALUE")
@@ -252,6 +246,9 @@ public abstract class ElectionScheduler extends AbstractLifecycleComponent {
         return nonNegative(random.nextLong()) % (upperBound - lowerBound) + lowerBound;
     }
 
+    /**
+     * Start an election. Calls to this method are not completely synchronised with the start/stop state of the scheduler.
+     */
     protected abstract void startElection();
 
     @Override

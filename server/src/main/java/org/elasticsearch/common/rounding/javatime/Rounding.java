@@ -421,7 +421,7 @@ public abstract class Rounding implements Writeable {
 
             // a millisecond value with the same local time, in UTC, as `utcMillis` has in `timeZone`
             final long localMillis = utcMillis + timeZone.getRules().getOffset(utcInstant).getTotalSeconds() * 1000;
-            assert localMillis == rawLocalDateTime.atZone(ZoneOffset.UTC).toInstant().toEpochMilli();
+            assert localMillis == rawLocalDateTime.toInstant(ZoneOffset.UTC).toEpochMilli();
 
             final long roundedMillis = roundKey(localMillis, interval) * interval;
             final LocalDateTime roundedLocalDateTime = Instant.ofEpochMilli(roundedMillis).atZone(ZoneOffset.UTC).toLocalDateTime();

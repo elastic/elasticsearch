@@ -732,18 +732,19 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertHitCount(client().prepareSearch().get(), 3);
     }
 
-    public void testGlobalCheckpointListeners() throws IOException {
-        createIndex("test", Settings.builder().put("index.number_of_replicas", 0).build());
+    public void testGlobalCheckpointListeners() throws Exception {
+        createIndex("test", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build());
         ensureGreen();
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final IndexService test = indicesService.indexService(resolveIndex("test"));
         final IndexShard shard = test.getShardOrNull(0);
         final int numberOfUpdates = randomIntBetween(1, 128);
         for (int i = 0; i < numberOfUpdates; i++) {
+            final int index = i;
             final AtomicLong globalCheckpoint = new AtomicLong();
             shard.addGlobalCheckpointListener((g, e) -> globalCheckpoint.set(g));
             client().prepareIndex("test", "_doc", Integer.toString(i)).setSource("{}", XContentType.JSON).get();
-            assertThat(globalCheckpoint.get(), equalTo((long) i));
+            assertBusy(() -> assertThat(globalCheckpoint.get(), equalTo((long) index)));
         }
         final AtomicBoolean invoked = new AtomicBoolean();
         shard.addGlobalCheckpointListener((g, e) -> {
@@ -753,7 +754,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             assertThat(e.getShardId(), equalTo(shard.shardId()));
         });
         shard.close("closed", randomBoolean());
-        assertTrue(invoked.get());
+        assertBusy(() -> assertTrue(invoked.get()));
     }
 
 }

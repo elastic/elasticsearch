@@ -33,11 +33,14 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.Callable;
+import java.util.concurrent.Delayed;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 public class DeterministicTaskQueue extends AbstractComponent {
 
@@ -308,7 +311,43 @@ public class DeterministicTaskQueue extends AbstractComponent {
 
             @Override
             public ScheduledFuture<?> schedule(TimeValue delay, String executor, Runnable command) {
-                throw new UnsupportedOperationException();
+                scheduleAt(currentTimeMillis + delay.millis(), command);
+                return new ScheduledFuture<Object>() {
+                    @Override
+                    public long getDelay(TimeUnit unit) {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public int compareTo(Delayed o) {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public boolean cancel(boolean mayInterruptIfRunning) {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public boolean isCancelled() {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public boolean isDone() {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public Object get() {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public Object get(long timeout, TimeUnit unit) {
+                        throw new UnsupportedOperationException();
+                    }
+                };
             }
 
             @Override

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search;
 
-import java.io.IOException;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Nullable;
@@ -31,6 +29,8 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.RemoteClusterAware;
+
+import java.io.IOException;
 
 /**
  * The target that the search request was executed on.
@@ -94,6 +94,13 @@ public final class SearchShardTarget implements Writeable, Comparable<SearchShar
 
     public String getClusterAlias() {
         return clusterAlias;
+    }
+
+    /**
+     * Returns the fully qualified index name, including the cluster alias.
+     */
+    public String getFullyQualifiedIndexName() {
+        return RemoteClusterAware.buildRemoteIndexName(getClusterAlias(), getIndex());
     }
 
     @Override

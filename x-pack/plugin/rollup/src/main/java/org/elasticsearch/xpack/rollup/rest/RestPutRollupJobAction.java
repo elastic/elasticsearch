@@ -32,7 +32,7 @@ public class RestPutRollupJobAction extends BaseRestHandler {
         String id = restRequest.param(ID.getPreferredName());
         XContentParser parser = restRequest.contentParser();
 
-        PutRollupJobAction.Request request = PutRollupJobAction.Request.parseRequest(id, parser);
+        PutRollupJobAction.Request request = PutRollupJobAction.Request.fromXContent(parser, id);
 
         return channel -> client.execute(PutRollupJobAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

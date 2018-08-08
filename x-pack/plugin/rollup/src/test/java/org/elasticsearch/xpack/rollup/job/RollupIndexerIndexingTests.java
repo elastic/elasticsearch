@@ -434,15 +434,8 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
     }
 
     private RollupJobConfig createJob(String rollupIndex, GroupConfig groupConfig, List<MetricConfig> metricConfigs) {
-        return new RollupJobConfig.Builder()
-                .setId(randomAlphaOfLength(10))
-                .setIndexPattern(randomAlphaOfLength(10))
-                .setRollupIndex(rollupIndex)
-                .setGroupConfig(groupConfig)
-                .setMetricsConfig(metricConfigs)
-                .setCron(ConfigTestHelpers.getCronString())
-                .setPageSize(randomIntBetween(1, 100))
-                .build();
+        return new RollupJobConfig(randomAlphaOfLength(10), randomAlphaOfLength(10), rollupIndex, ConfigTestHelpers.randomCron(),
+            randomIntBetween(1, 100), groupConfig, metricConfigs, ConfigTestHelpers.randomTimeout(random()));
     }
 
     static Map<String, Object> asMap(Object... fields) {

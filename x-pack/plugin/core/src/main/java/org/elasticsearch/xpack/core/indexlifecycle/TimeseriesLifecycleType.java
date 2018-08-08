@@ -37,8 +37,8 @@ public class TimeseriesLifecycleType implements LifecycleType {
     static final List<String> VALID_PHASES = Arrays.asList("hot", "warm", "cold", "delete");
     static final List<String> ORDERED_VALID_HOT_ACTIONS = Collections.singletonList(RolloverAction.NAME);
     static final List<String> ORDERED_VALID_WARM_ACTIONS = Arrays.asList(ReadOnlyAction.NAME, AllocateAction.NAME,
-        ReplicasAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME);
-    static final List<String> ORDERED_VALID_COLD_ACTIONS = Arrays.asList(AllocateAction.NAME, ReplicasAction.NAME);
+        ShrinkAction.NAME, ForceMergeAction.NAME);
+    static final List<String> ORDERED_VALID_COLD_ACTIONS = Arrays.asList(AllocateAction.NAME);
     static final List<String> ORDERED_VALID_DELETE_ACTIONS = Arrays.asList(DeleteAction.NAME);
     static final Set<String> VALID_HOT_ACTIONS = Sets.newHashSet(ORDERED_VALID_HOT_ACTIONS);
     static final Set<String> VALID_WARM_ACTIONS = Sets.newHashSet(ORDERED_VALID_WARM_ACTIONS);
@@ -140,7 +140,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
                 throw new IllegalArgumentException("lifecycle type[" + TYPE + "] does not support phase[" + phase.getName() + "]");
         }
     }
-    
+
     @Override
     public String getNextActionName(String currentActionName, Phase phase) {
         List<String> orderedActionNames;

@@ -17,7 +17,7 @@ public class AllocationRoutedStepInfoTests extends AbstractXContentTestCase<Allo
 
     @Override
     protected Info createTestInstance() {
-        return new Info(randomNonNegativeLong(), randomBoolean());
+        return new Info(randomNonNegativeLong(), randomNonNegativeLong(), randomBoolean());
     }
 
     @Override
@@ -37,23 +37,27 @@ public class AllocationRoutedStepInfoTests extends AbstractXContentTestCase<Allo
     }
 
     protected final Info copyInstance(Info instance) throws IOException {
-        return new Info(instance.getNumberShardsLeftToAllocate(), instance.allShardsActive());
+        return new Info(instance.getActualReplicas(), instance.getNumberShardsLeftToAllocate(), instance.allShardsActive());
     }
 
     protected Info mutateInstance(Info instance) throws IOException {
+        long actualReplicas = instance.getActualReplicas();
         long shardsToAllocate = instance.getNumberShardsLeftToAllocate();
         boolean allShardsActive = instance.allShardsActive();
-        switch (between(0, 1)) {
+        switch (between(0, 2)) {
         case 0:
             shardsToAllocate += between(1, 20);
             break;
         case 1:
             allShardsActive = allShardsActive == false;
             break;
+        case 2:
+            actualReplicas += between(1, 20);
+            break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new Info(shardsToAllocate, allShardsActive);
+        return new Info(actualReplicas, shardsToAllocate, allShardsActive);
     }
 
 }

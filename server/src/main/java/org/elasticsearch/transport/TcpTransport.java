@@ -1303,31 +1303,16 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         return new CompositeBytesReference(header, messageBody, zeroCopyBuffer);
     }
 
-    public int consumeReadsMultiple(TcpChannel channel, BytesReference bytesReference) throws IOException {
-        BytesReference refToConsume = bytesReference;
-        int bytesConsumed = 0;
-        boolean continueConsuming = true;
-        while (continueConsuming && refToConsume.length() > 0) {
-            BytesReference message = decodeFrame(bytesReference);
-
-            if (message == null) {
-                continueConsuming = false;
+    public void inboundMessage(TcpChannel channel, BytesReference message) {
+        try {
+            if (message.length() == 0) {
+                // This is a ping. Skip
             } else {
-                int messageLengthWithHeader = BYTES_NEEDED_FOR_MESSAGE_SIZE + message.length();
-                refToConsume = refToConsume.slice(messageLengthWithHeader, refToConsume.length() - messageLengthWithHeader);
-                bytesConsumed += messageLengthWithHeader;
-                // Message length of 0 is a ping and does not need to be handled.
-                if (message.length() != 0) {
-                    try {
-                        messageReceived(message, channel);
-                    } catch (Exception e) {
-                        onException(channel, e);
-                    }
-                }
+                messageReceived(message, channel);
             }
+        } catch (Exception e) {
+            onException(channel, e);
         }
-
-        return bytesConsumed;
     }
 
     /**
@@ -1347,15 +1332,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
         if (message == null) {
             return 0;
-        } else if (message.length() == 0) {
-            // This is a ping and should not be handled.
-            return BYTES_NEEDED_FOR_MESSAGE_SIZE;
         } else {
-            try {
-                messageReceived(message, channel);
-            } catch (Exception e) {
-                onException(channel, e);
-            }
+            inboundMessage(channel, message);
             return message.length() + BYTES_NEEDED_FOR_MESSAGE_SIZE;
         }
     }

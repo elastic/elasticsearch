@@ -35,7 +35,6 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
@@ -53,16 +52,16 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 /**
- * This class supports anomaly detector job CRUD operations
- * for the configuration document
+ * This class implements CRUD operation for the
+ * anomaly detector job configuration document
  */
-public class JobProvider extends AbstractComponent {
+public class JobConfigProvider extends AbstractComponent {
 
     public static String ALL = "_all";
 
     private final Client client;
 
-    public JobProvider(Client client, Settings settings) {
+    public JobConfigProvider(Client client, Settings settings) {
         super(settings);
         this.client = client;
     }

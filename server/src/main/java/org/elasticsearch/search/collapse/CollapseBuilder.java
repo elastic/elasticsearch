@@ -247,6 +247,6 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
                 + field + "`, " + "only indexed field can retrieve `inner_hits`");
         }
 
-        return new CollapseContext(fieldType, innerHits);
+        return new CollapseContext(field, fieldType, innerHits);
     }
 }

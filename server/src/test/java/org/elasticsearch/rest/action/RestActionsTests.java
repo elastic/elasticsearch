@@ -202,49 +202,6 @@ public class RestActionsTests extends ESTestCase {
             new ShardId(new Index(index, IndexMetaData.INDEX_UUID_NA_VALUE), shardId), clusterAlias, OriginalIndices.NONE);
     }
 
-    public void testBuildBroadcastShardsHeaderNullCause() throws Exception {
-        ShardOperationFailedException[] failures = new ShardOperationFailedException[] {
-            new ShardSearchFailure("error", createSearchShardTarget("node0", 0, "index", null)),
-            new ShardSearchFailure("error", createSearchShardTarget("node1", 1, "index", null)),
-            new ShardSearchFailure("error", createSearchShardTarget("node2", 2, "index", "cluster1")),
-            new ShardSearchFailure("error", createSearchShardTarget("node1", 1, "index", "cluster1")),
-            new ShardSearchFailure("a different error", createSearchShardTarget("node3", 3, "index", "cluster1"))
-        };
-
-        XContentBuilder builder = JsonXContent.contentBuilder();
-        builder.prettyPrint();
-        builder.startObject();
-        RestActions.buildBroadcastShardsHeader(builder, ToXContent.EMPTY_PARAMS, 12, 3, 0, 9, failures);
-        builder.endObject();
-        //TODO the reason is not printed out, as a follow-up we should probably either print it out when the cause is null,
-        //or even better enforce that the cause can't be null
-        assertThat(Strings.toString(builder), equalTo("{\n" +
-            "  \"_shards\" : {\n" +
-            "    \"total\" : 12,\n" +
-            "    \"successful\" : 3,\n" +
-            "    \"skipped\" : 0,\n" +
-            "    \"failed\" : 9,\n" +
-            "    \"failures\" : [\n" +
-            "      {\n" +
-            "        \"shard\" : 0,\n" +
-            "        \"index\" : \"index\",\n" +
-            "        \"node\" : \"node0\"\n" +
-            "      },\n" +
-            "      {\n" +
-            "        \"shard\" : 2,\n" +
-            "        \"index\" : \"cluster1:index\",\n" +
-            "        \"node\" : \"node2\"\n" +
-            "      },\n" +
-            "      {\n" +
-            "        \"shard\" : 3,\n" +
-            "        \"index\" : \"cluster1:index\",\n" +
-            "        \"node\" : \"node3\"\n" +
-            "      }\n" +
-            "    ]\n" +
-            "  }\n" +
-            "}"));
-    }
-
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return xContentRegistry;

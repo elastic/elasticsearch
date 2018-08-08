@@ -163,8 +163,11 @@ import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativePipel
 import org.elasticsearch.search.aggregations.pipeline.derivative.ParsedDerivative;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
+import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
+import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
+import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -1151,11 +1154,11 @@ public class RestHighLevelClient implements Closeable {
         List<NamedXContentRegistry.Entry> entries = map.entrySet().stream()
                 .map(entry -> new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(entry.getKey()), entry.getValue()))
                 .collect(Collectors.toList());
-        entries.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField(TermSuggestion.NAME),
+        entries.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField(TermSuggestionBuilder.SUGGESTION_NAME),
                 (parser, context) -> TermSuggestion.fromXContent(parser, (String)context)));
-        entries.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField(PhraseSuggestion.NAME),
+        entries.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField(PhraseSuggestionBuilder.SUGGESTION_NAME),
                 (parser, context) -> PhraseSuggestion.fromXContent(parser, (String)context)));
-        entries.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField(CompletionSuggestion.NAME),
+        entries.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField(CompletionSuggestionBuilder.SUGGESTION_NAME),
                 (parser, context) -> CompletionSuggestion.fromXContent(parser, (String)context)));
         return entries;
     }

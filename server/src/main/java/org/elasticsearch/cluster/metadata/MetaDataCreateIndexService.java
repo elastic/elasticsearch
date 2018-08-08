@@ -38,7 +38,6 @@ import org.elasticsearch.cluster.ack.CreateIndexClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.IndexMetaData.Custom;
 import org.elasticsearch.cluster.metadata.IndexMetaData.State;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -287,8 +286,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 List<IndexTemplateMetaData> templates =
                         MetaDataIndexTemplateService.findTemplates(currentState.metaData(), request.index());
 
-                Map<String, Custom> customs = new HashMap<>();
-
                 // add the request mapping
                 Map<String, Map<String, Object>> mappings = new HashMap<>();
 
@@ -298,10 +295,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                 for (Map.Entry<String, String> entry : request.mappings().entrySet()) {
                     mappings.put(entry.getKey(), MapperService.parseMapping(xContentRegistry, entry.getValue()));
-                }
-
-                for (Map.Entry<String, Custom> entry : request.customs().entrySet()) {
-                    customs.put(entry.getKey(), entry.getValue());
                 }
 
                 final Index recoverFromIndex = request.recoverFrom();
@@ -318,18 +311,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             } else {
                                 mappings.put(cursor.key,
                                     MapperService.parseMapping(xContentRegistry, mappingString));
-                            }
-                        }
-                        // handle custom
-                        for (ObjectObjectCursor<String, Custom> cursor : template.customs()) {
-                            String type = cursor.key;
-                            IndexMetaData.Custom custom = cursor.value;
-                            IndexMetaData.Custom existing = customs.get(type);
-                            if (existing == null) {
-                                customs.put(type, custom);
-                            } else {
-                                IndexMetaData.Custom merged = existing.mergeWith(custom);
-                                customs.put(type, merged);
                             }
                         }
                         //handle aliases
@@ -517,10 +498,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     AliasMetaData aliasMetaData = AliasMetaData.builder(alias.name()).filter(alias.filter())
                         .indexRouting(alias.indexRouting()).searchRouting(alias.searchRouting()).writeIndex(alias.writeIndex()).build();
                     indexMetaDataBuilder.putAlias(aliasMetaData);
-                }
-
-                for (Map.Entry<String, Custom> customEntry : customs.entrySet()) {
-                    indexMetaDataBuilder.putCustom(customEntry.getKey(), customEntry.getValue());
                 }
 
                 indexMetaDataBuilder.state(request.state());

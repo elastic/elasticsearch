@@ -1,7 +1,0 @@
-plugins {
-    id 'java'
-    id 'elasticsearch.build'
-}
-
-ext.licenseFile = file("$buildDir/dummy/license")
-ext.noticeFile = file("$buildDir/dummy/notice")

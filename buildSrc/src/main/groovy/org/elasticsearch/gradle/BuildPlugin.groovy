@@ -193,6 +193,7 @@ class BuildPlugin implements Plugin<Project> {
             project.rootProject.ext.minimumCompilerVersion = minimumCompilerVersion
             project.rootProject.ext.minimumRuntimeVersion = minimumRuntimeVersion
             project.rootProject.ext.inFipsJvm = inFipsJvm
+            project.rootProject.ext.gradleJavaVersion = JavaVersion.toVersion(gradleJavaVersion)
         }
 
         project.targetCompatibility = project.rootProject.ext.minimumRuntimeVersion
@@ -205,6 +206,7 @@ class BuildPlugin implements Plugin<Project> {
         project.ext.runtimeJavaVersion = project.rootProject.ext.runtimeJavaVersion
         project.ext.javaVersions = project.rootProject.ext.javaVersions
         project.ext.inFipsJvm = project.rootProject.ext.inFipsJvm
+        project.ext.gradleJavaVersion = project.rootProject.ext.gradleJavaVersion
     }
 
     private static String getPaddedMajorVersion(JavaVersion compilerJavaVersionEnum) {
@@ -775,6 +777,8 @@ class BuildPlugin implements Plugin<Project> {
             systemProperty 'tests.task', path
             systemProperty 'tests.security.manager', 'true'
             systemProperty 'jna.nosys', 'true'
+            systemProperty 'compiler.java', project.ext.compilerJavaVersion.getMajorVersion()
+            systemProperty 'runtime.java', project.ext.runtimeJavaVersion.getMajorVersion()
             // TODO: remove setting logging level via system property
             systemProperty 'tests.logger.level', 'WARN'
             for (Map.Entry<String, String> property : System.properties.entrySet()) {

@@ -45,6 +45,8 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollRequestBuilder;
 import org.elasticsearch.action.search.ClearScrollResponse;
+import org.elasticsearch.action.search.CountRequest;
+import org.elasticsearch.action.search.CountResponse;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
@@ -292,6 +294,14 @@ public interface Client extends ElasticsearchClient, Releasable {
      * @see Requests#searchRequest(String...)
      */
     void search(SearchRequest request, ActionListener<SearchResponse> listener);
+
+    /**
+     * Execute count request across one or more indices and one or more types with a query.
+     *
+     * @param request  The count request
+     * @param listener A listener to be notified of the result
+     */
+    void count(CountRequest request, ActionListener<CountResponse> listener);
 
     /**
      * Search across one or more indices and one or more types with a query.

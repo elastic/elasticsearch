@@ -20,8 +20,8 @@
 package org.elasticsearch.rest.action.cat;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.CountRequest;
+import org.elasticsearch.action.search.CountResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
@@ -59,7 +59,7 @@ public class RestCountAction extends AbstractCatAction {
     @Override
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-        SearchRequest countRequest = new SearchRequest(indices);
+        CountRequest countRequest = new CountRequest(indices);
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0);
         countRequest.source(searchSourceBuilder);
         try {
@@ -76,9 +76,9 @@ public class RestCountAction extends AbstractCatAction {
         } catch (IOException e) {
             throw new ElasticsearchException("Couldn't parse query", e);
         }
-        return channel -> client.search(countRequest, new RestResponseListener<SearchResponse>(channel) {
+        return channel -> client.count(countRequest, new RestResponseListener<CountResponse>(channel) {
             @Override
-            public RestResponse buildResponse(SearchResponse countResponse) throws Exception {
+            public RestResponse buildResponse(CountResponse countResponse) throws Exception {
                 return RestTable.buildResponse(buildTable(request, countResponse), channel);
             }
         });
@@ -93,10 +93,10 @@ public class RestCountAction extends AbstractCatAction {
         return table;
     }
 
-    private Table buildTable(RestRequest request, SearchResponse response) {
+    private Table buildTable(RestRequest request, CountResponse response) {
         Table table = getTableWithHeader(request);
         table.startRow();
-        table.addCell(response.getHits().getTotalHits());
+        table.addCell(response.getCount());
         table.endRow();
 
         return table;

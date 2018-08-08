@@ -19,28 +19,23 @@
 
 package org.elasticsearch.rest.action.document;
 
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.CountRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestActions;
-import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHeader;
 import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_AFTER;
 
 public class RestCountAction extends BaseRestHandler {
@@ -61,7 +56,7 @@ public class RestCountAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        SearchRequest countRequest = new SearchRequest(Strings.splitStringByCommaToArray(request.param("index")));
+        CountRequest countRequest = new CountRequest(Strings.splitStringByCommaToArray(request.param("index")));
         countRequest.indicesOptions(IndicesOptions.fromRequest(request, countRequest.indicesOptions()));
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0);
         countRequest.source(searchSourceBuilder);
@@ -89,21 +84,7 @@ public class RestCountAction extends BaseRestHandler {
         } else if (terminateAfter > 0) {
             searchSourceBuilder.terminateAfter(terminateAfter);
         }
-        return channel -> client.search(countRequest, new RestBuilderListener<SearchResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(SearchResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject();
-                if (terminateAfter != DEFAULT_TERMINATE_AFTER) {
-                    builder.field("terminated_early", response.isTerminatedEarly());
-                }
-                builder.field("count", response.getHits().getTotalHits());
-                buildBroadcastShardsHeader(builder, request, response.getTotalShards(), response.getSuccessfulShards(),
-                    0, response.getFailedShards(), response.getShardFailures());
-
-                builder.endObject();
-                return new BytesRestResponse(response.status(), builder);
-            }
-        });
+        return channel -> client.count(countRequest, new RestStatusToXContentListener<>(channel));
     }
 
 }

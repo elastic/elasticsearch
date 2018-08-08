@@ -312,6 +312,8 @@ import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollRequestBuilder;
 import org.elasticsearch.action.search.ClearScrollResponse;
+import org.elasticsearch.action.search.CountRequest;
+import org.elasticsearch.action.search.CountResponse;
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
@@ -323,6 +325,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchScrollRequestBuilder;
+import org.elasticsearch.action.support.DelegatingActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
@@ -526,6 +529,16 @@ public abstract class AbstractClient extends AbstractComponent implements Client
     @Override
     public void search(final SearchRequest request, final ActionListener<SearchResponse> listener) {
         execute(SearchAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public void count(final CountRequest request, final ActionListener<CountResponse> listener) {
+        execute(SearchAction.INSTANCE, request.getSearchRequest(), new DelegatingActionListener<SearchResponse, CountResponse>(listener) {
+            @Override
+            protected CountResponse getDelegatedFromInstigator(SearchResponse response) {
+                return new CountResponse(response);
+            }
+        });
     }
 
     @Override

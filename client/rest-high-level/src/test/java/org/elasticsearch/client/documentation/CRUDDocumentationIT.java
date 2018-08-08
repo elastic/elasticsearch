@@ -818,7 +818,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             request.setScript(
                 new Script(
                     ScriptType.INLINE, "painless",
-                    "if (ctx._source.foo == 'bar') {ctx._version++; ctx._source.remove('foo')}",
+                    "if (ctx._source.user == 'kimchy') {ctx._source.likes++;}",
                     Collections.emptyMap())); // <1>
             // end::reindex-request-script
             // tag::reindex-request-remote

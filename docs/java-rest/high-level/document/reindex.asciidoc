@@ -32,7 +32,7 @@ include-tagged::{doc-tests}/CRUDDocumentationIT.java[reindex-request-versionType
 --------------------------------------------------
 <1> Set the versionType to `EXTERNAL`
 
-Settings `opType` to `create` will cause `_reindex` to only create missing documents in the target index. All existing
+Setting `opType` to `create` will cause `_reindex` to only create missing documents in the target index. All existing
 documents will cause a version conflict. The default `opType` is `index`.
 
 ["source","java",subs="attributes,callouts,macros"]
@@ -100,10 +100,14 @@ metadata. The following example illustrates that.
 --------------------------------------------------
 include-tagged::{doc-tests}/CRUDDocumentationIT.java[reindex-request-script]
 --------------------------------------------------
-<1> `setScript` to bump the version of the source document
+<1> `setScript` to increment the `likes` field on all documents with user `kimchy`.
 
 `ReindexRequest` supports reindexing from a remote Elasticsearch cluster. When using a remote cluster the query should be
-specified inside the `RemoteInfo` object and not using `setSourceQuery`.
+specified inside the `RemoteInfo` object and not using `setSourceQuery`. If both the remote info and the source query are
+set it results in a validation error during the request. The reason for this is that the remote Elasticsearch may not
+understand queries built by the modern query builders. The remote cluster support works all the way back to Elasticsearch
+0.90 and the query language has changed since then. When reaching older versions, it is safer to write the query by hand
+in JSON.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

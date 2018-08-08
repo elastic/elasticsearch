@@ -37,6 +37,12 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+/**
+ * The response object returned by the Explain Lifecycle API.
+ * 
+ * Since the API can be run over multiple indices the response provides a map of
+ * index to the explanation of the lifecycle status for that index.
+ */
 public class ExplainLifecycleResponse extends ActionResponse implements ToXContentObject {
 
     public static final ParseField INDICES_FIELD = new ParseField("indices");
@@ -63,6 +69,12 @@ public class ExplainLifecycleResponse extends ActionResponse implements ToXConte
         this.indexResponses = indexResponses;
     }
 
+    /**
+     * @return a map of the responses from each requested index. The maps key is
+     *         the index name and the value is the
+     *         {@link IndexLifecycleExplainResponse} describing the current
+     *         lifecycle status of that index
+     */
     public Map<String, IndexLifecycleExplainResponse> getIndexResponses() {
         return indexResponses;
     }

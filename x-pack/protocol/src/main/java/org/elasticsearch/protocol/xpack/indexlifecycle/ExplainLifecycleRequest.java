@@ -27,6 +27,12 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
+/**
+ * The request object used by the Explain Lifecycle API.
+ * 
+ * Multiple indices may be queried in the same request using the
+ * {@link #indices(String...)} method
+ */
 public class ExplainLifecycleRequest extends ClusterInfoRequest<ExplainLifecycleRequest> {
 
     public ExplainLifecycleRequest() {
@@ -62,7 +68,7 @@ public class ExplainLifecycleRequest extends ClusterInfoRequest<ExplainLifecycle
 
     @Override
     public String toString() {
-        return "Request [indices()=" + Arrays.toString(indices()) + ", indicesOptions()=" + indicesOptions() + "]";
+        return "ExplainLifecycleRequest [indices()=" + Arrays.toString(indices()) + ", indicesOptions()=" + indicesOptions() + "]";
     }
 
 }

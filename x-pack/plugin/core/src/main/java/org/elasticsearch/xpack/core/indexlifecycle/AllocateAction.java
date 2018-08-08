@@ -170,8 +170,10 @@ public class AllocateAction implements LifecycleAction {
             return false;
         }
         AllocateAction other = (AllocateAction) obj;
-        return Objects.equals(numberOfReplicas, other.numberOfReplicas) && Objects.equals(include, other.include)
-            && Objects.equals(exclude, other.exclude) && Objects.equals(require, other.require);
+        return Objects.equals(numberOfReplicas, other.numberOfReplicas) &&
+            Objects.equals(include, other.include) &&
+            Objects.equals(exclude, other.exclude) &&
+            Objects.equals(require, other.require);
     }
 
     @Override

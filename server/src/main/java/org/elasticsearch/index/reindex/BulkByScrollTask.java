@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParseException;
@@ -54,7 +55,6 @@ import static java.lang.Math.min;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
@@ -202,7 +202,7 @@ public class BulkByScrollTask extends CancellableTask {
         return true;
     }
 
-    private static class StatusBuilder {
+    public static class StatusBuilder {
         private Integer sliceId = null;
         private Long total = null;
         private Long updated = null;
@@ -295,7 +295,7 @@ public class BulkByScrollTask extends CancellableTask {
             }
         }
 
-        public Status build() {
+        public Status buildStatus() {
             if (sliceStatuses.isEmpty()) {
                 try {
                     return new Status(
@@ -377,49 +377,22 @@ public class BulkByScrollTask extends CancellableTask {
             RETRIES_PARSER.declareLong(constructorArg(), new ParseField(RETRIES_SEARCH_FIELD));
         }
 
-        /**
-         * Tries to construct the object based on the order on which fields were declared
-         * in {@link #declareFields}
-         * @param a the array of objects returned by ObjectParser
-         * @param startIndex the startIndex from which to start reading in this array
-         * @return the constructed Status object
-         */
-        @SuppressWarnings("unchecked")
-        public static Status constructFromObjectArray(Object[] a, int startIndex) {
-            StatusBuilder builder = new StatusBuilder();
-            builder.setSliceId((Integer) a[startIndex]);
-            builder.setTotal((Long) a[startIndex + 1]);
-            builder.setUpdated((Long) a[startIndex + 2]);
-            builder.setCreated((Long) a[startIndex + 3]);
-            builder.setDeleted((Long) a[startIndex + 4]);
-            builder.setBatches((Integer) a[startIndex + 5]);
-            builder.setVersionConflicts((Long) a[startIndex + 6]);
-            builder.setNoops((Long) a[startIndex + 7]);
-            builder.setRetries((Tuple<Long, Long>) a[startIndex + 8]);
-            builder.setThrottled((Long)a[startIndex + 9]);
-            builder.setRequestsPerSecond((Float) a[startIndex + 10]);
-            builder.setReasonCancelled((String) a[startIndex + 11]);
-            builder.setThrottledUntil((Long) a[startIndex + 12]);
-            builder.setSliceStatuses((ArrayList<StatusOrException>) a[startIndex + 13]);
-            return builder.build();
-        }
-
-        public static<Value> void declareFields(ConstructingObjectParser<Value, Void> parser) {
-            parser.declareInt(optionalConstructorArg(), new ParseField(SLICE_ID_FIELD));
-            parser.declareLong(constructorArg(), new ParseField(TOTAL_FIELD));
-            parser.declareLong(optionalConstructorArg(), new ParseField(UPDATED_FIELD));
-            parser.declareLong(optionalConstructorArg(), new ParseField(CREATED_FIELD));
-            parser.declareLong(constructorArg(), new ParseField(DELETED_FIELD));
-            parser.declareInt(constructorArg(), new ParseField(BATCHES_FIELD));
-            parser.declareLong(constructorArg(), new ParseField(VERSION_CONFLICTS_FIELD));
-            parser.declareLong(constructorArg(), new ParseField(NOOPS_FIELD));
-            parser.declareObject(constructorArg(), RETRIES_PARSER, new ParseField(RETRIES_FIELD));
-            parser.declareLong(constructorArg(), new ParseField(THROTTLED_RAW_FIELD));
-            parser.declareFloat(constructorArg(), new ParseField(REQUESTS_PER_SEC_FIELD));
-            parser.declareString(optionalConstructorArg(), new ParseField(CANCELED_FIELD));
-            parser.declareLong(constructorArg(), new ParseField(THROTTLED_UNTIL_RAW_FIELD));
+        public static void declareFields(ObjectParser<? extends StatusBuilder, Void> parser) {
+            parser.declareInt(StatusBuilder::setSliceId, new ParseField(SLICE_ID_FIELD));
+            parser.declareLong(StatusBuilder::setTotal, new ParseField(TOTAL_FIELD));
+            parser.declareLong(StatusBuilder::setUpdated, new ParseField(UPDATED_FIELD));
+            parser.declareLong(StatusBuilder::setCreated, new ParseField(CREATED_FIELD));
+            parser.declareLong(StatusBuilder::setDeleted, new ParseField(DELETED_FIELD));
+            parser.declareInt(StatusBuilder::setBatches, new ParseField(BATCHES_FIELD));
+            parser.declareLong(StatusBuilder::setVersionConflicts, new ParseField(VERSION_CONFLICTS_FIELD));
+            parser.declareLong(StatusBuilder::setNoops, new ParseField(NOOPS_FIELD));
+            parser.declareObject(StatusBuilder::setRetries, RETRIES_PARSER, new ParseField(RETRIES_FIELD));
+            parser.declareLong(StatusBuilder::setThrottled, new ParseField(THROTTLED_RAW_FIELD));
+            parser.declareFloat(StatusBuilder::setRequestsPerSecond, new ParseField(REQUESTS_PER_SEC_FIELD));
+            parser.declareString(StatusBuilder::setReasonCancelled, new ParseField(CANCELED_FIELD));
+            parser.declareLong(StatusBuilder::setThrottledUntil, new ParseField(THROTTLED_UNTIL_RAW_FIELD));
             parser.declareObjectArray(
-                optionalConstructorArg(), (p, c) -> StatusOrException.fromXContent(p), new ParseField(SLICES_FIELD)
+                StatusBuilder::setSliceStatuses, (p, c) -> StatusOrException.fromXContent(p), new ParseField(SLICES_FIELD)
             );
         }
 

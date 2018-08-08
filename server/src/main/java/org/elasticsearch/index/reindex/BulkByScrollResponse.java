@@ -23,13 +23,13 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.index.reindex.BulkByScrollTask.Status;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -40,14 +40,12 @@ import org.elasticsearch.rest.RestStatus;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Response used for actions that index many documents using a scroll request.
@@ -64,32 +62,18 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
     private static final String FAILURES_FIELD = "failures";
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<BulkByScrollResponse, Void> PARSER =
-        new ConstructingObjectParser<>(
+    private static final ObjectParser<BulkByScrollResponseBuilder, Void> PARSER =
+        new ObjectParser<>(
             "bulk_by_scroll_response",
             true,
-            a -> {
-                TimeValue took = new TimeValue((long)a[0], TimeUnit.MILLISECONDS);
-                boolean timedOut = (Boolean)a[1];
-                // start deciphering failures
-                ArrayList<Object> failures = a[2] != null ? (ArrayList<Object>) a[2] : new ArrayList<>();
-                Status status = Status.constructFromObjectArray(a, 3);
-                List<Failure> bulkFailures = new ArrayList<>();
-                List<SearchFailure> searchFailures = new ArrayList<>();
-                for (Object object: failures) {
-                    if (object instanceof Failure) {
-                        bulkFailures.add((Failure) object);
-                    } else if (object instanceof SearchFailure) {
-                        searchFailures.add((SearchFailure) object);
-                    }
-                }
-                return new BulkByScrollResponse(took, status, bulkFailures, searchFailures, timedOut);
-            }
+            BulkByScrollResponseBuilder::new
         );
     static {
-        PARSER.declareLong(constructorArg(), new ParseField(TOOK_FIELD));
-        PARSER.declareBoolean(constructorArg(), new ParseField(TIMED_OUT_FIELD));
-        PARSER.declareObjectArray(constructorArg(), (p, c) -> parseFailure(p), new ParseField(FAILURES_FIELD));
+        PARSER.declareLong(BulkByScrollResponseBuilder::setTook, new ParseField(TOOK_FIELD));
+        PARSER.declareBoolean(BulkByScrollResponseBuilder::setTimedOut, new ParseField(TIMED_OUT_FIELD));
+        PARSER.declareObjectArray(
+            BulkByScrollResponseBuilder::setFailures, (p, c) -> parseFailure(p), new ParseField(FAILURES_FIELD)
+        );
         // since the result of BulkByScrollResponse.Status are mixed we also parse that in this
         Status.declareFields(PARSER);
     }
@@ -239,7 +223,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
     }
 
     public static BulkByScrollResponse fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
+        return PARSER.apply(parser, null).buildResponse();
     }
 
     private static Object parseFailure(XContentParser parser) throws IOException {

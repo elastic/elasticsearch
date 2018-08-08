@@ -22,7 +22,6 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -55,12 +54,12 @@ public abstract class ElectionScheduler extends AbstractComponent {
     public static final Setting<TimeValue> ELECTION_MIN_RETRY_INTERVAL_SETTING
         = new Setting<>(ELECTION_MIN_RETRY_INTERVAL_SETTING_KEY, "300ms",
         reasonableTimeParser(ELECTION_MIN_RETRY_INTERVAL_SETTING_KEY),
-        new ElectionMinRetryIntervalSettingValidator(), Property.NodeScope, Property.Dynamic);
+        new ElectionMinRetryIntervalSettingValidator(), Property.NodeScope);
 
     public static final Setting<TimeValue> ELECTION_MAX_RETRY_INTERVAL_SETTING
         = new Setting<>(ELECTION_MAX_RETRY_INTERVAL_SETTING_KEY, "10s",
         reasonableTimeParser(ELECTION_MAX_RETRY_INTERVAL_SETTING_KEY),
-        new ElectionMaxRetryIntervalSettingValidator(), Property.NodeScope, Property.Dynamic);
+        new ElectionMaxRetryIntervalSettingValidator(), Property.NodeScope);
 
     private static Function<String, TimeValue> reasonableTimeParser(final String settingKey) {
         return s -> {
@@ -115,15 +114,15 @@ public abstract class ElectionScheduler extends AbstractComponent {
     }
 
     private Object currentScheduler; // only care about its identity
-    private TimeValue electionMinRetryInterval;
-    private TimeValue electionMaxRetryInterval;
+    private final TimeValue electionMinRetryInterval;
+    private final TimeValue electionMaxRetryInterval;
     private final Object mutex = new Object();
     private final ThreadPool threadPool;
     private final Random random;
 
     private long currentDelayMillis;
 
-    ElectionScheduler(Settings settings, ClusterSettings clusterSettings, Random random, ThreadPool threadPool) {
+    ElectionScheduler(Settings settings, Random random, ThreadPool threadPool) {
         super(settings);
 
         this.random = random;
@@ -132,21 +131,6 @@ public abstract class ElectionScheduler extends AbstractComponent {
         synchronized (mutex) {
             electionMinRetryInterval = ELECTION_MIN_RETRY_INTERVAL_SETTING.get(settings);
             electionMaxRetryInterval = ELECTION_MAX_RETRY_INTERVAL_SETTING.get(settings);
-        }
-
-        clusterSettings.addSettingsUpdateConsumer(ELECTION_MIN_RETRY_INTERVAL_SETTING, this::setElectionMinRetryInterval);
-        clusterSettings.addSettingsUpdateConsumer(ELECTION_MAX_RETRY_INTERVAL_SETTING, this::setElectionMaxRetryInterval);
-    }
-
-    private void setElectionMinRetryInterval(TimeValue electionMinRetryInterval) {
-        synchronized (mutex) {
-            this.electionMinRetryInterval = electionMinRetryInterval;
-        }
-    }
-
-    private void setElectionMaxRetryInterval(TimeValue electionMaxRetryInterval) {
-        synchronized (mutex) {
-            this.electionMaxRetryInterval = electionMaxRetryInterval;
         }
     }
 

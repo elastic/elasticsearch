@@ -19,7 +19,6 @@
 package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.core.config.plugins.convert.HexConverter;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.Compressor;
@@ -28,7 +27,6 @@ import org.elasticsearch.common.compress.NotCompressedException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
 
@@ -39,11 +37,11 @@ public class TransportLogger {
     private Logger logger;
     private static final int HEADER_SIZE = TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
 
-    public TransportLogger(Settings settings) {
+    TransportLogger(Settings settings) {
         logger = Loggers.getLogger(TransportLogger.class, settings);
     }
 
-    public void logInboundMessage(TcpChannel channel, BytesReference message) {
+    void logInboundMessage(TcpChannel channel, BytesReference message) {
         if (logger.isTraceEnabled()) {
             try {
                 String logMessage = format(channel, message, "READ");
@@ -54,7 +52,7 @@ public class TransportLogger {
         }
     }
 
-    public void logOutboundMessage(TcpChannel channel, BytesReference message) {
+    void logOutboundMessage(TcpChannel channel, BytesReference message) {
         if (logger.isTraceEnabled()) {
             try {
                 BytesReference withoutHeader = message.slice(HEADER_SIZE, message.length() - HEADER_SIZE);

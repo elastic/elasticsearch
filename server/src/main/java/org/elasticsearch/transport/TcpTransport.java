@@ -1042,7 +1042,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             // in case we are able to return data, serialize the exception content and sent it back to the client
             if (channel.isOpen()) {
                 BytesArray message = new BytesArray(e.getMessage().getBytes(StandardCharsets.UTF_8));
-                final SendMetricListener closeChannel = new SendMetricListener(message.length()) {
+                final SendMetricListener listener = new SendMetricListener(message.length()) {
                     @Override
                     protected void innerInnerOnResponse(Void v) {
                         CloseableChannel.closeChannel(channel);
@@ -1054,7 +1054,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                         CloseableChannel.closeChannel(channel);
                     }
                 };
-                internalSendMessage(channel, message, closeChannel);
+                try {
+                    channel.sendMessage(message, listener);
+                } catch (Exception ex) {
+                    listener.onFailure(ex);
+                }
             }
         } else {
             logger.warn(() -> new ParameterizedMessage("exception caught on transport layer [{}], closing connection", channel), e);
@@ -1161,6 +1165,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      * sends a message to the given channel, using the given callbacks.
      */
     private void internalSendMessage(TcpChannel channel, BytesReference message, SendMetricListener listener) {
+        transportLogger.logOutboundMessage(channel, message);
         try {
             channel.sendMessage(message, listener);
         } catch (Exception ex) {

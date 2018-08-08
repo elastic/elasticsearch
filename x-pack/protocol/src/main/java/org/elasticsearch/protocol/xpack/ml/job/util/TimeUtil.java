@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.protocol.xpack.ml.job.process;
+package org.elasticsearch.protocol.xpack.ml.job.util;
 
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -25,7 +25,7 @@ import java.io.IOException;
 import java.time.format.DateTimeFormatter;
 import java.util.Date;
 
-final class TimeUtil {
+public final class TimeUtil {
 
     /**
      * Parse out a Date object given the current parser and field name.
@@ -35,7 +35,7 @@ final class TimeUtil {
      * @return parsed Date object
      * @throws IOException from XContentParser
      */
-    static Date parseTimeField(XContentParser parser, String fieldName) throws IOException {
+    public static Date parseTimeField(XContentParser parser, String fieldName) throws IOException {
         if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
             return new Date(parser.longValue());
         } else if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {

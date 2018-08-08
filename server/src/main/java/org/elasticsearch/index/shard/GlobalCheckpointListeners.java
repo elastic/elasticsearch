@@ -51,7 +51,7 @@ public class GlobalCheckpointListeners implements Closeable {
          * @param globalCheckpoint the updated global checkpoint
          * @param e                if non-null, the shard is closed
          */
-        void accept(final long globalCheckpoint, final IndexShardClosedException e);
+        void accept(long globalCheckpoint, IndexShardClosedException e);
     }
 
     // guarded by this

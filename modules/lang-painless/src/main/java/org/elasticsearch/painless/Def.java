@@ -279,10 +279,6 @@ public final class Def {
                  String type = signature.substring(1, separator);
                  String call = signature.substring(separator+1, separator2);
                  int numCaptures = Integer.parseInt(signature.substring(separator2+1));
-                 Class<?> captures[] = new Class<?>[numCaptures];
-                 for (int capture = 0; capture < captures.length; capture++) {
-                     captures[capture] = callSiteType.parameterType(i + 1 + capture);
-                 }
                  MethodHandle filter;
                  Class<?> interfaceType = method.typeParameters.get(i - 1 - replaced);
                  if (signature.charAt(0) == 'S') {
@@ -294,11 +290,15 @@ public final class Def {
                                                       interfaceType,
                                                       type,
                                                       call,
-                                                      captures);
+                                                      numCaptures);
                  } else if (signature.charAt(0) == 'D') {
                      // the interface type is now known, but we need to get the implementation.
                      // this is dynamically based on the receiver type (and cached separately, underneath
                      // this cache). It won't blow up since we never nest here (just references)
+                     Class<?> captures[] = new Class<?>[numCaptures];
+                     for (int capture = 0; capture < captures.length; capture++) {
+                         captures[capture] = callSiteType.parameterType(i + 1 + capture);
+                     }
                      MethodType nestedType = MethodType.methodType(interfaceType, captures);
                      CallSite nested = DefBootstrap.bootstrap(painlessLookup,
                                                               localMethods,
@@ -331,57 +331,34 @@ public final class Def {
       */
     static MethodHandle lookupReference(PainlessLookup painlessLookup, Map<String, LocalMethod> localMethods,
             MethodHandles.Lookup methodHandlesLookup, String interfaceClass, Class<?> receiverClass, String name) throws Throwable {
-         Class<?> interfaceType = painlessLookup.canonicalTypeNameToType(interfaceClass);
-         PainlessMethod interfaceMethod = painlessLookup.lookupPainlessClass(interfaceType).functionalMethod;
-         if (interfaceMethod == null) {
-             throw new IllegalArgumentException("Class [" + interfaceClass + "] is not a functional interface");
-         }
-         int arity = interfaceMethod.typeParameters.size();
-         PainlessMethod implMethod = lookupMethodInternal(painlessLookup, receiverClass, name, arity);
+        Class<?> interfaceType = painlessLookup.canonicalTypeNameToType(interfaceClass);
+        PainlessMethod interfaceMethod = painlessLookup.lookupFunctionalInterfacePainlessMethod(interfaceType);
+        if (interfaceMethod == null) {
+            throw new IllegalArgumentException("Class [" + interfaceClass + "] is not a functional interface");
+        }
+        int arity = interfaceMethod.typeParameters.size();
+        PainlessMethod implMethod = lookupMethodInternal(painlessLookup, receiverClass, name, arity);
         return lookupReferenceInternal(painlessLookup, localMethods, methodHandlesLookup,
                 interfaceType, PainlessLookupUtility.typeToCanonicalTypeName(implMethod.targetClass),
-                implMethod.javaMethod.getName(), receiverClass);
+                implMethod.javaMethod.getName(), 1);
      }
 
      /** Returns a method handle to an implementation of clazz, given method reference signature. */
     private static MethodHandle lookupReferenceInternal(PainlessLookup painlessLookup, Map<String, LocalMethod> localMethods,
-            MethodHandles.Lookup methodHandlesLookup, Class<?> clazz, String type, String call, Class<?>... captures) throws Throwable {
-         final FunctionRef ref;
-         if ("this".equals(type)) {
-             // user written method
-             PainlessMethod interfaceMethod = painlessLookup.lookupPainlessClass(clazz).functionalMethod;
-             if (interfaceMethod == null) {
-                 throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
-                         "to [" + PainlessLookupUtility.typeToCanonicalTypeName(clazz) + "], not a functional interface");
-             }
-             int arity = interfaceMethod.typeParameters.size() + captures.length;
-             LocalMethod localMethod = localMethods.get(Locals.buildLocalMethodKey(call, arity));
-             if (localMethod == null) {
-                 // is it a synthetic method? If we generated the method ourselves, be more helpful. It can only fail
-                 // because the arity does not match the expected interface type.
-                 if (call.contains("$")) {
-                     throw new IllegalArgumentException("Incorrect number of parameters for [" + interfaceMethod.javaMethod.getName() +
-                                                        "] in [" + clazz + "]");
-                 }
-                 throw new IllegalArgumentException("Unknown call [" + call + "] with [" + arity + "] arguments.");
-             }
-             ref = new FunctionRef(clazz, interfaceMethod, call, localMethod.methodType, captures.length);
-         } else {
-             // whitelist lookup
-             ref = FunctionRef.resolveFromLookup(painlessLookup, clazz, type, call, captures.length);
-         }
-         final CallSite callSite = LambdaBootstrap.lambdaBootstrap(
-             methodHandlesLookup,
-             ref.interfaceMethodName,
-             ref.factoryMethodType,
-             ref.interfaceMethodType,
-             ref.delegateClassName,
-             ref.delegateInvokeType,
-             ref.delegateMethodName,
-             ref.delegateMethodType,
-             ref.isDelegateInterface ? 1 : 0
-         );
-         return callSite.dynamicInvoker().asType(MethodType.methodType(clazz, captures));
+            MethodHandles.Lookup methodHandlesLookup, Class<?> clazz, String type, String call, int captures) throws Throwable {
+        final FunctionRef ref = FunctionRef.create(painlessLookup, localMethods, null, clazz, type, call, captures);
+        final CallSite callSite = LambdaBootstrap.lambdaBootstrap(
+            methodHandlesLookup,
+            ref.interfaceMethodName,
+            ref.factoryMethodType,
+            ref.interfaceMethodType,
+            ref.delegateClassName,
+            ref.delegateInvokeType,
+            ref.delegateMethodName,
+            ref.delegateMethodType,
+            ref.isDelegateInterface ? 1 : 0
+        );
+        return callSite.dynamicInvoker().asType(MethodType.methodType(clazz, ref.factoryMethodType.parameterArray()));
      }
 
     /**

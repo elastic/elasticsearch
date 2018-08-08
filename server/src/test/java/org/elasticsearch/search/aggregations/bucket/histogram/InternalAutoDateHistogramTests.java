@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.rounding.DateTimeUnit;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
@@ -28,17 +29,18 @@ import org.elasticsearch.search.aggregations.bucket.histogram.InternalAutoDateHi
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.util.*;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueHours;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.createRounding;
+import static org.hamcrest.Matchers.equalTo;
 
 public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregationTestCase<InternalAutoDateHistogram> {
 
@@ -77,6 +79,22 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         return new InternalAutoDateHistogram(name, buckets, targetBuckets, bucketInfo, format, pipelineAggregators, metaData);
     }
 
+    public void testGetAppropriateRounding() {
+        RoundingInfo[] roundings = new RoundingInfo[6];
+        DateTimeZone timeZone = DateTimeZone.UTC;
+        roundings[0] = new RoundingInfo(createRounding(DateTimeUnit.SECOND_OF_MINUTE, timeZone),
+            1000L, 1000);
+        roundings[1] = new RoundingInfo(createRounding(DateTimeUnit.MINUTES_OF_HOUR, timeZone),
+            60 * 1000L, 1, 5, 10, 30);
+        roundings[2] = new RoundingInfo(createRounding(DateTimeUnit.HOUR_OF_DAY, timeZone),
+            60 * 60 * 1000L, 1, 3, 12);
+
+        OffsetDateTime timestamp = Instant.parse("2018-01-01T00:00:01.000Z").atOffset(ZoneOffset.UTC);
+        int result = InternalAutoDateHistogram.getAppropriateRounding(timestamp.toEpochSecond()*1000,
+            timestamp.plusDays(1).toEpochSecond()*1000, 0, roundings, 25);
+        assertThat(result, equalTo(2));
+    }
+
     @Override
     protected void assertReduced(InternalAutoDateHistogram reduced, List<InternalAutoDateHistogram> inputs) {
         int roundingIdx = 0;
@@ -100,9 +118,11 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
                 }
             }
         }
+
         long normalizedDuration = (highest - lowest) / roundingInfo.getRoughEstimateDurationMillis();
         long innerIntervalToUse = 0;
-        for (int interval : roundingInfo.innerIntervals) {
+        for (int j = roundingInfo.innerIntervals.length-1; j >= 0; j--) {
+            int interval = roundingInfo.innerIntervals[j];
             if (normalizedDuration / interval < maxNumberOfBuckets()) {
                 innerIntervalToUse = interval;
             }
@@ -137,12 +157,6 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         assertEquals(expectedCounts, actualCounts);
     }
 
-    @Override
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32215")
-    public void testReduceRandom() {
-        super.testReduceRandom();
-    }
-    
     @Override
     protected Writeable.Reader<InternalAutoDateHistogram> instanceReader() {
         return InternalAutoDateHistogram::new;

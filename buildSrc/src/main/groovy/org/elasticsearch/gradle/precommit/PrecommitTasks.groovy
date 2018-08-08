@@ -20,6 +20,7 @@ package org.elasticsearch.gradle.precommit
 
 import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
 import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
+import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
 import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.file.FileCollection
@@ -117,6 +118,8 @@ class PrecommitTasks {
         project.sourceSets.forEach { sourceSet ->
             forbiddenApisCli.dependsOn(
                 project.tasks.create(sourceSet.getTaskName('forbiddenApisCli', null), JavaExec) {
+                    ExportElasticsearchBuildResourcesTask exportBuildResources = project.tasks.getByName('exportBuildResources')
+                    dependsOn(exportBuildResources)
                     classpath = project.files(
                             project.configurations.forbiddenApisCliJar,
                             sourceSet.compileClasspath,
@@ -124,20 +127,19 @@ class PrecommitTasks {
                     )
                     main = 'de.thetaphi.forbiddenapis.cli.CliMain'
                     executable = "${project.runtimeJavaHome}/bin/java"
-                    [
-                            'jdk-unsafe-1.8', 'jdk-deprecated-1.8', 'jdk-non-portable', 'jdk-system-out'
-                    ].forEach { args "-b", it }
-                    [
-                            getForbiddenSignaturesFile(project, 'jdk-signatures'),
-                            getForbiddenSignaturesFile(project, 'es-all-signatures')
-                    ].forEach { args "-f", it }
-                    if (sourceSet.name == 'test') {
-                        args "-f", getForbiddenSignaturesFile(project, 'es-test-signatures')
-                        args "-f", getForbiddenSignaturesFile(project, 'http-signatures')
-                    } else {
-                        args "-f", getForbiddenSignaturesFile(project, 'es-server-signatures')
-                    }
+                    args "-b", 'jdk-unsafe-1.8'
+                    args "-b", 'jdk-deprecated-1.8'
+                    args "-b", 'jdk-non-portable'
+                    args "-b", 'jdk-system-out'
+                    args "-f", exportBuildResources.resource("forbidden/jdk-signatures.txt")
+                    args "-f", exportBuildResources.resource("forbidden/es-all-signatures.txt")
                     args "--suppressannotation", '**.SuppressForbidden'
+                    if (sourceSet.name == 'test') {
+                        args "-f", exportBuildResources.resource("forbidden/es-test-signatures.txt")
+                        args "-f", exportBuildResources.resource("forbidden/http-signatures.txt")
+                    } else {
+                        args "-f", exportBuildResources.resource("forbidden/es-server-signatures.txt")
+                    }
                     dependsOn sourceSet.classesTaskName
                     doFirst {
                         // Forbidden APIs expects only existing dirs, and requires at least one
@@ -152,10 +154,6 @@ class PrecommitTasks {
             )
         }
         return forbiddenApisCli
-    }
-
-    private static File getForbiddenSignaturesFile(Project project, String name) {
-        return project.rootProject.file('buildSrc/src/main/resources/forbidden/' + name + '.txt')
     }
 
     private static Task configureCheckstyle(Project project) {

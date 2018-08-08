@@ -308,13 +308,8 @@ public final class ExceptionsHelper {
                 }
             }
             this.index = indexName;
-            if (cause == null) {
-                this.reason = failure.reason();
-                this.causeType = null;
-            } else {
-                this.reason = cause.getMessage();
-                this.causeType = cause.getClass();
-            }
+            this.reason = cause.getMessage();
+            this.causeType = cause.getClass();
         }
 
         @Override

@@ -54,15 +54,15 @@ public class AllocationRoutedStep extends ClusterStateWaitStep {
 
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
-        if (ActiveShardCount.ALL.enoughShardsActive(clusterState, index.getName()) == false) {
-            logger.debug("[{}] lifecycle action for index [{}] cannot make progress because not all shards are active",
-                    getKey().getAction(), index.getName());
-            return new Result(false, new Info(-1, false));
-        }
         IndexMetaData idxMeta = clusterState.metaData().index(index);
         if (idxMeta == null) {
             throw new IndexNotFoundException("Index not found when executing " + getKey().getAction() + " lifecycle action.",
-                    index.getName());
+                index.getName());
+        }
+        if (ActiveShardCount.ALL.enoughShardsActive(clusterState, index.getName()) == false) {
+            logger.debug("[{}] lifecycle action for index [{}] cannot make progress because not all shards are active",
+                    getKey().getAction(), index.getName());
+            return new Result(false, new Info(idxMeta.getNumberOfReplicas(), -1, false));
         }
         // All the allocation attributes are already set so just need to check
         // if the allocation has happened
@@ -94,7 +94,7 @@ public class AllocationRoutedStep extends ClusterStateWaitStep {
             logger.debug(
                     "[{}] lifecycle action for index [{}] waiting for [{}] shards " + "to be allocated to nodes matching the given filters",
                     getKey().getAction(), index, allocationPendingAllShards);
-            return new Result(false, new Info(allocationPendingAllShards, true));
+            return new Result(false, new Info(idxMeta.getNumberOfReplicas(), allocationPendingAllShards, true));
         } else {
             logger.debug("[{}] lifecycle action for index [{}] complete", getKey().getAction(), index);
             return new Result(true, null);
@@ -105,7 +105,7 @@ public class AllocationRoutedStep extends ClusterStateWaitStep {
     public int hashCode() {
         return Objects.hash(super.hashCode(), waitOnAllShardCopies);
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (obj == null) {
@@ -115,29 +115,33 @@ public class AllocationRoutedStep extends ClusterStateWaitStep {
             return false;
         }
         AllocationRoutedStep other = (AllocationRoutedStep) obj;
-        return super.equals(obj) && 
+        return super.equals(obj) &&
                 Objects.equals(waitOnAllShardCopies, other.waitOnAllShardCopies);
     }
-    
+
     public static final class Info implements ToXContentObject {
 
+        private final long actualReplicas;
         private final long numberShardsLeftToAllocate;
         private final boolean allShardsActive;
         private final String message;
 
+        static final ParseField ACTUAL_REPLICAS = new ParseField("actual_replicas");
         static final ParseField SHARDS_TO_ALLOCATE = new ParseField("shards_left_to_allocate");
         static final ParseField ALL_SHARDS_ACTIVE = new ParseField("all_shards_active");
         static final ParseField MESSAGE = new ParseField("message");
         static final ConstructingObjectParser<Info, Void> PARSER = new ConstructingObjectParser<>("allocation_routed_step_info",
-                a -> new Info((long) a[0], (boolean) a[1]));
+                a -> new Info((long) a[0], (long) a[1], (boolean) a[2]));
         static {
+            PARSER.declareLong(ConstructingObjectParser.constructorArg(), ACTUAL_REPLICAS);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), SHARDS_TO_ALLOCATE);
             PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), ALL_SHARDS_ACTIVE);
             PARSER.declareString((i, s) -> {}, MESSAGE);
         }
 
-        public Info(long numberShardsLeftToMerge, boolean allShardsActive) {
-            this.numberShardsLeftToAllocate = numberShardsLeftToMerge;
+        public Info(long actualReplicas, long numberShardsLeftToAllocate, boolean allShardsActive) {
+            this.actualReplicas = actualReplicas;
+            this.numberShardsLeftToAllocate = numberShardsLeftToAllocate;
             this.allShardsActive = allShardsActive;
             if (allShardsActive == false) {
                 message = "Waiting for all shard copies to be active";
@@ -147,10 +151,14 @@ public class AllocationRoutedStep extends ClusterStateWaitStep {
             }
         }
 
+        public long getActualReplicas() {
+            return actualReplicas;
+        }
+
         public long getNumberShardsLeftToAllocate() {
             return numberShardsLeftToAllocate;
         }
-        
+
         public boolean allShardsActive() {
             return allShardsActive;
         }
@@ -161,13 +169,14 @@ public class AllocationRoutedStep extends ClusterStateWaitStep {
             builder.field(MESSAGE.getPreferredName(), message);
             builder.field(SHARDS_TO_ALLOCATE.getPreferredName(), numberShardsLeftToAllocate);
             builder.field(ALL_SHARDS_ACTIVE.getPreferredName(), allShardsActive);
+            builder.field(ACTUAL_REPLICAS.getPreferredName(), actualReplicas);
             builder.endObject();
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(numberShardsLeftToAllocate, allShardsActive);
+            return Objects.hash(actualReplicas, numberShardsLeftToAllocate, allShardsActive);
         }
 
         @Override
@@ -179,8 +188,9 @@ public class AllocationRoutedStep extends ClusterStateWaitStep {
                 return false;
             }
             Info other = (Info) obj;
-            return Objects.equals(numberShardsLeftToAllocate, other.numberShardsLeftToAllocate) &&
-                    Objects.equals(allShardsActive, other.allShardsActive);
+            return Objects.equals(actualReplicas, other.actualReplicas) &&
+                Objects.equals(numberShardsLeftToAllocate, other.numberShardsLeftToAllocate) &&
+                Objects.equals(allShardsActive, other.allShardsActive);
         }
 
         @Override

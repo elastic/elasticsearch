@@ -31,10 +31,10 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class TimeseriesLifecycleTypeTests extends ESTestCase {
 
-    private static final AllocateAction TEST_ALLOCATE_ACTION = new AllocateAction(Collections.singletonMap("node", "node1"),null, null);
+    private static final AllocateAction TEST_ALLOCATE_ACTION =
+        new AllocateAction(2, Collections.singletonMap("node", "node1"),null, null);
     private static final DeleteAction TEST_DELETE_ACTION = new DeleteAction();
     private static final ForceMergeAction TEST_FORCE_MERGE_ACTION = new ForceMergeAction(1);
-    private static final ReplicasAction TEST_REPLICAS_ACTION = new ReplicasAction(1);
     private static final RolloverAction TEST_ROLLOVER_ACTION = new RolloverAction(new ByteSizeValue(1), null, null);
     private static final ShrinkAction TEST_SHRINK_ACTION = new ShrinkAction(1);
     private static final ReadOnlyAction TEST_READ_ONLY_ACTION = new ReadOnlyAction();
@@ -307,14 +307,11 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         assertInvalidAction("hot", DeleteAction.NAME, new String[] { RolloverAction.NAME });
         assertInvalidAction("hot", ForceMergeAction.NAME, new String[] { RolloverAction.NAME });
         assertInvalidAction("hot", ReadOnlyAction.NAME, new String[] { RolloverAction.NAME });
-        assertInvalidAction("hot", ReplicasAction.NAME, new String[] { RolloverAction.NAME });
         assertInvalidAction("hot", ShrinkAction.NAME, new String[] { RolloverAction.NAME });
 
         // Warm Phase
         assertNextActionName("warm", ReadOnlyAction.NAME, AllocateAction.NAME,
-                new String[] { ReadOnlyAction.NAME, AllocateAction.NAME, ReplicasAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME });
-        assertNextActionName("warm", ReadOnlyAction.NAME, ReplicasAction.NAME,
-                new String[] { ReadOnlyAction.NAME, ReplicasAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME });
+                new String[] { ReadOnlyAction.NAME, AllocateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME });
         assertNextActionName("warm", ReadOnlyAction.NAME, ShrinkAction.NAME,
                 new String[] { ReadOnlyAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME });
         assertNextActionName("warm", ReadOnlyAction.NAME, ForceMergeAction.NAME,
@@ -322,73 +319,53 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         assertNextActionName("warm", ReadOnlyAction.NAME, null, new String[] { ReadOnlyAction.NAME });
 
         assertNextActionName("warm", ReadOnlyAction.NAME, AllocateAction.NAME,
-                new String[] { AllocateAction.NAME, ReplicasAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME });
-        assertNextActionName("warm", ReadOnlyAction.NAME, ReplicasAction.NAME,
-                new String[] { ReplicasAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME });
+                new String[] { AllocateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME });
         assertNextActionName("warm", ReadOnlyAction.NAME, ShrinkAction.NAME, new String[] { ShrinkAction.NAME, ForceMergeAction.NAME });
         assertNextActionName("warm", ReadOnlyAction.NAME, ForceMergeAction.NAME, new String[] { ForceMergeAction.NAME });
         assertNextActionName("warm", ReadOnlyAction.NAME, null, new String[] {});
 
-        assertNextActionName("warm", AllocateAction.NAME, ReplicasAction.NAME,
-                new String[] { ReadOnlyAction.NAME, AllocateAction.NAME, ReplicasAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME });
         assertNextActionName("warm", AllocateAction.NAME, ShrinkAction.NAME,
                 new String[] { ReadOnlyAction.NAME, AllocateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME });
         assertNextActionName("warm", AllocateAction.NAME, ForceMergeAction.NAME,
                 new String[] { ReadOnlyAction.NAME, AllocateAction.NAME, ForceMergeAction.NAME });
         assertNextActionName("warm", AllocateAction.NAME, null, new String[] { ReadOnlyAction.NAME, AllocateAction.NAME });
 
-        assertNextActionName("warm", AllocateAction.NAME, ReplicasAction.NAME,
-                new String[] { ReplicasAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME });
         assertNextActionName("warm", AllocateAction.NAME, ShrinkAction.NAME, new String[] { ShrinkAction.NAME, ForceMergeAction.NAME });
         assertNextActionName("warm", AllocateAction.NAME, ForceMergeAction.NAME, new String[] { ForceMergeAction.NAME });
         assertNextActionName("warm", AllocateAction.NAME, null, new String[] {});
 
-        assertNextActionName("warm", ReplicasAction.NAME, ShrinkAction.NAME,
-                new String[] { ReadOnlyAction.NAME, AllocateAction.NAME, ReplicasAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME });
-        assertNextActionName("warm", ReplicasAction.NAME, ForceMergeAction.NAME,
-                new String[] { ReadOnlyAction.NAME, AllocateAction.NAME, ReplicasAction.NAME, ForceMergeAction.NAME });
-        assertNextActionName("warm", ReplicasAction.NAME, null,
-                new String[] { ReadOnlyAction.NAME, AllocateAction.NAME, ReplicasAction.NAME });
-
-        assertNextActionName("warm", ReplicasAction.NAME, ShrinkAction.NAME, new String[] { ShrinkAction.NAME, ForceMergeAction.NAME });
-        assertNextActionName("warm", ReplicasAction.NAME, ForceMergeAction.NAME, new String[] { ForceMergeAction.NAME });
-        assertNextActionName("warm", ReplicasAction.NAME, null, new String[] {});
-
         assertNextActionName("warm", ShrinkAction.NAME, ForceMergeAction.NAME,
-                new String[] { ReadOnlyAction.NAME, AllocateAction.NAME, ReplicasAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME });
+                new String[] { ReadOnlyAction.NAME, AllocateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME });
         assertNextActionName("warm", ShrinkAction.NAME, null,
-                new String[] { ReadOnlyAction.NAME, AllocateAction.NAME, ReplicasAction.NAME, ShrinkAction.NAME });
+                new String[] { ReadOnlyAction.NAME, AllocateAction.NAME, ShrinkAction.NAME });
 
         assertNextActionName("warm", ShrinkAction.NAME, ForceMergeAction.NAME, new String[] { ForceMergeAction.NAME });
         assertNextActionName("warm", ShrinkAction.NAME, null, new String[] {});
 
         assertNextActionName("warm", ForceMergeAction.NAME, null,
-                new String[] { ReadOnlyAction.NAME, AllocateAction.NAME, ReplicasAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME });
+                new String[] { ReadOnlyAction.NAME, AllocateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME });
 
         assertNextActionName("warm", ForceMergeAction.NAME, null, new String[] {});
 
         assertInvalidAction("warm", "foo", new String[] { RolloverAction.NAME });
         assertInvalidAction("warm", DeleteAction.NAME,
-                new String[] { ReadOnlyAction.NAME, AllocateAction.NAME, ReplicasAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME });
+                new String[] { ReadOnlyAction.NAME, AllocateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME });
         assertInvalidAction("warm", RolloverAction.NAME,
-                new String[] { ReadOnlyAction.NAME, AllocateAction.NAME, ReplicasAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME });
+                new String[] { ReadOnlyAction.NAME, AllocateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME });
 
         // Cold Phase
-        assertNextActionName("cold", AllocateAction.NAME, ReplicasAction.NAME, new String[] { AllocateAction.NAME, ReplicasAction.NAME });
         assertNextActionName("cold", AllocateAction.NAME, null, new String[] { AllocateAction.NAME });
 
-        assertNextActionName("cold", AllocateAction.NAME, ReplicasAction.NAME, new String[] { ReplicasAction.NAME });
         assertNextActionName("cold", AllocateAction.NAME, null, new String[] {});
 
-        assertNextActionName("cold", ReplicasAction.NAME, null, new String[] { AllocateAction.NAME, ReplicasAction.NAME });
         assertNextActionName("cold", AllocateAction.NAME, null, new String[] {});
 
-        assertInvalidAction("cold", "foo", new String[] { AllocateAction.NAME, ReplicasAction.NAME });
-        assertInvalidAction("cold", DeleteAction.NAME, new String[] { AllocateAction.NAME, ReplicasAction.NAME });
-        assertInvalidAction("cold", ForceMergeAction.NAME, new String[] { AllocateAction.NAME, ReplicasAction.NAME });
-        assertInvalidAction("cold", ReadOnlyAction.NAME, new String[] { AllocateAction.NAME, ReplicasAction.NAME });
-        assertInvalidAction("cold", RolloverAction.NAME, new String[] { AllocateAction.NAME, ReplicasAction.NAME });
-        assertInvalidAction("cold", ShrinkAction.NAME, new String[] { AllocateAction.NAME, ReplicasAction.NAME });
+        assertInvalidAction("cold", "foo", new String[] { AllocateAction.NAME });
+        assertInvalidAction("cold", DeleteAction.NAME, new String[] { AllocateAction.NAME });
+        assertInvalidAction("cold", ForceMergeAction.NAME, new String[] { AllocateAction.NAME });
+        assertInvalidAction("cold", ReadOnlyAction.NAME, new String[] { AllocateAction.NAME });
+        assertInvalidAction("cold", RolloverAction.NAME, new String[] { AllocateAction.NAME });
+        assertInvalidAction("cold", ShrinkAction.NAME, new String[] { AllocateAction.NAME });
 
         // Delete Phase
         assertNextActionName("delete", DeleteAction.NAME, null, new String[] {});
@@ -397,7 +374,6 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         assertInvalidAction("delete", AllocateAction.NAME, new String[] { DeleteAction.NAME });
         assertInvalidAction("delete", ForceMergeAction.NAME, new String[] { DeleteAction.NAME });
         assertInvalidAction("delete", ReadOnlyAction.NAME, new String[] { DeleteAction.NAME });
-        assertInvalidAction("delete", ReplicasAction.NAME, new String[] { DeleteAction.NAME });
         assertInvalidAction("delete", RolloverAction.NAME, new String[] { DeleteAction.NAME });
         assertInvalidAction("delete", ShrinkAction.NAME, new String[] { DeleteAction.NAME });
 
@@ -428,15 +404,13 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         return Arrays.asList(availableActionNames).stream().map(n -> {
             switch (n) {
             case AllocateAction.NAME:
-                return new AllocateAction(Collections.singletonMap("foo", "bar"), Collections.emptyMap(), Collections.emptyMap());
+                return new AllocateAction(null, Collections.singletonMap("foo", "bar"), Collections.emptyMap(), Collections.emptyMap());
             case DeleteAction.NAME:
                 return new DeleteAction();
             case ForceMergeAction.NAME:
                 return new ForceMergeAction(1);
             case ReadOnlyAction.NAME:
                 return new ReadOnlyAction();
-            case ReplicasAction.NAME:
-                return new ReplicasAction(1);
             case RolloverAction.NAME:
                 return new RolloverAction(ByteSizeValue.parseBytesSizeValue("0b", "test"), TimeValue.ZERO, 1L);
             case ShrinkAction.NAME:
@@ -498,8 +472,6 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                 return TEST_FORCE_MERGE_ACTION;
             case ReadOnlyAction.NAME:
                 return TEST_READ_ONLY_ACTION;
-            case ReplicasAction.NAME:
-                return TEST_REPLICAS_ACTION;
             case RolloverAction.NAME:
                 return TEST_ROLLOVER_ACTION;
             case ShrinkAction.NAME:

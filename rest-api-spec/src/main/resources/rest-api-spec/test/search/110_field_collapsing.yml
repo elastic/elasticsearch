@@ -1,7 +1,14 @@
 setup:
   - do:
       indices.create:
-          index:  test
+        index:  test
+        body:
+          mappings:
+            test:
+              properties:
+                numeric_group: { type: integer }
+                group_alias: { type: alias, path: numeric_group }
+
   - do:
       index:
           index:  test
@@ -341,3 +348,25 @@ setup:
   - match: { hits.hits.2.inner_hits.sub_hits.hits.hits.0._version: 55 }
   - match: { hits.hits.2.inner_hits.sub_hits.hits.hits.1._id: "4" }
   - match: { hits.hits.2.inner_hits.sub_hits.hits.hits.1._version: 44 }
+
+---
+"field collapsing on a field alias":
+  - skip:
+      version: " - 6.3.99"
+      reason: Field aliases were introduced in 6.4.0.
+  - do:
+      search:
+        index: test
+        body:
+          collapse: { field: group_alias, inner_hits: { name: sub_hits } }
+          sort: [{ sort: desc }]
+
+  - match: { hits.total: 6 }
+  - length: { hits.hits: 3 }
+
+  - match: { hits.hits.0.fields.group_alias: [3] }
+  - match: { hits.hits.0.inner_hits.sub_hits.hits.total: 1}
+  - match: { hits.hits.1.fields.group_alias: [1] }
+  - match: { hits.hits.1.inner_hits.sub_hits.hits.total: 3}
+  - match: { hits.hits.2.fields.group_alias: [25] }
+  - match: { hits.hits.2.inner_hits.sub_hits.hits.total: 2}

@@ -288,10 +288,10 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
         listenersThread.join();
     }
 
-    private void awaitQuietly(CyclicBarrier barrier) {
+    private void awaitQuietly(final CyclicBarrier barrier) {
         try {
             barrier.await();
-        } catch (BrokenBarrierException | InterruptedException e) {
+        } catch (final BrokenBarrierException | InterruptedException e) {
             throw new AssertionError(e);
         }
     }

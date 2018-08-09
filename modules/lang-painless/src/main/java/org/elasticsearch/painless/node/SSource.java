@@ -69,6 +69,7 @@ import static org.elasticsearch.painless.WriterConstants.EXCEPTION_TYPE;
 import static org.elasticsearch.painless.WriterConstants.GET_NAME_METHOD;
 import static org.elasticsearch.painless.WriterConstants.GET_SOURCE_METHOD;
 import static org.elasticsearch.painless.WriterConstants.GET_STATEMENTS_METHOD;
+import static org.elasticsearch.painless.WriterConstants.MAP_TYPE;
 import static org.elasticsearch.painless.WriterConstants.OUT_OF_MEMORY_ERROR_TYPE;
 import static org.elasticsearch.painless.WriterConstants.PAINLESS_ERROR_TYPE;
 import static org.elasticsearch.painless.WriterConstants.PAINLESS_EXPLAIN_ERROR_GET_HEADERS_METHOD;
@@ -163,7 +164,7 @@ public final class SSource extends AStatement {
         throw new IllegalStateException("Illegal tree structure.");
     }
 
-    public void analyze(PainlessLookup painlessLookup) {
+    public Map<String, LocalMethod> analyze(PainlessLookup painlessLookup) {
         Map<String, LocalMethod> methods = new HashMap<>();
 
         for (SFunction function : functions) {
@@ -177,7 +178,10 @@ public final class SSource extends AStatement {
             }
         }
 
-        analyze(Locals.newProgramScope(painlessLookup, methods.values()));
+        Locals locals = Locals.newProgramScope(painlessLookup, methods.values());
+        analyze(locals);
+
+        return locals.getMethods();
     }
 
     @Override
@@ -253,6 +257,7 @@ public final class SSource extends AStatement {
                 globals.getStatements(), settings);
         bootstrapDef.visitCode();
         bootstrapDef.getStatic(CLASS_TYPE, "$DEFINITION", DEFINITION_TYPE);
+        bootstrapDef.getStatic(CLASS_TYPE, "$LOCALS", MAP_TYPE);
         bootstrapDef.loadArgs();
         bootstrapDef.invokeStatic(DEF_BOOTSTRAP_DELEGATE_TYPE, DEF_BOOTSTRAP_DELEGATE_METHOD);
         bootstrapDef.returnValue();
@@ -263,8 +268,9 @@ public final class SSource extends AStatement {
         visitor.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "$SOURCE", STRING_TYPE.getDescriptor(), null, null).visitEnd();
         visitor.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "$STATEMENTS", BITSET_TYPE.getDescriptor(), null, null).visitEnd();
 
-        // Write the static variable used by the method to bootstrap def calls
+        // Write the static variables used by the method to bootstrap def calls
         visitor.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "$DEFINITION", DEFINITION_TYPE.getDescriptor(), null, null).visitEnd();
+        visitor.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "$LOCALS", MAP_TYPE.getDescriptor(), null, null).visitEnd();
 
         org.objectweb.asm.commons.Method init;
 

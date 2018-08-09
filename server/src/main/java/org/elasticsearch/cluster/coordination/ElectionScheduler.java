@@ -20,6 +20,8 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
@@ -28,10 +30,17 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Random;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
+
+import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentSet;
 
 public abstract class ElectionScheduler extends AbstractComponent {
 
@@ -48,6 +57,8 @@ public abstract class ElectionScheduler extends AbstractComponent {
     private static final String ELECTION_MIN_TIMEOUT_SETTING_KEY = "cluster.election.min_timeout";
     private static final String ELECTION_BACK_OFF_TIME_SETTING_KEY = "cluster.election.back_off_time";
     private static final String ELECTION_MAX_TIMEOUT_SETTING_KEY = "cluster.election.max_timeout";
+
+    public static final String REQUEST_PRE_VOTE_ACTION_NAME = "internal:cluster/request_pre_vote";
 
     public static final Setting<TimeValue> ELECTION_MIN_TIMEOUT_SETTING = Setting.timeSetting(ELECTION_MIN_TIMEOUT_SETTING_KEY,
         TimeValue.timeValueMillis(100), TimeValue.timeValueMillis(1), Property.NodeScope);
@@ -71,13 +82,14 @@ public abstract class ElectionScheduler extends AbstractComponent {
     private final TimeValue maxTimeout;
     private final Random random;
     private final TransportService transportService;
+    private final AtomicLong idSupplier = new AtomicLong();
 
     private final Object schedulerMutex = new Object(); // protects fields related to scheduling:
-    private Object currentScheduler; // only care about its identity
-    private long nextSchedulerIdentity;
+    private volatile Object currentScheduler; // only care about its identity
     private long currentDelayMillis;
 
     ElectionScheduler(Settings settings, Random random, TransportService transportService) {
+
         super(settings);
 
         this.random = random;
@@ -96,21 +108,19 @@ public abstract class ElectionScheduler extends AbstractComponent {
         final BooleanSupplier isRunningSupplier;
         synchronized (schedulerMutex) {
             assert currentScheduler == null;
-            final long schedulerIdentity = nextSchedulerIdentity++;
+            final long schedulerId = idSupplier.getAndIncrement();
             currentDelayMillis = minTimeout.millis();
             currentScheduler = isRunningSupplier = new BooleanSupplier() {
                 @Override
                 public boolean getAsBoolean() {
-                    assert Thread.holdsLock(schedulerMutex) : "ElectionScheduler schedulerMutex not held";
                     return this == currentScheduler;
                 }
 
                 @Override
                 public String toString() {
-                    return "isRunningSupplier[" + schedulerIdentity + "]";
+                    return "isRunningSupplier[" + schedulerId + "]";
                 }
             };
-            logger.debug("starting {}", currentScheduler);
         }
 
         scheduleNextElection(isRunningSupplier);
@@ -145,14 +155,12 @@ public abstract class ElectionScheduler extends AbstractComponent {
 
             @Override
             protected void doRun() {
-                synchronized (schedulerMutex) {
-                    if (isRunningSupplier.getAsBoolean() == false) {
-                        logger.debug("{} not starting election", isRunningSupplier);
-                        return;
-                    }
+                if (isRunningSupplier.getAsBoolean() == false) {
+                    logger.debug("{} not starting election", isRunningSupplier);
+                    return;
                 }
-                logger.debug("{} starting election", isRunningSupplier);
-                startElection();
+                logger.debug("{} starting pre-voting", isRunningSupplier);
+                new PreVoteCollector(isRunningSupplier, idSupplier.getAndIncrement()).start();
             }
 
             @Override
@@ -190,8 +198,10 @@ public abstract class ElectionScheduler extends AbstractComponent {
 
     /**
      * Start an election. Calls to this method are not completely synchronised with the start/stop state of the scheduler.
+     *
+     * @param maxTermSeen The maximum term seen before this election starts. The election should pick a higher term.
      */
-    protected abstract void startElection();
+    protected abstract void startElection(long maxTermSeen);
 
     @Override
     public String toString() {
@@ -202,5 +212,104 @@ public abstract class ElectionScheduler extends AbstractComponent {
             ", currentDelayMillis=" + currentDelayMillis +
             ", currentScheduler=" + currentScheduler +
             '}';
+    }
+
+    protected abstract Iterable<DiscoveryNode> getBroadcastNodes();
+
+    protected abstract boolean isElectionQuorum(VoteCollection voteCollection);
+
+    protected abstract PreVoteResponse getLocalPreVoteResponse();
+
+    private class PreVoteCollector {
+
+        private final BooleanSupplier isRunningSupplier;
+        private final long electionId;
+        private final PreVoteRequest preVoteRequest;
+
+        private final Set<DiscoveryNode> preVotesReceived = newConcurrentSet();
+        private final AtomicBoolean electionStarted = new AtomicBoolean();
+        private final AtomicLong maxTermSeen;
+        private final PreVoteResponse localPreVoteResponse;
+
+        PreVoteCollector(BooleanSupplier isRunningSupplier, long electionId) {
+            this.isRunningSupplier = isRunningSupplier;
+            this.electionId = electionId;
+            localPreVoteResponse = getLocalPreVoteResponse();
+            maxTermSeen = new AtomicLong(localPreVoteResponse.getCurrentTerm());
+            preVoteRequest = new PreVoteRequest(transportService.getLocalNode(), localPreVoteResponse.getCurrentTerm());
+        }
+
+        public void start() {
+            logger.debug("{} starting", this);
+
+            getBroadcastNodes().forEach(n -> {
+                transportService.sendRequest(n, REQUEST_PRE_VOTE_ACTION_NAME, preVoteRequest,
+                    new TransportResponseHandler<PreVoteResponse>() {
+                        @Override
+                        public void handleResponse(PreVoteResponse response) {
+                            if (isRunningSupplier.getAsBoolean() == false) {
+                                logger.debug("{} ignoring {} as no longer running", this, response);
+                                return;
+                            }
+
+                            final long currentMaxTermSeen = maxTermSeen.accumulateAndGet(response.getCurrentTerm(), Math::max);
+
+                            if (response.getLastAcceptedTerm() > localPreVoteResponse.getLastAcceptedTerm()
+                                || (response.getLastAcceptedTerm() == localPreVoteResponse.getLastAcceptedTerm()
+                                && response.getLastAcceptedVersion() > localPreVoteResponse.getLastAcceptedVersion())) {
+                                logger.debug("{} ignoring {} as it is fresher", this, response);
+                                return;
+                            }
+
+                            preVotesReceived.add(n);
+                            final VoteCollection voteCollection = new VoteCollection();
+                            preVotesReceived.forEach(voteCollection::addVote);
+
+                            if (isElectionQuorum(voteCollection) == false) {
+                                logger.debug("{} added {}, no quorum yet", this, response);
+                                return;
+                            }
+
+                            if (electionStarted.compareAndSet(false, true) == false) {
+                                logger.debug("{} added {} but election has already started", this, response);
+                                return;
+                            }
+
+                            logger.debug("{} added {}, starting election", this, response);
+                            startElection(currentMaxTermSeen);
+                        }
+
+                        @Override
+                        public void handleException(TransportException exp) {
+                            if (exp.getRootCause() instanceof CoordinationStateRejectedException) {
+                                logger.debug("{} failed: {}", this, exp.getRootCause().getMessage());
+                            } else {
+                                logger.debug(new ParameterizedMessage("{} failed", this), exp);
+                            }
+                        }
+
+                        @Override
+                        public String executor() {
+                            return Names.GENERIC;
+                        }
+
+                        @Override
+                        public String toString() {
+                            return "TransportResponseHandler{" + PreVoteCollector.this + ", node=" + n + '}';
+                        }
+                    });
+
+            });
+        }
+
+        @Override
+        public String toString() {
+            return "PreVoteCollector{" +
+                "isRunningSupplier=" + isRunningSupplier +
+                ", electionId=" + electionId +
+                ", preVoteRequest=" + preVoteRequest +
+                ", localPreVoteResponse=" + localPreVoteResponse +
+                '}';
+        }
     }
 }

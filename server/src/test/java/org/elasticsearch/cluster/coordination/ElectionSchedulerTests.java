@@ -56,7 +56,7 @@ public class ElectionSchedulerTests extends ESTestCase {
             boundTransportAddress -> localNode, null, emptySet());
         electionScheduler = new ElectionScheduler(settings, random(), transportService) {
             @Override
-            protected void startElection() {
+            protected void startElection(long maxTermSeen) {
                 electionOccurred = true;
             }
         };
@@ -128,7 +128,7 @@ public class ElectionSchedulerTests extends ESTestCase {
     private void validateSettings(Settings settings) {
         new ElectionScheduler(settings, random(), null) {
             @Override
-            protected void startElection() {
+            protected void startElection(long maxTermSeen) {
                 fail();
             }
         };

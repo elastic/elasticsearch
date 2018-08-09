@@ -408,6 +408,10 @@ class BuildPlugin implements Plugin<Project> {
             repos.mavenLocal()
         }
         repos.mavenCentral()
+        repos.maven {
+            name "elastic"
+            url "https://artifacts.elastic.co/maven"
+        }
         String luceneVersion = VersionProperties.lucene
         if (luceneVersion.contains('-snapshot')) {
             // extract the revision number from the version with a regex matcher
@@ -768,11 +772,19 @@ class BuildPlugin implements Plugin<Project> {
                     systemProperty property.getKey(), property.getValue()
                 }
             }
+
+            // TODO: remove this once joda time is removed from scripting in 7.0
+            systemProperty 'es.scripting.use_java_time', 'true'
+
+            // TODO: remove this once ctx isn't added to update script params in 7.0
+            systemProperty 'es.scripting.update.ctx_in_params', 'false'
+
             // Set the system keystore/truststore password if we're running tests in a FIPS-140 JVM
             if (project.inFipsJvm) {
                 systemProperty 'javax.net.ssl.trustStorePassword', 'password'
                 systemProperty 'javax.net.ssl.keyStorePassword', 'password'
             }
+
             boolean assertionsEnabled = Boolean.parseBoolean(System.getProperty('tests.asserts', 'true'))
             enableSystemAssertions assertionsEnabled
             enableAssertions assertionsEnabled

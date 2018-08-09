@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.job.persistence.BatchedDocumentsIterator;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobRenormalizedResultsPersister;
 
 import java.util.ArrayList;
@@ -43,17 +43,17 @@ public class ScoresUpdater {
     private static final long MILLISECONDS_IN_SECOND = 1000;
 
     private final String jobId;
-    private final JobProvider jobProvider;
+    private final JobResultsProvider jobResultsProvider;
     private final JobRenormalizedResultsPersister updatesPersister;
     private final NormalizerFactory normalizerFactory;
     private int bucketSpan;
     private long normalizationWindow;
     private volatile boolean shutdown;
 
-    public ScoresUpdater(Job job, JobProvider jobProvider, JobRenormalizedResultsPersister jobRenormalizedResultsPersister,
+    public ScoresUpdater(Job job, JobResultsProvider jobResultsProvider, JobRenormalizedResultsPersister jobRenormalizedResultsPersister,
                          NormalizerFactory normalizerFactory) {
         jobId = job.getId();
-        this.jobProvider = Objects.requireNonNull(jobProvider);
+        this.jobResultsProvider = Objects.requireNonNull(jobResultsProvider);
         updatesPersister = Objects.requireNonNull(jobRenormalizedResultsPersister);
         this.normalizerFactory = Objects.requireNonNull(normalizerFactory);
         bucketSpan = ((Long) job.getAnalysisConfig().getBucketSpan().seconds()).intValue();
@@ -96,7 +96,7 @@ public class ScoresUpdater {
     private void updateBuckets(Normalizer normalizer, String quantilesState, long endBucketEpochMs,
                                long windowExtensionMs, int[] counts, boolean perPartitionNormalization) {
         BatchedDocumentsIterator<Result<Bucket>> bucketsIterator =
-                jobProvider.newBatchedBucketsIterator(jobId)
+                jobResultsProvider.newBatchedBucketsIterator(jobId)
                         .timeRange(calcNormalizationWindowStart(endBucketEpochMs, windowExtensionMs), endBucketEpochMs)
                         .includeInterim(false);
 
@@ -145,7 +145,7 @@ public class ScoresUpdater {
 
     private void updateRecords(Normalizer normalizer, String quantilesState, long endBucketEpochMs,
                                long windowExtensionMs, int[] counts, boolean perPartitionNormalization) {
-        BatchedDocumentsIterator<Result<AnomalyRecord>> recordsIterator = jobProvider.newBatchedRecordsIterator(jobId)
+        BatchedDocumentsIterator<Result<AnomalyRecord>> recordsIterator = jobResultsProvider.newBatchedRecordsIterator(jobId)
                 .timeRange(calcNormalizationWindowStart(endBucketEpochMs, windowExtensionMs), endBucketEpochMs)
                 .includeInterim(false);
 
@@ -168,7 +168,7 @@ public class ScoresUpdater {
 
     private void updateInfluencers(Normalizer normalizer, String quantilesState, long endBucketEpochMs,
                                    long windowExtensionMs, int[] counts, boolean perPartitionNormalization) {
-        BatchedDocumentsIterator<Result<Influencer>> influencersIterator = jobProvider.newBatchedInfluencersIterator(jobId)
+        BatchedDocumentsIterator<Result<Influencer>> influencersIterator = jobResultsProvider.newBatchedInfluencersIterator(jobId)
                 .timeRange(calcNormalizationWindowStart(endBucketEpochMs, windowExtensionMs), endBucketEpochMs)
                 .includeInterim(false);
 

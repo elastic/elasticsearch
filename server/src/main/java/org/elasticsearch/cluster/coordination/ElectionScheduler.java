@@ -27,8 +27,8 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.transport.TransportService;
 
 import java.util.Random;
 import java.util.function.BooleanSupplier;
@@ -69,19 +69,19 @@ public abstract class ElectionScheduler extends AbstractComponent {
     private final TimeValue minTimeout;
     private final TimeValue backoffTime;
     private final TimeValue maxTimeout;
-    private final ThreadPool threadPool;
     private final Random random;
+    private final TransportService transportService;
 
     private final Object schedulerMutex = new Object(); // protects fields related to scheduling:
     private Object currentScheduler; // only care about its identity
     private long nextSchedulerIdentity;
     private long currentDelayMillis;
 
-    ElectionScheduler(Settings settings, Random random, ThreadPool threadPool) {
+    ElectionScheduler(Settings settings, Random random, TransportService transportService) {
         super(settings);
 
         this.random = random;
-        this.threadPool = threadPool;
+        this.transportService = transportService;
 
         minTimeout = ELECTION_MIN_TIMEOUT_SETTING.get(settings);
         backoffTime = ELECTION_BACK_OFF_TIME_SETTING.get(settings);
@@ -136,7 +136,7 @@ public abstract class ElectionScheduler extends AbstractComponent {
             logger.debug("{} scheduling election with delay [{}ms] (min={}, current={}, backoff={}, max={})",
                 isRunningSupplier, delay, minTimeout, currentDelayMillis, backoffTime, maxTimeout);
         }
-        threadPool.schedule(TimeValue.timeValueMillis(delay), Names.GENERIC, new AbstractRunnable() {
+        transportService.getThreadPool().schedule(TimeValue.timeValueMillis(delay), Names.GENERIC, new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
                 logger.debug("unexpected exception in wakeup", e);

@@ -19,11 +19,17 @@
 
 package org.elasticsearch.cluster.coordination;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.transport.CapturingTransport;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 
+import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.coordination.ElectionScheduler.ELECTION_BACK_OFF_TIME_SETTING;
 import static org.elasticsearch.cluster.coordination.ElectionScheduler.ELECTION_MAX_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.coordination.ElectionScheduler.ELECTION_MIN_TIMEOUT_SETTING;
@@ -43,7 +49,12 @@ public class ElectionSchedulerTests extends ESTestCase {
     public void createObjects() {
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build();
         deterministicTaskQueue = new DeterministicTaskQueue(settings);
-        electionScheduler = new ElectionScheduler(settings, random(), deterministicTaskQueue.getThreadPool()) {
+        final Transport capturingTransport = new CapturingTransport();
+        final DiscoveryNode localNode = new DiscoveryNode("local-node", buildNewFakeTransportAddress(), Version.CURRENT);
+        final TransportService transportService = new TransportService(settings, capturingTransport,
+            deterministicTaskQueue.getThreadPool(), TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            boundTransportAddress -> localNode, null, emptySet());
+        electionScheduler = new ElectionScheduler(settings, random(), transportService) {
             @Override
             protected void startElection() {
                 electionOccurred = true;

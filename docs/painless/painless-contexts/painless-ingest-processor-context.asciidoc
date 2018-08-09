@@ -125,7 +125,7 @@ ctx.datetime = dt.getLong(ChronoField.INSTANT_SECONDS)*1000L;        <15>
     <<string-type, `String`>> type value using a <<primitive-types, `char`>>
     type value as the delimiter. This is useful for handling the necessity of
     pulling out the individual pieces of the date and time `Strings` from the
-    original seat data since .
+    original seat data.
 <2> The first pass through each `char` in the `String` collects how many new
     `Strings` the original is split into.
 <3> Returns the original `String` if there are no instances of the delimiting

@@ -1,10 +1,14 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.transport.TransportRequest;
 
+import java.io.IOException;
 import java.util.Optional;
 
-public class JoinRequest {
+public class JoinRequest extends TransportRequest {
 
     private final DiscoveryNode sourceNode;
 
@@ -15,6 +19,19 @@ public class JoinRequest {
         this.optionalJoin = optionalJoin;
     }
 
+    public JoinRequest(StreamInput in) throws IOException {
+        super(in);
+        sourceNode = new DiscoveryNode(in);
+        optionalJoin = Optional.ofNullable(in.readOptionalWriteable(Join::new));
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        sourceNode.writeTo(out);
+        out.writeOptionalWriteable(optionalJoin.orElse(null));
+    }
+
     public DiscoveryNode getSourceNode() {
         return sourceNode;
     }
@@ -23,4 +40,29 @@ public class JoinRequest {
         return optionalJoin;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof JoinRequest)) return false;
+
+        JoinRequest that = (JoinRequest) o;
+
+        if (!sourceNode.equals(that.sourceNode)) return false;
+        return optionalJoin.equals(that.optionalJoin);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = sourceNode.hashCode();
+        result = 31 * result + optionalJoin.hashCode();
+        return result;
+    }
+
+    @Override
+    public String toString() {
+        return "JoinRequest{" +
+            "sourceNode=" + sourceNode +
+            ", optionalJoin=" + optionalJoin +
+            '}';
+    }
 }

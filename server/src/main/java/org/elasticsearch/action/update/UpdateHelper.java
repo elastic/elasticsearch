@@ -288,11 +288,10 @@ public class UpdateHelper extends AbstractComponent {
                 UpdateScript.Factory factory = scriptService.compile(script, UpdateScript.CONTEXT);
                 final Map<String, Object> params;
                 if (CTX_IN_PARAMS) {
-                    params = new HashMap<>();
-                    params.putAll(script.getParams());
+                    params = new HashMap<>(script.getParams());
                     params.put(ContextFields.CTX, ctx);
-                    deprecationLogger.deprecated("Exposing `ctx` under `params.ctx` is deprecated. " +
-                        "Use -Des.scripting.update.ctx_in_params=false to disable this behaviour.");
+                    deprecationLogger.deprecated("Using `ctx` via `params.ctx` is deprecated. " +
+                        "Use -Des.scripting.update.ctx_in_params=false to enforce non-deprecated usage.");
                 } else {
                     params = script.getParams();
                 }

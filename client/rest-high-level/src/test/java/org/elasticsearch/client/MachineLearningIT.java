@@ -26,12 +26,9 @@ import org.elasticsearch.protocol.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.protocol.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.protocol.xpack.ml.job.config.Detector;
 import org.elasticsearch.protocol.xpack.ml.job.config.Job;
-import org.elasticsearch.protocol.xpack.ml.job.config.ModelPlotConfig;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.is;
 
@@ -39,7 +36,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
     public void testPutJob() throws Exception {
         String jobId = randomValidJobId();
-        Job job = buildRandomJob(jobId);
+        Job job = buildJob(jobId);
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
 
         PutJobResponse putJobResponse = execute(new PutJobRequest(job), machineLearningClient::putJob, machineLearningClient::putJobAsync);
@@ -54,46 +51,24 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         return generator.ofCodePointsLength(random(), 10, 10);
     }
 
-    private static Job buildRandomJob(String jobId) {
+    private static Job buildJob(String jobId) {
         Job.Builder builder = new Job.Builder(jobId);
-        if (randomBoolean()) {
-            builder.setDescription(randomAlphaOfLength(10));
-        }
-        if (randomBoolean()) {
-            int groupsNum = randomIntBetween(0, 10);
-            List<String> groups = new ArrayList<>(groupsNum);
-            for (int i = 0; i < groupsNum; i++) {
-                groups.add(randomValidJobId());
-            }
-            builder.setGroups(groups);
-        }
-        if (randomBoolean()) {
-            builder.setEstablishedModelMemory(randomNonNegativeLong());
-        }
-        Detector detector = new Detector.Builder().setFieldName("some-field").setFunction("mean").build();
-        builder.setAnalysisConfig(new AnalysisConfig.Builder(Arrays.asList(detector)));
+        builder.setDescription(randomAlphaOfLength(10));
+
+        Detector detector = new Detector.Builder()
+            .setFieldName("total")
+            .setFunction("sum")
+            .setDetectorDescription(randomAlphaOfLength(10))
+            .build();
+        AnalysisConfig.Builder configBuilder = new AnalysisConfig.Builder(Arrays.asList(detector));
+        configBuilder.setBucketSpan(new TimeValue(randomIntBetween(1, 10), TimeUnit.SECONDS));
+        builder.setAnalysisConfig(configBuilder);
+
         DataDescription.Builder dataDescription = new DataDescription.Builder();
-        dataDescription.setFormat(randomFrom(DataDescription.DataFormat.values()));
+        dataDescription.setTimeFormat(randomFrom(DataDescription.EPOCH_MS, DataDescription.EPOCH));
+        dataDescription.setTimeField(randomAlphaOfLength(10));
         builder.setDataDescription(dataDescription);
 
-        if (randomBoolean()) {
-            builder.setModelPlotConfig(new ModelPlotConfig(randomBoolean(), randomAlphaOfLength(10)));
-        }
-        if (randomBoolean()) {
-            builder.setRenormalizationWindowDays(randomNonNegativeLong());
-        }
-        if (randomBoolean()) {
-            builder.setBackgroundPersistInterval(TimeValue.timeValueHours(randomIntBetween(1, 24)));
-        }
-        if (randomBoolean()) {
-            builder.setResultsRetentionDays(randomNonNegativeLong());
-        }
-        if (randomBoolean()) {
-            builder.setCustomSettings(Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)));
-        }
-        if (randomBoolean()) {
-            builder.setResultsIndexName(randomValidJobId());
-        }
         return builder.build();
     }
 }

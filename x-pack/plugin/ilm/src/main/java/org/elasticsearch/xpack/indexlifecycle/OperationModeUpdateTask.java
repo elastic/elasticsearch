@@ -10,8 +10,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.protocol.xpack.indexlifecycle.OperationMode;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
-import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 
 public class OperationModeUpdateTask extends ClusterStateUpdateTask {
     private static final Logger logger = ESLoggerFactory.getLogger(OperationModeUpdateTask.class);

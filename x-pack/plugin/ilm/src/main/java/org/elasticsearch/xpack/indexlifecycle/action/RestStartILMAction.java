@@ -8,16 +8,16 @@ package org.elasticsearch.xpack.indexlifecycle.action;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StartILMRequest;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
-import org.elasticsearch.xpack.core.indexlifecycle.action.PutOperationModeAction;
+import org.elasticsearch.xpack.core.indexlifecycle.action.StartILMAction;
 
-public class RestStartAction extends BaseRestHandler {
+public class RestStartILMAction extends BaseRestHandler {
 
-    public RestStartAction(Settings settings, RestController controller) {
+    public RestStartILMAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.POST, "/_ilm/start", this);
     }
@@ -29,9 +29,9 @@ public class RestStartAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
-        PutOperationModeAction.Request request = new PutOperationModeAction.Request(OperationMode.RUNNING);
+        StartILMRequest request = new StartILMRequest();
         request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
         request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
-        return channel -> client.execute(PutOperationModeAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        return channel -> client.execute(StartILMAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

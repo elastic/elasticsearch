@@ -1,9 +1,8 @@
 [[painless-context-examples]]
 === Context examples
 
-Each example must be run in the order of the table in the
-<<painless-contexts, previous section>> to work correctly.  To run each example,
-first index the sample data into Elasticsearch:
+To run the examples, index the sample seat data into Elasticsearch. The examples
+must be run sequentially to work correctly.
 
 . Download the
 https://download.elastic.co/demos/painless/contexts/seats.json[seat data]. This
@@ -36,9 +35,9 @@ Each document contains the following fields:
 
 . {defguide}/running-elasticsearch.html[Start] Elasticsearch. Note these
 examples assume Elasticsearch and Kibana are running locally. To use the Console
-editor in a remote Kibana instance, click the settings icon and enter the
-Console URL. Edit a request to submit a cURL request to a remote Elasticsearch
-instance.
+editor with a remote Kibana instance, click the settings icon and enter the
+Console URL. To submit a cURL request to a remote Elasticsearch instance, edit
+the request URL.
 
 . Create {ref}/mapping.html[mappings] for the sample data:
 +
@@ -67,10 +66,11 @@ PUT /seats
 +
 // CONSOLE
 
-. Run the <<painless-ingest-processor-context, ingest>> example.  This is a
-requirement to upload the seat data for use in all the examples.
+. Run the <<painless-ingest-processor-context, ingest processor context>>
+example. This sets up a script ingest processor used on each document as the
+seat data is indexed.
 
-. Upload the seat data:
+. Index the seat data:
 +
 [source,js]
 ----

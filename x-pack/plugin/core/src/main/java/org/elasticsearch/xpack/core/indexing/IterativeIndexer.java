@@ -28,7 +28,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * {@link #maybeTriggerAsyncJob(long)} is called. {@link #stop()} can be used to stop the background job without aborting the indexer.
  *
  * In a nutshell this is a 2 cycle engine: 1st it sends a query, 2nd it indexes documents based on the response, sends the next query, 
- * indexes, queries, indexes, ... until a condition lets the engine stop.
+ * indexes, queries, indexes, ... until a condition lets the engine pause until the source provides new input.
  *
  * @param <JobPosition> Type that defines a job position to be defined by the implementation.
  */
@@ -168,7 +168,7 @@ public abstract class IterativeIndexer<JobPosition> {
     /**
      * Called to get the Id of the job, used for logging.
      * 
-     * @return
+     * @return a string with the id of the job
      */
     protected abstract String getJobId();
 

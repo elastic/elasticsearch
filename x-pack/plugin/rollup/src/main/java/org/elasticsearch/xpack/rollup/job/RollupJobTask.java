@@ -26,12 +26,12 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
+import org.elasticsearch.xpack.core.indexing.IndexerStats;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.StartRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.StopRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
-import org.elasticsearch.xpack.core.rollup.job.RollupJobStats;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobStatus;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.rollup.Rollup;
@@ -218,8 +218,8 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
      * Gets the stats for this task.
      * @return The stats of this task
      */
-    public RollupJobStats getStats() {
-        return (RollupJobStats) indexer.getStats();
+    public IndexerStats getStats() {
+        return indexer.getStats();
     }
 
     /**

@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xpack.core.indexing.IndexerStats;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobStats;
@@ -204,20 +205,20 @@ public class GetRollupJobsAction extends Action<GetRollupJobsAction.Response> {
 
     public static class JobWrapper implements Writeable, ToXContentObject {
         private final RollupJobConfig job;
-        private final RollupJobStats stats;
+        private final IndexerStats stats;
         private final RollupJobStatus status;
 
         public static final ConstructingObjectParser<JobWrapper, Void> PARSER
                 = new ConstructingObjectParser<>(NAME, a -> new JobWrapper((RollupJobConfig) a[0],
-                (RollupJobStats) a[1], (RollupJobStatus)a[2]));
+                (IndexerStats) a[1], (RollupJobStatus)a[2]));
 
         static {
             PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> RollupJobConfig.fromXContent(p, null), CONFIG);
-            PARSER.declareObject(ConstructingObjectParser.constructorArg(), RollupJobStats.PARSER::apply, STATS);
+            PARSER.declareObject(ConstructingObjectParser.constructorArg(), IndexerStats.PARSER::apply, STATS);
             PARSER.declareObject(ConstructingObjectParser.constructorArg(), RollupJobStatus.PARSER::apply, STATUS);
         }
 
-        public JobWrapper(RollupJobConfig job, RollupJobStats stats, RollupJobStatus status) {
+        public JobWrapper(RollupJobConfig job, IndexerStats stats, RollupJobStatus status) {
             this.job = job;
             this.stats = stats;
             this.status = status;
@@ -240,7 +241,7 @@ public class GetRollupJobsAction extends Action<GetRollupJobsAction.Response> {
             return job;
         }
 
-        public RollupJobStats getStats() {
+        public IndexerStats getStats() {
             return stats;
         }
 

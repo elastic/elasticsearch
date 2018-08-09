@@ -16,6 +16,7 @@ import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSou
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
+import org.elasticsearch.xpack.core.indexing.IndexerStats;
 import org.elasticsearch.xpack.core.indexing.Iteration;
 import org.elasticsearch.xpack.core.indexing.IterativeIndexer;
 import org.elasticsearch.xpack.core.rollup.RollupField;
@@ -104,7 +105,7 @@ public abstract class RollupIndexer extends IterativeIndexer<Map<String, Object>
         final CompositeAggregation response = searchResponse.getAggregations().get(AGGREGATION_NAME);
 
         return new Iteration<>(
-                IndexerUtils.processBuckets(response, job.getConfig().getRollupIndex(), (RollupJobStats) getStats(),
+                IndexerUtils.processBuckets(response, job.getConfig().getRollupIndex(), getStats(),
                         job.getConfig().getGroupConfig(), job.getConfig().getId(), upgradedDocumentID.get()),
                 response.afterKey(), response.getBuckets().isEmpty());
     }

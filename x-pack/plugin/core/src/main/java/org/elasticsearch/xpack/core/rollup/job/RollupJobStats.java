@@ -11,12 +11,9 @@ import org.elasticsearch.xpack.core.indexing.IndexerStats;
 import java.io.IOException;
 
 /**
- * This class holds the runtime statistics of a job.  The stats are not used by any internal process
- * and are only for external monitoring/reference.  Statistics are not persisted with the job, so if the
- * allocated task is shutdown/restarted on a different node all the stats will reset.
+ * This class holds the runtime statistics of a rollup job, derived from {@link IndexerStats}}.
+ *
  */
-
-// todo: kept for now, consider removing it
 public class RollupJobStats extends IndexerStats {
 
     public RollupJobStats(StreamInput in) throws IOException {
@@ -27,6 +24,8 @@ public class RollupJobStats extends IndexerStats {
         super();
     }
 
-    
+    public RollupJobStats(long numPages, long numDocuments, long numRollups, long numInvocations) {
+        super (numPages, numDocuments, numRollups, numInvocations);
+    }
 }
 

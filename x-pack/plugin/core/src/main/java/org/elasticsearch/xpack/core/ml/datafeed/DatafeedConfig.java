@@ -62,6 +62,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
 
     // Used for QueryPage
     public static final ParseField RESULTS_FIELD = new ParseField("datafeeds");
+    public static String TYPE = "datafeed";
 
     /**
      * The field name used to specify document counts in Elasticsearch

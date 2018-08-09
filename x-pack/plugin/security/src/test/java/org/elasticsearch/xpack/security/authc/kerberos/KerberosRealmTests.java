@@ -146,7 +146,8 @@ public class KerberosRealmTests extends KerberosRealmTestCase {
                 acl.add(0, entry);
                 view.setAcl(acl);
             } else {
-                throw new UnsupportedOperationException("Unsupported file attributes for this test");
+                throw new UnsupportedOperationException(
+                        String.format("Don't know how to make file [%s] non-readable on a file system with attributes [%s]", keytabFilePath, supportedAttributes));
             }
             keytabPath = keytabFilePath.toString();
             expectedErrorMessage = "configured service key tab file [" + keytabPath + "] must have read permission";

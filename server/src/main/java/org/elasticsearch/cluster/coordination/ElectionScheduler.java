@@ -30,11 +30,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.Map;
 import java.util.Random;
-import java.util.function.Function;
 
 public abstract class ElectionScheduler extends AbstractComponent {
 
@@ -52,63 +48,14 @@ public abstract class ElectionScheduler extends AbstractComponent {
     private static final String ELECTION_BACK_OFF_TIME_SETTING_KEY = "cluster.election.back_off_time";
     private static final String ELECTION_MAX_TIMEOUT_SETTING_KEY = "cluster.election.max_timeout";
 
-    public static final Setting<TimeValue> ELECTION_MIN_TIMEOUT_SETTING
-        = new Setting<>(ELECTION_MIN_TIMEOUT_SETTING_KEY, "100ms",
-        reasonableTimeParser(ELECTION_MIN_TIMEOUT_SETTING_KEY),
-        new ElectionMinRetryIntervalSettingValidator(), Property.NodeScope);
+    public static final Setting<TimeValue> ELECTION_MIN_TIMEOUT_SETTING = Setting.timeSetting(ELECTION_MIN_TIMEOUT_SETTING_KEY,
+        TimeValue.timeValueMillis(100), TimeValue.timeValueMillis(1), Property.NodeScope);
 
-    public static final Setting<TimeValue> ELECTION_BACK_OFF_TIME_SETTING
-        = new Setting<>(ELECTION_BACK_OFF_TIME_SETTING_KEY, "300ms",
-        reasonableTimeParser(ELECTION_BACK_OFF_TIME_SETTING_KEY), Property.NodeScope);
+    public static final Setting<TimeValue> ELECTION_BACK_OFF_TIME_SETTING = Setting.timeSetting(ELECTION_BACK_OFF_TIME_SETTING_KEY,
+        TimeValue.timeValueMillis(100), TimeValue.timeValueMillis(1), Property.NodeScope);
 
-    public static final Setting<TimeValue> ELECTION_MAX_TIMEOUT_SETTING
-        = new Setting<>(ELECTION_MAX_TIMEOUT_SETTING_KEY, "10s",
-        reasonableTimeParser(ELECTION_MAX_TIMEOUT_SETTING_KEY),
-        new ElectionMaxRetryIntervalSettingValidator(), Property.NodeScope);
-
-    private static Function<String, TimeValue> reasonableTimeParser(final String settingKey) {
-        return s -> {
-            TimeValue timeValue = TimeValue.parseTimeValue(s, null, settingKey);
-            if (timeValue.millis() < 1) {
-                throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + settingKey + "] must be >= [1ms]");
-            }
-            if (timeValue.millis() > 60000) {
-                throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + settingKey + "] must be <= [60s]");
-            }
-            return timeValue;
-        };
-    }
-
-    private static final class ElectionMinRetryIntervalSettingValidator implements Setting.Validator<TimeValue> {
-        @Override
-        public void validate(final TimeValue value, final Map<Setting<TimeValue>, TimeValue> settings) {
-            validateSettings(value, settings.get(ELECTION_MAX_TIMEOUT_SETTING));
-        }
-
-        @Override
-        public Iterator<Setting<TimeValue>> settings() {
-            return Collections.singletonList(ELECTION_MAX_TIMEOUT_SETTING).iterator();
-        }
-    }
-
-    private static final class ElectionMaxRetryIntervalSettingValidator implements Setting.Validator<TimeValue> {
-        @Override
-        public void validate(final TimeValue value, final Map<Setting<TimeValue>, TimeValue> settings) {
-            validateSettings(settings.get(ELECTION_MIN_TIMEOUT_SETTING), value);
-        }
-
-        @Override
-        public Iterator<Setting<TimeValue>> settings() {
-            return Collections.singletonList(ELECTION_MIN_TIMEOUT_SETTING).iterator();
-        }
-    }
-
-    static void validateSettings(final TimeValue electionMinRetryInterval, final TimeValue electionMaxRetryInterval) {
-        if (electionMaxRetryInterval.millis() < electionMinRetryInterval.millis() + 100) {
-            throw new IllegalArgumentException(validationExceptionMessage(
-                electionMinRetryInterval.toString(), electionMaxRetryInterval.toString()));
-        }
-    }
+    public static final Setting<TimeValue> ELECTION_MAX_TIMEOUT_SETTING= Setting.timeSetting(ELECTION_MAX_TIMEOUT_SETTING_KEY,
+        TimeValue.timeValueSeconds(10), TimeValue.timeValueMillis(200), Property.NodeScope);
 
     static String validationExceptionMessage(final String electionMinTimeout, final String electionMaxTimeout) {
         return new ParameterizedMessage(
@@ -137,6 +84,10 @@ public abstract class ElectionScheduler extends AbstractComponent {
         minTimeout = ELECTION_MIN_TIMEOUT_SETTING.get(settings);
         backoffTime = ELECTION_BACK_OFF_TIME_SETTING.get(settings);
         maxTimeout = ELECTION_MAX_TIMEOUT_SETTING.get(settings);
+
+        if (maxTimeout.millis() < minTimeout.millis() + 100) {
+            throw new IllegalArgumentException(validationExceptionMessage(minTimeout.toString(), maxTimeout.toString()));
+        }
     }
 
     public void start() {

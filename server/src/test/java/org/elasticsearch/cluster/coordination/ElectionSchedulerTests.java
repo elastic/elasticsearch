@@ -22,7 +22,10 @@ package org.elasticsearch.cluster.coordination;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
+
+import java.util.Random;
 
 import static org.elasticsearch.cluster.coordination.ElectionScheduler.ELECTION_BACK_OFF_TIME_SETTING;
 import static org.elasticsearch.cluster.coordination.ElectionScheduler.ELECTION_MAX_TIMEOUT_SETTING;
@@ -99,21 +102,11 @@ public class ElectionSchedulerTests extends ESTestCase {
     public void testSettingsMustBeReasonable() {
         final Settings s0 = Settings.builder().put(ELECTION_MIN_TIMEOUT_SETTING.getKey(), "0s").build();
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> ELECTION_MIN_TIMEOUT_SETTING.get(s0));
-        assertThat(ex.getMessage(), is("Failed to parse value [0s] for setting [cluster.election.min_timeout] must be >= [1ms]"));
+        assertThat(ex.getMessage(), is("Failed to parse value [0s] for setting [cluster.election.min_timeout] must be >= 1ms"));
 
-        final Settings s1 = Settings.builder().put(ELECTION_MIN_TIMEOUT_SETTING.getKey(), "60001ms").build();
-        ex = expectThrows(IllegalArgumentException.class, () -> ELECTION_MIN_TIMEOUT_SETTING.get(s1));
-        assertThat(ex.getMessage(),
-            is("Failed to parse value [60001ms] for setting [cluster.election.min_timeout] must be <= [60s]"));
-
-        final Settings s2 = Settings.builder().put(ELECTION_MAX_TIMEOUT_SETTING.getKey(), "0s").build();
+        final Settings s2 = Settings.builder().put(ELECTION_MAX_TIMEOUT_SETTING.getKey(), "199ms").build();
         ex = expectThrows(IllegalArgumentException.class, () -> ELECTION_MAX_TIMEOUT_SETTING.get(s2));
-        assertThat(ex.getMessage(), is("Failed to parse value [0s] for setting [cluster.election.max_timeout] must be >= [1ms]"));
-
-        final Settings s3 = Settings.builder().put(ELECTION_MAX_TIMEOUT_SETTING.getKey(), "60001ms").build();
-        ex = expectThrows(IllegalArgumentException.class, () -> ELECTION_MAX_TIMEOUT_SETTING.get(s3));
-        assertThat(ex.getMessage(),
-            is("Failed to parse value [60001ms] for setting [cluster.election.max_timeout] must be <= [60s]"));
+        assertThat(ex.getMessage(), is("Failed to parse value [199ms] for setting [cluster.election.max_timeout] must be >= 200ms"));
 
         final Settings s4 = Settings.builder()
             .put(ELECTION_MIN_TIMEOUT_SETTING.getKey(), "1ms")
@@ -124,54 +117,45 @@ public class ElectionSchedulerTests extends ESTestCase {
         assertThat(ELECTION_MAX_TIMEOUT_SETTING.get(s4), is(TimeValue.timeValueSeconds(60)));
     }
 
+    private void validateSettings(Settings settings) {
+        new ElectionScheduler(settings, random(), null) {
+            @Override
+            protected void startElection() {
+                fail();
+            }
+        };
+    }
+
+    private IllegalArgumentException expectInvalid(Settings settings) {
+        return expectThrows(IllegalArgumentException.class, () -> validateSettings(settings));
+    }
+
     public void testValidationChecksMinIsReasonblyLessThanMax() {
         assertThat(validationExceptionMessage("foo", "bar"), is("Invalid election retry timeouts: " +
             "[cluster.election.min_timeout] is [foo] and [cluster.election.max_timeout] is [bar], " +
             "but [cluster.election.max_timeout] should be at least 100ms longer than [cluster.election.min_timeout]"));
 
-        {
-            final Settings s = Settings.builder().put(ELECTION_MIN_TIMEOUT_SETTING.getKey(), "9901ms").build();
-            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> ELECTION_MIN_TIMEOUT_SETTING.get(s));
-            assertThat(ex.getMessage(), is(validationExceptionMessage("9.9s", "10s")));
-            ex = expectThrows(IllegalArgumentException.class, () -> ELECTION_MAX_TIMEOUT_SETTING.get(s));
-            assertThat(ex.getMessage(), is(validationExceptionMessage("9.9s", "10s")));
-        }
+        assertThat(expectInvalid(Settings.builder().put(ELECTION_MIN_TIMEOUT_SETTING.getKey(), "9901ms").build()).getMessage(),
+            is(validationExceptionMessage("9.9s", "10s")));
 
-        {
-            final Settings s = Settings.builder().put(ELECTION_MAX_TIMEOUT_SETTING.getKey(), "199ms").build();
-            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> ELECTION_MIN_TIMEOUT_SETTING.get(s));
-            assertThat(ex.getMessage(), is(validationExceptionMessage("100ms", "199ms")));
-            ex = expectThrows(IllegalArgumentException.class, () -> ELECTION_MAX_TIMEOUT_SETTING.get(s));
-            assertThat(ex.getMessage(), is(validationExceptionMessage("100ms", "199ms")));
-        }
+        validateSettings(Settings.builder().put(ELECTION_MIN_TIMEOUT_SETTING.getKey(), "9900ms").build());
 
-        {
-            final Settings s = Settings.builder()
-                .put(ELECTION_MIN_TIMEOUT_SETTING.getKey(), "100ms")
-                .put(ELECTION_MAX_TIMEOUT_SETTING.getKey(), "199ms")
-                .build();
-            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> ELECTION_MIN_TIMEOUT_SETTING.get(s));
-            assertThat(ex.getMessage(), is(validationExceptionMessage("100ms", "199ms")));
-            ex = expectThrows(IllegalArgumentException.class, () -> ELECTION_MAX_TIMEOUT_SETTING.get(s));
-            assertThat(ex.getMessage(), is(validationExceptionMessage("100ms", "199ms")));
-        }
+        validateSettings(Settings.builder().put(ELECTION_MIN_TIMEOUT_SETTING.getKey(), "200ms").build());
 
-        {
-            final Settings s = Settings.builder()
-                .put(ELECTION_MIN_TIMEOUT_SETTING.getKey(), "100ms")
-                .put(ELECTION_MAX_TIMEOUT_SETTING.getKey(), "200ms")
-                .build();
-            assertThat(ELECTION_MIN_TIMEOUT_SETTING.get(s), is(TimeValue.timeValueMillis(100)));
-            assertThat(ELECTION_MAX_TIMEOUT_SETTING.get(s), is(TimeValue.timeValueMillis(200)));
-        }
+        assertThat(expectInvalid(Settings.builder()
+                .put(ELECTION_MIN_TIMEOUT_SETTING.getKey(), "150ms")
+                .put(ELECTION_MAX_TIMEOUT_SETTING.getKey(), "249ms")
+                .build()).getMessage(),
+            is(validationExceptionMessage("150ms", "249ms")));
 
-        {
-            final Settings s = Settings.builder()
-                .put(ELECTION_MIN_TIMEOUT_SETTING.getKey(), "10s")
-                .put(ELECTION_MAX_TIMEOUT_SETTING.getKey(), "20s")
-                .build();
-            assertThat(ELECTION_MIN_TIMEOUT_SETTING.get(s), is(TimeValue.timeValueSeconds(10)));
-            assertThat(ELECTION_MAX_TIMEOUT_SETTING.get(s), is(TimeValue.timeValueSeconds(20)));
-        }
+        validateSettings(Settings.builder()
+            .put(ELECTION_MIN_TIMEOUT_SETTING.getKey(), "150ms")
+            .put(ELECTION_MAX_TIMEOUT_SETTING.getKey(), "250ms")
+            .build());
+
+        validateSettings(Settings.builder()
+            .put(ELECTION_MIN_TIMEOUT_SETTING.getKey(), "149ms")
+            .put(ELECTION_MAX_TIMEOUT_SETTING.getKey(), "249ms")
+            .build());
     }
 }

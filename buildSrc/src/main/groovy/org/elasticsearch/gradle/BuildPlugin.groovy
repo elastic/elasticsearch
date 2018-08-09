@@ -395,24 +395,6 @@ class BuildPlugin implements Plugin<Project> {
         project.plugins.withType(ShadowPlugin).whenPluginAdded {
             Configuration bundle = project.configurations.create('bundle')
             bundle.dependencies.all(disableTransitiveDeps)
-            boolean isEclipse = project.ext.has('isEclipse') ? project.isEclipse : false
-            boolean isIdea = project.ext.has('isIdea') ? project.isIdea : false
-            if (isEclipse || isIdea) {
-                /*
-                 * IntelliJ and Eclipse don't know about the shadow plugin so
-                 * when we're in "IntelliJ mode" or "Eclipse mode" add
-                 * "runtime" dependencies eveywhere where we see a "shadow"
-                 * dependency which will cause them to reference shadowed
-                 * projects directly rather than rely on the shadowing to
-                 * include them. This is the correct thing for it to do
-                 * because it doesn't run the jar shadowing at all. This isn't
-                 * needed for the project itself because the IDE configuration
-                 * is done by SourceSets but it is *is* needed for projects
-                 * that depends on the project doing the shadowing. Without
-                 * this they won't properly depend on the shadowed project.
-                 */
-                project.configurations.compile.extendsFrom project.configurations.bundle
-            }
         }
     }
 

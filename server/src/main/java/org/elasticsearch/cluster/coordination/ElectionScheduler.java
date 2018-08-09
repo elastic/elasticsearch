@@ -109,7 +109,7 @@ public abstract class ElectionScheduler extends AbstractComponent {
                     return "isRunningSupplier[" + schedulerIdentity + "]";
                 }
             };
-            logger.trace("starting {}", currentScheduler);
+            logger.debug("starting {}", currentScheduler);
         }
 
         scheduleNextElection(isRunningSupplier);
@@ -118,7 +118,7 @@ public abstract class ElectionScheduler extends AbstractComponent {
     public void stop() {
         synchronized (mutex) {
             assert currentScheduler != null;
-            logger.trace("stopping {}", currentScheduler);
+            logger.debug("stopping {}", currentScheduler);
             currentScheduler = null;
         }
     }
@@ -127,12 +127,12 @@ public abstract class ElectionScheduler extends AbstractComponent {
         final long delay;
         synchronized (mutex) {
             if (isRunningSupplier.getAsBoolean() == false) {
-                logger.trace("{} not scheduling election", isRunningSupplier);
+                logger.debug("{} not scheduling election", isRunningSupplier);
                 return;
             }
             currentDelayMillis = Math.min(maxTimeout.getMillis(), currentDelayMillis + backoffTime.getMillis());
             delay = randomLongBetween(minTimeout.getMillis(), currentDelayMillis + 1);
-            logger.trace("{} scheduling election with delay [{}ms] (min={}, current={}, backoff={}, max={})",
+            logger.debug("{} scheduling election with delay [{}ms] (min={}, current={}, backoff={}, max={})",
                 delay, minTimeout, currentDelayMillis, backoffTime, maxTimeout);
         }
         threadPool.schedule(TimeValue.timeValueMillis(delay), Names.GENERIC, new AbstractRunnable() {
@@ -146,11 +146,11 @@ public abstract class ElectionScheduler extends AbstractComponent {
             protected void doRun() {
                 synchronized (mutex) {
                     if (isRunningSupplier.getAsBoolean() == false) {
-                        logger.trace("{} not starting election", isRunningSupplier);
+                        logger.debug("{} not starting election", isRunningSupplier);
                         return;
                     }
                 }
-                logger.trace("{} starting election", isRunningSupplier);
+                logger.debug("{} starting election", isRunningSupplier);
                 startElection();
             }
 

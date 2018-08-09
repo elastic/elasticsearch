@@ -39,6 +39,9 @@ import org.elasticsearch.threadpool.ThreadPool;
  * Holder class for several ingest related services.
  */
 public class IngestService {
+
+    public static final String NOOP_PIPELINE_NAME = "_none";
+
     private final PipelineStore pipelineStore;
     private final PipelineExecutionService pipelineExecutionService;
 

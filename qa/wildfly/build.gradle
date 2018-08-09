@@ -84,7 +84,7 @@ task deploy(type: Copy) {
 }
 
 task writeElasticsearchProperties {
-    onlyIf { !Os.isFamily(Os.FAMILY_WINDOWS) }
+    onlyIf { !Os.isFamily(Os.FAMILY_WINDOWS) && !inFipsJvm }
     dependsOn 'integTestCluster#wait', deploy
     doLast {
         final File elasticsearchProperties = file("${wildflyInstall}/standalone/configuration/elasticsearch.properties")
@@ -178,7 +178,7 @@ task stopWildfly(type: LoggedExec) {
     commandLine "${wildflyInstall}/bin/jboss-cli.sh", "--controller=localhost:${-> managementPort}", "--connect", "command=shutdown"
 }
 
-if (!Os.isFamily(Os.FAMILY_WINDOWS)) {
+if (!Os.isFamily(Os.FAMILY_WINDOWS) && !inFipsJvm) {
     integTestRunner.dependsOn(configureTransportClient)
     final TaskExecutionAdapter logDumpListener = new TaskExecutionAdapter() {
         @Override

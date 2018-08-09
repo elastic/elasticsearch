@@ -24,7 +24,6 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.WriterConstants;
-import org.elasticsearch.painless.lookup.PainlessClass;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 
@@ -56,11 +55,10 @@ final class PSubListShortcut extends AStoreable {
 
     @Override
     void analyze(Locals locals) {
-        PainlessClass struct = locals.getPainlessLookup().getPainlessStructFromJavaClass(targetClass);
         String canonicalClassName = PainlessLookupUtility.typeToCanonicalTypeName(targetClass);
 
-        getter = struct.methods.get(PainlessLookupUtility.buildPainlessMethodKey("get", 1));
-        setter = struct.methods.get(PainlessLookupUtility.buildPainlessMethodKey("set", 2));
+        getter = locals.getPainlessLookup().lookupPainlessMethod(targetClass, false, "get", 1);
+        setter = locals.getPainlessLookup().lookupPainlessMethod(targetClass, false, "set", 2);
 
         if (getter != null && (getter.returnType == void.class || getter.typeParameters.size() != 1 ||
             getter.typeParameters.get(0) != int.class)) {

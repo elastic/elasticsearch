@@ -80,7 +80,14 @@ import static java.util.Collections.emptyList;
 public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin {
 
     public static final String BASE_PATH = "/_xpack/rollup/";
-    public static final int ROLLUP_VERSION = 1;
+
+    // Introduced in ES version 6.3
+    public static final int ROLLUP_VERSION_V1 = 1;
+    // Introduced in ES Version 6.4
+    // Bumped due to ID collision, see #32372
+    public static final int ROLLUP_VERSION_V2 = 2;
+    public static final int CURRENT_ROLLUP_VERSION = ROLLUP_VERSION_V2;
+
     public static final String TASK_THREAD_POOL_NAME = RollupField.NAME + "_indexing";
     public static final String SCHEDULE_THREAD_POOL_NAME = RollupField.NAME + "_scheduler";
 

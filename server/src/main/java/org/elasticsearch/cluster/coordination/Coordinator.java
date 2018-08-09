@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 //TODO: add a test that sends random joins and checks if the join led to success (the fake masterservice fully manages state)
 // i.e. similar to NodeJoinControllerTests
@@ -35,16 +36,18 @@ public class Coordinator extends AbstractLifecycleComponent {
 
 
     private final JoinTaskExecutor joinTaskExecutor;
+    private final Supplier<CoordinationState.PersistedState> persistedStateSupplier;
 
     // similar to NodeJoinController.ElectionContext.joinRequestAccumulator, captures joins on election
     private final Map<DiscoveryNode, MembershipAction.JoinCallback> joinRequestAccumulator = new HashMap<>();
 
 
     public Coordinator(Settings settings, TransportService transportService, AllocationService allocationService,
-                       MasterService masterService) {
+                       MasterService masterService, Supplier<CoordinationState.PersistedState> persistedStateSupplier) {
         super(settings);
         this.transportService = transportService;
         this.masterService = masterService;
+        this.persistedStateSupplier = persistedStateSupplier;
         this.mode = Mode.CANDIDATE;
         lastKnownLeader = Optional.empty();
         lastJoin = Optional.empty();
@@ -256,7 +259,8 @@ public class Coordinator extends AbstractLifecycleComponent {
 
     @Override
     protected void doStart() {
-
+        CoordinationState.PersistedState persistedState = persistedStateSupplier.get();
+        consensusState.set(new CoordinationState(settings, getLocalNode(), persistedState));
     }
 
     public void startInitialJoin() {

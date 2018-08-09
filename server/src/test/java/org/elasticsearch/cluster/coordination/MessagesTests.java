@@ -174,4 +174,17 @@ public class MessagesTests extends ESTestCase {
             new ClusterState.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(10, 10, false))),
             randomLong());
     }
+
+    public void testPreVoteRequestEqualsHashCodeSerialization() {
+        PreVoteRequest initialPreVoteRequest = new PreVoteRequest(createNode(randomAlphaOfLength(10)), randomNonNegativeLong());
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(initialPreVoteRequest,
+            preVoteRequest -> copyWriteable(preVoteRequest, writableRegistry(), PreVoteRequest::new),
+            preVoteRequest -> {
+                if (randomBoolean()) {
+                    return new PreVoteRequest(createNode(randomAlphaOfLength(10)), preVoteRequest.getCurrentTerm());
+                } else {
+                    return new PreVoteRequest(preVoteRequest.getSourceNode(), randomNonNegativeLong());
+                }
+            });
+    }
 }

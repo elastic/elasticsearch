@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.indexlifecycle.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
@@ -19,18 +20,17 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.protocol.xpack.indexlifecycle.OperationMode;
 import org.elasticsearch.protocol.xpack.indexlifecycle.StopILMRequest;
-import org.elasticsearch.protocol.xpack.indexlifecycle.StopILMResponse;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.indexlifecycle.action.StopILMAction;
 import org.elasticsearch.xpack.indexlifecycle.OperationModeUpdateTask;
 
-public class TransportStopILMAction extends TransportMasterNodeAction<StopILMRequest, StopILMResponse> {
+public class TransportStopILMAction extends TransportMasterNodeAction<StopILMRequest, AcknowledgedResponse> {
 
     @Inject
     public TransportStopILMAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                           ThreadPool threadPool, ActionFilters actionFilters,
-                                           IndexNameExpressionResolver indexNameExpressionResolver) {
+                                  ThreadPool threadPool, ActionFilters actionFilters,
+                                  IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, StopILMAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
                 StopILMRequest::new);
     }
@@ -41,22 +41,22 @@ public class TransportStopILMAction extends TransportMasterNodeAction<StopILMReq
     }
 
     @Override
-    protected StopILMResponse newResponse() {
-        return new StopILMResponse();
+    protected AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     @Override
-    protected void masterOperation(StopILMRequest request, ClusterState state, ActionListener<StopILMResponse> listener) {
+    protected void masterOperation(StopILMRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("ilm_operation_mode_update",
-                new AckedClusterStateUpdateTask<StopILMResponse>(request, listener) {
+                new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                         return (new OperationModeUpdateTask(OperationMode.STOPPING)).execute(currentState);
                 }
 
                 @Override
-                    protected StopILMResponse newResponse(boolean acknowledged) {
-                        return new StopILMResponse(acknowledged);
+                    protected AcknowledgedResponse newResponse(boolean acknowledged) {
+                        return new AcknowledgedResponse(acknowledged);
                 }
             });
     }

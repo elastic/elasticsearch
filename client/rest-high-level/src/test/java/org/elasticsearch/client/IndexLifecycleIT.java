@@ -25,6 +25,7 @@ import org.apache.http.nio.entity.NStringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleResponse;
@@ -32,9 +33,7 @@ import org.elasticsearch.protocol.xpack.indexlifecycle.IndexLifecycleExplainResp
 import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyResponse;
 import org.elasticsearch.protocol.xpack.indexlifecycle.StartILMRequest;
-import org.elasticsearch.protocol.xpack.indexlifecycle.StartILMResponse;
 import org.elasticsearch.protocol.xpack.indexlifecycle.StopILMRequest;
-import org.elasticsearch.protocol.xpack.indexlifecycle.StopILMResponse;
 import org.hamcrest.Matchers;
 
 import java.util.Map;
@@ -177,7 +176,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         assertEquals("{\"operation_mode\":\"RUNNING\"}", statusResponseString);
         
         StopILMRequest stopReq = new StopILMRequest();
-        StopILMResponse stopResponse = execute(stopReq, highLevelClient().indexLifecycle()::stopILM,
+        AcknowledgedResponse stopResponse = execute(stopReq, highLevelClient().indexLifecycle()::stopILM,
                 highLevelClient().indexLifecycle()::stopILMAsync);
         assertTrue(stopResponse.isAcknowledged());
 
@@ -189,7 +188,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
                 Matchers.anyOf(equalTo("{\"operation_mode\":\"STOPPING\"}"), equalTo("{\"operation_mode\":\"STOPPED\"}")));
         
         StartILMRequest startReq = new StartILMRequest();
-        StartILMResponse startResponse = execute(startReq, highLevelClient().indexLifecycle()::startILM,
+        AcknowledgedResponse startResponse = execute(startReq, highLevelClient().indexLifecycle()::startILM,
                 highLevelClient().indexLifecycle()::startILMAsync);
         assertTrue(startResponse.isAcknowledged());
 

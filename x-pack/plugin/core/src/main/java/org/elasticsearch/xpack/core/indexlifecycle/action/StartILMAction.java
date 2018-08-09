@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.core.indexlifecycle.action;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.protocol.xpack.indexlifecycle.StartILMResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 
-public class StartILMAction extends Action<StartILMResponse> {
+public class StartILMAction extends Action<AcknowledgedResponse> {
     public static final StartILMAction INSTANCE = new StartILMAction();
     public static final String NAME = "cluster:admin/ilm/start";
 
@@ -18,8 +18,8 @@ public class StartILMAction extends Action<StartILMResponse> {
     }
 
     @Override
-    public StartILMResponse newResponse() {
-        return new StartILMResponse();
+    public AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
 }

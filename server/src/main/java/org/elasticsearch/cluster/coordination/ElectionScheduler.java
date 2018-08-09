@@ -89,7 +89,6 @@ public abstract class ElectionScheduler extends AbstractComponent {
     private long currentDelayMillis;
 
     ElectionScheduler(Settings settings, Random random, TransportService transportService) {
-
         super(settings);
 
         this.random = random;
@@ -247,36 +246,7 @@ public abstract class ElectionScheduler extends AbstractComponent {
                     new TransportResponseHandler<PreVoteResponse>() {
                         @Override
                         public void handleResponse(PreVoteResponse response) {
-                            if (isRunningSupplier.getAsBoolean() == false) {
-                                logger.debug("{} ignoring {} as no longer running", this, response);
-                                return;
-                            }
-
-                            final long currentMaxTermSeen = maxTermSeen.accumulateAndGet(response.getCurrentTerm(), Math::max);
-
-                            if (response.getLastAcceptedTerm() > localPreVoteResponse.getLastAcceptedTerm()
-                                || (response.getLastAcceptedTerm() == localPreVoteResponse.getLastAcceptedTerm()
-                                && response.getLastAcceptedVersion() > localPreVoteResponse.getLastAcceptedVersion())) {
-                                logger.debug("{} ignoring {} as it is fresher", this, response);
-                                return;
-                            }
-
-                            preVotesReceived.add(n);
-                            final VoteCollection voteCollection = new VoteCollection();
-                            preVotesReceived.forEach(voteCollection::addVote);
-
-                            if (isElectionQuorum(voteCollection) == false) {
-                                logger.debug("{} added {}, no quorum yet", this, response);
-                                return;
-                            }
-
-                            if (electionStarted.compareAndSet(false, true) == false) {
-                                logger.debug("{} added {} but election has already started", this, response);
-                                return;
-                            }
-
-                            logger.debug("{} added {}, starting election", this, response);
-                            startElection(currentMaxTermSeen);
+                            handlePreVoteResponse(response, n);
                         }
 
                         @Override
@@ -298,8 +268,40 @@ public abstract class ElectionScheduler extends AbstractComponent {
                             return "TransportResponseHandler{" + PreVoteCollector.this + ", node=" + n + '}';
                         }
                     });
-
             });
+        }
+
+        private void handlePreVoteResponse(PreVoteResponse response, DiscoveryNode sender) {
+            if (isRunningSupplier.getAsBoolean() == false) {
+                logger.debug("{} ignoring {} from {} as no longer running", this, response, sender);
+                return;
+            }
+
+            final long currentMaxTermSeen = maxTermSeen.accumulateAndGet(response.getCurrentTerm(), Math::max);
+
+            if (response.getLastAcceptedTerm() > localPreVoteResponse.getLastAcceptedTerm()
+                || (response.getLastAcceptedTerm() == localPreVoteResponse.getLastAcceptedTerm()
+                && response.getLastAcceptedVersion() > localPreVoteResponse.getLastAcceptedVersion())) {
+                logger.debug("{} ignoring {} from {} as it is fresher", this, response);
+                return;
+            }
+
+            preVotesReceived.add(sender);
+            final VoteCollection voteCollection = new VoteCollection();
+            preVotesReceived.forEach(voteCollection::addVote);
+
+            if (isElectionQuorum(voteCollection) == false) {
+                logger.debug("{} added {} from {}, no quorum yet", this, response, sender);
+                return;
+            }
+
+            if (electionStarted.compareAndSet(false, true) == false) {
+                logger.debug("{} added {} from {} but election has already started", this, response, sender);
+                return;
+            }
+
+            logger.debug("{} added {} from {}, starting election in term > {}", this, response, sender, currentMaxTermSeen);
+            startElection(currentMaxTermSeen);
         }
 
         @Override

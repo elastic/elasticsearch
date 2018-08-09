@@ -20,19 +20,24 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
+import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 
 import static java.util.Collections.emptySet;
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.coordination.ElectionScheduler.ELECTION_BACK_OFF_TIME_SETTING;
 import static org.elasticsearch.cluster.coordination.ElectionScheduler.ELECTION_MAX_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.coordination.ElectionScheduler.ELECTION_MIN_TIMEOUT_SETTING;
+import static org.elasticsearch.cluster.coordination.ElectionScheduler.REQUEST_PRE_VOTE_ACTION_NAME;
 import static org.elasticsearch.cluster.coordination.ElectionScheduler.validationExceptionMessage;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -49,15 +54,41 @@ public class ElectionSchedulerTests extends ESTestCase {
     public void createObjects() {
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build();
         deterministicTaskQueue = new DeterministicTaskQueue(settings);
-        final Transport capturingTransport = new CapturingTransport();
+        final Transport capturingTransport = new CapturingTransport() {
+            @Override
+            protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
+                fail(action + " " + request + " " + node);
+            }
+        };
         final DiscoveryNode localNode = new DiscoveryNode("local-node", buildNewFakeTransportAddress(), Version.CURRENT);
         final TransportService transportService = new TransportService(settings, capturingTransport,
             deterministicTaskQueue.getThreadPool(), TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundTransportAddress -> localNode, null, emptySet());
+        transportService.start();
+        transportService.acceptIncomingRequests();
+
+        transportService.registerRequestHandler(REQUEST_PRE_VOTE_ACTION_NAME, Names.GENERIC, PreVoteRequest::new,
+            (request, channel, task) -> channel.sendResponse(new PreVoteResponse(3, 2, 1)));
+
         electionScheduler = new ElectionScheduler(settings, random(), transportService) {
             @Override
             protected void startElection(long maxTermSeen) {
                 electionOccurred = true;
+            }
+
+            @Override
+            protected Iterable<DiscoveryNode> getBroadcastNodes() {
+                return singletonList(localNode);
+            }
+
+            @Override
+            protected boolean isElectionQuorum(VoteCollection voteCollection) {
+                return voteCollection.containsVoteFor(localNode);
+            }
+
+            @Override
+            protected PreVoteResponse getLocalPreVoteResponse() {
+                return new PreVoteResponse(3, 2, 1);
             }
         };
     }
@@ -130,6 +161,21 @@ public class ElectionSchedulerTests extends ESTestCase {
             @Override
             protected void startElection(long maxTermSeen) {
                 fail();
+            }
+
+            @Override
+            protected Iterable<DiscoveryNode> getBroadcastNodes() {
+                throw new AssertionError("unexpected");
+            }
+
+            @Override
+            protected boolean isElectionQuorum(VoteCollection voteCollection) {
+                throw new AssertionError("unexpected");
+            }
+
+            @Override
+            protected PreVoteResponse getLocalPreVoteResponse() {
+                throw new AssertionError("unexpected");
             }
         };
     }

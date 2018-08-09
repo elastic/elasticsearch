@@ -17,6 +17,8 @@ dependencies {
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
+check.dependsOn 'qa:with-security:integTestRunner'
+
 integTestCluster {
     numNodes = 2
     clusterName = 'ilm'

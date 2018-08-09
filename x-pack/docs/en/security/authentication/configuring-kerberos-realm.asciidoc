@@ -204,7 +204,7 @@ Configured via the role-mapping API:
 --------------------------------------------------
 POST _xpack/security/role_mapping/kerbrolemapping
 {
-  "roles" : [ "monitoring" , "user" ],
+  "roles" : [ "monitoring_user" ],
   "enabled": true,
   "rules" : {
     "field" : { "username" : "user@REALM" }

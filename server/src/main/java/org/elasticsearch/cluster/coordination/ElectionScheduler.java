@@ -72,7 +72,7 @@ public abstract class ElectionScheduler extends AbstractComponent {
     private final ThreadPool threadPool;
     private final Random random;
 
-    private final Object mutex = new Object();
+    private final Object schedulerMutex = new Object(); // protects fields related to scheduling:
     private Object currentScheduler; // only care about its identity
     private long nextSchedulerIdentity;
     private long currentDelayMillis;
@@ -94,14 +94,14 @@ public abstract class ElectionScheduler extends AbstractComponent {
 
     public void start() {
         final BooleanSupplier isRunningSupplier;
-        synchronized (mutex) {
+        synchronized (schedulerMutex) {
             assert currentScheduler == null;
             final long schedulerIdentity = nextSchedulerIdentity++;
             currentDelayMillis = minTimeout.millis();
             currentScheduler = isRunningSupplier = new BooleanSupplier() {
                 @Override
                 public boolean getAsBoolean() {
-                    assert Thread.holdsLock(mutex) : "ElectionScheduler mutex not held";
+                    assert Thread.holdsLock(schedulerMutex) : "ElectionScheduler schedulerMutex not held";
                     return this == currentScheduler;
                 }
 
@@ -117,7 +117,7 @@ public abstract class ElectionScheduler extends AbstractComponent {
     }
 
     public void stop() {
-        synchronized (mutex) {
+        synchronized (schedulerMutex) {
             assert currentScheduler != null;
             logger.debug("stopping {}", currentScheduler);
             currentScheduler = null;
@@ -126,7 +126,7 @@ public abstract class ElectionScheduler extends AbstractComponent {
 
     private void scheduleNextElection(final BooleanSupplier isRunningSupplier) {
         final long delay;
-        synchronized (mutex) {
+        synchronized (schedulerMutex) {
             if (isRunningSupplier.getAsBoolean() == false) {
                 logger.debug("{} not scheduling election", isRunningSupplier);
                 return;
@@ -145,7 +145,7 @@ public abstract class ElectionScheduler extends AbstractComponent {
 
             @Override
             protected void doRun() {
-                synchronized (mutex) {
+                synchronized (schedulerMutex) {
                     if (isRunningSupplier.getAsBoolean() == false) {
                         logger.debug("{} not starting election", isRunningSupplier);
                         return;

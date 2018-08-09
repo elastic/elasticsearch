@@ -564,7 +564,6 @@ thirdPartyAudit.excludes = [
   // we are not pulling in slf4j-ext, this is okay, Log4j will fallback gracefully
   'org.slf4j.ext.EventData',
 
-  'org.apache.log4j.AppenderSkeleton',
   'org.apache.log4j.AsyncAppender',
   'org.apache.log4j.helpers.ISO8601DateFormat',
   'org.apache.log4j.spi.ThrowableInformation',

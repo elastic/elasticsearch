@@ -1,5 +1,6 @@
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
@@ -9,13 +10,21 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.MembershipAction;
 import org.elasticsearch.discovery.zen.NodeJoinController;
 import org.elasticsearch.discovery.zen.NodeJoinController.JoinTaskExecutor;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponse.Empty;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,6 +34,8 @@ import java.util.function.Supplier;
 //TODO: add a test that sends random joins and checks if the join led to success (the fake masterservice fully manages state)
 // i.e. similar to NodeJoinControllerTests
 public class Coordinator extends AbstractLifecycleComponent {
+
+    public static final String JOIN_ACTION_NAME = "internal:discovery/zen2/join";
 
     private final Object mutex = new Object();
     private Mode mode;
@@ -85,6 +96,64 @@ public class Coordinator extends AbstractLifecycleComponent {
             }
 
         };
+    }
+
+    private void registerTransportActions() {
+        transportService.registerRequestHandler(JOIN_ACTION_NAME, Names.GENERIC, false, false,
+            JoinRequest::new,
+            (request, channel, task) -> handleJoinRequest(request, new MembershipAction.JoinCallback() {
+                @Override
+                public void onSuccess() {
+                    try {
+                        channel.sendResponse(Empty.INSTANCE);
+                    } catch (IOException e) {
+                        onFailure(e);
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    try {
+                        channel.sendResponse(e);
+                    } catch (Exception inner) {
+                        inner.addSuppressed(e);
+                        logger.warn("failed to send back failure on join request", inner);
+                    }
+                }
+            }));
+    }
+
+    // TODO: maybe add this method in a follow-up.
+    private void sendOptionalJoin(DiscoveryNode destination, Optional<Join> optionalJoin) {
+        // No synchronisation required
+        transportService.sendRequest(destination, JOIN_ACTION_NAME, new JoinRequest(getLocalNode(), optionalJoin),
+            new TransportResponseHandler<Empty>() {
+                @Override
+                public Empty read(StreamInput in) {
+                    return Empty.INSTANCE;
+                }
+
+                @Override
+                public void handleResponse(Empty response) {
+                    // No synchronisation required
+                    logger.debug("SendJoinResponseHandler: successfully joined {}", destination);
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    // No synchronisation required
+                    if (exp.getRootCause() instanceof CoordinationStateRejectedException) {
+                        logger.debug("SendJoinResponseHandler: [{}] failed: {}", destination, exp.getRootCause().getMessage());
+                    } else {
+                        logger.debug(() -> new ParameterizedMessage("SendJoinResponseHandler: [{}] failed", destination), exp);
+                    }
+                }
+
+                @Override
+                public String executor() {
+                    return Names.GENERIC;
+                }
+            });
     }
 
     // package-visible for testing

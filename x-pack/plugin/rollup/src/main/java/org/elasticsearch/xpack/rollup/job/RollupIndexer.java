@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.rollup.job;
 
-import org.apache.log4j.Logger;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.unit.TimeValue;
@@ -35,16 +34,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * An abstract class that builds a rollup index incrementally. A background job can be launched using {@link #maybeTriggerAsyncJob(long)},
- * it will create the rollup index from the source index up to the last complete bucket that is allowed to be built (based on the current
- * time and the delay set on the rollup job). Only one background job can run simultaneously and {@link #onFinish()} is called when the job
- * finishes. {@link #onFailure(Exception)} is called if the job fails with an exception and {@link #onAbort()} is called if the indexer is
- * aborted while a job is running. The indexer must be started ({@link #start()} to allow a background job to run when
- * {@link #maybeTriggerAsyncJob(long)} is called. {@link #stop()} can be used to stop the background job without aborting the indexer.
+ * An abstract implementation of {@link IterativeIndexer} that builds a rollup index incrementally.
  */
 public abstract class RollupIndexer extends IterativeIndexer<Map<String, Object> > {
-    private static final Logger logger = Logger.getLogger(RollupIndexer.class.getName());
-
     static final String AGGREGATION_NAME = RollupField.NAME;
 
     private final RollupJob job;
@@ -58,35 +50,32 @@ public abstract class RollupIndexer extends IterativeIndexer<Map<String, Object>
      * @param job The rollup job
      * @param initialState Initial state for the indexer
      * @param initialPosition The last indexed bucket of the task
+     * @param upgradedDocumentID whether job has updated IDs (for BWC)
      */
-    RollupIndexer(Executor executor, RollupJob job, AtomicReference<IndexerState> initialState,
-        super(executor, initialState, initialPosition);
+    RollupIndexer(Executor executor, RollupJob job, AtomicReference<IndexerState> initialState, Map<String, Object> initialPosition,
+            AtomicBoolean upgradedDocumentID) {
+        super(executor, initialState, initialPosition, new RollupJobStats());
         this.job = job;
         this.compositeBuilder = createCompositeBuilder(job.getConfig());
         this.upgradedDocumentID = upgradedDocumentID;
     }
 
-    @Override
-    protected RollupJobStats newJobStats() {
-        return new RollupJobStats();
+    /**
      * Returns if this job has upgraded it's ID scheme yet or not
      */
     public boolean isUpgradedDocumentID() {
         return upgradedDocumentID.get();
     }
 
-    /**
-    }
-    
     @Override
     protected String getJobId() {
-        return job.getId();
+        return job.getConfig().getId();
     }
 
     @Override
     protected void onStart(long now) {
         // this is needed to exclude buckets that can still receive new documents.
-        DateHistoGroupConfig dateHisto = job.getConfig().getGroupConfig().getDateHisto();
+        DateHistogramGroupConfig dateHisto = job.getConfig().getGroupConfig().getDateHistogram();
         long rounded = dateHisto.createRounding().round(now);
         if (dateHisto.getDelay() != null) {
             // if the job has a delay we filter all documents that appear before it.
@@ -114,9 +103,11 @@ public abstract class RollupIndexer extends IterativeIndexer<Map<String, Object>
     protected Iteration<Map<String, Object>> doProcess(SearchResponse searchResponse) {
         final CompositeAggregation response = searchResponse.getAggregations().get(AGGREGATION_NAME);
 
-        return new Iteration<>(IndexerUtils.processBuckets(response, job.getConfig().getRollupIndex(), (RollupJobStats) stats,
-                job.getConfig().getGroupConfig(), job.getConfig().getId()), response.afterKey(), response.getBuckets().isEmpty());
-    }    
+        return new Iteration<>(
+                IndexerUtils.processBuckets(response, job.getConfig().getRollupIndex(), (RollupJobStats) getStats(),
+                        job.getConfig().getGroupConfig(), job.getConfig().getId(), upgradedDocumentID.get()),
+                response.afterKey(), response.getBuckets().isEmpty());
+    }
 
     /**
      * Creates a skeleton {@link CompositeAggregationBuilder} from the provided job config.

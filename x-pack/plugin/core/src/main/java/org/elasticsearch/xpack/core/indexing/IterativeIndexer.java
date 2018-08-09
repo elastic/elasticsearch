@@ -19,20 +19,33 @@ import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 
+/**
+ * An abstract class that builds an index incrementally. A background job can be launched using {@link #maybeTriggerAsyncJob(long)},
+ * it will create the index from the source index up to the last complete bucket that is allowed to be built (based on job position). 
+ * Only one background job can run simultaneously and {@link #onFinish()} is called when the job
+ * finishes. {@link #onFailure(Exception)} is called if the job fails with an exception and {@link #onAbort()} is called if the indexer is
+ * aborted while a job is running. The indexer must be started ({@link #start()} to allow a background job to run when
+ * {@link #maybeTriggerAsyncJob(long)} is called. {@link #stop()} can be used to stop the background job without aborting the indexer.
+ *
+ * In a nutshell this is a 2 cycle engine: 1st it sends a query, 2nd it indexes documents based on the response, sends the next query, 
+ * indexes, queries, indexes, ... until a condition lets the engine stop.
+ *
+ * @param <JobPosition> Type that defines a job position to be defined by the implementation.
+ */
 public abstract class IterativeIndexer<JobPosition> {
     private static final Logger logger = Logger.getLogger(IterativeIndexer.class.getName());
 
-    protected final IndexerStats stats;
+    private final IndexerStats stats;
 
-    protected final AtomicReference<IndexerState> state;
-    protected final AtomicReference<JobPosition> position;
-    protected final Executor executor;
+    private final AtomicReference<IndexerState> state;
+    private final AtomicReference<JobPosition> position;
+    private final Executor executor;
 
-    protected IterativeIndexer(Executor executor, AtomicReference<IndexerState> initialState, JobPosition initialPosition) {
+    protected IterativeIndexer(Executor executor, AtomicReference<IndexerState> initialState, JobPosition initialPosition, IndexerStats stats) {
         this.executor = executor;
         this.state = initialState;
         this.position = new AtomicReference<>(initialPosition);
-        this.stats = newJobStats();
+        this.stats = stats;
     }
 
     /**
@@ -152,14 +165,34 @@ public abstract class IterativeIndexer<JobPosition> {
         }
     }
 
-    protected abstract IndexerStats newJobStats();
-    
+    /**
+     * Called to get the Id of the job, used for logging.
+     * 
+     * @return
+     */
     protected abstract String getJobId();
-    
+
+    /**
+     * Called to process a response from the 1 search request in order to turn it into a {@link Iteration}.
+     * 
+     * @param searchResponse response from the search phase.
+     * @return Iteration object to be passed to indexing phase.
+     */
     protected abstract Iteration<JobPosition> doProcess(SearchResponse searchResponse);
-    
+
+    /**
+     * Called to build the next search request.
+     * 
+     * @return SearchRequest to be passed to the search phase.
+     */
     protected abstract SearchRequest buildSearchRequest();
 
+    /**
+     * Called at startup after job has been triggered using {@link #maybeTriggerAsyncJob(long)} and the 
+     * internal state is {@link IndexerState#STARTED}.
+     * 
+     * @param now The current time in milliseconds passed through from {@link #maybeTriggerAsyncJob(long)}
+     */
     protected abstract void onStart(long now);
 
     /**

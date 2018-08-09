@@ -57,69 +57,69 @@ result in a `datetime` field.
 
 [source,Painless]
 ----
-<1> String[] split(String s, char d) {
-      int count = 0;
+String[] split(String s, char d) {                                   <1>
+    int count = 0;
 
-<2>     for (char c : s.toCharArray()) {
-          if (c == d) {
-              ++count;
-          }
-      }
+    for (char c : s.toCharArray()) {                                 <2>
+        if (c == d) {
+            ++count;
+        }
+    }
 
-<3>     if (count == 0) {
-          return new String[] {s};
-      }
+    if (count == 0) {
+        return new String[] {s};                                     <3>
+    }
 
-<4>     String[] r = new String[count + 1];
-      int i0 = 0, i1 = 0;
-      count = 0;
+    String[] r = new String[count + 1];                              <4>
+    int i0 = 0, i1 = 0;
+    count = 0;
 
-<5>     for (char c : s.toCharArray()) {
-          if (c == d) {
-              r[count++] = s.substring(i0, i1);
-              i0 = i1 + 1;
-          }
+    for (char c : s.toCharArray()) {                                 <5>
+        if (c == d) {
+            r[count++] = s.substring(i0, i1);
+            i0 = i1 + 1;
+        }
 
-          ++i1;
-      }
+        ++i1;
+    }
 
-<6>     r[count] = s.substring(i0, i1);
+    r[count] = s.substring(i0, i1);                                  <6>
 
-      return r;
-  }
+    return r;
+}
 
-<7> String[] dateSplit = split(ctx.date, (char)"-");
-  String year = dateSplit[0].trim();
-  String month = dateSplit[1].trim();
+String[] dateSplit = split(ctx.date, (char)"-");                     <7>
+String year = dateSplit[0].trim();
+String month = dateSplit[1].trim();
 
-<8> if (month.length() == 1) {
-      month = "0" + month;
-  }
+if (month.length() == 1) {                                           <8>
+    month = "0" + month;
+}
 
-  String day = dateSplit[2].trim();
+String day = dateSplit[2].trim();
 
-<9> if (day.length() == 1) {
-      day = "0" + day;
-  }
+if (day.length() == 1) {                                             <9>
+    day = "0" + day;
+}
 
-<10> boolean pm = ctx.time.substring(ctx.time.length() - 2).equals("PM");
-<11> String[] timeSplit = split(
-          ctx.time.substring(0, ctx.time.length() - 2), (char)":");
-  int hours = Integer.parseInt(timeSplit[0].trim());
-  int minutes = Integer.parseInt(timeSplit[1].trim());
+boolean pm = ctx.time.substring(ctx.time.length() - 2).equals("PM"); <10>
+String[] timeSplit = split(                                          <11>
+        ctx.time.substring(0, ctx.time.length() - 2), (char)":");
+int hours = Integer.parseInt(timeSplit[0].trim());
+int minutes = Integer.parseInt(timeSplit[1].trim());
 
-<12> if (pm) {
-      hours += 12;
-  }
+if (pm) {                                                            <12>
+    hours += 12;
+}
 
-<13> String dts = year + "-" + month + "-" + day + "T" +
-          (hours < 10 ? "0" + hours : "" + hours) + ":" +
-          (minutes < 10 ? "0" + minutes : "" + minutes) +
-          ":00+08:00";
+String dts = year + "-" + month + "-" + day + "T" +
+        (hours < 10 ? "0" + hours : "" + hours) + ":" +
+        (minutes < 10 ? "0" + minutes : "" + minutes) +
+        ":00+08:00";                                                 <13>
 
-<14> ZonedDateTime dt = ZonedDateTime.parse(
-           dts, DateTimeFormatter.ISO_OFFSET_DATE_TIME);
-<15> ctx.datetime = dt.getLong(ChronoField.INSTANT_SECONDS)*1000L;
+ZonedDateTime dt = ZonedDateTime.parse(
+         dts, DateTimeFormatter.ISO_OFFSET_DATE_TIME);               <14>
+ctx.datetime = dt.getLong(ChronoField.INSTANT_SECONDS)*1000L;        <15>
 ----
 <1> Creates a `split` <<painless-functions, function>> to split a
     <<string-type, `String`>> type value using a <<primitive-types, `char`>>

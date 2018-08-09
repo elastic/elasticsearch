@@ -21,7 +21,6 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.index.reindex.ScrollableHitSource.Hit;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.settings.Settings;
 
 public class UpdateByQueryMetadataTests
@@ -39,7 +38,7 @@ public class UpdateByQueryMetadataTests
 
     @Override
     protected UpdateByQueryRequest request() {
-        return new UpdateByQueryRequest(new SearchRequest());
+        return new UpdateByQueryRequest();
     }
 
     private class TestAction extends TransportUpdateByQueryAction.AsyncIndexBySearchAction {

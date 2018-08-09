@@ -47,6 +47,9 @@ class BucketInfluencerNormalizable extends AbstractLeafNormalizable {
     }
 
     @Override
+    public String getPersonFieldValue() { return null; }
+
+    @Override
     public String getFunctionName() {
         return null;
     }

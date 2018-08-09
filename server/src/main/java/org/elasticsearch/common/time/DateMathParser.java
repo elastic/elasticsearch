@@ -71,9 +71,30 @@ public class DateMathParser {
         return parse(text, now, false, null);
     }
 
-    // Note: we take a callable here for the timestamp in order to be able to figure out
-    // if it has been used. For instance, the request cache does not cache requests that make
-    // use of `now`.
+    /**
+     * Parse text, that potentially contains date math into the milliseconds since the epoch
+     *
+     * Examples are
+     *
+     * <code>2014-11-18||-2y</code> substracts two years from the input date
+     * <code>now/m</code>           rounds the current time to minute granularity
+     *
+     * Supported rounding units are
+     * y    year
+     * M    month
+     * w    week (beginning on a monday)
+     * d    day
+     * h/H  hour
+     * m    minute
+     * s    second
+     *
+     *
+     * @param text      the input
+     * @param now       a supplier to retrieve the current date in milliseconds, if needed for additions
+     * @param roundUp   should the result be rounded up
+     * @param timeZone  an optional timezone that should be applied before returning the milliseconds since the epoch
+     * @return          the parsed date in milliseconds since the epoch
+     */
     public long parse(String text, LongSupplier now, boolean roundUp, ZoneId timeZone) {
         long time;
         String mathString;

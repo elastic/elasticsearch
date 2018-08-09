@@ -144,7 +144,6 @@ public class DateMathParserTests extends ESTestCase {
         assertThat(zonedDateTime.getYear(), is(1970));
         long millisStart = zonedDateTime.toInstant().toEpochMilli();
         assertEquals(millisStart, parser.parse("04:52:20", () -> 0, false, null));
-        // TODO check if the +999 is correct here, I'd think so!
         long millisEnd = DateFormatters.toZonedDateTime(formatter.parse("04:52:20")).toInstant().toEpochMilli() + 999;
         assertEquals(millisEnd, parser.parse("04:52:20", () -> 0, true, null));
     }

@@ -7,7 +7,6 @@ setup:
             test:
               properties:
                 numeric_group: { type: integer }
-                group_alias: { type: alias, path: numeric_group }
 
   - do:
       index:
@@ -354,6 +353,14 @@ setup:
   - skip:
       version: " - 6.3.99"
       reason: Field aliases were introduced in 6.4.0.
+  - do:
+      indices.put_mapping:
+        index: test
+        type: test
+        body:
+          test:
+            properties:
+              group_alias: { type: alias, path: numeric_group }
   - do:
       search:
         index: test

@@ -168,7 +168,8 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
             assertThat(settingsResponse.getSetting("foo", "index.lifecycle.step"), equalTo("attempt_rollover"));
         });
         
-        MoveToStepRequest req = new MoveToStepRequest("foo", new StepKey("hot", "rollover", "attempt_rollover"), new StepKey("warm", "after", "after"));
+        MoveToStepRequest req = new MoveToStepRequest("foo", new StepKey("hot", "rollover", "attempt_rollover"),
+                new StepKey("warm", "after", "after"));
         MoveToStepResponse response = execute(req, highLevelClient().indexLifecycle()::moveToStep,
                 highLevelClient().indexLifecycle()::moveToStepAsync);
         assertThat(response.isAcknowledged(), is(true));

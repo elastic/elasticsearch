@@ -19,30 +19,30 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleRequest;
+import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleResponse;
+import org.elasticsearch.protocol.xpack.indexlifecycle.IndexLifecycleExplainResponse;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.action.ExplainLifecycleAction;
-import org.elasticsearch.xpack.core.indexlifecycle.action.ExplainLifecycleAction.Request;
-import org.elasticsearch.xpack.core.indexlifecycle.action.ExplainLifecycleAction.Response;
-import org.elasticsearch.xpack.core.indexlifecycle.action.IndexLifecycleExplainResponse;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 public class TransportExplainLifecycleAction
-        extends TransportClusterInfoAction<ExplainLifecycleAction.Request, ExplainLifecycleAction.Response> {
+        extends TransportClusterInfoAction<ExplainLifecycleRequest, ExplainLifecycleResponse> {
 
     @Inject
     public TransportExplainLifecycleAction(Settings settings, TransportService transportService, ClusterService clusterService,
             ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, ExplainLifecycleAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                ExplainLifecycleAction.Request::new, indexNameExpressionResolver);
+                ExplainLifecycleRequest::new, indexNameExpressionResolver);
     }
 
     @Override
-    protected Response newResponse() {
-        return new ExplainLifecycleAction.Response();
+    protected ExplainLifecycleResponse newResponse() {
+        return new ExplainLifecycleResponse();
     }
 
     @Override
@@ -52,14 +52,15 @@ public class TransportExplainLifecycleAction
     }
 
     @Override
-    protected ClusterBlockException checkBlock(ExplainLifecycleAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(ExplainLifecycleRequest request, ClusterState state) {
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ,
                 indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
     @Override
-    protected void doMasterOperation(Request request, String[] concreteIndices, ClusterState state, ActionListener<Response> listener) {
-        List<IndexLifecycleExplainResponse> indexReponses = new ArrayList<>();
+    protected void doMasterOperation(ExplainLifecycleRequest request, String[] concreteIndices, ClusterState state,
+            ActionListener<ExplainLifecycleResponse> listener) {
+        Map<String, IndexLifecycleExplainResponse> indexReponses = new HashMap<>();
         for (String index : concreteIndices) {
             IndexMetaData idxMetadata = state.metaData().index(index);
             Settings idxSettings = idxMetadata.getSettings();
@@ -80,9 +81,9 @@ public class TransportExplainLifecycleAction
             } else {
                 indexResponse = IndexLifecycleExplainResponse.newUnmanagedIndexResponse(index);
             }
-            indexReponses.add(indexResponse);
+            indexReponses.put(indexResponse.getIndex(), indexResponse);
         }
-        listener.onResponse(new ExplainLifecycleAction.Response(indexReponses));
+        listener.onResponse(new ExplainLifecycleResponse(indexReponses));
     }
 
 }

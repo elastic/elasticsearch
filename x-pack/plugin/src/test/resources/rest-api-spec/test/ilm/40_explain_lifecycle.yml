@@ -107,18 +107,18 @@ teardown:
       ilm.explain_lifecycle:
         index: "my_index"
 
-  - is_true: my_index.managed
-  - match: { my_index.index: "my_index" }
-  - match: { my_index.policy: "my_moveable_timeseries_lifecycle" }
-  - match: { my_index.phase: "new" }
-  - match: { my_index.action: "after" }
-  - match: { my_index.step: "after" }
-  - is_false: my_index.failed_step
-  - is_false: my_index.step_info
+  - is_true: indices.my_index.managed
+  - match: { indices.my_index.index: "my_index" }
+  - match: { indices.my_index.policy: "my_moveable_timeseries_lifecycle" }
+  - match: { indices.my_index.phase: "new" }
+  - match: { indices.my_index.action: "after" }
+  - match: { indices.my_index.step: "after" }
+  - is_false: indices.my_index.failed_step
+  - is_false: indices.my_index.step_info
 
-  - is_false: my_index2
-  - is_false: another_index
-  - is_false: unmanaged_index
+  - is_false: indices.my_index2
+  - is_false: indices.another_index
+  - is_false: indices.unmanaged_index
 
 ---
 "Test Wildcard Index Lifecycle Explain":
@@ -128,26 +128,26 @@ teardown:
       ilm.explain_lifecycle:
         index: "my_*"
 
-  - is_true: my_index.managed
-  - match: { my_index.index: "my_index" }
-  - match: { my_index.policy: "my_moveable_timeseries_lifecycle" }
-  - match: { my_index.phase: "new" }
-  - match: { my_index.action: "after" }
-  - match: { my_index.step: "after" }
-  - is_false: my_index.failed_step
-  - is_false: my_index.step_info
+  - is_true: indices.my_index.managed
+  - match: { indices.my_index.index: "my_index" }
+  - match: { indices.my_index.policy: "my_moveable_timeseries_lifecycle" }
+  - match: { indices.my_index.phase: "new" }
+  - match: { indices.my_index.action: "after" }
+  - match: { indices.my_index.step: "after" }
+  - is_false: indices.my_index.failed_step
+  - is_false: indices.my_index.step_info
 
-  - is_true: my_index2.managed
-  - match: { my_index2.index: "my_index2" }
-  - match: { my_index2.policy: "my_moveable_timeseries_lifecycle" }
-  - match: { my_index2.phase: "new" }
-  - match: { my_index2.action: "after" }
-  - match: { my_index2.step: "after" }
-  - is_false: my_index2.failed_step
-  - is_false: my_index2.step_info
+  - is_true: indices.my_index2.managed
+  - match: { indices.my_index2.index: "my_index2" }
+  - match: { indices.my_index2.policy: "my_moveable_timeseries_lifecycle" }
+  - match: { indices.my_index2.phase: "new" }
+  - match: { indices.my_index2.action: "after" }
+  - match: { indices.my_index2.step: "after" }
+  - is_false: indices.my_index2.failed_step
+  - is_false: indices.my_index2.step_info
 
-  - is_false: another_index
-  - is_false: unmanaged_index
+  - is_false: indices.another_index
+  - is_false: indices.unmanaged_index
 
 
 ---
@@ -158,41 +158,41 @@ teardown:
       ilm.explain_lifecycle:
         index: "*"
 
-  - is_true: my_index.managed
-  - match: { my_index.index: "my_index" }
-  - match: { my_index.policy: "my_moveable_timeseries_lifecycle" }
-  - match: { my_index.phase: "new" }
-  - match: { my_index.action: "after" }
-  - match: { my_index.step: "after" }
-  - is_false: my_index.failed_step
-  - is_false: my_index.step_info
+  - is_true: indices.my_index.managed
+  - match: { indices.my_index.index: "my_index" }
+  - match: { indices.my_index.policy: "my_moveable_timeseries_lifecycle" }
+  - match: { indices.my_index.phase: "new" }
+  - match: { indices.my_index.action: "after" }
+  - match: { indices.my_index.step: "after" }
+  - is_false: indices.my_index.failed_step
+  - is_false: indices.my_index.step_info
 
-  - is_true: my_index2.managed
-  - match: { my_index2.index: "my_index2" }
-  - match: { my_index2.policy: "my_moveable_timeseries_lifecycle" }
-  - match: { my_index2.phase: "new" }
-  - match: { my_index2.action: "after" }
-  - match: { my_index2.step: "after" }
-  - is_false: my_index2.failed_step
-  - is_false: my_index2.step_info
+  - is_true: indices.my_index2.managed
+  - match: { indices.my_index2.index: "my_index2" }
+  - match: { indices.my_index2.policy: "my_moveable_timeseries_lifecycle" }
+  - match: { indices.my_index2.phase: "new" }
+  - match: { indices.my_index2.action: "after" }
+  - match: { indices.my_index2.step: "after" }
+  - is_false: indices.my_index2.failed_step
+  - is_false: indices.my_index2.step_info
   
-  - is_true: another_index.managed
-  - match: { another_index.index: "another_index" }
-  - match: { another_index.policy: "my_moveable_timeseries_lifecycle" }
-  - match: { another_index.phase: "new" }
-  - match: { another_index.action: "after" }
-  - match: { another_index.step: "after" }
-  - is_false: another_index.failed_step
-  - is_false: another_index.step_info
+  - is_true: indices.another_index.managed
+  - match: { indices.another_index.index: "another_index" }
+  - match: { indices.another_index.policy: "my_moveable_timeseries_lifecycle" }
+  - match: { indices.another_index.phase: "new" }
+  - match: { indices.another_index.action: "after" }
+  - match: { indices.another_index.step: "after" }
+  - is_false: indices.another_index.failed_step
+  - is_false: indices.another_index.step_info
   
-  - match: { unmanaged_index.index: "unmanaged_index" }
-  - is_false: unmanaged_index.managed
-  - is_false: unmanaged_index.policy
-  - is_false: unmanaged_index.phase
-  - is_false: unmanaged_index.action
-  - is_false: unmanaged_index.step
-  - is_false: another_index.failed_step
-  - is_false: another_index.step_info
+  - match: { indices.unmanaged_index.index: "unmanaged_index" }
+  - is_false: indices.unmanaged_index.managed
+  - is_false: indices.unmanaged_index.policy
+  - is_false: indices.unmanaged_index.phase
+  - is_false: indices.unmanaged_index.action
+  - is_false: indices.unmanaged_index.step
+  - is_false: indices.another_index.failed_step
+  - is_false: indices.another_index.step_info
 
 ---
 "Test Unmanaged Index Lifecycle Explain":
@@ -202,14 +202,14 @@ teardown:
       ilm.explain_lifecycle:
         index: "unmanaged_index"
 
-  - match: { unmanaged_index.index: "unmanaged_index" }
-  - is_false: unmanaged_index.managed
-  - is_false: unmanaged_index.policy
-  - is_false: unmanaged_index.phase
-  - is_false: unmanaged_index.action
-  - is_false: unmanaged_index.step
-  - is_false: another_index.failed_step
-  - is_false: another_index.step_info
-  - is_false: my_index
-  - is_false: my_index2
-  - is_false: another_index
+  - match: { indices.unmanaged_index.index: "unmanaged_index" }
+  - is_false: indices.unmanaged_index.managed
+  - is_false: indices.unmanaged_index.policy
+  - is_false: indices.unmanaged_index.phase
+  - is_false: indices.unmanaged_index.action
+  - is_false: indices.unmanaged_index.step
+  - is_false: indices.another_index.failed_step
+  - is_false: indices.another_index.step_info
+  - is_false: indices.my_index
+  - is_false: indices.my_index2
+  - is_false: indices.another_index

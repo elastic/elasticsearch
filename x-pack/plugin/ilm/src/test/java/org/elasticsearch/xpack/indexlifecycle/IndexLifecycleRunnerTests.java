@@ -63,6 +63,10 @@ import static org.mockito.Mockito.mock;
 public class IndexLifecycleRunnerTests extends ESTestCase {
 
     private PolicyStepsRegistry createOneStepPolicyStepRegistry(String policyName, Step step) {
+        return createOneStepPolicyStepRegistry(policyName, step, "test");
+    }
+
+    private PolicyStepsRegistry createOneStepPolicyStepRegistry(String policyName, Step step, String indexName) {
         SortedMap<String, LifecyclePolicyMetadata> lifecyclePolicyMap = null; // Not used in this test
         Map<String, Step> firstStepMap = new HashMap<>();
         firstStepMap.put(policyName, step);
@@ -70,7 +74,11 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Map<StepKey, Step> policySteps = new HashMap<>();
         policySteps.put(step.getKey(), step);
         stepMap.put(policyName, policySteps);
-        return new PolicyStepsRegistry(lifecyclePolicyMap, firstStepMap, stepMap);
+        Map<String, List<Step>> indexSteps = new HashMap<>();
+        List<Step> steps = new ArrayList<>();
+        steps.add(step);
+        indexSteps.put(indexName, steps);
+        return new PolicyStepsRegistry(lifecyclePolicyMap, firstStepMap, stepMap, indexSteps);
     }
 
     public void testRunPolicyTerminalPolicyStep() {
@@ -436,7 +444,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Step thirdStep = new MockStep(thirdStepKey, fourthStepKey);
         Step fourthStep = new MockStep(fourthStepKey, null);
         Step otherPolicyFirstStep = new MockStep(firstStepKey, secondStepKey);
-        Step otherPolicySecondStep = new MockStep(secondStepKey, null);
+        Step otherPolicySecondStep = new MockStep(secondStepKey, thirdStepKey);
         Map<String, Step> firstStepMap = new HashMap<>();
         firstStepMap.put(policyName, firstStep);
         firstStepMap.put(otherPolicyName, otherPolicyFirstStep);
@@ -451,10 +459,16 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         otherPolicySteps.put(otherPolicyFirstStepKey, otherPolicyFirstStep);
         otherPolicySteps.put(otherPolicySecondStepKey, otherPolicySecondStep);
         stepMap.put(otherPolicyName, otherPolicySteps);
-        PolicyStepsRegistry registry = new PolicyStepsRegistry(lifecyclePolicyMap, firstStepMap, stepMap);
+        Map<String, List<Step>> indexSteps = new HashMap<>();
+        List<Step> phase1Steps = new ArrayList<>();
+        phase1Steps.add(firstStep);
+        phase1Steps.add(secondStep);
+        phase1Steps.add(thirdStep);
+        indexSteps.put("test", phase1Steps);
+        PolicyStepsRegistry registry = new PolicyStepsRegistry(lifecyclePolicyMap, firstStepMap, stepMap, indexSteps);
 
         Settings indexSettings = Settings.EMPTY;
-        Step actualStep = IndexLifecycleRunner.getCurrentStep(registry, policyName, indexSettings);
+        Step actualStep = IndexLifecycleRunner.getCurrentStep(registry, policyName, "test", indexSettings);
         assertSame(firstStep, actualStep);
 
         indexSettings = Settings.builder()
@@ -462,7 +476,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                 .put(LifecycleSettings.LIFECYCLE_ACTION, "action_1")
                 .put(LifecycleSettings.LIFECYCLE_STEP, "step_1")
                 .build();
-        actualStep = IndexLifecycleRunner.getCurrentStep(registry, policyName, indexSettings);
+        actualStep = IndexLifecycleRunner.getCurrentStep(registry, policyName, "test", indexSettings);
         assertSame(firstStep, actualStep);
 
         indexSettings = Settings.builder()
@@ -470,7 +484,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                 .put(LifecycleSettings.LIFECYCLE_ACTION, "action_1")
                 .put(LifecycleSettings.LIFECYCLE_STEP, "step_2")
                 .build();
-        actualStep = IndexLifecycleRunner.getCurrentStep(registry, policyName, indexSettings);
+        actualStep = IndexLifecycleRunner.getCurrentStep(registry, policyName, "test", indexSettings);
         assertSame(secondStep, actualStep);
 
         indexSettings = Settings.builder()
@@ -478,15 +492,21 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                 .put(LifecycleSettings.LIFECYCLE_ACTION, "action_2")
                 .put(LifecycleSettings.LIFECYCLE_STEP, "step_1")
                 .build();
-        actualStep = IndexLifecycleRunner.getCurrentStep(registry, policyName, indexSettings);
+        actualStep = IndexLifecycleRunner.getCurrentStep(registry, policyName, "test", indexSettings);
         assertSame(thirdStep, actualStep);
 
+        // Switch to phase_2
+        // TODO: it'd be nice if we used the actual registry.update method for this
+        indexSteps.clear();
+        indexSteps.put("test", Collections.singletonList(fourthStep));
+        registry = new PolicyStepsRegistry(lifecyclePolicyMap, firstStepMap, stepMap, indexSteps);
+
         indexSettings = Settings.builder()
                 .put(LifecycleSettings.LIFECYCLE_PHASE, "phase_2")
                 .put(LifecycleSettings.LIFECYCLE_ACTION, "action_1")
                 .put(LifecycleSettings.LIFECYCLE_STEP, "step_1")
                 .build();
-        actualStep = IndexLifecycleRunner.getCurrentStep(registry, policyName, indexSettings);
+        actualStep = IndexLifecycleRunner.getCurrentStep(registry, policyName, "test", indexSettings);
         assertSame(fourthStep, actualStep);
 
         indexSettings = Settings.builder()
@@ -494,32 +514,37 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                 .put(LifecycleSettings.LIFECYCLE_ACTION, "action_1")
                 .put(LifecycleSettings.LIFECYCLE_STEP, "step_1")
                 .build();
-        actualStep = IndexLifecycleRunner.getCurrentStep(registry, policyName, indexSettings);
+        actualStep = IndexLifecycleRunner.getCurrentStep(registry, policyName, "test", indexSettings);
         assertSame(fourthStep, actualStep);
+
+        // Back to phase_1
+        indexSteps.clear();
+        indexSteps.put("test", phase1Steps);
+        registry = new PolicyStepsRegistry(lifecyclePolicyMap, firstStepMap, stepMap, indexSteps);
 
         indexSettings = Settings.builder()
                 .put(LifecycleSettings.LIFECYCLE_PHASE, "phase_1")
                 .put(LifecycleSettings.LIFECYCLE_ACTION, "action_1")
                 .put(LifecycleSettings.LIFECYCLE_STEP, "step_1")
                 .build();
-        actualStep = IndexLifecycleRunner.getCurrentStep(registry, otherPolicyName, indexSettings);
-        assertSame(otherPolicyFirstStep, actualStep);
+        actualStep = IndexLifecycleRunner.getCurrentStep(registry, otherPolicyName, "test", indexSettings);
+        assertEquals(otherPolicyFirstStep, actualStep);
 
         indexSettings = Settings.builder()
                 .put(LifecycleSettings.LIFECYCLE_PHASE, "phase_1")
                 .put(LifecycleSettings.LIFECYCLE_ACTION, "action_1")
                 .put(LifecycleSettings.LIFECYCLE_STEP, "step_2")
                 .build();
-        actualStep = IndexLifecycleRunner.getCurrentStep(registry, otherPolicyName, indexSettings);
-        assertSame(otherPolicySecondStep, actualStep);
+        actualStep = IndexLifecycleRunner.getCurrentStep(registry, otherPolicyName, "test", indexSettings);
+        assertEquals(otherPolicySecondStep, actualStep);
 
         Settings invalidIndexSettings = Settings.builder()
                 .put(LifecycleSettings.LIFECYCLE_PHASE, "phase_1")
                 .put(LifecycleSettings.LIFECYCLE_ACTION, "action_1")
                 .put(LifecycleSettings.LIFECYCLE_STEP, "step_3")
                 .build();
-        assertNull(IndexLifecycleRunner.getCurrentStep(registry, policyName, invalidIndexSettings));
-        assertNull(IndexLifecycleRunner.getCurrentStep(registry, "policy_does_not_exist", invalidIndexSettings));
+        assertNull(IndexLifecycleRunner.getCurrentStep(registry, policyName, "test", invalidIndexSettings));
+        assertNull(IndexLifecycleRunner.getCurrentStep(registry, "policy_does_not_exist", "bad", invalidIndexSettings));
     }
 
     public void testMoveClusterStateToNextStep() {
@@ -604,7 +629,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         StepKey nextStepKey = new StepKey("next_phase", "next_action", "next_step");
         long now = randomNonNegativeLong();
         Step step = new MockStep(nextStepKey, nextStepKey);
-        PolicyStepsRegistry stepRegistry = createOneStepPolicyStepRegistry(policyName, step);
+        PolicyStepsRegistry stepRegistry = createOneStepPolicyStepRegistry(policyName, step, indexName);
 
         Builder indexSettingsBuilder = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policyName)
             .put(LifecycleSettings.LIFECYCLE_PHASE, currentStepKey.getPhase())
@@ -678,7 +703,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                 nextStepKey, () -> now, stepRegistry));
         assertThat(exception.getMessage(),
             equalTo("step [{\"phase\":\"next_phase\",\"action\":\"next_action\",\"name\":\"next_step\"}] " +
-                "with policy [my_policy] does not exist"));
+                "for index [my_index] with policy [my_policy] does not exist"));
     }
 
     public void testMoveClusterStateToErrorStep() throws IOException {
@@ -712,7 +737,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         StepKey failedStepKey = new StepKey("current_phase", "current_action", "current_step");
         StepKey errorStepKey = new StepKey(failedStepKey.getPhase(), failedStepKey.getAction(), ErrorStep.NAME);
         Step step = new MockStep(failedStepKey, null);
-        PolicyStepsRegistry policyRegistry = createOneStepPolicyStepRegistry(policyName, step);
+        PolicyStepsRegistry policyRegistry = createOneStepPolicyStepRegistry(policyName, step, indexName);
         Settings.Builder indexSettingsBuilder = Settings.builder()
                 .put(LifecycleSettings.LIFECYCLE_NAME, policyName)
                 .put(LifecycleSettings.LIFECYCLE_PHASE, errorStepKey.getPhase())

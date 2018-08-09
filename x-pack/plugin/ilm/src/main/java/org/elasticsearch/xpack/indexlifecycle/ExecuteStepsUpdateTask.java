@@ -63,7 +63,7 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
     @Override
     public ClusterState execute(ClusterState currentState) throws IOException {
         Step currentStep = startStep;
-        Step registeredCurrentStep = IndexLifecycleRunner.getCurrentStep(policyStepsRegistry, policy,
+        Step registeredCurrentStep = IndexLifecycleRunner.getCurrentStep(policyStepsRegistry, policy, index.getName(),
             currentState.metaData().index(index).getSettings());
         if (currentStep.equals(registeredCurrentStep)) {
             // We can do cluster state steps all together until we
@@ -107,7 +107,7 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
                 if (currentStep.getKey().getPhase().equals(currentStep.getNextStepKey().getPhase()) == false) {
                     return currentState;
                 }
-                currentStep = policyStepsRegistry.getStep(policy, currentStep.getNextStepKey());
+                currentStep = policyStepsRegistry.getStep(index.getName(), currentStep.getNextStepKey());
             }
             return currentState;
         } else {

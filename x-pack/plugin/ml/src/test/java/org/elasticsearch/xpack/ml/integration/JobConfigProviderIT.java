@@ -1,5 +1,6 @@
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
@@ -10,9 +11,11 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
+import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
+import org.elasticsearch.xpack.core.ml.job.config.RuleScope;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
@@ -27,7 +30,6 @@ import java.util.TreeSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -99,13 +101,8 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
         indexResponseHolder.set(null);
         JobUpdate jobUpdate = new JobUpdate.Builder(jobId).setDescription("This job has been updated").build();
 
-        Function<Job.Builder, Job> jobUpdater = jobBuilder -> {
-            Job currentJob = jobBuilder.build();
-            return jobUpdate.mergeWithJob(currentJob, new ByteSizeValue(1024));
-        };
-
         AtomicReference<Job> updateJobResponseHolder = new AtomicReference<>();
-        blockingCall(actionListener -> jobConfigProvider.updateJob(jobId, jobUpdater, actionListener),
+        blockingCall(actionListener -> jobConfigProvider.updateJob(jobId, jobUpdate, new ByteSizeValue(32), actionListener),
                 updateJobResponseHolder, exceptionHolder);
         assertNull(exceptionHolder.get());
         assertEquals("This job has been updated", updateJobResponseHolder.get().getDescription());
@@ -135,6 +132,33 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
                 deleteJobResponseHolder, exceptionHolder);
         assertNull(deleteJobResponseHolder.get());
         assertThat(exceptionHolder.get(), instanceOf(ResourceNotFoundException.class));
+    }
+
+    public void testUpdateWithAValidationError() throws Exception {
+        final String jobId = "bad-update-job";
+
+        AtomicReference<IndexResponse> indexResponseHolder = new AtomicReference<>();
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+
+        // Create job
+        Job newJob = createJob(jobId, null).build(new Date());
+        blockingCall(actionListener -> jobConfigProvider.putJob(newJob, actionListener), indexResponseHolder, exceptionHolder);
+        assertNull(exceptionHolder.get());
+        assertNotNull(indexResponseHolder.get());
+
+        DetectionRule rule = new DetectionRule.Builder(RuleScope.builder().exclude("not a used field", "filerfoo")).build();
+        JobUpdate.DetectorUpdate detectorUpdate = new JobUpdate.DetectorUpdate(0, null, Collections.singletonList(rule));
+        JobUpdate invalidUpdate = new JobUpdate.Builder(jobId)
+                .setDetectorUpdates(Collections.singletonList(detectorUpdate))
+                .build();
+
+        AtomicReference<Job> updateJobResponseHolder = new AtomicReference<>();
+        blockingCall(actionListener -> jobConfigProvider.updateJob(jobId, invalidUpdate, new ByteSizeValue(32), actionListener),
+                updateJobResponseHolder, exceptionHolder);
+        assertNull(updateJobResponseHolder.get());
+        assertNotNull(exceptionHolder.get());
+        assertThat(exceptionHolder.get(), instanceOf(ElasticsearchStatusException.class));
+        assertThat(exceptionHolder.get().getMessage(), containsString("Invalid detector rule:"));
     }
 
     public void testAllowNoJobs() throws InterruptedException {

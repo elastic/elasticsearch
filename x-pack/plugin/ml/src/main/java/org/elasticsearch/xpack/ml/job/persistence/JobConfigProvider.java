@@ -22,6 +22,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -37,6 +38,7 @@ import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -87,7 +89,7 @@ public class JobConfigProvider extends AbstractComponent {
             executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, listener);
 
         } catch (IOException e) {
-            listener.onFailure(new IllegalStateException("Failed to serialise job with id [" + job.getId() + "]", e));
+            listener.onFailure(new ElasticsearchParseException("Failed to serialise job with id [" + job.getId() + "]", e));
         }
     }
 
@@ -153,13 +155,15 @@ public class JobConfigProvider extends AbstractComponent {
 
     /**
      * Get the job and update it by applying {@code jobUpdater} then index the changed job
-     * setting the version in the request.
+     * setting the version in the request. Applying the update may cause a validation error
+     * which is returned via {@code updatedJobListener}
      *
      * @param jobId The Id of the job to update
-     * @param jobUpdater Updating function
+     * @param update The job update
+     * @param maxModelMemoryLimit The maximum model memory allowed
      * @param updatedJobListener Updated job listener
      */
-    public void updateJob(String jobId, Function<Job.Builder, Job> jobUpdater, ActionListener<Job> updatedJobListener) {
+    public void updateJob(String jobId, JobUpdate update, ByteSizeValue maxModelMemoryLimit, ActionListener<Job> updatedJobListener) {
         GetRequest getRequest = new GetRequest(AnomalyDetectorsIndex.configIndexName(),
                 ElasticsearchMappings.DOC_TYPE, Job.documentId(jobId));
 
@@ -172,36 +176,46 @@ public class JobConfigProvider extends AbstractComponent {
                 }
 
                 long version = getResponse.getVersion();
+                BytesReference source = getResponse.getSourceAsBytesRef();
+                Job.Builder jobBuilder;
                 try {
-                    BytesReference source = getResponse.getSourceAsBytesRef();
-                    Job.Builder jobBulder = parseJobLenientlyFromSource(source);
-                    Job updatedJob = jobUpdater.apply(jobBulder);
-
-
-                    try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                        XContentBuilder updatedSource = updatedJob.toXContent(builder, ToXContent.EMPTY_PARAMS);
-                        IndexRequest indexRequest = client.prepareIndex(AnomalyDetectorsIndex.configIndexName(),
-                                ElasticsearchMappings.DOC_TYPE, Job.documentId(updatedJob.getId()))
-                                .setSource(updatedSource)
-                                .setVersion(version)
-                                .request();
-
-                        executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(
-                                indexResponse -> {
-                                    assert indexResponse.getResult() == DocWriteResponse.Result.UPDATED;
-                                    updatedJobListener.onResponse(updatedJob);
-                                },
-                                updatedJobListener::onFailure
-                        ));
-
-                    } catch (IOException e) {
-                        updatedJobListener.onFailure(
-                                new IllegalStateException("Failed to serialise job with id [" + jobId + "]", e));
-                    }
-
+                     jobBuilder = parseJobLenientlyFromSource(source);
                 } catch (IOException e) {
                     updatedJobListener.onFailure(new ElasticsearchParseException("failed to parse " + getResponse.getType(), e));
+                    return;
                 }
+
+                Job updatedJob;
+                try {
+                    // Applying the update may result in a validation error
+                    updatedJob = update.mergeWithJob(jobBuilder.build(), maxModelMemoryLimit);
+                } catch (Exception e) {
+                    updatedJobListener.onFailure(e);
+                    return;
+                }
+
+                try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                    XContentBuilder updatedSource = updatedJob.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                    IndexRequest indexRequest = client.prepareIndex(AnomalyDetectorsIndex.configIndexName(),
+                            ElasticsearchMappings.DOC_TYPE, Job.documentId(updatedJob.getId()))
+                            .setSource(updatedSource)
+                            .setVersion(version)
+                            .request();
+
+                    executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(
+                            indexResponse -> {
+                                assert indexResponse.getResult() == DocWriteResponse.Result.UPDATED;
+                                updatedJobListener.onResponse(updatedJob);
+                            },
+                            updatedJobListener::onFailure
+                    ));
+
+                } catch (IOException e) {
+                    updatedJobListener.onFailure(
+                            new ElasticsearchParseException("Failed to serialise job with id [" + jobId + "]", e));
+                }
+
+
             }
 
             @Override

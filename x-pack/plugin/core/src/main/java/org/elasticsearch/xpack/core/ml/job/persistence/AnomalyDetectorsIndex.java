@@ -56,4 +56,14 @@ public final class AnomalyDetectorsIndex {
     public static String jobStateIndexName() {
         return AnomalyDetectorsIndexFields.STATE_INDEX_NAME;
     }
+
+    /**
+     * The name of the index where job and datafeed configuration
+     * is stored
+     * @return The index name
+     */
+    public static String configIndexName() {
+        return AnomalyDetectorsIndexFields.CONFIG_INDEX;
+    }
+
 }

@@ -644,6 +644,23 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 logger.warn("Error loading the template for the " + MlMetaIndex.INDEX_NAME + " index", e);
             }
 
+            try (XContentBuilder configMapping = ElasticsearchMappings.configMapping()) {
+                IndexTemplateMetaData configTemplate = IndexTemplateMetaData.builder(AnomalyDetectorsIndex.configIndexName())
+                        .patterns(Collections.singletonList(AnomalyDetectorsIndex.configIndexName()))
+                        .settings(Settings.builder()
+                                // Our indexes are small and one shard puts the
+                                // least possible burden on Elasticsearch
+                                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                                .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+                                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting))
+                        .version(Version.CURRENT.id)
+                        .putMapping(ElasticsearchMappings.DOC_TYPE, Strings.toString(configMapping))
+                        .build();
+                templates.put(AnomalyDetectorsIndex.configIndexName(), configTemplate);
+            } catch (IOException e) {
+                logger.warn("Error loading the template for the " + AnomalyDetectorsIndex.configIndexName() + " index", e);
+            }
+
             try (XContentBuilder stateMapping = ElasticsearchMappings.stateMapping()) {
                 IndexTemplateMetaData stateTemplate = IndexTemplateMetaData.builder(AnomalyDetectorsIndex.jobStateIndexName())
                         .patterns(Collections.singletonList(AnomalyDetectorsIndex.jobStateIndexName()))
@@ -659,7 +676,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 logger.error("Error loading the template for the " + AnomalyDetectorsIndex.jobStateIndexName() + " index", e);
             }
 
-            try (XContentBuilder docMapping = ElasticsearchMappings.docMapping()) {
+            try (XContentBuilder docMapping = ElasticsearchMappings.resultsMapping()) {
                 IndexTemplateMetaData jobResultsTemplate = IndexTemplateMetaData.builder(AnomalyDetectorsIndex.jobResultsIndexPrefix())
                         .patterns(Collections.singletonList(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*"))
                         .settings(Settings.builder()

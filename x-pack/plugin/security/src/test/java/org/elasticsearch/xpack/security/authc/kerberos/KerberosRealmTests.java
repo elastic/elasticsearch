@@ -145,9 +145,6 @@ public class KerberosRealmTests extends KerberosRealmTestCase {
                 final List<AclEntry> acl = view.getAcl();
                 acl.add(0, entry);
                 view.setAcl(acl);
-            } else if (supportedAttributes.contains("dos")) {
-                final DosFileAttributeView fileAttributeView = Files.getFileAttributeView(keytabFilePath, DosFileAttributeView.class);
-                fileAttributeView.setReadOnly(false);
             } else {
                 throw new UnsupportedOperationException("Unsupported file attributes for this test");
             }

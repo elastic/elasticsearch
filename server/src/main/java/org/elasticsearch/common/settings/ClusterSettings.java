@@ -427,7 +427,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     IndexGraveyard.SETTING_MAX_TOMBSTONES,
                     EnableAssignmentDecider.CLUSTER_TASKS_ALLOCATION_ENABLE_SETTING,
                     PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING,
-                    ElectionScheduler.ELECTION_MIN_RETRY_INTERVAL_SETTING,
-                    ElectionScheduler.ELECTION_MAX_RETRY_INTERVAL_SETTING
+                    ElectionScheduler.ELECTION_MIN_TIMEOUT_SETTING,
+                    ElectionScheduler.ELECTION_MAX_TIMEOUT_SETTING,
+                    ElectionScheduler.ELECTION_BACK_OFF_TIME_SETTING
             )));
 }

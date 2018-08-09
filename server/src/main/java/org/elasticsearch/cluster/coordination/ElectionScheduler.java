@@ -48,17 +48,22 @@ public abstract class ElectionScheduler extends AbstractComponent {
      */
 
     // bounds on the time between election attempts
-    private static final String ELECTION_MIN_RETRY_INTERVAL_SETTING_KEY = "discovery.election.min_retry_interval";
-    private static final String ELECTION_MAX_RETRY_INTERVAL_SETTING_KEY = "discovery.election.max_retry_interval";
+    private static final String ELECTION_MIN_TIMEOUT_SETTING_KEY = "cluster.election.min_timeout";
+    private static final String ELECTION_BACK_OFF_TIME_SETTING_KEY = "cluster.election.back_off_time";
+    private static final String ELECTION_MAX_TIMEOUT_SETTING_KEY = "cluster.election.max_timeout";
 
-    public static final Setting<TimeValue> ELECTION_MIN_RETRY_INTERVAL_SETTING
-        = new Setting<>(ELECTION_MIN_RETRY_INTERVAL_SETTING_KEY, "300ms",
-        reasonableTimeParser(ELECTION_MIN_RETRY_INTERVAL_SETTING_KEY),
+    public static final Setting<TimeValue> ELECTION_MIN_TIMEOUT_SETTING
+        = new Setting<>(ELECTION_MIN_TIMEOUT_SETTING_KEY, "100ms",
+        reasonableTimeParser(ELECTION_MIN_TIMEOUT_SETTING_KEY),
         new ElectionMinRetryIntervalSettingValidator(), Property.NodeScope);
 
-    public static final Setting<TimeValue> ELECTION_MAX_RETRY_INTERVAL_SETTING
-        = new Setting<>(ELECTION_MAX_RETRY_INTERVAL_SETTING_KEY, "10s",
-        reasonableTimeParser(ELECTION_MAX_RETRY_INTERVAL_SETTING_KEY),
+    public static final Setting<TimeValue> ELECTION_BACK_OFF_TIME_SETTING
+        = new Setting<>(ELECTION_BACK_OFF_TIME_SETTING_KEY, "300ms",
+        reasonableTimeParser(ELECTION_BACK_OFF_TIME_SETTING_KEY), Property.NodeScope);
+
+    public static final Setting<TimeValue> ELECTION_MAX_TIMEOUT_SETTING
+        = new Setting<>(ELECTION_MAX_TIMEOUT_SETTING_KEY, "10s",
+        reasonableTimeParser(ELECTION_MAX_TIMEOUT_SETTING_KEY),
         new ElectionMaxRetryIntervalSettingValidator(), Property.NodeScope);
 
     private static Function<String, TimeValue> reasonableTimeParser(final String settingKey) {
@@ -77,24 +82,24 @@ public abstract class ElectionScheduler extends AbstractComponent {
     private static final class ElectionMinRetryIntervalSettingValidator implements Setting.Validator<TimeValue> {
         @Override
         public void validate(final TimeValue value, final Map<Setting<TimeValue>, TimeValue> settings) {
-            validateSettings(value, settings.get(ELECTION_MAX_RETRY_INTERVAL_SETTING));
+            validateSettings(value, settings.get(ELECTION_MAX_TIMEOUT_SETTING));
         }
 
         @Override
         public Iterator<Setting<TimeValue>> settings() {
-            return Collections.singletonList(ELECTION_MAX_RETRY_INTERVAL_SETTING).iterator();
+            return Collections.singletonList(ELECTION_MAX_TIMEOUT_SETTING).iterator();
         }
     }
 
     private static final class ElectionMaxRetryIntervalSettingValidator implements Setting.Validator<TimeValue> {
         @Override
         public void validate(final TimeValue value, final Map<Setting<TimeValue>, TimeValue> settings) {
-            validateSettings(settings.get(ELECTION_MIN_RETRY_INTERVAL_SETTING), value);
+            validateSettings(settings.get(ELECTION_MIN_TIMEOUT_SETTING), value);
         }
 
         @Override
         public Iterator<Setting<TimeValue>> settings() {
-            return Collections.singletonList(ELECTION_MIN_RETRY_INTERVAL_SETTING).iterator();
+            return Collections.singletonList(ELECTION_MIN_TIMEOUT_SETTING).iterator();
         }
     }
 
@@ -105,17 +110,18 @@ public abstract class ElectionScheduler extends AbstractComponent {
         }
     }
 
-    static String validationExceptionMessage(final String electionMinRetryInterval, final String electionMaxRetryInterval) {
+    static String validationExceptionMessage(final String electionMinTimeout, final String electionMaxTimeout) {
         return new ParameterizedMessage(
-            "Invalid election retry intervals: [{}] is [{}] and [{}] is [{}], but [{}] should be at least 100ms longer than [{}]",
-            ELECTION_MIN_RETRY_INTERVAL_SETTING_KEY, electionMinRetryInterval,
-            ELECTION_MAX_RETRY_INTERVAL_SETTING_KEY, electionMaxRetryInterval,
-            ELECTION_MAX_RETRY_INTERVAL_SETTING_KEY, ELECTION_MIN_RETRY_INTERVAL_SETTING_KEY).getFormattedMessage();
+            "Invalid election retry timeouts: [{}] is [{}] and [{}] is [{}], but [{}] should be at least 100ms longer than [{}]",
+            ELECTION_MIN_TIMEOUT_SETTING_KEY, electionMinTimeout,
+            ELECTION_MAX_TIMEOUT_SETTING_KEY, electionMaxTimeout,
+            ELECTION_MAX_TIMEOUT_SETTING_KEY, ELECTION_MIN_TIMEOUT_SETTING_KEY).getFormattedMessage();
     }
 
     private Object currentScheduler; // only care about its identity
-    private final TimeValue electionMinRetryInterval;
-    private final TimeValue electionMaxRetryInterval;
+    private final TimeValue minTimeout;
+    private final TimeValue backoffTime;
+    private final TimeValue maxTimeout;
     private final Object mutex = new Object();
     private final ThreadPool threadPool;
     private final Random random;
@@ -128,15 +134,16 @@ public abstract class ElectionScheduler extends AbstractComponent {
         this.random = random;
         this.threadPool = threadPool;
 
-        electionMinRetryInterval = ELECTION_MIN_RETRY_INTERVAL_SETTING.get(settings);
-        electionMaxRetryInterval = ELECTION_MAX_RETRY_INTERVAL_SETTING.get(settings);
+        minTimeout = ELECTION_MIN_TIMEOUT_SETTING.get(settings);
+        backoffTime = ELECTION_BACK_OFF_TIME_SETTING.get(settings);
+        maxTimeout = ELECTION_MAX_TIMEOUT_SETTING.get(settings);
     }
 
     public void start() {
         logger.trace("starting");
         final Runnable newScheduler;
         synchronized (mutex) {
-            currentDelayMillis = electionMinRetryInterval.millis();
+            currentDelayMillis = minTimeout.millis();
             assert currentScheduler == null;
             currentScheduler = newScheduler = new Runnable() {
                 @Override
@@ -155,10 +162,8 @@ public abstract class ElectionScheduler extends AbstractComponent {
                             logger.trace("not scheduling election");
                             return;
                         }
-                        currentDelayMillis = Math.min(electionMaxRetryInterval.getMillis(),
-                            currentDelayMillis + electionMinRetryInterval.getMillis());
-
-                        delay = randomLongBetween(electionMinRetryInterval.getMillis(), currentDelayMillis + 1);
+                        currentDelayMillis = Math.min(maxTimeout.getMillis(), currentDelayMillis + backoffTime.getMillis());
+                        delay = randomLongBetween(minTimeout.getMillis(), currentDelayMillis + 1);
                     }
                     logger.trace("scheduling election after delay of [{}ms]", delay);
                     threadPool.schedule(TimeValue.timeValueMillis(delay), Names.GENERIC, new AbstractRunnable() {
@@ -236,8 +241,8 @@ public abstract class ElectionScheduler extends AbstractComponent {
     @Override
     public String toString() {
         return "ElectionScheduler{" +
-            "electionMinRetryInterval=" + electionMinRetryInterval +
-            ", electionMaxRetryInterval=" + electionMaxRetryInterval +
+            "minTimeout=" + minTimeout +
+            ", maxTimeout=" + maxTimeout +
             ", currentDelayMillis=" + currentDelayMillis +
             '}';
     }

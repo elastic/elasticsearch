@@ -45,8 +45,9 @@ public class ShardSearchFailureTests extends ESTestCase {
         if (randomBoolean()) {
             String nodeId = randomAlphaOfLengthBetween(5, 10);
             String indexName = randomAlphaOfLengthBetween(5, 10);
+            String clusterAlias = randomBoolean() ? randomAlphaOfLengthBetween(5, 10) : null;
             searchShardTarget = new SearchShardTarget(nodeId,
-                    new ShardId(new Index(indexName, IndexMetaData.INDEX_UUID_NA_VALUE), randomInt()), null, null);
+                    new ShardId(new Index(indexName, IndexMetaData.INDEX_UUID_NA_VALUE), randomInt()), clusterAlias, OriginalIndices.NONE);
         }
         return new ShardSearchFailure(ex, searchShardTarget);
     }
@@ -114,5 +115,23 @@ public class ShardSearchFailureTests extends ESTestCase {
                         + "}"
                 + "}",
                 xContent.utf8ToString());
+    }
+
+    public void testToXContentWithClusterAlias() throws IOException {
+        ShardSearchFailure failure = new ShardSearchFailure(new ParsingException(0, 0, "some message", null),
+            new SearchShardTarget("nodeId", new ShardId(new Index("indexName", "indexUuid"), 123), "cluster1", OriginalIndices.NONE));
+        BytesReference xContent = toXContent(failure, XContentType.JSON, randomBoolean());
+        assertEquals(
+            "{\"shard\":123,"
+                + "\"index\":\"cluster1:indexName\","
+                + "\"node\":\"nodeId\","
+                + "\"reason\":{"
+                + "\"type\":\"parsing_exception\","
+                + "\"reason\":\"some message\","
+                + "\"line\":0,"
+                + "\"col\":0"
+                + "}"
+                + "}",
+            xContent.utf8ToString());
     }
 }

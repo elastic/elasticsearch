@@ -250,7 +250,7 @@ public class RecoverySourceHandler {
             try (Releasable ignored = FutureUtils.get(permit)) {
                 // check that the IndexShard still has the primary authority. This needs to be checked under operation permit to prevent
                 // races, as IndexShard will switch its authority only when it holds all operation permits, see IndexShard.relocated()
-                if (primary.isPrimaryMode() == false) {
+                if (primary.isRelocatedPrimary()) {
                     throw new IndexShardRelocatedException(primary.shardId());
                 }
                 runnable.run();

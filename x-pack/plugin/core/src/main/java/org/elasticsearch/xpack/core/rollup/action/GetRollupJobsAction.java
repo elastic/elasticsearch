@@ -218,7 +218,7 @@ public class GetRollupJobsAction extends Action<GetRollupJobsAction.Request, Get
                 (RollupJobStats) a[1], (RollupJobStatus)a[2]));
 
         static {
-            PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> RollupJobConfig.PARSER.apply(p,c).build(), CONFIG);
+            PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> RollupJobConfig.fromXContent(p, null), CONFIG);
             PARSER.declareObject(ConstructingObjectParser.constructorArg(), RollupJobStats.PARSER::apply, STATS);
             PARSER.declareObject(ConstructingObjectParser.constructorArg(), RollupJobStatus.PARSER::apply, STATUS);
         }

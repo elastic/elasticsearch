@@ -50,8 +50,8 @@ import org.elasticsearch.xpack.core.security.authc.esnative.NativeUserStoreField
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
-import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.user.User.Fields;
+import org.elasticsearch.protocol.xpack.security.User;
+import org.elasticsearch.protocol.xpack.security.User.Fields;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 

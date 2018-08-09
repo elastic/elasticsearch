@@ -64,7 +64,7 @@ import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
-import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.protocol.xpack.security.User;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService.Authenticator;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;

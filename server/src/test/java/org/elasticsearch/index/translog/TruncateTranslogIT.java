@@ -154,9 +154,9 @@ public class TruncateTranslogIT extends ESIntegTestCase {
         // shut down the replica node to be tested later
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(replicaNode));
 
-        // Corrupt the translog file(s)
+        // Corrupt the translog file
         logger.info("--> corrupting translog");
-        corruptRandomTranslogFiles("test");
+        corruptRandomTranslogFile("test");
 
         // Restart the single node
         logger.info("--> restarting node");
@@ -265,15 +265,16 @@ public class TruncateTranslogIT extends ESIntegTestCase {
         // sample the replica node translog dirs
         final ShardId shardId = new ShardId(resolveIndex("test"), 0);
         Set<Path> translogDirs = getTranslogDirs(replicaNode, shardId);
+        Path tdir = randomFrom(translogDirs);
 
         // stop the cluster nodes. we don't use full restart so the node start up order will be the same
         // and shard roles will be maintained
         internalCluster().stopRandomDataNode();
         internalCluster().stopRandomDataNode();
 
-        // Corrupt the translog file(s)
+        // Corrupt the translog file
         logger.info("--> corrupting translog");
-        TestTranslog.corruptTranslogFiles(logger, random(), translogDirs);
+        TestTranslog.corruptRandomTranslogFile(logger, random(), tdir, TestTranslog.minTranslogGenUsedInRecovery(tdir));
 
         // Restart the single node
         logger.info("--> starting node");
@@ -354,9 +355,10 @@ public class TruncateTranslogIT extends ESIntegTestCase {
         return translogDirs;
     }
 
-    private void corruptRandomTranslogFiles(String indexName) throws IOException {
+    private void corruptRandomTranslogFile(String indexName) throws IOException {
         Set<Path> translogDirs = getTranslogDirs(indexName);
-        TestTranslog.corruptTranslogFiles(logger, random(), translogDirs);
+        Path translogDir = randomFrom(translogDirs);
+        TestTranslog.corruptRandomTranslogFile(logger, random(), translogDir, TestTranslog.minTranslogGenUsedInRecovery(translogDir));
     }
 
     /** Disables translog flushing for the specified index */

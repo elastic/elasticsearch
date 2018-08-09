@@ -304,6 +304,7 @@ public abstract class Engine implements Closeable {
         private final Operation.TYPE operationType;
         private final Result.Type resultType;
         private final long version;
+        private final long term;
         private final long seqNo;
         private final Exception failure;
         private final SetOnce<Boolean> freeze = new SetOnce<>();
@@ -311,19 +312,21 @@ public abstract class Engine implements Closeable {
         private Translog.Location translogLocation;
         private long took;
 
-        protected Result(Operation.TYPE operationType, Exception failure, long version, long seqNo) {
+        protected Result(Operation.TYPE operationType, Exception failure, long version, long term, long seqNo) {
             this.operationType = operationType;
             this.failure = Objects.requireNonNull(failure);
             this.version = version;
+            this.term = term;
             this.seqNo = seqNo;
             this.requiredMappingUpdate = null;
             this.resultType = Type.FAILURE;
         }
 
-        protected Result(Operation.TYPE operationType, long version, long seqNo) {
+        protected Result(Operation.TYPE operationType, long version, long term, long seqNo) {
             this.operationType = operationType;
             this.version = version;
             this.seqNo = seqNo;
+            this.term = term;
             this.failure = null;
             this.requiredMappingUpdate = null;
             this.resultType = Type.SUCCESS;
@@ -333,6 +336,7 @@ public abstract class Engine implements Closeable {
             this.operationType = operationType;
             this.version = Versions.NOT_FOUND;
             this.seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+            this.term = 0L;
             this.failure = null;
             this.requiredMappingUpdate = requiredMappingUpdate;
             this.resultType = Type.MAPPING_UPDATE_REQUIRED;
@@ -355,6 +359,10 @@ public abstract class Engine implements Closeable {
          */
         public long getSeqNo() {
             return seqNo;
+        }
+
+        public long getTerm() {
+            return term;
         }
 
         /**
@@ -415,20 +423,20 @@ public abstract class Engine implements Closeable {
 
         private final boolean created;
 
-        public IndexResult(long version, long seqNo, boolean created) {
-            super(Operation.TYPE.INDEX, version, seqNo);
+        public IndexResult(long version, long term, long seqNo, boolean created) {
+            super(Operation.TYPE.INDEX, version, term, seqNo);
             this.created = created;
         }
 
         /**
          * use in case of the index operation failed before getting to internal engine
          **/
-        public IndexResult(Exception failure, long version) {
-            this(failure, version, SequenceNumbers.UNASSIGNED_SEQ_NO);
+        public IndexResult(Exception failure, long version, long term) {
+            this(failure, version, term, SequenceNumbers.UNASSIGNED_SEQ_NO);
         }
 
-        public IndexResult(Exception failure, long version, long seqNo) {
-            super(Operation.TYPE.INDEX, failure, version, seqNo);
+        public IndexResult(Exception failure, long version, long term, long seqNo) {
+            super(Operation.TYPE.INDEX, failure, version, term, seqNo);
             this.created = false;
         }
 
@@ -447,20 +455,20 @@ public abstract class Engine implements Closeable {
 
         private final boolean found;
 
-        public DeleteResult(long version, long seqNo, boolean found) {
-            super(Operation.TYPE.DELETE, version, seqNo);
+        public DeleteResult(long version, long term, long seqNo, boolean found) {
+            super(Operation.TYPE.DELETE, version, term, seqNo);
             this.found = found;
         }
 
         /**
          * use in case of the delete operation failed before getting to internal engine
          **/
-        public DeleteResult(Exception failure, long version) {
-            this(failure, version, SequenceNumbers.UNASSIGNED_SEQ_NO, false);
+        public DeleteResult(Exception failure, long version, long term) {
+            this(failure, version, term, SequenceNumbers.UNASSIGNED_SEQ_NO, false);
         }
 
-        public DeleteResult(Exception failure, long version, long seqNo, boolean found) {
-            super(Operation.TYPE.DELETE, failure, version, seqNo);
+        public DeleteResult(Exception failure, long version, long term, long seqNo, boolean found) {
+            super(Operation.TYPE.DELETE, failure, version, term, seqNo);
             this.found = found;
         }
 
@@ -477,12 +485,12 @@ public abstract class Engine implements Closeable {
 
     public static class NoOpResult extends Result {
 
-        NoOpResult(long seqNo) {
-            super(Operation.TYPE.NO_OP, 0, seqNo);
+        NoOpResult(long term, long seqNo) {
+            super(Operation.TYPE.NO_OP, term, 0, seqNo);
         }
 
-        NoOpResult(long seqNo, Exception failure) {
-            super(Operation.TYPE.NO_OP, failure, 0, seqNo);
+        NoOpResult(long term, long seqNo, Exception failure) {
+            super(Operation.TYPE.NO_OP, failure, term, 0, seqNo);
         }
 
     }

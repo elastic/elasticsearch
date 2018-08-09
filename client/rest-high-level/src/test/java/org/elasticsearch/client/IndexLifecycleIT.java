@@ -140,7 +140,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
             "       \"cold\": {\n" +
             "         \"after\": \"2000s\",\n" +
             "         \"actions\": {\n" +
-            "          \"replicas\": {\n" +
+            "          \"allocate\": {\n" +
             "            \"number_of_replicas\": 0\n" +
             "          }\n" +
             "         }\n" +

@@ -27,6 +27,7 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.appender.CountingNoOpAppender;
 import org.apache.logging.log4j.core.config.Configurator;
+import org.apache.logging.log4j.spi.ExtendedLogger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.cli.UserException;
@@ -299,8 +300,8 @@ public class EvilLoggerTests extends ESTestCase {
     public void testPrefixLogger() throws IOException, IllegalAccessException, UserException {
         setupLogging("prefix");
 
-        final String prefix = randomBoolean() ? null : randomAlphaOfLength(16);
-        final Logger logger = Loggers.getLogger("prefix", prefix);
+        final String prefix = randomAlphaOfLength(16);
+        final Logger logger = new PrefixLogger((ExtendedLogger) LogManager.getLogger("prefix_test"), "prefix_test", prefix);
         logger.info("test");
         logger.info("{}", "test");
         final Exception e = new Exception("exception");
@@ -320,13 +321,8 @@ public class EvilLoggerTests extends ESTestCase {
         final int expectedLogLines = 3;
         assertThat(events.size(), equalTo(expectedLogLines + stackTraceLength));
         for (int i = 0; i < expectedLogLines; i++) {
-            if (prefix == null) {
-                assertThat("Contents of [" + path + "] are wrong",
-                        events.get(i), startsWith("[" + getTestName() + "] test"));
-            } else {
-                assertThat("Contents of [" + path + "] are wrong",
-                        events.get(i), startsWith("[" + getTestName() + "][" + prefix + "] test"));
-            }
+            assertThat("Contents of [" + path + "] are wrong",
+                    events.get(i), startsWith("[" + getTestName() + "]" + prefix + " test"));
         }
     }
 
@@ -335,8 +331,8 @@ public class EvilLoggerTests extends ESTestCase {
 
         final int prefixes = 1 << 19; // to ensure enough markers that the GC should collect some when we force a GC below
         for (int i = 0; i < prefixes; i++) {
-            Loggers.getLogger("prefix" + i, "prefix" + i); // this has the side effect of caching a marker with this prefix
-
+            // this has the side effect of caching a marker with this prefix
+            new PrefixLogger((ExtendedLogger) LogManager.getLogger("prefix" + i), "prefix" + i, "prefix" + i);
         }
 
         System.gc(); // this will free the weakly referenced keys in the marker cache

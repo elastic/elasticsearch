@@ -22,14 +22,19 @@ package org.elasticsearch.client;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NStringEntity;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleResponse;
 import org.elasticsearch.protocol.xpack.indexlifecycle.IndexLifecycleExplainResponse;
 import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyResponse;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StartILMRequest;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StopILMRequest;
+import org.hamcrest.Matchers;
 
 import java.util.Map;
 
@@ -106,6 +111,94 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         assertThat(settingsResponse.getSetting("baz", "index.lifecycle.name"), equalTo(policy));
     }
     
+    public void testStartStopILM() throws Exception {
+        String policy = randomAlphaOfLength(10);
+
+        // TODO: NORELEASE convert this to using the high level client once there are APIs for it
+        String jsonString = "{\n" +
+            "   \"policy\": {\n" +
+            "     \"type\": \"timeseries\",\n" +
+            "     \"phases\": {\n" +
+            "       \"hot\": {\n" +
+            "         \"actions\": {\n" +
+            "          \"rollover\": {\n" +
+            "            \"max_age\": \"50d\"\n" +
+            "          }        \n" +
+            "         }\n" +
+            "       },\n" +
+            "       \"warm\": {\n" +
+            "         \"after\": \"1000s\",\n" +
+            "         \"actions\": {\n" +
+            "           \"allocate\": {\n" +
+            "             \"require\": { \"_name\": \"node-1\" },\n" +
+            "             \"include\": {},\n" +
+            "             \"exclude\": {}\n" +
+            "           },\n" +
+            "           \"shrink\": {\n" +
+            "             \"number_of_shards\": 1\n" +
+            "           },\n" +
+            "           \"forcemerge\": {\n" +
+            "             \"max_num_segments\": 1000\n" +
+            "           }\n" +
+            "         }\n" +
+            "       },\n" +
+            "       \"cold\": {\n" +
+            "         \"after\": \"2000s\",\n" +
+            "         \"actions\": {\n" +
+            "          \"allocate\": {\n" +
+            "            \"number_of_replicas\": 0\n" +
+            "          }\n" +
+            "         }\n" +
+            "       },\n" +
+            "       \"delete\": {\n" +
+            "         \"after\": \"3000s\",\n" +
+            "         \"actions\": {\n" +
+            "           \"delete\": {}\n" +
+            "         }\n" +
+            "       }\n" +
+            "     }\n" +
+            "   }\n" +
+            "}";
+        HttpEntity entity = new NStringEntity(jsonString, ContentType.APPLICATION_JSON);
+        Request request = new Request("PUT", "/_ilm/" + policy);
+        request.setEntity(entity);
+        client().performRequest(request);
+
+        createIndex("foo", Settings.builder().put("index.lifecycle.name", "bar").build());
+        createIndex("baz", Settings.builder().put("index.lifecycle.name", "eggplant").build());
+        createIndex("squash", Settings.EMPTY);
+
+        // TODO: NORELEASE convert this to using the high level client once
+        // there are APIs for it
+        Request statusReq = new Request("GET", "/_ilm/status");
+        Response statusResponse = client().performRequest(statusReq);
+        String statusResponseString = EntityUtils.toString(statusResponse.getEntity());
+        assertEquals("{\"operation_mode\":\"RUNNING\"}", statusResponseString);
+        
+        StopILMRequest stopReq = new StopILMRequest();
+        AcknowledgedResponse stopResponse = execute(stopReq, highLevelClient().indexLifecycle()::stopILM,
+                highLevelClient().indexLifecycle()::stopILMAsync);
+        assertTrue(stopResponse.isAcknowledged());
+
+        // TODO: NORELEASE convert this to using the high level client once there are APIs for it
+        statusReq = new Request("GET", "/_ilm/status");
+        statusResponse = client().performRequest(statusReq);
+        statusResponseString = EntityUtils.toString(statusResponse.getEntity());
+        assertThat(statusResponseString,
+                Matchers.anyOf(equalTo("{\"operation_mode\":\"STOPPING\"}"), equalTo("{\"operation_mode\":\"STOPPED\"}")));
+        
+        StartILMRequest startReq = new StartILMRequest();
+        AcknowledgedResponse startResponse = execute(startReq, highLevelClient().indexLifecycle()::startILM,
+                highLevelClient().indexLifecycle()::startILMAsync);
+        assertTrue(startResponse.isAcknowledged());
+
+        // TODO: NORELEASE convert this to using the high level client once there are APIs for it
+        statusReq = new Request("GET", "/_ilm/status");
+        statusResponse = client().performRequest(statusReq);
+        statusResponseString = EntityUtils.toString(statusResponse.getEntity());
+        assertEquals("{\"operation_mode\":\"RUNNING\"}", statusResponseString);
+    }
+
     public void testExplainLifecycle() throws Exception {
         String policy = randomAlphaOfLength(10);
 

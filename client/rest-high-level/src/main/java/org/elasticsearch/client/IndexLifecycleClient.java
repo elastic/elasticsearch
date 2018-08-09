@@ -20,10 +20,13 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleResponse;
 import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyResponse;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StartILMRequest;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StopILMRequest;
 
 import java.io.IOException;
 
@@ -63,6 +66,60 @@ public class IndexLifecycleClient {
                                              ActionListener<SetIndexLifecyclePolicyResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::setIndexLifecyclePolicy, options,
             SetIndexLifecyclePolicyResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Start the Index Lifecycle Management feature.
+     * See <a href="https://fix-me-when-we-have-docs.com">
+     * the docs</a> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public AcknowledgedResponse startILM(StartILMRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::startILM, options,
+                AcknowledgedResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously start the Index Lifecycle Management feature.
+     * See <a href="https://fix-me-when-we-have-docs.com">
+     * the docs</a> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void startILMAsync(StartILMRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::startILM, options,
+                AcknowledgedResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Stop the Index Lifecycle Management feature.
+     * See <a href="https://fix-me-when-we-have-docs.com">
+     * the docs</a> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public AcknowledgedResponse stopILM(StopILMRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::stopILM, options,
+                AcknowledgedResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously stop the Index Lifecycle Management feature.
+     * See <a href="https://fix-me-when-we-have-docs.com">
+     * the docs</a> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void stopILMAsync(StopILMRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::stopILM, options,
+                AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
     /**

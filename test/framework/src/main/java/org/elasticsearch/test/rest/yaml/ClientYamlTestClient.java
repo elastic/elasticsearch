@@ -34,7 +34,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestPath;
@@ -65,19 +65,19 @@ public class ClientYamlTestClient implements Closeable {
     private final ClientYamlSuiteRestSpec restSpec;
     private final Map<NodeSelector, RestClient> restClients = new HashMap<>();
     private final Version esVersion;
-    private final CheckedConsumer<RestClientBuilder, IOException> clientBuilderConsumer;
+    private final CheckedSupplier<RestClientBuilder, IOException> clientBuilderBuilder;
 
     ClientYamlTestClient(
             final ClientYamlSuiteRestSpec restSpec,
             final RestClient restClient,
             final List<HttpHost> hosts,
             final Version esVersion,
-            final CheckedConsumer<RestClientBuilder, IOException> clientBuilderConsumer) {
+            final CheckedSupplier<RestClientBuilder, IOException> clientBuilderBuilder) {
         assert hosts.size() > 0;
         this.restSpec = restSpec;
         this.restClients.put(NodeSelector.ANY, restClient);
         this.esVersion = esVersion;
-        this.clientBuilderConsumer = clientBuilderConsumer;
+        this.clientBuilderBuilder = clientBuilderBuilder;
     }
 
     public Version getEsVersion() {
@@ -192,10 +192,9 @@ public class ClientYamlTestClient implements Closeable {
     protected RestClient getRestClient(NodeSelector nodeSelector) {
         //lazily build a new client in case we need to point to some specific node
         return restClients.computeIfAbsent(nodeSelector, selector -> {
-            RestClient anyClient = restClients.get(NodeSelector.ANY);
-            RestClientBuilder builder = RestClient.builder(anyClient.getNodes().toArray(new Node[0]));
+            RestClientBuilder builder;
             try {
-                clientBuilderConsumer.accept(builder);
+                builder = clientBuilderBuilder.get();
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

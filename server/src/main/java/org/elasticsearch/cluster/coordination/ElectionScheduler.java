@@ -31,6 +31,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 
 import java.util.Random;
+import java.util.function.BooleanSupplier;
 
 public abstract class ElectionScheduler extends AbstractComponent {
 
@@ -54,7 +55,7 @@ public abstract class ElectionScheduler extends AbstractComponent {
     public static final Setting<TimeValue> ELECTION_BACK_OFF_TIME_SETTING = Setting.timeSetting(ELECTION_BACK_OFF_TIME_SETTING_KEY,
         TimeValue.timeValueMillis(100), TimeValue.timeValueMillis(1), Property.NodeScope);
 
-    public static final Setting<TimeValue> ELECTION_MAX_TIMEOUT_SETTING= Setting.timeSetting(ELECTION_MAX_TIMEOUT_SETTING_KEY,
+    public static final Setting<TimeValue> ELECTION_MAX_TIMEOUT_SETTING = Setting.timeSetting(ELECTION_MAX_TIMEOUT_SETTING_KEY,
         TimeValue.timeValueSeconds(10), TimeValue.timeValueMillis(200), Property.NodeScope);
 
     static String validationExceptionMessage(final String electionMinTimeout, final String electionMaxTimeout) {
@@ -65,7 +66,6 @@ public abstract class ElectionScheduler extends AbstractComponent {
             ELECTION_MAX_TIMEOUT_SETTING_KEY, ELECTION_MIN_TIMEOUT_SETTING_KEY).getFormattedMessage();
     }
 
-    private Object currentScheduler; // only care about its identity
     private final TimeValue minTimeout;
     private final TimeValue backoffTime;
     private final TimeValue maxTimeout;
@@ -73,6 +73,8 @@ public abstract class ElectionScheduler extends AbstractComponent {
     private final ThreadPool threadPool;
     private final Random random;
 
+    private Object currentScheduler; // only care about its identity
+    private long nextSchedulerIdentity;
     private long currentDelayMillis;
 
     ElectionScheduler(Settings settings, Random random, ThreadPool threadPool) {
@@ -91,83 +93,83 @@ public abstract class ElectionScheduler extends AbstractComponent {
     }
 
     public void start() {
-        logger.trace("starting");
-        final Runnable newScheduler;
+        final BooleanSupplier isRunningSupplier;
         synchronized (mutex) {
-            currentDelayMillis = minTimeout.millis();
             assert currentScheduler == null;
-            currentScheduler = newScheduler = new Runnable() {
+            final long schedulerIdentity = nextSchedulerIdentity++;
+            currentDelayMillis = minTimeout.millis();
+            currentScheduler = isRunningSupplier = new BooleanSupplier() {
                 @Override
-                public String toString() {
-                    return "ElectionScheduler: next election scheduler";
-                }
-
-                private boolean isCurrentScheduler() {
+                public boolean getAsBoolean() {
                     return this == currentScheduler;
                 }
 
-                private void scheduleNextElection() {
-                    final long delay;
-                    synchronized (mutex) {
-                        if (isCurrentScheduler() == false) {
-                            logger.trace("not scheduling election");
-                            return;
-                        }
-                        currentDelayMillis = Math.min(maxTimeout.getMillis(), currentDelayMillis + backoffTime.getMillis());
-                        delay = randomLongBetween(minTimeout.getMillis(), currentDelayMillis + 1);
-                    }
-                    logger.trace("scheduling election after delay of [{}ms]", delay);
-                    threadPool.schedule(TimeValue.timeValueMillis(delay), Names.GENERIC, new AbstractRunnable() {
-                        @Override
-                        public void onFailure(Exception e) {
-                            logger.debug("unexpected exception in wakeup", e);
-                            assert false : e;
-                        }
-
-                        @Override
-                        protected void doRun() {
-                            synchronized (mutex) {
-                                if (isCurrentScheduler() == false) {
-                                    return;
-                                }
-                            }
-                            startElection();
-                        }
-
-                        @Override
-                        public void onAfter() {
-                            scheduleNextElection();
-                        }
-
-                        @Override
-                        public String toString() {
-                            return "ElectionScheduler: do election and schedule retry";
-                        }
-
-                        @Override
-                        public boolean isForceExecution() {
-                            // There are very few of these scheduled, and they back off, but it's important that they're not rejected as
-                            // this could prevent a cluster from ever forming.
-                            return true;
-                        }
-                    });
-                }
-
                 @Override
-                public void run() {
-                    scheduleNextElection();
+                public String toString() {
+                    return "isRunningSupplier[" + schedulerIdentity + "]";
                 }
             };
+            logger.trace("starting {}", currentScheduler);
         }
-        newScheduler.run();
+
+        scheduleNextElection(isRunningSupplier);
     }
 
     public void stop() {
-        logger.trace("stopping");
         synchronized (mutex) {
             assert currentScheduler != null;
+            logger.trace("stopping {}", currentScheduler);
             currentScheduler = null;
         }
+    }
+
+    private void scheduleNextElection(final BooleanSupplier isRunningSupplier) {
+        final long delay;
+        synchronized (mutex) {
+            if (isRunningSupplier.getAsBoolean() == false) {
+                logger.trace("{} not scheduling election", isRunningSupplier);
+                return;
+            }
+            currentDelayMillis = Math.min(maxTimeout.getMillis(), currentDelayMillis + backoffTime.getMillis());
+            delay = randomLongBetween(minTimeout.getMillis(), currentDelayMillis + 1);
+        }
+        logger.trace("{} scheduling election after [{}ms]", delay);
+        threadPool.schedule(TimeValue.timeValueMillis(delay), Names.GENERIC, new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                logger.debug("unexpected exception in wakeup", e);
+                assert false : e;
+            }
+
+            @Override
+            protected void doRun() {
+                synchronized (mutex) {
+                    if (isRunningSupplier.getAsBoolean() == false) {
+                        logger.trace("{} not starting election", isRunningSupplier);
+                        return;
+                    }
+                }
+                logger.trace("{} starting election", isRunningSupplier);
+                startElection();
+            }
+
+            @Override
+            public void onAfter() {
+                scheduleNextElection(isRunningSupplier);
+            }
+
+            @Override
+            public String toString() {
+                return "scheduleNextElection[" + isRunningSupplier + "]";
+            }
+
+            @Override
+            public boolean isForceExecution() {
+                // There are very few of these scheduled, and they back off, but it's important that they're not rejected as
+                // this could prevent a cluster from ever forming.
+                return true;
+            }
+        });
     }
 
     @SuppressForbidden(reason = "Argument to Math.abs() is definitely not Long.MIN_VALUE")
@@ -194,7 +196,9 @@ public abstract class ElectionScheduler extends AbstractComponent {
         return "ElectionScheduler{" +
             "minTimeout=" + minTimeout +
             ", maxTimeout=" + maxTimeout +
+            ", backoffTime=" + backoffTime +
             ", currentDelayMillis=" + currentDelayMillis +
+            ", currentScheduler=" + currentScheduler +
             '}';
     }
 }

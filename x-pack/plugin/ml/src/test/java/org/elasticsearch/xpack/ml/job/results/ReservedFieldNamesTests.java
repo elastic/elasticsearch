@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.core.ml.job.results.ReservedFieldNames;
 
 public class ReservedFieldNamesTests extends ESTestCase {
 
-    public void testIsValidFieldName() throws Exception {
+    public void testIsValidFieldName() {
         assertTrue(ReservedFieldNames.isValidFieldName("host"));
         assertTrue(ReservedFieldNames.isValidFieldName("host.actual"));
         assertFalse(ReservedFieldNames.isValidFieldName("actual.host"));

@@ -53,18 +53,19 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
      * Serialisation names
      */
     public static final ParseField ANALYSIS_CONFIG = new ParseField("analysis_config");
-    private static final ParseField BUCKET_SPAN = new ParseField("bucket_span");
-    private static final ParseField CATEGORIZATION_FIELD_NAME = new ParseField("categorization_field_name");
-    static final ParseField CATEGORIZATION_FILTERS = new ParseField("categorization_filters");
-    private static final ParseField CATEGORIZATION_ANALYZER = CategorizationAnalyzerConfig.CATEGORIZATION_ANALYZER;
-    private static final ParseField LATENCY = new ParseField("latency");
-    private static final ParseField SUMMARY_COUNT_FIELD_NAME = new ParseField("summary_count_field_name");
-    private static final ParseField DETECTORS = new ParseField("detectors");
-    private static final ParseField INFLUENCERS = new ParseField("influencers");
-    private static final ParseField OVERLAPPING_BUCKETS = new ParseField("overlapping_buckets");
-    private static final ParseField RESULT_FINALIZATION_WINDOW = new ParseField("result_finalization_window");
-    private static final ParseField MULTIVARIATE_BY_FIELDS = new ParseField("multivariate_by_fields");
-    private static final ParseField USER_PER_PARTITION_NORMALIZATION = new ParseField("use_per_partition_normalization");
+
+    public static final ParseField BUCKET_SPAN = new ParseField("bucket_span");
+    public static final ParseField CATEGORIZATION_FIELD_NAME = new ParseField("categorization_field_name");
+    public static final ParseField CATEGORIZATION_FILTERS = new ParseField("categorization_filters");
+    public static final ParseField CATEGORIZATION_ANALYZER = CategorizationAnalyzerConfig.CATEGORIZATION_ANALYZER;
+    public static final ParseField LATENCY = new ParseField("latency");
+    public static final ParseField SUMMARY_COUNT_FIELD_NAME = new ParseField("summary_count_field_name");
+    public static final ParseField DETECTORS = new ParseField("detectors");
+    public static final ParseField INFLUENCERS = new ParseField("influencers");
+    public static final ParseField OVERLAPPING_BUCKETS = new ParseField("overlapping_buckets");
+    public static final ParseField RESULT_FINALIZATION_WINDOW = new ParseField("result_finalization_window");
+    public static final ParseField MULTIVARIATE_BY_FIELDS = new ParseField("multivariate_by_fields");
+    public static final ParseField USE_PER_PARTITION_NORMALIZATION = new ParseField("use_per_partition_normalization");
 
     public static final String ML_CATEGORY_FIELD = "mlcategory";
     public static final Set<String> AUTO_CREATED_FIELDS = new HashSet<>(Collections.singletonList(ML_CATEGORY_FIELD));
@@ -98,7 +99,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         parser.declareBoolean(Builder::setOverlappingBuckets, OVERLAPPING_BUCKETS);
         parser.declareLong(Builder::setResultFinalizationWindow, RESULT_FINALIZATION_WINDOW);
         parser.declareBoolean(Builder::setMultivariateByFields, MULTIVARIATE_BY_FIELDS);
-        parser.declareBoolean(Builder::setUsePerPartitionNormalization, USER_PER_PARTITION_NORMALIZATION);
+        parser.declareBoolean(Builder::setUsePerPartitionNormalization, USE_PER_PARTITION_NORMALIZATION);
 
         return parser;
     }
@@ -404,7 +405,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
             builder.field(MULTIVARIATE_BY_FIELDS.getPreferredName(), multivariateByFields);
         }
         if (usePerPartitionNormalization) {
-            builder.field(USER_PER_PARTITION_NORMALIZATION.getPreferredName(), usePerPartitionNormalization);
+            builder.field(USE_PER_PARTITION_NORMALIZATION.getPreferredName(), usePerPartitionNormalization);
         }
         builder.endObject();
         return builder;

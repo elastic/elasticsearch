@@ -125,23 +125,23 @@ To add a single privilege, submit a PUT or POST request to the
 
 [source,js]
 --------------------------------------------------
-PUT /_xpack/security/privilege/my_app/read
+PUT /_xpack/security/privilege/myapp/read
 {
-  "application": "my_app", <1>
+  "application": "myapp", <1>
   "name": "read", <2>
   "actions": [
       "action:login", <3>
       "data:read/*" <4>
   ],
   "metadata" : { <5>
-    "description" : "Read access to my_add"
+    "description" : "Read access to myapp"
   }
 }
 --------------------------------------------------
 // CONSOLE
 <1> This field is optional, it is implied by the path parameter
 <2> This field is optional, it is implied by the path parameter
-<3> This string has significance within the "my_app" application,
+<3> This string has significance within the "myapp" application,
     Elasticsearch does not assign any meaning to it.
 <4> The use of a wildcard here (`*`) means that this privilege grants
     access to all actions that start with `data:read/`.  Elasticsearch
@@ -151,13 +151,13 @@ PUT /_xpack/security/privilege/my_app/read
     application privilege such as `data:read/users` or `data:read/settings`.
 <5> The metadata object is optional.
 
-A successful call returns a JSON structure that shows whether the privileg has been
-created or updated.
+A successful call returns a JSON structure that shows whether the privilege has
+been created or updated.
 
 [source,js]
 --------------------------------------------------
 {
-  "my_app": {
+  "myapp": {
     "read": {
       "created": true <1>
     }

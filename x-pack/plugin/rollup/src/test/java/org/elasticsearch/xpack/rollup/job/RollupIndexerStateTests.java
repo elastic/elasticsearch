@@ -639,7 +639,7 @@ public class RollupIndexerStateTests extends ESTestCase {
             assertThat(indexer.getStats().getNumPages(), equalTo(1L));
 
             // Note: no docs were indexed
-            assertThat(indexer.getStats().getNumRollups(), equalTo(0L));
+            assertThat(indexer.getStats().getOutputDocuments(), equalTo(0L));
             assertTrue(indexer.abort());
         } finally {
             executor.shutdownNow();
@@ -743,7 +743,7 @@ public class RollupIndexerStateTests extends ESTestCase {
             assertThat(indexer.getStats().getNumPages(), equalTo(1L));
 
             // Note: no docs were indexed
-            assertThat(indexer.getStats().getNumRollups(), equalTo(0L));
+            assertThat(indexer.getStats().getOutputDocuments(), equalTo(0L));
             assertTrue(indexer.abort());
         } finally {
             executor.shutdownNow();
@@ -786,7 +786,7 @@ public class RollupIndexerStateTests extends ESTestCase {
 
             // Note: no pages processed, no docs were indexed
             assertThat(indexer.getStats().getNumPages(), equalTo(0L));
-            assertThat(indexer.getStats().getNumRollups(), equalTo(0L));
+            assertThat(indexer.getStats().getOutputDocuments(), equalTo(0L));
             assertTrue(indexer.abort());
         } finally {
             executor.shutdownNow();
@@ -896,7 +896,7 @@ public class RollupIndexerStateTests extends ESTestCase {
             assertThat(indexer.getStats().getNumPages(), equalTo(1L));
 
             // Note: no docs were indexed
-            assertThat(indexer.getStats().getNumRollups(), equalTo(0L));
+            assertThat(indexer.getStats().getOutputDocuments(), equalTo(0L));
             assertTrue(indexer.abort());
         } finally {
             executor.shutdownNow();

@@ -52,10 +52,10 @@ public class IndexerStats implements ToXContentObject, Writeable {
     public IndexerStats() {
     }
 
-    public IndexerStats(long numPages, long numDocuments, long numRollups, long numInvocations) {
+    public IndexerStats(long numPages, long numDocuments, long numOuputDocuments, long numInvocations) {
         this.numPages = numPages;
         this.numInputDocuments = numDocuments;
-        this.numOuputDocuments = numRollups;
+        this.numOuputDocuments = numOuputDocuments;
         this.numInvocations = numInvocations;
     }
 
@@ -78,7 +78,7 @@ public class IndexerStats implements ToXContentObject, Writeable {
         return numInvocations;
     }
 
-    public long getNumRollups() {
+    public long getOutputDocuments() {
         return numOuputDocuments;
     }
 
@@ -97,7 +97,7 @@ public class IndexerStats implements ToXContentObject, Writeable {
         numInvocations += n;
     }
 
-    public void incrementNumRollups(long n) {
+    public void incrementNumOutputDocuments(long n) {
         assert(n >= 0);
         numOuputDocuments += n;
     }

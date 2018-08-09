@@ -41,7 +41,8 @@ public abstract class IterativeIndexer<JobPosition> {
     private final AtomicReference<JobPosition> position;
     private final Executor executor;
 
-    protected IterativeIndexer(Executor executor, AtomicReference<IndexerState> initialState, JobPosition initialPosition, IndexerStats stats) {
+    protected IterativeIndexer(Executor executor, AtomicReference<IndexerState> initialState, JobPosition initialPosition,
+            IndexerStats stats) {
         this.executor = executor;
         this.state = initialState;
         this.position = new AtomicReference<>(initialPosition);
@@ -121,7 +122,7 @@ public abstract class IterativeIndexer<JobPosition> {
     }
 
     /**
-     * Triggers a background job that builds the rollup index asynchronously iff
+     * Triggers a background job that builds the index asynchronously iff
      * there is no other job that runs and the indexer is started
      * ({@link IndexerState#STARTED}.
      *
@@ -279,7 +280,7 @@ public abstract class IterativeIndexer<JobPosition> {
 
             default:
                 // any other state is unanticipated at this point
-                throw new IllegalStateException("Rollup job encountered an illegal state [" + prev + "]");
+                throw new IllegalStateException("Indexer job encountered an illegal state [" + prev + "]");
             }
         });
     }
@@ -318,7 +319,7 @@ public abstract class IterativeIndexer<JobPosition> {
                 if (bulkResponse.hasFailures()) {
                     logger.warn("Error while attempting to bulk index documents: " + bulkResponse.buildFailureMessage());
                 }
-                stats.incrementNumRollups(bulkResponse.getItems().length);
+                stats.incrementNumOutputDocuments(bulkResponse.getItems().length);
                 if (checkState(getState()) == false) {
                     return;
                 }
@@ -375,7 +376,7 @@ public abstract class IterativeIndexer<JobPosition> {
         default:
             // Anything other than indexing, aborting or stopping is unanticipated
             logger.warn("Encountered unexpected state [" + currentState + "] while indexing");
-            throw new IllegalStateException("Rollup job encountered an illegal state [" + currentState + "]");
+            throw new IllegalStateException("Indexer job encountered an illegal state [" + currentState + "]");
         }
     }
 

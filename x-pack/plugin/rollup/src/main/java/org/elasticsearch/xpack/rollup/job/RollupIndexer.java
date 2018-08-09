@@ -16,7 +16,6 @@ import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSou
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
-import org.elasticsearch.xpack.core.indexing.IndexerStats;
 import org.elasticsearch.xpack.core.indexing.Iteration;
 import org.elasticsearch.xpack.core.indexing.IterativeIndexer;
 import org.elasticsearch.xpack.core.rollup.RollupField;

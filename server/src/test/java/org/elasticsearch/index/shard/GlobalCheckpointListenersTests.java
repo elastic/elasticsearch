@@ -44,6 +44,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -84,14 +85,14 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
             assertThat(globalCheckpoints[i], equalTo(globalCheckpoint));
         }
 
-        // closing should also not fire the listeners
+        // closing should also not notify the listeners
         globalCheckpointListeners.close();
         for (int i = 0; i < numberOfListeners; i++) {
             assertThat(globalCheckpoints[i], equalTo(globalCheckpoint));
         }
     }
 
-    public void testListenersReadyToFire() throws IOException {
+    public void testListenersReadyToBeNotified() throws IOException {
         final long globalCheckpoint = randomLongBetween(NO_OPS_PERFORMED + 1, Long.MAX_VALUE);
         final GlobalCheckpointListeners globalCheckpointListeners =
                 new GlobalCheckpointListeners(shardId, () -> globalCheckpoint, Runnable::run, logger);
@@ -110,7 +111,7 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
                         globalCheckpoints[index] = g;
                     };
             globalCheckpointListeners.add(randomLongBetween(NO_OPS_PERFORMED, globalCheckpoint - 1), listener);
-            // the listener should fire immediately
+            // the listener should be notified immediately
             assertThat(globalCheckpoints[index], equalTo(globalCheckpoint));
         }
 
@@ -121,10 +122,53 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
             assertThat(globalCheckpoints[i], equalTo(globalCheckpoint));
         }
 
-        // closing should also not fire the listeners
+        // closing should also not notify the listeners
         globalCheckpointListeners.close();
         for (int i = 0; i < numberOfListeners; i++) {
             assertThat(globalCheckpoints[i], equalTo(globalCheckpoint));
+        }
+    }
+
+    public void testFailingListenerReadyToBeNotified() {
+        final long globalCheckpoint = randomLongBetween(NO_OPS_PERFORMED + 1, Long.MAX_VALUE);
+        final Logger mockLogger = mock(Logger.class);
+        final GlobalCheckpointListeners globalCheckpointListeners =
+                new GlobalCheckpointListeners(shardId, () -> globalCheckpoint, Runnable::run, mockLogger);
+        final int numberOfListeners = randomIntBetween(0, 16);
+        final long[] globalCheckpoints = new long[numberOfListeners];
+        for (int i = 0; i < numberOfListeners; i++) {
+            final int index = i;
+            final boolean failure = randomBoolean();
+            final GlobalCheckpointListeners.GlobalCheckpointListener listener =
+                    (g, e) -> {
+                        assert globalCheckpoint != UNASSIGNED_SEQ_NO;
+                        assert e == null;
+                        if (failure) {
+                            globalCheckpoints[index] = Long.MIN_VALUE;
+                            throw new RuntimeException("failure");
+                        } else {
+                            globalCheckpoints[index] = globalCheckpoint;
+                        }
+                    };
+            globalCheckpointListeners.add(randomLongBetween(NO_OPS_PERFORMED, globalCheckpoint - 1), listener);
+            // the listener should be notified immediately
+            if (failure) {
+                assertThat(globalCheckpoints[i], equalTo(Long.MIN_VALUE));
+                final ArgumentCaptor<ParameterizedMessage> message = ArgumentCaptor.forClass(ParameterizedMessage.class);
+                final ArgumentCaptor<RuntimeException> t = ArgumentCaptor.forClass(RuntimeException.class);
+                verify(mockLogger).warn(message.capture(), t.capture());
+                reset(mockLogger);
+                assertThat(
+                        message.getValue().getFormat(),
+                        equalTo("error notifying global checkpoint listener of updated global checkpoint [{}]"));
+                assertNotNull(message.getValue().getParameters());
+                assertThat(message.getValue().getParameters().length, equalTo(1));
+                assertThat(message.getValue().getParameters()[0], equalTo(globalCheckpoint));
+                assertNotNull(t.getValue());
+                assertThat(t.getValue().getMessage(), equalTo("failure"));
+            } else {
+                assertThat(globalCheckpoints[i], equalTo(globalCheckpoint));
+            }
         }
     }
 
@@ -186,14 +230,14 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
             final boolean failure = randomBoolean();
             failures[index] = failure;
             final GlobalCheckpointListeners.GlobalCheckpointListener listener =
-                    (globalCheckpoint, e) -> {
-                        assert globalCheckpoint != UNASSIGNED_SEQ_NO;
+                    (g, e) -> {
+                        assert g != UNASSIGNED_SEQ_NO;
                         assert e == null;
                         if (failure) {
                             globalCheckpoints[index] = Long.MIN_VALUE;
                             throw new RuntimeException("failure");
                         } else {
-                            globalCheckpoints[index] = globalCheckpoint;
+                            globalCheckpoints[index] = g;
                         }
                     };
             globalCheckpointListeners.add(NO_OPS_PERFORMED, listener);
@@ -314,7 +358,7 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
             for (int i = 0; i < numberOfIterations; i++) {
                 final AtomicBoolean invocation = new AtomicBoolean();
                 invocations.add(invocation);
-                // sometimes this will fire the listener immediately
+                // sometimes this will notify the listener immediately
                 globalCheckpointListeners.add(
                         globalCheckpoint.get(),
                         (g, e) -> {

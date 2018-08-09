@@ -97,7 +97,7 @@ public class GlobalCheckpointListeners implements Closeable {
         final long globalCheckpoint = globalCheckpointSupplier.getAsLong();
         if (globalCheckpoint > currentGlobalCheckpoint) {
             // notify directly
-            listener.accept(globalCheckpoint, null);
+            executor.execute(() -> notifyListener(listener, globalCheckpoint, null));
         } else {
             if (listeners == null) {
                 listeners = new ArrayList<>();
@@ -135,21 +135,25 @@ public class GlobalCheckpointListeners implements Closeable {
             if (currentListeners != null) {
                 executor.execute(() -> {
                     for (final GlobalCheckpointListener listener : currentListeners) {
-                        try {
-                            listener.accept(globalCheckpoint, e);
-                        } catch (final Exception caught) {
-                            if (globalCheckpoint != UNASSIGNED_SEQ_NO) {
-                                logger.warn(
-                                        new ParameterizedMessage(
-                                                "error notifying global checkpoint listener of updated global checkpoint [{}]",
-                                                globalCheckpoint),
-                                        caught);
-                            } else {
-                                logger.warn("error notifying global checkpoint listener of closed shard", caught);
-                            }
-                        }
+                        notifyListener(listener, globalCheckpoint, e);
                     }
                 });
+            }
+        }
+    }
+
+    private void notifyListener(final GlobalCheckpointListener listener, final long globalCheckpoint, final IndexShardClosedException e) {
+        try {
+            listener.accept(globalCheckpoint, e);
+        } catch (final Exception caught) {
+            if (globalCheckpoint != UNASSIGNED_SEQ_NO) {
+                logger.warn(
+                        new ParameterizedMessage(
+                                "error notifying global checkpoint listener of updated global checkpoint [{}]",
+                                globalCheckpoint),
+                        caught);
+            } else {
+                logger.warn("error notifying global checkpoint listener of closed shard", caught);
             }
         }
     }

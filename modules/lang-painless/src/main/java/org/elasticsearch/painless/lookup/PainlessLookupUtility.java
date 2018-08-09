@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.lookup;
 
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -101,45 +100,47 @@ public final class PainlessLookupUtility {
                     canonicalTypeName.charAt(arrayIndex++) == ']') {
                     ++arrayDimensions;
                 } else {
-                    throw new IllegalArgumentException("type [" + canonicalTypeName + "] not found");
+                    return null;
                 }
             }
 
             canonicalTypeName = canonicalTypeName.substring(0, canonicalTypeName.indexOf('['));
             type = DEF_CLASS_NAME.equals(canonicalTypeName) ? def.class : canonicalClassNamesToClasses.get(canonicalTypeName);
 
-            char arrayBraces[] = new char[arrayDimensions];
-            Arrays.fill(arrayBraces, '[');
-            String javaTypeName = new String(arrayBraces);
+            if (type != null) {
+                char arrayBraces[] = new char[arrayDimensions];
+                Arrays.fill(arrayBraces, '[');
+                String javaTypeName = new String(arrayBraces);
 
-            if (type == boolean.class) {
-                javaTypeName += "Z";
-            } else if (type == byte.class) {
-                javaTypeName += "B";
-            } else if (type == short.class) {
-                javaTypeName += "S";
-            } else if (type == char.class) {
-                javaTypeName += "C";
-            } else if (type == int.class) {
-                javaTypeName += "I";
-            } else if (type == long.class) {
-                javaTypeName += "J";
-            } else if (type == float.class) {
-                javaTypeName += "F";
-            } else if (type == double.class) {
-                javaTypeName += "D";
-            } else {
-                javaTypeName += "L" + type.getName() + ";";
-            }
+                if (type == boolean.class) {
+                    javaTypeName += "Z";
+                } else if (type == byte.class) {
+                    javaTypeName += "B";
+                } else if (type == short.class) {
+                    javaTypeName += "S";
+                } else if (type == char.class) {
+                    javaTypeName += "C";
+                } else if (type == int.class) {
+                    javaTypeName += "I";
+                } else if (type == long.class) {
+                    javaTypeName += "J";
+                } else if (type == float.class) {
+                    javaTypeName += "F";
+                } else if (type == double.class) {
+                    javaTypeName += "D";
+                } else {
+                    javaTypeName += "L" + type.getName() + ";";
+                }
 
-            try {
-                return Class.forName(javaTypeName);
-            } catch (ClassNotFoundException cnfe) {
-                throw new IllegalArgumentException("type [" + canonicalTypeName + "] not found", cnfe);
+                try {
+                    return Class.forName(javaTypeName);
+                } catch (ClassNotFoundException cnfe) {
+                    throw new IllegalStateException("internal error", cnfe);
+                }
             }
         }
 
-        throw new IllegalArgumentException("type [" + canonicalTypeName + "] not found");
+        return null;
     }
 
     /**
@@ -252,22 +253,6 @@ public final class PainlessLookupUtility {
         }
 
         return type;
-    }
-
-    /**
-     * Ensures a type exists based on the terminology specified as part of {@link PainlessLookupUtility}.  Throws an
-     * {@link IllegalArgumentException} if the type does not exist.
-     */
-    public static void validateType(Class<?> type, Collection<Class<?>> classes) {
-        String canonicalTypeName = typeToCanonicalTypeName(type);
-
-        while (type.getComponentType() != null) {
-            type = type.getComponentType();
-        }
-
-        if (def.class != type && classes.contains(type) == false) {
-            throw new IllegalArgumentException("type [" + canonicalTypeName + "] not found");
-        }
     }
 
     /**

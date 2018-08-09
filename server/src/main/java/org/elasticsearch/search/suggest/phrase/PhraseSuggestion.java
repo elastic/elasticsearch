@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.suggest.Suggest;
@@ -79,7 +80,7 @@ public class PhraseSuggestion extends Suggest.Suggestion<PhraseSuggestion.Entry>
         return suggestion;
     }
 
-    public static class Entry extends Suggestion.Entry<Suggestion.Entry.Option> {
+    public static class Entry extends Suggestion.Entry<PhraseSuggestion.Entry.Option> {
 
         protected double cutoffScore = Double.MIN_VALUE;
 
@@ -107,7 +108,7 @@ public class PhraseSuggestion extends Suggest.Suggestion<PhraseSuggestion.Entry>
         }
 
         @Override
-        protected void merge(Suggestion.Entry<Suggestion.Entry.Option> other) {
+        protected void merge(Suggestion.Entry<Option> other) {
             super.merge(other);
             // If the cluster contains both pre 0.90.4 and post 0.90.4 nodes then we'll see Suggestion.Entry
             // objects being merged with PhraseSuggestion.Entry objects.  We merge Suggestion.Entry objects
@@ -121,7 +122,7 @@ public class PhraseSuggestion extends Suggest.Suggestion<PhraseSuggestion.Entry>
         }
 
         @Override
-        public void addOption(Suggestion.Entry.Option option) {
+        public void addOption(Option option) {
             if (option.getScore() > this.cutoffScore) {
                 this.options.add(option);
             }
@@ -131,7 +132,8 @@ public class PhraseSuggestion extends Suggest.Suggestion<PhraseSuggestion.Entry>
 
         static {
             declareCommonFields(PARSER);
-            PARSER.declareObjectArray(Entry::addOptions, (p,c) -> Option.fromXContent(p), new ParseField(OPTIONS));
+            PARSER.declareObjectArray(Entry::addOptions, (ContextParser<Void, Option>) (p, c) -> Option.fromXContent(p),
+                    new ParseField(OPTIONS));
         }
 
         public static Entry fromXContent(XContentParser parser) {

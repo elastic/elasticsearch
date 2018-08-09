@@ -23,15 +23,14 @@ import java.lang.invoke.MethodHandle;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
 import java.util.Set;
+import java.util.function.Function;
 
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.DEF_CLASS_NAME;
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.buildPainlessConstructorKey;
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.buildPainlessFieldKey;
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.buildPainlessMethodKey;
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToBoxedType;
-import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
 
 public final class PainlessLookup {
 
@@ -71,6 +70,10 @@ public final class PainlessLookup {
 
         Class<?> targetClass = canonicalTypeNameToType(targetCanonicalClassName);
 
+        if (targetClass == null) {
+            return null;
+        }
+
         return lookupPainlessConstructor(targetClass, constructorArity);
     }
 
@@ -81,15 +84,13 @@ public final class PainlessLookup {
         String painlessConstructorKey = buildPainlessConstructorKey(constructorArity);
 
         if (targetPainlessClass == null) {
-            throw new IllegalArgumentException("target class [" + typeToCanonicalTypeName(targetClass) + "] " +
-                    "not found for constructor [" + painlessConstructorKey + "]");
+            return null;
         }
 
         PainlessConstructor painlessConstructor = targetPainlessClass.constructors.get(painlessConstructorKey);
 
         if (painlessConstructor == null) {
-            throw new IllegalArgumentException(
-                    "constructor [" + typeToCanonicalTypeName(targetClass) + ", " + painlessConstructorKey + "] not found");
+            return null;
         }
 
         return painlessConstructor;
@@ -99,6 +100,10 @@ public final class PainlessLookup {
         Objects.requireNonNull(targetCanonicalClassName);
 
         Class<?> targetClass = canonicalTypeNameToType(targetCanonicalClassName);
+
+        if (targetClass == null) {
+            return null;
+        }
 
         return lookupPainlessMethod(targetClass, isStatic, methodName, methodArity);
     }
@@ -115,26 +120,22 @@ public final class PainlessLookup {
         String painlessMethodKey = buildPainlessMethodKey(methodName, methodArity);
 
         if (targetPainlessClass == null) {
-            throw new IllegalArgumentException(
-                    "target class [" + typeToCanonicalTypeName(targetClass) + "] not found for method [" + painlessMethodKey + "]");
+            return null;
         }
 
-        PainlessMethod painlessMethod = isStatic ?
+        return isStatic ?
                 targetPainlessClass.staticMethods.get(painlessMethodKey) :
                 targetPainlessClass.methods.get(painlessMethodKey);
-
-        if (painlessMethod == null) {
-            throw new IllegalArgumentException(
-                    "method [" + typeToCanonicalTypeName(targetClass) + ", " + painlessMethodKey + "] not found");
-        }
-
-        return painlessMethod;
     }
 
     public PainlessField lookupPainlessField(String targetCanonicalClassName, boolean isStatic, String fieldName) {
         Objects.requireNonNull(targetCanonicalClassName);
 
         Class<?> targetClass = canonicalTypeNameToType(targetCanonicalClassName);
+
+        if (targetClass == null) {
+            return null;
+        }
 
         return lookupPainlessField(targetClass, isStatic, fieldName);
     }
@@ -147,8 +148,7 @@ public final class PainlessLookup {
         String painlessFieldKey = buildPainlessFieldKey(fieldName);
 
         if (targetPainlessClass == null) {
-            throw new IllegalArgumentException(
-                    "target class [" + typeToCanonicalTypeName(targetClass) + "] not found for field [" + painlessFieldKey + "]");
+            return null;
         }
 
         PainlessField painlessField = isStatic ?
@@ -156,8 +156,7 @@ public final class PainlessLookup {
                 targetPainlessClass.fields.get(painlessFieldKey);
 
         if (painlessField == null) {
-            throw new IllegalArgumentException(
-                    "field [" + typeToCanonicalTypeName(targetClass) + ", " + painlessFieldKey + "] not found");
+            return null;
         }
 
         return painlessField;
@@ -167,16 +166,10 @@ public final class PainlessLookup {
         PainlessClass targetPainlessClass = classesToPainlessClasses.get(targetClass);
 
         if (targetPainlessClass == null) {
-            throw new IllegalArgumentException("target class [" + typeToCanonicalTypeName(targetClass) + "] not found");
+            return null;
         }
 
-        PainlessMethod functionalInterfacePainlessMethod = targetPainlessClass.functionalInterfaceMethod;
-
-        if (functionalInterfacePainlessMethod == null) {
-            throw new IllegalArgumentException("target class [" + typeToCanonicalTypeName(targetClass) + "] is not a functional interface");
-        }
-
-        return functionalInterfacePainlessMethod;
+        return targetPainlessClass.functionalInterfaceMethod;
     }
 
     public PainlessMethod lookupRuntimePainlessMethod(Class<?> originalTargetClass, String methodName, int methodArity) {
@@ -184,41 +177,30 @@ public final class PainlessLookup {
         Objects.requireNonNull(methodName);
 
         String painlessMethodKey = buildPainlessMethodKey(methodName, methodArity);
-        Function<PainlessClass, PainlessMethod> objectLookup =
-                targetPainlessClass -> targetPainlessClass.methods.get(painlessMethodKey);
-        String notFoundErrorMessage =
-                "dynamic method [" + typeToCanonicalTypeName(originalTargetClass) + ", " + painlessMethodKey + "] not found";
+        Function<PainlessClass, PainlessMethod> objectLookup = targetPainlessClass -> targetPainlessClass.methods.get(painlessMethodKey);
 
-        return lookupRuntimePainlessObject(originalTargetClass, objectLookup, notFoundErrorMessage);
+        return lookupRuntimePainlessObject(originalTargetClass, objectLookup);
     }
 
     public MethodHandle lookupRuntimeGetterMethodHandle(Class<?> originalTargetClass, String getterName) {
         Objects.requireNonNull(originalTargetClass);
         Objects.requireNonNull(getterName);
 
-        Function<PainlessClass, MethodHandle> objectLookup =
-                targetPainlessClass -> targetPainlessClass.getterMethodHandles.get(getterName);
-        String notFoundErrorMessage =
-                "dynamic getter [" + typeToCanonicalTypeName(originalTargetClass) + ", " + getterName + "] not found";
+        Function<PainlessClass, MethodHandle> objectLookup = targetPainlessClass -> targetPainlessClass.getterMethodHandles.get(getterName);
 
-        return lookupRuntimePainlessObject(originalTargetClass, objectLookup, notFoundErrorMessage);
+        return lookupRuntimePainlessObject(originalTargetClass, objectLookup);
     }
 
     public MethodHandle lookupRuntimeSetterMethodHandle(Class<?> originalTargetClass, String setterName) {
         Objects.requireNonNull(originalTargetClass);
         Objects.requireNonNull(setterName);
 
-        Function<PainlessClass, MethodHandle> objectLookup =
-                targetPainlessClass -> targetPainlessClass.setterMethodHandles.get(setterName);
-        String notFoundErrorMessage =
-                "dynamic setter [" + typeToCanonicalTypeName(originalTargetClass) + ", " + setterName + "] not found";
+        Function<PainlessClass, MethodHandle> objectLookup = targetPainlessClass -> targetPainlessClass.setterMethodHandles.get(setterName);
 
-        return lookupRuntimePainlessObject(originalTargetClass, objectLookup, notFoundErrorMessage);
+        return lookupRuntimePainlessObject(originalTargetClass, objectLookup);
     }
 
-    private <T> T lookupRuntimePainlessObject(
-            Class<?> originalTargetClass, Function<PainlessClass, T> objectLookup, String notFoundErrorMessage) {
-
+    private <T> T lookupRuntimePainlessObject(Class<?> originalTargetClass, Function<PainlessClass, T> objectLookup) {
         Class<?> currentTargetClass = originalTargetClass;
 
         while (currentTargetClass != null) {
@@ -253,6 +235,6 @@ public final class PainlessLookup {
             currentTargetClass = currentTargetClass.getSuperclass();
         }
 
-        throw new IllegalArgumentException(notFoundErrorMessage);
+        return null;
     }
 }

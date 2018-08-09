@@ -20,8 +20,9 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 
-public class PutPipelineAction extends Action<WritePipelineResponse> {
+public class PutPipelineAction extends Action<AcknowledgedResponse> {
 
     public static final PutPipelineAction INSTANCE = new PutPipelineAction();
     public static final String NAME = "cluster:admin/ingest/pipeline/put";
@@ -31,7 +32,7 @@ public class PutPipelineAction extends Action<WritePipelineResponse> {
     }
 
     @Override
-    public WritePipelineResponse newResponse() {
-        return new WritePipelineResponse();
+    public AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 }

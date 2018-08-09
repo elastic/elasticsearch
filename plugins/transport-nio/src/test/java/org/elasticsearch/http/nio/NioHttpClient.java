@@ -71,6 +71,7 @@ import java.util.function.Consumer;
 import static io.netty.handler.codec.http.HttpHeaderNames.HOST;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
+import static org.junit.Assert.fail;
 
 /**
  * Tiny helper to send http requests over nio.
@@ -136,7 +137,9 @@ class NioHttpClient implements Closeable {
             for (HttpRequest request : requests) {
                 nioSocketChannel.getContext().sendMessage(request, (v, e) -> {});
             }
-            latch.await(30, TimeUnit.SECONDS);
+            if (latch.await(30L, TimeUnit.SECONDS) == false) {
+                fail("Failed to get all expected responses.");
+            }
 
         } catch (IOException e) {
             throw new UncheckedIOException(e);

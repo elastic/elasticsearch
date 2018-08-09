@@ -10,131 +10,27 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.xpack.ml.configcreator.FilebeatModuleStore.FilebeatModule;
 import org.elasticsearch.xpack.ml.configcreator.TimestampFormatFinder.TimestampMatch;
 
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 public class TextLogFileStructureFinder extends AbstractLogFileStructureFinder implements LogFileStructureFinder {
 
-    private static final String FILEBEAT_TO_LOGSTASH_TEMPLATE = "filebeat.inputs:\n" +
-        "- type: log\n" +
-        "%s" +
-        "%s" +
-        "\n" +
-        "output.logstash:\n" +
-        "  hosts: [\"%s:5044\"]\n";
-    private static final String COMMON_LOGSTASH_FILTERS_TEMPLATE = "  grok {\n" +
-        "    match => { \"message\" => %s%s%s }\n" +
-        "  }\n" +
-        "  date {\n" +
-        "    match => [ \"%s\", %s ]\n" +
-        "    remove_field => [ \"%s\" ]\n" +
-        "%s" +
-        "  }\n";
-    private static final String LOGSTASH_FROM_FILEBEAT_TEMPLATE = "input {\n" +
-        "  beats {\n" +
-        "    port => 5044\n" +
-        "    host => \"0.0.0.0\"\n" +
-        "  }\n" +
-        "}\n" +
-        "\n" +
-        "filter {\n" +
-        "%s" +
-        "}\n" +
-        "\n" +
-        "output {\n" +
-        "  elasticsearch {\n" +
-        "    hosts => '%s'\n" +
-        "    manage_template => false\n" +
-        "    index => \"%%{[@metadata][beat]}-%%{[@metadata][version]}-%%{+YYYY.MM.dd}\"\n" +
-        "  }\n" +
-        "}\n";
-    private static final String LOGSTASH_FROM_FILE_TEMPLATE = "input {\n" +
-        "%s" +
-        "}\n" +
-        "\n" +
-        "filter {\n" +
-        "  mutate {\n" +
-        "    rename => {\n" +
-        "      \"path\" => \"source\"\n" +
-        "    }\n" +
-        "  }\n" +
-        "%s" +
-        "}\n" +
-        "\n" +
-        "output {\n" +
-        "  elasticsearch {\n" +
-        "    hosts => '%s'\n" +
-        "    manage_template => false\n" +
-        "    index => \"%s\"\n" +
-        "    document_type => \"_doc\"\n" +
-        "  }\n" +
-        "}\n";
-    private static final String FILEBEAT_TO_INGEST_PIPELINE_WITHOUT_MODULE_TEMPLATE = "filebeat.inputs:\n" +
-        "- type: log\n" +
-        "%s" +
-        "%s" +
-        "\n" +
-        "output.elasticsearch:\n" +
-        "  hosts: [\"http://%s:9200\"]\n" +
-        "  pipeline: \"%s\"\n";
-    private static final String INGEST_PIPELINE_FROM_FILEBEAT_WITHOUT_MODULE_TEMPLATE = "PUT _ingest/pipeline/%s\n" +
-        "{\n" +
-        "  \"description\": \"Ingest pipeline for %s files\",\n" +
-        "  \"processors\": [\n" +
-        "    {\n" +
-        "      \"grok\": {\n" +
-        "        \"field\": \"message\",\n" +
-        "        \"patterns\": [ \"%s\" ]\n" +
-        "      },\n" +
-        "      \"date\": {\n" +
-        "        \"field\": \"%s\",\n" +
-        "%s" +
-        "        \"formats\": [ %s ]\n" +
-        "      },\n" +
-        "      \"remove\": {\n" +
-        "        \"field\": \"%s\"\n" +
-        "      }\n" +
-        "    }\n" +
-        "  ]\n" +
-        "}\n";
-    private static final String FILEBEAT_TO_INGEST_PIPELINE_WITH_MODULE_TEMPLATE = "filebeat.inputs:\n" +
-        "%s\n" +
-        "\n" +
-        "output.elasticsearch:\n" +
-        "  hosts: [\"http://%s:9200\"]\n" +
-        "  pipeline: \"%s\"\n";
-    private static final String INGEST_PIPELINE_FROM_FILEBEAT_WITH_MODULE_TEMPLATE = "PUT _ingest/pipeline/%s\n" +
-        "%s\n";
-
-    private final FilebeatModuleStore filebeatModuleStore;
     private final List<String> sampleMessages;
-    private String filebeatToLogstashConfig;
-    private String logstashFromFilebeatConfig;
-    private String logstashFromFileConfig;
-    private String filebeatToIngestPipelineConfig;
-    private String ingestPipelineFromFilebeatConfig;
+    private final LogFileStructure structure;
 
-    TextLogFileStructureFinder(Terminal terminal, FilebeatModuleStore filebeatModuleStore, String sampleFileName, String indexName,
-                               String typeName, String elasticsearchHost, String logstashHost, String logstashFileTimezone, String sample,
-                               String charsetName, Boolean hasByteOrderMarker) throws UserException {
-        super(terminal, sampleFileName, indexName, typeName, elasticsearchHost, logstashHost, logstashFileTimezone, charsetName,
-            hasByteOrderMarker);
-        this.filebeatModuleStore = filebeatModuleStore;
+    TextLogFileStructureFinder(Terminal terminal, String sample, String charsetName, Boolean hasByteOrderMarker) throws UserException {
+        super(terminal);
 
         String[] sampleLines = sample.split("\n");
         Tuple<TimestampMatch, Set<String>> bestTimestamp = mostLikelyTimestamp(sampleLines);
@@ -214,63 +110,14 @@ public class TextLogFileStructureFinder extends AbstractLogFileStructureFinder i
             .build();
     }
 
-    String getFilebeatToLogstashConfig() {
-        return filebeatToLogstashConfig;
+    @Override
+    public List<String> getSampleMessages() {
+        return Collections.unmodifiableList(sampleMessages);
     }
 
-    String getLogstashFromFilebeatConfig() {
-        return logstashFromFilebeatConfig;
-    }
-
-    String getLogstashFromFileConfig() {
-        return logstashFromFileConfig;
-    }
-
-    String getFilebeatToIngestPipelineConfig() {
-        return filebeatToIngestPipelineConfig;
-    }
-
-    String getIngestPipelineFromFilebeatConfig() {
-        return ingestPipelineFromFilebeatConfig;
-    }
-
-    void createConfigs() {
-
-        String grokPattern = structure.getGrokPattern();
-        String grokQuote = bestLogstashQuoteFor(grokPattern);
-        String interimTimestampField = structure.getTimestampField();
-        String dateFormatsStr = structure.getTimestampFormats().stream().collect(Collectors.joining("\", \"", "\"", "\""));
-
-        String filebeatInputOptions = makeFilebeatInputOptions(structure.getMultilineStartPattern(), null);
-        filebeatToLogstashConfig = String.format(Locale.ROOT, FILEBEAT_TO_LOGSTASH_TEMPLATE, filebeatInputOptions,
-            makeFilebeatAddLocaleSetting(structure.needClientTimezone()), logstashHost);
-        String logstashFromFilebeatFilters = String.format(Locale.ROOT, COMMON_LOGSTASH_FILTERS_TEMPLATE, grokQuote, grokPattern, grokQuote,
-            interimTimestampField, dateFormatsStr, interimTimestampField,
-            makeLogstashTimezoneSetting(structure.needClientTimezone(), true));
-        logstashFromFilebeatConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILEBEAT_TEMPLATE, logstashFromFilebeatFilters,
-            elasticsearchHost);
-        String logstashFromFileFilters = String.format(Locale.ROOT, COMMON_LOGSTASH_FILTERS_TEMPLATE, grokQuote, grokPattern, grokQuote,
-            interimTimestampField, dateFormatsStr, interimTimestampField,
-            makeLogstashTimezoneSetting(structure.needClientTimezone(), false));
-        logstashFromFileConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILE_TEMPLATE,
-            makeLogstashFileInput(structure.getMultilineStartPattern()), logstashFromFileFilters, elasticsearchHost, indexName);
-        FilebeatModule matchingModule = (filebeatModuleStore != null) ? filebeatModuleStore.findMatchingModule(sampleMessages) : null;
-        if (matchingModule == null) {
-            filebeatToIngestPipelineConfig = String.format(Locale.ROOT, FILEBEAT_TO_INGEST_PIPELINE_WITHOUT_MODULE_TEMPLATE,
-                filebeatInputOptions, makeFilebeatAddLocaleSetting(structure.needClientTimezone()), elasticsearchHost, typeName);
-            String jsonEscapedGrokPattern = grokPattern.replaceAll("([\\\\\"])", "\\\\$1");
-            ingestPipelineFromFilebeatConfig = String.format(Locale.ROOT, INGEST_PIPELINE_FROM_FILEBEAT_WITHOUT_MODULE_TEMPLATE, typeName,
-                typeName, jsonEscapedGrokPattern, interimTimestampField,
-                makeIngestPipelineTimezoneSetting(structure.needClientTimezone()), dateFormatsStr, interimTimestampField);
-        } else {
-            String aOrAn = ("aeiou".indexOf(matchingModule.fileType.charAt(0)) >= 0) ? "an" : "a";
-            terminal.println("An existing Filebeat module [" + matchingModule.moduleName +
-                "] looks appropriate; the sample file appears to be " + aOrAn + " [" + matchingModule.fileType + "] log");
-            filebeatToIngestPipelineConfig = String.format(Locale.ROOT, FILEBEAT_TO_INGEST_PIPELINE_WITH_MODULE_TEMPLATE,
-                matchingModule.inputDefinition, elasticsearchHost, typeName);
-            ingestPipelineFromFilebeatConfig = String.format(Locale.ROOT, INGEST_PIPELINE_FROM_FILEBEAT_WITH_MODULE_TEMPLATE, typeName,
-                matchingModule.ingestPipeline);
-        }
+    @Override
+    public LogFileStructure getStructure() {
+        return structure;
     }
 
     static Tuple<TimestampMatch, Set<String>> mostLikelyTimestamp(String[] sampleLines) {
@@ -348,21 +195,5 @@ public class TextLogFileStructureFinder extends AbstractLogFileStructureFinder i
             builder.delete(1, 3);
         }
         return builder.toString();
-    }
-
-    @Override
-    public synchronized void writeConfigs(Path directory) throws Exception {
-        if (filebeatToLogstashConfig == null) {
-            createConfigs();
-            createPreambleComment();
-        }
-
-        writeMappingsConfigs(directory, structure.getMappings());
-
-        writeConfigFile(directory, "filebeat-to-logstash.yml", filebeatToLogstashConfig);
-        writeConfigFile(directory, "logstash-from-filebeat.conf", logstashFromFilebeatConfig);
-        writeConfigFile(directory, "logstash-from-file.conf", logstashFromFileConfig);
-        writeConfigFile(directory, "filebeat-to-ingest-pipeline.yml", filebeatToIngestPipelineConfig);
-        writeRestCallConfigs(directory, "ingest-pipeline-from-filebeat.console", ingestPipelineFromFilebeatConfig);
     }
 }

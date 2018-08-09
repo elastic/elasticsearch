@@ -5,16 +5,19 @@
  */
 package org.elasticsearch.xpack.ml.configcreator;
 
-import java.nio.file.Path;
+import java.util.List;
 
 public interface LogFileStructureFinder {
 
-    LogFileStructure getStructure();
+    /**
+     * The (possibly multi-line) messages that the log sample was split into.
+     * @return A list of messages.
+     */
+    List<String> getSampleMessages();
 
     /**
-     * Write config files suitable for ingesting the log file to the directory provided.
-     * @param directory The directory to which the config files will be written.
-     * @throws Exception if something goes wrong either during creation or writing of the config files.
+     * Retrieve the structure of the log file used to instantiate the finder.
+     * @return The log file structure.
      */
-    void writeConfigs(Path directory) throws Exception;
+    LogFileStructure getStructure();
 }

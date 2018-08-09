@@ -35,10 +35,9 @@ public class CsvLogFileStructureFinderFactory implements LogFileStructureFinderF
     }
 
     @Override
-    public LogFileStructureFinder createFromSample(String sampleFileName, String indexName, String typeName, String elasticsearchHost,
-                                                   String logstashHost, String logstashFileTimezone, String sample, String charsetName,
-                                                   Boolean hasByteOrderMarker) throws IOException, UserException {
-        return new SeparatedValuesLogFileStructureFinder(terminal, sampleFileName, indexName, typeName, elasticsearchHost, logstashHost,
-            logstashFileTimezone, sample, charsetName, hasByteOrderMarker, CsvPreference.EXCEL_PREFERENCE, false);
+    public LogFileStructureFinder createFromSample(String sample, String charsetName, Boolean hasByteOrderMarker)
+        throws IOException, UserException {
+        return new SeparatedValuesLogFileStructureFinder(terminal, sample, charsetName, hasByteOrderMarker, CsvPreference.EXCEL_PREFERENCE,
+            false);
     }
 }

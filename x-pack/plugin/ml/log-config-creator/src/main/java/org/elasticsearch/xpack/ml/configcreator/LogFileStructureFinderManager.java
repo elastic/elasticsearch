@@ -20,7 +20,6 @@ import java.io.InputStream;
 import java.io.Reader;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -70,30 +69,14 @@ public final class LogFileStructureFinderManager {
     )));
 
     private final Terminal terminal;
-    private final String sampleFileName;
-    private final String indexName;
-    private final String typeName;
-    private final String logstashFileTimezone;
-    private final String elasticsearchHost;
-    private final String logstashHost;
 
     /**
      * These need to be ordered so that the more generic formats come after the more specific ones
      */
     private final List<LogFileStructureFinderFactory> orderedStructureFactories;
 
-    public LogFileStructureFinderManager(Terminal terminal, Path filebeatModulePath, String sampleFileName, String indexName,
-                                         String typeName, String elasticsearchHost, String logstashHost, String logstashFileTimezone)
-        throws IOException {
+    public LogFileStructureFinderManager(Terminal terminal) {
         this.terminal = Objects.requireNonNull(terminal);
-        this.sampleFileName = Objects.requireNonNull(sampleFileName);
-        this.indexName = Objects.requireNonNull(indexName);
-        this.typeName = Objects.requireNonNull(typeName);
-        this.elasticsearchHost = Objects.requireNonNull(elasticsearchHost);
-        this.logstashHost = Objects.requireNonNull(logstashHost);
-        this.logstashFileTimezone = logstashFileTimezone;
-        FilebeatModuleStore filebeatModuleStore =
-            (filebeatModulePath != null) ? new FilebeatModuleStore(terminal, filebeatModulePath, sampleFileName) : null;
         orderedStructureFactories = Arrays.asList(
             new JsonLogFileStructureFinderFactory(terminal),
             new XmlLogFileStructureFinderFactory(terminal),
@@ -102,11 +85,11 @@ public final class LogFileStructureFinderManager {
             new TsvLogFileStructureFinderFactory(terminal),
             new SemiColonSeparatedValuesLogFileStructureFinderFactory(terminal),
             new PipeSeparatedValuesLogFileStructureFinderFactory(terminal),
-            new TextLogFileStructureFinderFactory(terminal, filebeatModuleStore)
+            new TextLogFileStructureFinderFactory(terminal)
         );
     }
 
-    public void findLogFileConfigs(int idealSampleLineCount, InputStream fromFile, Path outputDirectory) throws Exception {
+    public LogFileStructureFinder findLogFileStructure(int idealSampleLineCount, InputStream fromFile) throws Exception {
 
         CharsetMatch charsetMatch = findCharset(fromFile);
         String charsetName = charsetMatch.getName();
@@ -114,8 +97,7 @@ public final class LogFileStructureFinderManager {
         Tuple<String, Boolean> sampleInfo = sampleFile(charsetMatch.getReader(), charsetName, MIN_SAMPLE_LINE_COUNT,
             Math.max(MIN_SAMPLE_LINE_COUNT, idealSampleLineCount));
 
-        LogFileStructureFinder structure = makeBestStructure(sampleInfo.v1(), charsetName, sampleInfo.v2());
-        structure.writeConfigs(outputDirectory);
+        return makeBestStructureFinder(sampleInfo.v1(), charsetName, sampleInfo.v2());
     }
 
     CharsetMatch findCharset(InputStream inputStream) throws Exception {
@@ -202,12 +184,11 @@ public final class LogFileStructureFinderManager {
             (containsZeroBytes ? " - could it be binary data?" : ""));
     }
 
-    LogFileStructureFinder makeBestStructure(String sample, String charsetName, Boolean hasByteOrderMarker) throws Exception {
+    LogFileStructureFinder makeBestStructureFinder(String sample, String charsetName, Boolean hasByteOrderMarker) throws Exception {
 
         for (LogFileStructureFinderFactory factory : orderedStructureFactories) {
             if (factory.canCreateFromSample(sample)) {
-                return factory.createFromSample(sampleFileName, indexName, typeName, elasticsearchHost, logstashHost, logstashFileTimezone,
-                    sample, charsetName, hasByteOrderMarker);
+                return factory.createFromSample(sample, charsetName, hasByteOrderMarker);
             }
         }
         throw new UserException(ExitCodes.DATA_ERROR, "Input did not match any known formats");

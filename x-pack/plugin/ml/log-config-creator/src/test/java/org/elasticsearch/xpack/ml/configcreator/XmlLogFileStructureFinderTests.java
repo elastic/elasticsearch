@@ -5,11 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.configcreator;
 
-import java.nio.charset.StandardCharsets;
-import java.util.Locale;
-
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.not;
+import java.util.Collections;
 
 public class XmlLogFileStructureFinderTests extends LogConfigCreatorTestCase {
 
@@ -17,30 +13,27 @@ public class XmlLogFileStructureFinderTests extends LogConfigCreatorTestCase {
 
     public void testCreateConfigsGivenGoodXml() throws Exception {
         assertTrue(factory.canCreateFromSample(XML_SAMPLE));
+
         String charset = randomFrom(POSSIBLE_CHARSETS);
-        String timezone = randomFrom(POSSIBLE_TIMEZONES);
-        String elasticsearchHost = randomFrom(POSSIBLE_HOSTNAMES);
-        String logstashHost = randomFrom(POSSIBLE_HOSTNAMES);
-        XmlLogFileStructureFinder structure = (XmlLogFileStructureFinder) factory.createFromSample(TEST_FILE_NAME, TEST_INDEX_NAME,
-            "log4cxx-xml", elasticsearchHost, logstashHost, timezone, XML_SAMPLE, charset, randomHasByteOrderMarker(charset));
-        structure.createConfigs();
-        if (charset.equals(StandardCharsets.UTF_8.name())) {
-            assertThat(structure.getFilebeatToLogstashConfig(), not(containsString("encoding:")));
+        Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
+        LogFileStructureFinder structureFinder = factory.createFromSample(XML_SAMPLE, charset, hasByteOrderMarker);
+
+        LogFileStructure structure = structureFinder.getStructure();
+
+        assertEquals(LogFileStructure.Format.XML, structure.getFormat());
+        assertEquals(charset, structure.getCharset());
+        if (hasByteOrderMarker == null) {
+            assertNull(structure.getHasByteOrderMarker());
         } else {
-            assertThat(structure.getFilebeatToLogstashConfig(), containsString("encoding: '" + charset.toLowerCase(Locale.ROOT) + "'"));
+            assertEquals(hasByteOrderMarker, structure.getHasByteOrderMarker());
         }
-        assertThat(structure.getFilebeatToLogstashConfig(), containsString("multiline.pattern: '^\\s*<log4j:event'\n"));
-        assertThat(structure.getFilebeatToLogstashConfig(), containsString(logstashHost));
-        assertThat(structure.getLogstashFromFilebeatConfig(), containsString("match => [ \"[log4j:event][timestamp]\", \"UNIX_MS\" ]\n"));
-        assertThat(structure.getLogstashFromFilebeatConfig(), containsString(elasticsearchHost));
-        if (charset.equals(StandardCharsets.UTF_8.name())) {
-            assertThat(structure.getLogstashFromFileConfig(), not(containsString("charset =>")));
-        } else {
-            assertThat(structure.getLogstashFromFileConfig(), containsString("charset => \"" + charset + "\""));
-        }
-        assertThat(structure.getLogstashFromFileConfig(), containsString("pattern => \"^\\s*<log4j:event\"\n"));
-        assertThat(structure.getLogstashFromFileConfig(), containsString("match => [ \"[log4j:event][timestamp]\", \"UNIX_MS\" ]\n"));
-        assertThat(structure.getLogstashFromFileConfig(), not(containsString("timezone =>")));
-        assertThat(structure.getLogstashFromFileConfig(), containsString(elasticsearchHost));
+        assertNull(structure.getExcludeLinesPattern());
+        assertEquals("^\\s*<log4j:event", structure.getMultilineStartPattern());
+        assertNull(structure.getSeparator());
+        assertNull(structure.getHasHeaderRow());
+        assertNull(structure.getShouldTrimFields());
+        assertNull(structure.getGrokPattern());
+        assertEquals("timestamp", structure.getTimestampField());
+        assertEquals(Collections.singletonList("UNIX_MS"), structure.getTimestampFormats());
     }
 }

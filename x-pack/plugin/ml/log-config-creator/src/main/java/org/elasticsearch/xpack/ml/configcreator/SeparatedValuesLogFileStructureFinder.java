@@ -17,7 +17,6 @@ import org.supercsv.util.Util;
 
 import java.io.IOException;
 import java.io.StringReader;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -36,85 +35,12 @@ public class SeparatedValuesLogFileStructureFinder extends AbstractStructuredLog
 
     private static final int MAX_LEVENSHTEIN_COMPARISONS = 100;
 
-    private static final String FILEBEAT_TO_LOGSTASH_TEMPLATE = "filebeat.inputs:\n" +
-        "- type: log\n" +
-        "%s" +
-        "%s" +
-        "\n" +
-        "output.logstash:\n" +
-        "  hosts: [\"%s:5044\"]\n";
-    private static final String SEPARATOR_TEMPLATE = "    separator => \"%c\"\n";
-    private static final String LOGSTASH_CONVERSIONS_TEMPLATE = "    convert => {\n" +
-        "%s" +
-        "    }\n";
-    private static final String LOGSTASH_STRIP_FILTER_TEMPLATE = "  mutate {\n" +
-        "    strip => [ %s ]\n" +
-        "  }\n";
-    private static final String LOGSTASH_FROM_FILEBEAT_TEMPLATE = "input {\n" +
-        "  beats {\n" +
-        "    port => 5044\n" +
-        "    host => \"0.0.0.0\"\n" +
-        "  }\n" +
-        "}\n" +
-        "\n" +
-        "filter {\n" +
-        "  csv {\n" +
-        "%s" +
-        "    columns => [ %s ]\n" +
-        "%s" +
-        "    remove_field => [ \"message\" ]\n" +
-        "  }\n" +
-        "%s" +
-        "%s" +
-        "}\n" +
-        "\n" +
-        "output {\n" +
-        "  elasticsearch {\n" +
-        "    hosts => '%s'\n" +
-        "    manage_template => false\n" +
-        "    index => \"%%{[@metadata][beat]}-%%{[@metadata][version]}-%%{+YYYY.MM.dd}\"\n" +
-        "  }\n" +
-        "}\n";
-    private static final String LOGSTASH_FROM_FILE_TEMPLATE = "input {\n" +
-        "%s" +
-        "}\n" +
-        "\n" +
-        "filter {\n" +
-        "  mutate {\n" +
-        "    rename => {\n" +
-        "      \"path\" => \"source\"\n" +
-        "    }\n" +
-        "  }\n" +
-        "  csv {\n" +
-        "%s" +
-        "    columns => [ %s ]\n" +
-        "%s" +
-        "%s" +
-        "    remove_field => [ \"message\" ]\n" +
-        "  }\n" +
-        "%s" +
-        "%s" +
-        "}\n" +
-        "\n" +
-        "output {\n" +
-        "  elasticsearch {\n" +
-        "    hosts => '%s'\n" +
-        "    manage_template => false\n" +
-        "    index => \"%s\"\n" +
-        "    document_type => \"_doc\"\n" +
-        "  }\n" +
-        "}\n";
+    private final List<String> sampleMessages;
+    private final LogFileStructure structure;
 
-    private String filebeatToLogstashConfig;
-    private String logstashFromFilebeatConfig;
-    private String logstashFromFileConfig;
-
-    SeparatedValuesLogFileStructureFinder(Terminal terminal, String sampleFileName, String indexName, String typeName,
-                                          String elasticsearchHost, String logstashHost, String logstashFileTimezone, String sample,
-                                          String charsetName, Boolean hasByteOrderMarker, CsvPreference csvPreference, boolean trimFields)
-        throws IOException, UserException {
-        super(terminal, sampleFileName, indexName, typeName, elasticsearchHost, logstashHost, logstashFileTimezone, charsetName,
-            hasByteOrderMarker);
+    SeparatedValuesLogFileStructureFinder(Terminal terminal, String sample, String charsetName, Boolean hasByteOrderMarker,
+                                          CsvPreference csvPreference, boolean trimFields) throws IOException, UserException {
+        super(terminal);
 
         Tuple<List<List<String>>, List<Integer>> parsed = readRows(sample, csvPreference);
         List<List<String>> rows = parsed.v1();
@@ -129,12 +55,20 @@ public class SeparatedValuesLogFileStructureFinder extends AbstractStructuredLog
             csvHeaderWithNamedBlanks[i] = trimFields ? rawHeader.trim() : rawHeader;
         }
 
+        List<String> sampleLines = Arrays.asList(sample.split("\n"));
+        sampleMessages = new ArrayList<>();
         List<Map<String, ?>> sampleRecords = new ArrayList<>();
-        for (List<String> row : isCsvHeaderInFile ? rows.subList(1, rows.size()): rows) {
+        int prevMessageEndLineNumber = isCsvHeaderInFile ? lineNumbers.get(0) : -1;
+        for (int index = isCsvHeaderInFile ? 1 : 0; index < rows.size(); ++index) {
+            List<String> row = rows.get(index);
+            int lineNumber = lineNumbers.get(index);
             Map<String, String> sampleRecord = new HashMap<>();
             Util.filterListToMap(sampleRecord, csvHeaderWithNamedBlanks,
                 trimFields ? row.stream().map(String::trim).collect(Collectors.toList()) : row);
             sampleRecords.add(sampleRecord);
+            sampleMessages.add(
+                sampleLines.subList(prevMessageEndLineNumber + 1, lineNumbers.get(index)).stream().collect(Collectors.joining("\n")));
+            prevMessageEndLineNumber = lineNumber;
         }
 
         String preamble = Pattern.compile("\n").splitAsStream(sample).limit(lineNumbers.get(1)).collect(Collectors.joining("\n", "", "\n"));
@@ -179,7 +113,7 @@ public class SeparatedValuesLogFileStructureFinder extends AbstractStructuredLog
             }
 
             if (isCsvHeaderInFile) {
-                structureBuilder.setExcludeLinesPattern(Arrays.stream(csvHeader)
+                structureBuilder.setExcludeLinesPattern("^" + Arrays.stream(csvHeader)
                     .map(column -> "\"?" + column.replace("\"", "\"\"").replaceAll("([\\\\|()\\[\\]{}^$*?])", "\\\\$1") + "\"?")
                     .collect(Collectors.joining(",")));
             }
@@ -197,6 +131,16 @@ public class SeparatedValuesLogFileStructureFinder extends AbstractStructuredLog
             .setMappings(mappings)
             .setExplanation(Collections.singletonList("TODO")) // TODO
             .build();
+    }
+
+    @Override
+    public List<String> getSampleMessages() {
+        return Collections.unmodifiableList(sampleMessages);
+    }
+
+    @Override
+    public LogFileStructure getStructure() {
+        return structure;
     }
 
     static Tuple<List<List<String>>, List<Integer>> readRows(String sample, CsvPreference csvPreference) throws IOException {
@@ -516,105 +460,5 @@ public class SeparatedValuesLogFileStructureFinder extends AbstractStructuredLog
 
     private static boolean notUnexpectedEndOfFile(SuperCsvException e) {
         return e.getMessage().startsWith("unexpected end of file while reading quoted column") == false;
-    }
-
-    void createConfigs() {
-
-        char delimiter = structure.getSeparator();
-        String logstashFromFilebeatDateFilter = "";
-        String logstashFromFileDateFilter = "";
-        if (structure.getTimestampField() != null) {
-            logstashFromFilebeatDateFilter = makeLogstashDateFilter(structure.getTimestampField(), structure.getTimestampFormats(),
-                structure.needClientTimezone(), true);
-            logstashFromFileDateFilter = makeLogstashDateFilter(structure.getTimestampField(), structure.getTimestampFormats(),
-                structure.needClientTimezone(), false);
-        }
-
-        filebeatToLogstashConfig = String.format(Locale.ROOT, FILEBEAT_TO_LOGSTASH_TEMPLATE,
-            makeFilebeatInputOptions(structure.getMultilineStartPattern(), structure.getExcludeLinesPattern()),
-            makeFilebeatAddLocaleSetting(structure.needClientTimezone()), logstashHost);
-        String logstashColumns = structure.getInputFields().stream()
-            .map(column -> (column.indexOf('"') >= 0) ? ("'" + column + "'") : ("\"" + column + "\"")).collect(Collectors.joining(", "));
-        String separatorIfRequired = (delimiter == ',') ? "" : String.format(Locale.ROOT, SEPARATOR_TEMPLATE, delimiter);
-        String logstashColumnConversions = makeColumnConversions(structure.getMappings());
-        String logstashStripFilter = Boolean.TRUE.equals(structure.getShouldTrimFields()) ?
-            String.format(Locale.ROOT, LOGSTASH_STRIP_FILTER_TEMPLATE, logstashColumns) : "";
-        logstashFromFilebeatConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILEBEAT_TEMPLATE, separatorIfRequired, logstashColumns,
-            logstashColumnConversions, logstashStripFilter, logstashFromFilebeatDateFilter, elasticsearchHost);
-        String skipHeaderIfRequired = structure.getHasHeaderRow() ? "    skip_header => true\n": "";
-        logstashFromFileConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILE_TEMPLATE,
-            makeLogstashFileInput(structure.getMultilineStartPattern()), separatorIfRequired, logstashColumns, skipHeaderIfRequired,
-            logstashColumnConversions, logstashStripFilter, logstashFromFileDateFilter, elasticsearchHost, indexName);
-    }
-
-    String getFilebeatToLogstashConfig() {
-        return filebeatToLogstashConfig;
-    }
-
-    String getLogstashFromFilebeatConfig() {
-        return logstashFromFilebeatConfig;
-    }
-
-    String getLogstashFromFileConfig() {
-        return logstashFromFileConfig;
-    }
-
-    @Override
-    public synchronized void writeConfigs(Path directory) throws Exception {
-        if (filebeatToLogstashConfig == null) {
-            createConfigs();
-            createPreambleComment();
-        }
-
-        writeMappingsConfigs(directory, structure.getMappings());
-
-        writeConfigFile(directory, "filebeat-to-logstash.yml", filebeatToLogstashConfig);
-        writeConfigFile(directory, "logstash-from-filebeat.conf", logstashFromFilebeatConfig);
-        writeConfigFile(directory, "logstash-from-file.conf", logstashFromFileConfig);
-    }
-
-    static String makeColumnConversions(Map<String, Object> mappings) {
-        StringBuilder builder = new StringBuilder();
-
-        for (Map.Entry<String, Object> mapping : mappings.entrySet()) {
-
-            if (mapping.getValue() instanceof Map == false) {
-                continue;
-            }
-
-            String fieldName = mapping.getKey();
-            @SuppressWarnings("unchecked")
-            Map<String, String> settings = (Map<String, String>) mapping.getValue();
-            if (settings.isEmpty()) {
-                continue;
-            }
-
-            String convertTo = null;
-            switch (settings.get(MAPPING_TYPE_SETTING)){
-
-                case "boolean":
-                    convertTo = "boolean";
-                    break;
-                case "byte":
-                case "short":
-                case "integer":
-                case "long":
-                    convertTo = "integer";
-                    break;
-                case "half_float":
-                case "float":
-                case "double":
-                    convertTo = "float";
-                    break;
-            }
-
-            if (convertTo != null) {
-                String fieldQuote = bestLogstashQuoteFor(fieldName);
-                builder.append("      ").append(fieldQuote).append(fieldName).append(fieldQuote)
-                    .append(" => \"").append(convertTo).append("\"\n");
-            }
-        }
-
-        return (builder.length() > 0) ? String.format(Locale.ROOT, LOGSTASH_CONVERSIONS_TEMPLATE, builder.toString()) : "";
     }
 }

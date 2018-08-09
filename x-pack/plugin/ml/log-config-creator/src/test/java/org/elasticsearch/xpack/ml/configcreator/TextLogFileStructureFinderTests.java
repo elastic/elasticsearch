@@ -9,65 +9,37 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.ml.configcreator.TimestampFormatFinder.TimestampMatch;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Collections;
-import java.util.Locale;
 import java.util.Set;
-
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.not;
 
 public class TextLogFileStructureFinderTests extends LogConfigCreatorTestCase {
 
-    private LogFileStructureFinderFactory factory = new TextLogFileStructureFinderFactory(TEST_TERMINAL, null);
+    private LogFileStructureFinderFactory factory = new TextLogFileStructureFinderFactory(TEST_TERMINAL);
 
     public void testCreateConfigsGivenElasticsearchLog() throws Exception {
         assertTrue(factory.canCreateFromSample(TEXT_SAMPLE));
+
         String charset = randomFrom(POSSIBLE_CHARSETS);
-        String timezone = randomFrom(POSSIBLE_TIMEZONES);
-        String elasticsearchHost = randomFrom(POSSIBLE_HOSTNAMES);
-        String logstashHost = randomFrom(POSSIBLE_HOSTNAMES);
-        TextLogFileStructureFinder structure = (TextLogFileStructureFinder) factory.createFromSample(TEST_FILE_NAME, TEST_INDEX_NAME, "es",
-            elasticsearchHost, logstashHost, timezone, TEXT_SAMPLE, charset, randomHasByteOrderMarker(charset));
-        structure.createConfigs();
-        if (charset.equals(StandardCharsets.UTF_8.name())) {
-            assertThat(structure.getFilebeatToLogstashConfig(), not(containsString("encoding:")));
+        Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
+        LogFileStructureFinder structureFinder = factory.createFromSample(TEXT_SAMPLE, charset, hasByteOrderMarker);
+
+        LogFileStructure structure = structureFinder.getStructure();
+
+        assertEquals(LogFileStructure.Format.SEMI_STRUCTURED_TEXT, structure.getFormat());
+        assertEquals(charset, structure.getCharset());
+        if (hasByteOrderMarker == null) {
+            assertNull(structure.getHasByteOrderMarker());
         } else {
-            assertThat(structure.getFilebeatToLogstashConfig(), containsString("encoding: '" + charset.toLowerCase(Locale.ROOT) + "'"));
+            assertEquals(hasByteOrderMarker, structure.getHasByteOrderMarker());
         }
-        assertThat(structure.getFilebeatToLogstashConfig(),
-            containsString("multiline.pattern: '^\\[\\b\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}'\n"));
-        assertThat(structure.getFilebeatToLogstashConfig(), containsString(logstashHost));
-        assertThat(structure.getLogstashFromFilebeatConfig(),
-            containsString("match => { \"message\" => \"\\[%{TIMESTAMP_ISO8601:timestamp}\\]\\[%{LOGLEVEL:loglevel} \\]" +
-                "\\[.*\" }\n"));
-        assertThat(structure.getLogstashFromFilebeatConfig(), containsString("match => [ \"timestamp\", \"ISO8601\" ]\n"));
-        assertThat(structure.getLogstashFromFilebeatConfig(), containsString(elasticsearchHost));
-        if (charset.equals(StandardCharsets.UTF_8.name())) {
-            assertThat(structure.getLogstashFromFileConfig(), not(containsString("charset =>")));
-        } else {
-            assertThat(structure.getLogstashFromFileConfig(), containsString("charset => \"" + charset + "\""));
-        }
-        assertThat(structure.getLogstashFromFileConfig(),
-            containsString("match => { \"message\" => \"\\[%{TIMESTAMP_ISO8601:timestamp}\\]\\[%{LOGLEVEL:loglevel} \\]" +
-                "\\[.*\" }\n"));
-        assertThat(structure.getLogstashFromFileConfig(), containsString("match => [ \"timestamp\", \"ISO8601\" ]\n"));
-        assertThat(structure.getLogstashFromFileConfig(), not(containsString("timezone =>")));
-        assertThat(structure.getLogstashFromFileConfig(), containsString(elasticsearchHost));
-        if (charset.equals(StandardCharsets.UTF_8.name())) {
-            assertThat(structure.getFilebeatToIngestPipelineConfig(), not(containsString("encoding:")));
-        } else {
-            assertThat(structure.getFilebeatToIngestPipelineConfig(),
-                containsString("encoding: '" + charset.toLowerCase(Locale.ROOT) + "'"));
-        }
-        assertThat(structure.getFilebeatToIngestPipelineConfig(),
-            containsString("multiline.pattern: '^\\[\\b\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}'\n"));
-        assertThat(structure.getFilebeatToIngestPipelineConfig(), containsString(elasticsearchHost));
-        assertThat(structure.getIngestPipelineFromFilebeatConfig(),
-            containsString("\"patterns\": [ \"\\\\[%{TIMESTAMP_ISO8601:timestamp}\\\\]\\\\[%{LOGLEVEL:loglevel} \\\\]" +
-                "\\\\[.*\" ]\n"));
-        assertThat(structure.getIngestPipelineFromFilebeatConfig(), containsString("\"field\": \"timestamp\",\n"));
-        assertThat(structure.getIngestPipelineFromFilebeatConfig(), containsString("\"formats\": [ \"ISO8601\" ]\n"));
+        assertNull(structure.getExcludeLinesPattern());
+        assertEquals("^\\[\\b\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}", structure.getMultilineStartPattern());
+        assertNull(structure.getSeparator());
+        assertNull(structure.getHasHeaderRow());
+        assertNull(structure.getShouldTrimFields());
+        assertEquals("\\[%{TIMESTAMP_ISO8601:timestamp}\\]\\[%{LOGLEVEL:loglevel} \\]\\[.*", structure.getGrokPattern());
+        assertEquals("timestamp", structure.getTimestampField());
+        assertEquals(Collections.singletonList("ISO8601"), structure.getTimestampFormats());
     }
 
     public void testCreateMultiLineMessageStartRegexGivenNoPrefaces() {

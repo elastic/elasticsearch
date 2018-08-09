@@ -5,11 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.configcreator;
 
-import java.nio.charset.StandardCharsets;
-import java.util.Locale;
-
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.not;
+import java.util.Collections;
 
 public class JsonLogFileStructureFinderTests extends LogConfigCreatorTestCase {
 
@@ -17,37 +13,27 @@ public class JsonLogFileStructureFinderTests extends LogConfigCreatorTestCase {
 
     public void testCreateConfigsGivenGoodJson() throws Exception {
         assertTrue(factory.canCreateFromSample(JSON_SAMPLE));
+
         String charset = randomFrom(POSSIBLE_CHARSETS);
-        String timezone = randomFrom(POSSIBLE_TIMEZONES);
-        String elasticsearchHost = randomFrom(POSSIBLE_HOSTNAMES);
-        String logstashHost = randomFrom(POSSIBLE_HOSTNAMES);
-        JsonLogFileStructureFinder structure = (JsonLogFileStructureFinder) factory.createFromSample(TEST_FILE_NAME, TEST_INDEX_NAME,
-            "ml-cpp", elasticsearchHost, logstashHost, timezone, JSON_SAMPLE, charset, randomHasByteOrderMarker(charset));
-        structure.createConfigs();
-        if (charset.equals(StandardCharsets.UTF_8.name())) {
-            assertThat(structure.getFilebeatToLogstashConfig(), not(containsString("encoding:")));
+        Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
+        LogFileStructureFinder structureFinder = factory.createFromSample(JSON_SAMPLE, charset, hasByteOrderMarker);
+
+        LogFileStructure structure = structureFinder.getStructure();
+
+        assertEquals(LogFileStructure.Format.JSON, structure.getFormat());
+        assertEquals(charset, structure.getCharset());
+        if (hasByteOrderMarker == null) {
+            assertNull(structure.getHasByteOrderMarker());
         } else {
-            assertThat(structure.getFilebeatToLogstashConfig(), containsString("encoding: '" + charset.toLowerCase(Locale.ROOT) + "'"));
+            assertEquals(hasByteOrderMarker, structure.getHasByteOrderMarker());
         }
-        assertThat(structure.getFilebeatToLogstashConfig(), containsString(logstashHost));
-        assertThat(structure.getLogstashFromFilebeatConfig(), containsString("match => [ \"timestamp\", \"UNIX_MS\" ]\n"));
-        assertThat(structure.getLogstashFromFilebeatConfig(), containsString(elasticsearchHost));
-        if (charset.equals(StandardCharsets.UTF_8.name())) {
-            assertThat(structure.getLogstashFromFileConfig(), not(containsString("charset =>")));
-        } else {
-            assertThat(structure.getLogstashFromFileConfig(), containsString("charset => \"" + charset + "\""));
-        }
-        assertThat(structure.getLogstashFromFileConfig(), containsString("match => [ \"timestamp\", \"UNIX_MS\" ]\n"));
-        assertThat(structure.getLogstashFromFileConfig(), not(containsString("timezone =>")));
-        assertThat(structure.getLogstashFromFileConfig(), containsString(elasticsearchHost));
-        if (charset.equals(StandardCharsets.UTF_8.name())) {
-            assertThat(structure.getFilebeatToIngestPipelineConfig(), not(containsString("encoding:")));
-        } else {
-            assertThat(structure.getFilebeatToIngestPipelineConfig(),
-                containsString("encoding: '" + charset.toLowerCase(Locale.ROOT) + "'"));
-        }
-        assertThat(structure.getFilebeatToIngestPipelineConfig(), containsString(elasticsearchHost));
-        assertThat(structure.getIngestPipelineFromFilebeatConfig(), containsString("\"field\": \"timestamp\",\n"));
-        assertThat(structure.getIngestPipelineFromFilebeatConfig(), containsString("\"formats\": [ \"UNIX_MS\" ]\n"));
+        assertNull(structure.getExcludeLinesPattern());
+        assertNull(structure.getMultilineStartPattern());
+        assertNull(structure.getSeparator());
+        assertNull(structure.getHasHeaderRow());
+        assertNull(structure.getShouldTrimFields());
+        assertNull(structure.getGrokPattern());
+        assertEquals("timestamp", structure.getTimestampField());
+        assertEquals(Collections.singletonList("UNIX_MS"), structure.getTimestampFormats());
     }
 }

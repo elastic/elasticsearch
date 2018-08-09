@@ -16,7 +16,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -25,16 +24,8 @@ import java.util.stream.Stream;
 
 public abstract class AbstractStructuredLogFileStructureFinder extends AbstractLogFileStructureFinder {
 
-    private static final String LOGSTASH_DATE_FILTER_TEMPLATE = "  date {\n" +
-        "    match => [ %s%s%s, %s ]\n" +
-        "%s" +
-        "  }\n";
-
-    protected AbstractStructuredLogFileStructureFinder(Terminal terminal, String sampleFileName, String indexName, String typeName,
-                                                       String elasticsearchHost, String logstashHost, String logstashFileTimezone,
-                                                       String charsetName, Boolean hasByteOrderMarker) {
-        super(terminal, sampleFileName, indexName, typeName, elasticsearchHost, logstashHost, logstashFileTimezone, charsetName,
-            hasByteOrderMarker);
+    protected AbstractStructuredLogFileStructureFinder(Terminal terminal) {
+        super(terminal);
     }
 
     protected Tuple<String, TimestampMatch> guessTimestampField(List<Map<String, ?>> sampleRecords) {
@@ -91,15 +82,6 @@ public abstract class AbstractStructuredLogFileStructureFinder extends AbstractL
         }
 
         return null;
-    }
-
-    protected String makeLogstashDateFilter(String timeFieldName, List<String> dateFormats, boolean hasTimezoneDependentParsing,
-                                            boolean isFromFilebeat) {
-
-        String fieldQuote = bestLogstashQuoteFor(timeFieldName);
-        return String.format(Locale.ROOT, LOGSTASH_DATE_FILTER_TEMPLATE, fieldQuote, timeFieldName, fieldQuote,
-            dateFormats.stream().collect(Collectors.joining("\", \"", "\"", "\"")),
-            makeLogstashTimezoneSetting(hasTimezoneDependentParsing, isFromFilebeat));
     }
 
     /**

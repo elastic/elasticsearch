@@ -7,14 +7,10 @@ package org.elasticsearch.xpack.ml.configcreator;
 
 import com.ibm.icu.text.CharsetMatch;
 import org.elasticsearch.cli.UserException;
-import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Arrays;
 
 import static org.hamcrest.Matchers.startsWith;
@@ -22,26 +18,7 @@ import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
 public class LogFileStructureFinderManagerTests extends LogConfigCreatorTestCase {
 
-    private static final int IDEAL_SAMPLE_LINE_COUNT = 1000;
-
-    private static final String TEST_TYPE = "various";
-
-    private static final String FILEBEAT_TO_LOGSTASH_YML = TEST_TYPE + "-filebeat-to-logstash.yml";
-    private static final String LOGSTASH_FROM_FILEBEAT_CONF = TEST_TYPE + "-logstash-from-filebeat.conf";
-    private static final String LOGSTASH_FROM_FILE_CONF = TEST_TYPE + "-logstash-from-file.conf";
-    private static final String FILEBEAT_TO_INGEST_PIPELINE_YML = TEST_TYPE + "-filebeat-to-ingest-pipeline.yml";
-    private static final String INGEST_PIPELINE_FROM_FILEBEAT_CONSOLE = TEST_TYPE + "-ingest-pipeline-from-filebeat.console";
-    private static final String INGEST_PIPELINE_FROM_FILEBEAT_SH = TEST_TYPE + "-ingest-pipeline-from-filebeat.sh";
-    private static final String INDEX_MAPPINGS_CONSOLE = TEST_TYPE + "-index-mappings.console";
-    private static final String INDEX_MAPPINGS_SH = TEST_TYPE + "-index-mappings.sh";
-
-    private LogFileStructureFinderManager structureFinderManager;
-
-    @Before
-    public void setup() throws IOException {
-        structureFinderManager = new LogFileStructureFinderManager(TEST_TERMINAL, null, TEST_FILE_NAME, TEST_INDEX_NAME, TEST_TYPE,
-            randomFrom(POSSIBLE_HOSTNAMES), randomFrom(POSSIBLE_HOSTNAMES), "UTC");
-    }
+    private LogFileStructureFinderManager structureFinderManager = new LogFileStructureFinderManager(TEST_TERMINAL);
 
     public void testFindCharsetGivenCharacterWidths() throws Exception {
 
@@ -70,114 +47,24 @@ public class LogFileStructureFinderManagerTests extends LogConfigCreatorTestCase
     }
 
     public void testMakeBestStructureGivenJson() throws Exception {
-        assertThat(structureFinderManager.makeBestStructure("{ \"time\": \"2018-05-17T13:41:23\", \"message\": \"hello\" }",
+        assertThat(structureFinderManager.makeBestStructureFinder("{ \"time\": \"2018-05-17T13:41:23\", \"message\": \"hello\" }",
             StandardCharsets.UTF_8.name(), randomBoolean()), instanceOf(JsonLogFileStructureFinder.class));
     }
 
     public void testMakeBestStructureGivenXml() throws Exception {
-        assertThat(structureFinderManager.makeBestStructure("<log time=\"2018-05-17T13:41:23\"><message>hello</message></log>",
+        assertThat(structureFinderManager.makeBestStructureFinder("<log time=\"2018-05-17T13:41:23\"><message>hello</message></log>",
             StandardCharsets.UTF_8.name(), randomBoolean()), instanceOf(XmlLogFileStructureFinder.class));
     }
 
     public void testMakeBestStructureGivenCsv() throws Exception {
-        assertThat(structureFinderManager.makeBestStructure("time,message\n" +
+        assertThat(structureFinderManager.makeBestStructureFinder("time,message\n" +
                 "2018-05-17T13:41:23,hello\n", StandardCharsets.UTF_8.name(), randomBoolean()),
             instanceOf(SeparatedValuesLogFileStructureFinder.class));
     }
 
     public void testMakeBestStructureGivenText() throws Exception {
-        assertThat(structureFinderManager.makeBestStructure("[2018-05-17T13:41:23] hello\n" +
+        assertThat(structureFinderManager.makeBestStructureFinder("[2018-05-17T13:41:23] hello\n" +
                 "[2018-05-17T13:41:24] hello again\n", StandardCharsets.UTF_8.name(), randomBoolean()),
             instanceOf(TextLogFileStructureFinder.class));
-    }
-
-    public void testFindLogFileFormatGivenJson() throws Exception {
-        Path outputDirectory = createTempDir();
-
-        try (ByteArrayInputStream inputStream =
-                 new ByteArrayInputStream(JSON_SAMPLE.getBytes(StandardCharsets.UTF_8))) {
-            structureFinderManager.findLogFileConfigs(IDEAL_SAMPLE_LINE_COUNT, inputStream, outputDirectory);
-        }
-
-        assertTrue(Files.isRegularFile(outputDirectory.resolve(FILEBEAT_TO_LOGSTASH_YML)));
-        assertTrue(Files.isRegularFile(outputDirectory.resolve(LOGSTASH_FROM_FILEBEAT_CONF)));
-        assertTrue(Files.isRegularFile(outputDirectory.resolve(LOGSTASH_FROM_FILE_CONF)));
-        assertTrue(Files.isRegularFile(outputDirectory.resolve(FILEBEAT_TO_INGEST_PIPELINE_YML)));
-        assertTrue(Files.isRegularFile(outputDirectory.resolve(INGEST_PIPELINE_FROM_FILEBEAT_CONSOLE)));
-        assertTrue(Files.isRegularFile(outputDirectory.resolve(INGEST_PIPELINE_FROM_FILEBEAT_SH)));
-        assertTrue(Files.isRegularFile(outputDirectory.resolve(INDEX_MAPPINGS_CONSOLE)));
-        assertTrue(Files.isRegularFile(outputDirectory.resolve(INDEX_MAPPINGS_SH)));
-    }
-
-    public void testFindLogFileFormatGivenXml() throws Exception {
-        Path outputDirectory = createTempDir();
-
-        try (ByteArrayInputStream inputStream =
-                 new ByteArrayInputStream(XML_SAMPLE.getBytes(StandardCharsets.UTF_8))) {
-            structureFinderManager.findLogFileConfigs(IDEAL_SAMPLE_LINE_COUNT, inputStream, outputDirectory);
-        }
-
-        assertTrue(Files.isRegularFile(outputDirectory.resolve(FILEBEAT_TO_LOGSTASH_YML)));
-        assertTrue(Files.isRegularFile(outputDirectory.resolve(LOGSTASH_FROM_FILEBEAT_CONF)));
-        assertTrue(Files.isRegularFile(outputDirectory.resolve(LOGSTASH_FROM_FILE_CONF)));
-        assertFalse(Files.exists(outputDirectory.resolve(FILEBEAT_TO_INGEST_PIPELINE_YML)));
-        assertFalse(Files.exists(outputDirectory.resolve(INGEST_PIPELINE_FROM_FILEBEAT_CONSOLE)));
-        assertFalse(Files.exists(outputDirectory.resolve(INGEST_PIPELINE_FROM_FILEBEAT_SH)));
-        assertTrue(Files.isRegularFile(outputDirectory.resolve(INDEX_MAPPINGS_CONSOLE)));
-        assertTrue(Files.isRegularFile(outputDirectory.resolve(INDEX_MAPPINGS_SH)));
-    }
-
-    public void testFindLogFileFormatGivenCsv() throws Exception {
-        Path outputDirectory = createTempDir();
-
-        try (ByteArrayInputStream inputStream =
-                 new ByteArrayInputStream(CSV_SAMPLE.getBytes(StandardCharsets.UTF_8))) {
-            structureFinderManager.findLogFileConfigs(IDEAL_SAMPLE_LINE_COUNT, inputStream, outputDirectory);
-        }
-
-        assertTrue(Files.isRegularFile(outputDirectory.resolve(FILEBEAT_TO_LOGSTASH_YML)));
-        assertTrue(Files.isRegularFile(outputDirectory.resolve(LOGSTASH_FROM_FILEBEAT_CONF)));
-        assertTrue(Files.isRegularFile(outputDirectory.resolve(LOGSTASH_FROM_FILE_CONF)));
-        assertFalse(Files.exists(outputDirectory.resolve(FILEBEAT_TO_INGEST_PIPELINE_YML)));
-        assertFalse(Files.exists(outputDirectory.resolve(INGEST_PIPELINE_FROM_FILEBEAT_CONSOLE)));
-        assertFalse(Files.exists(outputDirectory.resolve(INGEST_PIPELINE_FROM_FILEBEAT_SH)));
-        assertTrue(Files.isRegularFile(outputDirectory.resolve(INDEX_MAPPINGS_CONSOLE)));
-        assertTrue(Files.isRegularFile(outputDirectory.resolve(INDEX_MAPPINGS_SH)));
-    }
-
-    public void testFindLogFileFormatGivenTsv() throws Exception {
-        Path outputDirectory = createTempDir();
-
-        try (ByteArrayInputStream inputStream =
-                 new ByteArrayInputStream(TSV_SAMPLE.getBytes(StandardCharsets.UTF_8))) {
-            structureFinderManager.findLogFileConfigs(IDEAL_SAMPLE_LINE_COUNT, inputStream, outputDirectory);
-        }
-
-        assertTrue(Files.isRegularFile(outputDirectory.resolve(FILEBEAT_TO_LOGSTASH_YML)));
-        assertTrue(Files.isRegularFile(outputDirectory.resolve(LOGSTASH_FROM_FILEBEAT_CONF)));
-        assertTrue(Files.isRegularFile(outputDirectory.resolve(LOGSTASH_FROM_FILE_CONF)));
-        assertFalse(Files.exists(outputDirectory.resolve(FILEBEAT_TO_INGEST_PIPELINE_YML)));
-        assertFalse(Files.exists(outputDirectory.resolve(INGEST_PIPELINE_FROM_FILEBEAT_CONSOLE)));
-        assertFalse(Files.exists(outputDirectory.resolve(INGEST_PIPELINE_FROM_FILEBEAT_SH)));
-        assertTrue(Files.isRegularFile(outputDirectory.resolve(INDEX_MAPPINGS_CONSOLE)));
-        assertTrue(Files.isRegularFile(outputDirectory.resolve(INDEX_MAPPINGS_SH)));
-    }
-
-    public void testFindLogFileFormatGivenText() throws Exception {
-        Path outputDirectory = createTempDir();
-
-        try (ByteArrayInputStream inputStream =
-                 new ByteArrayInputStream(TEXT_SAMPLE.getBytes(StandardCharsets.UTF_8))) {
-            structureFinderManager.findLogFileConfigs(IDEAL_SAMPLE_LINE_COUNT, inputStream, outputDirectory);
-        }
-
-        assertTrue(Files.isRegularFile(outputDirectory.resolve(FILEBEAT_TO_LOGSTASH_YML)));
-        assertTrue(Files.isRegularFile(outputDirectory.resolve(LOGSTASH_FROM_FILEBEAT_CONF)));
-        assertTrue(Files.isRegularFile(outputDirectory.resolve(LOGSTASH_FROM_FILE_CONF)));
-        assertTrue(Files.isRegularFile(outputDirectory.resolve(FILEBEAT_TO_INGEST_PIPELINE_YML)));
-        assertTrue(Files.isRegularFile(outputDirectory.resolve(INGEST_PIPELINE_FROM_FILEBEAT_CONSOLE)));
-        assertTrue(Files.isRegularFile(outputDirectory.resolve(INGEST_PIPELINE_FROM_FILEBEAT_SH)));
-        assertTrue(Files.isRegularFile(outputDirectory.resolve(INDEX_MAPPINGS_CONSOLE)));
-        assertTrue(Files.isRegularFile(outputDirectory.resolve(INDEX_MAPPINGS_SH)));
     }
 }

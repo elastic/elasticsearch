@@ -152,9 +152,11 @@ public class LogConfigCreator extends Command {
         }
 
         try {
-            LogFileStructureFinderManager structureFinder = new LogFileStructureFinderManager(terminal, filebeatModulePath,
+            LogFileStructureFinderManager structureFinderManager = new LogFileStructureFinderManager(terminal);
+            LogFileStructureFinder structureFinder = structureFinderManager.findLogFileStructure(sampleLines, Files.newInputStream(file));
+            LogConfigWriter logConfigWriter = new LogConfigWriter(terminal, filebeatModulePath,
                 file.toAbsolutePath().normalize().toString(), indexName, typeName, elasticsearchHost, logstashHost, timezone);
-            structureFinder.findLogFileConfigs(sampleLines, Files.newInputStream(file), outputDirectory);
+            logConfigWriter.writeConfigs(structureFinder.getStructure(), structureFinder.getSampleMessages(), outputDirectory);
         } catch (IOException e) {
             throw new UserException(ExitCodes.DATA_ERROR, "Cannot determine format of file [" + file + "]: " + e.getMessage());
         }

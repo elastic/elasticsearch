@@ -121,11 +121,8 @@ public class XmlLogFileStructureFinderFactory implements LogFileStructureFinderF
     }
 
     @Override
-    public LogFileStructureFinder createFromSample(String sampleFileName, String indexName, String typeName, String elasticsearchHost,
-                                                   String logstashHost, String logstashFileTimezone, String sample, String charsetName,
-                                                   Boolean hasByteOrderMarker)
+    public LogFileStructureFinder createFromSample(String sample, String charsetName, Boolean hasByteOrderMarker)
         throws IOException, ParserConfigurationException, SAXException, UserException {
-        return new XmlLogFileStructureFinder(terminal, sampleFileName, indexName, typeName, elasticsearchHost, logstashHost,
-            logstashFileTimezone, sample, charsetName, hasByteOrderMarker);
+        return new XmlLogFileStructureFinder(terminal, sample, charsetName, hasByteOrderMarker);
     }
 }

@@ -10,7 +10,6 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.ml.configcreator.TimestampFormatFinder.TimestampMatch;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -23,17 +22,12 @@ public class AbstractStructuredLogFileStructureFinderTests extends LogConfigCrea
 
     private static class TestStructuredLogFileStructureFinder extends AbstractStructuredLogFileStructureFinder {
 
-        TestStructuredLogFileStructureFinder(Terminal terminal, String sampleFileName, String indexName, String typeName,
-                                             String elasticsearchHost, String logstashHost, String logstashFileTimezone,
-                                             String charsetName, Boolean hasByteOrderMarker) {
-            super(terminal, sampleFileName, indexName, typeName, elasticsearchHost, logstashHost, logstashFileTimezone, charsetName,
-                hasByteOrderMarker);
+        TestStructuredLogFileStructureFinder(Terminal terminal) {
+            super(terminal);
         }
     }
 
-    private final TestStructuredLogFileStructureFinder testStructure = new TestStructuredLogFileStructureFinder(TEST_TERMINAL,
-        TEST_FILE_NAME, TEST_INDEX_NAME, "tests", randomFrom(POSSIBLE_HOSTNAMES), randomFrom(POSSIBLE_HOSTNAMES), null,
-        StandardCharsets.UTF_8.name(), randomBoolean());
+    private final TestStructuredLogFileStructureFinder testStructure = new TestStructuredLogFileStructureFinder(TEST_TERMINAL);
 
     public void testSingleSampleSingleField() {
         Map<String, String> sample = Collections.singletonMap("field1", "2018-05-24T17:28:31,735");

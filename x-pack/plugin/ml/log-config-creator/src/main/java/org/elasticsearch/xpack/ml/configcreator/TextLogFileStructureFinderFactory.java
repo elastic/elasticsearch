@@ -18,11 +18,9 @@ public class TextLogFileStructureFinderFactory implements LogFileStructureFinder
     private static final Pattern TWO_NON_BLANK_LINES_PATTERN = Pattern.compile(".\n+.");
 
     private final Terminal terminal;
-    private final FilebeatModuleStore filebeatModuleStore;
 
-    public TextLogFileStructureFinderFactory(Terminal terminal, FilebeatModuleStore filebeatModuleStore) {
+    public TextLogFileStructureFinderFactory(Terminal terminal) {
         this.terminal = Objects.requireNonNull(terminal);
-        this.filebeatModuleStore = filebeatModuleStore;
     }
 
     /**
@@ -45,10 +43,7 @@ public class TextLogFileStructureFinderFactory implements LogFileStructureFinder
     }
 
     @Override
-    public LogFileStructureFinder createFromSample(String sampleFileName, String indexName, String typeName, String elasticsearchHost,
-                                                   String logstashHost, String logstashFileTimezone, String sample, String charsetName,
-                                                   Boolean hasByteOrderMarker) throws UserException {
-        return new TextLogFileStructureFinder(terminal, filebeatModuleStore, sampleFileName, indexName, typeName, elasticsearchHost,
-            logstashHost, logstashFileTimezone, sample, charsetName, hasByteOrderMarker);
+    public LogFileStructureFinder createFromSample(String sample, String charsetName, Boolean hasByteOrderMarker) throws UserException {
+        return new TextLogFileStructureFinder(terminal, sample, charsetName, hasByteOrderMarker);
     }
 }

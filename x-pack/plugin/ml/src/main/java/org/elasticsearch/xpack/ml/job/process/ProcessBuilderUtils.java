@@ -13,7 +13,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
-public class ProcessBuilderUtils {
+public final class ProcessBuilderUtils {
+
+    private ProcessBuilderUtils() {}
 
     /**
      * Name of the model config file

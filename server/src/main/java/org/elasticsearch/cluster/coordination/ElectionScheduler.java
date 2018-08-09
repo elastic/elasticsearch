@@ -133,7 +133,7 @@ public abstract class ElectionScheduler extends AbstractComponent {
             currentDelayMillis = Math.min(maxTimeout.getMillis(), currentDelayMillis + backoffTime.getMillis());
             delay = randomLongBetween(minTimeout.getMillis(), currentDelayMillis + 1);
             logger.debug("{} scheduling election with delay [{}ms] (min={}, current={}, backoff={}, max={})",
-                delay, minTimeout, currentDelayMillis, backoffTime, maxTimeout);
+                isRunningSupplier, delay, minTimeout, currentDelayMillis, backoffTime, maxTimeout);
         }
         threadPool.schedule(TimeValue.timeValueMillis(delay), Names.GENERIC, new AbstractRunnable() {
             @Override

@@ -107,10 +107,11 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
+import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
+import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
-import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
 import org.elasticsearch.script.mustache.SearchTemplateRequest;
@@ -1154,7 +1155,11 @@ final class RequestConverters {
     }
 
     static Request putLicense(PutLicenseRequest putLicenseRequest) {
-        Request request = new Request(HttpPut.METHOD_NAME, "/_xpack/license");
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("license")
+            .build();
+        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         Params parameters = new Params(request);
         parameters.withTimeout(putLicenseRequest.timeout());
         parameters.withMasterTimeout(putLicenseRequest.masterNodeTimeout());
@@ -1162,6 +1167,18 @@ final class RequestConverters {
             parameters.putParam("acknowledge", "true");
         }
         request.setJsonEntity(putLicenseRequest.getLicenseDefinition());
+        return request;
+    }
+
+
+    static Request getLicense(GetLicenseRequest getLicenseRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("license")
+            .build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        Params parameters = new Params(request);
+        parameters.withLocal(getLicenseRequest.local());
         return request;
     }
 

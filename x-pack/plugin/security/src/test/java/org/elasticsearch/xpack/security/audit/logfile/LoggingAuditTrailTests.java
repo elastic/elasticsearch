@@ -53,10 +53,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.containsString;
@@ -533,7 +531,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             params.put("_param", "baz");
         }
         final InetAddress address = forge("_hostname", randomBoolean() ? "127.0.0.1" : "::1");
-        final Tuple<RestContent, RestRequest> tuple = prepareRestContent("_uri", new InetSocketAddress(address, 9200));
+        final Tuple<RestContent, RestRequest> tuple = prepareRestContent("_uri", new InetSocketAddress(address, 9200), params);
         final String expectedMessage = tuple.v1().expectedMessage();
         final RestRequest request = tuple.v2();
         auditTrail.tamperedRequest(request);
@@ -887,37 +885,28 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
     private void assertMsg(Logger logger, Map<String, String> checkFields) {
         final List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
-        assertThat(output.size(), is(1));
+        assertThat("Only one logEntry expected. Found: " + output.size(), output.size(), is(1));
         if (checkFields == null) {
             // only check msg existence
             return;
         }
-        // parse field-values from the log line
-        final Matcher matcher = fieldPattern.matcher(output.get(0));
-        final Map<String, String> fieldsMap = new HashMap<>();
-        while (matcher.find()) {
-            final String parsedFieldName = matcher.group(1);
-            final String parsedFieldValue = matcher.group(2);
-            // empty field values should not be printed
-            assertThat("Field " + parsedFieldName + " is empty", parsedFieldValue.isEmpty(), is(false));
-            // null field values should not be printed
-            assertThat("Field " + parsedFieldName + " is null", parsedFieldValue, not(equalTo("null")));
-            fieldsMap.put(parsedFieldName, parsedFieldValue);
-        }
+        String logLine = output.get(0);
         // check each field
         for (final Map.Entry<String, String> checkField : checkFields.entrySet()) {
             if (null == checkField.getValue()) {
                 // null checkField means that the field does not exist
-                assertThat("Field: " + checkField.getKey() + " should be missing.", fieldsMap.containsKey(checkField.getKey()), is(false));
+                assertThat("Field: " + checkField.getKey() + " should be missing.", logLine.contains(Pattern.quote(checkField.getKey())), is(false));
             } else {
-                assertThat("Field: " + checkField.getKey() + " mismatched. Expected: " + checkField.getValue() + " actual: "
-                        + fieldsMap.get(checkField.getKey()), fieldsMap.get(checkField.getKey()), equalTo(checkField.getValue()));
+                final Pattern logEntryFieldPattern = Pattern
+                        .compile(Pattern.quote(checkField.getKey() + "=\"" + checkField.getValue() + "\""));
+                assertThat("Field " + checkField.getKey() + " value mismatch. Expected " + checkField.getValue(),
+                        logEntryFieldPattern.matcher(logLine).find(), is(true));
                 // remove checked field
-                fieldsMap.remove(checkField.getKey());
+                logLine = logEntryFieldPattern.matcher(logLine).replaceFirst("");
             }
         }
         // check no extra fields
-        assertThat("log event has the following extra unexpected fields: " + fieldsMap.entrySet(), fieldsMap.size(), equalTo(0));
+        assertThat("Log event has extra unexpected content: " + logLine, Strings.hasText(logLine), is(false));
     }
 
     private void assertEmptyLog(Logger logger) {

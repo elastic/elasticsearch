@@ -76,6 +76,8 @@ public class CapturingLogger {
                     warn.add(logLine);
                     break;
                 case "INFO":
+                    System.out.println("HOLA");
+                    System.out.println(logLine);
                     info.add(logLine);
                     break;
                 case "DEBUG":

@@ -84,9 +84,16 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         return new InternalAutoDateHistogram(name, buckets, targetBuckets, bucketInfo, format, pipelineAggregators, metaData);
     }
 
-    public void testGetAppropriateRounding() {
+    /*
+    This test was added to reproduce a bug where getAppropriateRounding was only ever using the first innerIntervals
+    passed in, instead of using the interval associated with the loop.
+     */
+    public void testGetAppropriateRoundingUsesCorrectIntervals() {
         RoundingInfo[] roundings = new RoundingInfo[6];
         DateTimeZone timeZone = DateTimeZone.UTC;
+        // Since we pass 0 as the starting index to getAppropriateRounding, we'll also use
+        // an innerInterval that is quite large, such that targetBuckets * roundings[i].getMaximumInnerInterval()
+        // will be larger than the estimate.
         roundings[0] = new RoundingInfo(createRounding(DateTimeUnit.SECOND_OF_MINUTE, timeZone),
             1000L, 1000);
         roundings[1] = new RoundingInfo(createRounding(DateTimeUnit.MINUTES_OF_HOUR, timeZone),
@@ -95,6 +102,9 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
             60 * 60 * 1000L, 1, 3, 12);
 
         OffsetDateTime timestamp = Instant.parse("2018-01-01T00:00:01.000Z").atOffset(ZoneOffset.UTC);
+        // We want to pass a roundingIdx of zero, because in order to reproduce this bug, we need the function
+        // to increment the rounding (because the bug was that the function would not use the innerIntervals
+        // from the new rounding.
         int result = InternalAutoDateHistogram.getAppropriateRounding(timestamp.toEpochSecond()*1000,
             timestamp.plusDays(1).toEpochSecond()*1000, 0, roundings, 25);
         assertThat(result, equalTo(2));
@@ -102,13 +112,6 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
 
     @Override
     protected void assertReduced(InternalAutoDateHistogram reduced, List<InternalAutoDateHistogram> inputs) {
-        int roundingIdx = 0;
-        for (InternalAutoDateHistogram histogram : inputs) {
-            if (histogram.getBucketInfo().roundingIdx > roundingIdx) {
-                roundingIdx = histogram.getBucketInfo().roundingIdx;
-            }
-        }
-        RoundingInfo roundingInfo = roundingInfos[roundingIdx];
 
         long lowest = Long.MAX_VALUE;
         long highest = 0;
@@ -124,11 +127,14 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
             }
         }
 
+        int roundingIndex = reduced.getBucketInfo().roundingIdx;
+        RoundingInfo roundingInfo = roundingInfos[roundingIndex];
+
         long normalizedDuration = (highest - lowest) / roundingInfo.getRoughEstimateDurationMillis();
         long innerIntervalToUse = 0;
         for (int j = roundingInfo.innerIntervals.length-1; j >= 0; j--) {
             int interval = roundingInfo.innerIntervals[j];
-            if (normalizedDuration / interval < maxNumberOfBuckets()) {
+            if (normalizedDuration / interval < reduced.getTargetBuckets()) {
                 innerIntervalToUse = interval;
             }
         }

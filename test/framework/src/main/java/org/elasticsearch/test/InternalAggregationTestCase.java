@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test;
 
+import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -229,6 +230,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         return createTestInstance(name, pipelineAggregators, metaData);
     }
 
+    @Seed("ED2D551807CFA25B")
     public void testReduceRandom() {
         String name = randomAlphaOfLength(5);
         List<T> inputs = new ArrayList<>();

@@ -36,7 +36,6 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
@@ -51,8 +50,6 @@ import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.rest.RestStatus;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -60,7 +57,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.action.bulk.TransportShardBulkAction.replicaItemExecutionMode;
-import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.notNullValue;
@@ -93,21 +89,6 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                     "{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}}}")
             .settings(idxSettings)
             .primaryTerm(0, 1).build();
-    }
-
-    private ClusterService clusterService;
-
-    @Override
-    @Before
-    public void setUp() throws Exception {
-        super.setUp();
-        clusterService = createClusterService(threadPool);
-    }
-
-    @After
-    public void tearDown() throws Exception {
-        super.tearDown();
-        clusterService.close();
     }
 
     public void testShouldExecuteReplicaItem() throws Exception {

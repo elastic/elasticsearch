@@ -221,7 +221,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         if (context.requiresWaitingForMappingUpdate()) {
             try {
                 waitForMappingUpdate.run();
-                context.resetForExecutionAfterRetry();
+                context.resetForExecutionForRetry();
             } catch (Exception e) {
                 context.failOnMappingUpdate(e);
             }
@@ -235,8 +235,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             isConflictException(context.getExecutionResult().getFailure().getCause())) {
             final UpdateRequest updateRequest = (UpdateRequest) context.getCurrent();
             if (context.getRetryCounter() < updateRequest.retryOnConflict()) {
-                context.markForImmediateRetry();
-                context.resetForExecutionAfterRetry();
+                context.resetForExecutionForRetry();
                 return;
             }
         }

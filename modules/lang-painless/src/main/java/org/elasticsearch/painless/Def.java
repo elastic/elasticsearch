@@ -20,7 +20,6 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.Locals.LocalMethod;
-import org.elasticsearch.painless.lookup.PainlessClass;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
@@ -37,6 +36,8 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
 
 /**
  * Support for dynamic type (def).
@@ -168,52 +169,6 @@ public final class Def {
     }
 
     /**
-     * Looks up method entry for a dynamic method call.
-     * <p>
-     * A dynamic method call for variable {@code x} of type {@code def} looks like:
-     * {@code x.method(args...)}
-     * <p>
-     * This method traverses {@code recieverClass}'s class hierarchy (including interfaces)
-     * until it finds a matching whitelisted method. If one is not found, it throws an exception.
-     * Otherwise it returns the matching method.
-     * <p>
-     * @params painlessLookup the whitelist
-     * @param receiverClass Class of the object to invoke the method on.
-     * @param name Name of the method.
-     * @param arity arity of method
-     * @return matching method to invoke. never returns null.
-     * @throws IllegalArgumentException if no matching whitelisted method was found.
-     */
-    static PainlessMethod lookupMethodInternal(PainlessLookup painlessLookup, Class<?> receiverClass, String name, int arity) {
-        String key = PainlessLookupUtility.buildPainlessMethodKey(name, arity);
-        // check whitelist for matching method
-        for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
-            PainlessClass struct = painlessLookup.lookupPainlessClass(clazz);
-
-            if (struct != null) {
-                PainlessMethod method = struct.methods.get(key);
-                if (method != null) {
-                    return method;
-                }
-            }
-
-            for (Class<?> iface : clazz.getInterfaces()) {
-                struct = painlessLookup.lookupPainlessClass(iface);
-
-                if (struct != null) {
-                    PainlessMethod method = struct.methods.get(key);
-                    if (method != null) {
-                        return method;
-                    }
-                }
-            }
-        }
-
-        throw new IllegalArgumentException("Unable to find dynamic method [" + name + "] with [" + arity + "] arguments " +
-                                           "for class [" + receiverClass.getCanonicalName() + "].");
-    }
-
-    /**
      * Looks up handle for a dynamic method call, with lambda replacement
      * <p>
      * A dynamic method call for variable {@code x} of type {@code def} looks like:
@@ -241,7 +196,14 @@ public final class Def {
          int numArguments = callSiteType.parameterCount();
          // simple case: no lambdas
          if (recipeString.isEmpty()) {
-             return lookupMethodInternal(painlessLookup, receiverClass, name, numArguments - 1).methodHandle;
+             PainlessMethod painlessMethod =  painlessLookup.lookupRuntimePainlessMethod(receiverClass, name, numArguments - 1);
+
+             if (painlessMethod == null) {
+                 throw new IllegalArgumentException("dynamic method " +
+                         "[" + typeToCanonicalTypeName(receiverClass) + ", " + name + "/" + (numArguments - 1) + "] not found");
+             }
+
+             return painlessMethod.methodHandle;
          }
 
          // convert recipe string to a bitset for convenience (the code below should be refactored...)
@@ -264,7 +226,13 @@ public final class Def {
 
          // lookup the method with the proper arity, then we know everything (e.g. interface types of parameters).
          // based on these we can finally link any remaining lambdas that were deferred.
-         PainlessMethod method = lookupMethodInternal(painlessLookup, receiverClass, name, arity);
+         PainlessMethod method = painlessLookup.lookupRuntimePainlessMethod(receiverClass, name, arity);
+
+        if (method == null) {
+            throw new IllegalArgumentException(
+                    "dynamic method [" + typeToCanonicalTypeName(receiverClass) + ", " + name + "/" + arity + "] not found");
+        }
+
          MethodHandle handle = method.methodHandle;
 
          int replaced = 0;
@@ -332,15 +300,23 @@ public final class Def {
     static MethodHandle lookupReference(PainlessLookup painlessLookup, Map<String, LocalMethod> localMethods,
             MethodHandles.Lookup methodHandlesLookup, String interfaceClass, Class<?> receiverClass, String name) throws Throwable {
         Class<?> interfaceType = painlessLookup.canonicalTypeNameToType(interfaceClass);
+        if (interfaceType == null) {
+            throw new IllegalArgumentException("type [" + interfaceClass + "] not found");
+        }
         PainlessMethod interfaceMethod = painlessLookup.lookupFunctionalInterfacePainlessMethod(interfaceType);
         if (interfaceMethod == null) {
             throw new IllegalArgumentException("Class [" + interfaceClass + "] is not a functional interface");
         }
         int arity = interfaceMethod.typeParameters.size();
-        PainlessMethod implMethod = lookupMethodInternal(painlessLookup, receiverClass, name, arity);
+        PainlessMethod implMethod = painlessLookup.lookupRuntimePainlessMethod(receiverClass, name, arity);
+        if (implMethod == null) {
+            throw new IllegalArgumentException(
+                    "dynamic method [" + typeToCanonicalTypeName(receiverClass) + ", " + name + "/" + arity + "] not found");
+        }
+
         return lookupReferenceInternal(painlessLookup, localMethods, methodHandlesLookup,
-                interfaceType, PainlessLookupUtility.typeToCanonicalTypeName(implMethod.targetClass),
-                implMethod.javaMethod.getName(), 1);
+            interfaceType, PainlessLookupUtility.typeToCanonicalTypeName(implMethod.targetClass),
+            implMethod.javaMethod.getName(), 1);
      }
 
      /** Returns a method handle to an implementation of clazz, given method reference signature. */
@@ -389,27 +365,12 @@ public final class Def {
      */
     static MethodHandle lookupGetter(PainlessLookup painlessLookup, Class<?> receiverClass, String name) {
         // first try whitelist
-        for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
-            PainlessClass struct = painlessLookup.lookupPainlessClass(clazz);
+        MethodHandle getter = painlessLookup.lookupRuntimeGetterMethodHandle(receiverClass, name);
 
-            if (struct != null) {
-                MethodHandle handle = struct.getterMethodHandles.get(name);
-                if (handle != null) {
-                    return handle;
-                }
-            }
-
-            for (final Class<?> iface : clazz.getInterfaces()) {
-                struct = painlessLookup.lookupPainlessClass(iface);
-
-                if (struct != null) {
-                    MethodHandle handle = struct.getterMethodHandles.get(name);
-                    if (handle != null) {
-                        return handle;
-                    }
-                }
-            }
+        if (getter != null) {
+            return getter;
         }
+
         // special case: arrays, maps, and lists
         if (receiverClass.isArray() && "length".equals(name)) {
             // arrays expose .length as a read-only getter
@@ -426,12 +387,12 @@ public final class Def {
                 int index = Integer.parseInt(name);
                 return MethodHandles.insertArguments(LIST_GET, 1, index);
             } catch (NumberFormatException exception) {
-                throw new IllegalArgumentException( "Illegal list shortcut value [" + name + "].");
+                throw new IllegalArgumentException("Illegal list shortcut value [" + name + "].");
             }
         }
 
-        throw new IllegalArgumentException("Unable to find dynamic field [" + name + "] " +
-                                           "for class [" + receiverClass.getCanonicalName() + "].");
+        throw new IllegalArgumentException(
+                "dynamic getter [" + typeToCanonicalTypeName(receiverClass) + ", " + name + "] not found");
     }
 
     /**
@@ -460,27 +421,12 @@ public final class Def {
      */
     static MethodHandle lookupSetter(PainlessLookup painlessLookup, Class<?> receiverClass, String name) {
         // first try whitelist
-        for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
-            PainlessClass struct = painlessLookup.lookupPainlessClass(clazz);
+        MethodHandle setter = painlessLookup.lookupRuntimeSetterMethodHandle(receiverClass, name);
 
-            if (struct != null) {
-                MethodHandle handle = struct.setterMethodHandles.get(name);
-                if (handle != null) {
-                    return handle;
-                }
-            }
-
-            for (final Class<?> iface : clazz.getInterfaces()) {
-                struct = painlessLookup.lookupPainlessClass(iface);
-
-                if (struct != null) {
-                    MethodHandle handle = struct.setterMethodHandles.get(name);
-                    if (handle != null) {
-                        return handle;
-                    }
-                }
-            }
+        if (setter != null) {
+            return setter;
         }
+
         // special case: maps, and lists
         if (Map.class.isAssignableFrom(receiverClass)) {
             // maps allow access like mymap.key
@@ -494,12 +440,12 @@ public final class Def {
                 int index = Integer.parseInt(name);
                 return MethodHandles.insertArguments(LIST_SET, 1, index);
             } catch (final NumberFormatException exception) {
-                throw new IllegalArgumentException( "Illegal list shortcut value [" + name + "].");
+                throw new IllegalArgumentException("Illegal list shortcut value [" + name + "].");
             }
         }
 
-        throw new IllegalArgumentException("Unable to find dynamic field [" + name + "] " +
-                                           "for class [" + receiverClass.getCanonicalName() + "].");
+        throw new IllegalArgumentException(
+                "dynamic getter [" + typeToCanonicalTypeName(receiverClass) + ", " + name + "] not found");
     }
 
     /**

@@ -7,18 +7,18 @@ package org.elasticsearch.xpack.upgrade.actions;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoRequest;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.upgrade.actions.IndexUpgradeInfoAction.Request;
 
-public class IndexUpgradeInfoActionRequestTests extends AbstractWireSerializingTestCase<Request> {
+public class IndexUpgradeInfoActionRequestTests extends AbstractWireSerializingTestCase<IndexUpgradeInfoRequest> {
     @Override
-    protected Request createTestInstance() {
+    protected IndexUpgradeInfoRequest createTestInstance() {
         int indexCount = randomInt(4);
         String[] indices = new String[indexCount];
         for (int i = 0; i < indexCount; i++) {
             indices[i] = randomAlphaOfLength(10);
         }
-        Request request = new Request(indices);
+        IndexUpgradeInfoRequest request = new IndexUpgradeInfoRequest(indices);
         if (randomBoolean()) {
             request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
         }
@@ -26,7 +26,7 @@ public class IndexUpgradeInfoActionRequestTests extends AbstractWireSerializingT
     }
 
     @Override
-    protected Writeable.Reader<Request> instanceReader() {
-        return Request::new;
+    protected Writeable.Reader<IndexUpgradeInfoRequest> instanceReader() {
+        return IndexUpgradeInfoRequest::new;
     }
 }

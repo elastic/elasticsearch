@@ -210,6 +210,7 @@ public class RestHighLevelClient implements Closeable {
     private final XPackClient xPackClient = new XPackClient(this);
     private final WatcherClient watcherClient = new WatcherClient(this);
     private final LicenseClient licenseClient = new LicenseClient(this);
+    private final MigrationClient migrationClient = new MigrationClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -332,6 +333,18 @@ public class RestHighLevelClient implements Closeable {
      * Licensing APIs on elastic.co</a> for more information.
      */
     public LicenseClient license() { return licenseClient; }
+
+    /**
+     * Provides methods for accessing the Elastic Licensed Licensing APIs that
+     * are shipped with the default distribution of Elasticsearch. All of
+     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
+     * <p>
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/migration-api.html">
+     * Migration APIs on elastic.co</a> for more information.
+     */
+    public MigrationClient migration() {
+        return migrationClient;
+    }
 
     /**
      * Executes a bulk request using the Bulk API.

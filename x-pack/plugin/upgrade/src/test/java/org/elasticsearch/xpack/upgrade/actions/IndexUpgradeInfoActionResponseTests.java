@@ -5,29 +5,29 @@
  */
 package org.elasticsearch.xpack.upgrade.actions;
 
+import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoResponse;
+import org.elasticsearch.protocol.xpack.migration.UpgradeActionRequired;
 import org.elasticsearch.test.AbstractStreamableTestCase;
-import org.elasticsearch.xpack.core.upgrade.UpgradeActionRequired;
-import org.elasticsearch.xpack.core.upgrade.actions.IndexUpgradeInfoAction.Response;
 
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 
-public class IndexUpgradeInfoActionResponseTests extends AbstractStreamableTestCase<Response> {
+public class IndexUpgradeInfoActionResponseTests extends AbstractStreamableTestCase<IndexUpgradeInfoResponse> {
 
 
     @Override
-    protected Response createTestInstance() {
+    protected IndexUpgradeInfoResponse createTestInstance() {
         int actionsCount = randomIntBetween(0, 5);
         Map<String, UpgradeActionRequired> actions = new HashMap<>(actionsCount);
         for (int i = 0; i < actionsCount; i++) {
             actions.put(randomAlphaOfLength(10), randomFrom(EnumSet.allOf(UpgradeActionRequired.class)));
         }
-        return new Response(actions);
+        return new IndexUpgradeInfoResponse(actions);
     }
 
     @Override
-    protected Response createBlankInstance() {
-        return new Response();
+    protected IndexUpgradeInfoResponse createBlankInstance() {
+        return new IndexUpgradeInfoResponse();
     }
 }

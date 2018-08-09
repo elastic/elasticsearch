@@ -198,3 +198,12 @@ The Java High Level REST Client supports the following Licensing APIs:
 * <<java-rest-high-put-license>>
 
 include::licensing/put-license.asciidoc[]
+
+
+== Migration APIs
+
+The Java High Level REST Client supports the following Migration APIs:
+
+* <<java-rest-high-migration-get-assistance>>
+
+include::migration/get-assistance.asciidoc[]

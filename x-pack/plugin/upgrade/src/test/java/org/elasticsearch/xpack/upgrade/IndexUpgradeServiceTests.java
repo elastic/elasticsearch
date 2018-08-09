@@ -15,8 +15,8 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.protocol.xpack.migration.UpgradeActionRequired;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.upgrade.UpgradeActionRequired;
 
 import java.io.IOException;
 import java.util.Arrays;

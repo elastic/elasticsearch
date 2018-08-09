@@ -128,10 +128,8 @@ public abstract class ElectionScheduler extends AbstractComponent {
         this.random = random;
         this.threadPool = threadPool;
 
-        synchronized (mutex) {
-            electionMinRetryInterval = ELECTION_MIN_RETRY_INTERVAL_SETTING.get(settings);
-            electionMaxRetryInterval = ELECTION_MAX_RETRY_INTERVAL_SETTING.get(settings);
-        }
+        electionMinRetryInterval = ELECTION_MIN_RETRY_INTERVAL_SETTING.get(settings);
+        electionMaxRetryInterval = ELECTION_MAX_RETRY_INTERVAL_SETTING.get(settings);
     }
 
     public void start() {

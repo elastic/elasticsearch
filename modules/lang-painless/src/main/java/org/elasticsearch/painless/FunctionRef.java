@@ -67,11 +67,11 @@ public class FunctionRef {
         PainlessMethod interfaceMethod;
 
         try {
-            try {
-                interfaceMethod = painlessLookup.lookupFunctionalInterfacePainlessMethod(targetClass);
-            } catch (IllegalArgumentException iae) {
+            interfaceMethod = painlessLookup.lookupFunctionalInterfacePainlessMethod(targetClass);
+
+            if (interfaceMethod == null) {
                 throw new IllegalArgumentException("cannot convert function reference [" + typeName + "::" + methodName + "] " +
-                        "to a non-functional interface [" + targetClassName + "]", iae);
+                        "to a non-functional interface [" + targetClassName + "]");
             }
 
             String interfaceMethodName = interfaceMethod.javaMethod.getName();
@@ -116,14 +116,12 @@ public class FunctionRef {
                     throw new IllegalStateException("internal error");
                 }
 
-                PainlessConstructor painlessConstructor;
+                PainlessConstructor painlessConstructor = painlessLookup.lookupPainlessConstructor(typeName, interfaceTypeParametersSize);
 
-                try {
-                    painlessConstructor = painlessLookup.lookupPainlessConstructor(typeName, interfaceTypeParametersSize);
-                } catch (IllegalArgumentException iae) {
+                if (painlessConstructor == null) {
                     throw new IllegalArgumentException("function reference [" + typeName + "::new/" + interfaceTypeParametersSize + "] " +
                             "matching [" + targetClassName + ", " + interfaceMethodName + "/" + interfaceTypeParametersSize + "] " +
-                            "not found", iae);
+                            "not found");
                 }
 
                 delegateClassName = painlessConstructor.javaConstructor.getDeclaringClass().getName();
@@ -140,24 +138,21 @@ public class FunctionRef {
                 }
 
                 boolean captured = numberOfCaptures == 1;
-                PainlessMethod painlessMethod;
+                PainlessMethod painlessMethod =
+                        painlessLookup.lookupPainlessMethod(typeName, true, methodName, interfaceTypeParametersSize);
 
-                try {
-                    painlessMethod = painlessLookup.lookupPainlessMethod(typeName, true, methodName, interfaceTypeParametersSize);
+                if (painlessMethod == null) {
+                    painlessMethod = painlessLookup.lookupPainlessMethod(typeName, false, methodName,
+                            captured ? interfaceTypeParametersSize : interfaceTypeParametersSize - 1);
 
-                    if (captured) {
-                        throw new IllegalStateException("internal error");
-                    }
-                } catch (IllegalArgumentException staticIAE) {
-                    try {
-                        painlessMethod = painlessLookup.lookupPainlessMethod(typeName, false, methodName,
-                                captured ? interfaceTypeParametersSize : interfaceTypeParametersSize - 1);
-                    } catch (IllegalArgumentException iae) {
+                    if (painlessMethod == null) {
                         throw new IllegalArgumentException(
                                 "function reference " + "[" + typeName + "::" + methodName + "/" + interfaceTypeParametersSize + "] " +
                                 "matching [" + targetClassName + ", " + interfaceMethodName + "/" + interfaceTypeParametersSize + "] " +
-                                "not found", iae);
+                                "not found");
                     }
+                } else if (captured) {
+                    throw new IllegalStateException("internal error");
                 }
 
                 delegateClassName = painlessMethod.javaMethod.getDeclaringClass().getName();

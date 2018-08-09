@@ -453,10 +453,12 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     }
 
     private void assertSamePrinterOutput(String format, ZonedDateTime javaDate, DateTime jodaDate) {
-        assertThat(jodaDate.getMillis(), is(javaDate.toEpochSecond() * 1000));
-        String javaTimeOut = DateFormatters.forPattern("dateOptionalTime").format(javaDate);
-        String jodaTimeOut = Joda.forPattern("dateOptionalTime").printer().print(jodaDate);
-        assertThat(javaTimeOut, is(jodaTimeOut));
+        assertThat(jodaDate.getMillis(), is(javaDate.toInstant().toEpochMilli()));
+        String javaTimeOut = DateFormatters.forPattern(format).format(javaDate);
+        String jodaTimeOut = Joda.forPattern(format).printer().print(jodaDate);
+        String message = String.format(Locale.ROOT, "expected string representation to be equal for format [%s]: joda [%s], java [%s]",
+                format, jodaTimeOut, javaTimeOut);
+        assertThat(message, javaTimeOut, is(jodaTimeOut));
     }
 
     private void assertSameDate(String input, String format) {

@@ -19,15 +19,17 @@
 
 package org.elasticsearch.painless.lookup;
 
+import java.lang.invoke.MethodHandle;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.buildPainlessConstructorKey;
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.buildPainlessFieldKey;
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.buildPainlessMethodKey;
-import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
+import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToBoxedType;
 
 public final class PainlessLookup {
 
@@ -67,6 +69,10 @@ public final class PainlessLookup {
 
         Class<?> targetClass = canonicalTypeNameToType(targetClassName);
 
+        if (targetClass == null) {
+            return null;
+        }
+
         return lookupPainlessConstructor(targetClass, constructorArity);
     }
 
@@ -77,15 +83,13 @@ public final class PainlessLookup {
         String painlessConstructorKey = buildPainlessConstructorKey(constructorArity);
 
         if (targetPainlessClass == null) {
-            throw new IllegalArgumentException("target class [" + typeToCanonicalTypeName(targetClass) + "] " +
-                    "not found for constructor [" + painlessConstructorKey + "]");
+            return null;
         }
 
         PainlessConstructor painlessConstructor = targetPainlessClass.constructors.get(painlessConstructorKey);
 
         if (painlessConstructor == null) {
-            throw new IllegalArgumentException(
-                    "constructor [" + typeToCanonicalTypeName(targetClass) + ", " + painlessConstructorKey + "] not found");
+            return null;
         }
 
         return painlessConstructor;
@@ -96,6 +100,10 @@ public final class PainlessLookup {
 
         Class<?> targetClass = canonicalTypeNameToType(targetClassName);
 
+        if (targetClass == null) {
+            return null;
+        }
+
         return lookupPainlessMethod(targetClass, isStatic, methodName, methodArity);
     }
 
@@ -104,33 +112,29 @@ public final class PainlessLookup {
         Objects.requireNonNull(methodName);
 
         if (targetClass.isPrimitive()) {
-            targetClass = PainlessLookupUtility.typeToBoxedType(targetClass);
+            targetClass = typeToBoxedType(targetClass);
         }
 
         PainlessClass targetPainlessClass = classesToPainlessClasses.get(targetClass);
         String painlessMethodKey = buildPainlessMethodKey(methodName, methodArity);
 
         if (targetPainlessClass == null) {
-            throw new IllegalArgumentException(
-                    "target class [" + typeToCanonicalTypeName(targetClass) + "] not found for method [" + painlessMethodKey + "]");
+            return null;
         }
 
-        PainlessMethod painlessMethod = isStatic ?
+        return isStatic ?
                 targetPainlessClass.staticMethods.get(painlessMethodKey) :
                 targetPainlessClass.methods.get(painlessMethodKey);
-
-        if (painlessMethod == null) {
-            throw new IllegalArgumentException(
-                    "method [" + typeToCanonicalTypeName(targetClass) + ", " + painlessMethodKey + "] not found");
-        }
-
-        return painlessMethod;
     }
 
     public PainlessField lookupPainlessField(String targetClassName, boolean isStatic, String fieldName) {
         Objects.requireNonNull(targetClassName);
 
         Class<?> targetClass = canonicalTypeNameToType(targetClassName);
+
+        if (targetClass == null) {
+            return null;
+        }
 
         return lookupPainlessField(targetClass, isStatic, fieldName);
     }
@@ -143,8 +147,7 @@ public final class PainlessLookup {
         String painlessFieldKey = buildPainlessFieldKey(fieldName);
 
         if (targetPainlessClass == null) {
-            throw new IllegalArgumentException(
-                    "target class [" + typeToCanonicalTypeName(targetClass) + "] not found for field [" + painlessFieldKey + "]");
+            return null;
         }
 
         PainlessField painlessField = isStatic ?
@@ -152,8 +155,7 @@ public final class PainlessLookup {
                 targetPainlessClass.fields.get(painlessFieldKey);
 
         if (painlessField == null) {
-            throw new IllegalArgumentException(
-                    "field [" + typeToCanonicalTypeName(targetClass) + ", " + painlessFieldKey + "] not found");
+            return null;
         }
 
         return painlessField;
@@ -163,15 +165,77 @@ public final class PainlessLookup {
         PainlessClass targetPainlessClass = classesToPainlessClasses.get(targetClass);
 
         if (targetPainlessClass == null) {
-            throw new IllegalArgumentException("target class [" + typeToCanonicalTypeName(targetClass) + "] not found");
+            return null;
         }
 
-        PainlessMethod functionalInterfacePainlessMethod = targetPainlessClass.functionalInterfaceMethod;
+        return targetPainlessClass.functionalInterfaceMethod;
+    }
 
-        if (functionalInterfacePainlessMethod == null) {
-            throw new IllegalArgumentException("target class [" + typeToCanonicalTypeName(targetClass) + "] is not a functional interface");
+    public PainlessMethod lookupRuntimePainlessMethod(Class<?> originalTargetClass, String methodName, int methodArity) {
+        Objects.requireNonNull(originalTargetClass);
+        Objects.requireNonNull(methodName);
+
+        String painlessMethodKey = buildPainlessMethodKey(methodName, methodArity);
+        Function<PainlessClass, PainlessMethod> objectLookup = targetPainlessClass -> targetPainlessClass.methods.get(painlessMethodKey);
+
+        return lookupRuntimePainlessObject(originalTargetClass, objectLookup);
+    }
+
+    public MethodHandle lookupRuntimeGetterMethodHandle(Class<?> originalTargetClass, String getterName) {
+        Objects.requireNonNull(originalTargetClass);
+        Objects.requireNonNull(getterName);
+
+        Function<PainlessClass, MethodHandle> objectLookup = targetPainlessClass -> targetPainlessClass.getterMethodHandles.get(getterName);
+
+        return lookupRuntimePainlessObject(originalTargetClass, objectLookup);
+    }
+
+    public MethodHandle lookupRuntimeSetterMethodHandle(Class<?> originalTargetClass, String setterName) {
+        Objects.requireNonNull(originalTargetClass);
+        Objects.requireNonNull(setterName);
+
+        Function<PainlessClass, MethodHandle> objectLookup = targetPainlessClass -> targetPainlessClass.setterMethodHandles.get(setterName);
+
+        return lookupRuntimePainlessObject(originalTargetClass, objectLookup);
+    }
+
+    private <T> T lookupRuntimePainlessObject(
+            Class<?> originalTargetClass, Function<PainlessClass, T> objectLookup) {
+
+        Class<?> currentTargetClass = originalTargetClass;
+
+        while (currentTargetClass != null) {
+            PainlessClass targetPainlessClass = classesToPainlessClasses.get(currentTargetClass);
+
+            if (targetPainlessClass != null) {
+                T painlessObject = objectLookup.apply(targetPainlessClass);
+
+                if (painlessObject != null) {
+                    return painlessObject;
+                }
+            }
+
+            currentTargetClass = currentTargetClass.getSuperclass();
         }
 
-        return functionalInterfacePainlessMethod;
+        currentTargetClass = originalTargetClass;
+
+        while (currentTargetClass != null) {
+            for (Class<?> targetInterface : currentTargetClass.getInterfaces()) {
+                PainlessClass targetPainlessClass = classesToPainlessClasses.get(targetInterface);
+
+                if (targetPainlessClass != null) {
+                    T painlessObject = objectLookup.apply(targetPainlessClass);
+
+                    if (painlessObject != null) {
+                        return painlessObject;
+                    }
+                }
+            }
+
+            currentTargetClass = currentTargetClass.getSuperclass();
+        }
+
+        return null;
     }
 }

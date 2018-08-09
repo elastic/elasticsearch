@@ -56,7 +56,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
                                                        List<PipelineAggregator> pipelineAggregators,
                                                        Map<String, Object> metaData,
                                                        InternalAggregations aggregations) {
-        
+
         roundingInfos = AutoDateHistogramAggregationBuilder.buildRoundings(null);
         int nbBuckets = randomNumberOfBuckets();
         int targetBuckets = randomIntBetween(1, nbBuckets * 2 + 1);
@@ -137,6 +137,12 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         assertEquals(expectedCounts, actualCounts);
     }
 
+    @Override
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32215")
+    public void testReduceRandom() {
+        super.testReduceRandom();
+    }
+    
     @Override
     protected Writeable.Reader<InternalAutoDateHistogram> instanceReader() {
         return InternalAutoDateHistogram::new;

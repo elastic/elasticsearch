@@ -134,6 +134,7 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
         clearTransientSettings("plaintext");
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32673")
     public void testCanAddNewExporterWithSsl() {
         Path truststore = getDataPath("/org/elasticsearch/xpack/monitoring/exporter/http/testnode.jks");
         assertThat(Files.exists(truststore), CoreMatchers.is(true));

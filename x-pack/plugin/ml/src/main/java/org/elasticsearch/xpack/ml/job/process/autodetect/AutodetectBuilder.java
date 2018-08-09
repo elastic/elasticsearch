@@ -189,8 +189,7 @@ public class AutodetectBuilder {
         List<String> command = new ArrayList<>();
         command.add(AUTODETECT_PATH);
 
-        String jobId = JOB_ID_ARG + job.getId();
-        command.add(jobId);
+        command.add(JOB_ID_ARG + job.getId());
 
         AnalysisConfig analysisConfig = job.getAnalysisConfig();
         if (analysisConfig != null) {
@@ -225,12 +224,12 @@ public class AutodetectBuilder {
         command.add(timeFieldArg);
 
         int intervalStagger = calculateStaggeringInterval(job.getId());
-        logger.debug("Periodic operations staggered by " + intervalStagger +" seconds for job '" + job.getId() + "'");
+        logger.debug("[{}] Periodic operations staggered by {} seconds", job.getId(), intervalStagger);
 
         // Supply a URL for persisting/restoring model state unless model
         // persistence has been explicitly disabled.
         if (DONT_PERSIST_MODEL_STATE_SETTING.get(settings)) {
-            logger.info("Will not persist model state - "  + DONT_PERSIST_MODEL_STATE_SETTING + " setting was set");
+            logger.info("[{}] Will not persist model state - "  + DONT_PERSIST_MODEL_STATE_SETTING + " setting was set", job.getId());
         } else {
             // Persist model state every few hours even if the job isn't closed
             long persistInterval = (job.getBackgroundPersistInterval() == null) ?

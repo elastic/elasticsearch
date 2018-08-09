@@ -43,7 +43,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 /**
  * Represents a failure to search on a specific shard.
  */
-public class ShardSearchFailure implements ShardOperationFailedException {
+public class ShardSearchFailure extends ShardOperationFailedException {
 
     private static final String REASON_FIELD = "reason";
     private static final String NODE_FIELD = "node";
@@ -53,9 +53,6 @@ public class ShardSearchFailure implements ShardOperationFailedException {
     public static final ShardSearchFailure[] EMPTY_ARRAY = new ShardSearchFailure[0];
 
     private SearchShardTarget shardTarget;
-    private String reason;
-    private RestStatus status;
-    private Throwable cause;
 
     private ShardSearchFailure() {
 
@@ -66,25 +63,18 @@ public class ShardSearchFailure implements ShardOperationFailedException {
     }
 
     public ShardSearchFailure(Exception e, @Nullable SearchShardTarget shardTarget) {
+        super(shardTarget == null ? null : shardTarget.getFullyQualifiedIndexName(),
+            shardTarget == null ? -1 : shardTarget.getShardId().getId(),
+            ExceptionsHelper.detailedMessage(e),
+            ExceptionsHelper.status(ExceptionsHelper.unwrapCause(e)),
+            ExceptionsHelper.unwrapCause(e));
+
         final Throwable actual = ExceptionsHelper.unwrapCause(e);
         if (actual instanceof SearchException) {
             this.shardTarget = ((SearchException) actual).shard();
         } else if (shardTarget != null) {
             this.shardTarget = shardTarget;
         }
-        status = ExceptionsHelper.status(actual);
-        this.reason = ExceptionsHelper.detailedMessage(e);
-        this.cause = actual;
-    }
-
-    public ShardSearchFailure(String reason, SearchShardTarget shardTarget) {
-        this(reason, shardTarget, RestStatus.INTERNAL_SERVER_ERROR);
-    }
-
-    private ShardSearchFailure(String reason, SearchShardTarget shardTarget, RestStatus status) {
-        this.shardTarget = shardTarget;
-        this.reason = reason;
-        this.status = status;
     }
 
     /**
@@ -93,41 +83,6 @@ public class ShardSearchFailure implements ShardOperationFailedException {
     @Nullable
     public SearchShardTarget shard() {
         return this.shardTarget;
-    }
-
-    @Override
-    public RestStatus status() {
-        return this.status;
-    }
-
-    /**
-     * The index the search failed on.
-     */
-    @Override
-    public String index() {
-        if (shardTarget != null) {
-            return shardTarget.getFullyQualifiedIndexName();
-        }
-        return null;
-    }
-
-    /**
-     * The shard id the search failed on.
-     */
-    @Override
-    public int shardId() {
-        if (shardTarget != null) {
-            return shardTarget.getShardId().id();
-        }
-        return -1;
-    }
-
-    /**
-     * The reason of the failure.
-     */
-    @Override
-    public String reason() {
-        return this.reason;
     }
 
     @Override
@@ -172,12 +127,10 @@ public class ShardSearchFailure implements ShardOperationFailedException {
         if (shardTarget != null) {
             builder.field(NODE_FIELD, shardTarget.getNodeId());
         }
-        if (cause != null) {
-            builder.field(REASON_FIELD);
-            builder.startObject();
-            ElasticsearchException.generateThrowableXContent(builder, params, cause);
-            builder.endObject();
-        }
+        builder.field(REASON_FIELD);
+        builder.startObject();
+        ElasticsearchException.generateThrowableXContent(builder, params, cause);
+        builder.endObject();
         return builder;
     }
 
@@ -224,10 +177,5 @@ public class ShardSearchFailure implements ShardOperationFailedException {
                     new ShardId(new Index(indexName, IndexMetaData.INDEX_UUID_NA_VALUE), shardId), clusterAlias, OriginalIndices.NONE);
         }
         return new ShardSearchFailure(exception, searchShardTarget);
-    }
-
-    @Override
-    public Throwable getCause() {
-        return cause;
     }
 }

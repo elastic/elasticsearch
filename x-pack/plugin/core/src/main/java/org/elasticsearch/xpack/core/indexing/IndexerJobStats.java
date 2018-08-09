@@ -24,13 +24,14 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
  * and are only for external monitoring/reference.  Statistics are not persisted with the job, so if the
  * allocated task is shutdown/restarted on a different node all the stats will reset.
  */
-public class IndexerStats implements ToXContentObject, Writeable {
+public class IndexerJobStats implements ToXContentObject, Writeable {
 
     public static final ParseField NAME = new ParseField("job_stats");
 
     private static ParseField NUM_PAGES = new ParseField("pages_processed");
-    private static ParseField NUM_INPUT_DOCUMENTS = new ParseField("source_documents_processed");
-    private static ParseField NUM_OUTPUT_DOCUMENTS = new ParseField("documents_indexed");
+    private static ParseField NUM_INPUT_DOCUMENTS = new ParseField("documents_processed");
+    // BWC for RollupJobStats
+    private static ParseField NUM_OUTPUT_DOCUMENTS = new ParseField("documents_indexed").withDeprecation("rollups_indexed");
     private static ParseField NUM_INVOCATIONS = new ParseField("trigger_count");
 
     private long numPages = 0;
@@ -38,9 +39,9 @@ public class IndexerStats implements ToXContentObject, Writeable {
     private long numOuputDocuments = 0;
     private long numInvocations = 0;
 
-    public static final ConstructingObjectParser<IndexerStats, Void> PARSER =
+    public static final ConstructingObjectParser<IndexerJobStats, Void> PARSER =
             new ConstructingObjectParser<>(NAME.getPreferredName(),
-                    args -> new IndexerStats((long) args[0], (long) args[1], (long) args[2], (long) args[3]));
+                    args -> new IndexerJobStats((long) args[0], (long) args[1], (long) args[2], (long) args[3]));
 
     static {
         PARSER.declareLong(constructorArg(), NUM_PAGES);
@@ -49,17 +50,17 @@ public class IndexerStats implements ToXContentObject, Writeable {
         PARSER.declareLong(constructorArg(), NUM_INVOCATIONS);
     }
 
-    public IndexerStats() {
+    public IndexerJobStats() {
     }
 
-    public IndexerStats(long numPages, long numDocuments, long numOuputDocuments, long numInvocations) {
+    public IndexerJobStats(long numPages, long numDocuments, long numOuputDocuments, long numInvocations) {
         this.numPages = numPages;
         this.numInputDocuments = numDocuments;
         this.numOuputDocuments = numOuputDocuments;
         this.numInvocations = numInvocations;
     }
 
-    public IndexerStats(StreamInput in) throws IOException {
+    public IndexerJobStats(StreamInput in) throws IOException {
         this.numPages = in.readVLong();
         this.numInputDocuments = in.readVLong();
         this.numOuputDocuments = in.readVLong();
@@ -110,7 +111,7 @@ public class IndexerStats implements ToXContentObject, Writeable {
         out.writeVLong(numInvocations);
     }
 
-    public static IndexerStats fromXContent(XContentParser parser) {
+    public static IndexerJobStats fromXContent(XContentParser parser) {
         try {
             return PARSER.parse(parser, null);
         } catch (IOException e) {
@@ -139,7 +140,7 @@ public class IndexerStats implements ToXContentObject, Writeable {
             return false;
         }
 
-        IndexerStats that = (IndexerStats) other;
+        IndexerJobStats that = (IndexerJobStats) other;
 
         return Objects.equals(this.numPages, that.numPages)
                 && Objects.equals(this.numInputDocuments, that.numInputDocuments)

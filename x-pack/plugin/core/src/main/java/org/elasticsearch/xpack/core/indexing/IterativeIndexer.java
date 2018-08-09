@@ -35,18 +35,17 @@ import java.util.concurrent.atomic.AtomicReference;
 public abstract class IterativeIndexer<JobPosition> {
     private static final Logger logger = Logger.getLogger(IterativeIndexer.class.getName());
 
-    private final IndexerStats stats;
+    private final IndexerJobStats stats;
 
     private final AtomicReference<IndexerState> state;
     private final AtomicReference<JobPosition> position;
     private final Executor executor;
 
-    protected IterativeIndexer(Executor executor, AtomicReference<IndexerState> initialState, JobPosition initialPosition,
-            IndexerStats stats) {
+    protected IterativeIndexer(Executor executor, AtomicReference<IndexerState> initialState, JobPosition initialPosition) {
         this.executor = executor;
         this.state = initialState;
         this.position = new AtomicReference<>(initialPosition);
-        this.stats = stats;
+        this.stats = new IndexerJobStats();
     }
 
     /**
@@ -66,7 +65,7 @@ public abstract class IterativeIndexer<JobPosition> {
     /**
      * Get the stats of this indexer.
      */
-    public IndexerStats getStats() {
+    public IndexerJobStats getStats() {
         return stats;
     }
 

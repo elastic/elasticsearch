@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
-import org.elasticsearch.xpack.core.rollup.job.RollupJobStats;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -54,7 +53,7 @@ public abstract class RollupIndexer extends IterativeIndexer<Map<String, Object>
      */
     RollupIndexer(Executor executor, RollupJob job, AtomicReference<IndexerState> initialState, Map<String, Object> initialPosition,
             AtomicBoolean upgradedDocumentID) {
-        super(executor, initialState, initialPosition, new RollupJobStats());
+        super(executor, initialState, initialPosition);
         this.job = job;
         this.compositeBuilder = createCompositeBuilder(job.getConfig());
         this.upgradedDocumentID = upgradedDocumentID;

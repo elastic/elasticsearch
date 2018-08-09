@@ -9,25 +9,25 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
-public class IndexerStatsTests extends AbstractSerializingTestCase<IndexerStats> {
+public class IndexerStatsTests extends AbstractSerializingTestCase<IndexerJobStats> {
 
     @Override
-    protected IndexerStats createTestInstance() {
+    protected IndexerJobStats createTestInstance() {
         return randomStats();
     }
 
     @Override
-    protected Writeable.Reader<IndexerStats> instanceReader() {
-        return IndexerStats::new;
+    protected Writeable.Reader<IndexerJobStats> instanceReader() {
+        return IndexerJobStats::new;
     }
 
     @Override
-    protected IndexerStats doParseInstance(XContentParser parser) {
-        return IndexerStats.fromXContent(parser);
+    protected IndexerJobStats doParseInstance(XContentParser parser) {
+        return IndexerJobStats.fromXContent(parser);
     }
 
-    public static IndexerStats randomStats() {
-        return new IndexerStats(randomNonNegativeLong(), randomNonNegativeLong(),
+    public static IndexerJobStats randomStats() {
+        return new IndexerJobStats(randomNonNegativeLong(), randomNonNegativeLong(),
                 randomNonNegativeLong(), randomNonNegativeLong());
     }
 }

@@ -763,7 +763,7 @@ public class RollupIndexerStateTests extends ESTestCase {
         Function<BulkRequest, BulkResponse> bulkFunction = bulkRequest -> new BulkResponse(new BulkItemResponse[0], 100);
 
         Consumer<Exception> failureConsumer = e -> {
-            assertThat(e.getMessage(), startsWith("Shard failures encountered while running indexer for rollup job"));
+            assertThat(e.getMessage(), startsWith("Shard failures encountered while running indexer for job"));
             isFinished.set(true);
         };
 

@@ -187,4 +187,26 @@ public class MessagesTests extends ESTestCase {
                 }
             });
     }
+
+    public void testPreVoteResponseEqualsHashCodeSerialization() {
+        PreVoteResponse initialPreVoteResponse
+            = new PreVoteResponse(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(initialPreVoteResponse,
+            preVoteResponse -> copyWriteable(preVoteResponse, writableRegistry(), PreVoteResponse::new),
+            preVoteResponse -> {
+                switch (randomInt(2)) {
+                    case 0:
+                        return new PreVoteResponse(randomNonNegativeLong(), preVoteResponse.getLastAcceptedTerm(),
+                            preVoteResponse.getLastAcceptedVersion());
+                    case 1:
+                        return new PreVoteResponse(preVoteResponse.getCurrentTerm(), randomNonNegativeLong(),
+                            preVoteResponse.getLastAcceptedVersion());
+                    case 2:
+                        return new PreVoteResponse(preVoteResponse.getCurrentTerm(), preVoteResponse.getLastAcceptedTerm(),
+                            randomNonNegativeLong());
+                    default:
+                        throw new AssertionError();
+                }
+            });
+    }
 }

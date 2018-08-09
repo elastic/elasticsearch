@@ -31,6 +31,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.GetLicenseResponse;
+import org.elasticsearch.protocol.xpack.license.PostStartTrialRequest;
+import org.elasticsearch.protocol.xpack.license.PostStartTrialResponse;
 import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 
@@ -131,5 +133,26 @@ public class LicenseClient {
                 return Strings.toString(builder);
             }
         }
+    }
+
+    public PostStartTrialResponse postStartTrial(PostStartTrialRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            RequestConverters::postStartTrial,
+            options,
+            PostStartTrialResponse::fromXContent,
+            emptySet()
+        );
+    }
+
+    public void postStartTrialAsync(PostStartTrialRequest request, RequestOptions opts, ActionListener<PostStartTrialResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            RequestConverters::postStartTrial,
+            opts,
+            PostStartTrialResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 }

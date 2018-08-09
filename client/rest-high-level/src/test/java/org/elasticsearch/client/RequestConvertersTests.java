@@ -126,6 +126,7 @@ import org.elasticsearch.index.rankeval.RankEvalSpec;
 import org.elasticsearch.index.rankeval.RatedRequest;
 import org.elasticsearch.index.rankeval.RestRankEvalAction;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
+import org.elasticsearch.protocol.xpack.license.PostStartTrialRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -2590,6 +2591,27 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertEquals("/_xpack/watcher/watch/" + watchId, request.getEndpoint());
         assertThat(request.getEntity(), nullValue());
+    }
+
+    public void testPostStartTrial() {
+        PostStartTrialRequest postStartTrialRequest = new PostStartTrialRequest();
+
+        final boolean acknowledged = randomBoolean();
+        postStartTrialRequest.acknowledge(acknowledged);
+
+        final String type = randomBoolean()
+            ? null
+            : randomAlphaOfLength(10);
+        postStartTrialRequest.setType(type);
+
+        Request request = RequestConverters.postStartTrial(postStartTrialRequest);
+        if (acknowledged) {
+            assertEquals(Boolean.toString(acknowledged), request.getParameters().get("acknowledge"));
+        }
+
+        if (type != null) {
+            assertEquals(type, request.getParameters().get("type"));
+        }
     }
 
     /**

@@ -110,6 +110,7 @@ import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
+import org.elasticsearch.protocol.xpack.license.PostStartTrialRequest;
 import org.elasticsearch.protocol.xpack.ml.PutJobRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
@@ -1186,6 +1187,24 @@ final class RequestConverters {
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         Params parameters = new Params(request);
         parameters.withLocal(getLicenseRequest.local());
+        return request;
+    }
+
+    static Request postStartTrial(PostStartTrialRequest postStartTrialRequest) {
+        Request request = new Request(HttpPost.METHOD_NAME, new EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("license")
+            .addPathPartAsIs("start_trial")
+            .build());
+
+        Params parameters = new Params(request);
+        parameters.withMasterTimeout(postStartTrialRequest.masterNodeTimeout());
+        if (postStartTrialRequest.isAcknowledged()) {
+            parameters.putParam("acknowledge", "true");
+        }
+        if (postStartTrialRequest.getType() != null) {
+            parameters.putParam("type", postStartTrialRequest.getType());
+        }
         return request;
     }
 

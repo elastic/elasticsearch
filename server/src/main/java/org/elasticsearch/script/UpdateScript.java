@@ -1,3 +1,4 @@
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -22,28 +23,30 @@ package org.elasticsearch.script;
 import java.util.Map;
 
 /**
- * An executable script, can't be used concurrently.
+ * An update script.
  */
-public interface ExecutableScript {
+public abstract class UpdateScript {
 
-    /**
-     * Sets a runtime script parameter.
-     * <p>
-     * Note that this method may be slow, involving put() and get() calls
-     * to a hashmap or similar.
-     * @param name parameter name
-     * @param value parameter value
-     */
-    void setNextVar(String name, Object value);
+    public static final String[] PARAMETERS = { "ctx" };
 
-    /**
-     * Executes the script.
-     */
-    Object run();
+    /** The context used to compile {@link UpdateScript} factories. */
+    public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("update", Factory.class);
 
-    interface Factory {
-        ExecutableScript newInstance(Map<String, Object> params);
+    /** The generic runtime parameters for the script. */
+    private final Map<String, Object> params;
+
+    public UpdateScript(Map<String, Object> params) {
+        this.params = params;
     }
 
-    ScriptContext<Factory> CONTEXT = new ScriptContext<>("executable", Factory.class);
+    /** Return the parameters for this script. */
+    public Map<String, Object> getParams() {
+        return params;
+    }
+
+    public abstract void execute(Map<String, Object> ctx);
+
+    public interface Factory {
+        UpdateScript newInstance(Map<String, Object> params);
+    }
 }

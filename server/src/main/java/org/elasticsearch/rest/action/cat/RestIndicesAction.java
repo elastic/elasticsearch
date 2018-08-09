@@ -49,7 +49,6 @@ import org.elasticsearch.rest.action.RestResponseListener;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -382,7 +381,7 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(indexMetaData.getCreationDate());
             ZonedDateTime creationTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(indexMetaData.getCreationDate()), ZoneOffset.UTC);
-            table.addCell(DateTimeFormatter.ISO_INSTANT.format(creationTime));
+            table.addCell(DateFormatters.forPattern("strict_date_time").format(creationTime));
 
             table.addCell(totalStats.getStore() == null ? null : totalStats.getStore().size());
             table.addCell(primaryStats.getStore() == null ? null : primaryStats.getStore().size());

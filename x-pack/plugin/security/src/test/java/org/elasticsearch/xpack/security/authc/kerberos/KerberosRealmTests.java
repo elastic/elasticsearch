@@ -30,13 +30,12 @@ import java.nio.file.attribute.AclEntry;
 import java.nio.file.attribute.AclEntryPermission;
 import java.nio.file.attribute.AclEntryType;
 import java.nio.file.attribute.AclFileAttributeView;
-import java.nio.file.attribute.DosFileAttributeView;
 import java.nio.file.attribute.PosixFileAttributeView;
-import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.nio.file.attribute.UserPrincipal;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 import javax.security.auth.login.LoginException;
@@ -115,7 +114,6 @@ public class KerberosRealmTests extends KerberosRealmTestCase {
         final String keytabPathCase = randomFrom("keytabPathAsDirectory", "keytabFileDoesNotExist", "keytabPathWithNoReadPermissions");
         final String expectedErrorMessage;
         final String keytabPath;
-        final Set<PosixFilePermission> filePerms;
         switch (keytabPathCase) {
         case "keytabPathAsDirectory":
             final String dirName = randomAlphaOfLength(5);
@@ -147,7 +145,8 @@ public class KerberosRealmTests extends KerberosRealmTestCase {
                 view.setAcl(acl);
             } else {
                 throw new UnsupportedOperationException(
-                        String.format("Don't know how to make file [%s] non-readable on a file system with attributes [%s]", keytabFilePath, supportedAttributes));
+                        String.format(Locale.ROOT, "Don't know how to make file [%s] non-readable on a file system with attributes [%s]",
+                                keytabFilePath, supportedAttributes));
             }
             keytabPath = keytabFilePath.toString();
             expectedErrorMessage = "configured service key tab file [" + keytabPath + "] must have read permission";

@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.configcreator;
 
-import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.ml.configcreator.TimestampFormatFinder.TimestampMatch;
@@ -38,15 +36,14 @@ public class SeparatedValuesLogFileStructureFinder extends AbstractStructuredLog
     private final List<String> sampleMessages;
     private final LogFileStructure structure;
 
-    SeparatedValuesLogFileStructureFinder(Terminal terminal, String sample, String charsetName, Boolean hasByteOrderMarker,
+    SeparatedValuesLogFileStructureFinder(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker,
                                           CsvPreference csvPreference, boolean trimFields) throws IOException, UserException {
-        super(terminal);
 
         Tuple<List<List<String>>, List<Integer>> parsed = readRows(sample, csvPreference);
         List<List<String>> rows = parsed.v1();
         List<Integer> lineNumbers = parsed.v2();
 
-        Tuple<Boolean, String[]> headerInfo = findHeaderFromSample(terminal, rows);
+        Tuple<Boolean, String[]> headerInfo = findHeaderFromSample(explanation, rows);
         boolean isCsvHeaderInFile = headerInfo.v1();
         String[] csvHeader = headerInfo.v2();
         String[] csvHeaderWithNamedBlanks = new String[csvHeader.length];
@@ -87,7 +84,7 @@ public class SeparatedValuesLogFileStructureFinder extends AbstractStructuredLog
             structureBuilder.setShouldTrimFields(true);
         }
 
-        Tuple<String, TimestampMatch> timeField = guessTimestampField(sampleRecords);
+        Tuple<String, TimestampMatch> timeField = guessTimestampField(explanation, sampleRecords);
         if (timeField != null) {
             String timeLineRegex = null;
             StringBuilder builder = new StringBuilder("^");
@@ -124,12 +121,12 @@ public class SeparatedValuesLogFileStructureFinder extends AbstractStructuredLog
                 .setMultilineStartPattern(timeLineRegex);
         }
 
-        SortedMap<String, Object> mappings = guessMappings(sampleRecords);
+        SortedMap<String, Object> mappings = guessMappings(explanation, sampleRecords);
         mappings.put(DEFAULT_TIMESTAMP_FIELD, Collections.singletonMap(MAPPING_TYPE_SETTING, "date"));
 
         structure = structureBuilder
             .setMappings(mappings)
-            .setExplanation(Collections.singletonList("TODO")) // TODO
+            .setExplanation(explanation)
             .build();
     }
 
@@ -188,7 +185,7 @@ public class SeparatedValuesLogFileStructureFinder extends AbstractStructuredLog
         return new Tuple<>(rows, lineNumbers);
     }
 
-    static Tuple<Boolean, String[]> findHeaderFromSample(Terminal terminal, List<List<String>> rows) {
+    static Tuple<Boolean, String[]> findHeaderFromSample(List<String> explanation, List<List<String>> rows) {
 
         assert rows.isEmpty() == false;
 
@@ -196,9 +193,9 @@ public class SeparatedValuesLogFileStructureFinder extends AbstractStructuredLog
         boolean isCsvHeaderInFile = true;
 
         if (rows.size() < 3) {
-            terminal.println(Verbosity.VERBOSE, "Too little data to accurately assess whether header is in sample - guessing it is");
+            explanation.add("Too little data to accurately assess whether header is in sample - guessing it is");
         } else {
-            isCsvHeaderInFile = isFirstRowUnusual(terminal, rows);
+            isCsvHeaderInFile = isFirstRowUnusual(explanation, rows);
         }
 
         if (isCsvHeaderInFile) {
@@ -209,7 +206,7 @@ public class SeparatedValuesLogFileStructureFinder extends AbstractStructuredLog
         }
     }
 
-    private static boolean isFirstRowUnusual(Terminal terminal, List<List<String>> rows) {
+    private static boolean isFirstRowUnusual(List<String> explanation, List<List<String>> rows) {
 
         assert rows.size() >= 3;
 
@@ -230,12 +227,12 @@ public class SeparatedValuesLogFileStructureFinder extends AbstractStructuredLog
         double otherLengthRange = otherRowStats.getMax() - otherRowStats.getMin();
         if (firstRowLength < otherRowStats.getMin() - otherLengthRange / 10.0 ||
             firstRowLength > otherRowStats.getMax() + otherLengthRange / 10.0) {
-            terminal.println(Verbosity.VERBOSE, "First row is unusual based on length test: [" + firstRowLength + "] and [" +
+            explanation.add("First row is unusual based on length test: [" + firstRowLength + "] and [" +
                 toNiceString(otherRowStats) + "]");
             return true;
         }
 
-        terminal.println(Verbosity.VERBOSE, "First row is not unusual based on length test: [" + firstRowLength + "] and [" +
+        explanation.add("First row is not unusual based on length test: [" + firstRowLength + "] and [" +
             toNiceString(otherRowStats) + "]");
 
         // Check edit distances
@@ -258,12 +255,12 @@ public class SeparatedValuesLogFileStructureFinder extends AbstractStructuredLog
         }
 
         if (firstRowStats.getAverage() > otherRowStats.getAverage() * 1.2) {
-            terminal.println(Verbosity.VERBOSE, "First row is unusual based on Levenshtein test [" + toNiceString(firstRowStats) +
+            explanation.add("First row is unusual based on Levenshtein test [" + toNiceString(firstRowStats) +
                 "] and [" + toNiceString(otherRowStats) + "]");
             return true;
         }
 
-        terminal.println(Verbosity.VERBOSE, "First row is not unusual based on Levenshtein test [" + toNiceString(firstRowStats) +
+        explanation.add("First row is not unusual based on Levenshtein test [" + toNiceString(firstRowStats) +
             "] and [" + toNiceString(otherRowStats) + "]");
 
         return false;
@@ -376,7 +373,7 @@ public class SeparatedValuesLogFileStructureFinder extends AbstractStructuredLog
         return false;
     }
 
-    static boolean canCreateFromSample(Terminal terminal, String sample, int minFieldsPerRow, CsvPreference csvPreference,
+    static boolean canCreateFromSample(List<String> explanation, String sample, int minFieldsPerRow, CsvPreference csvPreference,
                                        String formatName) {
 
         // Logstash's CSV parser won't tolerate fields where just part of the
@@ -384,7 +381,7 @@ public class SeparatedValuesLogFileStructureFinder extends AbstractStructuredLog
         String[] sampleLines = sample.split("\n");
         for (String sampleLine : sampleLines) {
             if (lineHasUnescapedQuote(sampleLine, csvPreference)) {
-                terminal.println(Verbosity.VERBOSE, "Not " + formatName +
+                explanation.add("Not " + formatName +
                     " because a line has an unescaped quote that is not at the beginning or end of a field: [" + sampleLine + "]");
                 return false;
             }
@@ -405,8 +402,8 @@ public class SeparatedValuesLogFileStructureFinder extends AbstractStructuredLog
                     if (fieldsInFirstRow < 0) {
                         fieldsInFirstRow = fieldsInThisRow;
                         if (fieldsInFirstRow < minFieldsPerRow) {
-                            terminal.println(Verbosity.VERBOSE, "Not " + formatName + " because the first row has fewer than [" +
-                                minFieldsPerRow + "] fields: [" + fieldsInFirstRow + "]");
+                            explanation.add("Not " + formatName + " because the first row has fewer than [" + minFieldsPerRow +
+                                "] fields: [" + fieldsInFirstRow + "]");
                             return false;
                         }
                         fieldsInLastRow = fieldsInFirstRow;
@@ -419,7 +416,7 @@ public class SeparatedValuesLogFileStructureFinder extends AbstractStructuredLog
                     }
 
                     if (fieldsInLastRow != fieldsInFirstRow) {
-                        terminal.println(Verbosity.VERBOSE, "Not " + formatName + " because row [" + (numberOfRows - 1) +
+                        explanation.add("Not " + formatName + " because row [" + (numberOfRows - 1) +
                             "] has a different number of fields to the first row: [" + fieldsInFirstRow + "] and [" +
                             fieldsInLastRow + "]");
                         return false;
@@ -429,8 +426,8 @@ public class SeparatedValuesLogFileStructureFinder extends AbstractStructuredLog
                 }
 
                 if (fieldsInLastRow > fieldsInFirstRow) {
-                    terminal.println(Verbosity.VERBOSE, "Not " + formatName + " because last row has more fields than first row: [" +
-                        fieldsInFirstRow + "] and [" + fieldsInLastRow + "]");
+                    explanation.add("Not " + formatName + " because last row has more fields than first row: [" + fieldsInFirstRow +
+                        "] and [" + fieldsInLastRow + "]");
                     return false;
                 }
                 if (fieldsInLastRow < fieldsInFirstRow) {
@@ -439,21 +436,19 @@ public class SeparatedValuesLogFileStructureFinder extends AbstractStructuredLog
             } catch (SuperCsvException e) {
                 // Tolerate an incomplete last row
                 if (notUnexpectedEndOfFile(e)) {
-                    terminal.println(Verbosity.VERBOSE, "Not " + formatName + " because there was a parsing exception: [" +
-                        e.getMessage() + "]");
+                    explanation.add("Not " + formatName + " because there was a parsing exception: [" + e.getMessage() + "]");
                     return false;
                 }
             }
             if (numberOfRows <= 1) {
-                terminal.println(Verbosity.VERBOSE, "Not " + formatName + " because fewer than 2 complete records in sample: [" +
-                    numberOfRows + "]");
+                explanation.add("Not " + formatName + " because fewer than 2 complete records in sample: [" + numberOfRows + "]");
                 return false;
             }
-            terminal.println(Verbosity.VERBOSE, "Deciding sample is " + formatName);
+            explanation.add("Deciding sample is " + formatName);
             return true;
 
         } catch (IOException e) {
-            terminal.println(Verbosity.VERBOSE, "Not " + formatName + " because there was a parsing exception: [" + e.getMessage() + "]");
+            explanation.add("Not " + formatName + " because there was a parsing exception: [" + e.getMessage() + "]");
             return false;
         }
     }

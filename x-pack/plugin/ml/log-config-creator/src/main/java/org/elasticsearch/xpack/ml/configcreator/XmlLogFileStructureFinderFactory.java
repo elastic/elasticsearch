@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.configcreator;
 
-import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.cli.UserException;
 import org.xml.sax.SAXException;
 
@@ -18,15 +16,13 @@ import javax.xml.stream.XMLStreamReader;
 import java.io.IOException;
 import java.io.Reader;
 import java.io.StringReader;
-import java.util.Objects;
+import java.util.List;
 
 public class XmlLogFileStructureFinderFactory implements LogFileStructureFinderFactory {
 
-    private final Terminal terminal;
     private final XMLInputFactory xmlFactory;
 
-    public XmlLogFileStructureFinderFactory(Terminal terminal) {
-        this.terminal = Objects.requireNonNull(terminal);
+    public XmlLogFileStructureFinderFactory() {
         xmlFactory = XMLInputFactory.newInstance();
         xmlFactory.setProperty(XMLInputFactory.IS_NAMESPACE_AWARE, Boolean.FALSE);
         xmlFactory.setProperty(XMLInputFactory.IS_VALIDATING, Boolean.FALSE);
@@ -39,7 +35,7 @@ public class XmlLogFileStructureFinderFactory implements LogFileStructureFinderF
      * necessarily have to be complete (as the sample could have truncated it).
      */
     @Override
-    public boolean canCreateFromSample(String sample) {
+    public boolean canCreateFromSample(List<String> explanation, String sample) {
 
         int completeDocCount = 0;
         String commonRootElementName = null;
@@ -66,7 +62,7 @@ public class XmlLogFileStructureFinderFactory implements LogFileStructureFinderF
                                     if (commonRootElementName == null) {
                                         commonRootElementName = rootElementName;
                                     } else if (commonRootElementName.equals(rootElementName) == false) {
-                                        terminal.println(Verbosity.VERBOSE, "Not XML because different documents have different root " +
+                                        explanation.add("Not XML because different documents have different root " +
                                             "element names: [" + commonRootElementName + "] and [" + rootElementName + "]");
                                         return false;
                                     }
@@ -74,7 +70,7 @@ public class XmlLogFileStructureFinderFactory implements LogFileStructureFinderF
                                 break;
                             case XMLStreamReader.END_ELEMENT:
                                 if (--nestingLevel < 0) {
-                                    terminal.println(Verbosity.VERBOSE, "Not XML because an end element occurs before a start element");
+                                    explanation.add("Not XML because an end element occurs before a start element");
                                     return false;
                                 }
                                 break;
@@ -90,7 +86,7 @@ public class XmlLogFileStructureFinderFactory implements LogFileStructureFinderF
                             for (int wholeLines = location.getLineNumber() - 1; wholeLines > 0; --wholeLines) {
                                 endPos = remainder.indexOf('\n', endPos) + 1;
                                 if (endPos == 0) {
-                                    terminal.println(Verbosity.VERBOSE, "Not XML because XML parser location is inconsistent: line [" +
+                                    explanation.add("Not XML because XML parser location is inconsistent: line [" +
                                         location.getLineNumber() + "], column [" + location.getColumnNumber() + "] in [" + remainder + "]");
                                     return false;
                                 }
@@ -105,24 +101,23 @@ public class XmlLogFileStructureFinderFactory implements LogFileStructureFinderF
                     xmlReader.close();
                 }
             } catch (IOException | XMLStreamException e) {
-                terminal.println(Verbosity.VERBOSE, "Not XML because there was a parsing exception: [" +
-                    e.getMessage().replaceAll("\\s?\r?\n\\s?", " ") + "]");
+                explanation.add("Not XML because there was a parsing exception: [" + e.getMessage().replaceAll("\\s?\r?\n\\s?", " ") + "]");
                 return false;
             }
         }
 
         if (completeDocCount == 0) {
-            terminal.println(Verbosity.VERBOSE, "Not XML because sample didn't contain a complete document");
+            explanation.add("Not XML because sample didn't contain a complete document");
             return false;
         }
 
-        terminal.println(Verbosity.VERBOSE, "Deciding sample is XML");
+        explanation.add("Deciding sample is XML");
         return true;
     }
 
     @Override
-    public LogFileStructureFinder createFromSample(String sample, String charsetName, Boolean hasByteOrderMarker)
+    public LogFileStructureFinder createFromSample(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker)
         throws IOException, ParserConfigurationException, SAXException, UserException {
-        return new XmlLogFileStructureFinder(terminal, sample, charsetName, hasByteOrderMarker);
+        return new XmlLogFileStructureFinder(explanation, sample, charsetName, hasByteOrderMarker);
     }
 }

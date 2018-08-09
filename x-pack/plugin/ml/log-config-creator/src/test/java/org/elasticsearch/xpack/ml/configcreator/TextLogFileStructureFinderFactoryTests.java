@@ -7,13 +7,13 @@ package org.elasticsearch.xpack.ml.configcreator;
 
 public class TextLogFileStructureFinderFactoryTests extends LogConfigCreatorTestCase {
 
-    private LogFileStructureFinderFactory factory = new TextLogFileStructureFinderFactory(TEST_TERMINAL);
+    private LogFileStructureFinderFactory factory = new TextLogFileStructureFinderFactory();
 
     // No need to check JSON, XML, CSV, TSV, semi-colon separated values or pipe
     // separated values because they come earlier in the order we check formats
 
     public void testCanCreateFromSampleGivenText() {
 
-        assertTrue(factory.canCreateFromSample(TEXT_SAMPLE));
+        assertTrue(factory.canCreateFromSample(explanation, TEXT_SAMPLE));
     }
 }

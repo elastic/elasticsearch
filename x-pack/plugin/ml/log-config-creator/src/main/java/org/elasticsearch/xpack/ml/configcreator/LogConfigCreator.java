@@ -9,6 +9,7 @@ import joptsimple.OptionSet;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.grok.Grok;
@@ -152,11 +153,15 @@ public class LogConfigCreator extends Command {
         }
 
         try {
-            LogFileStructureFinderManager structureFinderManager = new LogFileStructureFinderManager(terminal);
-            LogFileStructureFinder structureFinder = structureFinderManager.findLogFileStructure(sampleLines, Files.newInputStream(file));
             LogConfigWriter logConfigWriter = new LogConfigWriter(terminal, filebeatModulePath,
                 file.toAbsolutePath().normalize().toString(), indexName, typeName, elasticsearchHost, logstashHost, timezone);
-            logConfigWriter.writeConfigs(structureFinder.getStructure(), structureFinder.getSampleMessages(), outputDirectory);
+            LogFileStructureFinderManager structureFinderManager = new LogFileStructureFinderManager();
+            LogFileStructureFinder structureFinder = structureFinderManager.findLogFileStructure(sampleLines, Files.newInputStream(file));
+            LogFileStructure structure = structureFinder.getStructure();
+            for (String reason : structure.getExplanation()) {
+                terminal.println(Verbosity.VERBOSE, reason);
+            }
+            logConfigWriter.writeConfigs(structure, structureFinder.getSampleMessages(), outputDirectory);
         } catch (IOException e) {
             throw new UserException(ExitCodes.DATA_ERROR, "Cannot determine format of file [" + file + "]: " + e.getMessage());
         }

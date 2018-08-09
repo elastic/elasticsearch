@@ -8,8 +8,6 @@ package org.elasticsearch.xpack.ml.configcreator;
 import com.ibm.icu.text.CharsetDetector;
 import com.ibm.icu.text.CharsetMatch;
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.collect.Tuple;
 
@@ -20,12 +18,12 @@ import java.io.InputStream;
 import java.io.Reader;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
@@ -38,9 +36,7 @@ import java.util.Set;
  */
 public final class LogFileStructureFinderManager {
 
-    private static final int MIN_SAMPLE_LINE_COUNT = 2;
-
-    private static final int BUFFER_SIZE = 8192;
+    public static final int MIN_SAMPLE_LINE_COUNT = 2;
 
     static final Set<String> FILEBEAT_SUPPORTED_ENCODINGS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
         "866", "ansi_x3.4-1968", "arabic", "ascii", "asmo-708", "big5", "big5-hkscs", "chinese", "cn-big5", "cp1250", "cp1251", "cp1252",
@@ -68,39 +64,48 @@ public final class LogFileStructureFinderManager {
         "x-cp1258", "x-euc-jp", "x-gbk", "x-mac-cyrillic", "x-mac-roman", "x-mac-ukrainian", "x-sjis", "x-x-big5"
     )));
 
-    private final Terminal terminal;
-
     /**
      * These need to be ordered so that the more generic formats come after the more specific ones
      */
-    private final List<LogFileStructureFinderFactory> orderedStructureFactories;
+    private static final List<LogFileStructureFinderFactory> ORDERED_STRUCTURE_FACTORIES = Collections.unmodifiableList(Arrays.asList(
+        new JsonLogFileStructureFinderFactory(),
+        new XmlLogFileStructureFinderFactory(),
+        // ND-JSON will often also be valid (although utterly weird) CSV, so JSON must come before CSV
+        new CsvLogFileStructureFinderFactory(),
+        new TsvLogFileStructureFinderFactory(),
+        new SemiColonSeparatedValuesLogFileStructureFinderFactory(),
+        new PipeSeparatedValuesLogFileStructureFinderFactory(),
+        new TextLogFileStructureFinderFactory()
+    ));
 
-    public LogFileStructureFinderManager(Terminal terminal) {
-        this.terminal = Objects.requireNonNull(terminal);
-        orderedStructureFactories = Arrays.asList(
-            new JsonLogFileStructureFinderFactory(terminal),
-            new XmlLogFileStructureFinderFactory(terminal),
-            // ND-JSON will often also be valid (although utterly weird) CSV, so JSON must come before CSV
-            new CsvLogFileStructureFinderFactory(terminal),
-            new TsvLogFileStructureFinderFactory(terminal),
-            new SemiColonSeparatedValuesLogFileStructureFinderFactory(terminal),
-            new PipeSeparatedValuesLogFileStructureFinderFactory(terminal),
-            new TextLogFileStructureFinderFactory(terminal)
-        );
+    private static final int BUFFER_SIZE = 8192;
+
+    /**
+     * Given a stream of data from some log file, determine its structure.
+     * @param idealSampleLineCount Ideally, how many lines from the stream will be read to determine the structure?
+     *                             If the stream has fewer lines then an attempt will still be made, providing at
+     *                             least {@link #MIN_SAMPLE_LINE_COUNT} lines can be read.
+     * @param fromFile A stream from which the sample will be read.
+     * @return A {@link LogFileStructureFinder} object from which the structure and messages can be queried.
+     * @throws Exception A variety of problems could occur at various stages of the structure finding process.
+     */
+    public LogFileStructureFinder findLogFileStructure(int idealSampleLineCount, InputStream fromFile) throws Exception {
+        return findLogFileStructure(new ArrayList<>(), idealSampleLineCount, fromFile);
     }
 
-    public LogFileStructureFinder findLogFileStructure(int idealSampleLineCount, InputStream fromFile) throws Exception {
+    LogFileStructureFinder findLogFileStructure(List<String> explanation, int idealSampleLineCount, InputStream fromFile)
+        throws Exception {
 
-        CharsetMatch charsetMatch = findCharset(fromFile);
+        CharsetMatch charsetMatch = findCharset(explanation, fromFile);
         String charsetName = charsetMatch.getName();
 
         Tuple<String, Boolean> sampleInfo = sampleFile(charsetMatch.getReader(), charsetName, MIN_SAMPLE_LINE_COUNT,
             Math.max(MIN_SAMPLE_LINE_COUNT, idealSampleLineCount));
 
-        return makeBestStructureFinder(sampleInfo.v1(), charsetName, sampleInfo.v2());
+        return makeBestStructureFinder(explanation, sampleInfo.v1(), charsetName, sampleInfo.v2());
     }
 
-    CharsetMatch findCharset(InputStream inputStream) throws Exception {
+    CharsetMatch findCharset(List<String> explanation, InputStream inputStream) throws Exception {
 
         // We need an input stream that supports mark and reset, so wrap the argument
         // in a BufferedInputStream if it doesn't already support this feature
@@ -142,7 +147,7 @@ public final class LogFileStructureFinderManager {
             Optional<CharsetMatch> utf8CharsetMatch = Arrays.stream(charsetMatches)
                 .filter(charsetMatch -> StandardCharsets.UTF_8.name().equals(charsetMatch.getName())).findFirst();
             if (utf8CharsetMatch.isPresent()) {
-                terminal.println(Verbosity.VERBOSE, "Using character encoding [" + StandardCharsets.UTF_8.name() +
+                explanation.add("Using character encoding [" + StandardCharsets.UTF_8.name() +
                     "], which matched the input with [" + utf8CharsetMatch.get().getConfidence() + "%] confidence - first [" +
                     (BUFFER_SIZE / 1024) + "kB] of input was pure ASCII");
                 return utf8CharsetMatch.get();
@@ -165,17 +170,16 @@ public final class LogFileStructureFinderManager {
                     spaceEncodingContainsZeroByte = (spaceBytes[i] == 0);
                 }
                 if (containsZeroBytes && spaceEncodingContainsZeroByte == false) {
-                    terminal.println(Verbosity.VERBOSE, "Character encoding [" + name + "] matched the input with [" +
-                        charsetMatch.getConfidence() + "%] confidence but was rejected as the input contains zero bytes and the [" + name +
-                        "] encoding does not");
+                    explanation.add("Character encoding [" + name + "] matched the input with [" + charsetMatch.getConfidence() +
+                        "%] confidence but was rejected as the input contains zero bytes and the [" + name + "] encoding does not");
                 } else {
-                    terminal.println(Verbosity.VERBOSE, "Using character encoding [" + name +
-                        "], which matched the input with [" + charsetMatch.getConfidence() + "%] confidence");
+                    explanation.add("Using character encoding [" + name + "], which matched the input with [" +
+                        charsetMatch.getConfidence() + "%] confidence");
                     return charsetMatch;
                 }
             } else {
-                terminal.println(Verbosity.VERBOSE, "Character encoding [" + name + "] matched the input with [" +
-                    charsetMatch.getConfidence() + "%] confidence but was rejected as it is not supported by [" +
+                explanation.add("Character encoding [" + name + "] matched the input with [" + charsetMatch.getConfidence() +
+                    "%] confidence but was rejected as it is not supported by [" +
                     (Charset.isSupported(name) ? "Filebeat" : "the JVM") + "]");
             }
         }
@@ -184,11 +188,12 @@ public final class LogFileStructureFinderManager {
             (containsZeroBytes ? " - could it be binary data?" : ""));
     }
 
-    LogFileStructureFinder makeBestStructureFinder(String sample, String charsetName, Boolean hasByteOrderMarker) throws Exception {
+    LogFileStructureFinder makeBestStructureFinder(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker)
+        throws Exception {
 
-        for (LogFileStructureFinderFactory factory : orderedStructureFactories) {
-            if (factory.canCreateFromSample(sample)) {
-                return factory.createFromSample(sample, charsetName, hasByteOrderMarker);
+        for (LogFileStructureFinderFactory factory : ORDERED_STRUCTURE_FACTORIES) {
+            if (factory.canCreateFromSample(explanation, sample)) {
+                return factory.createFromSample(explanation, sample, charsetName, hasByteOrderMarker);
             }
         }
         throw new UserException(ExitCodes.DATA_ERROR, "Input did not match any known formats");

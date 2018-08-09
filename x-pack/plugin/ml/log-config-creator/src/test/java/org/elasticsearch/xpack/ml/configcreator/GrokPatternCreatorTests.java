@@ -77,7 +77,7 @@ public class GrokPatternCreatorTests extends LogConfigCreatorTestCase {
         StringBuilder overallGrokPatternBuilder = new StringBuilder();
         Map<String, Object> mappings = new HashMap<>();
 
-        GrokPatternCreator.appendBestGrokMatchForStrings(TEST_TERMINAL, fieldNameCountStore, overallGrokPatternBuilder, false, snippets,
+        GrokPatternCreator.appendBestGrokMatchForStrings(explanation, fieldNameCountStore, overallGrokPatternBuilder, false, snippets,
             mappings, false, 0);
 
         assertEquals(".*?\\[%{TIMESTAMP_ISO8601:extra_timestamp}\\] %{LOGLEVEL:loglevel} ", overallGrokPatternBuilder.toString());
@@ -94,7 +94,7 @@ public class GrokPatternCreatorTests extends LogConfigCreatorTestCase {
         StringBuilder overallGrokPatternBuilder = new StringBuilder();
         Map<String, Object> mappings = new HashMap<>();
 
-        GrokPatternCreator.appendBestGrokMatchForStrings(TEST_TERMINAL, fieldNameCountStore, overallGrokPatternBuilder, false, snippets,
+        GrokPatternCreator.appendBestGrokMatchForStrings(explanation, fieldNameCountStore, overallGrokPatternBuilder, false, snippets,
             mappings, false, 0);
 
         assertEquals(".*?\\(%{INT:field}\\).*?", overallGrokPatternBuilder.toString());
@@ -110,7 +110,7 @@ public class GrokPatternCreatorTests extends LogConfigCreatorTestCase {
         StringBuilder overallGrokPatternBuilder = new StringBuilder();
         Map<String, Object> mappings = new HashMap<>();
 
-        GrokPatternCreator.appendBestGrokMatchForStrings(TEST_TERMINAL, fieldNameCountStore, overallGrokPatternBuilder, false, snippets,
+        GrokPatternCreator.appendBestGrokMatchForStrings(explanation, fieldNameCountStore, overallGrokPatternBuilder, false, snippets,
             mappings, false, 0);
 
         // It seems sensible that we don't detect these suffices as either base 10 or base 16 numbers
@@ -128,7 +128,7 @@ public class GrokPatternCreatorTests extends LogConfigCreatorTestCase {
         StringBuilder overallGrokPatternBuilder = new StringBuilder();
         Map<String, Object> mappings = new HashMap<>();
 
-        GrokPatternCreator.appendBestGrokMatchForStrings(TEST_TERMINAL, fieldNameCountStore, overallGrokPatternBuilder, false, snippets,
+        GrokPatternCreator.appendBestGrokMatchForStrings(explanation, fieldNameCountStore, overallGrokPatternBuilder, false, snippets,
             mappings, false, 0);
 
         assertEquals(".*?%{BASE16NUM:field}.*?", overallGrokPatternBuilder.toString());
@@ -143,7 +143,7 @@ public class GrokPatternCreatorTests extends LogConfigCreatorTestCase {
         StringBuilder overallGrokPatternBuilder = new StringBuilder();
         Map<String, Object> mappings = new HashMap<>();
 
-        GrokPatternCreator.appendBestGrokMatchForStrings(TEST_TERMINAL, fieldNameCountStore, overallGrokPatternBuilder, false, snippets,
+        GrokPatternCreator.appendBestGrokMatchForStrings(explanation, fieldNameCountStore, overallGrokPatternBuilder, false, snippets,
             mappings, false, 0);
 
         // We don't want the .1. in the middle to get detected as a hex number
@@ -160,7 +160,7 @@ public class GrokPatternCreatorTests extends LogConfigCreatorTestCase {
         StringBuilder overallGrokPatternBuilder = new StringBuilder();
         Map<String, Object> mappings = new HashMap<>();
 
-        GrokPatternCreator.appendBestGrokMatchForStrings(TEST_TERMINAL, fieldNameCountStore, overallGrokPatternBuilder, false, snippets,
+        GrokPatternCreator.appendBestGrokMatchForStrings(explanation, fieldNameCountStore, overallGrokPatternBuilder, false, snippets,
             mappings, false, 0);
 
         assertEquals(".*?%{EMAILADDRESS:email}.*?", overallGrokPatternBuilder.toString());
@@ -176,7 +176,7 @@ public class GrokPatternCreatorTests extends LogConfigCreatorTestCase {
         StringBuilder overallGrokPatternBuilder = new StringBuilder();
         Map<String, Object> mappings = new HashMap<>();
 
-        GrokPatternCreator.appendBestGrokMatchForStrings(TEST_TERMINAL, fieldNameCountStore, overallGrokPatternBuilder, false, snippets,
+        GrokPatternCreator.appendBestGrokMatchForStrings(explanation, fieldNameCountStore, overallGrokPatternBuilder, false, snippets,
             mappings, false, 0);
 
         assertEquals(".*?%{URI:uri}.*?", overallGrokPatternBuilder.toString());
@@ -192,7 +192,7 @@ public class GrokPatternCreatorTests extends LogConfigCreatorTestCase {
         StringBuilder overallGrokPatternBuilder = new StringBuilder();
         Map<String, Object> mappings = new HashMap<>();
 
-        GrokPatternCreator.appendBestGrokMatchForStrings(TEST_TERMINAL, fieldNameCountStore, overallGrokPatternBuilder, false, snippets,
+        GrokPatternCreator.appendBestGrokMatchForStrings(explanation, fieldNameCountStore, overallGrokPatternBuilder, false, snippets,
             mappings, false, 0);
 
         assertEquals(".*? .*? %{PATH:path}", overallGrokPatternBuilder.toString());
@@ -209,7 +209,7 @@ public class GrokPatternCreatorTests extends LogConfigCreatorTestCase {
         StringBuilder overallGrokPatternBuilder = new StringBuilder();
         Map<String, Object> mappings = new HashMap<>();
 
-        GrokPatternCreator.appendBestGrokMatchForStrings(TEST_TERMINAL, fieldNameCountStore, overallGrokPatternBuilder, false, snippets,
+        GrokPatternCreator.appendBestGrokMatchForStrings(explanation, fieldNameCountStore, overallGrokPatternBuilder, false, snippets,
             mappings, false, 0);
 
         assertEquals(".*?\\bfoo=%{USER:foo} .*?\\bbar=%{USER:bar}.*?", overallGrokPatternBuilder.toString());
@@ -226,7 +226,7 @@ public class GrokPatternCreatorTests extends LogConfigCreatorTestCase {
 
         assertEquals("%{SYSLOGTIMESTAMP:timestamp} .*? .*?\\[%{INT:field}\\]: %{LOGLEVEL:loglevel} \\(.*? .*? .*?\\) .*? " +
                 "%{QUOTEDSTRING:field2}: %{IP:ipaddress}#%{INT:field3}",
-            GrokPatternCreator.createGrokPatternFromExamples(TEST_TERMINAL, sampleMessages, "SYSLOGTIMESTAMP", "timestamp", mappings));
+            GrokPatternCreator.createGrokPatternFromExamples(explanation, sampleMessages, "SYSLOGTIMESTAMP", "timestamp", mappings));
         assertEquals(5, mappings.size());
         assertEquals(Collections.singletonMap(AbstractLogFileStructureFinder.MAPPING_TYPE_SETTING, "long"), mappings.get("field"));
         assertEquals(Collections.singletonMap(AbstractLogFileStructureFinder.MAPPING_TYPE_SETTING, "keyword"), mappings.get("loglevel"));
@@ -249,7 +249,7 @@ public class GrokPatternCreatorTests extends LogConfigCreatorTestCase {
         Map<String, Object> mappings = new HashMap<>();
 
         assertEquals("%{CATALINA_DATESTAMP:timestamp} .*? .*?\\n%{LOGLEVEL:loglevel}: .*",
-            GrokPatternCreator.createGrokPatternFromExamples(TEST_TERMINAL, sampleMessages, "CATALINA_DATESTAMP", "timestamp", mappings));
+            GrokPatternCreator.createGrokPatternFromExamples(explanation, sampleMessages, "CATALINA_DATESTAMP", "timestamp", mappings));
         assertEquals(1, mappings.size());
         assertEquals(Collections.singletonMap(AbstractLogFileStructureFinder.MAPPING_TYPE_SETTING, "keyword"), mappings.get("loglevel"));
     }
@@ -270,7 +270,7 @@ public class GrokPatternCreatorTests extends LogConfigCreatorTestCase {
 
         assertEquals("%{INT:field}\\t%{TIMESTAMP_ISO8601:timestamp}\\t%{TIMESTAMP_ISO8601:extra_timestamp}\\t%{INT:field2}\\t.*?\\t" +
                 "%{IP:ipaddress}\\t.*?\\t%{LOGLEVEL:loglevel}\\t.*",
-            GrokPatternCreator.createGrokPatternFromExamples(TEST_TERMINAL, sampleMessages, "TIMESTAMP_ISO8601", "timestamp", mappings));
+            GrokPatternCreator.createGrokPatternFromExamples(explanation, sampleMessages, "TIMESTAMP_ISO8601", "timestamp", mappings));
         assertEquals(5, mappings.size());
         assertEquals(Collections.singletonMap(AbstractLogFileStructureFinder.MAPPING_TYPE_SETTING, "long"), mappings.get("field"));
         assertEquals(Collections.singletonMap(AbstractLogFileStructureFinder.MAPPING_TYPE_SETTING, "date"),
@@ -301,7 +301,7 @@ public class GrokPatternCreatorTests extends LogConfigCreatorTestCase {
         Map<String, Object> mappings = new HashMap<>();
 
         assertEquals(new Tuple<>("timestamp", "%{COMBINEDAPACHELOG}"),
-            GrokPatternCreator.findFullLineGrokPattern(TEST_TERMINAL, sampleMessages, mappings));
+            GrokPatternCreator.findFullLineGrokPattern(explanation, sampleMessages, mappings));
         assertEquals(10, mappings.size());
         assertEquals(Collections.singletonMap(AbstractLogFileStructureFinder.MAPPING_TYPE_SETTING, "text"), mappings.get("agent"));
         assertEquals(Collections.singletonMap(AbstractLogFileStructureFinder.MAPPING_TYPE_SETTING, "keyword"), mappings.get("auth"));

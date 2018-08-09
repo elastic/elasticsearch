@@ -6,8 +6,6 @@
 package org.elasticsearch.xpack.ml.configcreator;
 
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.ml.configcreator.TimestampFormatFinder.TimestampMatch;
@@ -29,8 +27,8 @@ public class TextLogFileStructureFinder extends AbstractLogFileStructureFinder i
     private final List<String> sampleMessages;
     private final LogFileStructure structure;
 
-    TextLogFileStructureFinder(Terminal terminal, String sample, String charsetName, Boolean hasByteOrderMarker) throws UserException {
-        super(terminal);
+    TextLogFileStructureFinder(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker)
+        throws UserException {
 
         String[] sampleLines = sample.split("\n");
         Tuple<TimestampMatch, Set<String>> bestTimestamp = mostLikelyTimestamp(sampleLines);
@@ -40,7 +38,7 @@ public class TextLogFileStructureFinder extends AbstractLogFileStructureFinder i
             throw new UserException(ExitCodes.DATA_ERROR, "Could not find a timestamp in the log sample provided");
         }
 
-        terminal.println(Verbosity.VERBOSE, "Most likely timestamp format is [" + bestTimestamp.v1() + "]");
+        explanation.add("Most likely timestamp format is [" + bestTimestamp.v1() + "]");
 
         sampleMessages = new ArrayList<>();
         StringBuilder preamble = new StringBuilder();
@@ -90,13 +88,13 @@ public class TextLogFileStructureFinder extends AbstractLogFileStructureFinder i
         String interimTimestampField;
         String grokPattern;
         Tuple<String, String> timestampFieldAndFullMatchGrokPattern =
-            GrokPatternCreator.findFullLineGrokPattern(terminal, sampleMessages, mappings);
+            GrokPatternCreator.findFullLineGrokPattern(explanation, sampleMessages, mappings);
         if (timestampFieldAndFullMatchGrokPattern != null) {
             interimTimestampField = timestampFieldAndFullMatchGrokPattern.v1();
             grokPattern = timestampFieldAndFullMatchGrokPattern.v2();
         } else {
             interimTimestampField = "timestamp";
-            grokPattern = GrokPatternCreator.createGrokPatternFromExamples(terminal, sampleMessages, bestTimestamp.v1().grokPatternName,
+            grokPattern = GrokPatternCreator.createGrokPatternFromExamples(explanation, sampleMessages, bestTimestamp.v1().grokPatternName,
                 interimTimestampField, mappings);
         }
 
@@ -106,7 +104,7 @@ public class TextLogFileStructureFinder extends AbstractLogFileStructureFinder i
             .setNeedClientTimezone(bestTimestamp.v1().hasTimezoneDependentParsing())
             .setGrokPattern(grokPattern)
             .setMappings(mappings)
-            .setExplanation(Collections.singletonList("TODO")) // TODO
+            .setExplanation(explanation)
             .build();
     }
 

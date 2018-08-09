@@ -18,17 +18,17 @@ import static org.hamcrest.Matchers.arrayContaining;
 
 public class SeparatedValuesLogFileStructureFinderTests extends LogConfigCreatorTestCase {
 
-    private LogFileStructureFinderFactory factory = new CsvLogFileStructureFinderFactory(TEST_TERMINAL);
+    private LogFileStructureFinderFactory factory = new CsvLogFileStructureFinderFactory();
 
     public void testCreateConfigsGivenCompleteCsv() throws Exception {
         String sample = "time,message\n" +
             "2018-05-17T13:41:23,hello\n" +
             "2018-05-17T13:41:32,hello again\n";
-        assertTrue(factory.canCreateFromSample(sample));
+        assertTrue(factory.canCreateFromSample(explanation, sample));
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
-        LogFileStructureFinder structureFinder = factory.createFromSample(sample, charset, hasByteOrderMarker);
+        LogFileStructureFinder structureFinder = factory.createFromSample(explanation, sample, charset, hasByteOrderMarker);
 
         LogFileStructure structure = structureFinder.getStructure();
 
@@ -55,11 +55,11 @@ public class SeparatedValuesLogFileStructureFinderTests extends LogConfigCreator
             "\"hello\n" +
             "world\",2018-05-17T13:41:23,1\n" +
             "\"hello again\n"; // note that this last record is truncated
-        assertTrue(factory.canCreateFromSample(sample));
+        assertTrue(factory.canCreateFromSample(explanation, sample));
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
-        LogFileStructureFinder structureFinder = factory.createFromSample(sample, charset, hasByteOrderMarker);
+        LogFileStructureFinder structureFinder = factory.createFromSample(explanation, sample, charset, hasByteOrderMarker);
 
         LogFileStructure structure = structureFinder.getStructure();
 
@@ -88,11 +88,11 @@ public class SeparatedValuesLogFileStructureFinderTests extends LogConfigCreator
             "2,2016-12-31 15:15:01,2016-12-31 15:15:09,1,.00,1,N,264,264,2,1,0,0.5,0,0,0.3,1.8,,\n" +
             "1,2016-12-01 00:00:01,2016-12-01 00:10:22,1,1.60,1,N,163,143,2,9,0.5,0.5,0,0,0.3,10.3,,\n" +
             "1,2016-12-01 00:00:01,2016-12-01 00:11:01,1,1.40,1,N,164,229,1,9,0.5,0.5,2.05,0,0.3,12.35,,\n";
-        assertTrue(factory.canCreateFromSample(sample));
+        assertTrue(factory.canCreateFromSample(explanation, sample));
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
-        LogFileStructureFinder structureFinder = factory.createFromSample(sample, charset, hasByteOrderMarker);
+        LogFileStructureFinder structureFinder = factory.createFromSample(explanation, sample, charset, hasByteOrderMarker);
 
         LogFileStructure structure = structureFinder.getStructure();
 
@@ -126,11 +126,11 @@ public class SeparatedValuesLogFileStructureFinderTests extends LogConfigCreator
             "2,2016-12-31 15:15:01,2016-12-31 15:15:09,1,.00,1,N,264,264,2,1,0,0.5,0,0,0.3,1.8,,\n" +
             "1,2016-12-01 00:00:01,2016-12-01 00:10:22,1,1.60,1,N,163,143,2,9,0.5,0.5,0,0,0.3,10.3,,\n" +
             "1,2016-12-01 00:00:01,2016-12-01 00:11:01,1,1.40,1,N,164,229,1,9,0.5,0.5,2.05,0,0.3,12.35,,\n";
-        assertTrue(factory.canCreateFromSample(sample));
+        assertTrue(factory.canCreateFromSample(explanation, sample));
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
-        LogFileStructureFinder structureFinder = factory.createFromSample(sample, charset, hasByteOrderMarker);
+        LogFileStructureFinder structureFinder = factory.createFromSample(explanation, sample, charset, hasByteOrderMarker);
 
         LogFileStructure structure = structureFinder.getStructure();
 
@@ -161,11 +161,11 @@ public class SeparatedValuesLogFileStructureFinderTests extends LogConfigCreator
         String sample = "\"pos_id\",\"trip_id\",\"latitude\",\"longitude\",\"altitude\",\"timestamp\"\n" +
             "\"1\",\"3\",\"4703.7815\",\"1527.4713\",\"359.9\",\"2017-01-19 16:19:04.742113\"\n" +
             "\"2\",\"3\",\"4703.7815\",\"1527.4714\",\"359.9\",\"2017-01-19 16:19:05.741890\"\n";
-        assertTrue(factory.canCreateFromSample(sample));
+        assertTrue(factory.canCreateFromSample(explanation, sample));
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
-        LogFileStructureFinder structureFinder = factory.createFromSample(sample, charset, hasByteOrderMarker);
+        LogFileStructureFinder structureFinder = factory.createFromSample(explanation, sample, charset, hasByteOrderMarker);
 
         LogFileStructure structure = structureFinder.getStructure();
 
@@ -195,7 +195,7 @@ public class SeparatedValuesLogFileStructureFinderTests extends LogConfigCreator
             "2014-06-23 00:00:01Z,JBU,877.5927,farequote\n" +
             "2014-06-23 00:00:01Z,KLM,1355.4812,farequote\n";
 
-        Tuple<Boolean, String[]> header = SeparatedValuesLogFileStructureFinder.findHeaderFromSample(TEST_TERMINAL,
+        Tuple<Boolean, String[]> header = SeparatedValuesLogFileStructureFinder.findHeaderFromSample(explanation,
             SeparatedValuesLogFileStructureFinder.readRows(withHeader, CsvPreference.EXCEL_PREFERENCE).v1());
 
         assertTrue(header.v1());
@@ -208,7 +208,7 @@ public class SeparatedValuesLogFileStructureFinderTests extends LogConfigCreator
             "2014-06-23 00:00:01Z,JBU,877.5927,farequote\n" +
             "2014-06-23 00:00:01Z,KLM,1355.4812,farequote\n";
 
-        Tuple<Boolean, String[]> header = SeparatedValuesLogFileStructureFinder.findHeaderFromSample(TEST_TERMINAL,
+        Tuple<Boolean, String[]> header = SeparatedValuesLogFileStructureFinder.findHeaderFromSample(explanation,
             SeparatedValuesLogFileStructureFinder.readRows(withoutHeader, CsvPreference.EXCEL_PREFERENCE).v1());
 
         assertFalse(header.v1());

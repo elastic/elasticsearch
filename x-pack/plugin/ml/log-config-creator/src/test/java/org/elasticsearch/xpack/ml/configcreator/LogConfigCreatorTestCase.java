@@ -8,8 +8,11 @@ package org.elasticsearch.xpack.ml.configcreator;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import java.nio.charset.Charset;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -77,6 +80,20 @@ public abstract class LogConfigCreatorTestCase extends ESTestCase {
         "<log4j:message><![CDATA[Field config could not be interpreted]]></log4j:message>\n" +
         "</log4j:event>\n" +
         "\n";
+
+    protected List<String> explanation;
+
+    @Before
+    public void initExplanation() {
+        explanation = new ArrayList<>();
+    }
+
+    @After
+    public void printExplanation() {
+        for (String reason : explanation) {
+            TEST_TERMINAL.println(Verbosity.VERBOSE, reason);
+        }
+    }
 
     protected Boolean randomHasByteOrderMarker(String charset) {
         return charset.toUpperCase(Locale.ROOT).startsWith("UTF") ? randomBoolean() : null;

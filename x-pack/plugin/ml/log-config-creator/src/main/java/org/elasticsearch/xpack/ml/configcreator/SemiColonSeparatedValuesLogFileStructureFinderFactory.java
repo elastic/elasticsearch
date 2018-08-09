@@ -5,20 +5,13 @@
  */
 package org.elasticsearch.xpack.ml.configcreator;
 
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.supercsv.prefs.CsvPreference;
 
 import java.io.IOException;
-import java.util.Objects;
+import java.util.List;
 
 public class SemiColonSeparatedValuesLogFileStructureFinderFactory implements LogFileStructureFinderFactory {
-
-    private final Terminal terminal;
-
-    public SemiColonSeparatedValuesLogFileStructureFinderFactory(Terminal terminal) {
-        this.terminal = Objects.requireNonNull(terminal);
-    }
 
     /**
      * Rules are:
@@ -31,15 +24,15 @@ public class SemiColonSeparatedValuesLogFileStructureFinderFactory implements Lo
      * it could have been truncated when the file was sampled.
      */
     @Override
-    public boolean canCreateFromSample(String sample) {
-        return SeparatedValuesLogFileStructureFinder.canCreateFromSample(terminal, sample, 4, CsvPreference.EXCEL_NORTH_EUROPE_PREFERENCE,
-            "semi-colon separated values");
+    public boolean canCreateFromSample(List<String> explanation, String sample) {
+        return SeparatedValuesLogFileStructureFinder.canCreateFromSample(explanation, sample, 4,
+            CsvPreference.EXCEL_NORTH_EUROPE_PREFERENCE, "semi-colon separated values");
     }
 
     @Override
-    public LogFileStructureFinder createFromSample(String sample, String charsetName, Boolean hasByteOrderMarker)
+    public LogFileStructureFinder createFromSample(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker)
         throws IOException, UserException {
-        return new SeparatedValuesLogFileStructureFinder(terminal, sample, charsetName, hasByteOrderMarker,
+        return new SeparatedValuesLogFileStructureFinder(explanation, sample, charsetName, hasByteOrderMarker,
             CsvPreference.EXCEL_NORTH_EUROPE_PREFERENCE, false);
     }
 }

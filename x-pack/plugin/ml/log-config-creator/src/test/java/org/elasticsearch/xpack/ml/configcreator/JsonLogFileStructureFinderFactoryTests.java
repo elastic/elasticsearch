@@ -7,40 +7,40 @@ package org.elasticsearch.xpack.ml.configcreator;
 
 public class JsonLogFileStructureFinderFactoryTests extends LogConfigCreatorTestCase {
 
-    private LogFileStructureFinderFactory factory = new JsonLogFileStructureFinderFactory(TEST_TERMINAL);
+    private LogFileStructureFinderFactory factory = new JsonLogFileStructureFinderFactory();
 
     public void testCanCreateFromSampleGivenJson() {
 
-        assertTrue(factory.canCreateFromSample(JSON_SAMPLE));
+        assertTrue(factory.canCreateFromSample(explanation, JSON_SAMPLE));
     }
 
     public void testCanCreateFromSampleGivenXml() {
 
-        assertFalse(factory.canCreateFromSample(XML_SAMPLE));
+        assertFalse(factory.canCreateFromSample(explanation, XML_SAMPLE));
     }
 
     public void testCanCreateFromSampleGivenCsv() {
 
-        assertFalse(factory.canCreateFromSample(CSV_SAMPLE));
+        assertFalse(factory.canCreateFromSample(explanation, CSV_SAMPLE));
     }
 
     public void testCanCreateFromSampleGivenTsv() {
 
-        assertFalse(factory.canCreateFromSample(TSV_SAMPLE));
+        assertFalse(factory.canCreateFromSample(explanation, TSV_SAMPLE));
     }
 
     public void testCanCreateFromSampleGivenSemiColonSeparatedValues() {
 
-        assertFalse(factory.canCreateFromSample(SEMI_COLON_SEPARATED_VALUES_SAMPLE));
+        assertFalse(factory.canCreateFromSample(explanation, SEMI_COLON_SEPARATED_VALUES_SAMPLE));
     }
 
     public void testCanCreateFromSampleGivenPipeSeparatedValues() {
 
-        assertFalse(factory.canCreateFromSample(PIPE_SEPARATED_VALUES_SAMPLE));
+        assertFalse(factory.canCreateFromSample(explanation, PIPE_SEPARATED_VALUES_SAMPLE));
     }
 
     public void testCanCreateFromSampleGivenText() {
 
-        assertFalse(factory.canCreateFromSample(TEXT_SAMPLE));
+        assertFalse(factory.canCreateFromSample(explanation, TEXT_SAMPLE));
     }
 }

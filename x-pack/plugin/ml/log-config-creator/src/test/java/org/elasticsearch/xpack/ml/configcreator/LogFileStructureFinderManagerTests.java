@@ -18,12 +18,13 @@ import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
 public class LogFileStructureFinderManagerTests extends LogConfigCreatorTestCase {
 
-    private LogFileStructureFinderManager structureFinderManager = new LogFileStructureFinderManager(TEST_TERMINAL);
+    private LogFileStructureFinderManager structureFinderManager = new LogFileStructureFinderManager();
 
     public void testFindCharsetGivenCharacterWidths() throws Exception {
 
         for (Charset charset : Arrays.asList(StandardCharsets.UTF_8, StandardCharsets.UTF_16LE, StandardCharsets.UTF_16BE)) {
-            CharsetMatch charsetMatch = structureFinderManager.findCharset(new ByteArrayInputStream(TEXT_SAMPLE.getBytes(charset)));
+            CharsetMatch charsetMatch = structureFinderManager.findCharset(explanation,
+                new ByteArrayInputStream(TEXT_SAMPLE.getBytes(charset)));
             assertEquals(charset.name(), charsetMatch.getName());
         }
     }
@@ -39,7 +40,7 @@ public class LogFileStructureFinderManagerTests extends LogConfigCreatorTestCase
         }
 
         try {
-            CharsetMatch charsetMatch = structureFinderManager.findCharset(new ByteArrayInputStream(binaryBytes));
+            CharsetMatch charsetMatch = structureFinderManager.findCharset(explanation, new ByteArrayInputStream(binaryBytes));
             assertThat(charsetMatch.getName(), startsWith("UTF-16"));
         } catch (UserException e) {
             assertEquals("Could not determine a usable character encoding for the input - could it be binary data?", e.getMessage());
@@ -47,23 +48,25 @@ public class LogFileStructureFinderManagerTests extends LogConfigCreatorTestCase
     }
 
     public void testMakeBestStructureGivenJson() throws Exception {
-        assertThat(structureFinderManager.makeBestStructureFinder("{ \"time\": \"2018-05-17T13:41:23\", \"message\": \"hello\" }",
-            StandardCharsets.UTF_8.name(), randomBoolean()), instanceOf(JsonLogFileStructureFinder.class));
+        assertThat(structureFinderManager.makeBestStructureFinder(explanation,
+            "{ \"time\": \"2018-05-17T13:41:23\", \"message\": \"hello\" }", StandardCharsets.UTF_8.name(), randomBoolean()),
+            instanceOf(JsonLogFileStructureFinder.class));
     }
 
     public void testMakeBestStructureGivenXml() throws Exception {
-        assertThat(structureFinderManager.makeBestStructureFinder("<log time=\"2018-05-17T13:41:23\"><message>hello</message></log>",
-            StandardCharsets.UTF_8.name(), randomBoolean()), instanceOf(XmlLogFileStructureFinder.class));
+        assertThat(structureFinderManager.makeBestStructureFinder(explanation,
+            "<log time=\"2018-05-17T13:41:23\"><message>hello</message></log>", StandardCharsets.UTF_8.name(), randomBoolean()),
+            instanceOf(XmlLogFileStructureFinder.class));
     }
 
     public void testMakeBestStructureGivenCsv() throws Exception {
-        assertThat(structureFinderManager.makeBestStructureFinder("time,message\n" +
+        assertThat(structureFinderManager.makeBestStructureFinder(explanation, "time,message\n" +
                 "2018-05-17T13:41:23,hello\n", StandardCharsets.UTF_8.name(), randomBoolean()),
             instanceOf(SeparatedValuesLogFileStructureFinder.class));
     }
 
     public void testMakeBestStructureGivenText() throws Exception {
-        assertThat(structureFinderManager.makeBestStructureFinder("[2018-05-17T13:41:23] hello\n" +
+        assertThat(structureFinderManager.makeBestStructureFinder(explanation, "[2018-05-17T13:41:23] hello\n" +
                 "[2018-05-17T13:41:24] hello again\n", StandardCharsets.UTF_8.name(), randomBoolean()),
             instanceOf(TextLogFileStructureFinder.class));
     }

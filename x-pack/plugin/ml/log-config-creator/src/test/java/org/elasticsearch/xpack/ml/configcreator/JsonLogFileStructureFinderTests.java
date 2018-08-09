@@ -9,14 +9,14 @@ import java.util.Collections;
 
 public class JsonLogFileStructureFinderTests extends LogConfigCreatorTestCase {
 
-    private LogFileStructureFinderFactory factory = new JsonLogFileStructureFinderFactory(TEST_TERMINAL);
+    private LogFileStructureFinderFactory factory = new JsonLogFileStructureFinderFactory();
 
     public void testCreateConfigsGivenGoodJson() throws Exception {
-        assertTrue(factory.canCreateFromSample(JSON_SAMPLE));
+        assertTrue(factory.canCreateFromSample(explanation, JSON_SAMPLE));
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
-        LogFileStructureFinder structureFinder = factory.createFromSample(JSON_SAMPLE, charset, hasByteOrderMarker);
+        LogFileStructureFinder structureFinder = factory.createFromSample(explanation, JSON_SAMPLE, charset, hasByteOrderMarker);
 
         LogFileStructure structure = structureFinder.getStructure();
 

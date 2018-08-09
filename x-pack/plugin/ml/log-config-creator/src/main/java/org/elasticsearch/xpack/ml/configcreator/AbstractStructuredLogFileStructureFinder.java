@@ -6,8 +6,6 @@
 package org.elasticsearch.xpack.ml.configcreator;
 
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.ml.configcreator.TimestampFormatFinder.TimestampMatch;
@@ -24,11 +22,7 @@ import java.util.stream.Stream;
 
 public abstract class AbstractStructuredLogFileStructureFinder extends AbstractLogFileStructureFinder {
 
-    protected AbstractStructuredLogFileStructureFinder(Terminal terminal) {
-        super(terminal);
-    }
-
-    protected Tuple<String, TimestampMatch> guessTimestampField(List<Map<String, ?>> sampleRecords) {
+    protected Tuple<String, TimestampMatch> guessTimestampField(List<String> explanation, List<Map<String, ?>> sampleRecords) {
         if (sampleRecords == null || sampleRecords.isEmpty()) {
             return null;
         }
@@ -47,7 +41,7 @@ public abstract class AbstractStructuredLogFileStructureFinder extends AbstractL
                         return firstSampleMatch;
                     }
                     firstSampleMatches.add(firstSampleMatch);
-                    terminal.println(Verbosity.VERBOSE, "First sample timestamp match [" + firstSampleMatch + "]");
+                    explanation.add("First sample timestamp match [" + firstSampleMatch + "]");
                 }
             }
         }
@@ -59,24 +53,23 @@ public abstract class AbstractStructuredLogFileStructureFinder extends AbstractL
             for (Map<String, ?> sampleRecord : sampleRecords.subList(1, sampleRecords.size())) {
                 Object fieldValue = sampleRecord.get(firstSampleMatch.v1());
                 if (fieldValue == null) {
-                    terminal.println(Verbosity.VERBOSE, "First sample match [" + firstSampleMatch.v1() + "] ruled out because record [" +
-                        sampleRecord + "] doesn't have field");
+                    explanation.add("First sample match [" + firstSampleMatch.v1() + "] ruled out because record [" + sampleRecord +
+                        "] doesn't have field");
                     allGood = false;
                     break;
                 }
 
                 TimestampMatch match = TimestampFormatFinder.findFirstFullMatch(fieldValue.toString());
                 if (match == null || match.candidateIndex != firstSampleMatch.v2().candidateIndex) {
-                    terminal.println(Verbosity.VERBOSE, "First sample match [" + firstSampleMatch.v1() + "] ruled out because record [" +
-                        sampleRecord + "] matches differently: [" + match + "]");
+                    explanation.add("First sample match [" + firstSampleMatch.v1() + "] ruled out because record [" + sampleRecord +
+                        "] matches differently: [" + match + "]");
                     allGood = false;
                     break;
                 }
             }
 
             if (allGood) {
-                terminal.println(Verbosity.VERBOSE, "Guessing timestamp field is [" + firstSampleMatch.v1() +
-                    "] with format [" + firstSampleMatch.v2() + "]");
+                explanation.add("Guessing timestamp field is [" + firstSampleMatch.v1() + "] with format [" + firstSampleMatch.v2() + "]");
                 return firstSampleMatch;
             }
         }
@@ -89,7 +82,7 @@ public abstract class AbstractStructuredLogFileStructureFinder extends AbstractL
      * @param sampleRecords The sampled records.
      * @return A map of field name to mapping settings.
      */
-    protected SortedMap<String, Object> guessMappings(List<Map<String, ?>> sampleRecords) throws UserException {
+    protected SortedMap<String, Object> guessMappings(List<String> explanation, List<Map<String, ?>> sampleRecords) throws UserException {
 
         SortedMap<String, Object> mappings = new TreeMap<>();
 
@@ -98,10 +91,12 @@ public abstract class AbstractStructuredLogFileStructureFinder extends AbstractL
             try {
                 for (Map<String, ?> sampleRecord : sampleRecords) {
                     for (String fieldName : sampleRecord.keySet()) {
-                        mappings.computeIfAbsent(fieldName, key -> guessMapping(fieldName, sampleRecords.stream().flatMap(record -> {
-                            Object fieldValue = record.get(fieldName);
-                            return (fieldValue == null) ? Stream.empty() : Stream.of(fieldValue);
-                        }).collect(Collectors.toList())));
+                        mappings.computeIfAbsent(fieldName, key -> guessMapping(explanation, fieldName,
+                            sampleRecords.stream().flatMap(record -> {
+                                Object fieldValue = record.get(fieldName);
+                                return (fieldValue == null) ? Stream.empty() : Stream.of(fieldValue);
+                            }
+                        ).collect(Collectors.toList())));
                     }
                 }
             } catch (RuntimeException e) {
@@ -112,7 +107,7 @@ public abstract class AbstractStructuredLogFileStructureFinder extends AbstractL
         return mappings;
     }
 
-    Map<String, String> guessMapping(String fieldName, List<Object> fieldValues) {
+    Map<String, String> guessMapping(List<String> explanation, String fieldName, List<Object> fieldValues) {
 
         if (fieldValues == null || fieldValues.isEmpty()) {
             // We can get here if all the records that contained a given field had a null value for it.
@@ -130,11 +125,11 @@ public abstract class AbstractStructuredLogFileStructureFinder extends AbstractL
 
         if (fieldValues.stream().anyMatch(value -> value instanceof List || value instanceof Object[])) {
             // Elasticsearch fields can be either arrays or single values, but array values must all have the same type
-            return guessMapping(fieldName,
+            return guessMapping(explanation, fieldName,
                 fieldValues.stream().flatMap(AbstractStructuredLogFileStructureFinder::flatten).collect(Collectors.toList()));
         }
 
-        return guessScalarMapping(terminal, fieldName, fieldValues.stream().map(Object::toString).collect(Collectors.toList()));
+        return guessScalarMapping(explanation, fieldName, fieldValues.stream().map(Object::toString).collect(Collectors.toList()));
     }
 
     private static Stream<Object> flatten(Object value) {

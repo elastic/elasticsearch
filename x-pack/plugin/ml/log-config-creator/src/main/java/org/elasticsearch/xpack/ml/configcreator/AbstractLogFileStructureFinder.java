@@ -5,15 +5,13 @@
  */
 package org.elasticsearch.xpack.ml.configcreator;
 
-import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.xpack.ml.configcreator.TimestampFormatFinder.TimestampMatch;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 public abstract class AbstractLogFileStructureFinder {
 
@@ -28,13 +26,7 @@ public abstract class AbstractLogFileStructureFinder {
     private static final int KEYWORD_MAX_LEN = 256;
     private static final int KEYWORD_MAX_SPACES = 5;
 
-    protected final Terminal terminal;
-
-    protected AbstractLogFileStructureFinder(Terminal terminal) {
-        this.terminal = Objects.requireNonNull(terminal);
-    }
-
-    protected static Map<String, String> guessScalarMapping(Terminal terminal, String fieldName, Collection<String> fieldValues) {
+    protected static Map<String, String> guessScalarMapping(List<String> explanation, String fieldName, Collection<String> fieldValues) {
 
         if (fieldValues.stream().allMatch(value -> "true".equals(value) || "false".equals(value))) {
             return Collections.singletonMap(MAPPING_TYPE_SETTING, "boolean");
@@ -61,15 +53,13 @@ public abstract class AbstractLogFileStructureFinder {
                 fieldValues.forEach(Long::parseLong);
                 return Collections.singletonMap(MAPPING_TYPE_SETTING, "long");
             } catch (NumberFormatException e) {
-                terminal.println(Verbosity.VERBOSE,
-                    "Rejecting type 'long' for field [" + fieldName + "] due to parse failure: [" + e.getMessage() + "]");
+                explanation.add("Rejecting type 'long' for field [" + fieldName + "] due to parse failure: [" + e.getMessage() + "]");
             }
             try {
                 fieldValues.forEach(Double::parseDouble);
                 return Collections.singletonMap(MAPPING_TYPE_SETTING, "double");
             } catch (NumberFormatException e) {
-                terminal.println(Verbosity.VERBOSE,
-                    "Rejecting type 'double' for field [" + fieldName + "] due to parse failure: [" + e.getMessage() + "]");
+                explanation.add("Rejecting type 'double' for field [" + fieldName + "] due to parse failure: [" + e.getMessage() + "]");
             }
         }
 

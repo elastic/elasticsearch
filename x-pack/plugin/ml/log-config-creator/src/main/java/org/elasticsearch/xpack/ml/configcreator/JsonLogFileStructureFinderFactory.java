@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.configcreator;
 
-import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -14,18 +12,12 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.io.StringReader;
+import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.json.JsonXContent.jsonXContent;
 
 public class JsonLogFileStructureFinderFactory implements LogFileStructureFinderFactory {
-
-    private final Terminal terminal;
-
-    public JsonLogFileStructureFinderFactory(Terminal terminal) {
-        this.terminal = Objects.requireNonNull(terminal);
-    }
 
     /**
      * This format matches if the sample consists of one or more JSON documents.
@@ -33,7 +25,7 @@ public class JsonLogFileStructureFinderFactory implements LogFileStructureFinder
      * documents must be non-empty, to prevent lines containing "{}" from matching.
      */
     @Override
-    public boolean canCreateFromSample(String sample) {
+    public boolean canCreateFromSample(List<String> explanation, String sample) {
 
         int completeDocCount = 0;
 
@@ -44,36 +36,35 @@ public class JsonLogFileStructureFinderFactory implements LogFileStructureFinder
                     DeprecationHandler.THROW_UNSUPPORTED_OPERATION, new ContextPrintingStringReader(sampleLine))) {
 
                     if (parser.map().isEmpty()) {
-                        terminal.println(Verbosity.VERBOSE, "Not JSON because an empty object was parsed: [" + sampleLine + "]");
+                        explanation.add("Not JSON because an empty object was parsed: [" + sampleLine + "]");
                         return false;
                     }
                     ++completeDocCount;
                     if (parser.nextToken() != null) {
-                        terminal.println(Verbosity.VERBOSE,
-                            "Not newline delimited JSON because a line contained more than a single object: [" + sampleLine + "]");
+                        explanation.add("Not newline delimited JSON because a line contained more than a single object: [" +
+                            sampleLine + "]");
                         return false;
                     }
                 }
             }
         } catch (IOException | IllegalStateException e) {
-            terminal.println(Verbosity.VERBOSE, "Not JSON because there was a parsing exception: [" +
-                e.getMessage().replaceAll("\\s?\r?\n\\s?", " ") + "]");
+            explanation.add("Not JSON because there was a parsing exception: [" + e.getMessage().replaceAll("\\s?\r?\n\\s?", " ") + "]");
             return false;
         }
 
         if (completeDocCount == 0) {
-            terminal.println(Verbosity.VERBOSE, "Not JSON because sample didn't contain a complete document");
+            explanation.add("Not JSON because sample didn't contain a complete document");
             return false;
         }
 
-        terminal.println(Verbosity.VERBOSE, "Deciding sample is newline delimited JSON");
+        explanation.add("Deciding sample is newline delimited JSON");
         return true;
     }
 
     @Override
-    public LogFileStructureFinder createFromSample(String sample, String charsetName, Boolean hasByteOrderMarker)
+    public LogFileStructureFinder createFromSample(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker)
         throws IOException, UserException {
-        return new JsonLogFileStructureFinder(terminal, sample, charsetName, hasByteOrderMarker);
+        return new JsonLogFileStructureFinder(explanation, sample, charsetName, hasByteOrderMarker);
     }
 
     private static class ContextPrintingStringReader extends StringReader {

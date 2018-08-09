@@ -9,14 +9,14 @@ import java.util.Collections;
 
 public class XmlLogFileStructureFinderTests extends LogConfigCreatorTestCase {
 
-    private LogFileStructureFinderFactory factory = new XmlLogFileStructureFinderFactory(TEST_TERMINAL);
+    private LogFileStructureFinderFactory factory = new XmlLogFileStructureFinderFactory();
 
     public void testCreateConfigsGivenGoodXml() throws Exception {
-        assertTrue(factory.canCreateFromSample(XML_SAMPLE));
+        assertTrue(factory.canCreateFromSample(explanation, XML_SAMPLE));
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
-        LogFileStructureFinder structureFinder = factory.createFromSample(XML_SAMPLE, charset, hasByteOrderMarker);
+        LogFileStructureFinder structureFinder = factory.createFromSample(explanation, XML_SAMPLE, charset, hasByteOrderMarker);
 
         LogFileStructure structure = structureFinder.getStructure();
 

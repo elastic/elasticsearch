@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.configcreator;
 
-import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.xpack.ml.configcreator.TimestampFormatFinder.TimestampMatch;
@@ -107,17 +105,18 @@ public final class GrokPatternCreator {
 
     /**
      * This method attempts to find a Grok pattern that will match all of the sample messages in their entirety.
-     * @param terminal Used for verbose status messages.
+     * @param explanation List of reasons for making decisions.  May contain items when passed and new reasons
+     *                    can be appended by this method.
      * @param sampleMessages Sample messages that any non-<code>null</code> return will match.
      * @param mappings Will be updated with mappings appropriate for the returned pattern, if non-<code>null</code>.
      * @return A tuple of (time field name, Grok string), or <code>null</code> if no suitable Grok pattern was found.
      */
-    public static Tuple<String, String> findFullLineGrokPattern(Terminal terminal, Collection<String> sampleMessages,
+    public static Tuple<String, String> findFullLineGrokPattern(List<String> explanation, Collection<String> sampleMessages,
                                                                 Map<String, Object> mappings) {
 
         for (FullMatchGrokPatternCandidate candidate : FULL_MATCH_GROK_PATTERNS) {
             if (candidate.matchesAll(sampleMessages)) {
-                return candidate.processMatch(terminal, sampleMessages, mappings);
+                return candidate.processMatch(explanation, sampleMessages, mappings);
             }
         }
 
@@ -126,14 +125,15 @@ public final class GrokPatternCreator {
 
     /**
      * Build a Grok pattern that will match all of the sample messages in their entirety.
-     * @param terminal Used for verbose status messages.
+     * @param explanation List of reasons for making decisions.  May contain items when passed and new reasons
+     *                    can be appended by this method.
      * @param sampleMessages Sample messages that the returned Grok pattern will match.
      * @param seedPatternName A pattern that has already been determined to match some portion of every sample message.
      * @param seedFieldName The field name to be used for the portion of every sample message that the seed pattern matches.
      * @param mappings Will be updated with mappings appropriate for the returned pattern, excluding the seed field name.
      * @return The built Grok pattern.
      */
-    public static String createGrokPatternFromExamples(Terminal terminal, Collection<String> sampleMessages, String seedPatternName,
+    public static String createGrokPatternFromExamples(List<String> explanation, Collection<String> sampleMessages, String seedPatternName,
                                                        String seedFieldName, Map<String, Object> mappings) {
 
         GrokPatternCandidate seedCandidate = new NoMappingGrokPatternCandidate(seedPatternName, seedFieldName);
@@ -141,7 +141,7 @@ public final class GrokPatternCreator {
         Map<String, Integer> fieldNameCountStore = new HashMap<>();
         StringBuilder overallGrokPatternBuilder = new StringBuilder();
 
-        processCandidateAndSplit(terminal, fieldNameCountStore, overallGrokPatternBuilder, seedCandidate, true, sampleMessages, mappings,
+        processCandidateAndSplit(explanation, fieldNameCountStore, overallGrokPatternBuilder, seedCandidate, true, sampleMessages, mappings,
             false, 0, false, 0);
 
         return overallGrokPatternBuilder.toString().replace("\t", "\\t").replace("\n", "\\n");
@@ -152,7 +152,7 @@ public final class GrokPatternCreator {
      * matched section and the pieces before and after it.  Recurse to find more matches in the pieces
      * before and after and update the supplied string builder.
      */
-    private static void processCandidateAndSplit(Terminal terminal, Map<String, Integer> fieldNameCountStore,
+    private static void processCandidateAndSplit(List<String> explanation, Map<String, Integer> fieldNameCountStore,
                                                  StringBuilder overallGrokPatternBuilder, GrokPatternCandidate chosenPattern,
                                                  boolean isLast, Collection<String> snippets, Map<String, Object> mappings,
                                                  boolean ignoreKeyValueCandidateLeft, int ignoreValueOnlyCandidatesLeft,
@@ -161,10 +161,10 @@ public final class GrokPatternCreator {
         Collection<String> prefaces = new ArrayList<>();
         Collection<String> epilogues = new ArrayList<>();
         String patternBuilderContent = chosenPattern.processCaptures(fieldNameCountStore, snippets, prefaces, epilogues, mappings);
-        appendBestGrokMatchForStrings(terminal, fieldNameCountStore, overallGrokPatternBuilder, false, prefaces, mappings,
+        appendBestGrokMatchForStrings(explanation, fieldNameCountStore, overallGrokPatternBuilder, false, prefaces, mappings,
             ignoreKeyValueCandidateLeft, ignoreValueOnlyCandidatesLeft);
         overallGrokPatternBuilder.append(patternBuilderContent);
-        appendBestGrokMatchForStrings(terminal, fieldNameCountStore, overallGrokPatternBuilder, isLast, epilogues, mappings,
+        appendBestGrokMatchForStrings(explanation, fieldNameCountStore, overallGrokPatternBuilder, isLast, epilogues, mappings,
             ignoreKeyValueCandidateRight, ignoreValueOnlyCandidatesRight);
     }
 
@@ -173,7 +173,7 @@ public final class GrokPatternCreator {
      * to use matches it best.  Then append the appropriate Grok language to represent that finding onto
      * the supplied string builder.
      */
-    static void appendBestGrokMatchForStrings(Terminal terminal, Map<String, Integer> fieldNameCountStore,
+    static void appendBestGrokMatchForStrings(List<String> explanation, Map<String, Integer> fieldNameCountStore,
                                               StringBuilder overallGrokPatternBuilder, boolean isLast, Collection<String> snippets,
                                               Map<String, Object> mappings, boolean ignoreKeyValueCandidate,
                                               int ignoreValueOnlyCandidates) {
@@ -182,7 +182,7 @@ public final class GrokPatternCreator {
 
         GrokPatternCandidate bestCandidate = null;
         if (snippets.isEmpty() == false) {
-            GrokPatternCandidate kvCandidate = new KeyValueGrokPatternCandidate(terminal);
+            GrokPatternCandidate kvCandidate = new KeyValueGrokPatternCandidate(explanation);
             if (ignoreKeyValueCandidate == false && kvCandidate.matchesAll(snippets)) {
                 bestCandidate = kvCandidate;
             } else {
@@ -205,7 +205,7 @@ public final class GrokPatternCreator {
                 addIntermediateRegex(overallGrokPatternBuilder, snippets);
             }
         } else {
-            processCandidateAndSplit(terminal, fieldNameCountStore, overallGrokPatternBuilder, bestCandidate, isLast, snippets, mappings,
+            processCandidateAndSplit(explanation, fieldNameCountStore, overallGrokPatternBuilder, bestCandidate, isLast, snippets, mappings,
                 true, ignoreValueOnlyCandidates + (ignoreKeyValueCandidate ? 1 : 0), ignoreKeyValueCandidate, ignoreValueOnlyCandidates);
         }
     }
@@ -450,11 +450,11 @@ public final class GrokPatternCreator {
     static class KeyValueGrokPatternCandidate implements GrokPatternCandidate {
 
         private static final Pattern kvFinder = Pattern.compile("\\b(\\w+)=[\\w.-]+");
-        private final Terminal terminal;
+        private final List<String> explanation;
         private String fieldName;
 
-        KeyValueGrokPatternCandidate(Terminal terminal) {
-            this.terminal = terminal;
+        KeyValueGrokPatternCandidate(List<String> explanation) {
+            this.explanation = explanation;
         }
 
         @Override
@@ -500,7 +500,7 @@ public final class GrokPatternCreator {
             }
             String adjustedFieldName = buildFieldName(fieldNameCountStore, fieldName);
             if (mappings != null) {
-                mappings.put(adjustedFieldName, AbstractLogFileStructureFinder.guessScalarMapping(terminal, adjustedFieldName, values));
+                mappings.put(adjustedFieldName, AbstractLogFileStructureFinder.guessScalarMapping(explanation, adjustedFieldName, values));
             }
             return "\\b" + fieldName + "=%{USER:" + adjustedFieldName + "}";
         }
@@ -545,11 +545,10 @@ public final class GrokPatternCreator {
          * This must only be called if {@link #matchesAll} returns <code>true</code>.
          * @return A tuple of (time field name, Grok string).
          */
-        public Tuple<String, String> processMatch(Terminal terminal, Collection<String> sampleMessages,
+        public Tuple<String, String> processMatch(List<String> explanation, Collection<String> sampleMessages,
                                                   Map<String, Object> mappings) {
 
-            terminal.println(Verbosity.VERBOSE, "A full message Grok pattern [" + grokString.substring(2, grokString.length() - 1) +
-                "] looks appropriate");
+            explanation.add("A full message Grok pattern [" + grokString.substring(2, grokString.length() - 1) + "] looks appropriate");
 
             if (mappings != null) {
                 Map<String, Collection<String>> valuesPerField = new HashMap<>();
@@ -582,7 +581,7 @@ public final class GrokPatternCreator {
                 for (Map.Entry<String, Collection<String>> valuesForField : valuesPerField.entrySet()) {
                     String fieldName = valuesForField.getKey();
                     mappings.put(fieldName,
-                        AbstractLogFileStructureFinder.guessScalarMapping(terminal, fieldName, valuesForField.getValue()));
+                        AbstractLogFileStructureFinder.guessScalarMapping(explanation, fieldName, valuesForField.getValue()));
                 }
             }
 

@@ -7,37 +7,37 @@ package org.elasticsearch.xpack.ml.configcreator;
 
 public class XmlLogFileStructureFinderFactoryTests extends LogConfigCreatorTestCase {
 
-    private LogFileStructureFinderFactory factory = new XmlLogFileStructureFinderFactory(TEST_TERMINAL);
+    private LogFileStructureFinderFactory factory = new XmlLogFileStructureFinderFactory();
 
     // No need to check JSON because it comes earlier in the order we check formats
 
     public void testCanCreateFromSampleGivenXml() {
 
-        assertTrue(factory.canCreateFromSample(XML_SAMPLE));
+        assertTrue(factory.canCreateFromSample(explanation, XML_SAMPLE));
     }
 
     public void testCanCreateFromSampleGivenCsv() {
 
-        assertFalse(factory.canCreateFromSample(CSV_SAMPLE));
+        assertFalse(factory.canCreateFromSample(explanation, CSV_SAMPLE));
     }
 
     public void testCanCreateFromSampleGivenTsv() {
 
-        assertFalse(factory.canCreateFromSample(TSV_SAMPLE));
+        assertFalse(factory.canCreateFromSample(explanation, TSV_SAMPLE));
     }
 
     public void testCanCreateFromSampleGivenSemiColonSeparatedValues() {
 
-        assertFalse(factory.canCreateFromSample(SEMI_COLON_SEPARATED_VALUES_SAMPLE));
+        assertFalse(factory.canCreateFromSample(explanation, SEMI_COLON_SEPARATED_VALUES_SAMPLE));
     }
 
     public void testCanCreateFromSampleGivenPipeSeparatedValues() {
 
-        assertFalse(factory.canCreateFromSample(PIPE_SEPARATED_VALUES_SAMPLE));
+        assertFalse(factory.canCreateFromSample(explanation, PIPE_SEPARATED_VALUES_SAMPLE));
     }
 
     public void testCanCreateFromSampleGivenText() {
 
-        assertFalse(factory.canCreateFromSample(TEXT_SAMPLE));
+        assertFalse(factory.canCreateFromSample(explanation, TEXT_SAMPLE));
     }
 }

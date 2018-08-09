@@ -16,7 +16,7 @@ import static org.hamcrest.Matchers.not;
 
 public class LogConfigWriterTests extends LogConfigCreatorTestCase {
 
-    private LogFileStructureFinderManager structureFinderManager = new LogFileStructureFinderManager(TEST_TERMINAL);
+    private LogFileStructureFinderManager structureFinderManager = new LogFileStructureFinderManager();
 
     public void testBestLogstashQuoteFor() {
         assertEquals("\"", LogConfigWriter.bestLogstashQuoteFor("normal"));
@@ -51,7 +51,7 @@ public class LogConfigWriterTests extends LogConfigCreatorTestCase {
         String elasticsearchHost = randomFrom(POSSIBLE_HOSTNAMES);
         String logstashHost = randomFrom(POSSIBLE_HOSTNAMES);
         LogFileStructureFinder structureFinder =
-            structureFinderManager.makeBestStructureFinder(JSON_SAMPLE, charset, randomHasByteOrderMarker(charset));
+            structureFinderManager.makeBestStructureFinder(explanation, JSON_SAMPLE, charset, randomHasByteOrderMarker(charset));
         LogConfigWriter logConfigWriter = new LogConfigWriter(TEST_TERMINAL, null, TEST_FILE_NAME, TEST_INDEX_NAME,
             "ml-cpp", elasticsearchHost, logstashHost, timezone);
         logConfigWriter.createConfigs(structureFinder.getStructure(), structureFinder.getSampleMessages());
@@ -89,7 +89,7 @@ public class LogConfigWriterTests extends LogConfigCreatorTestCase {
         String elasticsearchHost = randomFrom(POSSIBLE_HOSTNAMES);
         String logstashHost = randomFrom(POSSIBLE_HOSTNAMES);
         LogFileStructureFinder structureFinder =
-            structureFinderManager.makeBestStructureFinder(XML_SAMPLE, charset, randomHasByteOrderMarker(charset));
+            structureFinderManager.makeBestStructureFinder(explanation, XML_SAMPLE, charset, randomHasByteOrderMarker(charset));
         LogConfigWriter logConfigWriter = new LogConfigWriter(TEST_TERMINAL, null, TEST_FILE_NAME, TEST_INDEX_NAME,
             "log4cxx-xml", elasticsearchHost, logstashHost, timezone);
         logConfigWriter.createConfigs(structureFinder.getStructure(), structureFinder.getSampleMessages());
@@ -124,7 +124,7 @@ public class LogConfigWriterTests extends LogConfigCreatorTestCase {
         String elasticsearchHost = randomFrom(POSSIBLE_HOSTNAMES);
         String logstashHost = randomFrom(POSSIBLE_HOSTNAMES);
         LogFileStructureFinder structureFinder =
-            structureFinderManager.makeBestStructureFinder(sample, charset, randomHasByteOrderMarker(charset));
+            structureFinderManager.makeBestStructureFinder(explanation, sample, charset, randomHasByteOrderMarker(charset));
         LogConfigWriter logConfigWriter = new LogConfigWriter(TEST_TERMINAL, null, TEST_FILE_NAME, TEST_INDEX_NAME,
             "message_time", elasticsearchHost, logstashHost, timezone);
         logConfigWriter.createConfigs(structureFinder.getStructure(), structureFinder.getSampleMessages());
@@ -150,7 +150,7 @@ public class LogConfigWriterTests extends LogConfigCreatorTestCase {
         String elasticsearchHost = randomFrom(POSSIBLE_HOSTNAMES);
         String logstashHost = randomFrom(POSSIBLE_HOSTNAMES);
         LogFileStructureFinder structureFinder =
-            structureFinderManager.makeBestStructureFinder(sample, charset, randomHasByteOrderMarker(charset));
+            structureFinderManager.makeBestStructureFinder(explanation, sample, charset, randomHasByteOrderMarker(charset));
         LogConfigWriter logConfigWriter = new LogConfigWriter(TEST_TERMINAL, null, TEST_FILE_NAME, TEST_INDEX_NAME,
             "message_time", elasticsearchHost, logstashHost, timezone);
         logConfigWriter.createConfigs(structureFinder.getStructure(), structureFinder.getSampleMessages());
@@ -190,7 +190,7 @@ public class LogConfigWriterTests extends LogConfigCreatorTestCase {
         String elasticsearchHost = randomFrom(POSSIBLE_HOSTNAMES);
         String logstashHost = randomFrom(POSSIBLE_HOSTNAMES);
         LogFileStructureFinder structureFinder =
-            structureFinderManager.makeBestStructureFinder(sample, charset, randomHasByteOrderMarker(charset));
+            structureFinderManager.makeBestStructureFinder(explanation, sample, charset, randomHasByteOrderMarker(charset));
         LogConfigWriter logConfigWriter = new LogConfigWriter(TEST_TERMINAL, null, TEST_FILE_NAME, TEST_INDEX_NAME,
             "nyc-taxi", elasticsearchHost, logstashHost, timezone);
         logConfigWriter.createConfigs(structureFinder.getStructure(), structureFinder.getSampleMessages());
@@ -243,7 +243,7 @@ public class LogConfigWriterTests extends LogConfigCreatorTestCase {
         String elasticsearchHost = randomFrom(POSSIBLE_HOSTNAMES);
         String logstashHost = randomFrom(POSSIBLE_HOSTNAMES);
         LogFileStructureFinder structureFinder =
-            structureFinderManager.makeBestStructureFinder(sample, charset, randomHasByteOrderMarker(charset));
+            structureFinderManager.makeBestStructureFinder(explanation, sample, charset, randomHasByteOrderMarker(charset));
         LogConfigWriter logConfigWriter = new LogConfigWriter(TEST_TERMINAL, null, TEST_FILE_NAME, TEST_INDEX_NAME,
             "nyc-taxi", elasticsearchHost, logstashHost, timezone);
         logConfigWriter.createConfigs(structureFinder.getStructure(), structureFinder.getSampleMessages());
@@ -292,7 +292,7 @@ public class LogConfigWriterTests extends LogConfigCreatorTestCase {
         String elasticsearchHost = randomFrom(POSSIBLE_HOSTNAMES);
         String logstashHost = randomFrom(POSSIBLE_HOSTNAMES);
         LogFileStructureFinder structureFinder =
-            structureFinderManager.makeBestStructureFinder(sample, charset, randomHasByteOrderMarker(charset));
+            structureFinderManager.makeBestStructureFinder(explanation, sample, charset, randomHasByteOrderMarker(charset));
         LogConfigWriter logConfigWriter = new LogConfigWriter(TEST_TERMINAL, null, TEST_FILE_NAME, TEST_INDEX_NAME,
             "positions", elasticsearchHost, logstashHost, timezone);
         logConfigWriter.createConfigs(structureFinder.getStructure(), structureFinder.getSampleMessages());
@@ -332,7 +332,7 @@ public class LogConfigWriterTests extends LogConfigCreatorTestCase {
         String elasticsearchHost = randomFrom(POSSIBLE_HOSTNAMES);
         String logstashHost = randomFrom(POSSIBLE_HOSTNAMES);
         LogFileStructureFinder structureFinder =
-            structureFinderManager.makeBestStructureFinder(TEXT_SAMPLE, charset, randomHasByteOrderMarker(charset));
+            structureFinderManager.makeBestStructureFinder(explanation, TEXT_SAMPLE, charset, randomHasByteOrderMarker(charset));
         LogConfigWriter logConfigWriter = new LogConfigWriter(TEST_TERMINAL, null, TEST_FILE_NAME, TEST_INDEX_NAME,
             "es", elasticsearchHost, logstashHost, timezone);
         logConfigWriter.createConfigs(structureFinder.getStructure(), structureFinder.getSampleMessages());

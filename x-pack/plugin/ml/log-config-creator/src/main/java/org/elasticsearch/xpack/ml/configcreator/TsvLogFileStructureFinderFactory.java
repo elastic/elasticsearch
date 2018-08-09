@@ -5,20 +5,13 @@
  */
 package org.elasticsearch.xpack.ml.configcreator;
 
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.supercsv.prefs.CsvPreference;
 
 import java.io.IOException;
-import java.util.Objects;
+import java.util.List;
 
 public class TsvLogFileStructureFinderFactory implements LogFileStructureFinderFactory {
-
-    private final Terminal terminal;
-
-    public TsvLogFileStructureFinderFactory(Terminal terminal) {
-        this.terminal = Objects.requireNonNull(terminal);
-    }
 
     /**
      * Rules are:
@@ -30,14 +23,14 @@ public class TsvLogFileStructureFinderFactory implements LogFileStructureFinderF
      * it could have been truncated when the file was sampled.
      */
     @Override
-    public boolean canCreateFromSample(String sample) {
-        return SeparatedValuesLogFileStructureFinder.canCreateFromSample(terminal, sample, 2, CsvPreference.TAB_PREFERENCE, "TSV");
+    public boolean canCreateFromSample(List<String> explanation, String sample) {
+        return SeparatedValuesLogFileStructureFinder.canCreateFromSample(explanation, sample, 2, CsvPreference.TAB_PREFERENCE, "TSV");
     }
 
     @Override
-    public LogFileStructureFinder createFromSample(String sample, String charsetName, Boolean hasByteOrderMarker)
+    public LogFileStructureFinder createFromSample(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker)
         throws IOException, UserException {
-        return new SeparatedValuesLogFileStructureFinder(terminal, sample, charsetName, hasByteOrderMarker, CsvPreference.TAB_PREFERENCE,
+        return new SeparatedValuesLogFileStructureFinder(explanation, sample, charsetName, hasByteOrderMarker, CsvPreference.TAB_PREFERENCE,
             false);
     }
 }

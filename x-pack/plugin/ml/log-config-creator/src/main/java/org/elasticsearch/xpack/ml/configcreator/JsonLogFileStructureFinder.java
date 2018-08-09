@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.configcreator;
 
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -32,9 +31,8 @@ public class JsonLogFileStructureFinder extends AbstractStructuredLogFileStructu
     private final List<String> sampleMessages;
     private final LogFileStructure structure;
 
-    JsonLogFileStructureFinder(Terminal terminal, String sample, String charsetName, Boolean hasByteOrderMarker)
+    JsonLogFileStructureFinder(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker)
         throws IOException, UserException {
-        super(terminal);
 
         List<Map<String, ?>> sampleRecords = new ArrayList<>();
 
@@ -52,19 +50,19 @@ public class JsonLogFileStructureFinder extends AbstractStructuredLogFileStructu
             .setNumLinesAnalyzed(sampleMessages.size())
             .setNumMessagesAnalyzed(sampleRecords.size());
 
-        Tuple<String, TimestampMatch> timeField = guessTimestampField(sampleRecords);
+        Tuple<String, TimestampMatch> timeField = guessTimestampField(explanation, sampleRecords);
         if (timeField != null) {
             structureBuilder.setTimestampField(timeField.v1())
                 .setTimestampFormats(timeField.v2().dateFormats)
                 .setNeedClientTimezone(timeField.v2().hasTimezoneDependentParsing());
         }
 
-        SortedMap<String, Object> mappings = guessMappings(sampleRecords);
+        SortedMap<String, Object> mappings = guessMappings(explanation, sampleRecords);
         mappings.put(DEFAULT_TIMESTAMP_FIELD, Collections.singletonMap(MAPPING_TYPE_SETTING, "date"));
 
         structure = structureBuilder
             .setMappings(mappings)
-            .setExplanation(Collections.singletonList("TODO")) // TODO
+            .setExplanation(explanation)
             .build();
     }
 

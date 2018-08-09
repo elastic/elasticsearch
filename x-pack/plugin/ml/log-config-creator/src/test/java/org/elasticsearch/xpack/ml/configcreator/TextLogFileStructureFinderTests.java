@@ -14,14 +14,14 @@ import java.util.Set;
 
 public class TextLogFileStructureFinderTests extends LogConfigCreatorTestCase {
 
-    private LogFileStructureFinderFactory factory = new TextLogFileStructureFinderFactory(TEST_TERMINAL);
+    private LogFileStructureFinderFactory factory = new TextLogFileStructureFinderFactory();
 
     public void testCreateConfigsGivenElasticsearchLog() throws Exception {
-        assertTrue(factory.canCreateFromSample(TEXT_SAMPLE));
+        assertTrue(factory.canCreateFromSample(explanation, TEXT_SAMPLE));
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
-        LogFileStructureFinder structureFinder = factory.createFromSample(TEXT_SAMPLE, charset, hasByteOrderMarker);
+        LogFileStructureFinder structureFinder = factory.createFromSample(explanation, TEXT_SAMPLE, charset, hasByteOrderMarker);
 
         LogFileStructure structure = structureFinder.getStructure();
 

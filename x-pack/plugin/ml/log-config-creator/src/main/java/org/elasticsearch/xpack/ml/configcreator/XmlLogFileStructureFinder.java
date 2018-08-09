@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.configcreator;
 
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.ml.configcreator.TimestampFormatFinder.TimestampMatch;
@@ -38,9 +37,8 @@ public class XmlLogFileStructureFinder extends AbstractStructuredLogFileStructur
     private final List<String> sampleMessages;
     private final LogFileStructure structure;
 
-    XmlLogFileStructureFinder(Terminal terminal, String sample, String charsetName, Boolean hasByteOrderMarker)
+    XmlLogFileStructureFinder(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker)
         throws IOException, ParserConfigurationException, SAXException, UserException {
-        super(terminal);
 
         String messagePrefix;
         try (Scanner scanner = new Scanner(sample)) {
@@ -91,14 +89,14 @@ public class XmlLogFileStructureFinder extends AbstractStructuredLogFileStructur
             .setNumMessagesAnalyzed(sampleRecords.size())
             .setMultilineStartPattern("^\\s*<" + topLevelTag);
 
-        Tuple<String, TimestampMatch> timeField = guessTimestampField(sampleRecords);
+        Tuple<String, TimestampMatch> timeField = guessTimestampField(explanation, sampleRecords);
         if (timeField != null) {
             structureBuilder.setTimestampField(timeField.v1())
                 .setTimestampFormats(timeField.v2().dateFormats)
                 .setNeedClientTimezone(timeField.v2().hasTimezoneDependentParsing());
         }
 
-        SortedMap<String, Object> innerMappings = guessMappings(sampleRecords);
+        SortedMap<String, Object> innerMappings = guessMappings(explanation, sampleRecords);
         Map<String, Object> secondLevelProperties = new LinkedHashMap<>();
         secondLevelProperties.put(MAPPING_TYPE_SETTING, "object");
         secondLevelProperties.put(MAPPING_PROPERTIES_SETTING, innerMappings);
@@ -108,7 +106,7 @@ public class XmlLogFileStructureFinder extends AbstractStructuredLogFileStructur
 
         structure = structureBuilder
             .setMappings(outerMappings)
-            .setExplanation(Collections.singletonList("TODO")) // TODO
+            .setExplanation(explanation)
             .build();
     }
 

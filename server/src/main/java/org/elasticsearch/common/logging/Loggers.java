@@ -58,7 +58,7 @@ public class Loggers {
      * Class.
      */
     public static Logger getLogger(String loggerName, Settings settings, ShardId shardId, String... prefixes) {
-        return getLogger(loggerName, settings,
+        return getLogger(loggerName,
             asArrayList(shardId.getIndexName(), Integer.toString(shardId.id()), prefixes).toArray(new String[0]));
     }
 
@@ -70,7 +70,7 @@ public class Loggers {
         return ESLoggerFactory.getLogger(formatPrefix(prefixes), clazz);
     }
 
-    public static Logger getLogger(String loggerName, Settings settings, String... prefixes) {
+    public static Logger getLogger(String loggerName, String... prefixes) {
         return ESLoggerFactory.getLogger(formatPrefix(prefixes), loggerName);
     }
 

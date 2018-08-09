@@ -442,7 +442,7 @@ public class WatchTests extends ESTestCase {
     private WatchParser createWatchparser() throws Exception {
         LoggingAction loggingAction = new LoggingAction(new TextTemplate("foo"), null, null);
         List<ActionWrapper> actions = Collections.singletonList(new ActionWrapper("_logging_", randomThrottler(), null, null,
-                new ExecutableLoggingAction(loggingAction, logger, settings, new MockTextTemplateEngine())));
+                new ExecutableLoggingAction(loggingAction, logger, new MockTextTemplateEngine())));
 
         ScheduleRegistry scheduleRegistry = registry(new IntervalSchedule(new IntervalSchedule.Interval(1,
                 IntervalSchedule.Interval.Unit.SECONDS)));
@@ -627,7 +627,7 @@ public class WatchTests extends ESTestCase {
                             new HttpRequestTemplate.Parser(authRegistry), templateEngine));
                     break;
                 case LoggingAction.TYPE:
-                    parsers.put(LoggingAction.TYPE, new LoggingActionFactory(settings, new MockTextTemplateEngine()));
+                    parsers.put(LoggingAction.TYPE, new LoggingActionFactory(new MockTextTemplateEngine()));
                     break;
             }
         }

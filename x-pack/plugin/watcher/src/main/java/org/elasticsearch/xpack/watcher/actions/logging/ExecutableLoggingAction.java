@@ -22,9 +22,9 @@ public class ExecutableLoggingAction extends ExecutableAction<LoggingAction> {
     private final Logger textLogger;
     private final TextTemplateEngine templateEngine;
 
-    public ExecutableLoggingAction(LoggingAction action, Logger logger, Settings settings, TextTemplateEngine templateEngine) {
+    public ExecutableLoggingAction(LoggingAction action, Logger logger, TextTemplateEngine templateEngine) {
         super(action, logger);
-        this.textLogger = action.category != null ? Loggers.getLogger(action.category, settings) : logger;
+        this.textLogger = action.category != null ? Loggers.getLogger(action.category) : logger;
         this.templateEngine = templateEngine;
     }
 

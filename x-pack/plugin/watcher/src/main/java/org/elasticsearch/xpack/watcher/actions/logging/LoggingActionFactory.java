@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.watcher.actions.logging;
 
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.actions.ActionFactory;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
@@ -14,19 +13,16 @@ import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 import java.io.IOException;
 
 public class LoggingActionFactory extends ActionFactory {
-
-    private final Settings settings;
     private final TextTemplateEngine templateEngine;
 
-    public LoggingActionFactory(Settings settings, TextTemplateEngine templateEngine) {
-        super(Loggers.getLogger(ExecutableLoggingAction.class, settings));
-        this.settings = settings;
+    public LoggingActionFactory(TextTemplateEngine templateEngine) {
+        super(Loggers.getLogger(ExecutableLoggingAction.class));
         this.templateEngine = templateEngine;
     }
 
     @Override
     public ExecutableLoggingAction parseExecutable(String watchId, String actionId, XContentParser parser) throws IOException {
         LoggingAction action = LoggingAction.parse(watchId, actionId, parser);
-        return new ExecutableLoggingAction(action, actionLogger, settings, templateEngine);
+        return new ExecutableLoggingAction(action, actionLogger, templateEngine);
     }
 }

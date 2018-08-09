@@ -301,7 +301,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.checkIndexOnStartup = indexSettings.getValue(IndexSettings.INDEX_CHECK_ON_STARTUP);
         this.translogConfig = new TranslogConfig(shardId, shardPath().resolveTranslog(), indexSettings, bigArrays);
         final String aId = shardRouting.allocationId().getId();
-        this.globalCheckpointListeners = new GlobalCheckpointListeners(shardId, threadPool.executor(ThreadPool.Names.LISTENER), logger);
+        this.globalCheckpointListeners =
+                new GlobalCheckpointListeners(shardId, this::getGlobalCheckpoint, threadPool.executor(ThreadPool.Names.LISTENER), logger);
         this.replicationTracker =
                 new ReplicationTracker(shardId, aId, indexSettings, UNASSIGNED_SEQ_NO, globalCheckpointListeners::globalCheckpointUpdated);
 
@@ -1734,8 +1735,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         replicationTracker.updateGlobalCheckpointForShard(allocationId, globalCheckpoint);
     }
 
-    public void addGlobalCheckpointListener(final GlobalCheckpointListeners.GlobalCheckpointListener listener) {
-        this.globalCheckpointListeners.add(listener);
+    /**
+     * Add a global checkpoint listener. If the global checkpoint is above the current global checkpoint known to the listener then the
+     * listener will fire immediately on the calling thread.
+     *
+     * @param currentGlobalCheckpoint the current global checkpoint known to the listener
+     * @param listener                the listener
+     */
+    public void addGlobalCheckpointListener(
+            final long currentGlobalCheckpoint,
+            final GlobalCheckpointListeners.GlobalCheckpointListener listener) {
+        this.globalCheckpointListeners.add(currentGlobalCheckpoint, listener);
     }
 
     /**

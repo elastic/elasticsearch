@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Executor;
+import java.util.function.LongSupplier;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -59,35 +60,50 @@ public class GlobalCheckpointListeners implements Closeable {
     private volatile List<GlobalCheckpointListener> listeners;
 
     private final ShardId shardId;
+    private final LongSupplier globalCheckpointSupplier;
     private final Executor executor;
     private final Logger logger;
 
     /**
      * Construct a global checkpoint listeners collection.
      *
-     * @param shardId  the shard ID on which global checkpoint updates can be listened to
-     * @param executor the executor for listener notifications
-     * @param logger   a shard-level logger
+     * @param shardId                  the shard ID on which global checkpoint updates can be listened to
+     * @param globalCheckpointSupplier the global checkpoint supplier
+     * @param executor                 the executor for listener notifications
+     * @param logger                   a shard-level logger
      */
-    GlobalCheckpointListeners(final ShardId shardId, final Executor executor, final Logger logger) {
+    GlobalCheckpointListeners(
+            final ShardId shardId,
+            final LongSupplier globalCheckpointSupplier,
+            final Executor executor,
+            final Logger logger) {
         this.shardId = Objects.requireNonNull(shardId);
+        this.globalCheckpointSupplier = Objects.requireNonNull(globalCheckpointSupplier);
         this.executor = Objects.requireNonNull(executor);
         this.logger = Objects.requireNonNull(logger);
     }
 
     /**
-     * Add a global checkpoint listener.
+     * Add a global checkpoint listener. If the global checkpoint is above the current global checkpoint known to the listener then the
+     * listener will fire immediately on the calling thread.
      *
-     * @param listener the listener
+     * @param currentGlobalCheckpoint the current global checkpoint known to the listener
+     * @param listener                the listener
      */
-    synchronized void add(final GlobalCheckpointListener listener) {
+    synchronized void add(final long currentGlobalCheckpoint, final GlobalCheckpointListener listener) {
         if (closed) {
             throw new IllegalStateException("can not listen for global checkpoint changes on a closed shard [" + shardId + "]");
         }
-        if (listeners == null) {
-            listeners = new ArrayList<>();
+        final long globalCheckpoint = globalCheckpointSupplier.getAsLong();
+        if (globalCheckpoint > currentGlobalCheckpoint) {
+            // notify directly
+            listener.accept(globalCheckpoint, null);
+        } else {
+            if (listeners == null) {
+                listeners = new ArrayList<>();
+            }
+            listeners.add(listener);
         }
-        listeners.add(listener);
     }
 
     @Override

@@ -743,21 +743,35 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         for (int i = 0; i < numberOfUpdates; i++) {
             final int index = i;
             final AtomicLong globalCheckpoint = new AtomicLong();
-            shard.addGlobalCheckpointListener((g, e) -> {
-                assert g >= NO_OPS_PERFORMED;
-                assert e == null;
-                globalCheckpoint.set(g);
-            });
+            shard.addGlobalCheckpointListener(
+                    i - 1,
+                    (g, e) -> {
+                        assert g >= NO_OPS_PERFORMED;
+                        assert e == null;
+                        globalCheckpoint.set(g);
+                    });
             client().prepareIndex("test", "_doc", Integer.toString(i)).setSource("{}", XContentType.JSON).get();
             assertBusy(() -> assertThat(globalCheckpoint.get(), equalTo((long) index)));
+            // adding a listener expecting a lower global checkpoint should fire immediately
+            final AtomicLong immediateGlobalCheckpint = new AtomicLong();
+            shard.addGlobalCheckpointListener(
+                    randomLongBetween(NO_OPS_PERFORMED, i - 1),
+                    (g, e) -> {
+                        assert g >= NO_OPS_PERFORMED;
+                        assert e == null;
+                        immediateGlobalCheckpint.set(g);
+                    });
+            assertThat(immediateGlobalCheckpint.get(), equalTo((long) index));
         }
         final AtomicBoolean invoked = new AtomicBoolean();
-        shard.addGlobalCheckpointListener((g, e) -> {
-            invoked.set(true);
-            assert g == UNASSIGNED_SEQ_NO;
-            assert e != null;
-            assertThat(e.getShardId(), equalTo(shard.shardId()));
-        });
+        shard.addGlobalCheckpointListener(
+                numberOfUpdates - 1,
+                (g, e) -> {
+                    invoked.set(true);
+                    assert g == UNASSIGNED_SEQ_NO;
+                    assert e != null;
+                    assertThat(e.getShardId(), equalTo(shard.shardId()));
+                });
         shard.close("closed", randomBoolean());
         assertBusy(() -> assertTrue(invoked.get()));
     }

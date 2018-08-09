@@ -241,34 +241,32 @@ public abstract class ElectionScheduler extends AbstractComponent {
         public void start() {
             logger.debug("{} starting", this);
 
-            getBroadcastNodes().forEach(n -> {
-                transportService.sendRequest(n, REQUEST_PRE_VOTE_ACTION_NAME, preVoteRequest,
-                    new TransportResponseHandler<PreVoteResponse>() {
-                        @Override
-                        public void handleResponse(PreVoteResponse response) {
-                            handlePreVoteResponse(response, n);
-                        }
+            getBroadcastNodes().forEach(n -> transportService.sendRequest(n, REQUEST_PRE_VOTE_ACTION_NAME, preVoteRequest,
+                new TransportResponseHandler<PreVoteResponse>() {
+                    @Override
+                    public void handleResponse(PreVoteResponse response) {
+                        handlePreVoteResponse(response, n);
+                    }
 
-                        @Override
-                        public void handleException(TransportException exp) {
-                            if (exp.getRootCause() instanceof CoordinationStateRejectedException) {
-                                logger.debug("{} failed: {}", this, exp.getRootCause().getMessage());
-                            } else {
-                                logger.debug(new ParameterizedMessage("{} failed", this), exp);
-                            }
+                    @Override
+                    public void handleException(TransportException exp) {
+                        if (exp.getRootCause() instanceof CoordinationStateRejectedException) {
+                            logger.debug("{} failed: {}", this, exp.getRootCause().getMessage());
+                        } else {
+                            logger.debug(new ParameterizedMessage("{} failed", this), exp);
                         }
+                    }
 
-                        @Override
-                        public String executor() {
-                            return Names.GENERIC;
-                        }
+                    @Override
+                    public String executor() {
+                        return Names.GENERIC;
+                    }
 
-                        @Override
-                        public String toString() {
-                            return "TransportResponseHandler{" + PreVoteCollector.this + ", node=" + n + '}';
-                        }
-                    });
-            });
+                    @Override
+                    public String toString() {
+                        return "TransportResponseHandler{" + PreVoteCollector.this + ", node=" + n + '}';
+                    }
+                }));
         }
 
         private void handlePreVoteResponse(PreVoteResponse response, DiscoveryNode sender) {

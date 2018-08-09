@@ -315,17 +315,19 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         DocWriteRequest<IndexRequest> writeRequest = new IndexRequest("index", "_doc", "id")
             .source(Requests.INDEX_CONTENT_TYPE, "foo", "bar");
         items[0] = new BulkItemRequest(0, writeRequest);
-        BulkShardRequest bulkShardRequest =
-            new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
         UpdateHelper updateHelper = null;
 
-        // Return an exception when trying to update the mapping
+        // Return an exception when trying to update the mapping, or when waiting for it to come
         RuntimeException err = new RuntimeException("some kind of exception");
+
+        boolean errorOnWait = randomBoolean();
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
-            new ThrowingMappingUpdatePerformer(err), () -> {});
+            errorOnWait == false ? new ThrowingMappingUpdatePerformer(err) : new NoopMappingUpdatePerformer(),
+            errorOnWait ? () -> { throw err; } : () -> {});
         assertFalse(context.hasMoreOperationsToExecute());
 
         // Translog shouldn't be synced, as there were conflicting mappings

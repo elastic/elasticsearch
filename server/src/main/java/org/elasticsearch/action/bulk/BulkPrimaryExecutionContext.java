@@ -237,14 +237,14 @@ class BulkPrimaryExecutionContext {
 
     /** indicates that the operation needs to be failed as the required mapping didn't arrive in time */
     public void failOnMappingUpdate(Exception cause) {
-        assert currentItemState == ItemProcessingState.WAIT_FOR_MAPPING_UPDATE : currentItemState;
-        assert executionResult == null : executionResult;
+        assert assertInvariants(ItemProcessingState.WAIT_FOR_MAPPING_UPDATE);
         currentItemState = ItemProcessingState.EXECUTED;
         final DocWriteRequest docWriteRequest = getCurrentItem().request();
-        markAsCompleted(new BulkItemResponse(getCurrentItem().id(), docWriteRequest.opType(),
+        executionResult = new BulkItemResponse(getCurrentItem().id(), docWriteRequest.opType(),
             // Make sure to use getCurrentItem().index() here, if you use docWriteRequest.index() it will use the
             // concrete index instead of an alias if used!
-            new BulkItemResponse.Failure(getCurrentItem().index(), docWriteRequest.type(), docWriteRequest.id(), cause)));
+            new BulkItemResponse.Failure(getCurrentItem().index(), docWriteRequest.type(), docWriteRequest.id(), cause));
+        markAsCompleted(executionResult);
     }
 
     /** the current operation has been executed on the primary with the specified result */
@@ -288,8 +288,8 @@ class BulkPrimaryExecutionContext {
 
     /** finishes the execution of the current request, with the response that should be returned to the user */
     public void markAsCompleted(BulkItemResponse translatedResponse) {
-        assert currentItemState == ItemProcessingState.EXECUTED : currentItemState;
-        assert translatedResponse.getItemId() == executionResult.getItemId();
+        assertInvariants(ItemProcessingState.EXECUTED);
+        assert executionResult == null || translatedResponse.getItemId() == executionResult.getItemId();
         assert translatedResponse.getItemId() == getCurrentItem().id();
 
         if (translatedResponse.isFailed() == false && requestToExecute != getCurrent())  {
@@ -309,7 +309,7 @@ class BulkPrimaryExecutionContext {
 
     private boolean assertInvariants(ItemProcessingState... expectedCurrentState) {
         assert Arrays.asList(expectedCurrentState).contains(currentItemState):
-            "expected current state [" + currentItemState + "] to be one of " + expectedCurrentState;
+            "expected current state [" + currentItemState + "] to be one of " + Arrays.toString(expectedCurrentState);
         assert currentIndex >= 0 : currentIndex;
         assert retryCounter >= 0 : retryCounter;
         switch (currentItemState) {

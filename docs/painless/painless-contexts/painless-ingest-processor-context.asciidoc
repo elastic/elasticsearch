@@ -103,8 +103,8 @@ if (day.length() == 1) {                                             <9>
 }
 
 boolean pm = ctx.time.substring(ctx.time.length() - 2).equals("PM"); <10>
-String[] timeSplit = split(                                          <11>
-        ctx.time.substring(0, ctx.time.length() - 2), (char)":");
+String[] timeSplit = split(
+        ctx.time.substring(0, ctx.time.length() - 2), (char)":");    <11>
 int hours = Integer.parseInt(timeSplit[0].trim());
 int minutes = Integer.parseInt(timeSplit[1].trim());
 

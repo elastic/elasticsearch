@@ -92,6 +92,14 @@ public abstract class Rounding implements Writeable {
 
     }
 
+    public abstract void innerWriteTo(StreamOutput out) throws IOException;
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeByte(id());
+        innerWriteTo(out);
+    }
+
     public abstract byte id();
 
     /**
@@ -354,7 +362,7 @@ public abstract class Rounding implements Writeable {
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
+        public void innerWriteTo(StreamOutput out) throws IOException {
             out.writeByte(unit.getId());
             String tz = ZoneOffset.UTC.equals(timeZone) ? "UTC" : timeZone.getId(); // stay joda compatible
             out.writeString(tz);
@@ -477,7 +485,7 @@ public abstract class Rounding implements Writeable {
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
+        public void innerWriteTo(StreamOutput out) throws IOException {
             out.writeVLong(interval);
             String tz = ZoneOffset.UTC.equals(timeZone) ? "UTC" : timeZone.getId(); // stay joda compatible
             out.writeString(tz);
@@ -501,29 +509,19 @@ public abstract class Rounding implements Writeable {
         }
     }
 
-    public static class Streams {
-
-        public static void write(Rounding rounding, StreamOutput out) throws IOException {
-            out.writeByte(rounding.id());
-            rounding.writeTo(out);
+    public static Rounding read(StreamInput in) throws IOException {
+        Rounding rounding;
+        byte id = in.readByte();
+        switch (id) {
+            case TimeUnitRounding.ID:
+                rounding = new TimeUnitRounding(in);
+                break;
+            case TimeIntervalRounding.ID:
+                rounding = new TimeIntervalRounding(in);
+                break;
+            default:
+                throw new ElasticsearchException("unknown rounding id [" + id + "]");
         }
-
-        public static Rounding read(StreamInput in) throws IOException {
-            Rounding rounding;
-            byte id = in.readByte();
-            switch (id) {
-                case TimeUnitRounding.ID:
-                    rounding = new TimeUnitRounding(in);
-                    break;
-                case TimeIntervalRounding.ID:
-                    rounding = new TimeIntervalRounding(in);
-                    break;
-                default:
-                    throw new ElasticsearchException("unknown rounding id [" + id + "]");
-            }
-            return rounding;
-        }
-
+        return rounding;
     }
-
 }

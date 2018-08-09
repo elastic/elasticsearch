@@ -42,11 +42,11 @@ public class RoundingDuelTests extends ESTestCase  {
             rounding = org.elasticsearch.common.rounding.javatime.Rounding.builder(timeValue()).timeZone(ZoneOffset.UTC).build();
         }
         BytesStreamOutput output = new BytesStreamOutput();
-        org.elasticsearch.common.rounding.javatime.Rounding.Streams.write(rounding, output);
+        rounding.writeTo(output);
 
         Rounding roundingJoda = Rounding.Streams.read(output.bytes().streamInput());
         org.elasticsearch.common.rounding.javatime.Rounding roundingJavaTime =
-            org.elasticsearch.common.rounding.javatime.Rounding.Streams.read(output.bytes().streamInput());
+            org.elasticsearch.common.rounding.javatime.Rounding.read(output.bytes().streamInput());
 
         int randomInt = randomIntBetween(1, 1_000_000_000);
         assertThat(roundingJoda.round(randomInt), is(roundingJavaTime.round(randomInt)));

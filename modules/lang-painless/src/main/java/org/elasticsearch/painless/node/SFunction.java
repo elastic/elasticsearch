@@ -115,9 +115,9 @@ public final class SFunction extends AStatement {
     }
 
     void generateSignature(PainlessLookup painlessLookup) {
-        try {
-            returnType = painlessLookup.canonicalTypeNameToType(rtnTypeStr);
-        } catch (IllegalArgumentException exception) {
+        returnType = painlessLookup.canonicalTypeNameToType(rtnTypeStr);
+
+        if (returnType == null) {
             throw createError(new IllegalArgumentException("Illegal return type [" + rtnTypeStr + "] for function [" + name + "]."));
         }
 
@@ -129,16 +129,16 @@ public final class SFunction extends AStatement {
         List<Class<?>> paramTypes = new ArrayList<>();
 
         for (int param = 0; param < this.paramTypeStrs.size(); ++param) {
-            try {
                 Class<?> paramType = painlessLookup.canonicalTypeNameToType(this.paramTypeStrs.get(param));
 
-                paramClasses[param] = PainlessLookupUtility.typeToJavaType(paramType);
-                paramTypes.add(paramType);
-                parameters.add(new Parameter(location, paramNameStrs.get(param), paramType));
-            } catch (IllegalArgumentException exception) {
+            if (paramType == null) {
                 throw createError(new IllegalArgumentException(
                     "Illegal parameter type [" + this.paramTypeStrs.get(param) + "] for function [" + name + "]."));
             }
+
+            paramClasses[param] = PainlessLookupUtility.typeToJavaType(paramType);
+            paramTypes.add(paramType);
+            parameters.add(new Parameter(location, paramNameStrs.get(param), paramType));
         }
 
         typeParameters = paramTypes;

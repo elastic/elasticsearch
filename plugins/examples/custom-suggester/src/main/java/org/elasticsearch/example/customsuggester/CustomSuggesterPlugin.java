@@ -17,22 +17,24 @@
  * under the License.
  */
 
-package org.elasticsearch.action.ingest;
+package org.elasticsearch.example.customsuggester;
 
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
 
-public class WritePipelineResponse extends AcknowledgedResponse implements ToXContentObject {
+import java.util.Collections;
+import java.util.List;
 
-    WritePipelineResponse() {
-    }
-
-    public WritePipelineResponse(boolean acknowledged) {
-        super(acknowledged);
-    }
-
-    public static WritePipelineResponse fromXContent(XContentParser parser) {
-        return new WritePipelineResponse(parseAcknowledged(parser));
+public class CustomSuggesterPlugin extends Plugin implements SearchPlugin {
+    @Override
+    public List<SearchPlugin.SuggesterSpec<?>> getSuggesters() {
+        return Collections.singletonList(
+            new SearchPlugin.SuggesterSpec<>(
+                CustomSuggestionBuilder.SUGGESTION_NAME,
+                CustomSuggestionBuilder::new,
+                CustomSuggestionBuilder::fromXContent,
+                CustomSuggestion::new
+            )
+        );
     }
 }

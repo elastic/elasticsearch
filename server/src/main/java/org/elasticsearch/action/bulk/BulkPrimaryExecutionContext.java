@@ -180,7 +180,8 @@ class BulkPrimaryExecutionContext {
     /** returns a translog location that is needed to be synced in order to persist all operations executed so far */
     public Translog.Location getLocationToSync() {
         assert hasMoreOperationsToExecute() == false;
-        assert assertInvariants(ItemProcessingState.INITIAL, ItemProcessingState.COMPLETED);
+        // we always get to the end of the list by using advance, which in turn sets the state to INITIAL
+        assert assertInvariants(ItemProcessingState.INITIAL);
         return locationToSync;
     }
 

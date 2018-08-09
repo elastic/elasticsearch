@@ -202,6 +202,11 @@ public class BulkByScrollTask extends CancellableTask {
         return true;
     }
 
+    /**
+     * This class acts as a builder for {@link Status}. Once the {@link Status} object is built by calling
+     * {@link #buildStatus()} it is immutable. Used by an instance of {@link ObjectParser} when parsing from
+     * XContent.
+     */
     public static class StatusBuilder {
         private Integer sliceId = null;
         private Long total = null;
@@ -558,6 +563,11 @@ public class BulkByScrollTask extends CancellableTask {
             return builder.endObject();
         }
 
+        /**
+         * We need to write a manual parser for this because of {@link StatusOrException}. Since
+         * {@link StatusOrException#fromXContent(XContentParser)} tries to peek at a field first before deciding
+         * what needs to be it cannot use an {@link ObjectParser}.
+         */
         public XContentBuilder innerXContent(XContentBuilder builder, Params params)
                 throws IOException {
             if (sliceId != null) {
@@ -961,6 +971,13 @@ public class BulkByScrollTask extends CancellableTask {
             return builder;
         }
 
+        /**
+         * Since {@link StatusOrException} can contain either an {@link Exception} or a {@link Status} we need to peek
+         * at a field first before deciding what needs to be parsed since the same object could contains either.
+         * The {@link #EXPECTED_EXCEPTION_FIELDS} contains the fields that are expected when the serialised object
+         * was an instance of exception and the {@link Status#FIELDS_SET} is the set of fields expected when the
+         * serialized object was an instance of Status.
+         */
         public static StatusOrException fromXContent(XContentParser parser) throws IOException {
             XContentParser.Token token = parser.currentToken();
             if (token == null) {

@@ -374,7 +374,7 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Executes a bulk request using the Bulk API.
+     * Executes a reindex request.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-reindex.html">Reindex API on elastic.co</a>
      * @param reindexRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -388,7 +388,7 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Asynchronously executes a bulk request using the Bulk API.
+     * Asynchronously executes a reindex request.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-reindex.html">Reindex API on elastic.co</a>
      * @param reindexRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized

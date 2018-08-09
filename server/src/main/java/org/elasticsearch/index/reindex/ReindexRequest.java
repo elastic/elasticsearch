@@ -45,7 +45,7 @@ import static org.elasticsearch.index.VersionType.INTERNAL;
  * to which documents are written.
  */
 public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequest>
-    implements CompositeIndicesRequest, ToXContentObject {
+                            implements CompositeIndicesRequest, ToXContentObject {
     /**
      * Prototype for index requests.
      */
@@ -128,6 +128,9 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         }
     }
 
+    /**
+     * Set the indices which will act as the source for the ReindexRequest
+     */
     public ReindexRequest setSourceIndices(String... sourceIndices) {
         if (sourceIndices != null) {
             this.getSearchRequest().indices(sourceIndices);
@@ -135,6 +138,9 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         return this;
     }
 
+    /**
+     * Set the document types which need to be copied from the source indices
+     */
     public ReindexRequest setSourceDocTypes(String... docTypes) {
         if (docTypes != null) {
             this.getSearchRequest().types(docTypes);
@@ -142,11 +148,17 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         return this;
     }
 
+    /**
+     * Sets the scroll size for setting how many documents are to be processed in one batch during reindex
+     */
     public ReindexRequest setSourceBatchSize(int size) {
         this.getSearchRequest().source().size(size);
         return this;
     }
 
+    /**
+     * Set the query for selecting documents from the source indices
+     */
     public ReindexRequest setSourceQuery(QueryBuilder queryBuilder) {
         if (queryBuilder != null) {
             this.getSearchRequest().source().query(queryBuilder);
@@ -158,12 +170,16 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
      * Add a sort against the given field name.
      *
      * @param name The name of the field to sort by
+     * @param order The order in which to sort
      */
     public ReindexRequest addSortField(String name, SortOrder order) {
         this.getSearchRequest().source().sort(name, order);
         return this;
     }
 
+    /**
+     * Set the target index for the ReindexRequest
+     */
     public ReindexRequest setDestIndex(String destIndex) {
         if (destIndex != null) {
             this.getDestination().index(destIndex);
@@ -171,21 +187,34 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         return this;
     }
 
+    /**
+     * Set the document type for the destination index
+     */
     public ReindexRequest setDestDocType(String docType) {
         this.getDestination().type(docType);
         return this;
     }
 
+    /**
+     * Set the routing to decide which shard the documents need to be routed to
+     */
     public ReindexRequest setDestRouting(String routing) {
         this.getDestination().routing(routing);
         return this;
     }
 
+    /**
+     * Set the version type for the target index. A {@link VersionType#EXTERNAL} helps preserve the version
+     * if the document already existed in the target index.
+     */
     public ReindexRequest setDestVersionType(VersionType versionType) {
         this.getDestination().versionType(versionType);
         return this;
     }
 
+    /**
+     * Allows to set the ingest pipeline for the target index.
+     */
     public void setDestPipeline(String pipelineName) {
         this.getDestination().setPipeline(pipelineName);
     }
@@ -199,15 +228,24 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         return this;
     }
 
-    public IndexRequest getDestination() {
-        return destination;
-    }
-
+    /**
+     * Set the {@link RemoteInfo} if the source indices are in a remote cluster.
+     */
     public ReindexRequest setRemoteInfo(RemoteInfo remoteInfo) {
         this.remoteInfo = remoteInfo;
         return this;
     }
 
+    /**
+     * Gets the target for this reindex request in the for of an {@link IndexRequest}
+     */
+    public IndexRequest getDestination() {
+        return destination;
+    }
+
+    /**
+     * Get the {@link RemoteInfo} if it was set for this request.
+     */
     public RemoteInfo getRemoteInfo() {
         return remoteInfo;
     }

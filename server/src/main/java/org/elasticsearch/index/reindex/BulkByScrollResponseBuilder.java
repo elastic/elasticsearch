@@ -21,6 +21,7 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.index.reindex.BulkByScrollTask.StatusBuilder;
 
@@ -28,14 +29,17 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-public class BulkByScrollResponseBuilder extends StatusBuilder {
+/**
+ * Helps build a {@link BulkByScrollResponse}. Used by an instance of {@link ObjectParser} when parsing from XContent.
+ */
+class BulkByScrollResponseBuilder extends StatusBuilder {
     private TimeValue took;
     private BulkByScrollTask.Status status;
     private List<Failure> bulkFailures = new ArrayList<>();
     private List<SearchFailure> searchFailures = new ArrayList<>();
     private boolean timedOut;
 
-    public BulkByScrollResponseBuilder() {}
+    BulkByScrollResponseBuilder() {}
 
     public void setTook(long took) {
         setTook(new TimeValue(took, TimeUnit.MILLISECONDS));

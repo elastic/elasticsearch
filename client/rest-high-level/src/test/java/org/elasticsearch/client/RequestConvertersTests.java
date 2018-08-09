@@ -126,10 +126,10 @@ import org.elasticsearch.index.rankeval.RankEvalSpec;
 import org.elasticsearch.index.rankeval.RatedRequest;
 import org.elasticsearch.index.rankeval.RestRankEvalAction;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
-import org.elasticsearch.protocol.xpack.indexlifecycle.OperationMode;
-import org.elasticsearch.protocol.xpack.indexlifecycle.PutOperationModeRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyRequest;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StartILMRequest;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StopILMRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -2604,21 +2604,25 @@ public class RequestConvertersTests extends ESTestCase {
         assertThat(request.getParameters(), equalTo(expectedParams));
     }
 
-    public void testPutOperationMode() throws Exception {
-        PutOperationModeRequest req = new PutOperationModeRequest(OperationMode.RUNNING);
+    public void testStartILM() throws Exception {
+        StartILMRequest req = new StartILMRequest();
         Map<String, String> expectedParams = new HashMap<>();
         setRandomMasterTimeout(req, expectedParams);
+        setRandomTimeout(req::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
 
-        Request request = RequestConverters.putOperationMode(req);
+        Request request = RequestConverters.startILM(req);
         assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
         assertThat(request.getEndpoint(), equalTo("/_ilm/start"));
         assertThat(request.getParameters(), equalTo(expectedParams));
+    }
 
-        req = new PutOperationModeRequest(OperationMode.STOPPING);
-        expectedParams = new HashMap<>();
+    public void testStopILM() throws Exception {
+        StopILMRequest req = new StopILMRequest();
+        Map<String, String> expectedParams = new HashMap<>();
         setRandomMasterTimeout(req, expectedParams);
+        setRandomTimeout(req::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
 
-        request = RequestConverters.putOperationMode(req);
+        Request request = RequestConverters.stopILM(req);
         assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
         assertThat(request.getEndpoint(), equalTo("/_ilm/stop"));
         assertThat(request.getParameters(), equalTo(expectedParams));

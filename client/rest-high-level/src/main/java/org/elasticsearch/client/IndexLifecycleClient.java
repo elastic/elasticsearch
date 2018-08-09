@@ -20,12 +20,14 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.protocol.xpack.indexlifecycle.PutOperationModeRequest;
-import org.elasticsearch.protocol.xpack.indexlifecycle.PutOperationModeResponse;
 import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleResponse;
 import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyResponse;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StartILMRequest;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StartILMResponse;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StopILMRequest;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StopILMResponse;
 
 import java.io.IOException;
 
@@ -68,7 +70,7 @@ public class IndexLifecycleClient {
     }
 
     /**
-     * Set the operation mode for the Index Lifecycle Management feature.
+     * Start the Index Lifecycle Management feature.
      * See <a href="https://fix-me-when-we-have-docs.com">
      * the docs</a> for more.
      * @param request the request
@@ -76,23 +78,49 @@ public class IndexLifecycleClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public PutOperationModeResponse putOperationMode(PutOperationModeRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::putOperationMode, options,
-                PutOperationModeResponse::fromXContent, emptySet());
+    public StartILMResponse startILM(StartILMRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::startILM, options,
+                StartILMResponse::fromXContent, emptySet());
     }
 
     /**
-     * Asynchronously set the operation mode for the Index Lifecycle Management feature.
+     * Asynchronously start the Index Lifecycle Management feature.
      * See <a href="https://fix-me-when-we-have-docs.com">
      * the docs</a> for more.
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      */
-    public void putOperationModeAsync(PutOperationModeRequest request, RequestOptions options,
-            ActionListener<PutOperationModeResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::putOperationMode, options,
-                PutOperationModeResponse::fromXContent, listener, emptySet());
+    public void startILMAsync(StartILMRequest request, RequestOptions options, ActionListener<StartILMResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::startILM, options,
+                StartILMResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Stop the Index Lifecycle Management feature.
+     * See <a href="https://fix-me-when-we-have-docs.com">
+     * the docs</a> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public StopILMResponse stopILM(StopILMRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::stopILM, options,
+                StopILMResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously stop the Index Lifecycle Management feature.
+     * See <a href="https://fix-me-when-we-have-docs.com">
+     * the docs</a> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void stopILMAsync(StopILMRequest request, RequestOptions options, ActionListener<StopILMResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::stopILM, options,
+                StopILMResponse::fromXContent, listener, emptySet());
     }
 
     /**

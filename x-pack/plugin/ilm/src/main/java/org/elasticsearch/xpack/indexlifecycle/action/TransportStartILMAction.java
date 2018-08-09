@@ -17,21 +17,22 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.protocol.xpack.indexlifecycle.PutOperationModeRequest;
-import org.elasticsearch.protocol.xpack.indexlifecycle.PutOperationModeResponse;
+import org.elasticsearch.protocol.xpack.indexlifecycle.OperationMode;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StartILMRequest;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StartILMResponse;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.indexlifecycle.action.PutOperationModeAction;
+import org.elasticsearch.xpack.core.indexlifecycle.action.StartILMAction;
 import org.elasticsearch.xpack.indexlifecycle.OperationModeUpdateTask;
 
-public class TransportPutOperationModeAction extends TransportMasterNodeAction<PutOperationModeRequest, PutOperationModeResponse> {
+public class TransportStartILMAction extends TransportMasterNodeAction<StartILMRequest, StartILMResponse> {
 
     @Inject
-    public TransportPutOperationModeAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportStartILMAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                            ThreadPool threadPool, ActionFilters actionFilters,
                                            IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, PutOperationModeAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            indexNameExpressionResolver, PutOperationModeRequest::new);
+        super(settings, StartILMAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
+                StartILMRequest::new);
     }
 
     @Override
@@ -40,28 +41,28 @@ public class TransportPutOperationModeAction extends TransportMasterNodeAction<P
     }
 
     @Override
-    protected PutOperationModeResponse newResponse() {
-        return new PutOperationModeResponse();
+    protected StartILMResponse newResponse() {
+        return new StartILMResponse();
     }
 
     @Override
-    protected void masterOperation(PutOperationModeRequest request, ClusterState state, ActionListener<PutOperationModeResponse> listener) {
+    protected void masterOperation(StartILMRequest request, ClusterState state, ActionListener<StartILMResponse> listener) {
         clusterService.submitStateUpdateTask("ilm_operation_mode_update",
-            new AckedClusterStateUpdateTask<PutOperationModeResponse>(request, listener) {
+                new AckedClusterStateUpdateTask<StartILMResponse>(request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    return (new OperationModeUpdateTask(request.getMode())).execute(currentState);
+                        return (new OperationModeUpdateTask(OperationMode.RUNNING)).execute(currentState);
                 }
 
                 @Override
-                protected PutOperationModeResponse newResponse(boolean acknowledged) {
-                    return new PutOperationModeResponse(acknowledged);
+                    protected StartILMResponse newResponse(boolean acknowledged) {
+                        return new StartILMResponse(acknowledged);
                 }
             });
     }
 
     @Override
-    protected ClusterBlockException checkBlock(PutOperationModeRequest request, ClusterState state) {
+    protected ClusterBlockException checkBlock(StartILMRequest request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 }

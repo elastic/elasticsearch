@@ -19,20 +19,23 @@
 
 package org.elasticsearch.protocol.xpack.indexlifecycle;
 
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractStreamableTestCase;
 
-public class PutOperationModeResponse extends AcknowledgedResponse implements ToXContentObject {
+public class StartILMRequestTests extends AbstractStreamableTestCase<StartILMRequest> {
 
-    public static PutOperationModeResponse fromXContent(XContentParser parser) {
-        return new PutOperationModeResponse(parseAcknowledged(parser));
+    @Override
+    protected StartILMRequest createBlankInstance() {
+        return new StartILMRequest();
     }
 
-    public PutOperationModeResponse() {
+    @Override
+    protected StartILMRequest createTestInstance() {
+        return new StartILMRequest();
     }
 
-    public PutOperationModeResponse(boolean acknowledged) {
-        super(acknowledged);
+    public void testValidate() {
+        StartILMRequest request = createTestInstance();
+        assertNull(request.validate());
     }
+
 }

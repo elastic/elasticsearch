@@ -26,14 +26,15 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.protocol.xpack.indexlifecycle.OperationMode;
-import org.elasticsearch.protocol.xpack.indexlifecycle.PutOperationModeRequest;
-import org.elasticsearch.protocol.xpack.indexlifecycle.PutOperationModeResponse;
 import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleResponse;
 import org.elasticsearch.protocol.xpack.indexlifecycle.IndexLifecycleExplainResponse;
 import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyResponse;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StartILMRequest;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StartILMResponse;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StopILMRequest;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StopILMResponse;
 import org.hamcrest.Matchers;
 
 import java.util.Map;
@@ -111,7 +112,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         assertThat(settingsResponse.getSetting("baz", "index.lifecycle.name"), equalTo(policy));
     }
     
-    public void testPutOperationMode() throws Exception {
+    public void testStartStopILM() throws Exception {
         String policy = randomAlphaOfLength(10);
 
         // TODO: NORELEASE convert this to using the high level client once there are APIs for it
@@ -145,7 +146,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
             "       \"cold\": {\n" +
             "         \"after\": \"2000s\",\n" +
             "         \"actions\": {\n" +
-            "          \"replicas\": {\n" +
+            "          \"allocate\": {\n" +
             "            \"number_of_replicas\": 0\n" +
             "          }\n" +
             "         }\n" +
@@ -175,10 +176,10 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         String statusResponseString = EntityUtils.toString(statusResponse.getEntity());
         assertEquals("{\"operation_mode\":\"RUNNING\"}", statusResponseString);
         
-        PutOperationModeRequest req = new PutOperationModeRequest(OperationMode.STOPPING);
-        PutOperationModeResponse response = execute(req, highLevelClient().indexLifecycle()::putOperationMode,
-                highLevelClient().indexLifecycle()::putOperationModeAsync);
-        assertTrue(response.isAcknowledged());
+        StopILMRequest stopReq = new StopILMRequest();
+        StopILMResponse stopResponse = execute(stopReq, highLevelClient().indexLifecycle()::stopILM,
+                highLevelClient().indexLifecycle()::stopILMAsync);
+        assertTrue(stopResponse.isAcknowledged());
 
         // TODO: NORELEASE convert this to using the high level client once there are APIs for it
         statusReq = new Request("GET", "/_ilm/status");
@@ -187,10 +188,10 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         assertThat(statusResponseString,
                 Matchers.anyOf(equalTo("{\"operation_mode\":\"STOPPING\"}"), equalTo("{\"operation_mode\":\"STOPPED\"}")));
         
-        req = new PutOperationModeRequest(OperationMode.RUNNING);
-        response = execute(req, highLevelClient().indexLifecycle()::putOperationMode,
-                highLevelClient().indexLifecycle()::putOperationModeAsync);
-        assertTrue(response.isAcknowledged());
+        StartILMRequest startReq = new StartILMRequest();
+        StartILMResponse startResponse = execute(startReq, highLevelClient().indexLifecycle()::startILM,
+                highLevelClient().indexLifecycle()::startILMAsync);
+        assertTrue(startResponse.isAcknowledged());
 
         // TODO: NORELEASE convert this to using the high level client once there are APIs for it
         statusReq = new Request("GET", "/_ilm/status");

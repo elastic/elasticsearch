@@ -19,31 +19,32 @@
 
 package org.elasticsearch.protocol.xpack.indexlifecycle;
 
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 
-import java.io.IOException;
+public class StartILMRequest extends AcknowledgedRequest<StartILMRequest> {
 
-public class PutOperationModeResponseTests extends AbstractStreamableXContentTestCase<PutOperationModeResponse> {
-
-    @Override
-    protected PutOperationModeResponse createBlankInstance() {
-        return new PutOperationModeResponse();
+    public StartILMRequest() {
     }
 
     @Override
-    protected PutOperationModeResponse createTestInstance() {
-        return new PutOperationModeResponse(randomBoolean());
+    public ActionRequestValidationException validate() {
+        return null;
     }
 
     @Override
-    protected PutOperationModeResponse mutateInstance(PutOperationModeResponse instance) throws IOException {
-        return new PutOperationModeResponse(instance.isAcknowledged() == false);
+    public int hashCode() {
+        return 64;
     }
 
     @Override
-    protected PutOperationModeResponse doParseInstance(XContentParser parser) throws IOException {
-        return PutOperationModeResponse.fromXContent(parser);
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        if (obj.getClass() != getClass()) {
+            return false;
+        }
+        return true;
     }
-
 }

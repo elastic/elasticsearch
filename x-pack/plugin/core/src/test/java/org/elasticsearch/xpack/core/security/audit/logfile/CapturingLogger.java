@@ -64,23 +64,25 @@ public class CapturingLogger {
 
         @Override
         public void append(LogEvent event) {
+            // escape backslashes and quotes
+            final String logLine = event.getMessage().getFormattedMessage();
             switch (event.getLevel().toString()) {
                 // we can not keep a reference to the event here because Log4j is using a thread
                 // local instance under the hood
                 case "ERROR":
-                    error.add(event.getMessage().getFormattedMessage());
+                    error.add(logLine);
                     break;
                 case "WARN":
-                    warn.add(event.getMessage().getFormattedMessage());
+                    warn.add(logLine);
                     break;
                 case "INFO":
-                    info.add(event.getMessage().getFormattedMessage());
+                    info.add(logLine);
                     break;
                 case "DEBUG":
-                    debug.add(event.getMessage().getFormattedMessage());
+                    debug.add(logLine);
                     break;
                 case "TRACE":
-                    trace.add(event.getMessage().getFormattedMessage());
+                    trace.add(logLine);
                     break;
                 default:
                     throw invalidLevelException(event.getLevel());

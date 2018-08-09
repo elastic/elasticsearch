@@ -593,7 +593,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
 
     private static void runAsSubject(Authentication authentication, StringMapMessage logEntry) {
         logEntry.with(PRINCIPAL_FIELD_NAME, authentication.getUser().authenticatedUser().principal())
-                .with(REALM_FIELD_NAME, authentication.getAuthenticatedBy().getName())
+                .with(PRINCIPAL_REALM_FIELD_NAME, authentication.getAuthenticatedBy().getName())
                 .with(PRINCIPAL_RUN_AS_FIELD_NAME, authentication.getUser().principal());
         if (authentication.getLookedUpBy() != null) {
             logEntry.with(PRINCIPAL_RUN_AS_REALM_FIELD_NAME, authentication.getLookedUpBy().getName());

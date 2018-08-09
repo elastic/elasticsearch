@@ -69,10 +69,10 @@ public abstract class ElectionScheduler extends AbstractComponent {
     private final TimeValue minTimeout;
     private final TimeValue backoffTime;
     private final TimeValue maxTimeout;
-    private final Object mutex = new Object();
     private final ThreadPool threadPool;
     private final Random random;
 
+    private final Object mutex = new Object();
     private Object currentScheduler; // only care about its identity
     private long nextSchedulerIdentity;
     private long currentDelayMillis;
@@ -101,6 +101,7 @@ public abstract class ElectionScheduler extends AbstractComponent {
             currentScheduler = isRunningSupplier = new BooleanSupplier() {
                 @Override
                 public boolean getAsBoolean() {
+                    assert Thread.holdsLock(mutex) : "ElectionScheduler mutex not held";
                     return this == currentScheduler;
                 }
 

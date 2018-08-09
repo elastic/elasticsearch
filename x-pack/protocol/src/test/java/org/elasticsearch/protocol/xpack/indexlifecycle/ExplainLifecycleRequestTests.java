@@ -1,24 +1,36 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 
-package org.elasticsearch.xpack.core.indexlifecycle.action;
+package org.elasticsearch.protocol.xpack.indexlifecycle;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.indexlifecycle.action.ExplainLifecycleAction.Request;
 
 import java.io.IOException;
 import java.util.Arrays;
 
-public class ExplainLifecycleRequestTests extends AbstractWireSerializingTestCase<Request> {
+public class ExplainLifecycleRequestTests extends AbstractWireSerializingTestCase<ExplainLifecycleRequest> {
 
     @Override
-    protected Request createTestInstance() {
-        Request request = new Request();
+    protected ExplainLifecycleRequest createTestInstance() {
+        ExplainLifecycleRequest request = new ExplainLifecycleRequest();
         if (randomBoolean()) {
             request.indices(generateRandomStringArray(20, 20, false, true));
         }
@@ -31,7 +43,7 @@ public class ExplainLifecycleRequestTests extends AbstractWireSerializingTestCas
     }
 
     @Override
-    protected Request mutateInstance(Request instance) throws IOException {
+    protected ExplainLifecycleRequest mutateInstance(ExplainLifecycleRequest instance) throws IOException {
         String[] indices = instance.indices();
         IndicesOptions indicesOptions = instance.indicesOptions();
         switch (between(0, 1)) {
@@ -46,15 +58,15 @@ public class ExplainLifecycleRequestTests extends AbstractWireSerializingTestCas
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        Request newRequest = new Request();
+        ExplainLifecycleRequest newRequest = new ExplainLifecycleRequest();
         newRequest.indices(indices);
         newRequest.indicesOptions(indicesOptions);
         return newRequest;
     }
 
     @Override
-    protected Reader<Request> instanceReader() {
-        return Request::new;
+    protected Reader<ExplainLifecycleRequest> instanceReader() {
+        return ExplainLifecycleRequest::new;
     }
 
 }

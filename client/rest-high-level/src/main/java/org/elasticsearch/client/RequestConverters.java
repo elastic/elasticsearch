@@ -108,13 +108,13 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
+import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleRequest;
+import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyRequest;
 import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
 import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
-import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyRequest;
-import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
@@ -1186,6 +1186,20 @@ final class RequestConverters {
         Params params = new Params(request);
         params.withIndicesOptions(setPolicyRequest.indicesOptions());
         params.withMasterTimeout(setPolicyRequest.masterNodeTimeout());
+        return request;
+    }
+
+    static Request explainLifecycle(ExplainLifecycleRequest explainLifecycleRequest) {
+        String[] indices = explainLifecycleRequest.indices() == null ? Strings.EMPTY_ARRAY : explainLifecycleRequest.indices();
+        Request request = new Request(HttpGet.METHOD_NAME,
+            new EndpointBuilder()
+                .addCommaSeparatedPathParts(indices)
+                .addPathPartAsIs("_ilm")
+                .addPathPartAsIs("explain")
+            .build());
+        Params params = new Params(request);
+        params.withIndicesOptions(explainLifecycleRequest.indicesOptions());
+        params.withMasterTimeout(explainLifecycleRequest.masterNodeTimeout());
         return request;
     }
 

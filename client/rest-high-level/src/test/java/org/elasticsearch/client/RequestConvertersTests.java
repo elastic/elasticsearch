@@ -125,6 +125,7 @@ import org.elasticsearch.index.rankeval.RankEvalSpec;
 import org.elasticsearch.index.rankeval.RatedRequest;
 import org.elasticsearch.index.rankeval.RestRankEvalAction;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
+import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyRequest;
 import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
@@ -2630,7 +2631,6 @@ public class RequestConvertersTests extends ESTestCase {
         assertThat(bos.toString("UTF-8"), is(body));
     }
 
-<<<<<<< HEAD
     public void testXPackDeleteWatch() {
         DeleteWatchRequest deleteWatchRequest = new DeleteWatchRequest();
         String watchId = randomAlphaOfLength(10);
@@ -2640,7 +2640,8 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertEquals("/_xpack/watcher/watch/" + watchId, request.getEndpoint());
         assertThat(request.getEntity(), nullValue());
-=======
+    }
+
     public void testSetIndexLifecyclePolicy() throws Exception {
         SetIndexLifecyclePolicyRequest req = new SetIndexLifecyclePolicyRequest();
         String policyName = randomAlphaOfLength(10);
@@ -2658,7 +2659,21 @@ public class RequestConvertersTests extends ESTestCase {
             equalTo("/" + (idxString.isEmpty() ? "" : (idxString + "/")) +
                 "_ilm/" + policyName));
         assertThat(request.getParameters(), equalTo(expectedParams));
->>>>>>> a314efc9200... Add high level rest client support for SetIndexLifecyclePolicy (#32443)
+    }
+
+    public void testExplainLifecycle() throws Exception {
+        ExplainLifecycleRequest req = new ExplainLifecycleRequest();
+        String[] indices = rarely() ? null : randomIndicesNames(0, 10);
+        req.indices(indices);
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomMasterTimeout(req, expectedParams);
+        setRandomIndicesOptions(req::indicesOptions, req::indicesOptions, expectedParams);
+
+        Request request = RequestConverters.explainLifecycle(req);
+        assertThat(request.getMethod(), equalTo(HttpGet.METHOD_NAME));
+        String idxString = Strings.arrayToCommaDelimitedString(indices);
+        assertThat(request.getEndpoint(), equalTo("/" + (idxString.isEmpty() ? "" : (idxString + "/")) + "_ilm/explain"));
+        assertThat(request.getParameters(), equalTo(expectedParams));
     }
 
     /**

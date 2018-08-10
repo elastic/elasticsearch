@@ -40,7 +40,7 @@ dependencies {
     shadow 'com.unboundid:unboundid-ldapsdk:3.2.0'
     shadow project(path: ':modules:transport-netty4', configuration: 'runtime')
     shadow(project(path: ':plugins:transport-nio', configuration: 'runtime')) {
-        // TODO: This should not be necessary if core is compile only
+        // TODO: core exclusion should not be necessary, since it is a transitive dep of all plugins
         exclude group: "org.elasticsearch", module: "elasticsearch-core"
     }
 

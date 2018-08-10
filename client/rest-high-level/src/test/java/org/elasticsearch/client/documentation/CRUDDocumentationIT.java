@@ -924,8 +924,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         {
             // tag::update-by-query-request
-            UpdateByQueryRequest request = new UpdateByQueryRequest(); // <1>
-            request.setIndices("source1", "source2"); // <2>
+            UpdateByQueryRequest request = new UpdateByQueryRequest("source1", "source2"); // <1>
             // end::update-by-query-request
             // tag::update-by-query-request-conflicts
             request.setConflicts("proceed"); // <1>
@@ -993,7 +992,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         {
             UpdateByQueryRequest request = new UpdateByQueryRequest();
-            request.setIndices("source1");
+            request.indices("source1");
 
             // tag::update-by-query-execute-listener
             ActionListener<BulkByScrollResponse> listener = new ActionListener<BulkByScrollResponse>() {

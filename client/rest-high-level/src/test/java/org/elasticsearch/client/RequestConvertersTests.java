@@ -474,7 +474,7 @@ public class RequestConvertersTests extends ESTestCase {
 
     public void testUpdateByQuery() throws IOException {
         UpdateByQueryRequest updateByQueryRequest = new UpdateByQueryRequest();
-        updateByQueryRequest.setIndices(randomIndicesNames(1, 5));
+        updateByQueryRequest.indices(randomIndicesNames(1, 5));
         Map<String, String> expectedParams = new HashMap<>();
         if (randomBoolean()) {
             updateByQueryRequest.setDocTypes(generateRandomStringArray(5, 5, false, false));

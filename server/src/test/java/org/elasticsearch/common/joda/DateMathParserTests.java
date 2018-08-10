@@ -208,7 +208,13 @@ public class DateMathParserTests extends ESTestCase {
         assertDateMathEquals("2014-11-18||/M", "2014-10-31T23:00:00.000Z", 0, false, DateTimeZone.forID("CET"));
         assertDateMathEquals("2014-11-18||/M", "2014-11-30T22:59:59.999Z", 0, true, DateTimeZone.forID("CET"));
 
+        assertDateMathEquals("2014-11-17T14||/w", "2014-11-17", 0, false, null);
         assertDateMathEquals("2014-11-18T14||/w", "2014-11-17", 0, false, null);
+        assertDateMathEquals("2014-11-19T14||/w", "2014-11-17", 0, false, null);
+        assertDateMathEquals("2014-11-20T14||/w", "2014-11-17", 0, false, null);
+        assertDateMathEquals("2014-11-21T14||/w", "2014-11-17", 0, false, null);
+        assertDateMathEquals("2014-11-22T14||/w", "2014-11-17", 0, false, null);
+        assertDateMathEquals("2014-11-23T14||/w", "2014-11-17", 0, false, null);
         assertDateMathEquals("2014-11-18T14||/w", "2014-11-23T23:59:59.999", 0, true, null);
         assertDateMathEquals("2014-11-18||/w", "2014-11-17", 0, false, null);
         assertDateMathEquals("2014-11-18||/w", "2014-11-23T23:59:59.999", 0, true, null);

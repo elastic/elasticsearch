@@ -35,13 +35,8 @@ public class IndexUpgradeInfoRequest extends MasterNodeReadRequest<IndexUpgradeI
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true);
 
-    // for serialization
-    public IndexUpgradeInfoRequest() {
-
-    }
-
     public IndexUpgradeInfoRequest(String... indices) {
-        this.indices = indices;
+        indices(indices);
     }
 
     public IndexUpgradeInfoRequest(StreamInput in) throws IOException {

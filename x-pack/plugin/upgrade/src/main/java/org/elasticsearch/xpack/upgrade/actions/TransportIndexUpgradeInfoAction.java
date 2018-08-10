@@ -28,8 +28,8 @@ import org.elasticsearch.xpack.upgrade.IndexUpgradeService;
 
 import java.util.Map;
 
-public class TransportIndexUpgradeInfoAction extends TransportMasterNodeReadAction<IndexUpgradeInfoRequest,
-    IndexUpgradeInfoResponse> {
+public class TransportIndexUpgradeInfoAction
+    extends TransportMasterNodeReadAction<IndexUpgradeInfoRequest, IndexUpgradeInfoResponse> {
 
     private final IndexUpgradeService indexUpgradeService;
     private final XPackLicenseState licenseState;

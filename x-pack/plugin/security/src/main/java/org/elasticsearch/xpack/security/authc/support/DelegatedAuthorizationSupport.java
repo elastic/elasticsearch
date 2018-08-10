@@ -57,9 +57,9 @@ public class DelegatedAuthorizationSupport {
      */
     protected DelegatedAuthorizationSupport(Iterable<? extends Realm> allRealms, List<String> lookupRealms, Settings settings,
                                             ThreadContext threadContext, XPackLicenseState licenseState) {
-        final List<Realm> realms = resolveRealms(allRealms, lookupRealms);
-        checkRealms(realms, settings);
-        this.lookup = new RealmUserLookup(realms, threadContext);
+        final List<Realm> resolvedLookupRealms = resolveRealms(allRealms, lookupRealms);
+        checkForRealmChains(resolvedLookupRealms, settings);
+        this.lookup = new RealmUserLookup(resolvedLookupRealms, threadContext);
         this.logger = Loggers.getLogger(getClass());
         this.licenseState = licenseState;
     }
@@ -114,9 +114,17 @@ public class DelegatedAuthorizationSupport {
         return result;
     }
 
-    private void checkRealms(Iterable<Realm> realms, Settings globalSettings) {
+    /**
+     * Checks for (and rejects) chains of delegation in the provided realms.
+     * A chain occurs when "realmA" delegates authorization to "realmB", and realmB also delegates authorization (to any realm).
+     * Since "realmB" does not handle its own authorization, it is not a valid target for delegated authorization.
+     * @param delegatedRealms The list of realms that are going to be used for authorization. If is an error if any of these realms are
+     *                        also configured to delegate their authorization.
+     * @throws IllegalArgumentException if a chain is detected
+     */
+    private void checkForRealmChains(Iterable<Realm> delegatedRealms, Settings globalSettings) {
         final Map<String, Settings> settingsByRealm = RealmSettings.getRealmSettings(globalSettings);
-        for (Realm realm : realms) {
+        for (Realm realm : delegatedRealms) {
             final Settings realmSettings = settingsByRealm.get(realm.name());
             if (realmSettings != null && DelegatedAuthorizationSettings.AUTHZ_REALMS.exists(realmSettings)) {
                 throw new IllegalArgumentException("cannot use realm [" + realm +

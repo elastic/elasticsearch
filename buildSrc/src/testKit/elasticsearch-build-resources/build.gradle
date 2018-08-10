@@ -5,14 +5,14 @@ plugins {
 ext.licenseFile = file("$buildDir/dummy/license")
 ext.noticeFile = file("$buildDir/dummy/notice")
 
-exportBuildResources {
-    resource 'checkstyle.xml'
-    resource 'minimumCompilerVersion'
+buildResources {
+    take 'checkstyle.xml'
+    take 'minimumCompilerVersion'
 }
 
 task sampleCopyAll(type: Sync) {
     /** Note: no explicit dependency. This works with tasks that use the Provider API a.k.a "Lazy Configuration" **/
-    from exportBuildResources
+    from buildResources
     into "$buildDir/sampleCopyAll"
 }
 
@@ -22,8 +22,8 @@ task sample {
     // Nor does this, despite https://github.com/gradle/gradle/issues/3811
     // dependsOn exportBuildResources.outputDir
     // for now it's just
-    dependsOn exportBuildResources
+    dependsOn buildResources
     doLast {
-        println "This task is using ${file(exportBuildResources.resource('minimumRuntimeVersion'))}"
+        println "This task is using ${file(buildResources.take('minimumRuntimeVersion'))}"
     }
 }

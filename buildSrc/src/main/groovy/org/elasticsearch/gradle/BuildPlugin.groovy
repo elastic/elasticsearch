@@ -87,7 +87,7 @@ class BuildPlugin implements Plugin<Project> {
         project.pluginManager.apply('nebula.info-scm')
         project.pluginManager.apply('nebula.info-jar')
 
-        project.getTasks().create("exportBuildResources", ExportElasticsearchBuildResourcesTask)
+        project.getTasks().create("buildResources", ExportElasticsearchBuildResourcesTask)
 
         globalBuildInfo(project)
         configureRepositories(project)

@@ -82,7 +82,7 @@ public class ExportElasticsearchBuildResourcesTask extends DefaultTask {
         this.outputDir = outputDir;
     }
 
-    public RegularFileProperty resource(String resource) {
+    public RegularFileProperty take(String resource) {
         resources.add(resource);
         return getProject().getLayout().fileProperty(outputDir.file(resource));
     }

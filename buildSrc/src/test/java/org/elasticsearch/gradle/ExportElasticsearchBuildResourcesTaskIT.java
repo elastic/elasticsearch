@@ -41,19 +41,19 @@ public class ExportElasticsearchBuildResourcesTaskIT extends GradleIntegrationTe
 
         BuildResult result = GradleRunner.create()
             .withProjectDir(getProjectDir(PROJECT_NAME))
-            .withArguments("exportBuildResources", "-s", "-i")
+            .withArguments("buildResources", "-s", "-i")
             .withPluginClasspath()
             .build();
-        assertTaskSuccessFull(result, ":exportBuildResources");
+        assertTaskSuccessFull(result, ":buildResources");
         assertBuildFileExists(result, PROJECT_NAME, "build-tools-exported/checkstyle.xml");
 
 
         result = GradleRunner.create()
             .withProjectDir(getProjectDir(PROJECT_NAME))
-            .withArguments("exportBuildResources", "-s", "-i")
+            .withArguments("buildResources", "-s", "-i")
             .withPluginClasspath()
             .build();
-        assertEquals(TaskOutcome.UP_TO_DATE, result.task(":exportBuildResources").getOutcome());
+        assertEquals(TaskOutcome.UP_TO_DATE, result.task(":buildResources").getOutcome());
         assertBuildFileExists(result, PROJECT_NAME, "build-tools-exported/checkstyle.xml");
     }
 
@@ -63,7 +63,7 @@ public class ExportElasticsearchBuildResourcesTaskIT extends GradleIntegrationTe
             .withArguments("clean", "sampleCopyAll", "-s", "-i")
             .withPluginClasspath()
             .build();
-        assertTaskSuccessFull(result, ":exportBuildResources");
+        assertTaskSuccessFull(result, ":buildResources");
         assertTaskSuccessFull(result, ":sampleCopyAll");
         assertBuildFileExists(result, PROJECT_NAME, "sampleCopyAll/checkstyle.xml");
     }

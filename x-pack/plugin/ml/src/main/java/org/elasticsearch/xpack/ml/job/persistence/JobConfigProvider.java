@@ -51,9 +51,13 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -232,7 +236,8 @@ public class JobConfigProvider extends AbstractComponent {
     /**
      * Expands an expression into the set of matching names. {@code expresssion}
      * may be a wildcard, a job group, a job ID or a list of those.
-     * If {@code expression} == ALL or * then all job IDs are returned.
+     * If {@code expression} == 'ALL', '*' or the empty string then all
+     * job IDs are returned.
      * Job groups are expanded to all the jobs IDs in that group.
      *
      * For example, given a set of names ["foo-1", "foo-2", "bar-1", bar-2"],
@@ -252,34 +257,43 @@ public class JobConfigProvider extends AbstractComponent {
      *                     This only applies to wild card expressions, if {@code expression} is not a
      *                     wildcard then setting this true will not suppress the exception
      * @param listener The expanded job IDs listener
-     * @return the set of matching names
      */
     public void expandJobsIds(String expression, boolean allowNoJobs, ActionListener<Set<String>> listener) {
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildQuery(expression));
+        String [] tokens = tokenizeExpression(expression);
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildQuery(tokens));
         sourceBuilder.sort(Job.ID.getPreferredName());
-        String [] includes = new String[] {Job.ID.getPreferredName()};
+        String [] includes = new String[] {Job.ID.getPreferredName(), Job.GROUPS.getPreferredName()};
         sourceBuilder.fetchSource(includes, null);
 
         SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setSource(sourceBuilder).request();
 
-        final boolean isWildCardExpression = isWildCard(expression);
+        LinkedList<IdMatcher> requiredMatches = requiredMatches(tokens, allowNoJobs);
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
                 ActionListener.<SearchResponse>wrap(
                         response -> {
+                            Set<String> jobIds = new HashSet<>();
+                            Set<String> groupsIds = new HashSet<>();
                             SearchHit[] hits = response.getHits().getHits();
+                            for (SearchHit hit : hits) {
+                                jobIds.add((String)hit.getSourceAsMap().get(Job.ID.getPreferredName()));
+                                List<String> groups = (List<String>)hit.getSourceAsMap().get(Job.GROUPS.getPreferredName());
+                                if (groups != null) {
+                                    groupsIds.addAll(groups);
+                                }
+                            }
 
-                            if (hits.length == 0 && isWildCardExpression && allowNoJobs == false) {
-                                listener.onFailure(ExceptionsHelper.missingJobException(expression));
+                            groupsIds.addAll(jobIds);
+                            filterMatchedIds(requiredMatches, groupsIds);
+                            if (requiredMatches.isEmpty() == false) {
+                                // some required jobs were not found
+                                String missing = requiredMatches.stream().map(IdMatcher::getId).collect(Collectors.joining(","));
+                                listener.onFailure(ExceptionsHelper.missingJobException(missing));
                                 return;
                             }
 
-                            Set<String> jobIds = new HashSet<>();
-                            for (SearchHit hit : hits) {
-                                jobIds.add((String)hit.getSourceAsMap().get(Job.ID.getPreferredName()));
-                            }
                             listener.onResponse(jobIds);
                         },
                         listener::onFailure)
@@ -298,38 +312,45 @@ public class JobConfigProvider extends AbstractComponent {
      *                     This only applies to wild card expressions, if {@code expression} is not a
      *                     wildcard then setting this true will not suppress the exception
      * @param listener The expanded jobs listener
-     * @return The jobs with matching IDs
      */
     // NORELEASE jobs should be paged or have a mechanism to return all jobs if there are many of them
     public void expandJobs(String expression, boolean allowNoJobs, ActionListener<List<Job.Builder>> listener) {
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildQuery(expression));
+        String [] tokens = tokenizeExpression(expression);
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildQuery(tokens));
         sourceBuilder.sort(Job.ID.getPreferredName());
 
         SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setSource(sourceBuilder).request();
 
-        final boolean isWildCardExpression = isWildCard(expression);
+        LinkedList<IdMatcher> requiredMatches = requiredMatches(tokens, allowNoJobs);
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
                 ActionListener.<SearchResponse>wrap(
                         response -> {
+                            List<Job.Builder> jobs = new ArrayList<>();
+                            Set<String> jobAndGroupIds = new HashSet<>();
 
                             SearchHit[] hits = response.getHits().getHits();
-                            if (hits.length == 0 && isWildCardExpression && allowNoJobs == false) {
-                                listener.onFailure(ExceptionsHelper.missingJobException(expression));
-                                return;
-                            }
-
-                            List<Job.Builder> jobs = new ArrayList<>();
                             for (SearchHit hit : hits) {
                                 try {
                                     BytesReference source = hit.getSourceRef();
-                                    jobs.add(parseJobLenientlyFromSource(source));
+                                    Job.Builder job = parseJobLenientlyFromSource(source);
+                                    jobs.add(job);
+                                    jobAndGroupIds.add(job.getId());
+                                    jobAndGroupIds.addAll(job.getGroups());
                                 } catch (IOException e) {
                                     // TODO A better way to handle this rather than just ignoring the error?
                                     logger.error("Error parsing anomaly detector job configuration [" + hit.getId() + "]", e);
                                 }
+                            }
+
+                            filterMatchedIds(requiredMatches, jobAndGroupIds);
+                            if (requiredMatches.isEmpty() == false) {
+                                // some required jobs were not found
+                                String missing = requiredMatches.stream().map(IdMatcher::getId).collect(Collectors.joining(","));
+                                listener.onFailure(ExceptionsHelper.missingJobException(missing));
+                                return;
                             }
 
                             listener.onResponse(jobs);
@@ -339,13 +360,28 @@ public class JobConfigProvider extends AbstractComponent {
 
     }
 
-    private boolean isWildCard(String expression) {
-        return ALL.equals(expression) || Regex.isMatchAllPattern(expression);
+    private void parseJobLenientlyFromSource(BytesReference source, ActionListener<Job.Builder> jobListener)  {
+        try (InputStream stream = source.streamInput();
+             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+            jobListener.onResponse(Job.LENIENT_PARSER.apply(parser, null));
+        } catch (Exception e) {
+            jobListener.onFailure(e);
+        }
     }
 
-    private QueryBuilder buildQuery(String expression) {
+    private Job.Builder parseJobLenientlyFromSource(BytesReference source) throws IOException {
+        try (InputStream stream = source.streamInput();
+             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+            return Job.LENIENT_PARSER.apply(parser, null);
+        }
+    }
+
+    private QueryBuilder buildQuery(String [] tokens) {
         QueryBuilder jobQuery = new TermQueryBuilder(Job.JOB_TYPE.getPreferredName(), Job.ANOMALY_DETECTOR_JOB_TYPE);
-        if (isWildCard(expression)) {
+        if (isWildcardAll(tokens)) {
+            // match all
             return jobQuery;
         }
 
@@ -354,7 +390,6 @@ public class JobConfigProvider extends AbstractComponent {
         BoolQueryBuilder shouldQueries = new BoolQueryBuilder();
 
         List<String> terms = new ArrayList<>();
-        String[] tokens = Strings.tokenizeToStringArray(expression, ",");
         for (String token : tokens) {
             if (Regex.isSimpleMatchPattern(token)) {
                 shouldQueries.should(new WildcardQueryBuilder(Job.ID.getPreferredName(), token));
@@ -376,21 +411,131 @@ public class JobConfigProvider extends AbstractComponent {
         return boolQueryBuilder;
     }
 
-    private void parseJobLenientlyFromSource(BytesReference source, ActionListener<Job.Builder> jobListener)  {
-        try (InputStream stream = source.streamInput();
-             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
-            jobListener.onResponse(Job.LENIENT_PARSER.apply(parser, null));
-        } catch (Exception e) {
-            jobListener.onFailure(e);
+    /**
+     * Does the {@code tokens} array resolves to a wildcard all expression.
+     * True if {@code tokens} is empty or if it contains a single element
+     * equal to {@link #ALL}, '*' or an empty string
+     *
+     * @param tokens Expression tokens
+     * @return True if tokens resolves to a wildcard all expression
+     */
+    static boolean isWildcardAll(String [] tokens) {
+        if (tokens.length == 0) {
+            return true;
+        }
+        return tokens.length == 1 && (ALL.equals(tokens[0]) || Regex.isMatchAllPattern(tokens[0]) || tokens[0].isEmpty());
+    }
+
+    static String [] tokenizeExpression(String expression) {
+        return Strings.tokenizeToStringArray(expression, ",");
+    }
+
+    /**
+     * Generate the list of required matches from the expressions in {@code tokens}
+     *
+     * @param tokens List of expressions that may be wildcards or full Ids
+     * @param allowNoJobForWildcards If true then it is not required for wildcard
+     *                               expressions to match an Id meaning they are
+     *                               not returned in the list of required matches
+     * @return A list of required Id matchers
+     */
+    static LinkedList<IdMatcher> requiredMatches(String [] tokens, boolean allowNoJobForWildcards) {
+        LinkedList<IdMatcher> matchers = new LinkedList<>();
+
+        if (isWildcardAll(tokens)) {
+            // if allowNoJobForWildcards == true then any number
+            // of jobs with any id is ok. Therefore no matches
+            // are required
+
+            if (allowNoJobForWildcards == false) {
+                // require something, anything to match
+                matchers.add(new WildcardMatcher("*"));
+            }
+            return matchers;
+        }
+
+        if (allowNoJobForWildcards) {
+            // matches are not required for wildcards but
+            // specific job Ids are
+            for (String token : tokens) {
+                if (Regex.isSimpleMatchPattern(token) == false) {
+                    matchers.add(new EqualsIdMatcher(token));
+                }
+            }
+        } else {
+            // Matches are required for wildcards
+            for (String token : tokens) {
+                if (Regex.isSimpleMatchPattern(token)) {
+                    matchers.add(new WildcardMatcher(token));
+                } else {
+                    matchers.add(new EqualsIdMatcher(token));
+                }
+            }
+        }
+
+        return matchers;
+    }
+
+    /**
+     * For each given {@code requiredMatchers} check there is an element
+     * present in {@code ids} that matches. Once a match is made the
+     * matcher is popped from {@code requiredMatchers}.
+     *
+     * If all matchers are satisfied the list {@code requiredMatchers} will
+     * be empty after the call otherwise only the unmatched remain.
+     *
+     * @param requiredMatchers This is modified by the function: all matched matchers
+     *                         are removed from the list. At the end of the call only
+     *                         the unmatched ones are in this list
+     * @param ids Ids required to be matched
+     */
+    static void filterMatchedIds(LinkedList<IdMatcher> requiredMatchers, Collection<String> ids) {
+        for (String id: ids) {
+            Iterator<IdMatcher> itr = requiredMatchers.iterator();
+            if (itr.hasNext() == false) {
+                break;
+            }
+            while (itr.hasNext()) {
+                if (itr.next().matches(id)) {
+                    itr.remove();
+                }
+            }
         }
     }
 
-    private Job.Builder parseJobLenientlyFromSource(BytesReference source) throws IOException {
-        try (InputStream stream = source.streamInput();
-             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
-            return Job.LENIENT_PARSER.apply(parser, null);
+    abstract static class IdMatcher {
+        protected final String id;
+
+        IdMatcher(String id) {
+            this.id = id;
+        }
+
+        public String getId() {
+            return id;
+        }
+
+        public abstract boolean matches(String jobId);
+    }
+
+    static class EqualsIdMatcher extends IdMatcher {
+        EqualsIdMatcher(String id) {
+            super(id);
+        }
+
+        @Override
+        public boolean matches(String id) {
+            return this.id.equals(id);
+        }
+    }
+
+    static class WildcardMatcher extends IdMatcher {
+        WildcardMatcher(String id) {
+            super(id);
+        }
+
+        @Override
+        public boolean matches(String id) {
+            return Regex.simpleMatch(this.id, id);
         }
     }
 }

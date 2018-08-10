@@ -208,6 +208,7 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
 
         client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.configIndexName()).get();
 
+        // Job Ids
         Set<String> expandedIds = blockingCall(actionListener -> jobConfigProvider.expandJobsIds("_all", true, actionListener));
         assertEquals(new TreeSet<>(Arrays.asList("tom", "dick", "harry", "harry-jnr")), expandedIds);
 
@@ -220,6 +221,16 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
         expandedIds = blockingCall(actionListener -> jobConfigProvider.expandJobsIds("harry-group,tom", true, actionListener));
         assertEquals(new TreeSet<>(Arrays.asList("harry", "harry-jnr", "tom")), expandedIds);
 
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+        AtomicReference<Set<String>> jobIdsHolder = new AtomicReference<>();
+        blockingCall(actionListener -> jobConfigProvider.expandJobsIds("tom,missing1,missing2", true, actionListener),
+                jobIdsHolder, exceptionHolder);
+        assertNull(jobIdsHolder.get());
+        assertNotNull(exceptionHolder.get());
+        assertThat(exceptionHolder.get(), instanceOf(ResourceNotFoundException.class));
+        assertThat(exceptionHolder.get().getMessage(), equalTo("No known job with id 'missing1,missing2'"));
+
+        // Job builders
         List<Job.Builder> expandedJobsBuilders = blockingCall(actionListener ->
                 jobConfigProvider.expandJobs("harry-group,tom", false, actionListener));
         List<Job> expandedJobs = expandedJobsBuilders.stream().map(j ->  j.build()).collect(Collectors.toList());
@@ -229,6 +240,23 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
                 jobConfigProvider.expandJobs("_all", false, actionListener));
         expandedJobs = expandedJobsBuilders.stream().map(j ->  j.build()).collect(Collectors.toList());
         assertThat(expandedJobs, containsInAnyOrder(tom, dick, harry, harryJnr));
+
+        expandedJobsBuilders = blockingCall(actionListener ->
+                jobConfigProvider.expandJobs("tom,harry", false, actionListener));
+        expandedJobs = expandedJobsBuilders.stream().map(j ->  j.build()).collect(Collectors.toList());
+        assertThat(expandedJobs, containsInAnyOrder(tom, harry));
+
+        expandedJobsBuilders = blockingCall(actionListener ->
+                jobConfigProvider.expandJobs("", false, actionListener));
+        expandedJobs = expandedJobsBuilders.stream().map(j ->  j.build()).collect(Collectors.toList());
+        assertThat(expandedJobs, containsInAnyOrder(tom, dick, harry, harryJnr));
+
+        AtomicReference<List<Job.Builder>> jobsHolder = new AtomicReference<>();
+        blockingCall(actionListener -> jobConfigProvider.expandJobs("tom,missing1,missing2", false, actionListener), jobsHolder, exceptionHolder);
+        assertNull(jobsHolder.get());
+        assertNotNull(exceptionHolder.get());
+        assertThat(exceptionHolder.get(), instanceOf(ResourceNotFoundException.class));
+        assertThat(exceptionHolder.get().getMessage(), equalTo("No known job with id 'missing1,missing2'"));
     }
 
     public void testExpandJobs_WildCardExpansion() throws Exception {

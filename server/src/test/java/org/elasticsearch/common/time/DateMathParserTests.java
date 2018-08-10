@@ -17,45 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.common.joda;
+package org.elasticsearch.common.time;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.test.ESTestCase;
-import org.joda.time.DateTimeZone;
 
-import java.util.TimeZone;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class DateMathParserTests extends ESTestCase {
 
-    FormatDateTimeFormatter formatter = Joda.forPattern("dateOptionalTime||epoch_millis");
-    DateMathParser parser = new DateMathParser(formatter);
-
-    void assertDateMathEquals(String toTest, String expected) {
-        assertDateMathEquals(toTest, expected, 0, false, null);
-    }
-
-    void assertDateMathEquals(String toTest, String expected, final long now, boolean roundUp, DateTimeZone timeZone) {
-        long gotMillis = parser.parse(toTest, () -> now, roundUp, timeZone);
-        assertDateEquals(gotMillis, toTest, expected);
-    }
-
-    void assertDateEquals(long gotMillis, String original, String expected) {
-        long expectedMillis = parser.parse(expected, () -> 0);
-        if (gotMillis != expectedMillis) {
-            fail("Date math not equal\n" +
-                "Original              : " + original + "\n" +
-                "Parsed                : " + formatter.printer().print(gotMillis) + "\n" +
-                "Expected              : " + expected + "\n" +
-                "Expected milliseconds : " + expectedMillis + "\n" +
-                "Actual milliseconds   : " + gotMillis + "\n");
-        }
-    }
+    private final CompoundDateTimeFormatter formatter = DateFormatters.forPattern("dateOptionalTime||epoch_millis");
+    private final DateMathParser parser = new DateMathParser(formatter);
 
     public void testBasicDates() {
         assertDateMathEquals("2014", "2014-01-01T00:00:00.000");
@@ -71,8 +52,8 @@ public class DateMathParserTests extends ESTestCase {
         assertDateMathEquals("2014-11-12T22:55:00.000Z", "2014-11-12T22:55:00.000Z", 0, true, null);
         assertDateMathEquals("2014-11-12T22:55:00.000Z", "2014-11-12T22:55:00.000Z", 0, false, null);
 
-        assertDateMathEquals("2014-11-12T22:55:00.000", "2014-11-12T21:55:00.000Z", 0, true, DateTimeZone.forID("+01:00"));
-        assertDateMathEquals("2014-11-12T22:55:00.000", "2014-11-12T21:55:00.000Z", 0, false, DateTimeZone.forID("+01:00"));
+        assertDateMathEquals("2014-11-12T22:55:00.000", "2014-11-12T21:55:00.000Z", 0, true, ZoneId.of("+01:00"));
+        assertDateMathEquals("2014-11-12T22:55:00.000", "2014-11-12T21:55:00.000Z", 0, false, ZoneId.of("+01:00"));
 
         assertDateMathEquals("2014-11-12T22:55:00.000+01:00", "2014-11-12T21:55:00.000Z", 0, true, null);
         assertDateMathEquals("2014-11-12T22:55:00.000+01:00", "2014-11-12T21:55:00.000Z", 0, false, null);
@@ -92,18 +73,18 @@ public class DateMathParserTests extends ESTestCase {
         assertDateMathEquals("2014-05-30T18:21-0000", "2014-05-30T18:21:00.000");
 
         // but also externally
-        assertDateMathEquals("2014-05-30T20:21", "2014-05-30T18:21:00.000", 0, false, DateTimeZone.forID("+02:00"));
-        assertDateMathEquals("2014-05-30T18:21", "2014-05-30T18:21:00.000", 0, false, DateTimeZone.forID("+00:00"));
-        assertDateMathEquals("2014-05-30T18:21", "2014-05-30T18:21:00.000", 0, false, DateTimeZone.forID("+00:00"));
-        assertDateMathEquals("2014-05-30T18:21", "2014-05-30T18:21:00.000", 0, false, DateTimeZone.forID("+00"));
-        assertDateMathEquals("2014-05-30T18:21", "2014-05-30T18:21:00.000", 0, false, DateTimeZone.forID("+0000"));
-        assertDateMathEquals("2014-05-30T18:21", "2014-05-30T18:21:00.000", 0, false, DateTimeZone.forID("-00:00"));
-        assertDateMathEquals("2014-05-30T18:21", "2014-05-30T18:21:00.000", 0, false, DateTimeZone.forID("-00"));
-        assertDateMathEquals("2014-05-30T18:21", "2014-05-30T18:21:00.000", 0, false, DateTimeZone.forID("-0000"));
+        assertDateMathEquals("2014-05-30T20:21", "2014-05-30T18:21:00.000", 0, false, ZoneId.of("+02:00"));
+        assertDateMathEquals("2014-05-30T18:21", "2014-05-30T18:21:00.000", 0, false, ZoneId.of("+00:00"));
+        assertDateMathEquals("2014-05-30T18:21", "2014-05-30T18:21:00.000", 0, false, ZoneId.of("+00:00"));
+        assertDateMathEquals("2014-05-30T18:21", "2014-05-30T18:21:00.000", 0, false, ZoneId.of("+00"));
+        assertDateMathEquals("2014-05-30T18:21", "2014-05-30T18:21:00.000", 0, false, ZoneId.of("+0000"));
+        assertDateMathEquals("2014-05-30T18:21", "2014-05-30T18:21:00.000", 0, false, ZoneId.of("-00:00"));
+        assertDateMathEquals("2014-05-30T18:21", "2014-05-30T18:21:00.000", 0, false, ZoneId.of("-00"));
+        assertDateMathEquals("2014-05-30T18:21", "2014-05-30T18:21:00.000", 0, false, ZoneId.of("-0000"));
 
         // and timezone in the date has priority
-        assertDateMathEquals("2014-05-30T20:21+03:00", "2014-05-30T17:21:00.000", 0, false, DateTimeZone.forID("-08:00"));
-        assertDateMathEquals("2014-05-30T20:21Z", "2014-05-30T20:21:00.000", 0, false, DateTimeZone.forID("-08:00"));
+        assertDateMathEquals("2014-05-30T20:21+03:00", "2014-05-30T17:21:00.000", 0, false, ZoneId.of("-08:00"));
+        assertDateMathEquals("2014-05-30T20:21Z", "2014-05-30T20:21:00.000", 0, false, ZoneId.of("-08:00"));
     }
 
     public void testBasicMath() {
@@ -143,7 +124,6 @@ public class DateMathParserTests extends ESTestCase {
         assertDateMathEquals("2014-11-18||+1M/M+1h", "2014-12-01T01");
     }
 
-
     public void testNow() {
         final long now = parser.parse("2014-11-18T14:27:32", () -> 0, false, null);
 
@@ -153,19 +133,20 @@ public class DateMathParserTests extends ESTestCase {
         assertDateMathEquals("now/m", "2014-11-18T14:27", now, false, null);
 
         // timezone does not affect now
-        assertDateMathEquals("now/m", "2014-11-18T14:27", now, false, DateTimeZone.forID("+02:00"));
+        assertDateMathEquals("now/m", "2014-11-18T14:27", now, false, ZoneId.of("+02:00"));
     }
 
     public void testRoundingPreservesEpochAsBaseDate() {
         // If a user only specifies times, then the date needs to always be 1970-01-01 regardless of rounding
-        FormatDateTimeFormatter formatter = Joda.forPattern("HH:mm:ss");
+        CompoundDateTimeFormatter formatter = DateFormatters.forPattern("HH:mm:ss");
         DateMathParser parser = new DateMathParser(formatter);
-        assertEquals(
-                this.formatter.parser().parseMillis("1970-01-01T04:52:20.000Z"),
-                parser.parse("04:52:20", () -> 0, false, null));
-        assertEquals(
-                this.formatter.parser().parseMillis("1970-01-01T04:52:20.999Z"),
-                parser.parse("04:52:20", () -> 0, true, null));
+        ZonedDateTime zonedDateTime = DateFormatters.toZonedDateTime(formatter.parse("04:52:20"));
+        assertThat(zonedDateTime.getYear(), is(1970));
+        long millisStart = zonedDateTime.toInstant().toEpochMilli();
+        assertEquals(millisStart, parser.parse("04:52:20", () -> 0, false, null));
+        // due to rounding up, we have to add the number of milliseconds here manually
+        long millisEnd = DateFormatters.toZonedDateTime(formatter.parse("04:52:20")).toInstant().toEpochMilli() + 999;
+        assertEquals(millisEnd, parser.parse("04:52:20", () -> 0, true, null));
     }
 
     // Implicit rounding happening when parts of the date are not specified
@@ -176,14 +157,14 @@ public class DateMathParserTests extends ESTestCase {
         assertDateMathEquals("2014-11-18T09:20", "2014-11-18T09:20", 0, false, null);
         assertDateMathEquals("2014-11-18T09:20", "2014-11-18T09:20:59.999Z", 0, true, null);
 
-        assertDateMathEquals("2014-11-18", "2014-11-17T23:00:00.000Z", 0, false, DateTimeZone.forID("CET"));
-        assertDateMathEquals("2014-11-18", "2014-11-18T22:59:59.999Z", 0, true, DateTimeZone.forID("CET"));
+        assertDateMathEquals("2014-11-18", "2014-11-17T23:00:00.000Z", 0, false, ZoneId.of("CET"));
+        assertDateMathEquals("2014-11-18", "2014-11-18T22:59:59.999Z", 0, true, ZoneId.of("CET"));
 
-        assertDateMathEquals("2014-11-18T09:20", "2014-11-18T08:20:00.000Z", 0, false, DateTimeZone.forID("CET"));
-        assertDateMathEquals("2014-11-18T09:20", "2014-11-18T08:20:59.999Z", 0, true, DateTimeZone.forID("CET"));
+        assertDateMathEquals("2014-11-18T09:20", "2014-11-18T08:20:00.000Z", 0, false, ZoneId.of("CET"));
+        assertDateMathEquals("2014-11-18T09:20", "2014-11-18T08:20:59.999Z", 0, true, ZoneId.of("CET"));
 
         // implicit rounding with explicit timezone in the date format
-        FormatDateTimeFormatter formatter = Joda.forPattern("YYYY-MM-ddZ");
+        CompoundDateTimeFormatter formatter = DateFormatters.forPattern("yyyy-MM-ddXXX");
         DateMathParser parser = new DateMathParser(formatter);
         long time = parser.parse("2011-10-09+01:00", () -> 0, false, null);
         assertEquals(this.parser.parse("2011-10-09T00:00:00.000+01:00", () -> 0), time);
@@ -198,16 +179,18 @@ public class DateMathParserTests extends ESTestCase {
         assertDateMathEquals("2014||/y", "2014-01-01", 0, false, null);
         assertDateMathEquals("2014-01-01T00:00:00.001||/y", "2014-12-31T23:59:59.999", 0, true, null);
         // rounding should also take into account time zone
-        assertDateMathEquals("2014-11-18||/y", "2013-12-31T23:00:00.000Z", 0, false, DateTimeZone.forID("CET"));
-        assertDateMathEquals("2014-11-18||/y", "2014-12-31T22:59:59.999Z", 0, true, DateTimeZone.forID("CET"));
+        assertDateMathEquals("2014-11-18||/y", "2013-12-31T23:00:00.000Z", 0, false, ZoneId.of("CET"));
+        assertDateMathEquals("2014-11-18||/y", "2014-12-31T22:59:59.999Z", 0, true, ZoneId.of("CET"));
 
         assertDateMathEquals("2014-11-18||/M", "2014-11-01", 0, false, null);
         assertDateMathEquals("2014-11-18||/M", "2014-11-30T23:59:59.999", 0, true, null);
         assertDateMathEquals("2014-11||/M", "2014-11-01", 0, false, null);
         assertDateMathEquals("2014-11||/M", "2014-11-30T23:59:59.999", 0, true, null);
-        assertDateMathEquals("2014-11-18||/M", "2014-10-31T23:00:00.000Z", 0, false, DateTimeZone.forID("CET"));
-        assertDateMathEquals("2014-11-18||/M", "2014-11-30T22:59:59.999Z", 0, true, DateTimeZone.forID("CET"));
+        assertDateMathEquals("2014-11-18||/M", "2014-10-31T23:00:00.000Z", 0, false, ZoneId.of("CET"));
+        assertDateMathEquals("2014-11-18||/M", "2014-11-30T22:59:59.999Z", 0, true, ZoneId.of("CET"));
 
+        assertDateMathEquals("2014-11-18T14||/w", "2014-11-17", 0, false, null);
+        assertDateMathEquals("2014-11-18T14||/w", "2014-11-23T23:59:59.999", 0, true, null);
         assertDateMathEquals("2014-11-17T14||/w", "2014-11-17", 0, false, null);
         assertDateMathEquals("2014-11-18T14||/w", "2014-11-17", 0, false, null);
         assertDateMathEquals("2014-11-19T14||/w", "2014-11-17", 0, false, null);
@@ -215,14 +198,12 @@ public class DateMathParserTests extends ESTestCase {
         assertDateMathEquals("2014-11-21T14||/w", "2014-11-17", 0, false, null);
         assertDateMathEquals("2014-11-22T14||/w", "2014-11-17", 0, false, null);
         assertDateMathEquals("2014-11-23T14||/w", "2014-11-17", 0, false, null);
-        assertDateMathEquals("2014-11-18T14||/w", "2014-11-23T23:59:59.999", 0, true, null);
-        assertDateMathEquals("2014-11-18||/w", "2014-11-17", 0, false, null);
         assertDateMathEquals("2014-11-18||/w", "2014-11-23T23:59:59.999", 0, true, null);
-        assertDateMathEquals("2014-11-18||/w", "2014-11-16T23:00:00.000Z", 0, false, DateTimeZone.forID("+01:00"));
-        assertDateMathEquals("2014-11-18||/w", "2014-11-17T01:00:00.000Z", 0, false, DateTimeZone.forID("-01:00"));
-        assertDateMathEquals("2014-11-18||/w", "2014-11-16T23:00:00.000Z", 0, false, DateTimeZone.forID("CET"));
-        assertDateMathEquals("2014-11-18||/w", "2014-11-23T22:59:59.999Z", 0, true, DateTimeZone.forID("CET"));
-        assertDateMathEquals("2014-07-22||/w", "2014-07-20T22:00:00.000Z", 0, false, DateTimeZone.forID("CET")); // with DST
+        assertDateMathEquals("2014-11-18||/w", "2014-11-16T23:00:00.000Z", 0, false, ZoneId.of("+01:00"));
+        assertDateMathEquals("2014-11-18||/w", "2014-11-17T01:00:00.000Z", 0, false, ZoneId.of("-01:00"));
+        assertDateMathEquals("2014-11-18||/w", "2014-11-16T23:00:00.000Z", 0, false, ZoneId.of("CET"));
+        assertDateMathEquals("2014-11-18||/w", "2014-11-23T22:59:59.999Z", 0, true, ZoneId.of("CET"));
+        assertDateMathEquals("2014-07-22||/w", "2014-07-20T22:00:00.000Z", 0, false, ZoneId.of("CET")); // with DST
 
         assertDateMathEquals("2014-11-18T14||/d", "2014-11-18", 0, false, null);
         assertDateMathEquals("2014-11-18T14||/d", "2014-11-18T23:59:59.999", 0, true, null);
@@ -258,7 +239,7 @@ public class DateMathParserTests extends ESTestCase {
         assertDateMathEquals("1418248078000||/m", "2014-12-10T21:47:00.000");
 
         // also check other time units
-        DateMathParser parser = new DateMathParser(Joda.forPattern("epoch_second||dateOptionalTime"));
+        DateMathParser parser = new DateMathParser(DateFormatters.forPattern("epoch_second||dateOptionalTime"));
         long datetime = parser.parse("1418248078", () -> 0);
         assertDateEquals(datetime, "1418248078", "2014-12-10T21:47:58.000");
 
@@ -275,7 +256,7 @@ public class DateMathParserTests extends ESTestCase {
             parser.parse(date, () -> 0);
             fail("Date: " + date + "\n" + msg);
         } catch (ElasticsearchParseException e) {
-            assertThat(ExceptionsHelper.detailedMessage(e).contains(exc), equalTo(true));
+            assertThat(ExceptionsHelper.detailedMessage(e), containsString(exc));
         }
     }
 
@@ -289,7 +270,7 @@ public class DateMathParserTests extends ESTestCase {
 
     public void testIllegalDateFormat() {
         assertParseException("Expected bad timestamp exception", Long.toString(Long.MAX_VALUE) + "0", "failed to parse date field");
-        assertParseException("Expected bad date format exception", "123bogus", "with format");
+        assertParseException("Expected bad date format exception", "123bogus", "could not be parsed");
     }
 
     public void testOnlyCallsNowIfNecessary() {
@@ -304,14 +285,25 @@ public class DateMathParserTests extends ESTestCase {
         assertTrue(called.get());
     }
 
-    public void testThatUnixTimestampMayNotHaveTimeZone() {
-        DateMathParser parser = new DateMathParser(Joda.forPattern("epoch_millis"));
-        try {
-            parser.parse("1234567890123", () -> 42, false, DateTimeZone.forTimeZone(TimeZone.getTimeZone("CET")));
-            fail("Expected ElasticsearchParseException");
-        } catch(ElasticsearchParseException e) {
-            assertThat(e.getMessage(), containsString("failed to parse date field"));
-            assertThat(e.getMessage(), containsString("with format [epoch_millis]"));
+    private void assertDateMathEquals(String toTest, String expected) {
+        assertDateMathEquals(toTest, expected, 0, false, null);
+    }
+
+    private void assertDateMathEquals(String toTest, String expected, final long now, boolean roundUp, ZoneId timeZone) {
+        long gotMillis = parser.parse(toTest, () -> now, roundUp, timeZone);
+        assertDateEquals(gotMillis, toTest, expected);
+    }
+
+    private void assertDateEquals(long gotMillis, String original, String expected) {
+        long expectedMillis = parser.parse(expected, () -> 0);
+        if (gotMillis != expectedMillis) {
+            ZonedDateTime zonedDateTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(gotMillis), ZoneOffset.UTC);
+            fail("Date math not equal\n" +
+                "Original              : " + original + "\n" +
+                "Parsed                : " + formatter.format(zonedDateTime) + "\n" +
+                "Expected              : " + expected + "\n" +
+                "Expected milliseconds : " + expectedMillis + "\n" +
+                "Actual milliseconds   : " + gotMillis + "\n");
         }
     }
 }

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.configcreator;
 
-import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -31,8 +30,7 @@ public class JsonLogFileStructureFinder extends AbstractStructuredLogFileStructu
     private final List<String> sampleMessages;
     private final LogFileStructure structure;
 
-    JsonLogFileStructureFinder(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker)
-        throws IOException, UserException {
+    JsonLogFileStructureFinder(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker) throws IOException {
 
         List<Map<String, ?>> sampleRecords = new ArrayList<>();
 

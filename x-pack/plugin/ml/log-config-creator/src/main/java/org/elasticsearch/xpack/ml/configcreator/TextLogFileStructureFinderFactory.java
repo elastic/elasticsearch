@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.configcreator;
 
-import org.elasticsearch.cli.UserException;
-
 import java.util.List;
 import java.util.regex.Pattern;
 
@@ -35,8 +33,8 @@ public class TextLogFileStructureFinderFactory implements LogFileStructureFinder
     }
 
     @Override
-    public LogFileStructureFinder createFromSample(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker)
-        throws UserException {
+    public LogFileStructureFinder createFromSample(List<String> explanation, String sample, String charsetName,
+                                                   Boolean hasByteOrderMarker) {
         return new TextLogFileStructureFinder(explanation, sample, charsetName, hasByteOrderMarker);
     }
 }

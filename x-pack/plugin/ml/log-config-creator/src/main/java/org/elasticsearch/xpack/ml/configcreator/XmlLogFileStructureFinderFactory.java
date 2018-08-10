@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.configcreator;
 
-import org.elasticsearch.cli.UserException;
 import org.xml.sax.SAXException;
 
 import javax.xml.parsers.ParserConfigurationException;
@@ -117,7 +116,7 @@ public class XmlLogFileStructureFinderFactory implements LogFileStructureFinderF
 
     @Override
     public LogFileStructureFinder createFromSample(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker)
-        throws IOException, ParserConfigurationException, SAXException, UserException {
+        throws IOException, ParserConfigurationException, SAXException {
         return new XmlLogFileStructureFinder(explanation, sample, charsetName, hasByteOrderMarker);
     }
 }

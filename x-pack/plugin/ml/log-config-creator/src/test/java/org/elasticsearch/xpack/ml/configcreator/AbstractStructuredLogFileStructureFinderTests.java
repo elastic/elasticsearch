@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.configcreator;
 
-import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.ml.configcreator.TimestampFormatFinder.TimestampMatch;
 
@@ -243,7 +242,7 @@ public class AbstractStructuredLogFileStructureFinderTests extends LogConfigCrea
         assertEquals("Field [foo] has both object and non-object values - this won't work with Elasticsearch", e.getMessage());
     }
 
-    public void testGuessMappings() throws UserException {
+    public void testGuessMappings() {
         Map<String, Object> sample1 = new LinkedHashMap<>();
         sample1.put("foo", "not a time");
         sample1.put("time", "2018-05-24 17:28:31,735");

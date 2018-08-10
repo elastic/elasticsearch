@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.configcreator;
 
-import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.ml.configcreator.TimestampFormatFinder.TimestampMatch;
 import org.supercsv.exception.SuperCsvException;
@@ -37,7 +36,7 @@ public class SeparatedValuesLogFileStructureFinder extends AbstractStructuredLog
     private final LogFileStructure structure;
 
     SeparatedValuesLogFileStructureFinder(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker,
-                                          CsvPreference csvPreference, boolean trimFields) throws IOException, UserException {
+                                          CsvPreference csvPreference, boolean trimFields) throws IOException {
 
         Tuple<List<List<String>>, List<Integer>> parsed = readRows(sample, csvPreference);
         List<List<String>> rows = parsed.v1();

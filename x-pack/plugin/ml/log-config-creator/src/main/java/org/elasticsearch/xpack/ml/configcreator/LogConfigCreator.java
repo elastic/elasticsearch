@@ -162,7 +162,7 @@ public class LogConfigCreator extends Command {
                 terminal.println(Verbosity.VERBOSE, reason);
             }
             logConfigWriter.writeConfigs(structure, structureFinder.getSampleMessages(), outputDirectory);
-        } catch (IOException e) {
+        } catch (IllegalArgumentException | IOException e) {
             throw new UserException(ExitCodes.DATA_ERROR, "Cannot determine format of file [" + file + "]: " + e.getMessage());
         }
     }

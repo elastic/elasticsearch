@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.configcreator;
 
-import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.ml.configcreator.TimestampFormatFinder.TimestampMatch;
 import org.w3c.dom.Document;
@@ -38,7 +37,7 @@ public class XmlLogFileStructureFinder extends AbstractStructuredLogFileStructur
     private final LogFileStructure structure;
 
     XmlLogFileStructureFinder(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker)
-        throws IOException, ParserConfigurationException, SAXException, UserException {
+        throws IOException, ParserConfigurationException, SAXException {
 
         String messagePrefix;
         try (Scanner scanner = new Scanner(sample)) {

@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.configcreator;
 
 import com.ibm.icu.text.CharsetMatch;
-import org.elasticsearch.cli.UserException;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.Charset;
@@ -42,7 +41,7 @@ public class LogFileStructureFinderManagerTests extends LogConfigCreatorTestCase
         try {
             CharsetMatch charsetMatch = structureFinderManager.findCharset(explanation, new ByteArrayInputStream(binaryBytes));
             assertThat(charsetMatch.getName(), startsWith("UTF-16"));
-        } catch (UserException e) {
+        } catch (IllegalArgumentException e) {
             assertEquals("Could not determine a usable character encoding for the input - could it be binary data?", e.getMessage());
         }
     }

@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.configcreator;
 
-import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.ml.configcreator.TimestampFormatFinder.TimestampMatch;
 
@@ -27,15 +25,14 @@ public class TextLogFileStructureFinder extends AbstractLogFileStructureFinder i
     private final List<String> sampleMessages;
     private final LogFileStructure structure;
 
-    TextLogFileStructureFinder(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker)
-        throws UserException {
+    TextLogFileStructureFinder(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker) {
 
         String[] sampleLines = sample.split("\n");
         Tuple<TimestampMatch, Set<String>> bestTimestamp = mostLikelyTimestamp(sampleLines);
         if (bestTimestamp == null) {
             // Is it appropriate to treat a file that is neither structured nor has
             // a regular pattern of timestamps as a log file?  Probably not...
-            throw new UserException(ExitCodes.DATA_ERROR, "Could not find a timestamp in the log sample provided");
+            throw new IllegalArgumentException("Could not find a timestamp in the log sample provided");
         }
 
         explanation.add("Most likely timestamp format is [" + bestTimestamp.v1() + "]");

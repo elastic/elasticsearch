@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.configcreator;
 
-import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.ml.configcreator.TimestampFormatFinder.TimestampMatch;
 
@@ -82,25 +80,21 @@ public abstract class AbstractStructuredLogFileStructureFinder extends AbstractL
      * @param sampleRecords The sampled records.
      * @return A map of field name to mapping settings.
      */
-    protected SortedMap<String, Object> guessMappings(List<String> explanation, List<Map<String, ?>> sampleRecords) throws UserException {
+    protected SortedMap<String, Object> guessMappings(List<String> explanation, List<Map<String, ?>> sampleRecords) {
 
         SortedMap<String, Object> mappings = new TreeMap<>();
 
         if (sampleRecords != null) {
 
-            try {
-                for (Map<String, ?> sampleRecord : sampleRecords) {
-                    for (String fieldName : sampleRecord.keySet()) {
-                        mappings.computeIfAbsent(fieldName, key -> guessMapping(explanation, fieldName,
-                            sampleRecords.stream().flatMap(record -> {
+            for (Map<String, ?> sampleRecord : sampleRecords) {
+                for (String fieldName : sampleRecord.keySet()) {
+                    mappings.computeIfAbsent(fieldName, key -> guessMapping(explanation, fieldName,
+                        sampleRecords.stream().flatMap(record -> {
                                 Object fieldValue = record.get(fieldName);
                                 return (fieldValue == null) ? Stream.empty() : Stream.of(fieldValue);
                             }
                         ).collect(Collectors.toList())));
-                    }
                 }
-            } catch (RuntimeException e) {
-                throw new UserException(ExitCodes.DATA_ERROR, e.getMessage(), e);
             }
         }
 
@@ -119,7 +113,7 @@ public abstract class AbstractStructuredLogFileStructureFinder extends AbstractL
             if (fieldValues.stream().allMatch(value -> value instanceof Map)) {
                 return Collections.singletonMap(MAPPING_TYPE_SETTING, "object");
             }
-            throw new RuntimeException("Field [" + fieldName +
+            throw new IllegalArgumentException("Field [" + fieldName +
                 "] has both object and non-object values - this won't work with Elasticsearch");
         }
 

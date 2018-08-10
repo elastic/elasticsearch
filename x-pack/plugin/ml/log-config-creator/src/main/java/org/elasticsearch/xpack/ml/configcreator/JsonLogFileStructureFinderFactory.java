@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.configcreator;
 
-import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -63,7 +62,7 @@ public class JsonLogFileStructureFinderFactory implements LogFileStructureFinder
 
     @Override
     public LogFileStructureFinder createFromSample(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker)
-        throws IOException, UserException {
+        throws IOException {
         return new JsonLogFileStructureFinder(explanation, sample, charsetName, hasByteOrderMarker);
     }
 

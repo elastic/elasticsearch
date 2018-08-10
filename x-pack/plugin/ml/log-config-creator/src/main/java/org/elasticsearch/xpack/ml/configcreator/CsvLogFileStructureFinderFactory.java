@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.configcreator;
 
-import org.elasticsearch.cli.UserException;
 import org.supercsv.prefs.CsvPreference;
 
 import java.io.IOException;
@@ -29,7 +28,7 @@ public class CsvLogFileStructureFinderFactory implements LogFileStructureFinderF
 
     @Override
     public LogFileStructureFinder createFromSample(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker)
-        throws IOException, UserException {
+        throws IOException {
         return new SeparatedValuesLogFileStructureFinder(explanation, sample, charsetName, hasByteOrderMarker,
             CsvPreference.EXCEL_PREFERENCE, false);
     }

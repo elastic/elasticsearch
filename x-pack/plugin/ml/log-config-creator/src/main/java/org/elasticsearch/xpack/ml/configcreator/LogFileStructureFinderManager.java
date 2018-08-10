@@ -7,8 +7,6 @@ package org.elasticsearch.xpack.ml.configcreator;
 
 import com.ibm.icu.text.CharsetDetector;
 import com.ibm.icu.text.CharsetMatch;
-import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.collect.Tuple;
 
 import java.io.BufferedInputStream;
@@ -184,7 +182,7 @@ public final class LogFileStructureFinderManager {
             }
         }
 
-        throw new UserException(ExitCodes.DATA_ERROR, "Could not determine a usable character encoding for the input" +
+        throw new IllegalArgumentException("Could not determine a usable character encoding for the input" +
             (containsZeroBytes ? " - could it be binary data?" : ""));
     }
 
@@ -196,7 +194,7 @@ public final class LogFileStructureFinderManager {
                 return factory.createFromSample(explanation, sample, charsetName, hasByteOrderMarker);
             }
         }
-        throw new UserException(ExitCodes.DATA_ERROR, "Input did not match any known formats");
+        throw new IllegalArgumentException("Input did not match any known formats");
     }
 
     private Tuple<String, Boolean> sampleFile(Reader reader, String charsetName, int minLines, int maxLines) throws IOException {
@@ -226,7 +224,7 @@ public final class LogFileStructureFinderManager {
         }
 
         if (lineCount < minLines) {
-            throw new IOException("Input contained too few lines to sample");
+            throw new IllegalArgumentException("Input contained too few lines to sample");
         }
 
         return new Tuple<>(sample.toString(), hasByteOrderMarker);

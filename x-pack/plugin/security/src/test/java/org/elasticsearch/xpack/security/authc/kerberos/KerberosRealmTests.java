@@ -110,6 +110,7 @@ public class KerberosRealmTests extends KerberosRealmTestCase {
         assertThat(future.actionGet(), is(nullValue()));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32768")
     public void testKerberosRealmWithInvalidKeytabPathConfigurations() throws IOException {
         final String keytabPathCase = randomFrom("keytabPathAsDirectory", "keytabFileDoesNotExist", "keytabPathWithNoReadPermissions");
         final String expectedErrorMessage;

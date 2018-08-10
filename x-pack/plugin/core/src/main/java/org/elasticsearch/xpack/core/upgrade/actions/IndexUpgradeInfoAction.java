@@ -26,7 +26,8 @@ public class IndexUpgradeInfoAction extends Action<IndexUpgradeInfoResponse> {
         return new IndexUpgradeInfoResponse();
     }
 
-    public static class RequestBuilder extends MasterNodeReadOperationRequestBuilder<IndexUpgradeInfoRequest, IndexUpgradeInfoResponse, RequestBuilder> {
+    public static class RequestBuilder
+        extends MasterNodeReadOperationRequestBuilder<IndexUpgradeInfoRequest, IndexUpgradeInfoResponse, RequestBuilder> {
 
         public RequestBuilder(ElasticsearchClient client) {
             super(client, INSTANCE, new IndexUpgradeInfoRequest());
@@ -42,5 +43,4 @@ public class IndexUpgradeInfoAction extends Action<IndexUpgradeInfoResponse> {
             return this;
         }
     }
-
 }

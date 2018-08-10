@@ -184,7 +184,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             .build();
     }
 
-    protected IndexSettings indexSettings() {
+    protected static IndexSettings indexSettings() {
         return serviceHolder.idxSettings;
     }
 

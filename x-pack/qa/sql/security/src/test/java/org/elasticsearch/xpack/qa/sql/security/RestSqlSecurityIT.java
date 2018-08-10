@@ -213,7 +213,7 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
     /**
      * Test the hijacking a scroll fails. This test is only implemented for
      * REST because it is the only API where it is simple to hijack a scroll.
-     * It should excercise the same code as the other APIs but if we were truly
+     * It should exercise the same code as the other APIs but if we were truly
      * paranoid we'd hack together something to test the others as well.
      */
     public void testHijackScrollFails() throws Exception {

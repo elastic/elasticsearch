@@ -60,7 +60,7 @@ public final class GrokPatternCreator {
             // minus sign is not a "word" character)
             new GrokPatternCandidate("NUMBER", "field", "(?<!\\w)"),
             // Disallow +, - and . before hex numbers, otherwise this pattern will pick up base 10
-            // numbers that NUMBER rejected due to preceeding characters
+            // numbers that NUMBER rejected due to preceding characters
             new GrokPatternCandidate("BASE16NUM", "field", "(?<![\\w.+-])")
             // TODO: also unfortunately can't have USERNAME in the list as it matches too broadly
             // Fixing these problems with overly broad matches would require some extra intelligence

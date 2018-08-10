@@ -68,7 +68,7 @@ public class BinaryProcessorDefinitionTests extends ESTestCase {
     }
 
     /**
-     * Returns {@code true} if the processor defintion builds a query that
+     * Returns {@code true} if the processor definition builds a query that
      * tracks scores, {@code false} otherwise. Used for testing
      * {@link ProcessorDefinition#collectFields(SqlSourceBuilder)}.
      */

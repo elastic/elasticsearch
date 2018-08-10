@@ -15,7 +15,7 @@ abstract class StringFunctionUtils {
      *
      * @param s       the original String
      * @param start   starting position for the substring within the original string. 0-based index position
-     * @param length  length in characters of the substracted substring
+     * @param length  length in characters of the subtracted substring
      * @return the resulting String
      */
     static String substring(String s, int start, int length) {

@@ -149,7 +149,7 @@ public class BulkRequestTests extends ESTestCase {
         IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
             () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null, XContentType.JSON));
         assertThat(exc.getMessage(),
-            containsString("Malformed action/metadata line [5], expected a simple value for field [_unkown] but found [START_ARRAY]"));
+            containsString("Malformed action/metadata line [5], expected a simple value for field [_unknown] but found [START_ARRAY]"));
     }
 
     public void testSimpleBulk8() throws Exception {

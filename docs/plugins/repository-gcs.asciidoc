@@ -185,7 +185,7 @@ are marked as `Secure`.
 
 `project_id`::
 
-    The Google Cloud project id. This will be automatically infered from the credentials file but
+    The Google Cloud project id. This will be automatically inferred from the credentials file but
     can be specified explicitly. For example, it can be used to switch between projects when the
     same credentials are usable for both the production and the development projects.
 

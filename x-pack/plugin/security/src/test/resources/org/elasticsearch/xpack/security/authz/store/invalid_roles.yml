@@ -23,7 +23,7 @@ role3:
   cluster: ALL
   indices: '*': ALL
 
-# invalid role indices privilegs
+# invalid role indices privileges
 role4:
   cluster: ALL
   indices:

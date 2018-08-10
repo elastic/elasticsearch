@@ -172,7 +172,7 @@ setup:
             "job_id":"datafeeds-crud-1",
             "indexes":["index-foo"],
             "types":["type-bar"],
-            "query":{"match_all_mispelled":{}}
+            "query":{"match_all_misspelled":{}}
           }
 
 ---

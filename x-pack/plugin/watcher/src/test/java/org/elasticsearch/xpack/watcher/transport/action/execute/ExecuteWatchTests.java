@@ -105,7 +105,7 @@ public class ExecuteWatchTests extends AbstractWatcherIntegrationTestCase {
         }
 
         if (mode.force()) {
-            // since we're forcing, lets ack the action, such that it'd suppoed to be throttled
+            // since we're forcing, lets ack the action, such that it'd supposed to be throttled
             // but forcing will ignore the throttling
 
             // lets wait for the watch to be ackable

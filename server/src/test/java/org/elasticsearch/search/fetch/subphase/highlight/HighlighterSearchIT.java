@@ -334,29 +334,29 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                         "long_term", "type=text,term_vector=with_positions_offsets"));
 
         client().prepareIndex("test", "type1", "1")
-                .setSource("no_long_term", "This is a test where foo is highlighed and should be highlighted",
-                        "long_term", "This is a test thisisaverylongwordandmakessurethisfails where foo is highlighed "
+                .setSource("no_long_term", "This is a test where foo is highlighted and should be highlighted",
+                        "long_term", "This is a test thisisaverylongwordandmakessurethisfails where foo is highlighted "
                             + "and should be highlighted")
                 .get();
         refresh();
         SearchResponse search = client().prepareSearch()
-                .setQuery(matchQuery("long_term", "thisisaverylongwordandmakessurethisfails foo highlighed"))
+                .setQuery(matchQuery("long_term", "thisisaverylongwordandmakessurethisfails foo highlighted"))
                 .highlighter(new HighlightBuilder().field("long_term", 18, 1).highlighterType("fvh"))
                 .get();
         assertHighlight(search, 0, "long_term", 0, 1, equalTo("<em>thisisaverylongwordandmakessurethisfails</em>"));
 
         search = client().prepareSearch()
-                .setQuery(matchPhraseQuery("no_long_term", "test foo highlighed").slop(3))
+                .setQuery(matchPhraseQuery("no_long_term", "test foo highlighted").slop(3))
                 .highlighter(new HighlightBuilder().field("no_long_term", 18, 1).highlighterType("fvh").postTags("</b>").preTags("<b>"))
                 .get();
         assertNotHighlighted(search, 0, "no_long_term");
 
         search = client().prepareSearch()
-                .setQuery(matchPhraseQuery("no_long_term", "test foo highlighed").slop(3))
+                .setQuery(matchPhraseQuery("no_long_term", "test foo highlighted").slop(3))
                 .highlighter(new HighlightBuilder().field("no_long_term", 30, 1).highlighterType("fvh").postTags("</b>").preTags("<b>"))
                 .get();
 
-        assertHighlight(search, 0, "no_long_term", 0, 1, equalTo("a <b>test</b> where <b>foo</b> is <b>highlighed</b> and"));
+        assertHighlight(search, 0, "no_long_term", 0, 1, equalTo("a <b>test</b> where <b>foo</b> is <b>highlighted</b> and"));
     }
 
     public void testSourceLookupHighlightingUsingPlainHighlighter() throws Exception {

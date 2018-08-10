@@ -482,7 +482,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
                 "        type: test_type\n" +
                 "warnings:\n" +
                 "    - some test warning they are typically pretty long\n" +
-                "    - some other test warning somtimes they have [in] them"
+                "    - some other test warning sometimes they have [in] them"
         );
 
         DoSection doSection = DoSection.parse(parser);
@@ -496,7 +496,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         assertThat(doSection.getApiCallSection().getBodies().size(), equalTo(0));
         assertThat(doSection.getExpectedWarningHeaders(), equalTo(Arrays.asList(
                 "some test warning they are typically pretty long",
-                "some other test warning somtimes they have [in] them")));
+                "some other test warning sometimes they have [in] them")));
 
         parser = createParser(YamlXContent.yamlXContent,
                 "indices.get_field_mapping:\n" +

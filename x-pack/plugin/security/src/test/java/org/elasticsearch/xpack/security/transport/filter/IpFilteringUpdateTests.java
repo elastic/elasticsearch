@@ -121,7 +121,7 @@ public class IpFilteringUpdateTests extends SecurityIntegTestCase {
         }
     }
 
-    // issue #762, occured because in the above test we use HTTP and transport
+    // issue #762, occurred because in the above test we use HTTP and transport
     public void testThatDisablingIpFilterWorksAsExpected() throws Exception {
         Settings settings = Settings.builder()
                 .put("xpack.security.transport.filter.deny", "127.0.0.8")

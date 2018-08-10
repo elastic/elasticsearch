@@ -573,7 +573,7 @@ public class MlJobIT extends ESRestTestCase {
     }
 
     public void testDelete_multipleRequest() throws Exception {
-        String jobId = "delete-job-mulitple-times";
+        String jobId = "delete-job-multiple-times";
         createFarequoteJob(jobId);
 
         ConcurrentMapLong<Response> responses = ConcurrentCollections.newConcurrentMapLong();

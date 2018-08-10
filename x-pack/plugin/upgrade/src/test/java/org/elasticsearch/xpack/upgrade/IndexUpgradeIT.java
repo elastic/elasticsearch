@@ -47,7 +47,7 @@ public class IndexUpgradeIT extends IndexUpgradeIntegTestCase {
 
     public void testIndexUpgradeInfoLicense() throws Exception {
         // This test disables all licenses and generates a new one using dev private key
-        // in non-snapshot builds we are using produciton public key for license verification
+        // in non-snapshot builds we are using production public key for license verification
         // which makes this test to fail
         assumeTrue("License is only valid when tested against snapshot/test keys", Build.CURRENT.isSnapshot());
         assertAcked(client().admin().indices().prepareCreate("test").get());

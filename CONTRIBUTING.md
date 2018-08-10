@@ -320,7 +320,7 @@ have to test Elasticsearch.
 #### Configurations
 
 Gradle organizes dependencies and build artifacts into "configurations" and
-allows you to use these configurations arbitrarilly. Here are some of the most
+allows you to use these configurations arbitrarily. Here are some of the most
 common configurations in our build and how we use them:
 
 <dl>

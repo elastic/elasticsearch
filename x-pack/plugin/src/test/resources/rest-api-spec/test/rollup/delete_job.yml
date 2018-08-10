@@ -177,7 +177,7 @@ setup:
   - is_true: acknowledged
 
 ---
-"Test delete non-existant job":
+"Test delete non-existent job":
 
   - do:
       catch: /the task with id does_not_exist doesn't exist/

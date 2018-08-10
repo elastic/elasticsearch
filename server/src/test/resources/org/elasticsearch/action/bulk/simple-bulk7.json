@@ -2,5 +2,5 @@
 {"field1": "value0"}
 {"index": {"_index": "test", "_type": "doc", "_id": 1}}
 {"field1": "value1"}
-{"index": {"_index": "test", "_type": "doc", "_id": 2, "_unkown": ["foo", "bar"]}}
+{"index": {"_index": "test", "_type": "doc", "_id": 2, "_unknown": ["foo", "bar"]}}
 {"field1": "value2"}

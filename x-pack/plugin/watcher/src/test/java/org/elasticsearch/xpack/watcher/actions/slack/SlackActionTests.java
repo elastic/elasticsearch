@@ -117,7 +117,7 @@ public class SlackActionTests extends ESTestCase {
                     hasError = true;
                     break;
                 case 1:
-                    when(response.status()).thenReturn(randomIntBetween(300, 600)); // error reponse
+                    when(response.status()).thenReturn(randomIntBetween(300, 600)); // error response
                     messages.add(SentMessages.SentMessage.responded(randomAlphaOfLength(10), message, request, response));
                     hasError = true;
                     break;

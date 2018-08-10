@@ -83,7 +83,7 @@ public class PainlessExecuteRequestTests extends AbstractStreamableXContentTestC
         QueryBuilder query = randomBoolean() ? new MatchAllQueryBuilder() : null;
         // TODO: pass down XContextType to createTestInstance() method.
         // otherwise the document itself is different causing test failures.
-        // This should be done in a seperate change as the test instance is created before xcontent type is randomly picked and
+        // This should be done in a separate change as the test instance is created before xcontent type is randomly picked and
         // all the createTestInstance() methods need to be changed, which will make this a big chnage
 //        BytesReference doc = randomBoolean() ? new BytesArray("{}") : null;
         BytesReference doc = null;

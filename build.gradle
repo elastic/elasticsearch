@@ -588,7 +588,7 @@ static void assertLinesInFile(final Path path, final List<String> expectedLines)
 
 /*
  * Check that all generated JARs have our NOTICE.txt and an appropriate
- * LICENSE.txt in them. We configurate this in gradle but we'd like to
+ * LICENSE.txt in them. We configure this in gradle but we'd like to
  * be extra paranoid.
  */
 subprojects { project ->

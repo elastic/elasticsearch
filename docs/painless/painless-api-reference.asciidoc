@@ -3,7 +3,7 @@
 
 Painless has a strict whitelist for methods and classes to ensure all
 painless scripts are secure. Most of these methods are exposed directly
-from the Java Runtime Enviroment (JRE) while others are part of
+from the Java Runtime Environment (JRE) while others are part of
 Elasticsearch or Painless itself. Below is a list of all available
 classes grouped with their respected methods. Clicking on the method
 name takes you to the documentation for that specific method.  Methods

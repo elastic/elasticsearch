@@ -434,7 +434,7 @@ public class PainlessDocGenerator {
         if (classPackage.startsWith("org.apache.lucene")) {
             return "lucene-core";
         }
-        throw new IllegalArgumentException("Unrecognized packge: " + classPackage);
+        throw new IllegalArgumentException("Unrecognized package: " + classPackage);
     }
 
     private static void emitGeneratedWarning(PrintStream stream) {

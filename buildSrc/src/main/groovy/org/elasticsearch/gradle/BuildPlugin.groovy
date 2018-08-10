@@ -116,7 +116,9 @@ class BuildPlugin implements Plugin<Project> {
 
             final Map<Integer, String> javaVersions = [:]
             for (int version = 7; version <= Integer.parseInt(minimumCompilerVersion.majorVersion); version++) {
-                javaVersions.put(version, findJavaHome(version.toString()));
+                if(System.getenv(getJavaHomeEnvVarName(version.toString())) != null) {
+                    javaVersions.put(version, findJavaHome(version.toString()));
+                }
             }
 
             String javaVendor = System.getProperty('java.vendor')
@@ -247,8 +249,8 @@ class BuildPlugin implements Plugin<Project> {
     }
 
     private static String findJavaHome(String version) {
-        String versionedVarName = 'JAVA' + version + '_HOME'
-        String versionedJavaHome = System.getenv(versionedVarName)
+        String versionedVarName = getJavaHomeEnvVarName(version)
+        String versionedJavaHome = System.getenv(versionedVarName);
         if (versionedJavaHome == null) {
             throw new GradleException(
                     "$versionedVarName must be set to build Elasticsearch. " +
@@ -257,6 +259,10 @@ class BuildPlugin implements Plugin<Project> {
             )
         }
         return versionedJavaHome
+    }
+
+    private static String getJavaHomeEnvVarName(String version) {
+        return 'JAVA' + version + '_HOME'
     }
 
     /** Add a check before gradle execution phase which ensures java home for the given java version is set. */

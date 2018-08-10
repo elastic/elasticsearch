@@ -1,0 +1,97 @@
+[role="xpack"]
+[[security-api-get-role-mapping]]
+=== Get role mappings API
+
+Retrieves role mappings.
+
+==== Request
+
+`GET /_xpack/security/role_mapping` +
+
+`GET /_xpack/security/role_mapping/<name>` 
+
+//==== Description
+
+==== Path Parameters
+
+`name`::
+ (string) The distinct name that identifies the role mapping. The name is
+  used solely as an identifier to facilitate interaction via the API; it does
+  not affect the behavior of the mapping in any way. If you do not specify this
+  parameter for the Get Role Mappings API, it returns information about all
+  role mappings.
+
+//==== Request Body
+
+==== Authorization
+
+To use this API, you must have at least the `manage_security` cluster privilege.
+
+
+==== Examples
+
+To retrieve a role mapping, issue a GET request to the
+`/_xpack/security/role_mapping/<name>` endpoint:
+
+[source,js]
+--------------------------------------------------
+GET /_xpack/security/role_mapping/mapping7
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+A successful call retrieves an object, where the keys are the
+names of the request mappings, and the values are
+the JSON representation of those mappings.
+If there is no mapping with the requested name, the
+response will have status code `404`.
+
+[source,js]
+--------------------------------------------------
+{
+  "mapping7": {
+    "enabled": true,
+    "roles": [
+      "superuser"
+    ],
+    "rules": {
+      "all": [
+        {
+          "any": [
+            {
+              "field": {
+                "dn": "*,ou=admin,dc=example,dc=com"
+              }
+            },
+            {
+              "field": {
+                "username": [
+                  "es-admin",
+                  "es-system"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "field": {
+            "groups": "cn=people,dc=example,dc=com"
+          }
+        },
+        {
+          "except": {
+            "field": {
+              "metadata.terminated_date": null
+            }
+          }
+        }
+      ]
+    },
+    "metadata": {}
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+You can specify multiple mapping names as a comma-separated list.
+To retrieve all mappings, omit the name entirely.

@@ -8,40 +8,19 @@ Removes role mappings.
 
 `DELETE /_xpack/security/role_mapping/<name>` 
 
-//==== Description
+==== Description
+
+Role mappings define which roles are assigned to each user. For more information, 
+see {stack-ov}/mapping-roles.html[Mapping users and groups to roles]. 
 
 ==== Path Parameters
 
 `name`::
  (string) The distinct name that identifies the role mapping. The name is
   used solely as an identifier to facilitate interaction via the API; it does
-  not affect the behavior of the mapping in any way. If you do not specify this
-  parameter for the Get Role Mappings API, it returns information about all
-  role mappings.
+  not affect the behavior of the mapping in any way.
 
-
-==== Request Body
-
-The following parameters can be specified in the body of a PUT or POST request
-and pertain to adding a role mapping:
-
-`enabled` (required)::
-(boolean)  Mappings that have `enabled` set to `false` are ignored when role
-mapping is performed.
-
-`metadata`::
-(object) Additional metadata that helps define which roles are assigned to each
-user. Within the `metadata` object, keys beginning with `_` are reserved for
-system usage.
-
-`roles` (required)::
-(list) A list of roles that are granted to the users that match the role-mapping
-rules.
-
-`rules` (required)::
-(object) The rules that determine which users should be matched by the mapping.
-A rule is a logical condition that is expressed by using a JSON DSL.
-
+//==== Request Body
 
 ==== Authorization
 
@@ -50,8 +29,7 @@ To use this API, you must have at least the `manage_security` cluster privilege.
 
 ==== Examples
 
-To delete a role mapping, submit a DELETE request to the
-`/_xpack/security/role_mapping/<name>` endpoint:
+The following example delete a role mapping:
 
 [source,js]
 --------------------------------------------------

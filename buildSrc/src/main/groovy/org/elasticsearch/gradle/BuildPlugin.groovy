@@ -148,10 +148,10 @@ class BuildPlugin implements Plugin<Project> {
             println "  OS Info               : ${System.getProperty('os.name')} ${System.getProperty('os.version')} (${System.getProperty('os.arch')})"
             if (gradleJavaVersionDetails != compilerJavaVersionDetails || gradleJavaVersionDetails != runtimeJavaVersionDetails) {
                 println "  Compiler JDK Version  : ${getPaddedMajorVersion(compilerJavaVersionEnum)} (${compilerJavaVersionDetails})"
-                println "  Runtime JDK Version   : ${getPaddedMajorVersion(runtimeJavaVersionEnum)} (${runtimeJavaVersionDetails})"
-                println "  Gradle JDK Version    : ${getPaddedMajorVersion(JavaVersion.toVersion(gradleJavaVersion))} (${gradleJavaVersionDetails})"
                 println "  Compiler java.home    : ${compilerJavaHome}"
+                println "  Runtime JDK Version   : ${getPaddedMajorVersion(runtimeJavaVersionEnum)} (${runtimeJavaVersionDetails})"
                 println "  Runtime java.home     : ${runtimeJavaHome}"
+                println "  Gradle JDK Version    : ${getPaddedMajorVersion(JavaVersion.toVersion(gradleJavaVersion))} (${gradleJavaVersionDetails})"
                 println "  Gradle java.home      : ${gradleJavaHome}"
             } else {
                 println "  JDK Version           : ${getPaddedMajorVersion(JavaVersion.toVersion(gradleJavaVersion))} (${gradleJavaVersionDetails})"
@@ -163,14 +163,14 @@ class BuildPlugin implements Plugin<Project> {
             // enforce Java version
             if (compilerJavaVersionEnum < minimumCompilerVersion) {
                 final String message =
-                        "the Compiler java.home must be set to a JDK installation directory for Java ${minimumCompilerVersion}" +
+                        "the compiler java.home must be set to a JDK installation directory for Java ${minimumCompilerVersion}" +
                                 " but is [${compilerJavaHome}] corresponding to [${compilerJavaVersionEnum}]"
                 throw new GradleException(message)
             }
 
             if (runtimeJavaVersionEnum < minimumRuntimeVersion) {
                 final String message =
-                        "the Runtime java.home must be set to a JDK installation directory for Java ${minimumRuntimeVersion}" +
+                        "the runtime java.home must be set to a JDK installation directory for Java ${minimumRuntimeVersion}" +
                                 " but is [${runtimeJavaHome}] corresponding to [${runtimeJavaVersionEnum}]"
                 throw new GradleException(message)
             }
@@ -247,8 +247,8 @@ class BuildPlugin implements Plugin<Project> {
     }
 
     private static String findJavaHome(String version) {
-        def versionedVarName = 'JAVA' + version + '_HOME'
-        def versionedJavaHome = System.getenv(versionedVarName)
+        String versionedVarName = 'JAVA' + version + '_HOME'
+        String versionedJavaHome = System.getenv(versionedVarName)
         if (versionedJavaHome == null) {
             throw new GradleException(
                     "$versionedVarName must be set to build Elasticsearch. " +
@@ -290,7 +290,7 @@ class BuildPlugin implements Plugin<Project> {
     }
 
     private static String findRuntimeJavaHome(final String compilerJavaHome) {
-        def runtimeJavaProperty = System.getProperty("runtime.java")
+        String runtimeJavaProperty = System.getProperty("runtime.java")
         if (runtimeJavaProperty != null) {
             return findJavaHome(runtimeJavaProperty)
         }

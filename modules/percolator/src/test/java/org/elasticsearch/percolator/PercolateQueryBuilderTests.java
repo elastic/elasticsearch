@@ -255,7 +255,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     public void testFromJsonNoDocumentType() throws IOException {
         QueryShardContext queryShardContext = createShardContext();
         QueryBuilder queryBuilder = parseQuery("{\"percolate\" : { \"document\": {}, \"field\":\"" + queryField + "\"}}");
-        if (indexVersionCreated.before(Version.V_6_0_0_alpha1)) {
+        if (indexSettings().getIndexVersionCreated().before(Version.V_6_0_0_alpha1)) {
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> queryBuilder.toQuery(queryShardContext));
             assertThat(e.getMessage(), equalTo("[percolate] query is missing required [document_type] parameter"));

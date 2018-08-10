@@ -20,7 +20,6 @@
 package org.elasticsearch.client;
 
 import com.fasterxml.jackson.core.JsonParseException;
-
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
@@ -757,6 +756,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                         //TODO xpack api are currently ignored, we need to load xpack yaml spec too
                         if (apiName.startsWith("xpack.") == false &&
                             apiName.startsWith("license.") == false &&
+                            apiName.startsWith("machine_learning.") == false &&
                             apiName.startsWith("watcher.") == false &&
                             apiName.startsWith("index_lifecycle.") == false) {
                             apiNotFound.add(apiName);

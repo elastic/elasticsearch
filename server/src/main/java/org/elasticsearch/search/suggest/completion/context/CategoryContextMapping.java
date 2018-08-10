@@ -24,11 +24,11 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.StringFieldType;
@@ -79,7 +79,7 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
     /**
      * Loads a <code>name</code>d {@link CategoryContextMapping} instance
      * from a map.
-     * see {@link ContextMappings#load(Object, Version)}
+     * see {@link ContextMappings#load(Object, Mapper.TypeParser.ParserContext)}
      *
      * Acceptable map param: <code>path</code>
      */
@@ -134,7 +134,7 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
     }
 
     @Override
-    public Set<CharSequence> parseContext(Document document) {
+    public Set<CharSequence> parseContext(Mapper.TypeParser.ParserContext parserContext, Document document) {
         Set<CharSequence> values = null;
         if (fieldName != null) {
             IndexableField[] fields = document.getFields(fieldName);

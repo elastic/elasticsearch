@@ -52,7 +52,8 @@ public class CompletionFieldTypeTests extends FieldTypeTestCase {
             @Override
             public void modify(MappedFieldType ft) {
                 CompletionFieldMapper.CompletionFieldType cft = (CompletionFieldMapper.CompletionFieldType)ft;
-                ContextMappings contextMappings = new ContextMappings(Arrays.asList(ContextBuilder.category("foo").build(), ContextBuilder.geo("geo").build()));
+                ContextMappings contextMappings = new ContextMappings(
+                    Arrays.asList(ContextBuilder.category("foo").build(), ContextBuilder.geo("geo").build()), null);
                 cft.setContextMappings(contextMappings);
             }
         });

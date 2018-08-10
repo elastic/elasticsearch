@@ -803,7 +803,11 @@ public class RestClient implements Closeable {
                     fullPath = pathPrefix + "/" + path;
                 }
             } else {
-                fullPath = path;
+                if (path.startsWith("/")) {
+                  fullPath = path;
+                } else {
+                  fullPath = "/" + path;
+                }
             }
 
             URIBuilder uriBuilder = new URIBuilder(fullPath);

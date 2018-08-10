@@ -730,18 +730,9 @@ setups['admin_role'] = '''
           {
             "cluster": ["all"],
             "indices": [
-              {
-                "names": [ "index1", "index2" ],
-                "privileges": ["all"],
-                "field_security" : {
-                  "grant" : [ "title", "body" ]
-                },
-                "query": "{\"match\": {\"title\": \"foo\"}}"
-              }
-            ],
+              {"names": ["index1", "index2" ], "privileges": ["all"], "field_security" : {"grant" : ["title", "body" ]}}
+              ],
             "run_as": [ "other_user" ],
-            "metadata" : { // optional
-              "version" : 1
-            }          
+            "metadata" : {"version": 1}
           }
 '''

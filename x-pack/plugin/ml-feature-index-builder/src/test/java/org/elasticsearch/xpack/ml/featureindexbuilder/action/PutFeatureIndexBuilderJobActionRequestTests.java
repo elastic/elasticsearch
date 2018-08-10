@@ -6,6 +6,42 @@
 
 package org.elasticsearch.xpack.ml.featureindexbuilder.action;
 
-public class PutFeatureIndexBuilderJobActionRequestTests {
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.xpack.ml.featureindexbuilder.action.PutFeatureIndexBuilderJobAction.Request;
+import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJobConfig;
+import org.junit.Before;
+
+import java.io.IOException;
+
+public class PutFeatureIndexBuilderJobActionRequestTests extends AbstractStreamableXContentTestCase<Request> {
+
+    private String jobId;
+
+    @Before
+    public void setupJobID() {
+        jobId = randomAlphaOfLengthBetween(1,10);
+    }
+
+    @Override
+    protected Request doParseInstance(XContentParser parser) throws IOException {
+        return  Request.fromXContent(parser, jobId);
+    }
+
+    @Override
+    protected Request createBlankInstance() {
+        return new Request();
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return false;
+    }
+
+    @Override
+    protected Request createTestInstance() {
+        FeatureIndexBuilderJobConfig config = new FeatureIndexBuilderJobConfig(randomAlphaOfLengthBetween(1,10));
+        return new Request(config);
+    }
 
 }

@@ -6,46 +6,46 @@
 
 package org.elasticsearch.xpack.ml.featureindexbuilder.job;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-
 import java.io.IOException;
 import java.util.Objects;
+
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * This class holds the configuration details of a feature index builder job
  */
 public class FeatureIndexBuilderJobConfig implements NamedWriteable, ToXContentObject {
+
     private static final String NAME = "xpack/feature_index_builder/jobconfig";
+    private static final String ID = "id";
 
-    public static final ParseField ID = new ParseField("id");
+    private final String id;
 
-    private String id;
-
-    public static final ObjectParser<FeatureIndexBuilderJobConfig.Builder, Void> PARSER = new ObjectParser<>(NAME, false,
-            FeatureIndexBuilderJobConfig.Builder::new);
-
+    private static final ConstructingObjectParser<FeatureIndexBuilderJobConfig, String> PARSER;
     static {
-        PARSER.declareString(FeatureIndexBuilderJobConfig.Builder::setId, ID);
+        PARSER = new ConstructingObjectParser<>(NAME, false, (args, optionalId) -> {
+            String id = args[0] != null ? (String) args[0] : optionalId;
+            return new FeatureIndexBuilderJobConfig(id);
+        });
+        PARSER.declareString(optionalConstructorArg(), new ParseField(ID));
     }
 
-    FeatureIndexBuilderJobConfig(String id) {
+    public FeatureIndexBuilderJobConfig(final String id) {
         this.id = id;
     }
 
-    public FeatureIndexBuilderJobConfig(StreamInput in) throws IOException {
+    public FeatureIndexBuilderJobConfig(final StreamInput in) throws IOException {
         id = in.readString();
-    }
-
-    public FeatureIndexBuilderJobConfig() {
     }
 
     public String getId() {
@@ -56,15 +56,14 @@ public class FeatureIndexBuilderJobConfig implements NamedWriteable, ToXContentO
         return "*";
     }
 
-    public void writeTo(StreamOutput out) throws IOException {
+    public void writeTo(final StreamOutput out) throws IOException {
         out.writeString(id);
     }
 
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         builder.startObject();
-        if (id != null) {
-            // to be replace by constant
-            builder.field("id", id);
+        {
+            builder.field(ID, id);
         }
         builder.endObject();
         return builder;
@@ -85,7 +84,7 @@ public class FeatureIndexBuilderJobConfig implements NamedWriteable, ToXContentO
             return false;
         }
 
-        FeatureIndexBuilderJobConfig that = (FeatureIndexBuilderJobConfig) other;
+        final FeatureIndexBuilderJobConfig that = (FeatureIndexBuilderJobConfig) other;
 
         return Objects.equals(this.id, that.id);
     }
@@ -100,48 +99,7 @@ public class FeatureIndexBuilderJobConfig implements NamedWriteable, ToXContentO
         return Strings.toString(this, true, true);
     }
 
-    public static class Builder implements Writeable, ToXContentObject {
-        private String id;
-        
-        public Builder() {}
-        
-        public Builder(FeatureIndexBuilderJobConfig job) {
-            this.setId(job.getId());
-        }
-        
-        public static FeatureIndexBuilderJobConfig.Builder fromXContent(String id, XContentParser parser) {
-            FeatureIndexBuilderJobConfig.Builder config = FeatureIndexBuilderJobConfig.PARSER.apply(parser, null);
-            if (id != null) {
-                config.setId(id);
-            }
-            return config;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            if (id != null) {
-                builder.field(ID.getPreferredName(), id);
-            }
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(id);
-        }
-
-        public String getId() {
-            return id;
-        }
-
-        public void setId(String id) {
-            this.id = id;
-        }
-        
-        public FeatureIndexBuilderJobConfig build() {
-            return new FeatureIndexBuilderJobConfig(id);
-        }
+    public static FeatureIndexBuilderJobConfig fromXContent(final XContentParser parser, @Nullable final String optionalJobId) throws IOException {
+        return PARSER.parse(parser, optionalJobId);
     }
 }

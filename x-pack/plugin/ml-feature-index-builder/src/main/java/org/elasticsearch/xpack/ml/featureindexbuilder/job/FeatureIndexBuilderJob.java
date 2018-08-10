@@ -14,6 +14,8 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
+
 import java.io.IOException;
 import java.util.Objects;
 
@@ -25,12 +27,11 @@ public class FeatureIndexBuilderJob implements XPackPlugin.XPackPersistentTaskPa
     
     private static final ParseField CONFIG = new ParseField("config");
     
-    @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<FeatureIndexBuilderJob, Void> PARSER
             = new ConstructingObjectParser<>(NAME, a -> new FeatureIndexBuilderJob((FeatureIndexBuilderJobConfig) a[0]));
 
     static {
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> FeatureIndexBuilderJobConfig.PARSER.apply(p,c).build(), CONFIG);
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> FeatureIndexBuilderJobConfig.fromXContent(p, null), CONFIG);
     }
 
     

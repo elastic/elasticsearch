@@ -701,11 +701,15 @@ public class DateFormatters {
     /////////////////////////////////////////
 
     private static final DateTimeFormatter DATE_FORMATTER = new DateTimeFormatterBuilder()
-        .appendValue(ChronoField.YEAR, 1, 4, SignStyle.NORMAL)
+        .appendValue(ChronoField.YEAR, 1, 5, SignStyle.NORMAL)
+        .optionalStart()
         .appendLiteral('-')
         .appendValue(MONTH_OF_YEAR, 1, 2, SignStyle.NOT_NEGATIVE)
+        .optionalStart()
         .appendLiteral('-')
         .appendValue(DAY_OF_MONTH, 1, 2, SignStyle.NOT_NEGATIVE)
+        .optionalEnd()
+        .optionalEnd()
         .toFormatter(Locale.ROOT);
 
     private static final DateTimeFormatter HOUR_MINUTE_FORMATTER = new DateTimeFormatterBuilder()
@@ -723,7 +727,11 @@ public class DateFormatters {
             .append(DATE_FORMATTER)
             .optionalStart()
             .appendLiteral('T')
-            .append(HOUR_MINUTE_FORMATTER)
+            .optionalStart()
+            .appendValue(HOUR_OF_DAY, 1, 2, SignStyle.NOT_NEGATIVE)
+            .optionalStart()
+            .appendLiteral(':')
+            .appendValue(MINUTE_OF_HOUR, 1, 2, SignStyle.NOT_NEGATIVE)
             .optionalStart()
             .appendLiteral(':')
             .appendValue(SECOND_OF_MINUTE, 1, 2, SignStyle.NOT_NEGATIVE)
@@ -733,12 +741,18 @@ public class DateFormatters {
             .optionalEnd()
             .optionalStart().appendZoneOrOffsetId().optionalEnd()
             .optionalEnd()
+            .optionalEnd()
+            .optionalEnd()
             .toFormatter(Locale.ROOT),
         new DateTimeFormatterBuilder()
             .append(DATE_FORMATTER)
             .optionalStart()
             .appendLiteral('T')
-            .append(HOUR_MINUTE_FORMATTER)
+            .optionalStart()
+            .appendValue(HOUR_OF_DAY, 1, 2, SignStyle.NOT_NEGATIVE)
+            .optionalStart()
+            .appendLiteral(':')
+            .appendValue(MINUTE_OF_HOUR, 1, 2, SignStyle.NOT_NEGATIVE)
             .optionalStart()
             .appendLiteral(':')
             .appendValue(SECOND_OF_MINUTE, 1, 2, SignStyle.NOT_NEGATIVE)
@@ -747,6 +761,8 @@ public class DateFormatters {
             .appendFraction(MILLI_OF_SECOND, 1, 3, true)
             .optionalEnd()
             .optionalStart().appendOffset("+HHmm", "Z").optionalEnd()
+            .optionalEnd()
+            .optionalEnd()
             .optionalEnd()
             .toFormatter(Locale.ROOT));
 

@@ -9,7 +9,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
-public class IndexerStatsTests extends AbstractSerializingTestCase<IndexerJobStats> {
+public class IndexerJobStatsTests extends AbstractSerializingTestCase<IndexerJobStats> {
 
     @Override
     protected IndexerJobStats createTestInstance() {

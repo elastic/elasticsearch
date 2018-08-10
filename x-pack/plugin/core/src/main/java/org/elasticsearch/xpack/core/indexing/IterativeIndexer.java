@@ -310,6 +310,8 @@ public abstract class IterativeIndexer<JobPosition> {
             final List<IndexRequest> docs = iteration.getToIndex();
             final BulkRequest bulkRequest = new BulkRequest();
             docs.forEach(bulkRequest::add);
+
+            // TODO this might be a valid case, e.g. if implementation filters
             assert bulkRequest.requests().size() > 0;
 
             doNextBulk(bulkRequest, ActionListener.wrap(bulkResponse -> {

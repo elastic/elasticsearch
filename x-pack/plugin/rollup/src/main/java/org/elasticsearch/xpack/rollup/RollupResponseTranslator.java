@@ -238,11 +238,41 @@ public class RollupResponseTranslator {
                 ? (InternalAggregations)liveResponse.getAggregations()
                 : InternalAggregations.EMPTY;
 
-        rolledResponses.forEach(r -> {
-            if (r == null || r.getAggregations() == null || r.getAggregations().asList().size() == 0) {
-                throw new RuntimeException("Expected to find aggregations in rollup response, but none found.");
+        int missingRollupAggs = rolledResponses.stream().mapToInt(searchResponse -> {
+            if (searchResponse == null
+                || searchResponse.getAggregations() == null
+                || searchResponse.getAggregations().asList().size() == 0) {
+                return 1;
             }
-        });
+            return 0;
+        }).sum();
+
+        // We had no rollup aggs, so there is nothing to process
+        if (missingRollupAggs == rolledResponses.size()) {
+            // If we had a live response (even if it was empty) just return that
+            if (liveResponse != null) {
+                return liveResponse;
+            } else {
+                // Otherwise we just had rollup, so build an empty response
+                InternalSearchResponse combinedInternal = new InternalSearchResponse(SearchHits.empty(),
+                    InternalAggregations.EMPTY, null, null,
+                    rolledResponses.stream().anyMatch(SearchResponse::isTimedOut),
+                    rolledResponses.stream().anyMatch(SearchResponse::isTimedOut),
+                    rolledResponses.stream().mapToInt(SearchResponse::getNumReducePhases).sum());
+
+                int totalShards = rolledResponses.stream().mapToInt(SearchResponse::getTotalShards).sum();
+                int sucessfulShards = rolledResponses.stream().mapToInt(SearchResponse::getSuccessfulShards).sum();
+                int skippedShards = rolledResponses.stream().mapToInt(SearchResponse::getSkippedShards).sum();
+                long took = rolledResponses.stream().mapToLong(r -> r.getTook().getMillis()).sum() ;
+
+                // Shard failures are ignored atm, so returning an empty array is fine
+                return new SearchResponse(combinedInternal, null, totalShards, sucessfulShards, skippedShards,
+                    took, ShardSearchFailure.EMPTY_ARRAY, rolledResponses.get(0).getClusters());
+            }
+        } else if (missingRollupAggs > 0 && missingRollupAggs != rolledResponses.size()) {
+            // We were missing some but not all the aggs, unclear how to handle this.  Bail.
+            throw new RuntimeException("Expected to find aggregations in rollup response, but none found.");
+        }
 
         // The combination process returns a tree that is identical to the non-rolled
         // which means we can use aggregation's reduce method to combine, just as if

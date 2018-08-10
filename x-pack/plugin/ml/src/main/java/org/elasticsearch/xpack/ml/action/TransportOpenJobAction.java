@@ -51,11 +51,9 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
-import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
@@ -75,7 +73,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -480,7 +477,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             // Step 6. Clear job finished time once the job is started and respond
             ActionListener<OpenJobAction.Response> clearJobFinishTime = ActionListener.wrap(
                 response -> {
-                    if(response.isAcknowledged()) {
+                    if (response.isAcknowledged()) {
                         clearJobFinishedTime(jobParams.getJobId(), listener);
                     } else {
                         listener.onResponse(response);
@@ -593,10 +590,9 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
     }
 
     private void clearJobFinishedTime(String jobId, ActionListener<OpenJobAction.Response> listener) {
-        clusterService.submitStateUpdateTask("clearing_job_finish_time [" + jobId + "]", new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("clearing-job-finish-time [" + jobId + "]", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
                 MlMetadata mlMetadata = MlMetadata.getMlMetadata(currentState);
                 MlMetadata.Builder mlMetadataBuilder = new MlMetadata.Builder(mlMetadata);
                 Job.Builder jobBuilder = new Job.Builder(mlMetadata.getJobs().get(jobId));
@@ -611,7 +607,8 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
             @Override
             public void onFailure(String source, Exception e) {
-                listener.onFailure(e);
+                logger.error(source + "Failed to clear finished_time due to [" + e.getMessage() + "]", e);
+                listener.onResponse(new OpenJobAction.Response(true));
             }
 
             @Override

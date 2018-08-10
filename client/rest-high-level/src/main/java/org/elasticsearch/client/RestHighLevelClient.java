@@ -211,6 +211,7 @@ public class RestHighLevelClient implements Closeable {
     private final WatcherClient watcherClient = new WatcherClient(this);
     private final LicenseClient licenseClient = new LicenseClient(this);
     private final MigrationClient migrationClient = new MigrationClient(this);
+    private final MachineLearningClient machineLearningClient = new MachineLearningClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -344,6 +345,20 @@ public class RestHighLevelClient implements Closeable {
      */
     public MigrationClient migration() {
         return migrationClient;
+    }
+
+    /**
+     * Provides methods for accessing the Elastic Licensed Machine Learning APIs that
+     * are shipped with the Elastic Stack distribution of Elasticsearch. All of
+     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
+     * <p>
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-apis.html">
+     * Machine Learning APIs on elastic.co</a> for more information.
+     *
+     * @return the client wrapper for making Machine Learning API calls
+     */
+    public MachineLearningClient machineLearning() {
+        return machineLearningClient;
     }
 
     /**

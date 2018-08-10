@@ -16,23 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.protocol.xpack.ml;
 
-esplugin {
-  description 'The ICU Analysis plugin integrates Lucene ICU module into elasticsearch, adding ICU relates analysis components.'
-  classname 'org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin'
-}
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.protocol.xpack.ml.job.config.JobTests;
+import org.elasticsearch.test.AbstractXContentTestCase;
 
-forbiddenApis {
-  signatures += [
-    "com.ibm.icu.text.Collator#getInstance() @ Don't use default locale, use getInstance(ULocale) instead"
-  ]
-}
+import java.io.IOException;
 
-dependencies {
-  compile "org.apache.lucene:lucene-analyzers-icu:${versions.lucene}"
-  compile "com.ibm.icu:icu4j:${versions.icu4j}"
-}
+public class PutJobResponseTests extends AbstractXContentTestCase<PutJobResponse> {
 
-dependencyLicenses {
-  mapping from: /lucene-.*/, to: 'lucene'
+    @Override
+    protected PutJobResponse createTestInstance() {
+        return new PutJobResponse(JobTests.createRandomizedJob());
+    }
+
+    @Override
+    protected PutJobResponse doParseInstance(XContentParser parser) throws IOException {
+        return PutJobResponse.fromXContent(parser);
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return false;
+    }
 }

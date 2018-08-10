@@ -33,7 +33,7 @@ publishing {
 }
 
 dependencies {
-  compileOnly "org.elasticsearch:elasticsearch-core:${version}"
+  compile "org.elasticsearch:elasticsearch-core:${version}"
 
   testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testCompile "junit:junit:${versions.junit}"

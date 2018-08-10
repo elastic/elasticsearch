@@ -15,7 +15,6 @@ dependencies {
     compileOnly project(path: xpackModule('core'), configuration: 'shadow')
     compileOnly project(path: ':modules:transport-netty4', configuration: 'runtime')
     compileOnly project(path: ':plugins:transport-nio', configuration: 'runtime')
-    compileOnly project(path: ':libs:nio', configuration: 'runtime')
 
     testCompile project(path: xpackModule('monitoring'))
     testCompile project(path: xpackModule('sql:sql-action'))

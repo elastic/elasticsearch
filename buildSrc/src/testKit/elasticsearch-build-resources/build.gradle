@@ -7,7 +7,6 @@ ext.noticeFile = file("$buildDir/dummy/notice")
 
 buildResources {
     take 'checkstyle.xml'
-    take 'minimumCompilerVersion'
 }
 
 task sampleCopyAll(type: Sync) {
@@ -23,7 +22,17 @@ task sample {
     // dependsOn exportBuildResources.outputDir
     // for now it's just
     dependsOn buildResources
+    // we have to refference it at configuration time in order to be picked up
+    ext.checkstyle_suppressions = buildResources.take('checkstyle_suppressions.xml')
     doLast {
-        println "This task is using ${file(buildResources.take('minimumRuntimeVersion'))}"
+        println "This task is using ${file(checkstyle_suppressions)}"
+    }
+}
+
+task noConfigAfterExecution {
+    dependsOn buildResources
+    doLast {
+        println "This should cause an error because we are refferencing " +
+                "${buildResources.take('checkstyle_suppressions.xml')} after the `buildResources` task has ran."
     }
 }

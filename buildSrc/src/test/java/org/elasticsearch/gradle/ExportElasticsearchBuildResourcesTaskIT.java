@@ -21,12 +21,7 @@ package org.elasticsearch.gradle;
 
 import org.elasticsearch.gradle.test.GradleIntegrationTestCase;
 import org.gradle.testkit.runner.BuildResult;
-import org.gradle.testkit.runner.BuildTask;
 import org.gradle.testkit.runner.GradleRunner;
-import org.gradle.testkit.runner.TaskOutcome;
-
-import java.nio.file.Files;
-import java.nio.file.Path;
 
 public class ExportElasticsearchBuildResourcesTaskIT extends GradleIntegrationTestCase {
 
@@ -44,17 +39,18 @@ public class ExportElasticsearchBuildResourcesTaskIT extends GradleIntegrationTe
             .withArguments("buildResources", "-s", "-i")
             .withPluginClasspath()
             .build();
-        assertTaskSuccessFull(result, ":buildResources");
+        assertTaskSuccessfull(result, ":buildResources");
         assertBuildFileExists(result, PROJECT_NAME, "build-tools-exported/checkstyle.xml");
-
+        assertBuildFileExists(result, PROJECT_NAME, "build-tools-exported/checkstyle_suppressions.xml");
 
         result = GradleRunner.create()
             .withProjectDir(getProjectDir(PROJECT_NAME))
             .withArguments("buildResources", "-s", "-i")
             .withPluginClasspath()
             .build();
-        assertEquals(TaskOutcome.UP_TO_DATE, result.task(":buildResources").getOutcome());
+        assertTaskUpToDate(result, ":buildResources");
         assertBuildFileExists(result, PROJECT_NAME, "build-tools-exported/checkstyle.xml");
+        assertBuildFileExists(result, PROJECT_NAME, "build-tools-exported/checkstyle_suppressions.xml");
     }
 
     public void testImplicitTaskDependencyCopy() {
@@ -63,9 +59,11 @@ public class ExportElasticsearchBuildResourcesTaskIT extends GradleIntegrationTe
             .withArguments("clean", "sampleCopyAll", "-s", "-i")
             .withPluginClasspath()
             .build();
-        assertTaskSuccessFull(result, ":buildResources");
-        assertTaskSuccessFull(result, ":sampleCopyAll");
+        assertTaskSuccessfull(result, ":buildResources");
+        assertTaskSuccessfull(result, ":sampleCopyAll");
         assertBuildFileExists(result, PROJECT_NAME, "sampleCopyAll/checkstyle.xml");
+        // This is a side effect of compile time reference
+        assertBuildFileExists(result, PROJECT_NAME, "sampleCopyAll/checkstyle_suppressions.xml");
     }
 
     public void testImplicitTaskDependencyInputFileOfOther() {
@@ -75,23 +73,17 @@ public class ExportElasticsearchBuildResourcesTaskIT extends GradleIntegrationTe
             .withPluginClasspath()
             .build();
 
+        assertTaskSuccessfull(result, ":sample");
         assertBuildFileExists(result, PROJECT_NAME, "build-tools-exported/checkstyle.xml");
+        assertBuildFileExists(result, PROJECT_NAME, "build-tools-exported/checkstyle_suppressions.xml");
     }
 
-    private void assertTaskSuccessFull(BuildResult result, String taskName) {
-        BuildTask task = result.task(taskName);
-        if (task == null) {
-            fail("Expected task `" + taskName + "` to be successful, but it did not run");
-        }
-        assertEquals(TaskOutcome.SUCCESS, task.getOutcome());
+    public void testIncorrectUsage() {
+        BuildResult result = GradleRunner.create()
+            .withProjectDir(getProjectDir(PROJECT_NAME))
+            .withArguments("noConfigAfterExecution", "-s", "-i")
+            .withPluginClasspath()
+            .buildAndFail();
+        assertOutputContains("buildResources can't be configured after the task ran");
     }
-
-    private void assertBuildFileExists(BuildResult result, String projectName, String path) {
-        Path absPath = getBuildDir(projectName).toPath().resolve(path);
-        assertTrue(
-            result.getOutput() + "\n\nExpected `" + absPath + "` to exists but it did not",
-            Files.exists(absPath)
-        );
-    }
-
 }

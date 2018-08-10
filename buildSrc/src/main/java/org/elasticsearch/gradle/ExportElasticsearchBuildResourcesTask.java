@@ -83,6 +83,11 @@ public class ExportElasticsearchBuildResourcesTask extends DefaultTask {
     }
 
     public RegularFileProperty take(String resource) {
+        if (getState().getExecuted() || getState().getExecuting()) {
+            throw new GradleException("buildResources can't be configured after the task ran. " +
+                "Make sure task is not used after configuration time"
+            );
+        }
         resources.add(resource);
         return getProject().getLayout().fileProperty(outputDir.file(resource));
     }

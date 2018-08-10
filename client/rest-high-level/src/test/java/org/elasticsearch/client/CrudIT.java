@@ -717,7 +717,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         {
             // test1: create one doc in dest
             UpdateByQueryRequest updateByQueryRequest = new UpdateByQueryRequest();
-            updateByQueryRequest.setIndices(sourceIndex);
+            updateByQueryRequest.indices(sourceIndex);
             updateByQueryRequest.setQuery(new IdsQueryBuilder().addIds("1").types("type"));
             updateByQueryRequest.setRefresh(true);
             BulkByScrollResponse bulkResponse =
@@ -735,7 +735,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         {
             // test2: update using script
             UpdateByQueryRequest updateByQueryRequest = new UpdateByQueryRequest();
-            updateByQueryRequest.setIndices(sourceIndex);
+            updateByQueryRequest.indices(sourceIndex);
             updateByQueryRequest.setScript(new Script("if (ctx._source.foo == 2) ctx._source.foo++;"));
             updateByQueryRequest.setRefresh(true);
             BulkByScrollResponse bulkResponse =

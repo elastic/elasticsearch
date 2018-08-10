@@ -6,7 +6,7 @@
 
 A `UpdateByQueryRequest` can be used to update documents in an index.
 
-It requires an existing index and a target index which may or may not exist pre-request.
+It requires an existing index (or a set of indices) on which the update is to be performed.
 
 The simplest form of a `UpdateByQueryRequest` looks like follows:
 
@@ -14,8 +14,7 @@ The simplest form of a `UpdateByQueryRequest` looks like follows:
 --------------------------------------------------
 include-tagged::{doc-tests}/CRUDDocumentationIT.java[update-by-query-request]
 --------------------------------------------------
-<1> Creates the `UpdateByQueryRequest`
-<2> Adds a list of sources to update
+<1> Creates the `UpdateByQueryRequest` on a set of indices.
 
 By default version conflicts abort the `UpdateByQueryRequest` process but you can just count them by settings it to
 `proceed` in the request body

@@ -48,6 +48,10 @@ public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<Updat
         this(new SearchRequest());
     }
 
+    public UpdateByQueryRequest(String... indices) {
+        this(new SearchRequest(indices));
+    }
+
     UpdateByQueryRequest(SearchRequest search) {
         this(search, true);
     }
@@ -85,16 +89,6 @@ public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<Updat
     public UpdateByQueryRequest setDocTypes(String... types) {
         if (types != null) {
             getSearchRequest().types(types);
-        }
-        return this;
-    }
-
-    /**
-     * Set the indices on which the update by query request is to be run
-     */
-    public UpdateByQueryRequest setIndices(String... indices) {
-        if (indices != null) {
-            getSearchRequest().indices(indices);
         }
         return this;
     }

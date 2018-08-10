@@ -172,12 +172,13 @@ public class TermVectorsService  {
         }
         // and must not be under nested field
         int dotIndex = fieldType.name().indexOf('.');
-        if (dotIndex > -1) {
-            String rootField = fieldType.name().substring(0, dotIndex);
-            ObjectMapper mapper = indexShard.mapperService().getObjectMapper(rootField);
+        while (dotIndex > -1) {
+            String parentField = fieldType.name().substring(0, dotIndex);
+            ObjectMapper mapper = indexShard.mapperService().getObjectMapper(parentField);
             if (mapper != null && mapper.nested().isNested()) {
                 return false;
             }
+            dotIndex = fieldType.name().indexOf('.', dotIndex + 1);
         }
         return true;
     }

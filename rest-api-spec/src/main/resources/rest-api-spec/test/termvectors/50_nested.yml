@@ -6,18 +6,29 @@ setup:
           mappings:
             _doc:
               properties:
-                nested-field:
+                nested1:
                   type : nested
                   properties:
-                    sub-nested-text:
+                    nested1-text:
                       type: text
+                object1:
+                  properties:
+                    object1-text:
+                      type: text
+                    object1-nested1:
+                      type: nested
+                      properties:
+                        object1-nested1-text:
+                          type: text
   - do:
       index:
         index: testidx
         type:  _doc
         id:    1
         body:
-            "text" : "The quick brown fox is brown."
+          "nested1" : [{ "nested1-text": "text1" }]
+          "object1" : [{ "object1-text": "text2" }, "object1-nested1" : [{"object1-nested1-text" : "text3"}]]
+
   - do:
       indices.refresh: {}
 
@@ -29,14 +40,10 @@ setup:
         index: testidx
         type:  _doc
         id: 1
-        fields: ["nested-field"]
-  - match: {term_vectors: {}}
+        fields: ["nested1", "nested1.nested1-text", "object1.object1-nested1", "object1.object1-nested1.object1-nested1-text", "object1.object1-text"]
 
-
-  - do:
-      termvectors:
-        index: testidx
-        type:  _doc
-        id: 1
-        fields: ["nested-field.sub-nested-text"]
-  - match: {term_vectors: {}}
+  - is_false: term_vectors.nested1
+  - is_false: term_vectors.nested1\.nested1-text # escaping as the field name contains dot
+  - is_false: term_vectors.object1\.object1-nested1
+  - is_false: term_vectors.object1\.object1-nested1\.object1-nested1-text
+  - is_true: term_vectors.object1\.object1-text

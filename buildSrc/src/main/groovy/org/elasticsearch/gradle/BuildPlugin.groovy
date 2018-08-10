@@ -87,6 +87,8 @@ class BuildPlugin implements Plugin<Project> {
         project.pluginManager.apply('nebula.info-scm')
         project.pluginManager.apply('nebula.info-jar')
 
+        project.getTasks().create("buildResources", ExportElasticsearchBuildResourcesTask)
+
         globalBuildInfo(project)
         configureRepositories(project)
         configureConfigurations(project)
@@ -100,6 +102,7 @@ class BuildPlugin implements Plugin<Project> {
         configurePrecommit(project)
         configureDependenciesInfo(project)
     }
+
 
     /** Performs checks on the build environment and prints information about the build environment. */
     static void globalBuildInfo(Project project) {

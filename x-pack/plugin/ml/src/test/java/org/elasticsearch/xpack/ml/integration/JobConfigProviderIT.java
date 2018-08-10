@@ -233,26 +233,27 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
         // Job builders
         List<Job.Builder> expandedJobsBuilders = blockingCall(actionListener ->
                 jobConfigProvider.expandJobs("harry-group,tom", false, actionListener));
-        List<Job> expandedJobs = expandedJobsBuilders.stream().map(j ->  j.build()).collect(Collectors.toList());
+        List<Job> expandedJobs = expandedJobsBuilders.stream().map(Job.Builder::build).collect(Collectors.toList());
         assertThat(expandedJobs, containsInAnyOrder(harry, harryJnr, tom));
 
         expandedJobsBuilders = blockingCall(actionListener ->
                 jobConfigProvider.expandJobs("_all", false, actionListener));
-        expandedJobs = expandedJobsBuilders.stream().map(j ->  j.build()).collect(Collectors.toList());
+        expandedJobs = expandedJobsBuilders.stream().map(Job.Builder::build).collect(Collectors.toList());
         assertThat(expandedJobs, containsInAnyOrder(tom, dick, harry, harryJnr));
 
         expandedJobsBuilders = blockingCall(actionListener ->
                 jobConfigProvider.expandJobs("tom,harry", false, actionListener));
-        expandedJobs = expandedJobsBuilders.stream().map(j ->  j.build()).collect(Collectors.toList());
+        expandedJobs = expandedJobsBuilders.stream().map(Job.Builder::build).collect(Collectors.toList());
         assertThat(expandedJobs, containsInAnyOrder(tom, harry));
 
         expandedJobsBuilders = blockingCall(actionListener ->
                 jobConfigProvider.expandJobs("", false, actionListener));
-        expandedJobs = expandedJobsBuilders.stream().map(j ->  j.build()).collect(Collectors.toList());
+        expandedJobs = expandedJobsBuilders.stream().map(Job.Builder::build).collect(Collectors.toList());
         assertThat(expandedJobs, containsInAnyOrder(tom, dick, harry, harryJnr));
 
         AtomicReference<List<Job.Builder>> jobsHolder = new AtomicReference<>();
-        blockingCall(actionListener -> jobConfigProvider.expandJobs("tom,missing1,missing2", false, actionListener), jobsHolder, exceptionHolder);
+        blockingCall(actionListener -> jobConfigProvider.expandJobs("tom,missing1,missing2", false, actionListener),
+                jobsHolder, exceptionHolder);
         assertNull(jobsHolder.get());
         assertNotNull(exceptionHolder.get());
         assertThat(exceptionHolder.get(), instanceOf(ResourceNotFoundException.class));
@@ -283,19 +284,19 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
 
         // Test full job config
         List<Job.Builder> expandedJobsBuilders = blockingCall(actionListener -> jobConfigProvider.expandJobs("foo*", true, actionListener));
-        List<Job> expandedJobs = expandedJobsBuilders.stream().map(j ->  j.build()).collect(Collectors.toList());
+        List<Job> expandedJobs = expandedJobsBuilders.stream().map(Job.Builder::build).collect(Collectors.toList());
         assertThat(expandedJobs, containsInAnyOrder(foo1, foo2));
 
         expandedJobsBuilders = blockingCall(actionListener -> jobConfigProvider.expandJobs("*-1", true, actionListener));
-        expandedJobs = expandedJobsBuilders.stream().map(j ->  j.build()).collect(Collectors.toList());
+        expandedJobs = expandedJobsBuilders.stream().map(Job.Builder::build).collect(Collectors.toList());
         assertThat(expandedJobs, containsInAnyOrder(foo1, bar1));
 
         expandedJobsBuilders = blockingCall(actionListener -> jobConfigProvider.expandJobs("bar*", true, actionListener));
-        expandedJobs = expandedJobsBuilders.stream().map(j ->  j.build()).collect(Collectors.toList());
+        expandedJobs = expandedJobsBuilders.stream().map(Job.Builder::build).collect(Collectors.toList());
         assertThat(expandedJobs, containsInAnyOrder(bar1, bar2, nbar));
 
         expandedJobsBuilders = blockingCall(actionListener -> jobConfigProvider.expandJobs("b*r-1", true, actionListener));
-        expandedJobs = expandedJobsBuilders.stream().map(j ->  j.build()).collect(Collectors.toList());
+        expandedJobs = expandedJobsBuilders.stream().map(Job.Builder::build).collect(Collectors.toList());
         assertThat(expandedJobs, containsInAnyOrder(bar1));
     }
 

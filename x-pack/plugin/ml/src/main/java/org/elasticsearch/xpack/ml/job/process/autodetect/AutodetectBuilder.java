@@ -229,7 +229,7 @@ public class AutodetectBuilder {
         // Supply a URL for persisting/restoring model state unless model
         // persistence has been explicitly disabled.
         if (DONT_PERSIST_MODEL_STATE_SETTING.get(settings)) {
-            logger.info("[{}] Will not persist model state - "  + DONT_PERSIST_MODEL_STATE_SETTING + " setting was set", job.getId());
+            logger.info("[{}] Will not persist model state - {} setting was set", job.getId(), DONT_PERSIST_MODEL_STATE_SETTING);
         } else {
             // Persist model state every few hours even if the job isn't closed
             long persistInterval = (job.getBackgroundPersistInterval() == null) ?

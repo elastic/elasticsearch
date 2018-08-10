@@ -629,7 +629,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         final TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse> result;
         try (Releasable ignored = permitAcquiredFuture.actionGet()) {
             MappingUpdatePerformer noopMappingUpdater = (update, shardId, type) -> { };
-            result = TransportShardBulkAction.performOnPrimary(request, primary, null, System::currentTimeMillis, noopMappingUpdater);
+            result = TransportShardBulkAction.performOnPrimary(request, primary, null, System::currentTimeMillis, noopMappingUpdater,
+                null);
         }
         TransportWriteActionTestHelper.performPostWriteActions(primary, request, result.location, logger);
         return result;

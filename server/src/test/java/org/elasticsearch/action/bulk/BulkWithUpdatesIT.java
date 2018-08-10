@@ -402,19 +402,23 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
                     .setScript(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "ctx.op = \"delete\"", Collections.emptyMap())));
         }
         response = builder.execute().actionGet();
-        assertThat(response.hasFailures(), equalTo(false));
+        assertThat("expected no failures but got: " + response.buildFailureMessage(), response.hasFailures(), equalTo(false));
         assertThat(response.getItems().length, equalTo(numDocs));
         for (int i = 0; i < numDocs; i++) {
-            assertThat(response.getItems()[i].getItemId(), equalTo(i));
-            assertThat(response.getItems()[i].getId(), equalTo(Integer.toString(i)));
-            assertThat(response.getItems()[i].getIndex(), equalTo("test"));
-            assertThat(response.getItems()[i].getType(), equalTo("type1"));
-            assertThat(response.getItems()[i].getOpType(), equalTo(OpType.UPDATE));
+            final BulkItemResponse itemResponse = response.getItems()[i];
+            assertThat(itemResponse.getFailure(), nullValue());
+            assertThat(itemResponse.isFailed(), equalTo(false));
+            assertThat(itemResponse.getItemId(), equalTo(i));
+            assertThat(itemResponse.getId(), equalTo(Integer.toString(i)));
+            assertThat(itemResponse.getIndex(), equalTo("test"));
+            assertThat(itemResponse.getType(), equalTo("type1"));
+            assertThat(itemResponse.getOpType(), equalTo(OpType.UPDATE));
             for (int j = 0; j < 5; j++) {
                 GetResponse getResponse = client().prepareGet("test", "type1", Integer.toString(i)).get();
                 assertThat(getResponse.isExists(), equalTo(false));
             }
         }
+        assertThat(response.hasFailures(), equalTo(false));
     }
 
     public void testBulkIndexingWhileInitializing() throws Exception {

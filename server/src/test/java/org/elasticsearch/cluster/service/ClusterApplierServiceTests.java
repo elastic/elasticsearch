@@ -118,13 +118,13 @@ public class ClusterApplierServiceTests extends ESTestCase {
         mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                         "test1",
-                        clusterApplierService.getClass().getName(),
+                        clusterApplierService.getClass().getCanonicalName(),
                         Level.DEBUG,
                         "*processing [test1]: took [1s] no change in cluster state"));
         mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                         "test2",
-                        clusterApplierService.getClass().getName(),
+                        clusterApplierService.getClass().getCanonicalName(),
                         Level.TRACE,
                         "*failed to execute cluster state applier in [2s]*"));
 
@@ -192,19 +192,19 @@ public class ClusterApplierServiceTests extends ESTestCase {
         mockAppender.addExpectation(
                 new MockLogAppender.UnseenEventExpectation(
                         "test1 shouldn't see because setting is too low",
-                        clusterApplierService.getClass().getName(),
+                        clusterApplierService.getClass().getCanonicalName(),
                         Level.WARN,
                         "*cluster state applier task [test1] took [*] above the warn threshold of *"));
         mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                         "test2",
-                        clusterApplierService.getClass().getName(),
+                        clusterApplierService.getClass().getCanonicalName(),
                         Level.WARN,
                         "*cluster state applier task [test2] took [32s] above the warn threshold of *"));
         mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                         "test4",
-                        clusterApplierService.getClass().getName(),
+                        clusterApplierService.getClass().getCanonicalName(),
                         Level.WARN,
                         "*cluster state applier task [test3] took [34s] above the warn threshold of *"));
 
@@ -412,7 +412,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
         public volatile Long currentTimeOverride = null;
 
         TimedClusterApplierService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
-            super(settings, clusterSettings, threadPool, () -> ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings)));
+            super(settings, clusterSettings, threadPool);
         }
 
         @Override

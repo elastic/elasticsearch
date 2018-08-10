@@ -17,7 +17,7 @@ public class FIPS140PasswordHashingAlgorithmBootstrapCheck implements BootstrapC
     private final boolean fipsModeEnabled;
 
     FIPS140PasswordHashingAlgorithmBootstrapCheck(final Settings settings) {
-        this.fipsModeEnabled = Security.FIPS_MODE_ENABLED.get(settings);
+        this.fipsModeEnabled = XPackSettings.FIPS_MODE_ENABLED.get(settings);
     }
 
     /**

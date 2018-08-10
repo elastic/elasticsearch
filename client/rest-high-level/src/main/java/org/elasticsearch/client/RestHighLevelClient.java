@@ -59,7 +59,7 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ContextParser;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -163,8 +163,11 @@ import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativePipel
 import org.elasticsearch.search.aggregations.pipeline.derivative.ParsedDerivative;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
+import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
+import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
+import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -205,6 +208,9 @@ public class RestHighLevelClient implements Closeable {
     private final SnapshotClient snapshotClient = new SnapshotClient(this);
     private final TasksClient tasksClient = new TasksClient(this);
     private final XPackClient xPackClient = new XPackClient(this);
+    private final WatcherClient watcherClient = new WatcherClient(this);
+    private final LicenseClient licenseClient = new LicenseClient(this);
+    private final MachineLearningClient machineLearningClient = new MachineLearningClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -296,16 +302,50 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * A wrapper for the {@link RestHighLevelClient} that provides methods for
-     * accessing the Elastic Licensed X-Pack APIs that are shipped with the
-     * default distribution of Elasticsearch. All of these APIs will 404 if run
-     * against the OSS distribution of Elasticsearch.
+     * Provides methods for accessing the Elastic Licensed X-Pack Info
+     * and Usage APIs that are shipped with the default distribution of
+     * Elasticsearch. All of these APIs will 404 if run against the OSS
+     * distribution of Elasticsearch.
      * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/xpack-api.html">
-     * X-Pack APIs on elastic.co</a> for more information.
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/info-api.html">
+     * Info APIs on elastic.co</a> for more information.
      */
     public final XPackClient xpack() {
         return xPackClient;
+    }
+
+    /**
+     * Provides methods for accessing the Elastic Licensed Watcher APIs that
+     * are shipped with the default distribution of Elasticsearch. All of
+     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
+     * <p>
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api.html">
+     * Watcher APIs on elastic.co</a> for more information.
+     */
+    public WatcherClient watcher() { return watcherClient; }
+
+    /**
+     * Provides methods for accessing the Elastic Licensed Licensing APIs that
+     * are shipped with the default distribution of Elasticsearch. All of
+     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
+     * <p>
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/licensing-apis.html">
+     * Licensing APIs on elastic.co</a> for more information.
+     */
+    public LicenseClient license() { return licenseClient; }
+
+    /**
+     * Provides methods for accessing the Elastic Licensed Machine Learning APIs that
+     * are shipped with the Elastic Stack distribution of Elasticsearch. All of
+     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
+     * <p>
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-apis.html">
+     * Machine Learning APIs on elastic.co</a> for more information.
+     *
+     * @return the client wrapper for making Machine Learning API calls
+     */
+    public MachineLearningClient machineLearning() {
+        return machineLearningClient;
     }
 
     /**
@@ -1050,8 +1090,7 @@ public class RestHighLevelClient implements Closeable {
         if (xContentType == null) {
             throw new IllegalStateException("Unsupported Content-Type: " + entity.getContentType().getValue());
         }
-        try (XContentParser parser = xContentType.xContent().createParser(registry,
-            LoggingDeprecationHandler.INSTANCE, entity.getContent())) {
+        try (XContentParser parser = xContentType.xContent().createParser(registry, DEPRECATION_HANDLER, entity.getContent())) {
             return entityParser.apply(parser);
         }
     }
@@ -1068,6 +1107,19 @@ public class RestHighLevelClient implements Closeable {
     static boolean convertExistsResponse(Response response) {
         return response.getStatusLine().getStatusCode() == 200;
     }
+
+    /**
+     * Ignores deprecation warnings. This is appropriate because it is only
+     * used to parse responses from Elasticsearch. Any deprecation warnings
+     * emitted there just mean that you are talking to an old version of
+     * Elasticsearch. There isn't anything you can do about the deprecation.
+     */
+    private static final DeprecationHandler DEPRECATION_HANDLER = new DeprecationHandler() {
+        @Override
+        public void usedDeprecatedName(String usedName, String modernName) {}
+        @Override
+        public void usedDeprecatedField(String usedName, String replacedWith) {}
+    };
 
     static List<NamedXContentRegistry.Entry> getDefaultNamedXContents() {
         Map<String, ContextParser<Object, ? extends Aggregation>> map = new HashMap<>();
@@ -1119,11 +1171,11 @@ public class RestHighLevelClient implements Closeable {
         List<NamedXContentRegistry.Entry> entries = map.entrySet().stream()
                 .map(entry -> new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(entry.getKey()), entry.getValue()))
                 .collect(Collectors.toList());
-        entries.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField(TermSuggestion.NAME),
+        entries.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField(TermSuggestionBuilder.SUGGESTION_NAME),
                 (parser, context) -> TermSuggestion.fromXContent(parser, (String)context)));
-        entries.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField(PhraseSuggestion.NAME),
+        entries.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField(PhraseSuggestionBuilder.SUGGESTION_NAME),
                 (parser, context) -> PhraseSuggestion.fromXContent(parser, (String)context)));
-        entries.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField(CompletionSuggestion.NAME),
+        entries.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField(CompletionSuggestionBuilder.SUGGESTION_NAME),
                 (parser, context) -> CompletionSuggestion.fromXContent(parser, (String)context)));
         return entries;
     }

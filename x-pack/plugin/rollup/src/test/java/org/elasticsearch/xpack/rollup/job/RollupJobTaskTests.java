@@ -11,6 +11,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -47,7 +48,9 @@ import static org.mockito.Mockito.when;
 
 public class RollupJobTaskTests extends ESTestCase {
 
-    private static final Settings SETTINGS = Settings.builder().put("node_name", "test").build();
+    private static final Settings SETTINGS = Settings.builder()
+            .put(Node.NODE_NAME_SETTING.getKey(), "test")
+            .build();
     private static ThreadPool pool = new TestThreadPool("test");
 
     @AfterClass

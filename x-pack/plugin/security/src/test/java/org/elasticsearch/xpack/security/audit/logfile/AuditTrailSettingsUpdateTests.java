@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
+import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.EntryCommonFields;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.BeforeClass;
 
@@ -21,8 +22,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
-import java.util.regex.Pattern;
-
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
@@ -110,12 +109,13 @@ public class AuditTrailSettingsUpdateTests extends SecurityIntegTestCase {
         settingsBuilder.put(LoggingAuditTrail.EMIT_HOST_NAME_SETTING.getKey(), true);
         settingsBuilder.put(LoggingAuditTrail.EMIT_NODE_NAME_SETTING.getKey(), true);
         updateSettings(settingsBuilder.build(), persistent);
-        final LoggingAuditTrail loggingAuditTrail = ((LoggingAuditTrail) internalCluster().getInstances(AuditTrailService.class)
+        final LoggingAuditTrail loggingAuditTrail = (LoggingAuditTrail) internalCluster().getInstances(AuditTrailService.class)
                 .iterator()
                 .next()
                 .getAuditTrails()
                 .iterator()
-                .next());
+                .next();
+        final EntryCommonFields ecs = loggingAuditTrail.entryCommonFields;
 //        assertTrue(Pattern.matches("\\[127\\.0\\.0\\.1\\] \\[127\\.0\\.0\\.1\\] \\[node_.*\\] ", loggingAuditTrail.entryCommonFields.prefix));
 //        settingsBuilder.put(LoggingAuditTrail.EMIT_HOST_ADDRESS_SETTING.getKey(), false);
 //        updateSettings(settingsBuilder.build(), persistent);
@@ -136,12 +136,12 @@ public class AuditTrailSettingsUpdateTests extends SecurityIntegTestCase {
         final Settings.Builder settingsBuilder = Settings.builder();
         settingsBuilder.put(LoggingAuditTrail.INCLUDE_REQUEST_BODY.getKey(), enableRequestBody);
         updateSettings(settingsBuilder.build(), persistent);
-        final LoggingAuditTrail loggingAuditTrail = ((LoggingAuditTrail) internalCluster().getInstances(AuditTrailService.class)
+        final LoggingAuditTrail loggingAuditTrail = (LoggingAuditTrail) internalCluster().getInstances(AuditTrailService.class)
                 .iterator()
                 .next()
                 .getAuditTrails()
                 .iterator()
-                .next());
+                .next();
         assertEquals(enableRequestBody, loggingAuditTrail.includeRequestBody);
         settingsBuilder.put(LoggingAuditTrail.INCLUDE_REQUEST_BODY.getKey(), !enableRequestBody);
         updateSettings(settingsBuilder.build(), persistent);
@@ -158,12 +158,12 @@ public class AuditTrailSettingsUpdateTests extends SecurityIntegTestCase {
         settingsBuilder.putList(LoggingAuditTrail.INCLUDE_EVENT_SETTINGS.getKey(), includedEvents);
         settingsBuilder.putList(LoggingAuditTrail.EXCLUDE_EVENT_SETTINGS.getKey(), excludedEvents);
         updateSettings(settingsBuilder.build(), randomBoolean());
-        final LoggingAuditTrail loggingAuditTrail = ((LoggingAuditTrail) internalCluster().getInstances(AuditTrailService.class)
+        final LoggingAuditTrail loggingAuditTrail = (LoggingAuditTrail) internalCluster().getInstances(AuditTrailService.class)
                 .iterator()
                 .next()
                 .getAuditTrails()
                 .iterator()
-                .next());
+                .next();
         assertEquals(AuditLevel.parse(includedEvents, excludedEvents), loggingAuditTrail.events);
     }
 

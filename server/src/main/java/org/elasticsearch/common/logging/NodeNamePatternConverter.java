@@ -30,14 +30,13 @@ import org.apache.lucene.util.SetOnce;
 
 /**
  * Converts {@code %node_name} in log4j patterns into the current node name.
- * We *could* use a system property lookup instead but this is very explicit
- * and fails fast if we try to use the logger without initializing the node
- * name. As a bonus it ought to be ever so slightly faster because it doesn't
- * have to look up the system property every time.
+ * We can't use a system property for this because the node name system
+ * property is only set if the node name is explicitly defined in
+ * elasticsearch.yml.
  */
 @Plugin(category = PatternConverter.CATEGORY, name = "NodeNamePatternConverter")
 @ConverterKeys({"node_name"})
-public class NodeNamePatternConverter extends LogEventPatternConverter {
+public final class NodeNamePatternConverter extends LogEventPatternConverter {
     private static final SetOnce<String> NODE_NAME = new SetOnce<>();
 
     /**
@@ -50,23 +49,31 @@ public class NodeNamePatternConverter extends LogEventPatternConverter {
     /**
      * Called by log4j2 to initialize this converter.
      */
-    public static NodeNamePatternConverter newInstance(final String[] options) {
+    public static PatternConverter newInstance(final String[] options) {
         if (options.length > 0) {
             throw new IllegalArgumentException("no options supported but options provided: "
                     + Arrays.toString(options));
         }
-        return new NodeNamePatternConverter(NODE_NAME.get());
+        return new NodeNamePatternConverter();
     }
 
-    private final String nodeName;
-
-    private NodeNamePatternConverter(String nodeName) {
+    private NodeNamePatternConverter() {
         super("NodeName", "node_name");
-        this.nodeName = nodeName;
     }
 
     @Override
     public void format(LogEvent event, StringBuilder toAppendTo) {
+        String nodeName = NODE_NAME.get();
+        if (nodeName == null) {
+            /*
+             * If node.name isn't explicitly configured in elasticsearch.yml
+             * we won't have it during bootstrap but the node name pattern
+             * is still in the log format so we stick *something* in there.
+             * This is ok because we don't generally log anything before
+             * we have the node name.
+             */
+            nodeName = "-------";
+        }
         toAppendTo.append(nodeName);
     }
 }

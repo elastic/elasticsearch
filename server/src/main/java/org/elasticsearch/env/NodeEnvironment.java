@@ -20,6 +20,7 @@
 package org.elasticsearch.env;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.SegmentInfos;
@@ -37,7 +38,6 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -53,7 +53,6 @@ import org.elasticsearch.index.store.FsDirectoryService;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.fs.FsProbe;
 import org.elasticsearch.monitor.jvm.JvmInfo;
-import org.elasticsearch.node.Node;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -76,6 +75,7 @@ import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 import static java.util.Collections.unmodifiableSet;
 
@@ -83,9 +83,6 @@ import static java.util.Collections.unmodifiableSet;
  * A component that holds all data paths for a single node.
  */
 public final class NodeEnvironment  implements Closeable {
-
-    private final Logger logger;
-
     public static class NodePath {
         /* ${data.paths}/nodes/{node.id} */
         public final Path path;
@@ -139,6 +136,7 @@ public final class NodeEnvironment  implements Closeable {
 
     }
 
+    private final Logger logger = LogManager.getLogger(NodeEnvironment.class);
     private final NodePath[] nodePaths;
     private final Path sharedDataPath;
     private final Lock[] locks;
@@ -173,23 +171,26 @@ public final class NodeEnvironment  implements Closeable {
     public static final String INDICES_FOLDER = "indices";
     public static final String NODE_LOCK_FILENAME = "node.lock";
 
-    public NodeEnvironment(Settings settings, Environment environment) throws IOException {
-
+    /**
+     * Setup the environment.
+     * @param settings settings from elasticsearch.yml
+     * @param nodeIdConsumer called as soon as the node id is available to the
+     *      node name in log messages if it wasn't loaded from
+     *      elasticsearch.yml
+     */
+    public NodeEnvironment(Settings settings, Environment environment, Consumer<String> nodeIdConsumer) throws IOException {
         if (!DiscoveryNode.nodeRequiresLocalStorage(settings)) {
             nodePaths = null;
             sharedDataPath = null;
             locks = null;
             nodeLockId = -1;
             nodeMetaData = new NodeMetaData(generateNodeId(settings));
-            logger = Loggers.getLogger(getClass(), Node.addNodeNameIfNeeded(settings, this.nodeMetaData.nodeId()));
+            nodeIdConsumer.accept(nodeMetaData.nodeId());
             return;
         }
         final NodePath[] nodePaths = new NodePath[environment.dataWithClusterFiles().length];
         final Lock[] locks = new Lock[nodePaths.length];
         boolean success = false;
-
-        // trace logger to debug issues before the default node name is derived from the node id
-        Logger startupTraceLogger = Loggers.getLogger(getClass(), settings);
 
         try {
             sharedDataPath = environment.sharedDataFile();
@@ -203,13 +204,13 @@ public final class NodeEnvironment  implements Closeable {
                     Files.createDirectories(dir);
 
                     try (Directory luceneDir = FSDirectory.open(dir, NativeFSLockFactory.INSTANCE)) {
-                        startupTraceLogger.trace("obtaining node lock on {} ...", dir.toAbsolutePath());
+                        logger.trace("obtaining node lock on {} ...", dir.toAbsolutePath());
                         try {
                             locks[dirIndex] = luceneDir.obtainLock(NODE_LOCK_FILENAME);
                             nodePaths[dirIndex] = new NodePath(dir);
                             nodeLockId = possibleLockId;
                         } catch (LockObtainFailedException ex) {
-                            startupTraceLogger.trace(
+                            logger.trace(
                                     new ParameterizedMessage("failed to obtain node lock on {}", dir.toAbsolutePath()), ex);
                             // release all the ones that were obtained up until now
                             releaseAndNullLocks(locks);
@@ -217,7 +218,7 @@ public final class NodeEnvironment  implements Closeable {
                         }
 
                     } catch (IOException e) {
-                        startupTraceLogger.trace(() -> new ParameterizedMessage(
+                        logger.trace(() -> new ParameterizedMessage(
                             "failed to obtain node lock on {}", dir.toAbsolutePath()), e);
                         lastException = new IOException("failed to obtain lock on " + dir.toAbsolutePath(), e);
                         // release all the ones that were obtained up until now
@@ -242,8 +243,8 @@ public final class NodeEnvironment  implements Closeable {
                     maxLocalStorageNodes);
                 throw new IllegalStateException(message, lastException);
             }
-            this.nodeMetaData = loadOrCreateNodeMetaData(settings, startupTraceLogger, nodePaths);
-            this.logger = Loggers.getLogger(getClass(), Node.addNodeNameIfNeeded(settings, this.nodeMetaData.nodeId()));
+            this.nodeMetaData = loadOrCreateNodeMetaData(settings, logger, nodePaths);
+            nodeIdConsumer.accept(nodeMetaData.nodeId());
 
             this.nodeLockId = nodeLockId;
             this.locks = locks;

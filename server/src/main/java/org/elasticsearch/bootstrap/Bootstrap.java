@@ -217,6 +217,11 @@ final class Bootstrap {
                 final BoundTransportAddress boundTransportAddress, List<BootstrapCheck> checks) throws NodeValidationException {
                 BootstrapChecks.check(context, boundTransportAddress, checks);
             }
+
+            @Override
+            protected void registerDerivedNodeNameWithLogger(String nodeName) {
+                NodeNamePatternConverter.setNodeName(nodeName);
+            }
         };
     }
 
@@ -289,8 +294,14 @@ final class Bootstrap {
         final SecureSettings keystore = loadSecureSettings(initialEnv);
         final Environment environment = createEnvironment(pidFile, keystore, initialEnv.settings(), initialEnv.configFile());
 
-        String nodeName = Node.NODE_NAME_SETTING.get(environment.settings());
-        NodeNamePatternConverter.setNodeName(nodeName);
+        /*
+         * Initialize the node name early if was set in elasticsearch.yml.
+         * If it wasn't, we'll set it further in startup.
+         */
+        if (Node.NODE_NAME_SETTING.exists(environment.settings())) {
+            String nodeName = Node.NODE_NAME_SETTING.get(environment.settings());
+            NodeNamePatternConverter.setNodeName(nodeName);
+        }
 
         try {
             LogConfigurator.configure(environment);

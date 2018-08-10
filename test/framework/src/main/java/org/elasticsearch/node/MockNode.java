@@ -156,5 +156,9 @@ public class MockNode extends Node {
             return new MockHttpTransport();
         }
     }
-}
 
+    @Override
+    protected void registerDerivedNodeNameWithLogger(String nodeName) {
+        // Nothing to do because test uses the thread name
+    }
+}

@@ -304,13 +304,15 @@ class ClusterFormationTasks {
     static Task configureWriteConfigTask(String name, Project project, Task setup, NodeInfo node, NodeInfo seedNode) {
         Map esConfig = [
                 'cluster.name'                 : node.clusterName,
-                'node.name'                    : "node-" + node.nodeNum,
                 'pidfile'                      : node.pidFile,
                 'path.repo'                    : "${node.sharedDir}/repo",
                 'path.shared_data'             : "${node.sharedDir}/",
                 // Define a node attribute so we can test that it exists
                 'node.attr.testattr'           : 'test'
         ]
+        if (node.config.addStandardNodeName) {
+            esConfig['node.name'] = "node-${node.nodeNum}"
+        }
         int minimumMasterNodes = node.config.minimumMasterNodes.call()
         if (minimumMasterNodes > 0) {
             esConfig['discovery.zen.minimum_master_nodes'] = minimumMasterNodes

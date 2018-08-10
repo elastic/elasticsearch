@@ -161,3 +161,37 @@ setup:
   - match: {details.berlin_query.metric_details.mean_reciprocal_rank: {"first_relevant": 2}}
   - match: {details.berlin_query.unrated_docs:  [ {"_index": "foo", "_id": "doc1"}]}
 
+---
+"Expected Reciprocal Rank":
+
+  - skip:
+      version: " - 6.3.99"
+      reason: ERR was introduced in 6.4
+
+  - do:
+      rank_eval:
+        body: {
+          "requests" : [
+            {
+                "id": "amsterdam_query",
+                "request": { "query": { "match" : {"text" : "amsterdam" }}},
+                "ratings": [{"_index": "foo", "_id": "doc4", "rating": 1}]
+            },
+            {
+                "id" : "berlin_query",
+                "request": { "query": { "match" : { "text" : "berlin" } }, "size" : 10 },
+                "ratings": [{"_index": "foo", "_id": "doc4", "rating": 1}]
+            }
+          ],
+          "metric" : { 
+              "expected_reciprocal_rank": {
+                  "maximum_relevance" : 1,
+                  "k" : 5
+              }
+          }
+        }
+
+  - gt: {metric_score: 0.2083333}
+  - lt: {metric_score: 0.2083334}
+  - match: {details.amsterdam_query.metric_details.expected_reciprocal_rank.unrated_docs: 2}
+  - match: {details.berlin_query.metric_details.expected_reciprocal_rank.unrated_docs: 1}

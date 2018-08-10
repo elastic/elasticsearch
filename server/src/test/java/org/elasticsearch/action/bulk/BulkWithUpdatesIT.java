@@ -402,7 +402,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
                     .setScript(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "ctx.op = \"delete\"", Collections.emptyMap())));
         }
         response = builder.execute().actionGet();
-        assertThat(response.hasFailures(), equalTo(false));
+        assertThat("expected no failures but got: " + response.buildFailureMessage(), response.hasFailures(), equalTo(false));
         assertThat(response.getItems().length, equalTo(numDocs));
         for (int i = 0; i < numDocs; i++) {
             assertThat(response.getItems()[i].getItemId(), equalTo(i));

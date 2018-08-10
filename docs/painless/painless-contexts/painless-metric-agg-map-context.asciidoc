@@ -2,7 +2,7 @@
 === Metric aggregation map context
 
 Use a Painless script to
-{es_version}/search-aggregations-metrics-scripted-metric-aggregation.html[map]
+{ref}/search-aggregations-metrics-scripted-metric-aggregation.html[map]
 values for use in a scripted metric aggregation. A map script is run once per
 collected document following an optional
 <<painless-metric-agg-init-context, initialization script>> and is required as

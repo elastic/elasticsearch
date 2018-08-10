@@ -35,7 +35,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
@@ -83,7 +82,12 @@ public class ExportElasticsearchBuildResourcesTask extends DefaultTask {
         this.outputDir = outputDir;
     }
 
-    public File resource(String resource) {
+    public File take(String resource) {
+        if (getState().getExecuted() || getState().getExecuting()) {
+            throw new GradleException("buildResources can't be configured after the task ran. " +
+                "Make sure task is not used after configuration time"
+            );
+        }
         resources.add(resource);
         return outputDir.file(resource).get().getAsFile();
     }
@@ -101,7 +105,7 @@ public class ExportElasticsearchBuildResourcesTask extends DefaultTask {
                     if (is == null) {
                         throw new GradleException("Can't export `" + resourcePath + "` from build-tools: not found");
                     }
-                    Files.copy(is, destination, StandardCopyOption.REPLACE_EXISTING);
+                    Files.copy(is, destination);
                 } catch (IOException e) {
                     throw new GradleException("Can't write resource `" + resourcePath + "` to " + destination, e);
                 }

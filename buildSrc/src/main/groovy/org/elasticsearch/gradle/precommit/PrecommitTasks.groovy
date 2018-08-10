@@ -118,8 +118,8 @@ class PrecommitTasks {
         project.sourceSets.forEach { sourceSet ->
             forbiddenApisCli.dependsOn(
                 project.tasks.create(sourceSet.getTaskName('forbiddenApisCli', null), JavaExec) {
-                    ExportElasticsearchBuildResourcesTask exportBuildResources = project.tasks.getByName('exportBuildResources')
-                    dependsOn(exportBuildResources)
+                    ExportElasticsearchBuildResourcesTask buildResources = project.tasks.getByName('buildResources')
+                    dependsOn(buildResources)
                     classpath = project.files(
                             project.configurations.forbiddenApisCliJar,
                             sourceSet.compileClasspath,
@@ -131,14 +131,14 @@ class PrecommitTasks {
                     args "-b", 'jdk-deprecated-1.8'
                     args "-b", 'jdk-non-portable'
                     args "-b", 'jdk-system-out'
-                    args "-f", exportBuildResources.resource("forbidden/jdk-signatures.txt")
-                    args "-f", exportBuildResources.resource("forbidden/es-all-signatures.txt")
+                    args "-f", buildResources.take("forbidden/jdk-signatures.txt")
+                    args "-f", buildResources.take("forbidden/es-all-signatures.txt")
                     args "--suppressannotation", '**.SuppressForbidden'
                     if (sourceSet.name == 'test') {
-                        args "-f", exportBuildResources.resource("forbidden/es-test-signatures.txt")
-                        args "-f", exportBuildResources.resource("forbidden/http-signatures.txt")
+                        args "-f", buildResources.take("forbidden/es-test-signatures.txt")
+                        args "-f", buildResources.take("forbidden/http-signatures.txt")
                     } else {
-                        args "-f", exportBuildResources.resource("forbidden/es-server-signatures.txt")
+                        args "-f", buildResources.take("forbidden/es-server-signatures.txt")
                     }
                     dependsOn sourceSet.classesTaskName
                     doFirst {

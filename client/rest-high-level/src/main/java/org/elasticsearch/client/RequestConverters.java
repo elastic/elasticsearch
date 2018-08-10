@@ -816,7 +816,11 @@ final class RequestConverters {
     static Request reindex(ReindexRequest reindexRequest) throws IOException {
         String endpoint = new EndpointBuilder().addPathPart("_reindex").build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        Params params = new Params(request);
+        Params params = new Params(request)
+            .withRefresh(reindexRequest.isRefresh())
+            .withTimeout(reindexRequest.getTimeout())
+            .withWaitForActiveShards(reindexRequest.getWaitForActiveShards());
+
         if (reindexRequest.getScrollTime() != null) {
             params.putParam("scroll", reindexRequest.getScrollTime());
         }

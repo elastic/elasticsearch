@@ -64,19 +64,19 @@ public class ClientYamlTestClient implements Closeable {
     private final ClientYamlSuiteRestSpec restSpec;
     private final Map<NodeSelector, RestClient> restClients = new HashMap<>();
     private final Version esVersion;
-    private final CheckedSupplier<RestClientBuilder, IOException> clientBuilderBuilder;
+    private final CheckedSupplier<RestClientBuilder, IOException> clientBuilderWithSniffedNodes;
 
     ClientYamlTestClient(
             final ClientYamlSuiteRestSpec restSpec,
             final RestClient restClient,
             final List<HttpHost> hosts,
             final Version esVersion,
-            final CheckedSupplier<RestClientBuilder, IOException> clientBuilderBuilder) {
+            final CheckedSupplier<RestClientBuilder, IOException> clientBuilderWithSniffedNodes) {
         assert hosts.size() > 0;
         this.restSpec = restSpec;
         this.restClients.put(NodeSelector.ANY, restClient);
         this.esVersion = esVersion;
-        this.clientBuilderBuilder = clientBuilderBuilder;
+        this.clientBuilderWithSniffedNodes = clientBuilderWithSniffedNodes;
     }
 
     public Version getEsVersion() {
@@ -193,7 +193,7 @@ public class ClientYamlTestClient implements Closeable {
         return restClients.computeIfAbsent(nodeSelector, selector -> {
             RestClientBuilder builder;
             try {
-                builder = clientBuilderBuilder.get();
+                builder = clientBuilderWithSniffedNodes.get();
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

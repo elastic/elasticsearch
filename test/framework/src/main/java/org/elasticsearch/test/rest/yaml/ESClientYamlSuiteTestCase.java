@@ -161,7 +161,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             final RestClient restClient,
             final List<HttpHost> hosts,
             final Version esVersion) {
-        return new ClientYamlTestClient(restSpec, restClient, hosts, esVersion, this::sniffHostMetadata);
+        return new ClientYamlTestClient(restSpec, restClient, hosts, esVersion, this::getClientBuilderWithSniffedHosts);
     }
 
     @AfterClass
@@ -398,7 +398,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      * Sniff the cluster for host metadata and return a
      * {@link RestClientBuilder} for a client with that metadata.
      */
-    protected final RestClientBuilder sniffHostMetadata() throws IOException {
+    protected final RestClientBuilder getClientBuilderWithSniffedHosts() throws IOException {
         ElasticsearchNodesSniffer.Scheme scheme =
             ElasticsearchNodesSniffer.Scheme.valueOf(getProtocol().toUpperCase(Locale.ROOT));
         ElasticsearchNodesSniffer sniffer = new ElasticsearchNodesSniffer(

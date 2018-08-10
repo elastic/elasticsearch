@@ -92,8 +92,7 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             final RestClient restClient,
             final List<HttpHost> hosts,
             final Version esVersion) {
-        return new ClientYamlDocsTestClient(restSpec, restClient, hosts, esVersion,
-                restClientBuilder -> configureClient(restClientBuilder, restClientSettings()));
+        return new ClientYamlDocsTestClient(restSpec, restClient, hosts, esVersion, this::getClientBuilderWithSniffedHosts);
     }
 
     /**

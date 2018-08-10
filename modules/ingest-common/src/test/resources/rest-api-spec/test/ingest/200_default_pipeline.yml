@@ -71,3 +71,47 @@ teardown:
         id: 3
         pipeline: ""
         body: {bytes_source_field: "1kb"}
+
+---
+"Test index with default pipeline from template":
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "bytes" : {
+                  "field" : "bytes_source_field",
+                  "target_field" : "bytes_target_field"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      indices.put_template:
+        name: test_template
+        body:
+          index_patterns: testindex
+          settings:
+            index:
+              default_pipeline: "my_pipeline"
+
+  - do:
+      index:
+        index: testindex
+        type: test
+        id: 4
+        body: {bytes_source_field: "2kb"}
+
+  - do:
+      get:
+        index: testindex
+        type: test
+        id: 4
+  - match: { _source.bytes_source_field: "2kb" }
+  - match: { _source.bytes_target_field: 2048 }

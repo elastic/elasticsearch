@@ -18,10 +18,10 @@
  */
 package org.elasticsearch.gradle;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.commons.io.FileUtils;
 import org.elasticsearch.gradle.test.GradleIntegrationTestCase;
 import org.gradle.testkit.runner.GradleRunner;
-import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
@@ -32,65 +32,47 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
 
-    private static List<File> EXTERNAL_PROJECTS = Arrays.stream(
-        Objects.requireNonNull(System.getProperty("test.build-tools.plugin.examples"))
-            .split(File.pathSeparator)
-    ).map(File::new).collect(Collectors.toList());
+    private static List<File> EXAMPLE_PLUGINS = Collections.unmodifiableList(
+        Arrays.stream(
+            Objects.requireNonNull(System.getProperty("test.build-tools.plugin.examples"))
+                .split(File.pathSeparator)
+        ).map(File::new).collect(Collectors.toList())
+    );
 
     @Rule
     public TemporaryFolder tmpDir = new TemporaryFolder();
 
+    public final File examplePlugin;
+
+    public BuildExamplePluginsIT(File examplePlugin) {
+        this.examplePlugin = examplePlugin;
+    }
+
     @BeforeClass
     public static void assertProjectsExist() {
-        List<File> existing = EXTERNAL_PROJECTS.stream().filter(File::exists).collect(Collectors.toList());
-        assertEquals(EXTERNAL_PROJECTS, existing);
-    }
-
-    @AfterClass
-    public static void assertEverythingTested() {
         assertEquals(
-            "Some example plugins are not tested: " + EXTERNAL_PROJECTS,
-            0, EXTERNAL_PROJECTS.size()
+            EXAMPLE_PLUGINS,
+            EXAMPLE_PLUGINS.stream().filter(File::exists).collect(Collectors.toList())
         );
     }
 
-    public void testCustomSettings() throws IOException {
-        runAndRemove("custom-settings");
-    }
-
-    public void testPainlessWhitelist() throws IOException {
-        runAndRemove("painless-whitelist");
-    }
-
-    public void testRescore() throws IOException {
-        runAndRemove("rescore");
-    }
-
-    public void testRestHandler() throws IOException {
-        runAndRemove("rest-handler");
-    }
-
-    public void testScriptExpertScoring() throws IOException {
-        runAndRemove("script-expert-scoring");
-    }
-
-    private void runAndRemove(String name) throws IOException {
-        List<File> matches = EXTERNAL_PROJECTS.stream().filter(each -> each.getAbsolutePath().contains(name))
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() {
+        return EXAMPLE_PLUGINS
+            .stream()
+            .map(each -> new Object[] {each})
             .collect(Collectors.toList());
-        assertEquals(
-            "Expected a single project folder to match `" + name + "` but got: " + matches,
-            1, matches.size()
-        );
+    }
 
-        EXTERNAL_PROJECTS.remove(matches.get(0));
-
-        FileUtils.copyDirectory(matches.get(0), tmpDir.getRoot());
+    public void testCurrentExamplePlugin() throws IOException {
+        FileUtils.copyDirectory(examplePlugin, tmpDir.getRoot());
         // just get rid of deprecation warnings from now
         Files.write(
             tmpDir.newFile("settings.gradle").toPath(), "enableFeaturePreview('STABLE_PUBLISHING')\n".getBytes(StandardCharsets.UTF_8)

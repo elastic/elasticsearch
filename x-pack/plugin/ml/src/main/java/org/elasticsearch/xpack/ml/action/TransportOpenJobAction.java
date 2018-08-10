@@ -590,7 +590,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
     }
 
     private void clearJobFinishedTime(String jobId, ActionListener<OpenJobAction.Response> listener) {
-        clusterService.submitStateUpdateTask("clearing-job-finish-time [" + jobId + "]", new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("clearing-job-finish-time-for-" + jobId, new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 MlMetadata mlMetadata = MlMetadata.getMlMetadata(currentState);
@@ -607,7 +607,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
             @Override
             public void onFailure(String source, Exception e) {
-                logger.error(source + "Failed to clear finished_time due to [" + e.getMessage() + "]", e);
+                logger.error("[" + jobId + "] Failed to clear finished_time; source [" + source + "]", e);
                 listener.onResponse(new OpenJobAction.Response(true));
             }
 

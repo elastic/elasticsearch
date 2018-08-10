@@ -28,6 +28,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
@@ -63,10 +65,54 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
     @Override
     protected LifecyclePolicy createTestInstance() {
         lifecycleName = randomAlphaOfLength(5);
-        return randomLifecyclePolicy(lifecycleName);
+        return randomTestLifecyclePolicy(lifecycleName);
     }
 
-    public static LifecyclePolicy randomLifecyclePolicy(@Nullable String lifecycleName) {
+    public static LifecyclePolicy randomTimeseriesLifecyclePolicy(@Nullable String lifecycleName) {
+        List<String> phaseNames = randomSubsetOf(TimeseriesLifecycleType.VALID_PHASES);
+        Map<String, Phase> phases = new HashMap<>(phaseNames.size());
+        Function<String, Set<String>> validActions = (phase) ->  {
+            switch (phase) {
+                case "hot":
+                    return TimeseriesLifecycleType.VALID_HOT_ACTIONS;
+                case "warm":
+                    return TimeseriesLifecycleType.VALID_WARM_ACTIONS;
+                case "cold":
+                    return TimeseriesLifecycleType.VALID_COLD_ACTIONS;
+                case "delete":
+                    return TimeseriesLifecycleType.VALID_DELETE_ACTIONS;
+                default:
+                    throw new IllegalArgumentException("invalid phase [" + phase + "]");
+            }};
+        Function<String, LifecycleAction> randomAction = (action) ->  {
+            switch (action) {
+                case AllocateAction.NAME:
+                    return AllocateActionTests
+                case DeleteAction.NAME:
+                    return TimeseriesLifecycleType.VALID_WARM_ACTIONS;
+                case ReadOnlyAction.NAME:
+                    return TimeseriesLifecycleType.VALID_COLD_ACTIONS;
+                case RolloverAction.NAME:
+                    return TimeseriesLifecycleType.VALID_DELETE_ACTIONS;
+                default:
+                    throw new IllegalArgumentException("invalid phase [" + phase + "]");
+            }};
+        for (String phase : phaseNames) {
+            TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");
+            Map<String, LifecycleAction> actions = new HashMap<>();
+            List<String> actionNames = randomSubsetOf(validActions.apply(phase));
+            for (String action : actionNames) {
+                actions.put(action, )
+            }
+        }
+
+        new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, lifecycleName, phases);
+    }
+
+    private Set<String> getValidActions(String phase) {
+    }
+
+    public static LifecyclePolicy randomTestLifecyclePolicy(@Nullable String lifecycleName) {
         int numberPhases = randomInt(5);
         Map<String, Phase> phases = new HashMap<>(numberPhases);
         for (int i = 0; i < numberPhases; i++) {
@@ -98,7 +144,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new LifecyclePolicy(TestLifecycleType.INSTANCE, name, phases);
+        return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, name, phases);
     }
 
     @Override

@@ -96,7 +96,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
     public void testUpdateFromNothingToSomethingToNothing() {
         Client client = Mockito.mock(Client.class);
         Mockito.when(client.settings()).thenReturn(Settings.EMPTY);
-        LifecyclePolicy newPolicy = LifecyclePolicyTests.randomLifecyclePolicy(randomAlphaOfLength(5));
+        LifecyclePolicy newPolicy = LifecyclePolicyTests.randomTestLifecyclePolicy(randomAlphaOfLength(5));
         List<Step> policySteps = newPolicy.toSteps(client, () -> 0L);
         Map<String, String> headers = new HashMap<>();
         if (randomBoolean()) {
@@ -162,7 +162,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         Client client = Mockito.mock(Client.class);
         Mockito.when(client.settings()).thenReturn(Settings.EMPTY);
         String policyName = randomAlphaOfLengthBetween(5, 10);
-        LifecyclePolicy newPolicy = LifecyclePolicyTests.randomLifecyclePolicy(policyName);
+        LifecyclePolicy newPolicy = LifecyclePolicyTests.randomTestLifecyclePolicy(policyName);
         Map<String, String> headers = new HashMap<>();
         if (randomBoolean()) {
             headers.put(randomAlphaOfLength(10), randomAlphaOfLength(10));
@@ -188,7 +188,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         registry.update(lifecycleMetadata, client, () -> 0L);
 
         // swap out policy
-        newPolicy = LifecyclePolicyTests.randomLifecyclePolicy(policyName);
+        newPolicy = LifecyclePolicyTests.randomTestLifecyclePolicy(policyName);
         lifecycleMetadata = new IndexLifecycleMetadata(Collections.singletonMap(policyName,
                                                 new LifecyclePolicyMetadata(newPolicy, Collections.emptyMap())), OperationMode.RUNNING);
         currentState = ClusterState.builder(currentState)

@@ -47,11 +47,11 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
     public static final ParseField PHASES_FIELD = new ParseField("phases");
 
     @SuppressWarnings("unchecked")
-    public static ConstructingObjectParser<LifecyclePolicy, Tuple<String, LifecycleType>> PARSER = new ConstructingObjectParser<>("lifecycle_policy", false,
-            (a, nameAndType) -> {
+    public static ConstructingObjectParser<LifecyclePolicy, String> PARSER = new ConstructingObjectParser<>("lifecycle_policy", false,
+            (a, name) -> {
                 List<Phase> phases = (List<Phase>) a[0];
                 Map<String, Phase> phaseMap = phases.stream().collect(Collectors.toMap(Phase::getName, Function.identity()));
-                return new LifecyclePolicy(nameAndType.v2(), nameAndType.v1(), phaseMap);
+                return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, name, phaseMap);
             });
     static {
         PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, n) -> Phase.parse(p, n), v -> {
@@ -71,9 +71,9 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
      *            {@link LifecyclePolicy}.
      */
     public LifecyclePolicy(LifecycleType type, String name, Map<String, Phase> phases) {
-        this.type = type;
         this.name = name;
         this.phases = phases;
+        this.type = (type == null) ? TimeseriesLifecycleType.INSTANCE : type;
         this.type.validate(phases.values());
     }
 
@@ -86,8 +86,8 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         phases = Collections.unmodifiableMap(in.readMap(StreamInput::readString, Phase::new));
     }
 
-    public static LifecyclePolicy parse(XContentParser parser, String name, LifecycleType type) {
-        return PARSER.apply(parser, new Tuple<>(name, type));
+    public static LifecyclePolicy parse(XContentParser parser, String name) {
+        return PARSER.apply(parser, name);
     }
 
     @Override

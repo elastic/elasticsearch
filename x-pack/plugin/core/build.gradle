@@ -39,18 +39,7 @@ dependencies {
     // security deps
     shadow 'com.unboundid:unboundid-ldapsdk:3.2.0'
     shadow project(path: ':modules:transport-netty4', configuration: 'runtime')
-    shadow(project(path: ':plugins:transport-nio', configuration: 'runtime')) {
-        // TODO: This should not be necessary if core is compile only
-        exclude group: "org.elasticsearch", module: "elasticsearch-core"
-        exclude group: "io.netty", module: "netty-buffer"
-        exclude group: "io.netty", module: "netty-codec"
-        exclude group: "io.netty", module: "netty-codec-http"
-        exclude group: "io.netty", module: "netty-common"
-        exclude group: "io.netty", module: "netty-handler"
-        exclude group: "io.netty", module: "netty-resolver"
-        exclude group: "io.netty", module: "netty-transport"
-    }
-
+    shadow project(path: ':plugins:transport-nio', configuration: 'runtime')
     testCompile 'org.elasticsearch:securemock:1.2'
     testCompile "org.elasticsearch:mocksocket:${versions.mocksocket}"
     testCompile "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"

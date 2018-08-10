@@ -148,6 +148,12 @@ for creation of keytabs. Place this keytab file in the `ES_PATH_CONF`.
 Make sure that this keytab file has read permissions. As this file contains
 credentials appropriate measures must be taken to protect it.
 
+IMPORTANT: On every {es} node, there must be a keytab file for HTTP
+principal. The keytab files are unique for each node as they include the
+hostname. Usually it will be of format `HTTP/es.domain.local@ES.DOMAIN.LOCAL`
+{es} node can act as any principal a client requests as long as that
+principal and its credentials are found in the configured keytab.
+
 --
 
 . Create realm

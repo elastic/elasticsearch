@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.configcreator;
 
-public class JsonLogFileStructureFinderFactoryTests extends LogConfigCreatorTestCase {
+public class JsonLogFileStructureFinderFactoryTests extends LogFileStructureTestCase {
 
     private LogFileStructureFinderFactory factory = new JsonLogFileStructureFinderFactory();
 

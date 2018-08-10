@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.ml.configcreator;
 
 import java.util.Collections;
 
-public class XmlLogFileStructureFinderTests extends LogConfigCreatorTestCase {
+public class XmlLogFileStructureFinderTests extends LogFileStructureTestCase {
 
     private LogFileStructureFinderFactory factory = new XmlLogFileStructureFinderFactory();
 

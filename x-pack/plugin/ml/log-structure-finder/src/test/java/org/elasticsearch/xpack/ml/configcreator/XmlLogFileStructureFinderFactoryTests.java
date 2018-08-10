@@ -5,15 +5,25 @@
  */
 package org.elasticsearch.xpack.ml.configcreator;
 
-public class TsvLogFileStructureFinderFactoryTests extends LogConfigCreatorTestCase {
+public class XmlLogFileStructureFinderFactoryTests extends LogFileStructureTestCase {
 
-    private LogFileStructureFinderFactory factory = new TsvLogFileStructureFinderFactory();
+    private LogFileStructureFinderFactory factory = new XmlLogFileStructureFinderFactory();
 
-    // No need to check JSON, XML or CSV because they come earlier in the order we check formats
+    // No need to check JSON because it comes earlier in the order we check formats
+
+    public void testCanCreateFromSampleGivenXml() {
+
+        assertTrue(factory.canCreateFromSample(explanation, XML_SAMPLE));
+    }
+
+    public void testCanCreateFromSampleGivenCsv() {
+
+        assertFalse(factory.canCreateFromSample(explanation, CSV_SAMPLE));
+    }
 
     public void testCanCreateFromSampleGivenTsv() {
 
-        assertTrue(factory.canCreateFromSample(explanation, TSV_SAMPLE));
+        assertFalse(factory.canCreateFromSample(explanation, TSV_SAMPLE));
     }
 
     public void testCanCreateFromSampleGivenSemiColonSeparatedValues() {

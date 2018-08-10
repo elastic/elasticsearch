@@ -9,18 +9,15 @@ archivesBaseName = 'log-config-creator'
 description = 'Create log file import configurations'
 
 dependencies {
+    compile project(path: xpackModule('ml:log-structure-finder'))
     compile "org.elasticsearch:elasticsearch-cli:${version}"
-    compile project(':libs:core')
-    compile project(':libs:grok')
-    compile project(':libs:x-content')
-    compile 'com.ibm.icu:icu4j:61.1'
     compile 'joda-time:joda-time:2.10'
-    compile 'net.sf.supercsv:super-csv:2.4.0'
     compile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
     compile "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
     compile "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
 
     testCompile "org.elasticsearch.test:framework:${version}"
+    testCompile project(path: xpackModule('ml:log-structure-finder'), configuration: 'testArtifacts')
 }
 
 dependencyLicenses.enabled = false
@@ -43,8 +40,7 @@ jar {
 }
 
 forbiddenApisMain {
-    // log-config-creator does not depend on server
-    // TODO: Need to decide how we want to handle for forbidden signatures with the changes to server
+    // log-config-creator does not depend on server, so cannot forbid server methods
     signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
 }
 

@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.configcreator;
 
-public class AbstractLogFileStructureFinderTests extends LogConfigCreatorTestCase {
+public class AbstractLogFileStructureFinderTests extends LogFileStructureTestCase {
 
     public void testMoreLikelyGivenText() {
         assertTrue(AbstractLogFileStructureFinder.isMoreLikelyTextThanKeyword("the quick brown fox jumped over the lazy dog"));

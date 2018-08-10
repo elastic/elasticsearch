@@ -16,7 +16,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.contains;
 
-public class AbstractStructuredLogFileStructureFinderTests extends LogConfigCreatorTestCase {
+public class AbstractStructuredLogFileStructureFinderTests extends LogFileStructureTestCase {
 
     private static class TestStructuredLogFileStructureFinder extends AbstractStructuredLogFileStructureFinder {
 

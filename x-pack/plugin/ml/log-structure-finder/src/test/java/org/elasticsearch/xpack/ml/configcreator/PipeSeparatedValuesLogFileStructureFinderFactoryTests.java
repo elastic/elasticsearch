@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.configcreator;
 
-public class PipeSeparatedValuesLogFileStructureFinderFactoryTests extends LogConfigCreatorTestCase {
+public class PipeSeparatedValuesLogFileStructureFinderFactoryTests extends LogFileStructureTestCase {
 
     private LogFileStructureFinderFactory factory = new PipeSeparatedValuesLogFileStructureFinderFactory();
 

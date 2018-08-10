@@ -16,7 +16,7 @@ import static org.elasticsearch.xpack.ml.configcreator.SeparatedValuesLogFileStr
 import static org.elasticsearch.xpack.ml.configcreator.SeparatedValuesLogFileStructureFinder.levenshteinDistance;
 import static org.hamcrest.Matchers.arrayContaining;
 
-public class SeparatedValuesLogFileStructureFinderTests extends LogConfigCreatorTestCase {
+public class SeparatedValuesLogFileStructureFinderTests extends LogFileStructureTestCase {
 
     private LogFileStructureFinderFactory factory = new CsvLogFileStructureFinderFactory();
 

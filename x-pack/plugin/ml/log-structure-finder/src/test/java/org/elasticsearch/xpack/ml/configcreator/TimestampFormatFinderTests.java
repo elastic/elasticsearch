@@ -16,7 +16,7 @@ import org.joda.time.format.ISODateTimeFormat;
 import java.util.Arrays;
 import java.util.Locale;
 
-public class TimestampFormatFinderTests extends LogConfigCreatorTestCase {
+public class TimestampFormatFinderTests extends LogFileStructureTestCase {
 
     public void testFindFirstMatchGivenNoMatch() {
 

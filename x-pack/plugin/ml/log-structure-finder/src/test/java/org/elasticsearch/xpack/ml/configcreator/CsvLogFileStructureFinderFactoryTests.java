@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.configcreator;
 
-public class CsvLogFileStructureFinderFactoryTests extends LogConfigCreatorTestCase {
+public class CsvLogFileStructureFinderFactoryTests extends LogFileStructureTestCase {
 
     private LogFileStructureFinderFactory factory = new CsvLogFileStructureFinderFactory();
 

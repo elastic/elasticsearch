@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.ml.configcreator.TimestampFormatFinder.TimestampM
 import java.util.Collections;
 import java.util.Set;
 
-public class TextLogFileStructureFinderTests extends LogConfigCreatorTestCase {
+public class TextLogFileStructureFinderTests extends LogFileStructureTestCase {
 
     private LogFileStructureFinderFactory factory = new TextLogFileStructureFinderFactory();
 

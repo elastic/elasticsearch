@@ -15,7 +15,7 @@ import java.util.Arrays;
 import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
-public class LogFileStructureFinderManagerTests extends LogConfigCreatorTestCase {
+public class LogFileStructureFinderManagerTests extends LogFileStructureTestCase {
 
     private LogFileStructureFinderManager structureFinderManager = new LogFileStructureFinderManager();
 

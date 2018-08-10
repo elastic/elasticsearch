@@ -69,7 +69,6 @@ public class TransportPutFeatureIndexBuilderJobAction
         FeatureIndexBuilderJob job = createFeatureIndexBuilderJob(request.getConfig(), threadPool);
 
         startPersistentTask(job, listener, persistentTasksService);
-
     }
 
     private static FeatureIndexBuilderJob createFeatureIndexBuilderJob(FeatureIndexBuilderJobConfig config, ThreadPool threadPool) {

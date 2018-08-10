@@ -17,7 +17,6 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.rollup.action.StartRollupJobAction;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine.Event;
 import org.elasticsearch.xpack.ml.featureindexbuilder.FeatureIndexBuilder;
@@ -70,14 +69,14 @@ public class FeatureIndexBuilderJobTask extends AllocatedPersistentTask implemen
                                                      PersistentTasksCustomMetaData.PersistentTask<FeatureIndexBuilderJob> persistentTask,
                                                      Map<String, String> headers) {
             return new FeatureIndexBuilderJobTask(id, type, action, parentTaskId, persistentTask.getParams(),
-                    (FeatureIndexBuilderJobStatus) persistentTask.getState(), client, schedulerEngine, threadPool, headers);
+                    (FeatureIndexBuilderJobState) persistentTask.getState(), client, schedulerEngine, threadPool, headers);
         }
     }
 
     private final FeatureIndexBuilderJob job;
     
     public FeatureIndexBuilderJobTask(long id, String type, String action, TaskId parentTask, FeatureIndexBuilderJob job,
-            FeatureIndexBuilderJobStatus state, Client client, SchedulerEngine schedulerEngine, ThreadPool threadPool,
+            FeatureIndexBuilderJobState state, Client client, SchedulerEngine schedulerEngine, ThreadPool threadPool,
             Map<String, String> headers) {
         super(id, type, action, "" + "_" + job.getConfig().getId(), parentTask, headers);
         this.job = job;

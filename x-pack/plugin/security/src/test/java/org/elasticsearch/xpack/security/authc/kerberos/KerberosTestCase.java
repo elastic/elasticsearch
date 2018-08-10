@@ -71,6 +71,7 @@ public abstract class KerberosTestCase extends ESTestCase {
         unsupportedLocaleLanguages.add("fa");
         unsupportedLocaleLanguages.add("ks");
         unsupportedLocaleLanguages.add("ckb");
+        unsupportedLocaleLanguages.add("ne");
     }
 
     @BeforeClass
@@ -144,7 +145,7 @@ public abstract class KerberosTestCase extends ESTestCase {
 
     /**
      * Creates principal with given name and password.
-     * 
+     *
      * @param principalName Principal name
      * @param password Password
      * @throws Exception thrown if principal could not be created
@@ -178,7 +179,7 @@ public abstract class KerberosTestCase extends ESTestCase {
 
     /**
      * Write content to provided keytab file.
-     * 
+     *
      * @param keytabPath {@link Path} to keytab file.
      * @param content Content for keytab
      * @return key tab path
@@ -193,7 +194,7 @@ public abstract class KerberosTestCase extends ESTestCase {
 
     /**
      * Build kerberos realm settings with default config and given keytab
-     * 
+     *
      * @param keytabPath key tab file path
      * @return {@link Settings} for kerberos realm
      */
@@ -203,7 +204,7 @@ public abstract class KerberosTestCase extends ESTestCase {
 
     /**
      * Build kerberos realm settings
-     * 
+     *
      * @param keytabPath key tab file path
      * @param maxUsersInCache max users to be maintained in cache
      * @param cacheTTL time to live for cached entries

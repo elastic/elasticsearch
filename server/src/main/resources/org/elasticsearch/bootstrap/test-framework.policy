@@ -40,6 +40,9 @@ grant codeBase "${codebase.lucene-test-framework}" {
   permission java.nio.file.LinkPermission "hard";
   // needed for RAMUsageTester
   permission java.lang.RuntimePermission "accessDeclaredMembers";
+  // needed for file permission tests to access user information
+  permission java.lang.RuntimePermission "accessUserInformation";
+  permission java.lang.RuntimePermission "getFileStoreAttributes";
 };
 
 grant codeBase "${codebase.randomizedtesting-runner}" {
@@ -51,6 +54,9 @@ grant codeBase "${codebase.randomizedtesting-runner}" {
   permission org.elasticsearch.secure_sm.ThreadPermission "modifyArbitraryThreadGroup";
   // needed for TestClass creation
   permission java.lang.RuntimePermission "accessDeclaredMembers";
+  // needed for file permission tests to access user information
+  permission java.lang.RuntimePermission "accessUserInformation";
+  permission java.lang.RuntimePermission "getFileStoreAttributes";
 };
 
 grant codeBase "${codebase.junit}" {

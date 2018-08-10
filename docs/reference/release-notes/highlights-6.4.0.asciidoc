@@ -36,7 +36,7 @@ See also <<release-notes-6.4.0,{es} 6.4.0 release notes>>.
 [float]
 === Snapshot and Restore
 
-6.4.0 has seen a great amount of small improvements to the Snapshot and Restore. No less than https://github.com/elastic/elasticsearch/pulls?q=is%3Aclosed+is%3Apr+label%3A%3ADistributed%2FSnapshot%2FRestore+label%3Av6.4.0[53] S&R related changes went into the 6.4.0 release. The 
+6.4.0 has seen a great amount of small improvements to the Snapshot and Restore. No less than https://github.com/elastic/elasticsearch/pulls?q=is%3Aclosed+is%3Apr+label%3A%3ADistributed%2FSnapshot%2FRestore+label%3Av6.4.0[53] S&R related changes went into this release. The 
 changes ranges include https://github.com/elastic/elasticsearch/pulls?q=is%3Aclosed+is%3Apr+label%3A%3ADistributed%2FSnapshot%2FRestore+label%3Av6.4.0+label%3A%3Etest[improving testing infra structure], https://github.com/elastic/elasticsearch/pull/30435[tightening] https://github.com/elastic/elasticsearch/pull/30438[up] https://github.com/elastic/elasticsearch/pull/30439[calls] https://github.com/elastic/elasticsearch/pull/30439[to] Cloud providers API and https://github.com/elastic/elasticsearch/pull/30168[upgrading underlying 3rd party libraries]. 
 
 Specifically we want to highlight the https://github.com/elastic/elasticsearch/pull/30414[added support for AWS session tokens] to both 

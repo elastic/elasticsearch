@@ -761,7 +761,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                         assert e == null;
                         immediateGlobalCheckpint.set(g);
                     });
-            assertThat(immediateGlobalCheckpint.get(), equalTo((long) index));
+            assertBusy(() -> assertThat(immediateGlobalCheckpint.get(), equalTo((long) index)));
         }
         final AtomicBoolean invoked = new AtomicBoolean();
         shard.addGlobalCheckpointListener(

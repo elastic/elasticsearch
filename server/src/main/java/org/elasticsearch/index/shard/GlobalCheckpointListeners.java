@@ -58,27 +58,24 @@ public class GlobalCheckpointListeners implements Closeable {
     // guarded by this
     private boolean closed;
     private volatile List<GlobalCheckpointListener> listeners;
+    private volatile long lastKnownGlobalCheckpoint = UNASSIGNED_SEQ_NO;
 
     private final ShardId shardId;
-    private final LongSupplier globalCheckpointSupplier;
     private final Executor executor;
     private final Logger logger;
 
     /**
      * Construct a global checkpoint listeners collection.
      *
-     * @param shardId                  the shard ID on which global checkpoint updates can be listened to
-     * @param globalCheckpointSupplier the global checkpoint supplier
-     * @param executor                 the executor for listener notifications
-     * @param logger                   a shard-level logger
+     * @param shardId  the shard ID on which global checkpoint updates can be listened to
+     * @param executor the executor for listener notifications
+     * @param logger   a shard-level logger
      */
     GlobalCheckpointListeners(
             final ShardId shardId,
-            final LongSupplier globalCheckpointSupplier,
             final Executor executor,
             final Logger logger) {
         this.shardId = Objects.requireNonNull(shardId);
-        this.globalCheckpointSupplier = Objects.requireNonNull(globalCheckpointSupplier);
         this.executor = Objects.requireNonNull(executor);
         this.logger = Objects.requireNonNull(logger);
     }
@@ -94,10 +91,9 @@ public class GlobalCheckpointListeners implements Closeable {
         if (closed) {
             throw new IllegalStateException("can not listen for global checkpoint changes on a closed shard [" + shardId + "]");
         }
-        final long globalCheckpoint = globalCheckpointSupplier.getAsLong();
-        if (globalCheckpoint > currentGlobalCheckpoint) {
+        if (lastKnownGlobalCheckpoint > currentGlobalCheckpoint) {
             // notify directly
-            executor.execute(() -> notifyListener(listener, globalCheckpoint, null));
+            executor.execute(() -> notifyListener(listener, lastKnownGlobalCheckpoint, null));
         } else {
             if (listeners == null) {
                 listeners = new ArrayList<>();
@@ -121,6 +117,7 @@ public class GlobalCheckpointListeners implements Closeable {
      */
     void globalCheckpointUpdated(final long globalCheckpoint) {
         assert globalCheckpoint >= NO_OPS_PERFORMED;
+        lastKnownGlobalCheckpoint = globalCheckpoint;
         notifyListeners(globalCheckpoint, null);
     }
 

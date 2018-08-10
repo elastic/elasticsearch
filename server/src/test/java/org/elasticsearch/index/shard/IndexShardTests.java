@@ -185,6 +185,12 @@ public class IndexShardTests extends IndexShardTestCase {
         return shard.getEngineOrNull();
     }
 
+    private void overrideState(final IndexShard shard, final IndexShardState state, final String reason) {
+        synchronized (shard.mutex) {
+            shard.changeState(state, reason);
+        }
+    }
+
     public void testWriteShardState() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
             ShardId id = new ShardId("foo", "fooUUID", 1);
@@ -213,7 +219,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final Path shardStatePath = shard.shardPath().getShardStatePath();
         ShardStateMetaData shardStateMetaData = load(logger, shardStatePath);
         assertEquals(getShardStateMetadata(shard), shardStateMetaData);
-        ShardRouting routing = shard.shardRouting;
+        ShardRouting routing = shard.routingEntry();
         IndexShardTestCase.updateRoutingEntry(shard, routing);
 
         shardStateMetaData = load(logger, shardStatePath);
@@ -221,7 +227,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertEquals(shardStateMetaData,
             new ShardStateMetaData(routing.primary(), shard.indexSettings().getUUID(), routing.allocationId()));
 
-        routing = TestShardRouting.relocate(shard.shardRouting, "some node", 42L);
+        routing = TestShardRouting.relocate(shard.routingEntry(), "some node", 42L);
         IndexShardTestCase.updateRoutingEntry(shard, routing);
         shardStateMetaData = load(logger, shardStatePath);
         assertEquals(shardStateMetaData, getShardStateMetadata(shard));
@@ -619,7 +625,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final ShardId shardId = new ShardId("test", "_na_", 0);
         final IndexShard indexShard;
         final boolean engineClosed;
-        switch (randomInt(2)) {
+        switch (1) {
             case 0:
                 // started replica
                 indexShard = newStartedShard(false);
@@ -1282,7 +1288,7 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testIndexingOperationsListeners() throws IOException {
         IndexShard shard = newStartedShard(true);
         indexDoc(shard, "_doc", "0", "{\"foo\" : \"bar\"}");
-        shard.updateLocalCheckpointForShard(shard.shardRouting.allocationId().getId(), 0);
+        shard.updateLocalCheckpointForShard(shard.routingEntry().allocationId().getId(), 0);
         AtomicInteger preIndex = new AtomicInteger();
         AtomicInteger postIndexCreate = new AtomicInteger();
         AtomicInteger postIndexUpdate = new AtomicInteger();
@@ -1378,7 +1384,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertEquals(0, postDeleteException.get());
 
         shard.close("Unexpected close", true);
-        shard.state = IndexShardState.STARTED; // It will generate exception
+        overrideState(shard, IndexShardState.STARTED, "It will generate exception");
 
         try {
             indexDoc(shard, "_doc", "1");
@@ -1665,7 +1671,7 @@ public class IndexShardTests extends IndexShardTestCase {
             indexDoc(shard, "_doc", Integer.toString(i));
         }
         if (randomBoolean()) {
-            shard.updateLocalCheckpointForShard(shard.shardRouting.allocationId().getId(), totalOps - 1);
+            shard.updateLocalCheckpointForShard(shard.routingEntry().allocationId().getId(), totalOps - 1);
             flushShard(shard);
             translogOps = 0;
         }
@@ -2208,7 +2214,8 @@ public class IndexShardTests extends IndexShardTestCase {
             null));
         primary.recoverFromStore();
 
-        primary.state = IndexShardState.RECOVERING; // translog recovery on the next line would otherwise fail as we are in POST_RECOVERY
+        overrideState(primary, IndexShardState.RECOVERING, "" +
+            "translog recovery on the next line would otherwise fail as we are in POST_RECOVERY");
         primary.runTranslogRecovery(primary.getEngine(), snapshot);
         assertThat(primary.recoveryState().getTranslog().totalOperationsOnStart(), equalTo(numTotalEntries));
         assertThat(primary.recoveryState().getTranslog().totalOperations(), equalTo(numTotalEntries));

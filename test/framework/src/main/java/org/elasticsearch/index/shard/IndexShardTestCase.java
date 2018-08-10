@@ -372,7 +372,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     /**
-     * creates a new empyu shard and starts it. The shard will be either a replica or a primary.
+     * creates a new empty shard and starts it. The shard will be either a replica or a primary.
      */
     protected IndexShard newStartedShard() throws IOException {
         return newStartedShard(randomBoolean());

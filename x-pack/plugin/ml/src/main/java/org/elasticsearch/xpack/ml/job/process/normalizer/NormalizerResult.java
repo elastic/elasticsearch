@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.process.normalizer;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -65,7 +66,9 @@ public class NormalizerResult implements ToXContentObject, Writeable {
         partitionFieldName = in.readOptionalString();
         partitionFieldValue = in.readOptionalString();
         personFieldName = in.readOptionalString();
-        personFieldValue = in.readOptionalString();
+        if (in.getVersion().onOrAfter(Version.V_6_5_0)) {
+            personFieldValue = in.readOptionalString();
+        }
         functionName = in.readOptionalString();
         valueFieldName = in.readOptionalString();
         probability = in.readDouble();
@@ -78,7 +81,9 @@ public class NormalizerResult implements ToXContentObject, Writeable {
         out.writeOptionalString(partitionFieldName);
         out.writeOptionalString(partitionFieldValue);
         out.writeOptionalString(personFieldName);
-        out.writeOptionalString(personFieldValue);
+        if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
+            out.writeOptionalString(personFieldValue);
+        }
         out.writeOptionalString(functionName);
         out.writeOptionalString(valueFieldName);
         out.writeDouble(probability);

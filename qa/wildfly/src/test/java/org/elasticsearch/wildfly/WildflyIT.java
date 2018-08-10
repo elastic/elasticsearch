@@ -27,9 +27,8 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.util.EntityUtils;
+import org.apache.log4j.Logger;
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.Build;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -52,14 +51,16 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class WildflyIT extends LuceneTestCase {
 
+    Logger logger = Logger.getLogger(WildflyIT.class);
+
     public void testTransportClient() throws URISyntaxException, IOException {
         try (CloseableHttpClient client = HttpClientBuilder.create().build()) {
             final String str = String.format(
                     Locale.ROOT,
-                    "http://localhost:%d/wildfly-%s%s/transport/employees/1",
-                    Integer.parseInt(System.getProperty("tests.jboss.http.port")),
-                    Version.CURRENT,
-                    Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "");
+                    "%s/employees/1",
+                    System.getProperty("tests.jboss.home")
+            );
+            logger.info("Connecting to uri: " + str);
             final HttpPut put = new HttpPut(new URI(str));
             final String body;
             try (XContentBuilder builder = jsonBuilder()) {

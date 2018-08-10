@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.StringOperation;
 
 import java.io.IOException;
+import java.util.Locale;
 
 public class StringFunctionProcessorTests extends AbstractWireSerializingTestCase<StringProcessor> {
     public static StringProcessor randomStringFunctionProcessor() {
@@ -73,6 +74,19 @@ public class StringFunctionProcessorTests extends AbstractWireSerializingTestCas
 
         stringCharInputValidation(proc);
     }
+    
+    public void testLCaseWithTRLocale() {
+        Locale.setDefault(Locale.forLanguageTag("tr"));
+        StringProcessor proc = new StringProcessor(StringOperation.LCASE);
+
+        // ES-SQL is not locale sensitive (so far). The obvious test for this is the Turkish language, uppercase letter I conversion
+        // in non-Turkish locale the lowercasing would create i and an additional dot, while in Turkish Locale it would only create "i"
+        // unicode 0069 = i
+        assertEquals("\u0069\u0307", proc.process("\u0130"));
+        // unicode 0049 = I (regular capital letter i)
+        // in Turkish locale this would be lowercased to a "i" without dot (unicode 0131)
+        assertEquals("\u0069", proc.process("\u0049"));
+    }
 
     public void testUCase() {
         StringProcessor proc = new StringProcessor(StringOperation.UCASE);
@@ -81,8 +95,20 @@ public class StringFunctionProcessorTests extends AbstractWireSerializingTestCas
         assertEquals("SOMELOWERCASE", proc.process("SomeLoweRCasE"));
         assertEquals("FULLUPPERCASE", proc.process("FULLUPPERCASE"));
         assertEquals("A", proc.process('a'));
+        
+        // special uppercasing for small letter sharp "s" resulting "SS"
+        assertEquals("\u0053\u0053", proc.process("\u00df"));
 
         stringCharInputValidation(proc);
+    }
+    
+    public void testUCaseWithTRLocale() {
+        Locale.setDefault(Locale.forLanguageTag("tr"));
+        StringProcessor proc = new StringProcessor(StringOperation.UCASE);
+
+        // ES-SQL is not Locale sensitive (so far).
+        // in Turkish locale, small letter "i" is uppercased to "I" with a dot above (unicode 130), otherwise in "i" (unicode 49)
+        assertEquals("\u0049", proc.process("\u0069"));
     }
 
     public void testLength() {

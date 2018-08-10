@@ -116,12 +116,12 @@ class BuildPlugin implements Plugin<Project> {
 
             final Map<Integer, String> javaVersions = [:]
             for (int version = 7; version <= Integer.parseInt(minimumCompilerVersion.majorVersion); version++) {
-                javaVersions.put(version, findJavaHome(version));
+                javaVersions.put(version, findJavaHome(version.toString()));
             }
 
             String javaVendor = System.getProperty('java.vendor')
-            String javaVersion = System.getProperty('java.version')
-            String gradleJavaVersionDetails = "${javaVendor} ${javaVersion}" +
+            String gradleJavaVersion = System.getProperty('java.version')
+            String gradleJavaVersionDetails = "${javaVendor} ${gradleJavaVersion}" +
                 " [${System.getProperty('java.vm.name')} ${System.getProperty('java.vm.version')}]"
 
             String compilerJavaVersionDetails = gradleJavaVersionDetails
@@ -144,33 +144,33 @@ class BuildPlugin implements Plugin<Project> {
             // Build debugging info
             println '======================================='
             println 'Elasticsearch Build Hamster says Hello!'
-            println '======================================='
             println "  Gradle Version        : ${project.gradle.gradleVersion}"
             println "  OS Info               : ${System.getProperty('os.name')} ${System.getProperty('os.version')} (${System.getProperty('os.arch')})"
             if (gradleJavaVersionDetails != compilerJavaVersionDetails || gradleJavaVersionDetails != runtimeJavaVersionDetails) {
-                println "  JDK Version (gradle)  : ${gradleJavaVersionDetails}"
-                println "  JAVA_HOME (gradle)    : ${gradleJavaHome}"
-                println "  JDK Version (compile) : ${compilerJavaVersionDetails}"
-                println "  JAVA_HOME (compile)   : ${compilerJavaHome}"
-                println "  JDK Version (runtime) : ${runtimeJavaVersionDetails}"
-                println "  JAVA_HOME (runtime)   : ${runtimeJavaHome}"
+                println "  Compiler JDK Version  : ${getPaddedMajorVersion(compilerJavaVersionEnum)} (${compilerJavaVersionDetails})"
+                println "  Compiler java.home    : ${compilerJavaHome}"
+                println "  Runtime JDK Version   : ${getPaddedMajorVersion(runtimeJavaVersionEnum)} (${runtimeJavaVersionDetails})"
+                println "  Runtime java.home     : ${runtimeJavaHome}"
+                println "  Gradle JDK Version    : ${getPaddedMajorVersion(JavaVersion.toVersion(gradleJavaVersion))} (${gradleJavaVersionDetails})"
+                println "  Gradle java.home      : ${gradleJavaHome}"
             } else {
-                println "  JDK Version           : ${gradleJavaVersionDetails}"
+                println "  JDK Version           : ${getPaddedMajorVersion(JavaVersion.toVersion(gradleJavaVersion))} (${gradleJavaVersionDetails})"
                 println "  JAVA_HOME             : ${gradleJavaHome}"
             }
             println "  Random Testing Seed   : ${project.testSeed}"
+            println '======================================='
 
             // enforce Java version
             if (compilerJavaVersionEnum < minimumCompilerVersion) {
                 final String message =
-                        "the environment variable JAVA_HOME must be set to a JDK installation directory for Java ${minimumCompilerVersion}" +
+                        "the compiler java.home must be set to a JDK installation directory for Java ${minimumCompilerVersion}" +
                                 " but is [${compilerJavaHome}] corresponding to [${compilerJavaVersionEnum}]"
                 throw new GradleException(message)
             }
 
             if (runtimeJavaVersionEnum < minimumRuntimeVersion) {
                 final String message =
-                        "the environment variable RUNTIME_JAVA_HOME must be set to a JDK installation directory for Java ${minimumRuntimeVersion}" +
+                        "the runtime java.home must be set to a JDK installation directory for Java ${minimumRuntimeVersion}" +
                                 " but is [${runtimeJavaHome}] corresponding to [${runtimeJavaVersionEnum}]"
                 throw new GradleException(message)
             }
@@ -205,6 +205,7 @@ class BuildPlugin implements Plugin<Project> {
             project.rootProject.ext.minimumCompilerVersion = minimumCompilerVersion
             project.rootProject.ext.minimumRuntimeVersion = minimumRuntimeVersion
             project.rootProject.ext.inFipsJvm = inFipsJvm
+            project.rootProject.ext.gradleJavaVersion = JavaVersion.toVersion(gradleJavaVersion)
         }
 
         project.targetCompatibility = project.rootProject.ext.minimumRuntimeVersion
@@ -217,11 +218,20 @@ class BuildPlugin implements Plugin<Project> {
         project.ext.runtimeJavaVersion = project.rootProject.ext.runtimeJavaVersion
         project.ext.javaVersions = project.rootProject.ext.javaVersions
         project.ext.inFipsJvm = project.rootProject.ext.inFipsJvm
+        project.ext.gradleJavaVersion = project.rootProject.ext.gradleJavaVersion
+    }
+
+    private static String getPaddedMajorVersion(JavaVersion compilerJavaVersionEnum) {
+        compilerJavaVersionEnum.getMajorVersion().toString().padLeft(2)
     }
 
     private static String findCompilerJavaHome() {
-        final String javaHome = System.getenv('JAVA_HOME')
-        if (javaHome == null) {
+        final String compilerJavaHome = System.getenv('JAVA_HOME')
+        final String compilerJavaProperty = System.getProperty('compiler.java')
+        if (compilerJavaProperty != null) {
+            compilerJavaHome = findJavaHome(compilerJavaProperty)
+        }
+        if (compilerJavaHome == null) {
             if (System.getProperty("idea.active") != null || System.getProperty("eclipse.launcher") != null) {
                 // IntelliJ does not set JAVA_HOME, so we use the JDK that Gradle was run with
                 return Jvm.current().javaHome
@@ -233,11 +243,20 @@ class BuildPlugin implements Plugin<Project> {
                 )
             }
         }
-        return javaHome
+        return compilerJavaHome
     }
 
-    private static String findJavaHome(int version) {
-        return System.getenv('JAVA' + version + '_HOME')
+    private static String findJavaHome(String version) {
+        String versionedVarName = 'JAVA' + version + '_HOME'
+        String versionedJavaHome = System.getenv(versionedVarName)
+        if (versionedJavaHome == null) {
+            throw new GradleException(
+                    "$versionedVarName must be set to build Elasticsearch. " +
+                            "Note that if the variable was just set you might have to run `./gradlew --stop` for " +
+                            "it to be picked up. See https://github.com/elastic/elasticsearch/issues/31399 details."
+            )
+        }
+        return versionedJavaHome
     }
 
     /** Add a check before gradle execution phase which ensures java home for the given java version is set. */
@@ -271,7 +290,10 @@ class BuildPlugin implements Plugin<Project> {
     }
 
     private static String findRuntimeJavaHome(final String compilerJavaHome) {
-        assert compilerJavaHome != null
+        String runtimeJavaProperty = System.getProperty("runtime.java")
+        if (runtimeJavaProperty != null) {
+            return findJavaHome(runtimeJavaProperty)
+        }
         return System.getenv('RUNTIME_JAVA_HOME') ?: compilerJavaHome
     }
 
@@ -768,6 +790,12 @@ class BuildPlugin implements Plugin<Project> {
             systemProperty 'tests.task', path
             systemProperty 'tests.security.manager', 'true'
             systemProperty 'jna.nosys', 'true'
+            systemProperty 'compiler.java', project.ext.compilerJavaVersion.getMajorVersion()
+            if (project.ext.inFipsJvm) {
+                systemProperty 'runtime.java', project.ext.runtimeJavaVersion.getMajorVersion() + "FIPS"
+            } else {
+                systemProperty 'runtime.java', project.ext.runtimeJavaVersion.getMajorVersion()
+            }
             // TODO: remove setting logging level via system property
             systemProperty 'tests.logger.level', 'WARN'
             for (Map.Entry<String, String> property : System.properties.entrySet()) {

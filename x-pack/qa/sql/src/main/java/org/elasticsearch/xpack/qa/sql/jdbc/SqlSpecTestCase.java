@@ -7,12 +7,14 @@ package org.elasticsearch.xpack.qa.sql.jdbc;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.junit.Assume;
 import org.junit.ClassRule;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Tests comparing sql queries executed against our jdbc client
@@ -25,7 +27,7 @@ public abstract class SqlSpecTestCase extends SpecBaseIntegrationTestCase {
     public static LocalH2 H2 = new LocalH2((c) -> c.createStatement().execute("RUNSCRIPT FROM 'classpath:/setup_test_emp.sql'"));
 
     @ParametersFactory(argumentFormatting = PARAM_FORMATTING)
-    public static List<Object[]> readScriptSpec() throws Exception {
+    public static List<Object[]> readScriptSpec() throws Exception { 
         Parser parser = specParser();
         List<Object[]> tests = new ArrayList<>();
         tests.addAll(readScriptSpec("/select.sql-spec", parser));
@@ -35,6 +37,7 @@ public abstract class SqlSpecTestCase extends SpecBaseIntegrationTestCase {
         tests.addAll(readScriptSpec("/agg.sql-spec", parser));
         tests.addAll(readScriptSpec("/arithmetic.sql-spec", parser));
         tests.addAll(readScriptSpec("/string-functions.sql-spec", parser));
+        tests.addAll(readScriptSpec("/case-functions.sql-spec", parser));
         return tests;
     }
 
@@ -56,6 +59,12 @@ public abstract class SqlSpecTestCase extends SpecBaseIntegrationTestCase {
 
     @Override
     protected final void doTest() throws Throwable {
+        boolean goodLocale = !(Locale.getDefault().equals(new Locale.Builder().setLanguageTag("tr").build())
+                || Locale.getDefault().equals(new Locale.Builder().setLanguageTag("tr-TR").build()));
+        if (fileName.startsWith("case-functions")) {
+            Assume.assumeTrue(goodLocale);
+        }
+        
         try (Connection h2 = H2.get();
              Connection es = esJdbc()) {
 

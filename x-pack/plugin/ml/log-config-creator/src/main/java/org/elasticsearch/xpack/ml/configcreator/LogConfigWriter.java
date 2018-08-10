@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.ml.configcreator;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.xpack.ml.logstructure.AbstractLogFileStructureFinder;
+import org.elasticsearch.xpack.ml.logstructure.LogFileStructure;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

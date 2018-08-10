@@ -13,6 +13,9 @@ import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.grok.Grok;
+import org.elasticsearch.xpack.ml.logstructure.LogFileStructure;
+import org.elasticsearch.xpack.ml.logstructure.LogFileStructureFinder;
+import org.elasticsearch.xpack.ml.logstructure.LogFileStructureFinderManager;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;

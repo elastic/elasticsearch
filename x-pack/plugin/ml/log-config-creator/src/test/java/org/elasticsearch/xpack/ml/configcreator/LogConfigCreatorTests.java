@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.configcreator;
 
+import org.elasticsearch.xpack.ml.logstructure.LogFileStructureFinder;
+import org.elasticsearch.xpack.ml.logstructure.LogFileStructureFinderManager;
 import org.junit.Before;
 
 import java.io.ByteArrayInputStream;

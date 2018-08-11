@@ -54,14 +54,12 @@ The Java High Level REST Client supports the following Miscellaneous APIs:
 * <<java-rest-high-main>>
 * <<java-rest-high-ping>>
 * <<java-rest-high-x-pack-info>>
-* <<java-rest-high-x-pack-watcher-put-watch>>
-* <<java-rest-high-x-pack-watcher-delete-watch>>
+* <<java-rest-high-x-pack-usage>>
 
 include::miscellaneous/main.asciidoc[]
 include::miscellaneous/ping.asciidoc[]
-include::x-pack/x-pack-info.asciidoc[]
-include::x-pack/watcher/put-watch.asciidoc[]
-include::x-pack/watcher/delete-watch.asciidoc[]
+include::miscellaneous/x-pack-info.asciidoc[]
+include::miscellaneous/x-pack-usage.asciidoc[]
 
 == Indices APIs
 
@@ -190,7 +188,6 @@ The Java High Level REST Client supports the following Scripts APIs:
 include::script/get_script.asciidoc[]
 include::script/delete_script.asciidoc[]
 
-
 == Licensing APIs
 
 The Java High Level REST Client supports the following Licensing APIs:
@@ -200,3 +197,13 @@ The Java High Level REST Client supports the following Licensing APIs:
 
 include::licensing/put-license.asciidoc[]
 include::licensing/get-license.asciidoc[]
+
+== Watcher APIs
+
+The Java High Level REST Client supports the following Watcher APIs:
+
+* <<java-rest-high-x-pack-watcher-put-watch>>
+* <<java-rest-high-x-pack-watcher-delete-watch>>
+
+include::watcher/put-watch.asciidoc[]
+include::watcher/delete-watch.asciidoc[]

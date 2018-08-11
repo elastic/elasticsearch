@@ -132,8 +132,7 @@ public class PostStartTrialResponse extends AcknowledgedResponse {
         Objects.requireNonNull(acknowledgeMessages);
     }
 
-    // todo dont use this
-    public PostStartTrialResponse(boolean acknowledged,
+    private PostStartTrialResponse(boolean acknowledged,
                                   boolean trialWasStarted,
                                   String type,
                                   String errorMessage,
@@ -152,40 +151,20 @@ public class PostStartTrialResponse extends AcknowledgedResponse {
         return trialWasStarted;
     }
 
-    public void setTrialWasStarted(boolean trialWasStarted) {
-        this.trialWasStarted = trialWasStarted;
-    }
-
     public String getType() {
         return type;
-    }
-
-    public void setType(String type) {
-        this.type = type;
     }
 
     public String getErrorMessage() {
         return errorMessage;
     }
 
-    public void setErrorMessage(String errorMessage) {
-        this.errorMessage = errorMessage;
-    }
-
     public String getAcknowledgeMessage() {
         return acknowledgeMessage;
     }
 
-    public void setAcknowledgeMessage(String acknowledgeMessage) {
-        this.acknowledgeMessage = acknowledgeMessage;
-    }
-
     public Map<String, String[]> getAcknowledgeMessages() {
         return acknowledgeMessages;
-    }
-
-    public void setAcknowledgeMessages(Map<String, String[]> acknowledgeMessages) {
-        this.acknowledgeMessage = acknowledgeMessage;
     }
 
     @Override

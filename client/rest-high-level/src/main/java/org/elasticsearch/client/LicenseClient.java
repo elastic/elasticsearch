@@ -42,6 +42,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 
 import static java.util.Collections.emptySet;
+import static java.util.Collections.singleton;
 
 /**
  * A wrapper for the {@link RestHighLevelClient} that provides methods for
@@ -100,6 +101,28 @@ public class LicenseClient {
             response -> new GetLicenseResponse(convertResponseToJson(response)), listener, emptySet());
     }
 
+    /**
+     * Enables and starts a trial license for the cluster.
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public PostStartTrialResponse postStartTrial(PostStartTrialRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::postStartTrial, options,
+            PostStartTrialResponse::fromXContent, singleton(403)
+        );
+    }
+
+    /**
+     * Asynchronously enabled and starts a trial license for the cluster.
+     * @param opts the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void postStartTrialAsync(PostStartTrialRequest request, RequestOptions opts, ActionListener<PostStartTrialResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::postStartTrial, opts,
+            PostStartTrialResponse::fromXContent, listener, singleton(403)
+        );
+    }
 
     /**
      * Converts an entire response into a json sting
@@ -133,26 +156,5 @@ public class LicenseClient {
                 return Strings.toString(builder);
             }
         }
-    }
-
-    public PostStartTrialResponse postStartTrial(PostStartTrialRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(
-            request,
-            RequestConverters::postStartTrial,
-            options,
-            PostStartTrialResponse::fromXContent,
-            emptySet()
-        );
-    }
-
-    public void postStartTrialAsync(PostStartTrialRequest request, RequestOptions opts, ActionListener<PostStartTrialResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(
-            request,
-            RequestConverters::postStartTrial,
-            opts,
-            PostStartTrialResponse::fromXContent,
-            listener,
-            emptySet()
-        );
     }
 }

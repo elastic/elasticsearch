@@ -33,6 +33,7 @@ public class RestPostStartTrialLicense extends XPackRestHandler {
         PostStartTrialRequest startTrialRequest = new PostStartTrialRequest();
         startTrialRequest.setType(request.param("type", "trial"));
         startTrialRequest.acknowledge(request.paramAsBoolean("acknowledge", false));
+        startTrialRequest.masterNodeTimeout(request.paramAsTime("master_timeout", startTrialRequest.masterNodeTimeout()));
         return channel -> client.licensing().postStartTrial(startTrialRequest,
                 new RestBuilderListener<PostStartTrialResponse>(channel) {
                     @Override

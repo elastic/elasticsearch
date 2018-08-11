@@ -126,6 +126,7 @@ import org.elasticsearch.index.rankeval.RankEvalSpec;
 import org.elasticsearch.index.rankeval.RatedRequest;
 import org.elasticsearch.index.rankeval.RestRankEvalAction;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
+import org.elasticsearch.protocol.xpack.watcher.ActivateWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -2589,6 +2590,16 @@ public class RequestConvertersTests extends ESTestCase {
         Request request = RequestConverters.xPackWatcherDeleteWatch(deleteWatchRequest);
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertEquals("/_xpack/watcher/watch/" + watchId, request.getEndpoint());
+        assertThat(request.getEntity(), nullValue());
+    }
+
+    public void testXPackActivateWatch() {
+        String watchId = randomAlphaOfLength(10);
+        ActivateWatchRequest activateWatchRequest = new ActivateWatchRequest(watchId);
+
+        Request request = RequestConverters.xPackWatcherActivateWatch(activateWatchRequest);
+        assertEquals(HttpPut.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/watcher/watch/" + watchId + "/_activate", request.getEndpoint());
         assertThat(request.getEntity(), nullValue());
     }
 

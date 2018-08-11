@@ -111,6 +111,7 @@ import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
 import org.elasticsearch.protocol.xpack.ml.PutJobRequest;
+import org.elasticsearch.protocol.xpack.watcher.ActivateWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
@@ -1151,6 +1152,18 @@ final class RequestConverters {
             .build();
 
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+        return request;
+    }
+
+    static Request xPackWatcherActivateWatch(ActivateWatchRequest activateWatchRequest) {
+        String endpoint = new EndpointBuilder()
+                .addPathPartAsIs("_xpack")
+                .addPathPartAsIs("watcher")
+                .addPathPartAsIs("watch")
+                .addPathPart(activateWatchRequest.getId())
+                .addPathPartAsIs("_activate")
+                .build();
+        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         return request;
     }
 

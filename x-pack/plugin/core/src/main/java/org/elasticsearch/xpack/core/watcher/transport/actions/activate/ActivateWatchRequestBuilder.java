@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.watcher.transport.actions.activate;
 
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.protocol.xpack.watcher.ActivateWatchResponse;
 
 /**
  * A activate watch action request builder.

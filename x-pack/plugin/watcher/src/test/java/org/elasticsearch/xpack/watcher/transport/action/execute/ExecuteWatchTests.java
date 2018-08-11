@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.watcher.transport.action.execute;
 
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
+import org.elasticsearch.protocol.xpack.watcher.status.ActionAckStatus;
 import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.core.watcher.execution.ActionExecutionMode;
@@ -127,7 +128,7 @@ public class ExecuteWatchTests extends AbstractWatcherIntegrationTestCase {
             assertThat(status, notNullValue());
             ActionStatus actionStatus = status.actionStatus("log");
             assertThat(actionStatus, notNullValue());
-            assertThat(actionStatus.ackStatus().state(), is(ActionStatus.AckStatus.State.ACKED));
+            assertThat(actionStatus.ackStatus().state(), is(ActionAckStatus.State.ACKED));
         }
 
         ExecuteWatchResponse response = watcherClient.prepareExecuteWatch("_id")

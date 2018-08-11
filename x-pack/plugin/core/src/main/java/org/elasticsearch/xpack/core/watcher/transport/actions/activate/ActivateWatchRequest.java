@@ -10,7 +10,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.core.watcher.support.WatcherUtils;
+import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 
 import java.io.IOException;
 
@@ -64,7 +64,7 @@ public class ActivateWatchRequest extends ActionRequest {
         ActionRequestValidationException validationException = null;
         if (watchId == null){
             validationException = ValidateActions.addValidationError("watch id is missing", validationException);
-        } else if (WatcherUtils.isValidId(watchId) == false) {
+        } else if (PutWatchRequest.isValidId(watchId) == false) {
             validationException = ValidateActions.addValidationError("watch id contains whitespace", validationException);
         }
         return validationException;

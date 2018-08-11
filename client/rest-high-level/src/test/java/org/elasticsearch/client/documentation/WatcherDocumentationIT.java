@@ -26,15 +26,30 @@ import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.protocol.xpack.watcher.ActivateWatchRequest;
+import org.elasticsearch.protocol.xpack.watcher.ActivateWatchResponse;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
+import org.elasticsearch.protocol.xpack.watcher.status.WatchStatus;
 
+import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
+
+    private PutWatchResponse createWatch(String watchId, RestHighLevelClient client) throws IOException {
+        BytesReference watch = new BytesArray("{ \n" +
+                "  \"trigger\": { \"schedule\": { \"interval\": \"10h\" } },\n" +
+                "  \"input\": { \"simple\": { \"foo\" : \"bar\" } },\n" +
+                "  \"actions\": { \"logme\": { \"logging\": { \"text\": \"{{ctx.payload}}\" } } }\n" +
+                "}");
+        PutWatchRequest request = new PutWatchRequest("my_watch_id", watch, XContentType.JSON);
+        request.setActive(false); // <1>
+        return client.watcher().putWatch(request, RequestOptions.DEFAULT);
+    }
 
     public void testWatcher() throws Exception {
         RestHighLevelClient client = highLevelClient();
@@ -132,4 +147,54 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testActivateWatch() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            createWatch("my_watch_id", client);
+
+            //tag::x-pack-activate-watch-execute
+            ActivateWatchRequest request = new ActivateWatchRequest("my_watch_id");
+            ActivateWatchResponse response = client.watcher().activateWatch(request, RequestOptions.DEFAULT);
+            //end::x-pack-activate-watch-execute
+
+            //tag::x-pack-activate-watch-response
+            WatchStatus status = response.getStatus(); // <1>
+            boolean active = status.state().isActive(); // <2>
+            //end::x-pack-activate-watch-response
+        }
+
+        {
+            createWatch("my_other_watch_id", client);
+            ActivateWatchRequest request = new ActivateWatchRequest("my_other_watch_id");
+
+            // tag::x-pack-activate-watch-execute-listener
+            ActionListener<ActivateWatchResponse> listener = new ActionListener<ActivateWatchResponse>() {
+                @Override
+                public void onResponse(ActivateWatchResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::x-pack-activate-watch-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::x-pack-activate-watch-execute-async
+            client.watcher().activateWatchAsync(
+                    request, // <1>
+                    RequestOptions.DEFAULT, // <2>
+                    listener // <3>
+            );
+            // end::x-pack-activate-watch-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
 }

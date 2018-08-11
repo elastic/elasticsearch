@@ -11,7 +11,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
+import org.elasticsearch.protocol.xpack.watcher.status.WatcherDateTimeUtils;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -23,7 +23,7 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils.parseTimeValueSupportingFractional;
+import static org.elasticsearch.protocol.xpack.watcher.status.WatcherDateTimeUtils.parseTimeValueSupportingFractional;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.is;

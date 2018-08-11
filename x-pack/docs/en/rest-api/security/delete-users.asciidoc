@@ -1,0 +1,45 @@
+[role="xpack"]
+[[security-api-delete-user]]
+=== Delete users API
+
+Deletes users from the native realm. 
+
+==== Request
+
+`DELETE /_xpack/security/user/<username>` 
+
+//==== Description
+
+==== Path Parameters
+
+`username`::
+  (string) An identifier for the user. 
+
+//==== Request Body
+
+==== Authorization
+
+To use this API, you must have at least the `manage_security` cluster privilege.
+
+
+==== Examples
+
+To delete a user, submit a DELETE request to the `/_xpack/security/user/<username>`
+endpoint:
+
+[source,js]
+--------------------------------------------------
+DELETE /_xpack/security/user/jacknich
+--------------------------------------------------
+// CONSOLE
+
+If the user is successfully deleted, the request returns `{"found": true}`.
+Otherwise, `found` is set to false.
+
+[source,js]
+--------------------------------------------------
+{
+  "found" : true
+}
+--------------------------------------------------
+// TESTRESPONSE

@@ -9,7 +9,6 @@ You can use the following APIs to perform {security} activities.
 * <<security-api-privileges>>
 * <<security-api-role-mapping>>
 * <<security-api-ssl>>
-* <<security-api-users>>
 
 [float]
 [[security-role-apis]]
@@ -30,16 +29,20 @@ without requiring basic authentication:
 
 * <<security-api-get-token,Get token>>, <<security-api-invalidate-token,Invalidate token>>
 
+include::security/users.asciidoc[]
+
 include::security/authenticate.asciidoc[]
 include::security/change-password.asciidoc[]
 include::security/clear-cache.asciidoc[]
 include::security/clear-roles-cache.asciidoc[]
 include::security/create-roles.asciidoc[]
+include::security/create-users.asciidoc[]
 include::security/delete-roles.asciidoc[]
 include::security/delete-tokens.asciidoc[]
+include::security/delete-users.asciidoc[]
 include::security/get-roles.asciidoc[]
 include::security/get-tokens.asciidoc[]
+include::security/get-users.asciidoc[]
 include::security/privileges.asciidoc[]
 include::security/role-mapping.asciidoc[]
 include::security/ssl.asciidoc[]
-include::security/users.asciidoc[]

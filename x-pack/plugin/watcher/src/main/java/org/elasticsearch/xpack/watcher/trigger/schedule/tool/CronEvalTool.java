@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule.tool;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -57,18 +58,25 @@ public class CronEvalTool extends LoggingAwareCommand {
 
         DateTime date = DateTime.now(DateTimeZone.UTC);
         terminal.println("Now is [" + formatter.print(date) + "]");
-        terminal.println("Here are the next " + count + " times this cron expression will trigger:");
 
         Cron cron = new Cron(expression);
         long time = date.getMillis();
-        for (int i = 0; i < count; i++) {
+        int i = 0;
+        List<String> times = new ArrayList<>();
+
+        for (; i < count; i++) {
             long prevTime = time;
             time = cron.getNextValidTimeAfter(time);
             if (time < 0) {
-                throw new UserException(ExitCodes.OK, (i + 1) + ".\t Could not compute future times since ["
-                    + formatter.print(prevTime) + "] " + "(perhaps the cron expression only points to times in the past?)");
+                if (i == 0) {
+                    throw new UserException(ExitCodes.OK, "Could not compute future times since ["
+                            + formatter.print(prevTime) + "] " + "(perhaps the cron expression only points to times in the past?)");
+                }
+                break;
             }
-            terminal.println((i+1) + ".\t" + formatter.print(time));
+            times.add((i + 1) + ".\t" + formatter.print(time));
         }
+        terminal.println((i == count ? "Here are the next " : "There are ") + i + " times this cron expression will trigger:");
+        times.forEach(terminal::println);
     }
 }

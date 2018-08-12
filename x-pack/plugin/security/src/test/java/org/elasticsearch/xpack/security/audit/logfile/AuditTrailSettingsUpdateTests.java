@@ -14,7 +14,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
-import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.EntryCommonFields;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.BeforeClass;
 
@@ -25,6 +24,8 @@ import java.util.List;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.startsWith;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -115,19 +116,24 @@ public class AuditTrailSettingsUpdateTests extends SecurityIntegTestCase {
                 .getAuditTrails()
                 .iterator()
                 .next();
-        final EntryCommonFields ecs = loggingAuditTrail.entryCommonFields;
-//        assertTrue(Pattern.matches("\\[127\\.0\\.0\\.1\\] \\[127\\.0\\.0\\.1\\] \\[node_.*\\] ", loggingAuditTrail.entryCommonFields.prefix));
-//        settingsBuilder.put(LoggingAuditTrail.EMIT_HOST_ADDRESS_SETTING.getKey(), false);
-//        updateSettings(settingsBuilder.build(), persistent);
-//        assertTrue(Pattern.matches("\\[127\\.0\\.0\\.1\\] \\[node_.*\\] ", loggingAuditTrail.entryCommonFields.prefix));
-//        settingsBuilder.put(LoggingAuditTrail.EMIT_HOST_ADDRESS_SETTING.getKey(), true);
-//        settingsBuilder.put(LoggingAuditTrail.EMIT_HOST_NAME_SETTING.getKey(), false);
-//        updateSettings(settingsBuilder.build(), persistent);
-//        assertTrue(Pattern.matches("\\[127\\.0\\.0\\.1\\] \\[node_.*\\] ", loggingAuditTrail.entryCommonFields.prefix));
-//        settingsBuilder.put(LoggingAuditTrail.EMIT_HOST_NAME_SETTING.getKey(), true);
-//        settingsBuilder.put(LoggingAuditTrail.EMIT_NODE_NAME_SETTING.getKey(), false);
-//        updateSettings(settingsBuilder.build(), persistent);
-//        assertTrue(Pattern.matches("\\[127\\.0\\.0\\.1\\] \\[127\\.0\\.0\\.1\\] ", loggingAuditTrail.entryCommonFields.prefix));
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.NODE_NAME_FIELD_NAME), startsWith("node_"));
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.HOST_ADDRESS_FIELD_NAME), is("127.0.0.1"));
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.HOST_NAME_FIELD_NAME), is("127.0.0.1"));
+        settingsBuilder.put(LoggingAuditTrail.EMIT_HOST_ADDRESS_SETTING.getKey(), false);
+        updateSettings(settingsBuilder.build(), persistent);
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.NODE_NAME_FIELD_NAME), startsWith("node_"));
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.containsKey(LoggingAuditTrail.HOST_ADDRESS_FIELD_NAME), is(false));
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.HOST_NAME_FIELD_NAME), is("127.0.0.1"));
+        settingsBuilder.put(LoggingAuditTrail.EMIT_HOST_NAME_SETTING.getKey(), false);
+        updateSettings(settingsBuilder.build(), persistent);
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.NODE_NAME_FIELD_NAME), startsWith("node_"));
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.containsKey(LoggingAuditTrail.HOST_ADDRESS_FIELD_NAME), is(false));
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.containsKey(LoggingAuditTrail.HOST_NAME_FIELD_NAME), is(false));
+        settingsBuilder.put(LoggingAuditTrail.EMIT_NODE_NAME_SETTING.getKey(), false);
+        updateSettings(settingsBuilder.build(), persistent);
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.containsKey(LoggingAuditTrail.NODE_NAME_FIELD_NAME), is(false));
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.containsKey(LoggingAuditTrail.HOST_ADDRESS_FIELD_NAME), is(false));
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields.containsKey(LoggingAuditTrail.HOST_NAME_FIELD_NAME), is(false));
     }
 
     public void testDynamicRequestBodySettings() {

@@ -49,9 +49,9 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.UpdateScript;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -772,7 +772,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         private final Script script;
         private final Map<String, Object> params;
 
-        private ExecutableScript executable;
+        private UpdateScript executable;
         private Map<String, Object> context;
 
         public ScriptApplier(WorkerBulkByScrollTaskState taskWorker,
@@ -792,7 +792,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 return request;
             }
             if (executable == null) {
-                ExecutableScript.Factory factory = scriptService.compile(script, ExecutableScript.UPDATE_CONTEXT);
+                UpdateScript.Factory factory = scriptService.compile(script, UpdateScript.CONTEXT);
                 executable = factory.newInstance(params);
             }
             if (context == null) {
@@ -815,8 +815,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             OpType oldOpType = OpType.INDEX;
             context.put("op", oldOpType.toString());
 
-            executable.setNextVar("ctx", context);
-            executable.run();
+            executable.execute(context);
 
             String newOp = (String) context.remove("op");
             if (newOp == null) {

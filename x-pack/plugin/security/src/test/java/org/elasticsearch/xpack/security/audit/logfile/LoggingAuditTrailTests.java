@@ -895,7 +895,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
         for (final Map.Entry<String, String> checkField : checkFields.entrySet()) {
             if (null == checkField.getValue()) {
                 // null checkField means that the field does not exist
-                assertThat("Field: " + checkField.getKey() + " should be missing.", logLine.contains(Pattern.quote(checkField.getKey())), is(false));
+                assertThat("Field: " + checkField.getKey() + " should be missing.", logLine.contains(Pattern.quote(checkField.getKey())),
+                        is(false));
             } else {
                 final Pattern logEntryFieldPattern = Pattern
                         .compile(Pattern.quote(checkField.getKey() + "=\"" + checkField.getValue() + "\""));

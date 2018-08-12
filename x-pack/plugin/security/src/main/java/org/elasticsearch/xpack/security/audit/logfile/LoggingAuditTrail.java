@@ -103,10 +103,10 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     public static final String RULE_FIELD_NAME = "rule";
     public static final String OPAQUE_ID_FIELD_NAME = "opaque_id";
     public static final String NAME = "logfile";
-    public static final Setting<Boolean> EMIT_HOST_ADDRESS_SETTING = Setting.boolSetting(setting("audit.logfile.prefix.emit_node_host_address"),
+    public static final Setting<Boolean> EMIT_HOST_ADDRESS_SETTING = Setting
+            .boolSetting(setting("audit.logfile.prefix.emit_node_host_address"), false, Property.NodeScope, Property.Dynamic);
+    public static final Setting<Boolean> EMIT_HOST_NAME_SETTING = Setting.boolSetting(setting("audit.logfile.prefix.emit_node_host_name"),
             false, Property.NodeScope, Property.Dynamic);
-    public static final Setting<Boolean> EMIT_HOST_NAME_SETTING = Setting.boolSetting(setting("audit.logfile.prefix.emit_node_host_name"), false,
-            Property.NodeScope, Property.Dynamic);
     public static final Setting<Boolean> EMIT_NODE_NAME_SETTING = Setting.boolSetting(setting("audit.logfile.prefix.emit_node_name"), true,
             Property.NodeScope, Property.Dynamic);
     private static final List<String> DEFAULT_EVENT_INCLUDES = Arrays.asList(ACCESS_DENIED.toString(), ACCESS_GRANTED.toString(),
@@ -169,8 +169,8 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             // `entryCommonFields` and `includeRequestBody` writes happen-before! `events` is
             // always read before `entryCommonFields` and `includeRequestBody`.
             this.events = parse(INCLUDE_EVENT_SETTINGS.get(newSettings), EXCLUDE_EVENT_SETTINGS.get(newSettings));
-        }, Arrays.asList(EMIT_HOST_ADDRESS_SETTING, EMIT_HOST_NAME_SETTING, EMIT_NODE_NAME_SETTING, INCLUDE_EVENT_SETTINGS, EXCLUDE_EVENT_SETTINGS,
-                INCLUDE_REQUEST_BODY));
+        }, Arrays.asList(EMIT_HOST_ADDRESS_SETTING, EMIT_HOST_NAME_SETTING, EMIT_NODE_NAME_SETTING, INCLUDE_EVENT_SETTINGS,
+                EXCLUDE_EVENT_SETTINGS, INCLUDE_REQUEST_BODY));
         clusterService.getClusterSettings().addAffixUpdateConsumer(FILTER_POLICY_IGNORE_PRINCIPALS, (policyName, filtersList) -> {
             final Optional<EventFilterPolicy> policy = eventFilterPolicyRegistry.get(policyName);
             final EventFilterPolicy newPolicy = policy.orElse(new EventFilterPolicy(policyName, settings))

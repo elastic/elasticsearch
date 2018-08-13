@@ -192,7 +192,11 @@ public class TcpTransportTests extends ESTestCase {
                 }
 
                 @Override
-                public NodeChannels getConnection(DiscoveryNode node) {
+                protected void stopInternal() {
+                }
+
+                @Override
+                public NodeChannels openConnection(DiscoveryNode node, ConnectionProfile connectionProfile) {
                     int numConnections = MockTcpTransport.LIGHT_PROFILE.getNumConnections();
                     ArrayList<TcpChannel> fakeChannels = new ArrayList<>(numConnections);
                     for (int i = 0; i < numConnections; ++i) {
@@ -203,7 +207,7 @@ public class TcpTransportTests extends ESTestCase {
             };
 
             DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
-            Transport.Connection connection = transport.getConnection(node);
+            Transport.Connection connection = transport.openConnection(node, null);
             connection.sendRequest(42, "foobar", request, TransportRequestOptions.EMPTY);
 
             BytesReference reference = messageCaptor.get();

@@ -63,14 +63,14 @@ public class Netty4ScheduledPingTests extends ESTestCase {
         final Netty4Transport nettyA = new Netty4Transport(settings, threadPool, new NetworkService(Collections.emptyList()),
             BigArrays.NON_RECYCLING_INSTANCE, registry, circuitBreakerService);
         MockTransportService serviceA = new MockTransportService(settings, nettyA, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                null);
+            null);
         serviceA.start();
         serviceA.acceptIncomingRequests();
 
         final Netty4Transport nettyB = new Netty4Transport(settings, threadPool, new NetworkService(Collections.emptyList()),
             BigArrays.NON_RECYCLING_INSTANCE, registry, circuitBreakerService);
         MockTransportService serviceB = new MockTransportService(settings, nettyB, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                null);
+            null);
 
         serviceB.start();
         serviceB.acceptIncomingRequests();
@@ -82,22 +82,19 @@ public class Netty4ScheduledPingTests extends ESTestCase {
         serviceB.connectToNode(nodeA);
 
         assertBusy(() -> {
-            assertThat(nettyA.getPing().getSuccessfulPings(), greaterThan(100L));
-            assertThat(nettyB.getPing().getSuccessfulPings(), greaterThan(100L));
+            assertThat(nettyA.successfulPingCount(), greaterThan(100L));
+            assertThat(nettyB.successfulPingCount(), greaterThan(100L));
         });
-        assertThat(nettyA.getPing().getFailedPings(), equalTo(0L));
-        assertThat(nettyB.getPing().getFailedPings(), equalTo(0L));
+        assertThat(nettyA.failedPingCount(), equalTo(0L));
+        assertThat(nettyB.failedPingCount(), equalTo(0L));
 
         serviceA.registerRequestHandler("internal:sayHello", TransportRequest.Empty::new, ThreadPool.Names.GENERIC,
-            new TransportRequestHandler<TransportRequest.Empty>() {
-                @Override
-                public void messageReceived(TransportRequest.Empty request, TransportChannel channel) {
-                    try {
-                        channel.sendResponse(TransportResponse.Empty.INSTANCE, TransportResponseOptions.EMPTY);
-                    } catch (IOException e) {
-                        logger.error("Unexpected failure", e);
-                        fail(e.getMessage());
-                    }
+            (request, channel) -> {
+                try {
+                    channel.sendResponse(TransportResponse.Empty.INSTANCE, TransportResponseOptions.EMPTY);
+                } catch (IOException e) {
+                    logger.error("Unexpected failure", e);
+                    fail(e.getMessage());
                 }
             });
 
@@ -129,11 +126,11 @@ public class Netty4ScheduledPingTests extends ESTestCase {
         }
 
         assertBusy(() -> {
-            assertThat(nettyA.getPing().getSuccessfulPings(), greaterThan(200L));
-            assertThat(nettyB.getPing().getSuccessfulPings(), greaterThan(200L));
+            assertThat(nettyA.successfulPingCount(), greaterThan(200L));
+            assertThat(nettyB.successfulPingCount(), greaterThan(200L));
         });
-        assertThat(nettyA.getPing().getFailedPings(), equalTo(0L));
-        assertThat(nettyB.getPing().getFailedPings(), equalTo(0L));
+        assertThat(nettyA.failedPingCount(), equalTo(0L));
+        assertThat(nettyB.failedPingCount(), equalTo(0L));
 
         Releasables.close(serviceA, serviceB);
         terminate(threadPool);

@@ -110,6 +110,7 @@ import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
+import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoRequest;
 import org.elasticsearch.protocol.xpack.ml.PutJobRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
@@ -1196,9 +1197,19 @@ final class RequestConverters {
             .addPathPartAsIs("anomaly_detectors")
             .addPathPart(putJobRequest.getJob().getId())
             .build();
-
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         request.setEntity(createEntity(putJobRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request getMigrationAssistance(IndexUpgradeInfoRequest indexUpgradeInfoRequest) {
+        EndpointBuilder endpointBuilder = new EndpointBuilder()
+            .addPathPartAsIs("_xpack/migration/assistance")
+            .addCommaSeparatedPathParts(indexUpgradeInfoRequest.indices());
+        String endpoint = endpointBuilder.build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        Params parameters = new Params(request);
+        parameters.withIndicesOptions(indexUpgradeInfoRequest.indicesOptions());
         return request;
     }
 

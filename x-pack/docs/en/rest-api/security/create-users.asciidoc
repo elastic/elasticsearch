@@ -3,44 +3,42 @@
 === Create users API
 
 Creates and updates users in the native realm. These users are commonly referred 
-to as *native users*.
+to as _native users_.
 
 
 ==== Request
 
 `POST /_xpack/security/user/<username>` +
 
-`PUT /_xpack/security/user/<username>` +
-
-`PUT /_xpack/security/user/<username>/_disable` +
-
-`PUT /_xpack/security/user/<username>/_enable` +
-
-`PUT /_xpack/security/user/<username>/_password`
+`PUT /_xpack/security/user/<username>` 
 
 
 ==== Description
 
-You can use the PUT user API to create or update users. When updating a user,
-you can update everything but its `username` and `password`. To change a user's
-password, use the  <<security-api-reset-user-password, reset password API>>.
+When updating a user, you can update everything but its `username` and `password`. 
+To change a user's password, use the 
+<<security-api-change-password, change password API>>.
 
-[[username-validation]]
-NOTE: Usernames must be at least 1 and no more than 1024 characters. They can
-contain alphanumeric characters (`a-z`, `A-Z`, `0-9`), spaces, punctuation, and
-printable symbols in the https://en.wikipedia.org/wiki/Basic_Latin_(Unicode_block)[Basic Latin (ASCII) block].
-Leading or trailing whitespace is not allowed.
+For more information about the native realm, see 
+{stack-ov}/realms.html[Realms] and <<configuring-native-realm>>. 
 
 ==== Path Parameters
 
 `username`::
-  (string) An identifier for the user. 
+  (string) An identifier for the user.
++
+--
+[[username-validation]]
+NOTE: Usernames must be at least 1 and no more than 1024 characters. They can
+contain alphanumeric characters (`a-z`, `A-Z`, `0-9`), spaces, punctuation, and
+printable symbols in the https://en.wikipedia.org/wiki/Basic_Latin_(Unicode_block)[Basic Latin (ASCII) block]. Leading or trailing whitespace is not allowed.
+
+--
 
 
 ==== Request Body
 
-The following parameters can be specified in the body of a POST or PUT request
-and pertain to creating a user:
+The following parameters can be specified in the body of a POST or PUT request:
 
 `enabled`::
 (boolean) Specifies whether the user is enabled. The default value is `true`.
@@ -61,6 +59,7 @@ and pertain to creating a user:
 (list) A set of roles the user has. The roles determine the user's access 
 permissions. To create a user without any roles, specify an empty list: `[]`.
 
+
 ==== Authorization
 
 To use this API, you must have at least the `manage_security` cluster privilege.
@@ -68,8 +67,7 @@ To use this API, you must have at least the `manage_security` cluster privilege.
 
 ==== Examples
 
-To add a user, submit a PUT or POST request to the `/_xpack/security/user/<username>`
-endpoint.
+For example, to create a user `jacknich`:
 
 [source,js]
 --------------------------------------------------
@@ -100,47 +98,10 @@ created or updated.
 // TESTRESPONSE
 <1> When an existing user is updated, `created` is set to false.
 
-After you add a user through the Users API, requests from that user can be
-authenticated. For example:
+After you add a user, requests from that user can be authenticated. For example:
 
 [source,shell]
 --------------------------------------------------
 curl -u jacknich:j@rV1s http://localhost:9200/_cluster/health
 --------------------------------------------------
 // NOTCONSOLE
-
-[[security-api-reset-user-password]]
-To reset the password for a user, submit a PUT request to the
-`/_xpack/security/user/<username>/_password` endpoint:
-
-[source,js]
---------------------------------------------------
-PUT /_xpack/security/user/jacknich/_password
-{
-  "password" : "s3cr3t"
-}
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-[[security-api-disable-user]]
-To disable a user, submit a PUT request to the
-`/_xpack/security/user/<username>/_disable` endpoint:
-
-[source,js]
---------------------------------------------------
-PUT /_xpack/security/user/jacknich/_disable
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-[[security-api-enable-user]]
-To enable a user, submit a PUT request to the
-`/_xpack/security/user/<username>/_enable` endpoint:
-
-[source,js]
---------------------------------------------------
-PUT /_xpack/security/user/jacknich/_enable
---------------------------------------------------
-// CONSOLE
-// TEST[continued]

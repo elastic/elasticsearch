@@ -1,0 +1,46 @@
+[role="xpack"]
+[[security-api-disable-user]]
+=== Disable users API
+
+Disables users in the native realm. 
+
+
+==== Request
+
+`PUT /_xpack/security/user/<username>/_disable` 
+
+
+==== Description
+
+By default, when you create users, they are enabled. 
+//TBD: What is disallowed when a user is disabled? Is it just intended for 
+// temporarily revoking access?
+You can use this disable users API and the <<security-api-enable-user,enable users API>> to change that attribute. 
+
+For more information about the native realm, see 
+{stack-ov}/realms.html[Realms] and <<configuring-native-realm>>. 
+
+==== Path Parameters
+
+`username`::
+  (string) An identifier for the user.
+//TBD: Can you specify multiple users in a comma-delimited list? If you don't 
+//specify a user, does it disable all users?  
+
+//==== Request Body
+
+==== Authorization
+
+To use this API, you must have at least the `manage_security` cluster privilege.
+
+
+==== Examples
+
+For example, to disable a user `jacknich`:
+
+[source,js]
+--------------------------------------------------
+PUT /_xpack/security/user/jacknich/_disable
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:jacknich_user]

@@ -1,0 +1,44 @@
+[role="xpack"]
+[[security-api-enable-user]]
+=== Enable users API
+
+Enables users in the native realm. 
+
+
+==== Request
+
+`PUT /_xpack/security/user/<username>/_enable` 
+
+
+==== Description
+
+By default, when you create users, they are enabled. You can use this enable 
+users API and the <<security-api-disable-user,disable users API>> to change that attribute. 
+
+For more information about the native realm, see 
+{stack-ov}/realms.html[Realms] and <<configuring-native-realm>>. 
+
+==== Path Parameters
+
+`username`::
+  (string) An identifier for the user.
+//TBD: Can you specify multiple users in a comma-delimited list? If you don't 
+//specify a user, does it enable all users?  
+
+//==== Request Body
+
+==== Authorization
+
+To use this API, you must have at least the `manage_security` cluster privilege.
+
+
+==== Examples
+
+For example, to enable the user `jacknich`:
+
+[source,js]
+--------------------------------------------------
+PUT /_xpack/security/user/jacknich/_enable
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:jacknich_user]

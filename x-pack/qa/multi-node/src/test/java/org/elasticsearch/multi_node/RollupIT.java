@@ -156,7 +156,7 @@ public class RollupIT extends ESRestTestCase {
             Map<String, Object> job = getJob(getRollupJobResponse, "rollup-job-test");
             if (job != null) {
                 assertThat(ObjectPath.eval("status.job_state", job), equalTo("started"));
-                assertThat(ObjectPath.eval("stats.documents_indexed", job), equalTo(41));
+                assertThat(ObjectPath.eval("stats.rollups_indexed", job), equalTo(41));
             }
         }, 30L, TimeUnit.SECONDS);
 

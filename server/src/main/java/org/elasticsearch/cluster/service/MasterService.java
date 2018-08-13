@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.AckedClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -53,6 +54,7 @@ import org.elasticsearch.cluster.coordination.ClusterStatePublisher;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transports;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -60,7 +62,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
@@ -236,19 +237,17 @@ public class MasterService extends AbstractLifecycleComponent {
         }
     }
 
-    protected void publish(ClusterChangedEvent clusterChangedEvent, TaskOutputs taskOutputs, long startTimeNS) throws Exception {
-        CompletableFuture<Void> fut = new CompletableFuture<>();
-        clusterStatePublisher.publish(clusterChangedEvent, new ActionListener<Void>() {
+    protected void publish(ClusterChangedEvent clusterChangedEvent, TaskOutputs taskOutputs, long startTimeNS) {
+        final PlainActionFuture<Void> fut = new PlainActionFuture<Void>() {
             @Override
-            public void onResponse(Void aVoid) {
-                fut.complete(aVoid);
+            protected boolean blockingAllowed() {
+                // allow this one to block on the MasterServiceUpdateThread
+                return Transports.assertNotTransportThread(BLOCKING_OP_REASON) &&
+                    ThreadPool.assertNotScheduleThread(BLOCKING_OP_REASON) &&
+                    ClusterApplierService.assertNotClusterStateUpdateThread(BLOCKING_OP_REASON);
             }
-
-            @Override
-            public void onFailure(Exception e) {
-                fut.completeExceptionally(e);
-            }
-        }, taskOutputs.createAckListener(threadPool, clusterChangedEvent.state()));
+        };
+        clusterStatePublisher.publish(clusterChangedEvent, fut, taskOutputs.createAckListener(threadPool, clusterChangedEvent.state()));
 
         final ActionListener<Void> publishListener = getPublishListener(clusterChangedEvent, taskOutputs, startTimeNS);
         // indefinitely wait for publication to complete
@@ -339,7 +338,7 @@ public class MasterService extends AbstractLifecycleComponent {
         return newClusterState;
     }
 
-    public Builder incrementVersion(ClusterState clusterState) {
+    protected Builder incrementVersion(ClusterState clusterState) {
         return ClusterState.builder(clusterState).incrementVersion();
     }
 

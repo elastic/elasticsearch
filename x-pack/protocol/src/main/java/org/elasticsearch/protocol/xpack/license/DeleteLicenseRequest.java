@@ -20,29 +20,12 @@ package org.elasticsearch.protocol.xpack.license;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-
-import java.io.IOException;
 
 
 public class DeleteLicenseRequest extends AcknowledgedRequest<DeleteLicenseRequest> {
 
-    public DeleteLicenseRequest() {
-    }
-
     @Override
     public ActionRequestValidationException validate() {
         return null;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
     }
 }

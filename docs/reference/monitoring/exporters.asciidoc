@@ -107,7 +107,6 @@ route monitoring data:
 |=======================
 | Template                    | Purpose
 | `.monitoring-alerts`        | All cluster alerts for monitoring data.
-| `.monitoring-apm-server`    | All APM Server monitoring data.
 | `.monitoring-beats`         | All Beats monitoring data.
 | `.monitoring-es`            | All {es} monitoring data.
 | `.monitoring-kibana`        | All {kib} monitoring data.

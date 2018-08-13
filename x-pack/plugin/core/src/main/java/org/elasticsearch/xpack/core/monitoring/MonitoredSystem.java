@@ -15,7 +15,6 @@ public enum MonitoredSystem {
     KIBANA("kibana"),
     LOGSTASH("logstash"),
     BEATS("beats"),
-    APM_SERVER("apm-server"),
     UNKNOWN("unknown");
 
     private final String system;
@@ -38,8 +37,6 @@ public enum MonitoredSystem {
                 return LOGSTASH;
             case "beats":
                 return BEATS;
-            case "apm-server":
-                return APM_SERVER;
             default:
                 // Return an "unknown" monitored system
                 // that can easily be filtered out if

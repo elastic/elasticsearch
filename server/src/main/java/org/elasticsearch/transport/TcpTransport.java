@@ -1054,6 +1054,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                         CloseableChannel.closeChannel(channel);
                     }
                 };
+                // We do not call internalSendMessage because we are not sending a message that is an
+                // elasticsearch binary message. We are just serializing an exception here. Not formatting it
+                // as an elasticsearch transport message.
                 try {
                     channel.sendMessage(message, listener);
                 } catch (Exception ex) {

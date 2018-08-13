@@ -32,9 +32,9 @@ import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
 
-public class TransportLogger {
+public final class TransportLogger {
 
-    private Logger logger;
+    private final Logger logger;
     private static final int HEADER_SIZE = TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
 
     TransportLogger(Settings settings) {
@@ -64,7 +64,7 @@ public class TransportLogger {
         }
     }
 
-    public String format(TcpChannel channel, BytesReference message, String event) throws IOException {
+    private String format(TcpChannel channel, BytesReference message, String event) throws IOException {
         final StringBuilder sb = new StringBuilder();
         sb.append(channel);
         int messageLengthWithHeader = HEADER_SIZE + message.length();

@@ -13,8 +13,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.protocol.xpack.migration.UpgradeActionRequired;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.upgrade.UpgradeActionRequired;
 
 import java.util.Arrays;
 import java.util.Map;

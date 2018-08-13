@@ -1,6 +1,11 @@
 [[misc-cluster]]
 === Miscellaneous cluster settings
 
+`cluster.dynamic_name`::
+
+      Assign a name to the cluster that will appear in info requests (e.g.
+      `GET /`).
+
 [[cluster-read-only]]
 ==== Metadata
 

@@ -39,11 +39,12 @@ public class MainResponseTests extends AbstractStreamableXContentTestCase<MainRe
     protected MainResponse createTestInstance() {
         String clusterUuid = randomAlphaOfLength(10);
         ClusterName clusterName = new ClusterName(randomAlphaOfLength(10));
+        String clusterDynamicName = "dynamic-"+clusterName.value();
         String nodeName = randomAlphaOfLength(10);
         final String date = new Date(randomNonNegativeLong()).toString();
         Build build = new Build(Build.Flavor.UNKNOWN, Build.Type.UNKNOWN, randomAlphaOfLength(8), date, randomBoolean());
         Version version = VersionUtils.randomVersion(random());
-        return new MainResponse(nodeName, version, clusterName, clusterUuid , build);
+        return new MainResponse(nodeName, version, clusterName, clusterUuid, clusterDynamicName, build);
     }
 
     @Override
@@ -61,13 +62,15 @@ public class MainResponseTests extends AbstractStreamableXContentTestCase<MainRe
         final Build current = Build.CURRENT;
         Build build = new Build(current.flavor(), current.type(), current.shortHash(), current.date(), current.isSnapshot());
         Version version = Version.CURRENT;
-        MainResponse response = new MainResponse("nodeName", version, new ClusterName("clusterName"), clusterUUID, build);
+        MainResponse response = new MainResponse("nodeName", version, new ClusterName("clusterName"), clusterUUID,
+            "dynamic-clusterName", build);
         XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals("{"
                 + "\"name\":\"nodeName\","
                 + "\"cluster_name\":\"clusterName\","
                 + "\"cluster_uuid\":\"" + clusterUUID + "\","
+                + "\"cluster_dynamic_name\":\"dynamic-clusterName\","
                 + "\"version\":{"
                     + "\"number\":\"" + version.toString() + "\","
                     + "\"build_flavor\":\"" + current.flavor().displayName() + "\","
@@ -89,7 +92,8 @@ public class MainResponseTests extends AbstractStreamableXContentTestCase<MainRe
         Version version = mutateInstance.getVersion();
         String nodeName = mutateInstance.getNodeName();
         ClusterName clusterName = mutateInstance.getClusterName();
-        switch (randomIntBetween(0, 4)) {
+        String clusterDynamicName = mutateInstance.getClusterDynamicName();
+        switch (randomIntBetween(0, 5)) {
             case 0:
                 clusterUuid = clusterUuid + randomAlphaOfLength(5);
                 break;
@@ -106,7 +110,10 @@ public class MainResponseTests extends AbstractStreamableXContentTestCase<MainRe
             case 4:
                 clusterName = new ClusterName(clusterName + randomAlphaOfLength(5));
                 break;
+            case 5:
+                clusterDynamicName = clusterDynamicName + randomAlphaOfLength(5);
+                break;
         }
-        return new MainResponse(nodeName, version, clusterName, clusterUuid, build);
+        return new MainResponse(nodeName, version, clusterName, clusterUuid, clusterDynamicName, build);
     }
 }

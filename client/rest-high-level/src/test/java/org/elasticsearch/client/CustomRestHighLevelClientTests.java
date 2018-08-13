@@ -161,7 +161,8 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
         ProtocolVersion protocol = new ProtocolVersion("HTTP", 1, 1);
         when(mockResponse.getStatusLine()).thenReturn(new BasicStatusLine(protocol, 200, "OK"));
 
-        MainResponse response = new MainResponse(httpHeader.getValue(), Version.CURRENT, ClusterName.DEFAULT, "_na", Build.CURRENT);
+        MainResponse response = new MainResponse(httpHeader.getValue(), Version.CURRENT,
+            ClusterName.DEFAULT, "_na", "dynamic-" + ClusterName.DEFAULT, Build.CURRENT);
         BytesRef bytesRef = XContentHelper.toXContent(response, XContentType.JSON, false).toBytesRef();
         when(mockResponse.getEntity()).thenReturn(new ByteArrayEntity(bytesRef.bytes, ContentType.APPLICATION_JSON));
 

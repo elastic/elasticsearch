@@ -148,7 +148,7 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     public void testInfo() throws IOException {
         MainResponse testInfo = new MainResponse("nodeName", Version.CURRENT, new ClusterName("clusterName"), "clusterUuid",
-                Build.CURRENT);
+                "dynamic-clusterName", Build.CURRENT);
         mockResponse(testInfo);
         MainResponse receivedInfo = restHighLevelClient.info(RequestOptions.DEFAULT);
         assertEquals(testInfo, receivedInfo);

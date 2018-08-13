@@ -1,0 +1,48 @@
+---
+"Test cluster.dynamic_name fallback":
+  - skip:
+      version: " - 6.9.99"
+      reason: "The cluster dynamic name field is only available in 7.0+"
+
+  - do:         {info: {}}
+  - is_false:    cluster_dynamic_name
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            cluster.dynamic_name: "dynamic_persistent"
+          flat_settings: true
+
+  - do:         {info: {}}
+  - match: {cluster_dynamic_name: "dynamic_persistent"}
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            cluster.dynamic_name: "dynamic_transient"
+          flat_settings: true
+
+  - do:         {info: {}}
+  - match: {cluster_dynamic_name: "dynamic_transient"}
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            cluster.dynamic_name: null
+          flat_settings: true
+
+  - do:         {info: {}}
+  - match: {cluster_dynamic_name: "dynamic_persistent"}
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            cluster.dynamic_name: null
+          flat_settings: true
+
+  - do:         {info: {}}
+  - is_false:    cluster_dynamic_name

@@ -139,6 +139,9 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     public static final ClusterBlock CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK = new ClusterBlock(13, "cluster read-only / allow delete (api)",
         false, false, true, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
 
+    public static final Setting<String> SETTING_CLUSTER_DYNAMIC_NAME = Setting.simpleString("cluster.dynamic_name",
+        Property.Dynamic, Property.NodeScope);
+
     public static final MetaData EMPTY_META_DATA = builder().build();
 
     public static final String CONTEXT_MODE_PARAM = "context_mode";

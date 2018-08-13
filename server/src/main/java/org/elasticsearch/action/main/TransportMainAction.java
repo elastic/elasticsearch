@@ -25,6 +25,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -49,8 +50,10 @@ public class TransportMainAction extends HandledTransportAction<MainRequest, Mai
         ClusterState clusterState = clusterService.state();
         assert Node.NODE_NAME_SETTING.exists(settings);
         final boolean available = clusterState.getBlocks().hasGlobalBlock(RestStatus.SERVICE_UNAVAILABLE) == false;
+
+        String clusterDynamicName = MetaData.SETTING_CLUSTER_DYNAMIC_NAME.get(clusterState.getMetaData().settings());
         listener.onResponse(
             new MainResponse(Node.NODE_NAME_SETTING.get(settings), Version.CURRENT, clusterState.getClusterName(),
-                    clusterState.metaData().clusterUUID(), Build.CURRENT));
+                    clusterState.metaData().clusterUUID(), clusterDynamicName, Build.CURRENT));
     }
 }

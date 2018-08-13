@@ -40,6 +40,7 @@ import java.util.Set;
 import static org.elasticsearch.painless.WriterConstants.ITERATOR_HASNEXT;
 import static org.elasticsearch.painless.WriterConstants.ITERATOR_NEXT;
 import static org.elasticsearch.painless.WriterConstants.ITERATOR_TYPE;
+import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
 
 /**
  * Represents a for-each loop for iterables.
@@ -76,12 +77,11 @@ final class SSubEachIterable extends AStatement {
         if (expression.actual == def.class) {
             method = null;
         } else {
-            method = locals.getPainlessLookup().getPainlessStructFromJavaClass(expression.actual).methods
-                    .get(PainlessLookupUtility.buildPainlessMethodKey("iterator", 0));
+            method = locals.getPainlessLookup().lookupPainlessMethod(expression.actual, false, "iterator", 0);
 
             if (method == null) {
-                throw createError(new IllegalArgumentException("Unable to create iterator for the type " +
-                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(expression.actual) + "]."));
+                    throw createError(new IllegalArgumentException(
+                            "method [" + typeToCanonicalTypeName(expression.actual) + ", iterator/0] not found"));
             }
         }
 

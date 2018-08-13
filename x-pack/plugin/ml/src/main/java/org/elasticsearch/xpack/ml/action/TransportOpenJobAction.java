@@ -18,12 +18,14 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -471,12 +473,25 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
     protected void masterOperation(OpenJobAction.Request request, ClusterState state, ActionListener<OpenJobAction.Response> listener) {
         OpenJobAction.JobParams jobParams = request.getJobParams();
         if (licenseState.isMachineLearningAllowed()) {
-            // Step 5. Wait for job to be started and respond
-            ActionListener<PersistentTasksCustomMetaData.PersistentTask<OpenJobAction.JobParams>> finalListener =
+
+            // Step 6. Clear job finished time once the job is started and respond
+            ActionListener<OpenJobAction.Response> clearJobFinishTime = ActionListener.wrap(
+                response -> {
+                    if (response.isAcknowledged()) {
+                        clearJobFinishedTime(jobParams.getJobId(), listener);
+                    } else {
+                        listener.onResponse(response);
+                    }
+                },
+                listener::onFailure
+            );
+
+            // Step 5. Wait for job to be started
+            ActionListener<PersistentTasksCustomMetaData.PersistentTask<OpenJobAction.JobParams>> waitForJobToStart =
                     new ActionListener<PersistentTasksCustomMetaData.PersistentTask<OpenJobAction.JobParams>>() {
                 @Override
                 public void onResponse(PersistentTasksCustomMetaData.PersistentTask<OpenJobAction.JobParams> task) {
-                    waitForJobStarted(task.getId(), jobParams, listener);
+                    waitForJobStarted(task.getId(), jobParams, clearJobFinishTime);
                 }
 
                 @Override
@@ -492,7 +507,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             // Step 4. Start job task
             ActionListener<PutJobAction.Response> establishedMemoryUpdateListener = ActionListener.wrap(
                     response -> persistentTasksService.sendStartRequest(MlTasks.jobTaskId(jobParams.getJobId()),
-                            OpenJobAction.TASK_NAME, jobParams, finalListener),
+                            OpenJobAction.TASK_NAME, jobParams, waitForJobToStart),
                     listener::onFailure
             );
 
@@ -574,6 +589,35 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         });
     }
 
+    private void clearJobFinishedTime(String jobId, ActionListener<OpenJobAction.Response> listener) {
+        clusterService.submitStateUpdateTask("clearing-job-finish-time-for-" + jobId, new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                MlMetadata mlMetadata = MlMetadata.getMlMetadata(currentState);
+                MlMetadata.Builder mlMetadataBuilder = new MlMetadata.Builder(mlMetadata);
+                Job.Builder jobBuilder = new Job.Builder(mlMetadata.getJobs().get(jobId));
+                jobBuilder.setFinishedTime(null);
+
+                mlMetadataBuilder.putJob(jobBuilder.build(), true);
+                ClusterState.Builder builder = ClusterState.builder(currentState);
+                return builder.metaData(new MetaData.Builder(currentState.metaData())
+                    .putCustom(MlMetadata.TYPE, mlMetadataBuilder.build()))
+                    .build();
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                logger.error("[" + jobId + "] Failed to clear finished_time; source [" + source + "]", e);
+                listener.onResponse(new OpenJobAction.Response(true));
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState,
+                                              ClusterState newState) {
+                listener.onResponse(new OpenJobAction.Response(true));
+            }
+        });
+    }
     private void cancelJobStart(PersistentTasksCustomMetaData.PersistentTask<OpenJobAction.JobParams> persistentTask, Exception exception,
                                 ActionListener<OpenJobAction.Response> listener) {
         persistentTasksService.sendRemoveRequest(persistentTask.getId(),

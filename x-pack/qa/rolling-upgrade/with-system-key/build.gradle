@@ -1,1 +1,10 @@
+import org.elasticsearch.gradle.test.RestIntegTestTask
+
+// Skip test on FIPS FIXME https://github.com/elastic/elasticsearch/issues/32737
+if (project.inFipsJvm) {
+    tasks.withType(RestIntegTestTask) {
+        enabled = false
+    }
+}
+
 group = "${group}.x-pack.qa.rolling-upgrade.with-system-key"

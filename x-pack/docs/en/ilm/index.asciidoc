@@ -10,11 +10,11 @@ time. Rather than simply performing management actions on your indices on a set
 schedule, you can base actions on other factors such as shard
 size and performance requirements.
 
-You control how time series indices are handled as they age by attaching a
+You control how indices are handled as they age by attaching a
 lifecycle policy to the index template used to create them. You can update
 the policy to modify the lifecycle of both new and existing indices.
 
-There are four stages in the index lifecycle:
+For time series indices, there are four stages in the index lifecycle:
 
 * Hot--the index is actively being updated and queried.
 * Warm--the index is no longer being updated, but is still being queried.
@@ -39,12 +39,12 @@ replicas can be reduced.
 For example, if you are indexing metrics data from a fleet of ATMs into
 Elasticsearch, you might define a policy that says:
 
-1. When the index reaches 5GB, roll over to a new index.
-2. Move the old index into the warm stage, mark it read only, and shrink it down
+. When the index reaches 5GB, roll over to a new index.
+. Move the old index into the warm stage, mark it read only, and shrink it down
 to a single shard.
-4. After 7 days, move the index into the cold stage and move it to less expensive
+. After 7 days, move the index into the cold stage and move it to less expensive
 hardware.
-5. Delete the index once the required 30 day retention period is reached.
+. Delete the index once the required 30 day retention period is reached.
 --
 
 :edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/index-lifecycle-management/getting-started-ilm.asciidoc

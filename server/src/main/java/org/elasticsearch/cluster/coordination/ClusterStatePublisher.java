@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.FailedToCommitClusterStateException;
 
 public interface ClusterStatePublisher {
     /**

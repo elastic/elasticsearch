@@ -35,7 +35,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.ClusterStatePublisher;
+import org.elasticsearch.cluster.coordination.ClusterStatePublisher;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;

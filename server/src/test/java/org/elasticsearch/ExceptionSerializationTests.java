@@ -57,7 +57,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.UnknownNamedObjectException;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.discovery.DiscoverySettings;
-import org.elasticsearch.discovery.FailedToCommitClusterStateException;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.RecoveryEngineException;

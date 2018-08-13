@@ -21,7 +21,6 @@ package org.elasticsearch;
 
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.coordination.CoordinationStateRejectedException;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -34,7 +33,6 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.discovery.FailedToCommitClusterStateException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
@@ -1007,8 +1005,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             UNKNOWN_VERSION_ADDED),
         TYPE_MISSING_EXCEPTION(org.elasticsearch.indices.TypeMissingException.class,
                 org.elasticsearch.indices.TypeMissingException::new, 137, UNKNOWN_VERSION_ADDED),
-        FAILED_TO_COMMIT_CLUSTER_STATE_EXCEPTION(FailedToCommitClusterStateException.class,
-                FailedToCommitClusterStateException::new, 140, UNKNOWN_VERSION_ADDED),
+        FAILED_TO_COMMIT_CLUSTER_STATE_EXCEPTION(org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException.class,
+                org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException::new, 140, UNKNOWN_VERSION_ADDED),
         QUERY_SHARD_EXCEPTION(org.elasticsearch.index.query.QueryShardException.class,
                 org.elasticsearch.index.query.QueryShardException::new, 141, UNKNOWN_VERSION_ADDED),
         NO_LONGER_PRIMARY_SHARD_EXCEPTION(ShardStateAction.NoLongerPrimaryShardException.class,
@@ -1027,8 +1025,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.common.xcontent.UnknownNamedObjectException::new, 148, Version.V_5_2_0),
         TOO_MANY_BUCKETS_EXCEPTION(MultiBucketConsumerService.TooManyBucketsException.class,
             MultiBucketConsumerService.TooManyBucketsException::new, 149, Version.V_7_0_0_alpha1),
-        COORDINATION_STATE_REJECTED_EXCEPTION(CoordinationStateRejectedException.class,
-            CoordinationStateRejectedException::new, 150, Version.V_7_0_0_alpha1);
+        COORDINATION_STATE_REJECTED_EXCEPTION(org.elasticsearch.cluster.coordination.CoordinationStateRejectedException.class,
+            org.elasticsearch.cluster.coordination.CoordinationStateRejectedException::new, 150, Version.V_7_0_0_alpha1);
 
 
         final Class<? extends ElasticsearchException> exceptionClass;

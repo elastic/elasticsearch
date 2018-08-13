@@ -51,7 +51,7 @@ import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.cluster.coordination.ClusterStatePublisher;
 import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.discovery.FailedToCommitClusterStateException;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Arrays;

@@ -30,6 +30,13 @@ public abstract class CloseableConnection implements Transport.Connection {
 
     private final CompletableContext<Void> closeContext = new CompletableContext<>();
 
+    /**
+     * The listener's {@link ActionListener#onResponse(Object)} method will be called when this connection is
+     * closed. This implementation does not have a scenario where the close process will be produce an
+     * exception, so the {@link ActionListener#onFailure(Exception)} will not be called.
+     *
+     * @param listener to be called
+     */
     @Override
     public void addCloseListener(ActionListener<Void> listener) {
         closeContext.addListener(ActionListener.toBiConsumer(listener));
@@ -42,6 +49,8 @@ public abstract class CloseableConnection implements Transport.Connection {
 
     @Override
     public void close() {
+        // This method is safe to call multiple times as the close context will provide concurrency
+        // protection and only be completed once. The attached listeners will only be notified once.
         closeContext.complete(null);
     }
 }

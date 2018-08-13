@@ -204,16 +204,19 @@ public class CapturingTransport implements Transport {
 
             @Override
             public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
-                throws IOException, TransportException {
-                requests.put(requestId, Tuple.tuple(node, action));
-                capturedRequests.add(new CapturedRequest(node, requestId, action, request));
+                throws TransportException {
+                onSendRequest(requestId, action, request, node);
             }
 
             @Override
-            public void close() throws IOException {
-
+            public void close() {
             }
         };
+    }
+
+    protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
+        requests.put(requestId, Tuple.tuple(node, action));
+        capturedRequests.add(new CapturedRequest(node, requestId, action, request));
     }
 
     @Override

@@ -388,6 +388,18 @@ public class CoordinationState extends AbstractComponent {
         assert getLastCommittedConfiguration().equals(getLastAcceptedConfiguration());
     }
 
+    public void invariant() {
+        assert getLastAcceptedTerm() <= getCurrentTerm();
+        assert electionWon() == isElectionQuorum(joinVotes);
+        if (electionWon()) {
+            assert getLastPublishedVersion() >= getLastAcceptedVersion();
+        } else {
+            assert getLastPublishedVersion() == 0L;
+        }
+        assert electionWon() == false || startedJoinSinceLastReboot;
+        assert publishVotes.isEmpty() || electionWon();
+    }
+
     /**
      * Pluggable persistence layer for {@link CoordinationState}.
      *

@@ -24,7 +24,6 @@ import org.apache.lucene.util.Counter;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolInfo;
 import org.elasticsearch.threadpool.ThreadPoolStats;
@@ -34,6 +33,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.Callable;
+import java.util.concurrent.Delayed;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
@@ -49,6 +49,29 @@ public class DeterministicTaskQueue extends AbstractComponent {
 
     public DeterministicTaskQueue(Settings settings) {
         super(settings);
+    }
+
+    public void runAllTasks() {
+        while (true) {
+            runAllRunnableTasks();
+            if (hasDeferredTasks()) {
+                advanceTime();
+            } else {
+                break;
+            }
+        }
+    }
+
+    public void runAllRunnableTasks() {
+        while (hasRunnableTasks()) {
+            runNextTask();
+        }
+    }
+
+    public void runAllRunnableTasks(Random random) {
+        while (hasRunnableTasks()) {
+            runRandomTask(random);
+        }
     }
 
     /**
@@ -142,13 +165,6 @@ public class DeterministicTaskQueue extends AbstractComponent {
         deferredTasks = remainingDeferredTasks;
 
         assert deferredTasks.isEmpty() == (nextDeferredTaskExecutionTimeMillis == Long.MAX_VALUE);
-    }
-
-    /**
-     * @return A <code>FutureExecutor</code> that uses this task queue.
-     */
-    public FutureExecutor getFutureExecutor() {
-        return (task, delay) -> scheduleAt(currentTimeMillis + delay.millis(), task);
     }
 
     /**
@@ -286,7 +302,43 @@ public class DeterministicTaskQueue extends AbstractComponent {
 
             @Override
             public ScheduledFuture<?> schedule(TimeValue delay, String executor, Runnable command) {
-                throw new UnsupportedOperationException();
+                scheduleAt(currentTimeMillis + delay.millis(), command);
+                return new ScheduledFuture<Object>() {
+                    @Override
+                    public long getDelay(TimeUnit unit) {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public int compareTo(Delayed o) {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public boolean cancel(boolean mayInterruptIfRunning) {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public boolean isCancelled() {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public boolean isDone() {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public Object get() {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public Object get(long timeout, TimeUnit unit) {
+                        throw new UnsupportedOperationException();
+                    }
+                };
             }
 
             @Override
@@ -316,16 +368,6 @@ public class DeterministicTaskQueue extends AbstractComponent {
 
             @Override
             public ScheduledExecutorService scheduler() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public void close() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public ThreadContext getThreadContext() {
                 throw new UnsupportedOperationException();
             }
         };

@@ -54,6 +54,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.discovery.PeerFinder;
 import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.FaultDetection;
 import org.elasticsearch.discovery.zen.SettingsBasedHostsProvider;
@@ -423,6 +424,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     Node.BREAKER_TYPE_KEY,
                     OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
                     IndexGraveyard.SETTING_MAX_TOMBSTONES,
-                    EnableAssignmentDecider.CLUSTER_TASKS_ALLOCATION_ENABLE_SETTING
+                    EnableAssignmentDecider.CLUSTER_TASKS_ALLOCATION_ENABLE_SETTING,
+                    PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING
             )));
 }

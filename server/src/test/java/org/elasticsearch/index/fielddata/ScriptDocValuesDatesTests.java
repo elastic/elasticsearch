@@ -36,10 +36,10 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 
-import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.hasItems;
 
 public class ScriptDocValuesDatesTests extends ESTestCase {
 
@@ -50,7 +50,7 @@ public class ScriptDocValuesDatesTests extends ESTestCase {
 
     public void testJodaTimeBwc() throws IOException {
         assertDateDocValues(false, "The joda time api for doc values is deprecated." +
-                " Use -Des.scripting.use_java_time=true to use the java time api for date field doc values",
+            " Use -Des.scripting.use_java_time=true to use the java time api for date field doc values",
             "getDate is no longer necessary on date fields as the value is now a date.",
             "getDates is no longer necessary on date fields as the values are now dates.");
     }
@@ -74,7 +74,7 @@ public class ScriptDocValuesDatesTests extends ESTestCase {
         }
 
         Set<String> warnings = new HashSet<>();
-        Dates dates = wrap(values, deprecationMessage -> {
+        Dates dates = wrap(values, (key, deprecationMessage) -> {
             warnings.add(deprecationMessage);
             /* Create a temporary directory to prove we are running with the
              * server's permissions. */
@@ -105,10 +105,10 @@ public class ScriptDocValuesDatesTests extends ESTestCase {
             }
         }
 
-        assertThat(warnings, containsInAnyOrder(expectedWarnings));
+        assertThat(warnings, hasItems(expectedWarnings));
     }
 
-    private Dates wrap(long[][] values, Consumer<String> deprecationHandler, boolean useJavaTime) {
+    private Dates wrap(long[][] values, BiConsumer<String, String> deprecationHandler, boolean useJavaTime) {
         return new Dates(new AbstractSortedNumericDocValues() {
             long[] current;
             int i;

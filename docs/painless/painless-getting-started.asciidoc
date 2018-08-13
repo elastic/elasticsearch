@@ -137,8 +137,8 @@ IMPORTANT: Starting in 7.0, `doc['field'].value` throws an exception if
 the field is missing in a document. To enable this behavior now,
 set a {ref}/jvm-options.html[`jvm.option`] 
 `-Des.scripting.exception_for_missing_value=true` on a node. If you do not
-enable this behavior, a one-time deprecation warning is logged when painless
-processes some missing value.
+enable this behavior, a one-time deprecation warning is logged for each
+datatype when painless processes a missing value.
 
 To check if a document is missing a value, you can call
 `doc['field'].size() == 0`.

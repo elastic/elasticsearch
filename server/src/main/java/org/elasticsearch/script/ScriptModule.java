@@ -19,7 +19,6 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ScriptPlugin;
@@ -63,9 +62,6 @@ public class ScriptModule {
             ScriptedMetricAggContexts.ReduceScript.CONTEXT
         ).collect(Collectors.toMap(c -> c.name, Function.identity()));
     }
-
-    public static final boolean EXCEPTION_FOR_MISSING_VALUE =
-        Booleans.parseBoolean(System.getProperty("es.scripting.exception_for_missing_value", "false"));
 
     private final ScriptService scriptService;
 

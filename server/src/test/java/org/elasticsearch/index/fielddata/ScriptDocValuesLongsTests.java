@@ -36,7 +36,7 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 import static org.hamcrest.Matchers.hasItems;
 
@@ -51,7 +51,7 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
             }
         }
         Set<String> warnings = new HashSet<>();
-        Longs longs = wrap(values, deprecationMessage -> {
+        Longs longs = wrap(values, (key, deprecationMessage) -> {
             warnings.add(deprecationMessage);
         });
 
@@ -84,7 +84,7 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
             }
         }
         Set<String> warnings = new HashSet<>();
-        Longs longs = wrap(values, deprecationMessage -> {
+        Longs longs = wrap(values, (key, deprecationMessage) -> {
             warnings.add(deprecationMessage);
             /* Create a temporary directory to prove we are running with the
              * server's permissions. */
@@ -133,7 +133,7 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
                 "getDates on numeric fields is deprecated. Use a date field to get dates."));
     }
 
-    private Longs wrap(long[][] values, Consumer<String> deprecationCallback) {
+    private Longs wrap(long[][] values, BiConsumer<String, String> deprecationCallback) {
         return new Longs(new AbstractSortedNumericDocValues() {
             long[] current;
             int i;

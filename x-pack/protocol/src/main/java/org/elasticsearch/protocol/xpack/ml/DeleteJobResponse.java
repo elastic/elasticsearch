@@ -27,8 +27,8 @@ import java.util.Objects;
 public class DeleteJobResponse extends AcknowledgedResponse {
 
    public DeleteJobResponse(boolean acknowledged) {
-            super(acknowledged);
-        }
+       super(acknowledged);
+   }
 
    public DeleteJobResponse() {
    }

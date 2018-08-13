@@ -28,7 +28,6 @@ public class DeleteJobRequestTests extends ESTestCase {
     }
 
     public void test_WithNullJobId() {
-
         NullPointerException ex = expectThrows(NullPointerException.class, () -> new DeleteJobRequest(null));
         assertEquals("[job_id] must not be null", ex.getMessage());
 
@@ -38,7 +37,6 @@ public class DeleteJobRequestTests extends ESTestCase {
 
     public void test_WithForce() {
         DeleteJobRequest deleteJobRequest = createTestInstance();
-
         assertFalse(deleteJobRequest.isForce());
 
         deleteJobRequest.setForce(true);

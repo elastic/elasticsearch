@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.search;
 
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -64,8 +66,11 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.RescorerBuilder;
-import org.elasticsearch.search.suggest.CustomSuggesterSearchIT.CustomSuggestionBuilder;
+import org.elasticsearch.search.suggest.Suggest.Suggestion;
+import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
+import org.elasticsearch.search.suggest.SuggestionSearchContext;
+import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 
 import java.io.IOException;
@@ -98,7 +103,8 @@ public class SearchModuleTests extends ModuleTestCase {
         SearchPlugin registersDupeSuggester = new SearchPlugin() {
             @Override
             public List<SearchPlugin.SuggesterSpec<?>> getSuggesters() {
-                return singletonList(new SuggesterSpec<>("term", TermSuggestionBuilder::new, TermSuggestionBuilder::fromXContent));
+                return singletonList(new SuggesterSpec<>(TermSuggestionBuilder.SUGGESTION_NAME,
+                    TermSuggestionBuilder::new, TermSuggestionBuilder::fromXContent, TermSuggestion::new));
             }
         };
         expectThrows(IllegalArgumentException.class, registryForPlugin(registersDupeSuggester));
@@ -183,9 +189,15 @@ public class SearchModuleTests extends ModuleTestCase {
         SearchModule module = new SearchModule(Settings.EMPTY, false, singletonList(new SearchPlugin() {
             @Override
             public List<SuggesterSpec<?>> getSuggesters() {
-                return singletonList(new SuggesterSpec<>("custom", CustomSuggestionBuilder::new, CustomSuggestionBuilder::fromXContent));
+                return singletonList(
+                    new SuggesterSpec<>(
+                        TestSuggestionBuilder.SUGGESTION_NAME,
+                        TestSuggestionBuilder::new,
+                        TestSuggestionBuilder::fromXContent,
+                        TestSuggestion::new));
             }
         }));
+
         assertEquals(1, module.getNamedXContents().stream()
                 .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) &&
                     e.name.match("term", LoggingDeprecationHandler.INSTANCE)).count());
@@ -197,7 +209,7 @@ public class SearchModuleTests extends ModuleTestCase {
                     e.name.match("completion", LoggingDeprecationHandler.INSTANCE)).count());
         assertEquals(1, module.getNamedXContents().stream()
                 .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) &&
-                    e.name.match("custom", LoggingDeprecationHandler.INSTANCE)).count());
+                    e.name.match("test", LoggingDeprecationHandler.INSTANCE)).count());
 
         assertEquals(1, module.getNamedWriteables().stream()
                 .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) && e.name.equals("term")).count());
@@ -206,7 +218,16 @@ public class SearchModuleTests extends ModuleTestCase {
         assertEquals(1, module.getNamedWriteables().stream()
                 .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) && e.name.equals("completion")).count());
         assertEquals(1, module.getNamedWriteables().stream()
-                .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) && e.name.equals("custom")).count());
+                .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) && e.name.equals("test")).count());
+
+        assertEquals(1, module.getNamedWriteables().stream()
+            .filter(e -> e.categoryClass.equals(Suggestion.class) && e.name.equals("term")).count());
+        assertEquals(1, module.getNamedWriteables().stream()
+            .filter(e -> e.categoryClass.equals(Suggestion.class) && e.name.equals("phrase")).count());
+        assertEquals(1, module.getNamedWriteables().stream()
+            .filter(e -> e.categoryClass.equals(Suggestion.class) && e.name.equals("completion")).count());
+        assertEquals(1, module.getNamedWriteables().stream()
+            .filter(e -> e.categoryClass.equals(Suggestion.class) && e.name.equals("test")).count());
     }
 
     public void testRegisterHighlighter() {
@@ -496,6 +517,79 @@ public class SearchModuleTests extends ModuleTestCase {
         @Override
         public RescoreContext innerBuildContext(int windowSize, QueryShardContext context) throws IOException {
             return null;
+        }
+    }
+
+    private static class TestSuggester extends Suggester<SuggestionSearchContext.SuggestionContext> {
+        @Override
+        protected Suggestion<? extends Suggestion.Entry<? extends Suggestion.Entry.Option>> innerExecute(
+                String name,
+                SuggestionSearchContext.SuggestionContext suggestion,
+                IndexSearcher searcher,
+                CharsRefBuilder spare) throws IOException {
+            return null;
+        }
+    }
+
+    private static class TestSuggestionBuilder extends SuggestionBuilder<TestSuggestionBuilder> {
+
+        public static final String SUGGESTION_NAME = "test";
+
+        TestSuggestionBuilder(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        @Override
+        protected void doWriteTo(StreamOutput out) throws IOException {}
+
+        public static TestSuggestionBuilder fromXContent(XContentParser parser) {
+            return null;
+        }
+
+        @Override
+        protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
+            return null;
+        }
+
+        @Override
+        protected SuggestionSearchContext.SuggestionContext build(QueryShardContext context) throws IOException {
+            return null;
+        }
+
+        @Override
+        protected boolean doEquals(TestSuggestionBuilder other) {
+            return false;
+        }
+
+        @Override
+        protected int doHashCode() {
+            return 0;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return "test";
+        }
+    }
+
+    private static class TestSuggestion extends Suggestion {
+        TestSuggestion(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        @Override
+        protected Entry newEntry() {
+            return null;
+        }
+
+        @Override
+        protected Entry newEntry(StreamInput in) throws IOException {
+            return null;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return "test";
         }
     }
 }

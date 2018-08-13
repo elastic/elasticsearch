@@ -26,7 +26,7 @@ import org.elasticsearch.xpack.core.ml.action.DeleteCalendarEventAction;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.job.JobManager;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 
 import java.util.Map;
 
@@ -37,16 +37,16 @@ public class TransportDeleteCalendarEventAction extends HandledTransportAction<D
         DeleteCalendarEventAction.Response> {
 
     private final Client client;
-    private final JobProvider jobProvider;
+    private final JobResultsProvider jobResultsProvider;
     private final JobManager jobManager;
 
     @Inject
     public TransportDeleteCalendarEventAction(Settings settings, TransportService transportService, ActionFilters actionFilters,
-                                              Client client, JobProvider jobProvider, JobManager jobManager) {
+                                              Client client, JobResultsProvider jobResultsProvider, JobManager jobManager) {
         super(settings, DeleteCalendarEventAction.NAME, transportService, actionFilters,
               DeleteCalendarEventAction.Request::new);
         this.client = client;
-        this.jobProvider = jobProvider;
+        this.jobResultsProvider = jobResultsProvider;
         this.jobManager = jobManager;
     }
 
@@ -87,7 +87,7 @@ public class TransportDeleteCalendarEventAction extends HandledTransportAction<D
                 }, listener::onFailure);
 
         // Get the calendar first so we check the calendar exists before checking the event exists
-        jobProvider.calendar(request.getCalendarId(), calendarListener);
+        jobResultsProvider.calendar(request.getCalendarId(), calendarListener);
     }
 
     private void deleteEvent(String eventId, Calendar calendar, ActionListener<DeleteCalendarEventAction.Response> listener) {

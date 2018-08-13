@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 
 import java.util.Collections;
@@ -29,13 +29,13 @@ import java.util.function.Supplier;
 public class DatafeedJobBuilder {
 
     private final Client client;
-    private final JobProvider jobProvider;
+    private final JobResultsProvider jobResultsProvider;
     private final Auditor auditor;
     private final Supplier<Long> currentTimeSupplier;
 
-    public DatafeedJobBuilder(Client client, JobProvider jobProvider, Auditor auditor, Supplier<Long> currentTimeSupplier) {
+    public DatafeedJobBuilder(Client client, JobResultsProvider jobResultsProvider, Auditor auditor, Supplier<Long> currentTimeSupplier) {
         this.client = client;
-        this.jobProvider = Objects.requireNonNull(jobProvider);
+        this.jobResultsProvider = Objects.requireNonNull(jobResultsProvider);
         this.auditor = Objects.requireNonNull(auditor);
         this.currentTimeSupplier = Objects.requireNonNull(currentTimeSupplier);
     }
@@ -79,7 +79,7 @@ public class DatafeedJobBuilder {
                 TimeValue bucketSpan = job.getAnalysisConfig().getBucketSpan();
                 context.latestFinalBucketEndMs = buckets.results().get(0).getTimestamp().getTime() + bucketSpan.millis() - 1;
             }
-            jobProvider.dataCounts(job.getId(), dataCountsHandler, listener::onFailure);
+            jobResultsProvider.dataCounts(job.getId(), dataCountsHandler, listener::onFailure);
         };
 
         // Step 1. Collect latest bucket
@@ -87,7 +87,7 @@ public class DatafeedJobBuilder {
                 .sortField(Result.TIMESTAMP.getPreferredName())
                 .sortDescending(true).size(1)
                 .includeInterim(false);
-        jobProvider.bucketsViaInternalClient(job.getId(), latestBucketQuery, bucketsHandler, e -> {
+        jobResultsProvider.bucketsViaInternalClient(job.getId(), latestBucketQuery, bucketsHandler, e -> {
             if (e instanceof ResourceNotFoundException) {
                 QueryPage<Bucket> empty = new QueryPage<>(Collections.emptyList(), 0, Bucket.RESULT_TYPE_FIELD);
                 bucketsHandler.accept(empty);

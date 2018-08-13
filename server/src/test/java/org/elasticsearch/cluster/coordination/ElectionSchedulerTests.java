@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterState.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
@@ -27,28 +28,36 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
+
 import static java.util.Collections.emptySet;
-import static java.util.Collections.singletonList;
-import static org.elasticsearch.cluster.coordination.ElectionScheduler.ELECTION_BACK_OFF_TIME_SETTING;
+import static java.util.Collections.singleton;
 import static org.elasticsearch.cluster.coordination.ElectionScheduler.ELECTION_MAX_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.coordination.ElectionScheduler.ELECTION_MIN_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.coordination.ElectionScheduler.REQUEST_PRE_VOTE_ACTION_NAME;
 import static org.elasticsearch.cluster.coordination.ElectionScheduler.validationExceptionMessage;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ElectionSchedulerTests extends ESTestCase {
 
     private DeterministicTaskQueue deterministicTaskQueue;
     private ElectionScheduler electionScheduler;
     private boolean electionOccurred = false;
+    private DiscoveryNode localNode;
+    private Map<DiscoveryNode, PreVoteResponse> responsesByNode = new HashMap<>();
+    private VotingConfiguration votingConfiguration;
 
     @Before
     public void createObjects() {
@@ -56,11 +65,33 @@ public class ElectionSchedulerTests extends ESTestCase {
         deterministicTaskQueue = new DeterministicTaskQueue(settings);
         final Transport capturingTransport = new CapturingTransport() {
             @Override
-            protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
-                fail(action + " " + request + " " + node);
+            protected void onSendRequest(final long requestId, final String action, final TransportRequest request, final DiscoveryNode node) {
+                super.onSendRequest(requestId, action, request, node);
+                assertThat(action, is(REQUEST_PRE_VOTE_ACTION_NAME));
+                assertThat(request, instanceOf(PreVoteRequest.class));
+                PreVoteRequest preVoteRequest = (PreVoteRequest) request;
+                assertThat(preVoteRequest.getSourceNode(), equalTo(localNode));
+                deterministicTaskQueue.scheduleNow(new Runnable() {
+                    @Override
+                    public void run() {
+                        final PreVoteResponse response = responsesByNode.get(node);
+                        if (response == null) {
+                            handleRemoteError(requestId, new ConnectTransportException(node, "no response"));
+                        } else {
+                            handleResponse(requestId, response);
+                        }
+                    }
+
+                    @Override
+                    public String toString() {
+                        return "response to " + request + " from " + node;
+                    }
+                });
             }
         };
-        final DiscoveryNode localNode = new DiscoveryNode("local-node", buildNewFakeTransportAddress(), Version.CURRENT);
+        localNode = new DiscoveryNode("local-node", buildNewFakeTransportAddress(), Version.CURRENT);
+        responsesByNode.put(localNode, new PreVoteResponse(3, 2, 1));
+        votingConfiguration = new VotingConfiguration(singleton(localNode.getId()));
         final TransportService transportService = new TransportService(settings, capturingTransport,
             deterministicTaskQueue.getThreadPool(), TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundTransportAddress -> localNode, null, emptySet());
@@ -68,7 +99,11 @@ public class ElectionSchedulerTests extends ESTestCase {
         transportService.acceptIncomingRequests();
 
         transportService.registerRequestHandler(REQUEST_PRE_VOTE_ACTION_NAME, Names.GENERIC, PreVoteRequest::new,
-            (request, channel, task) -> channel.sendResponse(new PreVoteResponse(3, 2, 1)));
+            (request, channel, task) -> {
+                assertThat(request.getSourceNode(), equalTo(localNode));
+                // this is just used for local messages
+                channel.sendResponse(Objects.requireNonNull(responsesByNode.get(localNode)));
+            });
 
         electionScheduler = new ElectionScheduler(settings, random(), transportService) {
             @Override
@@ -78,64 +113,63 @@ public class ElectionSchedulerTests extends ESTestCase {
 
             @Override
             protected Iterable<DiscoveryNode> getBroadcastNodes() {
-                return singletonList(localNode);
+                return responsesByNode.keySet();
             }
 
             @Override
             protected boolean isElectionQuorum(VoteCollection voteCollection) {
-                return voteCollection.containsVoteFor(localNode);
+                return votingConfiguration.hasQuorum(voteCollection.nodes().stream().map(DiscoveryNode::getId).collect(Collectors.toSet()));
             }
 
             @Override
             protected PreVoteResponse getLocalPreVoteResponse() {
-                return new PreVoteResponse(3, 2, 1);
+                return Objects.requireNonNull(responsesByNode.get(localNode));
             }
         };
     }
 
-    private void runElectionsAndValidate(int electionCount, long minRetryInterval, long maxRetryInterval,
-                                         long backoffStartPoint, long backoffTime) {
-        for (int i = 0; i < electionCount; i++) {
-            final String description = "election " + i;
-
-            final long lastElectionTime = deterministicTaskQueue.getCurrentTimeMillis();
-            runElection(description);
-            final long thisElectionTime = deterministicTaskQueue.getCurrentTimeMillis();
-            final long electionDelay = thisElectionTime - lastElectionTime;
-
-            assertThat(description, electionDelay, greaterThanOrEqualTo(minRetryInterval));
-            assertThat(description, electionDelay, lessThanOrEqualTo(maxRetryInterval));
-            assertThat(description, electionDelay, lessThanOrEqualTo(backoffStartPoint + backoffTime * (i + 1)));
-        }
+    public void testStartsElectionIfLocalNodeIsOnlyNode() {
+        electionScheduler.start();
+        deterministicTaskQueue.advanceTime();
+        deterministicTaskQueue.runAllRunnableTasks(random());
+        assertTrue(electionOccurred);
     }
 
-    private void runElection(String description) {
-        logger.debug("--> runElection: {}", description);
-        electionOccurred = false;
-        while (electionOccurred == false) {
-            assertFalse(description, deterministicTaskQueue.hasRunnableTasks());
-            assertTrue(description, deterministicTaskQueue.hasDeferredTasks());
-            deterministicTaskQueue.advanceTime();
-            deterministicTaskQueue.runAllRunnableTasks(random());
-        }
-        assertFalse(description, deterministicTaskQueue.hasRunnableTasks());
-        assertTrue(description, deterministicTaskQueue.hasDeferredTasks());
-    }
-
-    public void testElectionScheduler() {
-        assertFalse(deterministicTaskQueue.hasRunnableTasks());
-        assertFalse(deterministicTaskQueue.hasDeferredTasks());
+    public void testStartsElectionIfLocalNodeIsQuorum() {
+        final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
+        responsesByNode.put(otherNode, new PreVoteResponse(3, 2, 1));
 
         electionScheduler.start();
+        deterministicTaskQueue.advanceTime();
+        deterministicTaskQueue.runAllRunnableTasks(random());
+        assertTrue(electionOccurred);
+    }
 
-        final long defaultMinTimeout = ELECTION_MIN_TIMEOUT_SETTING.get(Settings.EMPTY).millis();
-        final long defaultBackoff = ELECTION_BACK_OFF_TIME_SETTING.get(Settings.EMPTY).millis();
-        final long defaultMaxTimeout = ELECTION_MAX_TIMEOUT_SETTING.get(Settings.EMPTY).millis();
-        runElectionsAndValidate(randomInt(100), defaultMinTimeout, defaultMaxTimeout, defaultMinTimeout, defaultBackoff);
+    public void testStartsElectionIfOtherNodeIsQuorum() {
+        final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
+        responsesByNode.put(otherNode, new PreVoteResponse(3, 2, 1));
+        votingConfiguration = new VotingConfiguration(singleton(otherNode.getId()));
+
+        electionScheduler.start();
+        deterministicTaskQueue.advanceTime();
+        deterministicTaskQueue.runAllRunnableTasks(random());
+        assertTrue(electionOccurred);
+    }
+
+
+    public void testDoesNotStartsElectionIfOtherNodeIsQuorumAndDoesNotRespond() {
+        final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
+        responsesByNode.put(otherNode, null);
+        votingConfiguration = new VotingConfiguration(singleton(otherNode.getId()));
+
+        electionScheduler.start();
+        deterministicTaskQueue.advanceTime();
+        deterministicTaskQueue.runAllRunnableTasks(random());
 
         electionScheduler.stop();
-        electionScheduler.start(); // should reset the backoff interval
-        runElectionsAndValidate(randomInt(100), defaultMinTimeout, defaultMaxTimeout, defaultMinTimeout, defaultBackoff);
+        deterministicTaskQueue.runAllTasks();
+
+        assertFalse(electionOccurred);
     }
 
     public void testSettingsMustBeReasonable() {
@@ -160,7 +194,7 @@ public class ElectionSchedulerTests extends ESTestCase {
         new ElectionScheduler(settings, random(), null) {
             @Override
             protected void startElection(long maxTermSeen) {
-                fail();
+                throw new AssertionError("unexpected");
             }
 
             @Override

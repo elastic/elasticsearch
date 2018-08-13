@@ -108,7 +108,7 @@ public abstract class ElectionScheduler extends AbstractComponent {
     }
 
     public void stop() {
-        assert currentScheduler != null;
+        assert currentScheduler != null : currentScheduler;
         logger.debug("stopping {}", currentScheduler);
         currentScheduler = null;
     }
@@ -220,19 +220,19 @@ public abstract class ElectionScheduler extends AbstractComponent {
     private class PreVoteCollector {
 
         private final long electionId;
-        private final PreVoteRequest preVoteRequest;
 
         private final Set<DiscoveryNode> preVotesReceived = newConcurrentSet();
         private final AtomicBoolean electionStarted = new AtomicBoolean();
         private final AtomicLong maxTermSeen;
         private final PreVoteResponse localPreVoteResponse;
+        private final PreVoteRequest preVoteRequest;
 
         PreVoteCollector(long electionId) {
             this.electionId = electionId;
             localPreVoteResponse = getLocalPreVoteResponse();
             final long currentTerm = localPreVoteResponse.getCurrentTerm();
-            maxTermSeen = new AtomicLong(currentTerm);
             preVoteRequest = new PreVoteRequest(transportService.getLocalNode(), currentTerm);
+            maxTermSeen = new AtomicLong(currentTerm);
         }
 
         public void start() {
@@ -304,7 +304,6 @@ public abstract class ElectionScheduler extends AbstractComponent {
         public String toString() {
             return "PreVoteCollector{" +
                 "electionId=" + electionId +
-                ", preVoteRequest=" + preVoteRequest +
                 ", localPreVoteResponse=" + localPreVoteResponse +
                 '}';
         }

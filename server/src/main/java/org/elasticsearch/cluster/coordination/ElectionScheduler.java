@@ -38,7 +38,6 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BooleanSupplier;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentSet;
 
@@ -84,9 +83,7 @@ public abstract class ElectionScheduler extends AbstractComponent {
     private final TransportService transportService;
     private final AtomicLong idSupplier = new AtomicLong();
 
-    private final Object schedulerMutex = new Object(); // protects fields related to scheduling:
     private volatile Object currentScheduler; // only care about its identity
-    private long currentDelayMillis;
 
     ElectionScheduler(Settings settings, Random random, TransportService transportService) {
         super(settings);
@@ -104,81 +101,16 @@ public abstract class ElectionScheduler extends AbstractComponent {
     }
 
     public void start() {
-        final BooleanSupplier isRunningSupplier;
-        synchronized (schedulerMutex) {
-            assert currentScheduler == null;
-            final long schedulerId = idSupplier.getAndIncrement();
-            currentDelayMillis = minTimeout.millis();
-            currentScheduler = isRunningSupplier = new BooleanSupplier() {
-                @Override
-                public boolean getAsBoolean() {
-                    return this == currentScheduler;
-                }
-
-                @Override
-                public String toString() {
-                    return "isRunningSupplier[" + schedulerId + "]";
-                }
-            };
-        }
-
-        scheduleNextElection(isRunningSupplier);
+        final ActiveScheduler currentScheduler;
+        assert this.currentScheduler == null;
+        this.currentScheduler = currentScheduler = new ActiveScheduler();
+        currentScheduler.scheduleNextElection();
     }
 
     public void stop() {
-        synchronized (schedulerMutex) {
-            assert currentScheduler != null;
-            logger.debug("stopping {}", currentScheduler);
-            currentScheduler = null;
-        }
-    }
-
-    private void scheduleNextElection(final BooleanSupplier isRunningSupplier) {
-        final long delay;
-        synchronized (schedulerMutex) {
-            if (isRunningSupplier.getAsBoolean() == false) {
-                logger.debug("{} not scheduling election", isRunningSupplier);
-                return;
-            }
-            currentDelayMillis = Math.min(maxTimeout.getMillis(), currentDelayMillis + backoffTime.getMillis());
-            delay = randomLongBetween(minTimeout.getMillis(), currentDelayMillis + 1);
-            logger.debug("{} scheduling election with delay [{}ms] (min={}, current={}, backoff={}, max={})",
-                isRunningSupplier, delay, minTimeout, currentDelayMillis, backoffTime, maxTimeout);
-        }
-        transportService.getThreadPool().schedule(TimeValue.timeValueMillis(delay), Names.GENERIC, new AbstractRunnable() {
-            @Override
-            public void onFailure(Exception e) {
-                logger.debug("unexpected exception in wakeup", e);
-                assert false : e;
-            }
-
-            @Override
-            protected void doRun() {
-                if (isRunningSupplier.getAsBoolean() == false) {
-                    logger.debug("{} not starting election", isRunningSupplier);
-                    return;
-                }
-                logger.debug("{} starting pre-voting", isRunningSupplier);
-                new PreVoteCollector(isRunningSupplier, idSupplier.getAndIncrement()).start();
-            }
-
-            @Override
-            public void onAfter() {
-                scheduleNextElection(isRunningSupplier);
-            }
-
-            @Override
-            public String toString() {
-                return "scheduleNextElection[" + isRunningSupplier + "]";
-            }
-
-            @Override
-            public boolean isForceExecution() {
-                // There are very few of these scheduled, and they back off, but it's important that they're not rejected as
-                // this could prevent a cluster from ever forming.
-                return true;
-            }
-        });
+        assert currentScheduler != null;
+        logger.debug("stopping {}", currentScheduler);
+        currentScheduler = null;
     }
 
     @SuppressForbidden(reason = "Argument to Math.abs() is definitely not Long.MIN_VALUE")
@@ -195,6 +127,10 @@ public abstract class ElectionScheduler extends AbstractComponent {
         return nonNegative(random.nextLong()) % (upperBound - lowerBound) + lowerBound;
     }
 
+    private long backOffCurrentDelay(long currentDelayMillis) {
+        return Math.min(maxTimeout.getMillis(), currentDelayMillis + backoffTime.getMillis());
+    }
+
     /**
      * Start an election. Calls to this method are not completely synchronised with the start/stop state of the scheduler.
      *
@@ -208,7 +144,6 @@ public abstract class ElectionScheduler extends AbstractComponent {
             "minTimeout=" + minTimeout +
             ", maxTimeout=" + maxTimeout +
             ", backoffTime=" + backoffTime +
-            ", currentDelayMillis=" + currentDelayMillis +
             ", currentScheduler=" + currentScheduler +
             '}';
     }
@@ -219,9 +154,71 @@ public abstract class ElectionScheduler extends AbstractComponent {
 
     protected abstract PreVoteResponse getLocalPreVoteResponse();
 
+    private class ActiveScheduler {
+        private AtomicLong currentDelayMillis = new AtomicLong(minTimeout.millis());
+        private final long schedulerId = idSupplier.incrementAndGet();
+
+        boolean isRunning() {
+            return this == currentScheduler;
+        }
+
+        private void scheduleNextElection() {
+            final long delay;
+            if (isRunning() == false) {
+                logger.debug("{} not scheduling election", this);
+                return;
+            }
+
+            long backedOffDelay = this.currentDelayMillis.updateAndGet(ElectionScheduler.this::backOffCurrentDelay);
+            delay = randomLongBetween(minTimeout.getMillis(), backedOffDelay + 1);
+            logger.debug("{} scheduling election with delay [{}ms] (min={}, backoff={}, max={})",
+                this, delay, minTimeout, backoffTime, maxTimeout);
+
+            transportService.getThreadPool().schedule(TimeValue.timeValueMillis(delay), Names.GENERIC, new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+                    logger.debug("unexpected exception in wakeup", e);
+                    assert false : e;
+                }
+
+                @Override
+                protected void doRun() {
+                    if (isRunning() == false) {
+                        logger.debug("{} not starting election", ActiveScheduler.this);
+                        return;
+                    }
+                    long electionId = idSupplier.incrementAndGet();
+                    logger.debug("{} starting pre-voting round {}", ActiveScheduler.this, electionId);
+                    new PreVoteCollector(electionId).start();
+                }
+
+                @Override
+                public void onAfter() {
+                    scheduleNextElection();
+                }
+
+                @Override
+                public String toString() {
+                    return "scheduleNextElection[" + ActiveScheduler.this + "]";
+                }
+
+                @Override
+                public boolean isForceExecution() {
+                    // There are very few of these scheduled, and they back off, but it's important that they're not rejected as
+                    // this could prevent a cluster from ever forming.
+                    return true;
+                }
+            });
+        }
+
+        @Override
+        public String toString() {
+            return "ActiveScheduler[" + schedulerId + ", currentDelayMillis=" + currentDelayMillis + "]";
+        }
+    }
+
     private class PreVoteCollector {
 
-        private final BooleanSupplier isRunningSupplier;
         private final long electionId;
         private final PreVoteRequest preVoteRequest;
 
@@ -230,12 +227,12 @@ public abstract class ElectionScheduler extends AbstractComponent {
         private final AtomicLong maxTermSeen;
         private final PreVoteResponse localPreVoteResponse;
 
-        PreVoteCollector(BooleanSupplier isRunningSupplier, long electionId) {
-            this.isRunningSupplier = isRunningSupplier;
+        PreVoteCollector(long electionId) {
             this.electionId = electionId;
             localPreVoteResponse = getLocalPreVoteResponse();
-            maxTermSeen = new AtomicLong(localPreVoteResponse.getCurrentTerm());
-            preVoteRequest = new PreVoteRequest(transportService.getLocalNode(), localPreVoteResponse.getCurrentTerm());
+            final long currentTerm = localPreVoteResponse.getCurrentTerm();
+            maxTermSeen = new AtomicLong(currentTerm);
+            preVoteRequest = new PreVoteRequest(transportService.getLocalNode(), currentTerm);
         }
 
         public void start() {
@@ -270,8 +267,9 @@ public abstract class ElectionScheduler extends AbstractComponent {
         }
 
         private void handlePreVoteResponse(PreVoteResponse response, DiscoveryNode sender) {
-            if (isRunningSupplier.getAsBoolean() == false) {
-                logger.debug("{} ignoring {} from {} as no longer running", this, response, sender);
+            final long currentId = idSupplier.get();
+            if (currentId != electionId) {
+                logger.debug("{} ignoring {} from {} as current id is now {}", this, response, sender, currentId);
                 return;
             }
 
@@ -305,8 +303,7 @@ public abstract class ElectionScheduler extends AbstractComponent {
         @Override
         public String toString() {
             return "PreVoteCollector{" +
-                "isRunningSupplier=" + isRunningSupplier +
-                ", electionId=" + electionId +
+                "electionId=" + electionId +
                 ", preVoteRequest=" + preVoteRequest +
                 ", localPreVoteResponse=" + localPreVoteResponse +
                 '}';

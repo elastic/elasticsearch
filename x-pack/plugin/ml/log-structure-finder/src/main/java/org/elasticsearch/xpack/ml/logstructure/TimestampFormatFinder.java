@@ -358,10 +358,10 @@ public final class TimestampFormatFinder {
 
         @Override
         public boolean equals(Object other) {
-            if (other == null) {
-                return false;
+            if (this == other) {
+                return true;
             }
-            if (getClass() != other.getClass()) {
+            if (other == null || getClass() != other.getClass()) {
                 return false;
             }
 

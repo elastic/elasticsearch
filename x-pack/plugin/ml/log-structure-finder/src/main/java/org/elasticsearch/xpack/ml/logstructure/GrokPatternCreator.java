@@ -29,8 +29,15 @@ import java.util.stream.Collectors;
  */
 public final class GrokPatternCreator {
 
-    private static final String PUNCTUATION_OR_SPACE = "\"'`‘’“”#@%=\\/|~:;,<>()[]{}«»^$*¿?¡!§¶ \t\n";
-    private static final String NEEDS_ESCAPING = "\\|()[]{}^$*?";
+    private static final Map<Character, Boolean> PUNCTUATION_OR_SPACE_NEEDS_ESCAPING;
+    static {
+        HashMap<Character, Boolean> punctuationOrSpaceNeedsEscaping = new HashMap<>();
+        String punctuationAndSpaceCharacters = "\"'`‘’“”#@%=\\/|~:;,<>()[]{}«»^$*¿?¡!§¶ \t\n";
+        String punctuationThatNeedsEscaping = "\\|()[]{}^$*?";
+        punctuationAndSpaceCharacters.chars()
+            .forEach(c -> punctuationOrSpaceNeedsEscaping.put((char) c, punctuationThatNeedsEscaping.indexOf(c) >= 0));
+        PUNCTUATION_OR_SPACE_NEEDS_ESCAPING = Collections.unmodifiableMap(punctuationOrSpaceNeedsEscaping);
+    }
 
     private static final String PREFACE = "preface";
     private static final String VALUE = "value";
@@ -232,7 +239,7 @@ public final class GrokPatternCreator {
             if (commonInitialPunctuation.length() == 0) {
                 for (int index = 0; index < snippet.length(); ++index) {
                     char ch = snippet.charAt(index);
-                    if (PUNCTUATION_OR_SPACE.indexOf(ch) >= 0) {
+                    if (PUNCTUATION_OR_SPACE_NEEDS_ESCAPING.get(ch) != null) {
                         commonInitialPunctuation.append(ch);
                     } else {
                         break;
@@ -260,7 +267,7 @@ public final class GrokPatternCreator {
 
         for (int index = 0; index < numLiteralCharacters; ++index) {
             char ch = commonInitialPunctuation.charAt(index);
-            if (NEEDS_ESCAPING.indexOf(ch) >= 0) {
+            if (PUNCTUATION_OR_SPACE_NEEDS_ESCAPING.getOrDefault(ch, false)) {
                 overallPatternBuilder.append('\\');
             }
             overallPatternBuilder.append(ch);
@@ -288,26 +295,27 @@ public final class GrokPatternCreator {
         List<String> others = new ArrayList<>(snippets);
         String driver = others.remove(others.size() - 1);
 
-        boolean wildcardRequired = true;
+        boolean wildcardRequiredIfNonMatchFound = true;
         for (int i = 0; i < driver.length(); ++i) {
             char ch = driver.charAt(i);
-            if (PUNCTUATION_OR_SPACE.indexOf(ch) >= 0 && others.stream().allMatch(other -> other.indexOf(ch) >= 0)) {
-                if (wildcardRequired && others.stream().anyMatch(other -> other.indexOf(ch) > 0)) {
+            Boolean punctuationOrSpaceNeedsEscaping = PUNCTUATION_OR_SPACE_NEEDS_ESCAPING.get(ch);
+            if (punctuationOrSpaceNeedsEscaping != null && others.stream().allMatch(other -> other.indexOf(ch) >= 0)) {
+                if (wildcardRequiredIfNonMatchFound && others.stream().anyMatch(other -> other.indexOf(ch) > 0)) {
                     overallPatternBuilder.append(".*?");
                 }
-                if (NEEDS_ESCAPING.indexOf(ch) >= 0) {
+                if (punctuationOrSpaceNeedsEscaping) {
                     overallPatternBuilder.append('\\');
                 }
                 overallPatternBuilder.append(ch);
-                wildcardRequired = true;
+                wildcardRequiredIfNonMatchFound = true;
                 others = others.stream().map(other -> other.substring(other.indexOf(ch) + 1)).collect(Collectors.toList());
-            } else if (wildcardRequired) {
+            } else if (wildcardRequiredIfNonMatchFound) {
                 overallPatternBuilder.append(".*?");
-                wildcardRequired = false;
+                wildcardRequiredIfNonMatchFound = false;
             }
         }
 
-        if (wildcardRequired && others.stream().allMatch(String::isEmpty) == false) {
+        if (wildcardRequiredIfNonMatchFound && others.stream().anyMatch(s -> s.isEmpty() == false)) {
             overallPatternBuilder.append(".*?");
         }
     }
@@ -323,9 +331,10 @@ public final class GrokPatternCreator {
         for (int i = 0; i < driver.length(); ++i) {
             char ch = driver.charAt(i);
             int driverIndex = i;
-            if (PUNCTUATION_OR_SPACE.indexOf(ch) >= 0 &&
+            Boolean punctuationOrSpaceNeedsEscaping = PUNCTUATION_OR_SPACE_NEEDS_ESCAPING.get(ch);
+            if (punctuationOrSpaceNeedsEscaping != null &&
                 others.stream().allMatch(other -> other.length() > driverIndex && other.charAt(driverIndex) == ch)) {
-                if (NEEDS_ESCAPING.indexOf(ch) >= 0) {
+                if (punctuationOrSpaceNeedsEscaping) {
                     overallPatternBuilder.append('\\');
                 }
                 overallPatternBuilder.append(ch);

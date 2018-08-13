@@ -119,16 +119,15 @@ public abstract class ElectionScheduler extends AbstractComponent {
     }
 
     /**
-     * @param lowerBound inclusive lower bound
      * @param upperBound exclusive upper bound
      */
-    private long randomLongBetween(long lowerBound, long upperBound) {
-        assert 0 < upperBound - lowerBound;
-        return nonNegative(random.nextLong()) % (upperBound - lowerBound) + lowerBound;
+    private long randomPositiveLongLessThan(long upperBound) {
+        assert 1 < upperBound : upperBound;
+        return nonNegative(random.nextLong()) % (upperBound - 1) + 1;
     }
 
-    private long backOffCurrentDelay(long currentDelayMillis) {
-        return Math.min(maxTimeout.getMillis(), currentDelayMillis + backoffTime.getMillis());
+    private long backOffCurrentMaxDelay(long currentMaxDelayMillis) {
+        return Math.min(maxTimeout.getMillis(), currentMaxDelayMillis + backoffTime.getMillis());
     }
 
     /**
@@ -155,7 +154,7 @@ public abstract class ElectionScheduler extends AbstractComponent {
     protected abstract PreVoteResponse getLocalPreVoteResponse();
 
     private class ActiveScheduler {
-        private AtomicLong currentDelayMillis = new AtomicLong(minTimeout.millis());
+        private AtomicLong currentMaxDelayMillis = new AtomicLong(minTimeout.millis());
         private final long schedulerId = idSupplier.incrementAndGet();
 
         boolean isRunning() {
@@ -169,10 +168,10 @@ public abstract class ElectionScheduler extends AbstractComponent {
                 return;
             }
 
-            long backedOffDelay = this.currentDelayMillis.updateAndGet(ElectionScheduler.this::backOffCurrentDelay);
-            delay = randomLongBetween(minTimeout.getMillis(), backedOffDelay + 1);
-            logger.debug("{} scheduling election with delay [{}ms] (min={}, backoff={}, max={})",
-                this, delay, minTimeout, backoffTime, maxTimeout);
+            long maxDelayMillis = this.currentMaxDelayMillis.getAndUpdate(ElectionScheduler.this::backOffCurrentMaxDelay);
+            delay = randomPositiveLongLessThan(maxDelayMillis + 1);
+            logger.debug("{} scheduling election with delay [{}ms] (min={}, backoff={}, current={}ms, max={})",
+                this, delay, minTimeout, backoffTime, maxDelayMillis, maxTimeout);
 
             transportService.getThreadPool().schedule(TimeValue.timeValueMillis(delay), Names.GENERIC, new AbstractRunnable() {
                 @Override
@@ -213,7 +212,7 @@ public abstract class ElectionScheduler extends AbstractComponent {
 
         @Override
         public String toString() {
-            return "ActiveScheduler[" + schedulerId + ", currentDelayMillis=" + currentDelayMillis + "]";
+            return "ActiveScheduler[" + schedulerId + ", currentMaxDelayMillis=" + currentMaxDelayMillis + "]";
         }
     }
 

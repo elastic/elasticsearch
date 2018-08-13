@@ -41,6 +41,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
+import static org.elasticsearch.cluster.coordination.ElectionScheduler.ELECTION_BACK_OFF_TIME_SETTING;
 import static org.elasticsearch.cluster.coordination.ElectionScheduler.ELECTION_MAX_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.coordination.ElectionScheduler.ELECTION_MIN_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.coordination.ElectionScheduler.REQUEST_PRE_VOTE_ACTION_NAME;
@@ -49,6 +50,7 @@ import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ElectionSchedulerTests extends ESTestCase {
 
@@ -108,6 +110,7 @@ public class ElectionSchedulerTests extends ESTestCase {
         electionScheduler = new ElectionScheduler(settings, random(), transportService) {
             @Override
             protected void startElection(long maxTermSeen) {
+                assert electionOccurred == false;
                 electionOccurred = true;
             }
 
@@ -133,6 +136,52 @@ public class ElectionSchedulerTests extends ESTestCase {
         deterministicTaskQueue.advanceTime();
         deterministicTaskQueue.runAllRunnableTasks(random());
         assertTrue(electionOccurred);
+    }
+
+    private void assertElectionSchedule() {
+        // Check an upper bound on the election delay
+        electionScheduler.start();
+        long lastElectionTime = deterministicTaskQueue.getCurrentTimeMillis();
+        int electionCount = 0;
+        while (true) {
+            electionCount++;
+
+            runElection();
+
+            long thisElectionTime = deterministicTaskQueue.getCurrentTimeMillis();
+            long electionDelay = thisElectionTime - lastElectionTime;
+            long backedOffMaximum = ELECTION_MIN_TIMEOUT_SETTING.get(Settings.EMPTY).millis()
+                + ELECTION_BACK_OFF_TIME_SETTING.get(Settings.EMPTY).millis() * electionCount;
+
+            // Check upper bound
+            assertThat(electionDelay, lessThanOrEqualTo(backedOffMaximum));
+            assertThat(electionDelay, lessThanOrEqualTo(ELECTION_MAX_TIMEOUT_SETTING.get(Settings.EMPTY).millis()));
+
+            // Run until we get a delay close to the maximum to show that backing off does work
+            if (electionDelay >= ELECTION_MAX_TIMEOUT_SETTING.get(Settings.EMPTY).millis() - 100 && electionCount >= 1000) {
+                break;
+            }
+
+            lastElectionTime = thisElectionTime;
+        }
+        electionScheduler.stop();
+    }
+
+    public void testRetriesOnCorrectSchedule() {
+        assertElectionSchedule();
+
+        // do it again to show that the max is reset when the scheduler is restarted
+        assertElectionSchedule();
+    }
+
+    private void runElection() {
+        while (electionOccurred == false) {
+            if (deterministicTaskQueue.hasRunnableTasks() == false) {
+                deterministicTaskQueue.advanceTime();
+            }
+            deterministicTaskQueue.runAllRunnableTasks(random());
+        }
+        electionOccurred = false;
     }
 
     public void testStartsElectionIfLocalNodeIsQuorum() {

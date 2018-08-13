@@ -307,13 +307,13 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
         private FailedToCommitClusterStateException exception;
 
         @Override
-        public void onResponse(Void aVoid) {
+        public synchronized void onResponse(Void aVoid) {
             assertThat(countDownLatch.getCount(), is(1L));
             countDownLatch.countDown();
         }
 
         @Override
-        public void onFailure(Exception e) {
+        public synchronized void onFailure(Exception e) {
             assertThat(e, IsInstanceOf.instanceOf(FailedToCommitClusterStateException.class));
             exception = (FailedToCommitClusterStateException) e;
             onResponse(null);
@@ -323,7 +323,7 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             countDownLatch.await();
         }
 
-        public FailedToCommitClusterStateException getException() {
+        public synchronized FailedToCommitClusterStateException getException() {
             return exception;
         }
     }

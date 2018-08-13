@@ -100,11 +100,11 @@ public abstract class ElectionScheduler extends AbstractComponent {
         }
     }
 
-    public void start() {
+    public void start(TimeValue gracePeriod) {
         final ActiveScheduler currentScheduler;
         assert this.currentScheduler == null;
         this.currentScheduler = currentScheduler = new ActiveScheduler();
-        currentScheduler.scheduleNextElection();
+        currentScheduler.scheduleNextElection(gracePeriod);
     }
 
     public void stop() {
@@ -162,7 +162,7 @@ public abstract class ElectionScheduler extends AbstractComponent {
             return this == currentScheduler;
         }
 
-        private void scheduleNextElection() {
+        void scheduleNextElection(TimeValue gracePeriod) {
             final long delay;
             if (isRunning() == false) {
                 logger.debug("{} not scheduling election", this);
@@ -170,9 +170,9 @@ public abstract class ElectionScheduler extends AbstractComponent {
             }
 
             long maxDelayMillis = this.currentMaxDelayMillis.getAndUpdate(ElectionScheduler.this::backOffCurrentMaxDelay);
-            delay = randomPositiveLongLessThan(maxDelayMillis + 1);
-            logger.debug("{} scheduling election with delay [{}ms] (min={}, backoff={}, current={}ms, max={})",
-                this, delay, minTimeout, backoffTime, maxDelayMillis, maxTimeout);
+            delay = randomPositiveLongLessThan(maxDelayMillis + 1) + gracePeriod.millis();
+            logger.debug("{} scheduling election with delay [{}ms] (grace={}, min={}, backoff={}, current={}ms, max={})",
+                this, delay, gracePeriod, minTimeout, backoffTime, maxDelayMillis, maxTimeout);
 
             transportService.getThreadPool().schedule(TimeValue.timeValueMillis(delay), Names.GENERIC, new AbstractRunnable() {
                 @Override
@@ -194,7 +194,7 @@ public abstract class ElectionScheduler extends AbstractComponent {
 
                 @Override
                 public void onAfter() {
-                    scheduleNextElection();
+                    scheduleNextElection(TimeValue.ZERO);
                 }
 
                 @Override

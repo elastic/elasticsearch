@@ -140,15 +140,20 @@ public class ElectionSchedulerTests extends ESTestCase {
     }
 
     public void testStartsElectionIfLocalNodeIsOnlyNode() {
-        electionScheduler.start();
+        electionScheduler.start(randomGracePeriod());
         deterministicTaskQueue.advanceTime();
         deterministicTaskQueue.runAllRunnableTasks(random());
         assertTrue(electionOccurred);
     }
 
+    private TimeValue randomGracePeriod() {
+        return TimeValue.timeValueMillis(randomLongBetween(0, 10000));
+    }
+
     private void assertElectionSchedule() {
-        // Check an upper bound on the election delay
-        electionScheduler.start();
+        final TimeValue initialGracePeriod = randomGracePeriod();
+        electionScheduler.start(initialGracePeriod);
+
         long lastElectionTime = deterministicTaskQueue.getCurrentTimeMillis();
         int electionCount = 0;
         while (true) {
@@ -156,18 +161,34 @@ public class ElectionSchedulerTests extends ESTestCase {
 
             runElection();
 
-            long thisElectionTime = deterministicTaskQueue.getCurrentTimeMillis();
-            long electionDelay = thisElectionTime - lastElectionTime;
-            long backedOffMaximum = ELECTION_MIN_TIMEOUT_SETTING.get(Settings.EMPTY).millis()
-                + ELECTION_BACK_OFF_TIME_SETTING.get(Settings.EMPTY).millis() * electionCount;
+            final long thisElectionTime = deterministicTaskQueue.getCurrentTimeMillis();
 
-            // Check upper bound
-            assertThat(electionDelay, lessThanOrEqualTo(backedOffMaximum));
-            assertThat(electionDelay, lessThanOrEqualTo(ELECTION_MAX_TIMEOUT_SETTING.get(Settings.EMPTY).millis()));
+            if (electionCount == 1) {
+                final long electionDelay = thisElectionTime - lastElectionTime;
 
-            // Run until we get a delay close to the maximum to show that backing off does work
-            if (electionDelay >= ELECTION_MAX_TIMEOUT_SETTING.get(Settings.EMPTY).millis() - 100 && electionCount >= 1000) {
-                break;
+                // Check grace period
+                assertThat(electionDelay, greaterThanOrEqualTo(initialGracePeriod.millis()));
+
+                // Check upper bound
+                assertThat(electionDelay, lessThanOrEqualTo(ELECTION_MIN_TIMEOUT_SETTING.get(Settings.EMPTY).millis()
+                    + ELECTION_BACK_OFF_TIME_SETTING.get(Settings.EMPTY).millis() + initialGracePeriod.millis()));
+                assertThat(electionDelay, lessThanOrEqualTo(
+                    ELECTION_MAX_TIMEOUT_SETTING.get(Settings.EMPTY).millis() + initialGracePeriod.millis()));
+
+            } else {
+
+                final long electionDelay = thisElectionTime - lastElectionTime;
+                final long backedOffMaximum = ELECTION_MIN_TIMEOUT_SETTING.get(Settings.EMPTY).millis()
+                    + ELECTION_BACK_OFF_TIME_SETTING.get(Settings.EMPTY).millis() * electionCount;
+
+                // Check upper bound
+                assertThat(electionDelay, lessThanOrEqualTo(backedOffMaximum));
+                assertThat(electionDelay, lessThanOrEqualTo(ELECTION_MAX_TIMEOUT_SETTING.get(Settings.EMPTY).millis()));
+
+                // Run until we get a delay close to the maximum to show that backing off does work
+                if (electionDelay >= ELECTION_MAX_TIMEOUT_SETTING.get(Settings.EMPTY).millis() - 100 && electionCount >= 1000) {
+                    break;
+                }
             }
 
             lastElectionTime = thisElectionTime;
@@ -196,7 +217,7 @@ public class ElectionSchedulerTests extends ESTestCase {
         final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
         responsesByNode.put(otherNode, new PreVoteResponse(3, 2, 1));
 
-        electionScheduler.start();
+        electionScheduler.start(randomGracePeriod());
         deterministicTaskQueue.advanceTime();
         deterministicTaskQueue.runAllRunnableTasks(random());
         assertTrue(electionOccurred);
@@ -207,7 +228,7 @@ public class ElectionSchedulerTests extends ESTestCase {
         responsesByNode.put(otherNode, new PreVoteResponse(3, 2, 1));
         votingConfiguration = new VotingConfiguration(singleton(otherNode.getId()));
 
-        electionScheduler.start();
+        electionScheduler.start(randomGracePeriod());
         deterministicTaskQueue.advanceTime();
         deterministicTaskQueue.runAllRunnableTasks(random());
         assertTrue(electionOccurred);
@@ -218,7 +239,7 @@ public class ElectionSchedulerTests extends ESTestCase {
         responsesByNode.put(otherNode, null);
         votingConfiguration = new VotingConfiguration(singleton(otherNode.getId()));
 
-        electionScheduler.start();
+        electionScheduler.start(randomGracePeriod());
         deterministicTaskQueue.advanceTime();
         deterministicTaskQueue.runAllRunnableTasks(random());
 
@@ -234,7 +255,7 @@ public class ElectionSchedulerTests extends ESTestCase {
         votingConfiguration = new VotingConfiguration(singleton(otherNode.getId()));
         preVoteResponseDelay = 1;
 
-        electionScheduler.start();
+        electionScheduler.start(randomGracePeriod());
         deterministicTaskQueue.advanceTime();
         deterministicTaskQueue.runAllRunnableTasks(random());
 
@@ -248,7 +269,7 @@ public class ElectionSchedulerTests extends ESTestCase {
         responsesByNode.put(otherNode, new PreVoteResponse(3, 3, 1));
         votingConfiguration = new VotingConfiguration(singleton(otherNode.getId()));
 
-        electionScheduler.start();
+        electionScheduler.start(randomGracePeriod());
         deterministicTaskQueue.advanceTime();
         deterministicTaskQueue.runAllRunnableTasks(random());
 
@@ -262,7 +283,7 @@ public class ElectionSchedulerTests extends ESTestCase {
         responsesByNode.put(otherNode, new PreVoteResponse(3, 2, 2));
         votingConfiguration = new VotingConfiguration(singleton(otherNode.getId()));
 
-        electionScheduler.start();
+        electionScheduler.start(randomGracePeriod());
         deterministicTaskQueue.advanceTime();
         deterministicTaskQueue.runAllRunnableTasks(random());
 
@@ -276,7 +297,7 @@ public class ElectionSchedulerTests extends ESTestCase {
         responsesByNode.put(otherNode, new PreVoteResponse(3, 1, 2));
         votingConfiguration = new VotingConfiguration(singleton(otherNode.getId()));
 
-        electionScheduler.start();
+        electionScheduler.start(randomGracePeriod());
         deterministicTaskQueue.advanceTime();
         deterministicTaskQueue.runAllRunnableTasks(random());
         assertTrue(electionOccurred);
@@ -291,7 +312,7 @@ public class ElectionSchedulerTests extends ESTestCase {
         votingConfiguration
             = new VotingConfiguration(new HashSet<>(Arrays.asList(otherNode1.getId(), otherNode2.getId())));
 
-        electionScheduler.start();
+        electionScheduler.start(randomGracePeriod());
         deterministicTaskQueue.advanceTime();
         deterministicTaskQueue.runAllRunnableTasks(random());
         assertTrue(electionOccurred);

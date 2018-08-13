@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
-import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.protocol.xpack.security.User;
 import org.elasticsearch.xpack.security.authc.support.CachingRealm;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
@@ -179,12 +179,15 @@ public final class KerberosRealm extends Realm implements CachingRealm {
 
     private void handleException(Exception e, final ActionListener<AuthenticationResult> listener) {
         if (e instanceof LoginException) {
+            logger.debug("failed to authenticate user, service login failure", e);
             listener.onResponse(AuthenticationResult.terminate("failed to authenticate user, service login failure",
                     unauthorized(e.getLocalizedMessage(), e)));
         } else if (e instanceof GSSException) {
+            logger.debug("failed to authenticate user, gss context negotiation failure", e);
             listener.onResponse(AuthenticationResult.terminate("failed to authenticate user, gss context negotiation failure",
                     unauthorized(e.getLocalizedMessage(), e)));
         } else {
+            logger.debug("failed to authenticate user", e);
             listener.onFailure(e);
         }
     }

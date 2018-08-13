@@ -53,7 +53,6 @@ import org.elasticsearch.cluster.coordination.ClusterStatePublisher;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Transports;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -173,14 +172,17 @@ public class MasterService extends AbstractLifecycleComponent {
         return clusterStateSupplier.get();
     }
 
+    private static boolean isMasterUpdateThread() {
+        return Thread.currentThread().getName().contains(MASTER_UPDATE_THREAD_NAME);
+    }
+
     public static boolean assertMasterUpdateThread() {
-        assert Thread.currentThread().getName().contains(MASTER_UPDATE_THREAD_NAME) :
-            "not called from the master service thread";
+        assert isMasterUpdateThread() : "not called from the master service thread";
         return true;
     }
 
     public static boolean assertNotMasterUpdateThread(String reason) {
-        assert Thread.currentThread().getName().contains(MASTER_UPDATE_THREAD_NAME) == false :
+        assert isMasterUpdateThread() == false :
             "Expected current thread [" + Thread.currentThread() + "] to not be the master service thread. Reason: [" + reason + "]";
         return true;
     }
@@ -240,10 +242,7 @@ public class MasterService extends AbstractLifecycleComponent {
         final PlainActionFuture<Void> fut = new PlainActionFuture<Void>() {
             @Override
             protected boolean blockingAllowed() {
-                // allow this one to block on the MasterServiceUpdateThread
-                return Transports.assertNotTransportThread(BLOCKING_OP_REASON) &&
-                    ThreadPool.assertNotScheduleThread(BLOCKING_OP_REASON) &&
-                    ClusterApplierService.assertNotClusterStateUpdateThread(BLOCKING_OP_REASON);
+                return isMasterUpdateThread() || super.blockingAllowed();
             }
         };
         clusterStatePublisher.publish(clusterChangedEvent, fut, taskOutputs.createAckListener(threadPool, clusterChangedEvent.state()));

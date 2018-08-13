@@ -35,7 +35,7 @@ import java.util.concurrent.locks.AbstractQueuedSynchronizer;
 
 public abstract class BaseFuture<V> implements Future<V> {
 
-    protected static final String BLOCKING_OP_REASON = "Blocking operation";
+    private static final String BLOCKING_OP_REASON = "Blocking operation";
 
     /**
      * Synchronization control for AbstractFutures.

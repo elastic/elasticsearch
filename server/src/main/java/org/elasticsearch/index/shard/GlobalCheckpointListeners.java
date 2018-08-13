@@ -58,7 +58,7 @@ public class GlobalCheckpointListeners implements Closeable {
     // guarded by this
     private boolean closed;
     private volatile List<GlobalCheckpointListener> listeners;
-    private volatile long lastKnownGlobalCheckpoint = UNASSIGNED_SEQ_NO;
+    private long lastKnownGlobalCheckpoint = UNASSIGNED_SEQ_NO;
 
     private final ShardId shardId;
     private final Executor executor;
@@ -82,7 +82,7 @@ public class GlobalCheckpointListeners implements Closeable {
 
     /**
      * Add a global checkpoint listener. If the global checkpoint is above the current global checkpoint known to the listener then the
-     * listener will fire immediately on the calling thread.
+     * listener will be asynchronously fired on the executor used to construct this collection of global checkpoint listeners.
      *
      * @param currentGlobalCheckpoint the current global checkpoint known to the listener
      * @param listener                the listener
@@ -117,7 +117,9 @@ public class GlobalCheckpointListeners implements Closeable {
      */
     void globalCheckpointUpdated(final long globalCheckpoint) {
         assert globalCheckpoint >= NO_OPS_PERFORMED;
-        lastKnownGlobalCheckpoint = globalCheckpoint;
+        synchronized (this) {
+            lastKnownGlobalCheckpoint = globalCheckpoint;
+        }
         notifyListeners(globalCheckpoint, null);
     }
 

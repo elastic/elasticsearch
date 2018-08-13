@@ -65,6 +65,11 @@ public class BucketNormalizable extends Normalizable {
     }
 
     @Override
+    public String getPersonFieldValue() {
+        return null;
+    }
+
+    @Override
     public String getFunctionName() {
         return null;
     }

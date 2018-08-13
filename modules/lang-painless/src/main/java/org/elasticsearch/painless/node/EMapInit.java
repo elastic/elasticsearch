@@ -33,6 +33,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
+
 /**
  * Represents a map initialization shortcut.
  */
@@ -69,16 +71,17 @@ public final class EMapInit extends AExpression {
 
         actual = HashMap.class;
 
-        try {
-            constructor = locals.getPainlessLookup().lookupPainlessConstructor(actual, 0);
-        } catch (IllegalArgumentException iae) {
-            throw createError(iae);
+        constructor = locals.getPainlessLookup().lookupPainlessConstructor(actual, 0);
+
+        if (constructor == null) {
+            throw createError(new IllegalArgumentException(
+                    "constructor [" + typeToCanonicalTypeName(actual) + ", <init>/0] not found"));
         }
 
-        try {
-            method = locals.getPainlessLookup().lookupPainlessMethod(actual, false, "put", 2);
-        } catch (IllegalArgumentException iae) {
-            throw createError(iae);
+        method = locals.getPainlessLookup().lookupPainlessMethod(actual, false, "put", 2);
+
+        if (method == null) {
+            throw createError(new IllegalArgumentException("method [" + typeToCanonicalTypeName(actual) + ", put/2] not found"));
         }
 
         if (keys.size() != values.size()) {

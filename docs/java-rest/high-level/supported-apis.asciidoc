@@ -206,6 +206,15 @@ The Java High Level REST Client supports the following Migration APIs:
 
 include::migration/get-assistance.asciidoc[]
 
+== Machine Learning APIs
+
+The Java High Level REST Client supports the following Machine Learning APIs:
+
+* <<java-rest-high-x-pack-machine-learning-delete-job>>
+
+include::machine-learning/delete-job.asciidoc[]
+
+
 == Watcher APIs
 
 The Java High Level REST Client supports the following Watcher APIs:

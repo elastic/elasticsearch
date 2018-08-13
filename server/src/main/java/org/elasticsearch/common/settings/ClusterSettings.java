@@ -196,6 +196,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING,
                     MetaData.SETTING_READ_ONLY_SETTING,
                     MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING,
+                    MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE,
+                    MetaData.SETTING_ENFORCE_CLUSTER_MAX_SHARDS_PER_NODE,
                     RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING,
                     RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING,
                     RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING,

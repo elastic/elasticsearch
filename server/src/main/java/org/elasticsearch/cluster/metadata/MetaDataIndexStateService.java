@@ -36,8 +36,10 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndicesService;
@@ -50,6 +52,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -175,6 +178,8 @@ public class MetaDataIndexStateService extends AbstractComponent {
                     }
                 }
 
+                validateShardLimit(currentState, request.indices(), deprecationLogger);
+
                 if (indicesToOpen.isEmpty()) {
                     return currentState;
                 }
@@ -215,6 +220,27 @@ public class MetaDataIndexStateService extends AbstractComponent {
                         "indices opened [" + indicesAsString + "]");
             }
         });
+    }
+
+    static void validateShardLimit(ClusterState currentState, Index[] indices, DeprecationLogger deprecationLogger) {
+        int shardsToOpen = Arrays.stream(indices)
+            .filter(index -> currentState.metaData().index(index).getState().equals(IndexMetaData.State.CLOSE))
+            .mapToInt(index -> getTotalShardCount(currentState, index))
+            .sum();
+
+        Optional<String> error = IndicesService.checkShardLimit(shardsToOpen, currentState, deprecationLogger);
+        if (error.isPresent()) {
+            ValidationException ex = new ValidationException();
+            ex.addValidationError(error.get());
+            throw ex;
+        }
+
+    }
+
+
+    private static int getTotalShardCount(ClusterState state, Index index) {
+        IndexMetaData indexMetaData = state.metaData().index(index);
+        return indexMetaData.getNumberOfShards() * (1 + indexMetaData.getNumberOfReplicas());
     }
 
 }

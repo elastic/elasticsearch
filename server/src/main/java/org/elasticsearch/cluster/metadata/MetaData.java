@@ -22,7 +22,6 @@ package org.elasticsearch.cluster.metadata;
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.action.AliasesRequest;
@@ -127,6 +126,20 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
 
     }
 
+    public static final Setting<Integer> SETTING_CLUSTER_MAX_SHARDS_PER_NODE =
+        Setting.intSetting("cluster.shards.max_per_node", 1000, 1, Property.Dynamic, Property.NodeScope);
+    public static final Setting<Boolean> SETTING_ENFORCE_CLUSTER_MAX_SHARDS_PER_NODE =
+        new Setting<>("cluster.shards.enforce_max_per_node", "default", (s) -> {
+            switch (s) {
+                case "default":
+                    return false;
+                case "true":
+                    return true;
+                default:
+                    throw new IllegalArgumentException("unrecognized [cluster.shards.enforce_max_per_node] \"" + s + "\": must be default or true");
+            }
+        }, Property.Dynamic, Property.NodeScope);
+
     public static final Setting<Boolean> SETTING_READ_ONLY_SETTING =
         Setting.boolSetting("cluster.blocks.read_only", false, Property.Dynamic, Property.NodeScope);
 
@@ -162,6 +175,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     private final ImmutableOpenMap<String, Custom> customs;
 
     private final transient int totalNumberOfShards; // Transient ? not serializable anyway?
+    private final int totalOpenIndexShards;
     private final int numberOfShards;
 
     private final String[] allIndices;
@@ -183,12 +197,17 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         this.customs = customs;
         this.templates = templates;
         int totalNumberOfShards = 0;
+        int totalOpenIndexShards = 0;
         int numberOfShards = 0;
         for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
             totalNumberOfShards += cursor.value.getTotalNumberOfShards();
             numberOfShards += cursor.value.getNumberOfShards();
+            if (IndexMetaData.State.OPEN.equals(cursor.value.getState())) {
+                totalOpenIndexShards += cursor.value.getTotalNumberOfShards();
+            }
         }
         this.totalNumberOfShards = totalNumberOfShards;
+        this.totalOpenIndexShards = totalOpenIndexShards;
         this.numberOfShards = numberOfShards;
 
         this.allIndices = allIndices;
@@ -676,10 +695,29 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     }
 
 
+    /**
+     * Gets the total number of shards from all indices, including replicas and
+     * closed indices.
+     * @return The total number shards from all indices.
+     */
     public int getTotalNumberOfShards() {
         return this.totalNumberOfShards;
     }
 
+    /**
+     * Gets the total number of active shards from all indices. Includes
+     * replicas, but does not include shards that are part of closed indices.
+     * @return The total number of active shards from all indices.
+     */
+    public int getTotalOpenIndexShards() {
+        return this.totalOpenIndexShards;
+    }
+
+    /**
+     * Gets the number of primary shards from all indices, not including
+     * replicas.
+     * @return The number of primary shards from all indices.
+     */
     public int getNumberOfShards() {
         return this.numberOfShards;
     }

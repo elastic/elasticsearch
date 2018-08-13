@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
+import org.elasticsearch.cluster.shards.ClusterShardLimitIT;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -50,13 +51,18 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
+import static org.elasticsearch.cluster.shards.ClusterShardLimitIT.ShardCounts.forDataNodeCount;
+import static org.elasticsearch.indices.IndicesServiceTests.createClusterForShardLimitTest;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -466,4 +472,54 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
             assertEquals("ratio is not a power of two", intRatio, Integer.highestOneBit(intRatio));
         }
     }
+
+    public void testShardLimitDeprecationWarning() {
+        int nodesInCluster = randomIntBetween(2,100);
+        ClusterShardLimitIT.ShardCounts counts = forDataNodeCount(nodesInCluster);
+        Settings clusterSettings = Settings.builder()
+            .put(MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), counts.getShardsPerNode())
+            .build();
+        ClusterState state = createClusterForShardLimitTest(nodesInCluster, counts.getFirstIndexShards(), counts.getFirstIndexReplicas(),
+            clusterSettings);
+
+        Settings indexSettings = Settings.builder()
+            .put(SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(SETTING_NUMBER_OF_SHARDS, counts.getFailingIndexShards())
+            .put(SETTING_NUMBER_OF_REPLICAS, counts.getFailingIndexReplicas())
+            .build();
+
+        MetaDataCreateIndexService.checkShardLimit(indexSettings, state, deprecationLogger);
+        int totalShards = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
+        int currentShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
+        int maxShards = counts.getShardsPerNode() * nodesInCluster;
+        assertWarnings("In a future major version, this request will fail because this action would add [" +
+            totalShards + "] total shards, but this cluster currently has [" + currentShards + "]/[" + maxShards + "] maximum shards open."+
+            " Before upgrading, reduce the number of shards in your cluster or adjust the cluster setting [cluster.shards.max_per_node].");
+    }
+
+    public void testShardLimitError() {
+        int nodesInCluster = randomIntBetween(2,100);
+        ClusterShardLimitIT.ShardCounts counts = forDataNodeCount(nodesInCluster);
+        Settings clusterSettings = Settings.builder()
+            .put(MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), counts.getShardsPerNode())
+            .put(MetaData.SETTING_ENFORCE_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), true)
+            .build();
+        ClusterState state = createClusterForShardLimitTest(nodesInCluster, counts.getFirstIndexShards(), counts.getFirstIndexReplicas(),
+            clusterSettings);
+
+        Settings indexSettings = Settings.builder()
+            .put(SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(SETTING_NUMBER_OF_SHARDS, counts.getFailingIndexShards())
+            .put(SETTING_NUMBER_OF_REPLICAS, counts.getFailingIndexReplicas())
+            .build();
+
+        Optional<String> message = MetaDataCreateIndexService.checkShardLimit(indexSettings, state, deprecationLogger);
+        int totalShards = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
+        int currentShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
+        int maxShards = counts.getShardsPerNode() * nodesInCluster;
+        assertTrue(message.isPresent());
+        assertEquals("this action would add [" + totalShards + "] total shards, but this cluster currently has [" +
+            currentShards + "]/[" + maxShards + "] maximum shards open", message.get());
+    }
+
 }

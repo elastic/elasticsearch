@@ -22,6 +22,48 @@ user with access to the <<cluster-update-settings,cluster-update-settings>>
 API can make the cluster read-write again.
 
 
+[[cluster-shard-limit]]
+
+==== Cluster Shard Limit
+
+In a Elasticsearch 7.0 and later, there will be a soft cap on the number of
+shards in a cluster, based on the number of nodes in the cluster.  This is
+intended to prevent operations which may unintentionally destabilize the
+cluster. Until 7.0, actions which would result in the cluster going over the
+limit will issue a deprecation warning. Strict enforcement of this behavior can
+be enabled by setting the cluster setting `cluster.shards.enforce_max_per_node`
+to `true`.
+
+NOTE: `cluster.shards.enforce_max_per_node` cannot be set to `false`, as this
+setting will be removed in 7.0 and the limit will always be enforced. To return
+to the default behavior for your Elasticsearch version, set this setting to
+`"default"`.
+
+If an operation, such as creating a new index, restoring a snapshot of an index,
+or opening a closed index would lead to the number of shards in the cluster
+going over this limit, the operation will issue a deprecation warning, or fail
+if `cluster.shards.enforce_max_per_node` is set.
+
+If the cluster is already over the cap, due to changes in node membership or
+setting changes, all operations that create or open indices will issue warnings
+or fail until either the cap is increased as described below, or some indices
+are closed or deleted to bring the number of shards below the cap.
+
+Replicas count towards this cap, but closed indexes do not. An index with 5
+primary shards and 2 replicas will be counted as 15 shards.  Any closed index
+is counted as 0, no matter how many shards and replicas it contains.
+
+The limit defaults to 1,000 shards per node, and be dynamically adjusted using
+the following property:
+
+`cluster.shards.max_per_node`::
+
+     Controls the number of shards allowed in the cluster per node.
+
+For example, a 3-node cluster with the default setting would allow 3,000 shards
+total, across all open indexes.  If the above setting is changed to 1,500, then
+the cluster would allow 4,500 shards total.
+
 [[user-defined-data]]
 ==== User Defined Cluster Metadata
 

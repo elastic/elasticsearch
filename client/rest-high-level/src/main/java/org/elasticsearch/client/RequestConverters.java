@@ -112,6 +112,7 @@ import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
 import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoRequest;
 import org.elasticsearch.protocol.xpack.ml.PutJobRequest;
+import org.elasticsearch.protocol.xpack.rollup.PutRollupJobRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
@@ -1210,6 +1211,18 @@ final class RequestConverters {
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         Params parameters = new Params(request);
         parameters.withIndicesOptions(indexUpgradeInfoRequest.indicesOptions());
+        return request;
+    }
+
+    static Request putRollupJob(PutRollupJobRequest putRollupJobRequest) throws IOException {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("rollup")
+            .addPathPartAsIs("job")
+            .addPathPart(putRollupJobRequest.getConfig().getId())
+            .build();
+        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(putRollupJobRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 

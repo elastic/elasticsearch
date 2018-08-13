@@ -212,6 +212,7 @@ public class RestHighLevelClient implements Closeable {
     private final LicenseClient licenseClient = new LicenseClient(this);
     private final MigrationClient migrationClient = new MigrationClient(this);
     private final MachineLearningClient machineLearningClient = new MachineLearningClient(this);
+    private final RollupClient rollupClient = new RollupClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -360,6 +361,16 @@ public class RestHighLevelClient implements Closeable {
     public MachineLearningClient machineLearning() {
         return machineLearningClient;
     }
+
+    /**
+     * Provides methods for accessing the Elastic Licensed Rollup APIs that
+     * are shipped with the default distribution of Elasticsearch. All of
+     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
+     * <p>
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/rollup-apis.html">
+     * Watcher APIs on elastic.co</a> for more information.
+     */
+    public RollupClient rollup() { return rollupClient; }
 
     /**
      * Executes a bulk request using the Bulk API.

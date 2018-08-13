@@ -35,13 +35,13 @@ import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggre
 import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.sum.SumAggregationBuilder;
-import org.elasticsearch.xpack.core.rollup.RollupField;
-import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
-import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
-import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
-import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
+import org.elasticsearch.protocol.xpack.rollup.RollupField;
+import org.elasticsearch.protocol.xpack.rollup.job.DateHistogramGroupConfig;
+import org.elasticsearch.protocol.xpack.rollup.job.GroupConfig;
+import org.elasticsearch.protocol.xpack.rollup.job.HistogramGroupConfig;
+import org.elasticsearch.protocol.xpack.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobStats;
-import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
+import org.elasticsearch.protocol.xpack.rollup.job.TermsGroupConfig;
 import org.joda.time.DateTime;
 import org.mockito.stubbing.Answer;
 

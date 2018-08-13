@@ -7,14 +7,14 @@ package org.elasticsearch.xpack.rollup.action;
 
 
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.protocol.xpack.rollup.PutRollupJobRequest;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
-import org.elasticsearch.xpack.core.rollup.action.PutRollupJobAction.Request;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.junit.Before;
 
 import java.io.IOException;
 
-public class PutJobActionRequestTests extends AbstractStreamableXContentTestCase<Request> {
+public class PutRollupJobRequestTests extends AbstractStreamableXContentTestCase<PutRollupJobRequest> {
 
     private String jobId;
 
@@ -24,8 +24,8 @@ public class PutJobActionRequestTests extends AbstractStreamableXContentTestCase
     }
 
     @Override
-    protected Request createTestInstance() {
-        return new Request(ConfigTestHelpers.randomRollupJobConfig(random(), jobId));
+    protected PutRollupJobRequest createTestInstance() {
+        return new PutRollupJobRequest(ConfigTestHelpers.randomRollupJobConfig(random(), jobId));
     }
 
     @Override
@@ -34,13 +34,13 @@ public class PutJobActionRequestTests extends AbstractStreamableXContentTestCase
     }
 
     @Override
-    protected Request createBlankInstance() {
-        return new Request();
+    protected PutRollupJobRequest createBlankInstance() {
+        return new PutRollupJobRequest();
     }
 
     @Override
-    protected Request doParseInstance(final XContentParser parser) throws IOException {
-        return Request.fromXContent(parser, jobId);
+    protected PutRollupJobRequest doParseInstance(final XContentParser parser) throws IOException {
+        return PutRollupJobRequest.fromXContent(parser, jobId);
     }
 
 }

@@ -34,7 +34,7 @@ import org.elasticsearch.search.aggregations.metrics.min.InternalMin;
 import org.elasticsearch.search.aggregations.metrics.sum.InternalSum;
 import org.elasticsearch.search.aggregations.metrics.sum.SumAggregationBuilder;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.xpack.core.rollup.RollupField;
+import org.elasticsearch.protocol.xpack.rollup.RollupField;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;

@@ -245,6 +245,25 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
     }
 
     /**
+     * Get the persisted job document name from the Job Id.
+     * Throws if {@code jobId} is not a valid job Id.
+     *
+     * @param jobId The job id
+     * @return The id of document the job is persisted in
+     */
+    public static String documentId(String jobId) {
+        if (!MlStrings.isValidId(jobId)) {
+            throw new IllegalArgumentException(Messages.getMessage(Messages.INVALID_ID, ID.getPreferredName(), jobId));
+        }
+        if (!MlStrings.hasValidLengthForId(jobId)) {
+            throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_ID_TOO_LONG, MlStrings.ID_LENGTH_LIMIT));
+        }
+
+        return "job-" + jobId;
+    }
+
+
+    /**
      * Return the Job Id.
      *
      * @return The job Id string
@@ -757,6 +776,10 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
 
         public void setGroups(List<String> groups) {
             this.groups = groups == null ? Collections.emptyList() : groups;
+        }
+
+        public List<String> getGroups() {
+            return groups;
         }
 
         public Builder setCustomSettings(Map<String, Object> customSettings) {

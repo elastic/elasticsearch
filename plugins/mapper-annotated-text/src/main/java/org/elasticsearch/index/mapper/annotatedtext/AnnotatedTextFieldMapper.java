@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper.annotatedtext;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.Analyzer.TokenStreamComponents;
+import org.apache.lucene.analysis.shingle.FixedShingleFilter;
 import org.apache.lucene.analysis.AnalyzerWrapper;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
@@ -36,6 +37,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
@@ -686,6 +688,42 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
             return builder.build();
         }
+        
+        @Override
+        public Query multiPhraseQuery(String field, TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
+
+            MultiPhraseQuery.Builder mpqb = new MultiPhraseQuery.Builder();
+            mpqb.setSlop(slop);
+
+            TermToBytesRefAttribute termAtt = stream.getAttribute(TermToBytesRefAttribute.class);
+
+            PositionIncrementAttribute posIncrAtt = stream.getAttribute(PositionIncrementAttribute.class);
+            int position = -1;
+
+            List<Term> multiTerms = new ArrayList<>();
+            stream.reset();
+            while (stream.incrementToken()) {
+                int positionIncrement = posIncrAtt.getPositionIncrement();
+
+                if (positionIncrement > 0 && multiTerms.size() > 0) {
+                    if (enablePositionIncrements) {
+                        mpqb.add(multiTerms.toArray(new Term[0]), position);
+                    } else {
+                        mpqb.add(multiTerms.toArray(new Term[0]));
+                    }
+                    multiTerms.clear();
+                }
+                position += positionIncrement;
+                multiTerms.add(new Term(field, termAtt.getBytesRef()));
+            }
+
+            if (enablePositionIncrements) {
+                mpqb.add(multiTerms.toArray(new Term[0]), position);
+            } else {
+                mpqb.add(multiTerms.toArray(new Term[0]));
+            }
+            return mpqb.build();
+        }        
     }
 
     

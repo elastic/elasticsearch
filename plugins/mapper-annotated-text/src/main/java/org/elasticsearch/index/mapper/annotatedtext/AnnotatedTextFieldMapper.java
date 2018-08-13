@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper.annotatedtext;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.Analyzer.TokenStreamComponents;
-import org.apache.lucene.analysis.shingle.FixedShingleFilter;
 import org.apache.lucene.analysis.AnalyzerWrapper;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;

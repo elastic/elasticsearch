@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.common.rounding.javatime;
+package org.elasticsearch.common;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -42,7 +42,11 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * A strategy for rounding long values.
+ * A strategy for rounding date/time based values.
+ *
+ * There are two implementations for rounding.
+ * The first one requires a date time unit and rounds to the supplied date time unit (i.e. quarter of year, day of month)
+ * The second one allows you to specify an interval to round to
  */
 public abstract class Rounding implements Writeable {
 
@@ -89,7 +93,6 @@ public abstract class Rounding implements Writeable {
                 default: throw new ElasticsearchException("Unknown date time unit id [" + id + "]");
             }
         }
-
     }
 
     public abstract void innerWriteTo(StreamOutput out) throws IOException;
@@ -179,8 +182,8 @@ public abstract class Rounding implements Writeable {
 
         TimeUnitRounding(DateTimeUnit unit, ZoneId timeZone) {
             this.unit = unit;
-            this.unitRoundsToMidnight = this.unit.field.getBaseUnit().getDuration().toMillis() > 60L * 60L * 1000L;
             this.timeZone = timeZone;
+            this.unitRoundsToMidnight = this.unit.field.getBaseUnit().getDuration().toMillis() > 60L * 60L * 1000L;
         }
 
         TimeUnitRounding(StreamInput in) throws IOException {

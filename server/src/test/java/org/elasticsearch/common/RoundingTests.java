@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.common.rounding.javatime;
+package org.elasticsearch.common;
 
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.rounding.DateTimeUnit;

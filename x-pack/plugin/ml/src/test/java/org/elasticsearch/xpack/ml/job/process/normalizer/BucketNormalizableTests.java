@@ -73,6 +73,10 @@ public class BucketNormalizableTests extends ESTestCase {
         assertNull(new BucketNormalizable(bucket, INDEX_NAME).getPersonFieldName());
     }
 
+    public void testGetPersonFieldValue() {
+        assertNull(new BucketNormalizable(bucket, INDEX_NAME).getPersonFieldValue());
+    }
+
     public void testGetFunctionName() {
         assertNull(new BucketNormalizable(bucket, INDEX_NAME).getFunctionName());
     }

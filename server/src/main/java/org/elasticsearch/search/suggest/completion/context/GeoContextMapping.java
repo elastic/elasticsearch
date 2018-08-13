@@ -214,7 +214,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
                     if (field instanceof StringField) {
                         spare.resetFromString(field.stringValue());
                         geohashes.add(spare.geohash());
-                    }  if (field instanceof LatLonPoint || field instanceof LatLonDocValuesField) {
+                    }  else if (field instanceof LatLonPoint || field instanceof LatLonDocValuesField) {
                         spare.resetFromIndexableField(field);
                         geohashes.add(spare.geohash());
                     }

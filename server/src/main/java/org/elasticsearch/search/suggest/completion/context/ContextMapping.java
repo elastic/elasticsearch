@@ -146,8 +146,8 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
     /**
      * Verifies that all field paths specified in contexts point to the fields with correct mappings
      */
-    public static void validateGeoContextPaths(Version indexVersionCreated, List<FieldMapper> fieldMappers,
-                                               Function<String, MappedFieldType> fieldResolver) {
+    public static void validateContextPaths(Version indexVersionCreated, List<FieldMapper> fieldMappers,
+                                            Function<String, MappedFieldType> fieldResolver) {
         for (FieldMapper fieldMapper : fieldMappers) {
             if (CompletionFieldMapper.CONTENT_TYPE.equals(fieldMapper.typeName())) {
                 CompletionFieldMapper.CompletionFieldType fieldType = ((CompletionFieldMapper) fieldMapper).fieldType();

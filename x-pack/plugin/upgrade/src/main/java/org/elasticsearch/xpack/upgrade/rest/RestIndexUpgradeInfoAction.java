@@ -9,12 +9,12 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoRequest;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.upgrade.actions.IndexUpgradeInfoAction;
-import org.elasticsearch.xpack.core.upgrade.actions.IndexUpgradeInfoAction.Request;
 
 import java.io.IOException;
 
@@ -41,7 +41,7 @@ public class RestIndexUpgradeInfoAction extends BaseRestHandler {
     }
 
     private RestChannelConsumer handleGet(final RestRequest request, NodeClient client) {
-        Request infoRequest = new Request(Strings.splitStringByCommaToArray(request.param("index")));
+        IndexUpgradeInfoRequest infoRequest = new IndexUpgradeInfoRequest(Strings.splitStringByCommaToArray(request.param("index")));
         infoRequest.indicesOptions(IndicesOptions.fromRequest(request, infoRequest.indicesOptions()));
         return channel -> client.execute(IndexUpgradeInfoAction.INSTANCE, infoRequest, new RestToXContentListener<>(channel));
     }

@@ -1,11 +1,11 @@
 [role="xpack"]
 [[ml-configuring-detector-custom-rules]]
-=== Customizing detectors with rules and filters
+=== Customizing detectors with custom rules
 
-<<ml-rules,Rules and filters>> enable you to change the behavior of anomaly 
+<<ml-rules,Custom rules>> enable you to change the behavior of anomaly
 detectors based on domain-specific knowledge.
 
-Rules describe _when_ a detector should take a certain _action_ instead
+Custom rules describe _when_ a detector should take a certain _action_ instead
 of following its default behavior. To specify the _when_ a rule uses
 a `scope` and `conditions`. You can think of `scope` as the categorical
 specification of a rule, while `conditions` are the numerical part.
@@ -14,7 +14,7 @@ scope and conditions.
 
 Let us see how those can be configured by examples.
 
-==== Specifying rule scope
+==== Specifying custom rule scope
 
 Let us assume we are configuring a job in order to detect DNS data exfiltration.
 Our data contain fields "subdomain" and "highest_registered_domain".
@@ -127,7 +127,7 @@ PUT _xpack/ml/anomaly_detectors/scoping_multiple_fields
 Such a detector will skip results when the values of all 3 scoped fields
 are included in the referenced filters.
 
-==== Specifying rule conditions
+==== Specifying custom rule conditions
 
 Imagine a detector that looks for anomalies in CPU utilization.
 Given a machine that is idle for long enough, small movement in CPU could
@@ -206,9 +206,9 @@ PUT _xpack/ml/anomaly_detectors/rule_with_range
 ----------------------------------
 // CONSOLE
 
-==== Rules in the life-cycle of a job
+==== Custom rules in the life-cycle of a job
 
-Rules only affect results created after the rules were applied.
+Custom rules only affect results created after the rules were applied.
 Let us imagine that we have configured a job and it has been running
 for some time. After observing its results we decide that we can employ
 rules in order to get rid of some uninteresting results. We can use
@@ -216,7 +216,7 @@ the {ref}/ml-update-job.html[update job API] to do so. However, the rule we
 added will only be in effect for any results created from the moment we added 
 the rule onwards. Past results will remain unaffected.
 
-==== Using rules VS filtering data
+==== Using custom rules VS filtering data
 
 It might appear like using rules is just another way of filtering the data
 that feeds into a job. For example, a rule that skips results when the

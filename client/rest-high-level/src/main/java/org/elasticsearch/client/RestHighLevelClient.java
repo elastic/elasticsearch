@@ -210,6 +210,7 @@ public class RestHighLevelClient implements Closeable {
     private final XPackClient xPackClient = new XPackClient(this);
     private final WatcherClient watcherClient = new WatcherClient(this);
     private final LicenseClient licenseClient = new LicenseClient(this);
+    private final MigrationClient migrationClient = new MigrationClient(this);
     private final MachineLearningClient machineLearningClient = new MachineLearningClient(this);
     private final IndexLifecycleClient ilmClient = new IndexLifecycleClient(this);
 
@@ -342,7 +343,21 @@ public class RestHighLevelClient implements Closeable {
      * See the <a href="http://FILL-ME-IN-WE-HAVE-NO-DOCS-YET.com"> X-Pack APIs
      * on elastic.co</a> for more information.
      */
-    public IndexLifecycleClient indexLifecycle() { return ilmClient; }
+    public IndexLifecycleClient indexLifecycle() {
+        return ilmClient;
+    }
+
+    /**
+     * Provides methods for accessing the Elastic Licensed Licensing APIs that
+     * are shipped with the default distribution of Elasticsearch. All of
+     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
+     * <p>
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/migration-api.html">
+     * Migration APIs on elastic.co</a> for more information.
+     */
+    public MigrationClient migration() {
+        return migrationClient;
+    }
 
     /**
      * Provides methods for accessing the Elastic Licensed Machine Learning APIs that

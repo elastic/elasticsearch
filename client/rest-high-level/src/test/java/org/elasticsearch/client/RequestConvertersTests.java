@@ -130,6 +130,7 @@ import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.StartILMRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.StopILMRequest;
+import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -2552,6 +2553,23 @@ public class RequestConvertersTests extends ESTestCase {
         Request request = RequestConverters.xPackInfo(infoRequest);
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
         assertEquals("/_xpack", request.getEndpoint());
+        assertNull(request.getEntity());
+        assertEquals(expectedParams, request.getParameters());
+    }
+
+    public void testGetMigrationAssistance() {
+        IndexUpgradeInfoRequest upgradeInfoRequest = new IndexUpgradeInfoRequest();
+        String expectedEndpoint = "/_xpack/migration/assistance";
+        if (randomBoolean()) {
+            String[] indices = randomIndicesNames(1, 5);
+            upgradeInfoRequest.indices(indices);
+            expectedEndpoint += "/" + String.join(",", indices);
+        }
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomIndicesOptions(upgradeInfoRequest::indicesOptions, upgradeInfoRequest::indicesOptions, expectedParams);
+        Request request = RequestConverters.getMigrationAssistance(upgradeInfoRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals(expectedEndpoint, request.getEndpoint());
         assertNull(request.getEntity());
         assertEquals(expectedParams, request.getParameters());
     }

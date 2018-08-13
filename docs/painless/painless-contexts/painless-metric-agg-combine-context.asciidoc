@@ -12,7 +12,7 @@ optional as part of a full metric aggregation.
 `params` (`Map`, read-only)::
         User-defined parameters passed in as part of the query.
 
-`params['_agg']` (`Map`)::
+`state` (`Map`)::
         `Map` with values available from the prior map script.
 
 *Return*

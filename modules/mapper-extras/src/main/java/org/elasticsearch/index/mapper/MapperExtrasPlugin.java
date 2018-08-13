@@ -21,10 +21,12 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.index.mapper.MetadataFieldMapper.TypeParser;
 import org.elasticsearch.index.query.FeatureQueryBuilder;
+import org.elasticsearch.index.query.VectorQueryBuilder;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -39,6 +41,8 @@ public class MapperExtrasPlugin extends Plugin implements MapperPlugin, SearchPl
         mappers.put(TokenCountFieldMapper.CONTENT_TYPE, new TokenCountFieldMapper.TypeParser());
         mappers.put(FeatureFieldMapper.CONTENT_TYPE, new FeatureFieldMapper.TypeParser());
         mappers.put(FeatureVectorFieldMapper.CONTENT_TYPE, new FeatureVectorFieldMapper.TypeParser());
+        mappers.put(DenseVectorFieldMapper.CONTENT_TYPE, new DenseVectorFieldMapper.TypeParser());
+        mappers.put(SparseVectorFieldMapper.CONTENT_TYPE, new SparseVectorFieldMapper.TypeParser());
         return Collections.unmodifiableMap(mappers);
     }
 
@@ -49,8 +53,8 @@ public class MapperExtrasPlugin extends Plugin implements MapperPlugin, SearchPl
 
     @Override
     public List<QuerySpec<?>> getQueries() {
-        return Collections.singletonList(
-                new QuerySpec<>(FeatureQueryBuilder.NAME, FeatureQueryBuilder::new, p -> FeatureQueryBuilder.PARSER.parse(p, null)));
+        return Collections.unmodifiableList(Arrays.asList(
+            new QuerySpec<>(FeatureQueryBuilder.NAME, FeatureQueryBuilder::new, p -> FeatureQueryBuilder.PARSER.parse(p, null)),
+            new QuerySpec<>( VectorQueryBuilder.NAME, VectorQueryBuilder::new, VectorQueryBuilder::fromXContent)));
     }
-
 }

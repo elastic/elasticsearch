@@ -128,6 +128,13 @@ public interface Transport extends LifecycleComponent {
             return false;
         }
 
+        /**
+         * The listener's {@link ActionListener#onResponse(Object)} method will be called when this
+         * connection is closed. No implementations currently throw an exception during close, so
+         * {@link ActionListener#onFailure(Exception)} will not be called.
+         *
+         * @param listener to be called
+         */
         void addCloseListener(ActionListener<Void> listener);
 
         boolean isClosed();

@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -206,15 +207,24 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
         }
     }
 
-    public void testAddAfterClose() throws IOException {
+    public void testAddAfterClose() throws InterruptedException, IOException {
         final GlobalCheckpointListeners globalCheckpointListeners = new GlobalCheckpointListeners(shardId, Runnable::run, logger);
         globalCheckpointListeners.globalCheckpointUpdated(NO_OPS_PERFORMED);
         globalCheckpointListeners.close();
-        final IllegalStateException expected =
-                expectThrows(IllegalStateException.class, () -> globalCheckpointListeners.add(NO_OPS_PERFORMED, (g, e) -> {}));
-        assertThat(
-                expected,
-                hasToString(containsString("can not listen for global checkpoint changes on a closed shard [" + shardId + "]")));
+        final AtomicBoolean invoked = new AtomicBoolean();
+        final CountDownLatch latch = new CountDownLatch(1);
+        final GlobalCheckpointListeners.GlobalCheckpointListener listener = (g, e) -> {
+            assert g == UNASSIGNED_SEQ_NO;
+            assert e != null;
+            if (invoked.compareAndSet(false, true) == false) {
+                latch.countDown();
+                throw new IllegalStateException("listener invoked twice");
+            }
+            latch.countDown();
+        };
+        globalCheckpointListeners.add(randomLongBetween(NO_OPS_PERFORMED, Long.MAX_VALUE), listener);
+        latch.await();
+        assertTrue(invoked.get());
     }
 
     public void testFailingListenerOnUpdate() {

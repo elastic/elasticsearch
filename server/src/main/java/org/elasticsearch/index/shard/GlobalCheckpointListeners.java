@@ -81,14 +81,16 @@ public class GlobalCheckpointListeners implements Closeable {
 
     /**
      * Add a global checkpoint listener. If the global checkpoint is above the current global checkpoint known to the listener then the
-     * listener will be asynchronously fired on the executor used to construct this collection of global checkpoint listeners.
+     * listener will be asynchronously notified on the executor used to construct this collection of global checkpoint listeners. If the
+     * shard is closed then the listener will be asynchronously notified on the executor used to construct this collection of global
+     * checkpoint listeners.
      *
      * @param currentGlobalCheckpoint the current global checkpoint known to the listener
      * @param listener                the listener
      */
     synchronized void add(final long currentGlobalCheckpoint, final GlobalCheckpointListener listener) {
         if (closed) {
-            throw new IllegalStateException("can not listen for global checkpoint changes on a closed shard [" + shardId + "]");
+            executor.execute(() -> listener.accept(UNASSIGNED_SEQ_NO, new IndexShardClosedException(shardId)));
         }
         if (lastKnownGlobalCheckpoint > currentGlobalCheckpoint) {
             // notify directly

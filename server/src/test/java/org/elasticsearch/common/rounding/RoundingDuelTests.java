@@ -33,20 +33,20 @@ public class RoundingDuelTests extends ESTestCase  {
     private static final String[] ALLOWED_TIME_SUFFIXES = new String[]{"d", "h", "ms", "s", "m"};
 
     public void testSerialization() throws Exception {
-        org.elasticsearch.common.rounding.javatime.Rounding.DateTimeUnit randomDateTimeUnit =
-            randomFrom(org.elasticsearch.common.rounding.javatime.Rounding.DateTimeUnit.values());
-        org.elasticsearch.common.rounding.javatime.Rounding rounding;
+        org.elasticsearch.common.Rounding.DateTimeUnit randomDateTimeUnit =
+            randomFrom(org.elasticsearch.common.Rounding.DateTimeUnit.values());
+        org.elasticsearch.common.Rounding rounding;
         if (randomBoolean()) {
-            rounding = org.elasticsearch.common.rounding.javatime.Rounding.builder(randomDateTimeUnit).timeZone(ZoneOffset.UTC).build();
+            rounding = org.elasticsearch.common.Rounding.builder(randomDateTimeUnit).timeZone(ZoneOffset.UTC).build();
         } else {
-            rounding = org.elasticsearch.common.rounding.javatime.Rounding.builder(timeValue()).timeZone(ZoneOffset.UTC).build();
+            rounding = org.elasticsearch.common.Rounding.builder(timeValue()).timeZone(ZoneOffset.UTC).build();
         }
         BytesStreamOutput output = new BytesStreamOutput();
         rounding.writeTo(output);
 
         Rounding roundingJoda = Rounding.Streams.read(output.bytes().streamInput());
-        org.elasticsearch.common.rounding.javatime.Rounding roundingJavaTime =
-            org.elasticsearch.common.rounding.javatime.Rounding.read(output.bytes().streamInput());
+        org.elasticsearch.common.Rounding roundingJavaTime =
+            org.elasticsearch.common.Rounding.read(output.bytes().streamInput());
 
         int randomInt = randomIntBetween(1, 1_000_000_000);
         assertThat(roundingJoda.round(randomInt), is(roundingJavaTime.round(randomInt)));

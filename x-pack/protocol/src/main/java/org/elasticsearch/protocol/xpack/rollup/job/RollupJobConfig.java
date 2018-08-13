@@ -128,10 +128,6 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
         if (pageSize <= 0) {
             throw new IllegalArgumentException("Page size is mandatory and  must be a positive long");
         }
-        // Cron doesn't have a parse helper method to see if the cron is valid,
-        // so just construct a temporary cron object and if the cron is bad, it'll
-        // throw an exception
-        //Cron testCron = new Cron(cron);
         if (groupConfig == null && (metricsConfig == null || metricsConfig.isEmpty())) {
             throw new IllegalArgumentException("At least one grouping or metric must be configured");
         }

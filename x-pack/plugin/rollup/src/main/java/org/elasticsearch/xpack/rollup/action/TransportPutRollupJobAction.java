@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.rollup.action.PutRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
+import org.elasticsearch.xpack.core.scheduler.Cron;
 import org.elasticsearch.xpack.rollup.Rollup;
 
 import java.util.Map;
@@ -91,6 +92,7 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
             return;
         }
 
+        validate(request);
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
 
         FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest()
@@ -115,6 +117,13 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
                 listener.onFailure(e);
             }
         });
+    }
+
+    static void validate(final PutRollupJobRequest request) {
+        final RollupJobConfig rollupJobConfig = request.getConfig();
+        if (rollupJobConfig != null) {
+            Cron.validate(rollupJobConfig.getCron());
+        }
     }
 
     private static RollupJob createRollupJob(RollupJobConfig config, ThreadPool threadPool) {

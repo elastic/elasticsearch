@@ -108,8 +108,8 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
         final List<MetricConfig> metrics = Collections.singletonList(new MetricConfig("value", SUPPORTED_METRICS));
         final TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(30, 600));
 
-        PutRollupJobRequest putRollupJobRequest = new PutRollupJobRequest();
-        putRollupJobRequest.setConfig(new RollupJobConfig(id, indexPattern, rollupIndex, cron, pageSize, groups, metrics, timeout));
+        PutRollupJobRequest putRollupJobRequest =
+            new PutRollupJobRequest(new RollupJobConfig(id, indexPattern, rollupIndex, cron, pageSize, groups, metrics, timeout));
 
         final RollupClient rollupClient = highLevelClient().rollup();
         PutRollupJobResponse response = execute(putRollupJobRequest, rollupClient::putRollupJob, rollupClient::putRollupJobAsync);

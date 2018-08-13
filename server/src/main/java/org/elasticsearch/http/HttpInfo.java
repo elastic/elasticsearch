@@ -19,10 +19,13 @@
 
 package org.elasticsearch.http;
 
+import java.net.InetSocketAddress;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -62,7 +65,16 @@ public class HttpInfo implements Writeable, ToXContentFragment {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.HTTP);
         builder.array(Fields.BOUND_ADDRESS, (Object[]) address.boundAddresses());
-        builder.field(Fields.PUBLISH_ADDRESS, address.publishAddress().toString());
+        TransportAddress publishAddress = address.publishAddress();
+        InetSocketAddress publishInetAddress = publishAddress.address();
+        String hostString = publishInetAddress.getHostString();
+        final String publishAddressString;
+        if (hostString.equals(NetworkAddress.format(publishInetAddress.getAddress()))) {
+            publishAddressString = publishAddress.toString();
+        } else {
+            publishAddressString = hostString + '/' + publishAddress.toString();
+        }
+        builder.field(Fields.PUBLISH_ADDRESS, publishAddressString);
         builder.humanReadableField(Fields.MAX_CONTENT_LENGTH_IN_BYTES, Fields.MAX_CONTENT_LENGTH, maxContentLength());
         builder.endObject();
         return builder;

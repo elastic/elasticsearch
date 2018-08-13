@@ -22,10 +22,8 @@ For more information about the native realm, see
 
 ==== Path Parameters
 
-`username`::
+`username` (required)::
   (string) An identifier for the user.
-//TBD: Can you specify multiple users in a comma-delimited list? If you don't 
-//specify a user, does it disable all users?  
 
 //==== Request Body
 
@@ -36,7 +34,7 @@ To use this API, you must have at least the `manage_security` cluster privilege.
 
 ==== Examples
 
-For example, to disable a user `jacknich`:
+The following example disables the user `jacknich`:
 
 [source,js]
 --------------------------------------------------

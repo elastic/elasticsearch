@@ -15,7 +15,7 @@ For more information about the native realm, see
 
 ==== Path Parameters
 
-`username`::
+`username` (required)::
   (string) An identifier for the user. 
 
 //==== Request Body
@@ -27,7 +27,7 @@ To use this API, you must have at least the `manage_security` cluster privilege.
 
 ==== Examples
 
-For example, to delete a `jacknich` user:
+The following example deletes the user `jacknich`:
 
 [source,js]
 --------------------------------------------------

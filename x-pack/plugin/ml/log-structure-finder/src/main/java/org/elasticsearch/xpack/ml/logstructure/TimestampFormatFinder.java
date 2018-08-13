@@ -35,14 +35,19 @@ public final class TimestampFormatFinder {
 
     /**
      * The timestamp patterns are complex and it can be slow to prove they do not
-     * match anywhere in a long message.  Many of the timestamps have similar and
+     * match anywhere in a long message.  Many of the timestamps are similar and
      * will never be found in a string if simpler sub-patterns do not exist in the
      * string.  These sub-patterns can be used to quickly rule out multiple complex
-     * patterns.
+     * patterns.  These patterns do not need to represent quantities that are
+     * useful to know the value of, merely character sequences that can be used to
+     * prove that <em>several</em> more complex patterns cannot possibly match.
      */
     private static final List<Pattern> QUICK_RULE_OUT_PATTERNS = Arrays.asList(
+        // YYYY-MM-dd followed by a space
         Pattern.compile("\\b\\d{4}-\\d{2}-\\d{2} "),
+        // The end of some number (likely year or day) followed by a space then HH:mm
         Pattern.compile("\\d \\d{2}:\\d{2}\\b"),
+        // HH:mm:ss surrounded by spaces
         Pattern.compile(" \\d{2}:\\d{2}:\\d{2} ")
     );
 

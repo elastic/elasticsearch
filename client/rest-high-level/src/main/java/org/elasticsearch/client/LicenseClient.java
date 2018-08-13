@@ -48,7 +48,7 @@ import static java.util.Collections.emptySet;
  * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/licensing-apis.html">
  * X-Pack Licensing APIs on elastic.co</a> for more information.
  */
-public class LicenseClient {
+public final class LicenseClient {
 
     private final RestHighLevelClient restHighLevelClient;
 
@@ -98,9 +98,8 @@ public class LicenseClient {
             response -> new GetLicenseResponse(convertResponseToJson(response)), listener, emptySet());
     }
 
-
     /**
-     * Converts an entire response into a json sting
+     * Converts an entire response into a json string
      *
      * This is useful for responses that we don't parse on the client side, but instead work as string
      * such as in case of the license JSON

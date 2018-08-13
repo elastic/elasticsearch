@@ -278,7 +278,7 @@ public abstract class ElectionScheduler extends AbstractComponent {
             if (response.getLastAcceptedTerm() > localPreVoteResponse.getLastAcceptedTerm()
                 || (response.getLastAcceptedTerm() == localPreVoteResponse.getLastAcceptedTerm()
                 && response.getLastAcceptedVersion() > localPreVoteResponse.getLastAcceptedVersion())) {
-                logger.debug("{} ignoring {} from {} as it is fresher", this, response);
+                logger.debug("{} ignoring {} from {} as it is fresher", this, response, sender);
                 return;
             }
 

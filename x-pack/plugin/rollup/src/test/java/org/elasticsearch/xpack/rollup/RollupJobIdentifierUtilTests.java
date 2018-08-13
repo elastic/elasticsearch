@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.rollup;
 
+import org.elasticsearch.protocol.xpack.rollup.RollupJobCaps;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
@@ -15,7 +16,6 @@ import org.elasticsearch.search.aggregations.metrics.min.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.sum.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.rollup.action.RollupJobCaps;
 import org.elasticsearch.protocol.xpack.rollup.job.DateHistogramGroupConfig;
 import org.elasticsearch.protocol.xpack.rollup.job.GroupConfig;
 import org.elasticsearch.protocol.xpack.rollup.job.HistogramGroupConfig;

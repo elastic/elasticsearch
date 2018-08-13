@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.client;
 
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -28,8 +29,12 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.protocol.xpack.rollup.GetRollupCapsRequest;
+import org.elasticsearch.protocol.xpack.rollup.GetRollupCapsResponse;
 import org.elasticsearch.protocol.xpack.rollup.PutRollupJobRequest;
 import org.elasticsearch.protocol.xpack.rollup.PutRollupJobResponse;
+import org.elasticsearch.protocol.xpack.rollup.RollableIndexCaps;
+import org.elasticsearch.protocol.xpack.rollup.RollupJobCaps;
 import org.elasticsearch.protocol.xpack.rollup.job.DateHistogramGroupConfig;
 import org.elasticsearch.protocol.xpack.rollup.job.GroupConfig;
 import org.elasticsearch.protocol.xpack.rollup.job.MetricConfig;
@@ -47,6 +52,7 @@ import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.protocol.xpack.rollup.RollupField.SUPPORTED_METRICS;
+import static org.hamcrest.Matchers.equalTo;
 
 public class RollupIT extends ESRestHighLevelClientTestCase {
 
@@ -154,5 +160,117 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
                 }
             }
         });
+    }
+
+    public void testGetRollupCaps() throws Exception {
+        final Set<Integer> values = new HashSet<>();
+        double sum = 0.0d;
+        int max = Integer.MIN_VALUE;
+        int min = Integer.MAX_VALUE;
+
+        final BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int minute = 0; minute < 60; minute++) {
+            for (int second = 0; second < 60; second = second + 10) {
+                final int value = randomIntBetween(0, 100);
+
+                final IndexRequest indexRequest = new IndexRequest("docs", "doc");
+                indexRequest.source(jsonBuilder()
+                    .startObject()
+                    .field("value", value)
+                    .field("date", String.format(Locale.ROOT, "2018-01-01T00:%02d:%02dZ", minute, second))
+                    .endObject());
+                bulkRequest.add(indexRequest);
+
+                values.add(value);
+                sum += value;
+                if (value > max) {
+                    max = value;
+                }
+                if (value < min) {
+                    min = value;
+                }
+            }
+        }
+
+        final int numDocs = bulkRequest.numberOfActions();
+
+        BulkResponse bulkResponse = highLevelClient().bulk(bulkRequest, RequestOptions.DEFAULT);
+        assertEquals(RestStatus.OK, bulkResponse.status());
+        if (bulkResponse.hasFailures())     {
+            for (BulkItemResponse itemResponse : bulkResponse.getItems()) {
+                if (itemResponse.isFailed()) {
+                    logger.fatal(itemResponse.getFailureMessage());
+                }
+            }
+        }
+        assertFalse(bulkResponse.hasFailures());
+
+        RefreshResponse refreshResponse = highLevelClient().indices().refresh(new RefreshRequest("docs"), RequestOptions.DEFAULT);
+        assertEquals(0, refreshResponse.getFailedShards());
+
+        final String id = randomAlphaOfLength(10);
+        final String indexPattern = randomFrom("docs", "d*", "doc*");
+        final String rollupIndex = randomFrom("rollup", "test");
+        final String cron = "*/1 * * * * ?";
+        final int pageSize = randomIntBetween(numDocs, numDocs * 10);
+        // TODO expand this to also test with histogram and terms?
+        final GroupConfig groups = new GroupConfig(new DateHistogramGroupConfig("date", DateHistogramInterval.DAY));
+        final List<MetricConfig> metrics = Collections.singletonList(new MetricConfig("value", SUPPORTED_METRICS));
+        final TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(30, 600));
+
+        PutRollupJobRequest putRollupJobRequest =
+            new PutRollupJobRequest(new RollupJobConfig(id, indexPattern, rollupIndex, cron, pageSize, groups, metrics, timeout));
+
+        final RollupClient rollupClient = highLevelClient().rollup();
+        PutRollupJobResponse response = execute(putRollupJobRequest, rollupClient::putRollupJob, rollupClient::putRollupJobAsync);
+        assertTrue(response.isAcknowledged());
+
+        // wait for the PutJob api to create the index w/ metadata
+        highLevelClient().cluster().health(new ClusterHealthRequest(rollupIndex).waitForYellowStatus(), RequestOptions.DEFAULT);
+
+        GetRollupCapsRequest getRollupCapsRequest = new GetRollupCapsRequest(indexPattern);
+        GetRollupCapsResponse capsResponse = highLevelClient().rollup()
+            .getRollupCapabilities(getRollupCapsRequest, RequestOptions.DEFAULT);
+
+        assertNotNull(capsResponse);
+        Map<String, RollableIndexCaps> rolledPatterns = capsResponse.getJobs();
+        assertThat(rolledPatterns.size(), equalTo(1));
+
+        RollableIndexCaps docsPattern = rolledPatterns.get(indexPattern);
+        assertThat(docsPattern.getIndexName(), equalTo(indexPattern));
+
+        List<RollupJobCaps> rollupJobs = docsPattern.getJobCaps();
+        assertThat(rollupJobs.size(), equalTo(1));
+
+        RollupJobCaps jobCaps = rollupJobs.get(0);
+        assertThat(jobCaps.getJobID(), equalTo(id));
+        assertThat(jobCaps.getRollupIndex(), equalTo(rollupIndex));
+        assertThat(jobCaps.getIndexPattern(), equalTo(indexPattern));
+
+        Map<String, RollupJobCaps.RollupFieldCaps> fieldCaps = jobCaps.getFieldCaps();
+
+        List<Map<String, Object>> timestampCaps = fieldCaps.get("date").getAggs();
+        for (Map.Entry<String, Object> entry : timestampCaps.get(0).entrySet()) {
+            switch (entry.getKey()) {
+                case "agg":
+                    assertThat(entry.getValue(), equalTo("date_histogram"));
+                    break;
+                case "delay":
+                    assertThat(entry.getValue(), equalTo("foo"));
+                    break;
+                case "interval":
+                    assertThat(entry.getValue(), equalTo("1d"));
+                    break;
+                case "time_zone":
+                    assertThat(entry.getValue(), equalTo("UTC"));
+                    break;
+                default:
+                    fail("Unknown field cap: [" + entry.getKey() + "]");
+            }
+        }
+
+        List<Map<String, Object>> valueCaps = fieldCaps.get("value").getAggs();
+        assertThat(valueCaps.size(), equalTo(SUPPORTED_METRICS.size()));
     }
 }

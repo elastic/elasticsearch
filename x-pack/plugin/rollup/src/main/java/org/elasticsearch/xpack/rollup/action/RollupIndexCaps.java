@@ -20,9 +20,9 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.protocol.xpack.rollup.RollupField;
-import org.elasticsearch.xpack.core.rollup.action.GetRollupCapsAction;
-import org.elasticsearch.xpack.core.rollup.action.RollupJobCaps;
+import org.elasticsearch.protocol.xpack.rollup.RollupJobCaps;
 import org.elasticsearch.protocol.xpack.rollup.job.RollupJobConfig;
+import org.elasticsearch.xpack.core.rollup.action.GetRollupCapsAction;
 
 import java.io.IOException;
 import java.util.ArrayList;

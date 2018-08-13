@@ -20,6 +20,8 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.protocol.xpack.rollup.GetRollupCapsRequest;
+import org.elasticsearch.protocol.xpack.rollup.GetRollupCapsResponse;
 import org.elasticsearch.protocol.xpack.rollup.PutRollupJobRequest;
 import org.elasticsearch.protocol.xpack.rollup.PutRollupJobResponse;
 
@@ -67,5 +69,33 @@ public class RollupClient {
     public void putRollupJobAsync(PutRollupJobRequest request, RequestOptions options, ActionListener<PutRollupJobResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::putRollupJob, options,
             PutRollupJobResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Get the Rollup Capabilities of a target (non-rollup) index or pattern
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/master/rollup-get-rollup-caps.html">
+     * the docs</a> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public GetRollupCapsResponse getRollupCapabilities(GetRollupCapsRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::getRollupCaps, options,
+            GetRollupCapsResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously put a rollup job into the cluster
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/rollup-put-job.html">
+     * the docs</a> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void getRollupCapabilitiesAsync(GetRollupCapsRequest request, RequestOptions options,
+                                           ActionListener<GetRollupCapsResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::getRollupCaps, options,
+            GetRollupCapsResponse::fromXContent, listener, emptySet());
     }
 }

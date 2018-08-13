@@ -10,12 +10,12 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.protocol.xpack.rollup.GetRollupCapsRequest;
+import org.elasticsearch.protocol.xpack.rollup.RollableIndexCaps;
+import org.elasticsearch.protocol.xpack.rollup.RollupField;
+import org.elasticsearch.protocol.xpack.rollup.job.RollupJobConfig;
 import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
-import org.elasticsearch.protocol.xpack.rollup.RollupField;
-import org.elasticsearch.xpack.core.rollup.action.GetRollupCapsAction;
-import org.elasticsearch.xpack.core.rollup.action.RollableIndexCaps;
-import org.elasticsearch.protocol.xpack.rollup.job.RollupJobConfig;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -27,19 +27,19 @@ import java.util.Optional;
 import static org.hamcrest.Matchers.equalTo;
 
 
-public class GetRollupCapsActionRequestTests extends AbstractStreamableTestCase<GetRollupCapsAction.Request> {
+public class GetRollupCapsRequestTests extends AbstractStreamableTestCase<GetRollupCapsRequest> {
 
     @Override
-    protected GetRollupCapsAction.Request createTestInstance() {
+    protected GetRollupCapsRequest createTestInstance() {
         if (randomBoolean()) {
-            return new GetRollupCapsAction.Request(MetaData.ALL);
+            return new GetRollupCapsRequest(MetaData.ALL);
         }
-        return new GetRollupCapsAction.Request(randomAlphaOfLengthBetween(1, 20));
+        return new GetRollupCapsRequest(randomAlphaOfLengthBetween(1, 20));
     }
 
     @Override
-    protected GetRollupCapsAction.Request createBlankInstance() {
-        return new GetRollupCapsAction.Request();
+    protected GetRollupCapsRequest createBlankInstance() {
+        return new GetRollupCapsRequest();
     }
 
     public void testNoIndexMetaData() {

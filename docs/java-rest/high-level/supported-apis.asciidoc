@@ -224,3 +224,4 @@ The Java High Level REST Client supports the following Rollup APIs:
 * <<java-rest-high-x-pack-rollup-put-job>>
 
 include::x-pack/rollup/put_job.asciidoc[]
+include::x-pack/rollup/get_rollup_caps.asciidoc[]

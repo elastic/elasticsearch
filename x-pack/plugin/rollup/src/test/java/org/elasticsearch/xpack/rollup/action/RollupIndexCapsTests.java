@@ -6,9 +6,9 @@
 package org.elasticsearch.xpack.rollup.action;
 
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.protocol.xpack.rollup.RollupJobCaps;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
-import org.elasticsearch.xpack.core.rollup.action.RollupJobCaps;
 import org.elasticsearch.protocol.xpack.rollup.job.RollupJobConfig;
 
 import java.util.ArrayList;

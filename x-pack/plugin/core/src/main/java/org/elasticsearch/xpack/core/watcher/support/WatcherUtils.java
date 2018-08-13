@@ -18,7 +18,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils.formatDate;
+import static org.elasticsearch.protocol.xpack.watcher.status.WatcherDateTimeUtils.formatDate;
 
 public final class WatcherUtils {
 

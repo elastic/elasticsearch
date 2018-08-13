@@ -19,6 +19,8 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.protocol.xpack.watcher.ActivateWatchRequest;
+import org.elasticsearch.protocol.xpack.watcher.ActivateWatchResponse;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
@@ -90,5 +92,32 @@ public final class WatcherClient {
     public void deleteWatchAsync(DeleteWatchRequest request, RequestOptions options, ActionListener<DeleteWatchResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::xPackWatcherDeleteWatch, options,
             DeleteWatchResponse::fromXContent, listener, singleton(404));
+    }
+
+    /**
+     * Activates a watch
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-activate-watch.html">
+     * the docs</a> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public ActivateWatchResponse activateWatch(ActivateWatchRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::xPackWatcherActivateWatch, options,
+                parser -> ActivateWatchResponse.fromXContent(request.getId(), parser), emptySet());
+    }
+
+    /**
+     * Asynchronously activates a watch
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-activate-watch.html">
+     * the docs</a> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void activateWatchAsync(ActivateWatchRequest request, RequestOptions options, ActionListener<ActivateWatchResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::xPackWatcherActivateWatch, options,
+                parser -> ActivateWatchResponse.fromXContent(request.getId(), parser), listener, emptySet());
     }
 }

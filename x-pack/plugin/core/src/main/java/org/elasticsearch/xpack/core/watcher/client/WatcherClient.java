@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.watcher.client;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.protocol.xpack.watcher.ActivateWatchResponse;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchAction;
@@ -17,7 +18,6 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchRespon
 import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateWatchAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateWatchRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateWatchRequestBuilder;
-import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateWatchResponse;
 import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchAction;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchRequestBuilder;

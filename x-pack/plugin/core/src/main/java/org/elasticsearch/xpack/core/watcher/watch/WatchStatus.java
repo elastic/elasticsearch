@@ -5,19 +5,17 @@
  */
 package org.elasticsearch.xpack.core.watcher.watch;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.protocol.xpack.watcher.status.ActionAckStatus;
+import org.elasticsearch.protocol.xpack.watcher.status.ExecutionState;
+import org.elasticsearch.protocol.xpack.watcher.status.WatchStatusState;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
-import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
-import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherXContentParser;
 import org.joda.time.DateTime;
 
@@ -27,20 +25,23 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils.parseDate;
-import static org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils.readDate;
-import static org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils.readOptionalDate;
-import static org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils.writeDate;
-import static org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils.writeOptionalDate;
-import static org.joda.time.DateTimeZone.UTC;
-
+/**
+ * This class represents the status of the watch.<br>
+ * The design decision of Watch API was to store {@link Watch} in Lucene index and do not hide that fact from the users,
+ * i.e. some of the clients may search watch index to retrieve watches instead of using Watch API.<br>
+ * Initially there was a single {@link WatchStatus} class that implements {@link ToXContentObject} for both creating XContent representation
+ * to be stored in Lucene and to be used in REST response (methods such as get, activate/inactivate return the status).
+ * This class was also implementing {@link Streamable} to be used in transport requests.
+ * With the high-level REST client development, there was a decision to to move all XPack protocol classes to
+ * {@link org.elasticsearch.protocol.xpack} package licensed with Apache 2 license.<br>
+ * This is the reason why second {@link org.elasticsearch.protocol.xpack.watcher.status.WatchStatus} class has appeared.
+ * That class does not contain any business logic - only things related to XContent/binary serialization/deserialization - copied from
+ * previous implementation. <br>
+ * For interoperability reasons, this class always delegates to protocol class whenever serialization is needed.
+ */
 public class WatchStatus implements ToXContentObject, Streamable {
 
-    public static final String INCLUDE_STATE = "include_state";
-
-    private State state;
+    private WatchStatusState state;
 
     @Nullable private ExecutionState executionState;
     @Nullable private DateTime lastChecked;
@@ -54,11 +55,11 @@ public class WatchStatus implements ToXContentObject, Streamable {
     }
 
     public WatchStatus(DateTime now, Map<String, ActionStatus> actions) {
-        this(-1, new State(true, now), null, null, null, actions, Collections.emptyMap());
+        this(-1, new WatchStatusState(true, now), null, null, null, actions, Collections.emptyMap());
     }
 
-    private WatchStatus(long version, State state, ExecutionState executionState, DateTime lastChecked, DateTime lastMetCondition,
-                        Map<String, ActionStatus> actions, Map<String, String> headers) {
+    private WatchStatus(long version, WatchStatusState state, ExecutionState executionState, DateTime lastChecked,
+                        DateTime lastMetCondition, Map<String, ActionStatus> actions, Map<String, String> headers) {
         this.version = version;
         this.lastChecked = lastChecked;
         this.lastMetCondition = lastMetCondition;
@@ -68,7 +69,25 @@ public class WatchStatus implements ToXContentObject, Streamable {
         this.headers = headers;
     }
 
-    public State state() {
+    public WatchStatus(org.elasticsearch.protocol.xpack.watcher.status.WatchStatus protocolStatus) {
+        fromProtocolStatus(protocolStatus);
+    }
+
+    private void fromProtocolStatus(org.elasticsearch.protocol.xpack.watcher.status.WatchStatus protocolStatus) {
+        this.version = protocolStatus.version();
+        this.lastChecked = protocolStatus.lastChecked();
+        this.lastMetCondition = protocolStatus.lastMetCondition();
+        this.actions = new HashMap<>();
+        for (Map.Entry<String, org.elasticsearch.protocol.xpack.watcher.status.ActionStatus> protocolActionStatus:
+                protocolStatus.actions().entrySet()) {
+            actions.put(protocolActionStatus.getKey(), new ActionStatus(protocolActionStatus.getValue()));
+        }
+        this.state = protocolStatus.state();
+        this.executionState = protocolStatus.executionState();
+        this.headers = protocolStatus.headers();
+    }
+
+    public WatchStatusState state() {
         return state;
     }
 
@@ -152,9 +171,9 @@ public class WatchStatus implements ToXContentObject, Streamable {
 
     /**
      * Notifies this status that the givne actions were acked. If the current state of one of these actions is
-     * {@link ActionStatus.AckStatus.State#ACKABLE ACKABLE},
-     * then we'll it'll change to {@link ActionStatus.AckStatus.State#ACKED ACKED}
-     * (when set to {@link ActionStatus.AckStatus.State#ACKED ACKED}, the AckThrottler
+     * {@link ActionAckStatus.State#ACKABLE ACKABLE},
+     * then we'll it'll change to {@link ActionAckStatus.State#ACKED ACKED}
+     * (when set to {@link ActionAckStatus.State#ACKED ACKED}, the AckThrottler
      * will throttle the execution of the action.
      *
      * @return {@code true} if the state of changed due to the ack, {@code false} otherwise.
@@ -186,55 +205,23 @@ public class WatchStatus implements ToXContentObject, Streamable {
     }
 
     boolean setActive(boolean active, DateTime now) {
-        boolean change = this.state.active != active;
+        boolean change = this.state.isActive() != active;
         if (change) {
-            this.state = new State(active, now);
+            this.state = new WatchStatusState(active, now);
         }
         return change;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeLong(version);
-        writeOptionalDate(out, lastChecked);
-        writeOptionalDate(out, lastMetCondition);
-        out.writeInt(actions.size());
-        for (Map.Entry<String, ActionStatus> entry : actions.entrySet()) {
-            out.writeString(entry.getKey());
-            ActionStatus.writeTo(entry.getValue(), out);
-        }
-        out.writeBoolean(state.active);
-        writeDate(out, state.timestamp);
-        out.writeBoolean(executionState != null);
-        if (executionState != null) {
-            out.writeString(executionState.id());
-        }
-        boolean statusHasHeaders = headers != null && headers.isEmpty() == false;
-        out.writeBoolean(statusHasHeaders);
-        if (statusHasHeaders) {
-            out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
-        }
+        this.toProtocolStatus().writeTo(out);
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        version = in.readLong();
-        lastChecked = readOptionalDate(in, UTC);
-        lastMetCondition = readOptionalDate(in, UTC);
-        int count = in.readInt();
-        Map<String, ActionStatus> actions = new HashMap<>(count);
-        for (int i = 0; i < count; i++) {
-            actions.put(in.readString(), ActionStatus.readFrom(in));
-        }
-        this.actions = unmodifiableMap(actions);
-        state = new State(in.readBoolean(), readDate(in, UTC));
-        boolean executionStateExists = in.readBoolean();
-        if (executionStateExists) {
-            executionState = ExecutionState.resolve(in.readString());
-        }
-        if (in.readBoolean()) {
-            headers = in.readMap(StreamInput::readString, StreamInput::readString);
-        }
+        org.elasticsearch.protocol.xpack.watcher.status.WatchStatus protocolStatus = org.elasticsearch.protocol.xpack.watcher.status
+                .WatchStatus.read(in);
+        fromProtocolStatus(protocolStatus);
     }
 
     public static WatchStatus read(StreamInput in) throws IOException {
@@ -245,171 +232,30 @@ public class WatchStatus implements ToXContentObject, Streamable {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        if (params.paramAsBoolean(INCLUDE_STATE, true)) {
-            builder.field(Field.STATE.getPreferredName(), state, params);
-        }
-        if (lastChecked != null) {
-            builder.timeField(Field.LAST_CHECKED.getPreferredName(), lastChecked);
-        }
-        if (lastMetCondition != null) {
-            builder.timeField(Field.LAST_MET_CONDITION.getPreferredName(), lastMetCondition);
-        }
-        if (actions != null) {
-            builder.startObject(Field.ACTIONS.getPreferredName());
-            for (Map.Entry<String, ActionStatus> entry : actions.entrySet()) {
-                builder.field(entry.getKey(), entry.getValue(), params);
-            }
-            builder.endObject();
-        }
-        if (executionState != null) {
-            builder.field(Field.EXECUTION_STATE.getPreferredName(), executionState.id());
-        }
-        if (headers != null && headers.isEmpty() == false && WatcherParams.hideHeaders(params) == false) {
-            builder.field(Field.HEADERS.getPreferredName(), headers);
-        }
-        builder.field(Field.VERSION.getPreferredName(), version);
-        return builder.endObject();
+        return this.toProtocolStatus().toXContent(builder, params);
     }
 
     public static WatchStatus parse(String watchId, WatcherXContentParser parser) throws IOException {
-        State state = null;
-        ExecutionState executionState = null;
-        DateTime lastChecked = null;
-        DateTime lastMetCondition = null;
-        Map<String, ActionStatus> actions = null;
-        long version = -1;
-        Map<String, String> headers = Collections.emptyMap();
-
-        String currentFieldName = null;
-        XContentParser.Token token;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (Field.STATE.match(currentFieldName, parser.getDeprecationHandler())) {
-                try {
-                    state = State.parse(parser);
-                } catch (ElasticsearchParseException e) {
-                    throw new ElasticsearchParseException("could not parse watch status for [{}]. failed to parse field [{}]",
-                            e, watchId, currentFieldName);
-                }
-            } else if (Field.VERSION.match(currentFieldName, parser.getDeprecationHandler())) {
-                if (token.isValue()) {
-                    version = parser.longValue();
-                } else {
-                    throw new ElasticsearchParseException("could not parse watch status for [{}]. expecting field [{}] to hold a long " +
-                            "value, found [{}] instead", watchId, currentFieldName, token);
-                }
-            } else if (Field.LAST_CHECKED.match(currentFieldName, parser.getDeprecationHandler())) {
-                if (token.isValue()) {
-                    lastChecked = parseDate(currentFieldName, parser, UTC);
-                } else {
-                    throw new ElasticsearchParseException("could not parse watch status for [{}]. expecting field [{}] to hold a date " +
-                            "value, found [{}] instead", watchId, currentFieldName, token);
-                }
-            } else if (Field.LAST_MET_CONDITION.match(currentFieldName, parser.getDeprecationHandler())) {
-                if (token.isValue()) {
-                    lastMetCondition = parseDate(currentFieldName, parser, UTC);
-                } else {
-                    throw new ElasticsearchParseException("could not parse watch status for [{}]. expecting field [{}] to hold a date " +
-                            "value, found [{}] instead", watchId, currentFieldName, token);
-                }
-            } else if (Field.EXECUTION_STATE.match(currentFieldName, parser.getDeprecationHandler())) {
-                if (token.isValue()) {
-                    executionState = ExecutionState.resolve(parser.text());
-                } else {
-                    throw new ElasticsearchParseException("could not parse watch status for [{}]. expecting field [{}] to hold a string " +
-                            "value, found [{}] instead", watchId, currentFieldName, token);
-                }
-            } else if (Field.ACTIONS.match(currentFieldName, parser.getDeprecationHandler())) {
-                actions = new HashMap<>();
-                if (token == XContentParser.Token.START_OBJECT) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        if (token == XContentParser.Token.FIELD_NAME) {
-                            currentFieldName = parser.currentName();
-                        } else {
-                            ActionStatus actionStatus = ActionStatus.parse(watchId, currentFieldName, parser);
-                            actions.put(currentFieldName, actionStatus);
-                        }
-                    }
-                } else {
-                    throw new ElasticsearchParseException("could not parse watch status for [{}]. expecting field [{}] to be an object, " +
-                            "found [{}] instead", watchId, currentFieldName, token);
-                }
-            } else if (Field.HEADERS.match(currentFieldName, parser.getDeprecationHandler())) {
-                if (token == XContentParser.Token.START_OBJECT) {
-                    headers = parser.mapStrings();
-                }
-            }
+        org.elasticsearch.protocol.xpack.watcher.status.WatchStatus protocolStatus = org.elasticsearch.protocol.xpack.watcher.status
+                .WatchStatus
+                .parse(watchId, parser);
+        WatchStatus status = new WatchStatus(protocolStatus);
+        if (status.state == null) {
+            status.state = new WatchStatusState(true, parser.getParseDateTime());
         }
-
-        // if the watch status doesn't have a state, we assume active
-        // this is to support old watches that weren't upgraded yet to
-        // contain the state
-        if (state == null) {
-            state = new State(true, parser.getParseDateTime());
-        }
-        actions = actions == null ? emptyMap() : unmodifiableMap(actions);
-
-        return new WatchStatus(version, state, executionState, lastChecked, lastMetCondition, actions, headers);
+        return status;
     }
 
-    public static class State implements ToXContentObject {
-
-        final boolean active;
-        final DateTime timestamp;
-
-        public State(boolean active, DateTime timestamp) {
-            this.active = active;
-            this.timestamp = timestamp;
+    private Map<String, org.elasticsearch.protocol.xpack.watcher.status.ActionStatus> protocolActionsStatus(){
+        Map<String, org.elasticsearch.protocol.xpack.watcher.status.ActionStatus> protocolMap =new HashMap<>();
+        for (Map.Entry<String, ActionStatus> coreStatusEntry: actions.entrySet()){
+            protocolMap.put(coreStatusEntry.getKey(), coreStatusEntry.getValue().toProtocolStatus());
         }
-
-        public boolean isActive() {
-            return active;
-        }
-
-        public DateTime getTimestamp() {
-            return timestamp;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(Field.ACTIVE.getPreferredName(), active);
-            writeDate(Field.TIMESTAMP.getPreferredName(), builder, timestamp);
-            return builder.endObject();
-        }
-
-        public static State parse(XContentParser parser) throws IOException {
-            if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
-                throw new ElasticsearchParseException("expected an object but found [{}] instead", parser.currentToken());
-            }
-            boolean active = true;
-            DateTime timestamp = DateTime.now(UTC);
-            String currentFieldName = null;
-            XContentParser.Token token;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if (Field.ACTIVE.match(currentFieldName, parser.getDeprecationHandler())) {
-                    active = parser.booleanValue();
-                } else if (Field.TIMESTAMP.match(currentFieldName, parser.getDeprecationHandler())) {
-                    timestamp = parseDate(currentFieldName, parser, UTC);
-                }
-            }
-            return new State(active, timestamp);
-        }
+        return protocolMap;
     }
 
-    public interface Field {
-        ParseField STATE = new ParseField("state");
-        ParseField ACTIVE = new ParseField("active");
-        ParseField TIMESTAMP = new ParseField("timestamp");
-        ParseField LAST_CHECKED = new ParseField("last_checked");
-        ParseField LAST_MET_CONDITION = new ParseField("last_met_condition");
-        ParseField ACTIONS = new ParseField("actions");
-        ParseField VERSION = new ParseField("version");
-        ParseField EXECUTION_STATE = new ParseField("execution_state");
-        ParseField HEADERS = new ParseField("headers");
+    public org.elasticsearch.protocol.xpack.watcher.status.WatchStatus toProtocolStatus() {
+        return new org.elasticsearch.protocol.xpack.watcher.status.WatchStatus(version, state, executionState, lastChecked,
+                lastMetCondition, protocolActionsStatus(), headers);
     }
 }

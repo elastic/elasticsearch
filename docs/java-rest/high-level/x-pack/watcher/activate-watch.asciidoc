@@ -1,0 +1,53 @@
+[[java-rest-high-x-pack-watcher-activate-watch]]
+=== Activate Watch API
+
+[[java-rest-high-x-pack-watcher-acvtivate-watch-execution]]
+==== Execution
+
+A watch can be activated as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/WatcherDocumentationIT.java[x-pack-activate-watch-execute]
+--------------------------------------------------
+
+[[java-rest-high-x-pack-watcher-activate-watch-response]]
+==== Response
+
+The returned `ActivateWatchResponse` contains `status` of the watch.
+Inside the status there is `state`, which can be queried if watch is active.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/WatcherDocumentationIT.java[x-pack-activate-watch-response]
+--------------------------------------------------
+<1> `status` which contains current watch status
+<2> `active` should be true if watch was activated
+
+[[java-rest-high-x-pack-watcher-activate-watch-async]]
+==== Asynchronous Execution
+
+This request can be executed asynchronously:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/WatcherDocumentationIT.java[x-pack-activate-watch-execute-async]
+--------------------------------------------------
+<1> The `ActivateWatchRequest` to execute
+<2> Request options
+<3> The `ActionListener` to use when the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `ActivateWatchResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/WatcherDocumentationIT.java[x-pack-activate-watch-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument
+<2> Called in case of failure. The raised exception is provided as an argument

@@ -45,7 +45,7 @@ import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.core.watcher.condition.Condition;
 import org.elasticsearch.xpack.core.watcher.condition.ExecutableCondition;
 import org.elasticsearch.xpack.core.watcher.execution.ExecutionPhase;
-import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
+import org.elasticsearch.protocol.xpack.watcher.status.ExecutionState;
 import org.elasticsearch.xpack.core.watcher.execution.QueuedWatch;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionSnapshot;
@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
+import org.elasticsearch.protocol.xpack.watcher.status.WatchStatusState;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.condition.NeverCondition;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
@@ -961,7 +962,7 @@ public class ExecutionServiceTests extends ESTestCase {
         WatchExecutionContext ctx = mock(WatchExecutionContext.class);
         when(ctx.knownWatch()).thenReturn(true);
         WatchStatus status = mock(WatchStatus.class);
-        when(status.state()).thenReturn(new WatchStatus.State(false, now()));
+        when(status.state()).thenReturn(new WatchStatusState(false, now()));
         when(watch.status()).thenReturn(status);
         when(ctx.watch()).thenReturn(watch);
         Wid wid = new Wid(watch.id(), DateTime.now(UTC));
@@ -1069,7 +1070,7 @@ public class ExecutionServiceTests extends ESTestCase {
         when(watch.actions()).thenReturn(Collections.singletonList(actionWrapper));
 
         WatchStatus status = mock(WatchStatus.class);
-        when(status.state()).thenReturn(new WatchStatus.State(false, now()));
+        when(status.state()).thenReturn(new WatchStatusState(false, now()));
         when(watch.status()).thenReturn(status);
 
         WatchRecord watchRecord = executionService.execute(ctx);

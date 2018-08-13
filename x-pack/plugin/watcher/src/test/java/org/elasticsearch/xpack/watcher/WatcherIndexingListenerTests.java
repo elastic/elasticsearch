@@ -34,6 +34,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
+import org.elasticsearch.protocol.xpack.watcher.status.WatchStatusState;
 import org.elasticsearch.xpack.watcher.WatcherIndexingListener.Configuration;
 import org.elasticsearch.xpack.watcher.WatcherIndexingListener.ShardAllocationConfiguration;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
@@ -183,7 +184,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
     }
 
     private Watch mockWatch(String id, boolean active, boolean isNewWatch) {
-        WatchStatus.State watchState = mock(WatchStatus.State.class);
+        WatchStatusState watchState = mock(WatchStatusState.class);
         when(watchState.isActive()).thenReturn(active);
 
         WatchStatus watchStatus = mock(WatchStatus.class);

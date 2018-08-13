@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.actions.throttler;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
+import org.elasticsearch.protocol.xpack.watcher.status.ActionStatusExecution;
 import org.elasticsearch.xpack.core.watcher.actions.throttler.PeriodThrottler;
 import org.elasticsearch.xpack.core.watcher.actions.throttler.Throttler;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
@@ -34,7 +35,7 @@ public class PeriodThrottlerTests extends ESTestCase {
         ActionStatus actionStatus = mock(ActionStatus.class);
         DateTime now = new DateTime(Clock.systemUTC().millis());
         when(actionStatus.lastSuccessfulExecution())
-                .thenReturn(ActionStatus.Execution.successful(now.minusSeconds((int) period.seconds() - 1)));
+                .thenReturn(ActionStatusExecution.successful(now.minusSeconds((int) period.seconds() - 1)));
         WatchStatus status = mock(WatchStatus.class);
         when(status.actionStatus("_action")).thenReturn(actionStatus);
         when(ctx.watch().status()).thenReturn(status);
@@ -55,7 +56,7 @@ public class PeriodThrottlerTests extends ESTestCase {
         ActionStatus actionStatus = mock(ActionStatus.class);
         DateTime now = new DateTime(Clock.systemUTC().millis());
         when(actionStatus.lastSuccessfulExecution())
-                .thenReturn(ActionStatus.Execution.successful(now.minusSeconds((int) period.seconds() + 1)));
+                .thenReturn(ActionStatusExecution.successful(now.minusSeconds((int) period.seconds() + 1)));
         WatchStatus status = mock(WatchStatus.class);
         when(status.actionStatus("_action")).thenReturn(actionStatus);
         when(ctx.watch().status()).thenReturn(status);

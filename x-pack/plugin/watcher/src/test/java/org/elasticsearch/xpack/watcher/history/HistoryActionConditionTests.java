@@ -17,7 +17,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.core.watcher.condition.Condition;
 import org.elasticsearch.xpack.core.watcher.condition.ExecutableCondition;
-import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
+import org.elasticsearch.protocol.xpack.watcher.status.ExecutionState;
 import org.elasticsearch.xpack.core.watcher.input.Input;
 import org.elasticsearch.xpack.watcher.condition.CompareCondition;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;

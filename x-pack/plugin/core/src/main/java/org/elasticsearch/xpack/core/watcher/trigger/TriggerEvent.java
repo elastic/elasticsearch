@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.watcher.trigger;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
+import org.elasticsearch.protocol.xpack.watcher.status.WatcherDateTimeUtils;
 import org.joda.time.DateTime;
 
 import java.io.IOException;

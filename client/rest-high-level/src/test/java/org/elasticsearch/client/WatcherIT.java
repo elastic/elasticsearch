@@ -18,17 +18,59 @@
  */
 package org.elasticsearch.client;
 
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.protocol.xpack.watcher.ActivateWatchRequest;
+import org.elasticsearch.protocol.xpack.watcher.ActivateWatchResponse;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
+import org.elasticsearch.rest.RestStatus;
 
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class WatcherIT extends ESRestHighLevelClientTestCase {
+
+    private static class CFListener<T> implements ActionListener<T> {
+        private CompletableFuture<T> future = new CompletableFuture<>();
+
+        @Override
+        public void onResponse(T t) {
+            future.complete(t);
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            future.completeExceptionally(e);
+        }
+
+        public T get() {
+            try {
+                return future.get();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        public Throwable getFailure() {
+            try {
+                future.get();
+            } catch (InterruptedException e) {
+                throw new RuntimeException("Unexpected interrupt");
+            } catch (ExecutionException e) {
+                return e.getCause();
+            }
+            throw new AssertionError("Execution finished without failure");
+        }
+    }
 
     public void testPutWatch() throws Exception {
         String watchId = randomAlphaOfLength(10);
@@ -36,6 +78,9 @@ public class WatcherIT extends ESRestHighLevelClientTestCase {
         assertThat(putWatchResponse.isCreated(), is(true));
         assertThat(putWatchResponse.getId(), is(watchId));
         assertThat(putWatchResponse.getVersion(), is(1L));
+
+        //cleanup
+        deleteWatch(watchId);
     }
 
     private PutWatchResponse createWatch(String watchId) throws Exception {
@@ -48,6 +93,12 @@ public class WatcherIT extends ESRestHighLevelClientTestCase {
         PutWatchRequest putWatchRequest = new PutWatchRequest(watchId, bytesReference, XContentType.JSON);
         return highLevelClient().watcher().putWatch(putWatchRequest, RequestOptions.DEFAULT);
     }
+
+    private DeleteWatchResponse deleteWatch(String watchId) throws Exception {
+        return highLevelClient().watcher().deleteWatch(new DeleteWatchRequest(watchId),
+                RequestOptions.DEFAULT);
+    }
+
 
     public void testDeleteWatch() throws Exception {
         // delete watch that exists
@@ -72,4 +123,70 @@ public class WatcherIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+
+    public void testActivateNonExistingWatch() throws Exception {
+        //given
+        String watchId = randomAlphaOfLength(10);
+
+        //when
+        ElasticsearchStatusException e = expectThrows(
+                ElasticsearchStatusException.class,
+                () -> highLevelClient().watcher().activateWatch(new ActivateWatchRequest(watchId), RequestOptions.DEFAULT)
+        );
+
+        //then
+        assertThat(e.status(), is(RestStatus.NOT_FOUND));
+    }
+
+
+    public void testActivateNonExistingWatchAsync() throws Exception {
+        //given
+        String watchId = randomAlphaOfLength(10);
+        CFListener<ActivateWatchResponse> listener = new CFListener<>();
+
+        //when
+        highLevelClient().watcher().activateWatchAsync(new ActivateWatchRequest(watchId), RequestOptions.DEFAULT, listener);
+
+        //then
+        assertThat(listener.getFailure(), instanceOf(ElasticsearchStatusException.class));
+        ElasticsearchStatusException e = (ElasticsearchStatusException)listener.getFailure();
+        assertThat(e.status(), is(RestStatus.NOT_FOUND));
+
+        //cleanup
+        deleteWatch(watchId);
+    }
+
+    public void testActivateExistingWatch() throws Exception {
+        //given
+        String watchId = randomAlphaOfLength(10);
+        createWatch(watchId);
+
+        //when
+        ActivateWatchResponse response =
+                highLevelClient().watcher().activateWatch(new ActivateWatchRequest(watchId), RequestOptions.DEFAULT);
+
+        //then
+        assertThat(response.getStatus().state().isActive(), is(true));
+        assertThat(response.getStatus().headers().isEmpty(), is(true));
+        assertThat(response.getStatus().actions().size(), is(1));
+
+        //cleanup
+        deleteWatch(watchId);
+    }
+
+    public void testActivateExistingWatchAsync() throws Exception {
+        //given
+        String watchId = randomAlphaOfLength(10);
+        createWatch(watchId);
+        CFListener<ActivateWatchResponse> listener = new CFListener<>();
+
+        //when
+        highLevelClient().watcher().activateWatchAsync(new ActivateWatchRequest(watchId), RequestOptions.DEFAULT, listener);
+
+        //then
+        assertThat(listener.get().getStatus().state().isActive(), is(true));
+
+        //cleanup
+        deleteWatch(watchId);
+    }
 }

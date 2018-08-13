@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.watcher.transport.actions.activate;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.protocol.xpack.watcher.ActivateWatchResponse;
 
 /**
  * This action acks a watch in memory, and the index

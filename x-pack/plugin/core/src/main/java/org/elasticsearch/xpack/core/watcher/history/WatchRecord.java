@@ -15,7 +15,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapperResult;
 import org.elasticsearch.xpack.core.watcher.condition.ExecutableCondition;
-import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
+import org.elasticsearch.protocol.xpack.watcher.status.ExecutionState;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionResult;
 import org.elasticsearch.xpack.core.watcher.execution.Wid;

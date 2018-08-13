@@ -44,6 +44,8 @@ public abstract class Normalizable implements ToXContentObject {
 
     abstract String getPersonFieldName();
 
+    abstract String getPersonFieldValue();
+
     abstract String getFunctionName();
 
     abstract String getValueFieldName();

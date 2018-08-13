@@ -19,3 +19,6 @@ org.apache.http.entity.ContentType#create(java.lang.String)
 org.apache.http.entity.ContentType#create(java.lang.String,java.lang.String)
 org.apache.http.entity.ContentType#create(java.lang.String,java.nio.charset.Charset)
 org.apache.http.entity.ContentType#create(java.lang.String,org.apache.http.NameValuePair[])
+
+@defaultMessage We can't rely on log4j2 being on the classpath so don't log deprecations!
+org.elasticsearch.common.xcontent.LoggingDeprecationHandler

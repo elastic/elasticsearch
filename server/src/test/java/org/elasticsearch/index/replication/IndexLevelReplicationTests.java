@@ -59,12 +59,15 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.index.translog.SnapshotMatchers.containsOperationsInAnyOrder;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
@@ -221,7 +224,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             }
 
             logger.info("--> promoting replica to primary " + replica1.routingEntry());
-            shards.promoteReplicaToPrimary(replica1);
+            shards.promoteReplicaToPrimary(replica1).get();
             indexRequest = new IndexRequest(index.getName(), "type", "1").source("{ \"f\": \"2\"}", XContentType.JSON);
             shards.index(indexRequest);
             shards.refresh("test");
@@ -229,6 +232,102 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                 try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
                     TopDocs search = searcher.searcher().search(new TermQuery(new Term("f", "2")), 10);
                     assertEquals("shard " + shard.routingEntry() + " misses new version", 1, search.totalHits);
+                }
+            }
+        }
+    }
+
+    public void testReplicaTermIncrementWithConcurrentPrimaryPromotion() throws Exception {
+        Map<String, String> mappings =
+            Collections.singletonMap("type", "{ \"type\": { \"properties\": { \"f\": { \"type\": \"keyword\"} }}}");
+        try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetaData(2, mappings))) {
+            shards.startAll();
+            long primaryPrimaryTerm = shards.getPrimary().getPendingPrimaryTerm();
+            List<IndexShard> replicas = shards.getReplicas();
+            IndexShard replica1 = replicas.get(0);
+            IndexShard replica2 = replicas.get(1);
+
+            shards.promoteReplicaToPrimary(replica1, (shard, listener) -> {});
+            long newReplica1Term = replica1.getPendingPrimaryTerm();
+            assertEquals(primaryPrimaryTerm + 1, newReplica1Term);
+
+            assertEquals(primaryPrimaryTerm, replica2.getPendingPrimaryTerm());
+
+            IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "1").source("{ \"f\": \"1\"}", XContentType.JSON);
+            BulkShardRequest replicationRequest = indexOnPrimary(indexRequest, replica1);
+
+            CyclicBarrier barrier = new CyclicBarrier(2);
+            Thread t1 = new Thread(() -> {
+                try {
+                    barrier.await();
+                    indexOnReplica(replicationRequest, shards, replica2, newReplica1Term);
+                } catch (IllegalStateException ise) {
+                    assertThat(ise.getMessage(), either(containsString("is too old")).or(containsString("cannot be a replication target")));
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            Thread t2 = new Thread(() -> {
+                try {
+                    barrier.await();
+                    shards.promoteReplicaToPrimary(replica2).get();
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            t2.start();
+            t1.start();
+            t1.join();
+            t2.join();
+
+            assertEquals(newReplica1Term + 1, replica2.getPendingPrimaryTerm());
+        }
+    }
+
+    public void testReplicaOperationWithConcurrentPrimaryPromotion() throws Exception {
+        Map<String, String> mappings =
+            Collections.singletonMap("type", "{ \"type\": { \"properties\": { \"f\": { \"type\": \"keyword\"} }}}");
+        try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetaData(1, mappings))) {
+            shards.startAll();
+            long primaryPrimaryTerm = shards.getPrimary().getPendingPrimaryTerm();
+            IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "1").source("{ \"f\": \"1\"}", XContentType.JSON);
+            BulkShardRequest replicationRequest = indexOnPrimary(indexRequest, shards.getPrimary());
+
+            List<IndexShard> replicas = shards.getReplicas();
+            IndexShard replica = replicas.get(0);
+
+            CyclicBarrier barrier = new CyclicBarrier(2);
+            AtomicBoolean successFullyIndexed = new AtomicBoolean();
+            Thread t1 = new Thread(() -> {
+                try {
+                    barrier.await();
+                    indexOnReplica(replicationRequest, shards, replica, primaryPrimaryTerm);
+                    successFullyIndexed.set(true);
+                } catch (IllegalStateException ise) {
+                    assertThat(ise.getMessage(), either(containsString("is too old")).or(containsString("cannot be a replication target")));
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            Thread t2 = new Thread(() -> {
+                try {
+                    barrier.await();
+                    shards.promoteReplicaToPrimary(replica).get();
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            t2.start();
+            t1.start();
+            t1.join();
+            t2.join();
+
+            assertEquals(primaryPrimaryTerm + 1, replica.getPendingPrimaryTerm());
+            if (successFullyIndexed.get()) {
+                try(Translog.Snapshot snapshot = getTranslog(replica).newSnapshot()) {
+                    assertThat(snapshot.totalOperations(), equalTo(1));
+                    Translog.Operation op = snapshot.next();
+                    assertThat(op.primaryTerm(), equalTo(primaryPrimaryTerm));
                 }
             }
         }
@@ -255,7 +354,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                             .source("{}", XContentType.JSON)
             );
             assertTrue(response.isFailed());
-            assertNoOpTranslogOperationForDocumentFailure(shards, 1, shards.getPrimary().getPrimaryTerm(), failureMessage);
+            assertNoOpTranslogOperationForDocumentFailure(shards, 1, shards.getPrimary().getPendingPrimaryTerm(), failureMessage);
             shards.assertAllEqual(0);
 
             // add some replicas
@@ -269,7 +368,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                             .source("{}", XContentType.JSON)
             );
             assertTrue(response.isFailed());
-            assertNoOpTranslogOperationForDocumentFailure(shards, 2, shards.getPrimary().getPrimaryTerm(), failureMessage);
+            assertNoOpTranslogOperationForDocumentFailure(shards, 2, shards.getPrimary().getPendingPrimaryTerm(), failureMessage);
             shards.assertAllEqual(0);
         }
     }
@@ -361,7 +460,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             // Make sure that peer-recovery transfers all but non-overridden operations.
             IndexShard replica3 = shards.addReplica();
             logger.info("--> Promote replica2 as the primary");
-            shards.promoteReplicaToPrimary(replica2);
+            shards.promoteReplicaToPrimary(replica2).get();
             logger.info("--> Recover replica3 from replica2");
             recoverReplica(replica3, replica2, true);
             try (Translog.Snapshot snapshot = getTranslog(replica3).newSnapshot()) {

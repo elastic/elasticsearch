@@ -45,10 +45,10 @@ public class IterativeIndexerTests extends ESTestCase {
         }
 
         @Override
-        protected Iteration<Integer> doProcess(SearchResponse searchResponse) {
+        protected IterationResult<Integer> doProcess(SearchResponse searchResponse) {
             assertThat(step, equalTo(3));
             ++step;
-            return new Iteration<Integer>(Collections.emptyList(), 3, true);
+            return new IterationResult<Integer>(Collections.emptyList(), 3, true);
         }
 
         @Override

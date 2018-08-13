@@ -173,12 +173,12 @@ public abstract class IterativeIndexer<JobPosition> {
     protected abstract String getJobId();
 
     /**
-     * Called to process a response from the 1 search request in order to turn it into a {@link Iteration}.
+     * Called to process a response from the 1 search request in order to turn it into a {@link IterationResult}.
      * 
      * @param searchResponse response from the search phase.
      * @return Iteration object to be passed to indexing phase.
      */
-    protected abstract Iteration<JobPosition> doProcess(SearchResponse searchResponse);
+    protected abstract IterationResult<JobPosition> doProcess(SearchResponse searchResponse);
 
     /**
      * Called to build the next search request.
@@ -295,9 +295,9 @@ public abstract class IterativeIndexer<JobPosition> {
             }
             
             stats.incrementNumPages(1);
-            Iteration<JobPosition> iteration = doProcess(searchResponse);
+            IterationResult<JobPosition> iterationResult = doProcess(searchResponse);
             
-            if (iteration.isDone()) {
+            if (iterationResult.isDone()) {
                 logger.debug("Finished indexing for job [" + getJobId() + "], saving state and shutting down.");
 
                 // Change state first, then try to persist. This prevents in-progress
@@ -307,7 +307,7 @@ public abstract class IterativeIndexer<JobPosition> {
                 return;
             }
 
-            final List<IndexRequest> docs = iteration.getToIndex();
+            final List<IndexRequest> docs = iterationResult.getToIndex();
             final BulkRequest bulkRequest = new BulkRequest();
             docs.forEach(bulkRequest::add);
 
@@ -325,7 +325,7 @@ public abstract class IterativeIndexer<JobPosition> {
                     return;
                 }
 
-                JobPosition newPosition = iteration.getPosition();
+                JobPosition newPosition = iterationResult.getPosition();
                 position.set(newPosition);
 
                 onBulkResponse(bulkResponse, newPosition);

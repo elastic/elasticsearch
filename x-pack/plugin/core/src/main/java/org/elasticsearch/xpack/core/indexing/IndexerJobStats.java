@@ -30,7 +30,8 @@ public class IndexerJobStats implements ToXContentObject, Writeable {
     private static ParseField NUM_PAGES = new ParseField("pages_processed");
     private static ParseField NUM_INPUT_DOCUMENTS = new ParseField("documents_processed");
     // BWC for RollupJobStats
-    private static ParseField NUM_OUTPUT_DOCUMENTS = new ParseField("documents_indexed").withDeprecation("rollups_indexed");
+    private static String ROLLUP_BWC_NUM_OUTPUT_DOCUMENTS = "rollups_indexed";
+    private static ParseField NUM_OUTPUT_DOCUMENTS = new ParseField("documents_indexed").withDeprecation(ROLLUP_BWC_NUM_OUTPUT_DOCUMENTS);
     private static ParseField NUM_INVOCATIONS = new ParseField("trigger_count");
 
     private long numPages = 0;
@@ -52,9 +53,9 @@ public class IndexerJobStats implements ToXContentObject, Writeable {
     public IndexerJobStats() {
     }
 
-    public IndexerJobStats(long numPages, long numDocuments, long numOuputDocuments, long numInvocations) {
+    public IndexerJobStats(long numPages, long numInputDocuments, long numOuputDocuments, long numInvocations) {
         this.numPages = numPages;
-        this.numInputDocuments = numDocuments;
+        this.numInputDocuments = numInputDocuments;
         this.numOuputDocuments = numOuputDocuments;
         this.numInvocations = numInvocations;
     }
@@ -121,11 +122,20 @@ public class IndexerJobStats implements ToXContentObject, Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        toUnwrappedXContent(builder, false);
+        builder.endObject();
+        return builder;
+    }
+
+    public XContentBuilder toUnwrappedXContent(XContentBuilder builder, boolean rollupBWC) throws IOException {
         builder.field(NUM_PAGES.getPreferredName(), numPages);
         builder.field(NUM_INPUT_DOCUMENTS.getPreferredName(), numInputDocuments);
-        builder.field(NUM_OUTPUT_DOCUMENTS.getPreferredName(), numOuputDocuments);
+        if (rollupBWC) {
+            builder.field(ROLLUP_BWC_NUM_OUTPUT_DOCUMENTS, numOuputDocuments);
+        } else {
+            builder.field(NUM_OUTPUT_DOCUMENTS.getPreferredName(), numOuputDocuments);
+        }
         builder.field(NUM_INVOCATIONS.getPreferredName(), numInvocations);
-        builder.endObject();
         return builder;
     }
 

@@ -254,7 +254,12 @@ public class GetRollupJobsAction extends Action<GetRollupJobsAction.Response> {
             builder.field(CONFIG.getPreferredName());
             job.toXContent(builder, params);
             builder.field(STATUS.getPreferredName(), status);
-            builder.field(STATS.getPreferredName(), stats);
+
+            // special BWC handling for rollup
+            builder.startObject(STATS.getPreferredName());
+            stats.toUnwrappedXContent(builder, true);
+            builder.endObject();
+
             builder.endObject();
             return builder;
         }

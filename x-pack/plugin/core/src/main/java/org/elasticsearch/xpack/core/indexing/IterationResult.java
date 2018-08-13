@@ -14,7 +14,7 @@ import java.util.List;
  * Result object to hold the result of 1 iteration of iterative indexing.
  * Acts as an interface between the implementation and the generic indexer.
  */
-public class Iteration<JobPosition> {
+public class IterationResult<JobPosition> {
 
     private final boolean isDone;
     private final JobPosition position;
@@ -29,7 +29,7 @@ public class Iteration<JobPosition> {
      *
      * Note: toIndex.empty() != isDone due to possible filtering in the specific implementation
      */
-    public Iteration(List<IndexRequest> toIndex, JobPosition position, boolean isDone) {
+    public IterationResult(List<IndexRequest> toIndex, JobPosition position, boolean isDone) {
         this.toIndex = toIndex;
         this.position = position;
         this.isDone = isDone;

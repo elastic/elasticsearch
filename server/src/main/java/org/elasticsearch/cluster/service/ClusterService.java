@@ -59,25 +59,31 @@ public class ClusterService extends AbstractLifecycleComponent {
     private final OperationRouting operationRouting;
 
     private final ClusterSettings clusterSettings;
-    private final Map<String, Supplier<ClusterState.Custom>> initialClusterStateCustoms;
 
     public ClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool,
                           Map<String, Supplier<ClusterState.Custom>> initialClusterStateCustoms) {
+        this(settings, clusterSettings, new MasterService(settings, threadPool),
+            new ClusterApplierService(settings, clusterSettings, threadPool,
+                () -> ClusterService.newClusterStateBuilder(settings, initialClusterStateCustoms)));
+    }
+
+    public ClusterService(Settings settings, ClusterSettings clusterSettings,
+                          MasterService masterService, ClusterApplierService clusterApplierService) {
         super(settings);
-        this.masterService = new MasterService(settings, threadPool);
+        this.masterService = masterService;
         this.operationRouting = new OperationRouting(settings, clusterSettings);
         this.clusterSettings = clusterSettings;
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         this.clusterSettings.addSettingsUpdateConsumer(CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
             this::setSlowTaskLoggingThreshold);
-        this.initialClusterStateCustoms = initialClusterStateCustoms;
-        this.clusterApplierService = new ClusterApplierService(settings, clusterSettings, threadPool, this::newClusterStateBuilder);
+        this.clusterApplierService = clusterApplierService;
     }
 
     /**
      * Creates a new cluster state builder that is initialized with the cluster name and all initial cluster state customs.
      */
-    public ClusterState.Builder newClusterStateBuilder() {
+    private static ClusterState.Builder newClusterStateBuilder(Settings settings,
+                                                               Map<String, Supplier<ClusterState.Custom>> initialClusterStateCustoms) {
         ClusterState.Builder builder = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings));
         for (Map.Entry<String, Supplier<ClusterState.Custom>> entry : initialClusterStateCustoms.entrySet()) {
             builder.putCustom(entry.getKey(), entry.getValue().get());

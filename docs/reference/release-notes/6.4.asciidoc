@@ -59,6 +59,10 @@ option. ({pull}30140[#29658])
 A new analysis plugin called `analysis_nori` that exposes the Lucene Korean
 analysis module.  ({pull}30397[#30397])
 
+Rollup::
+* A new API allows getting the rollup capabilities of specific rollup indices,
+rather than by the target pattern ({pull}30401[#30401])
+
 [float]
 === Enhancements
 
@@ -70,6 +74,11 @@ Geo::
 Rollup::
 * Validate timezone in range queries to ensure they match the selected job when
 searching ({pull}30338[#30338])
+* Rollup now indexes `null` values, meaning a single "unified" job for heterogeneous data is now the recommended pattern ({pull}31402[#31402])
+* Rollup Search endpoint now supports the `terms` query  ({pull}30973[#30973])
+* Rollups no longer allow patterns that match it's `rollup_index`, which can lead to strange errors ({pull}30491[#30491])
+* Validation errors thrown while creating a rollup job are now a specialization of the previous `ActionRequestValidationException`,
+ making it easier to catch.  The new exception is `RollupActionRequestValidationException` ({pull}30339[#30339])
 
 [float]
 === Bug Fixes
@@ -81,6 +90,15 @@ Fix NPE in 'more_like_this' when field has zero tokens ({pull}30365[#30365])
 Do not ignore request analysis/similarity settings on index resize operations when the source index already contains such settings ({pull}30216[#30216])
 
 Fix NPE when CumulativeSum agg encounters null value/empty bucket ({pull}29641[#29641])
+
+Rollup::
+* Move to 128bit document IDs for Rollup.  The old IDs were not wide enough and susceptible to hashing collisions.
+Jobs that are running during cluster upgrade will "self-upgrade" to the new ID scheme, but it is recommended that users
+fully rebuild Rollup indices from scratch if possible.  Any existing collisions are not fixable and so data-loss may
+affect the rollup index despite the new IDs being used. ({pull}32558[#32558])
+* Histo group configurations should support `scaled_float` ({pull}32048[#32048])
+* Fix rollup on date fields that don't support `epoch_millis` ({pull}31890[#31890])
+* Metric config properly validates itself now ({pull}31159[#31159])
 
 //[float]
 //=== Regressions

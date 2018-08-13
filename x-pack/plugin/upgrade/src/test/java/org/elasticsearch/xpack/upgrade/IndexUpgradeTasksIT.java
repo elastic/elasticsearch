@@ -30,6 +30,8 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoResponse;
+import org.elasticsearch.protocol.xpack.migration.UpgradeActionRequired;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -39,7 +41,6 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.core.upgrade.UpgradeActionRequired;
 import org.elasticsearch.xpack.core.upgrade.UpgradeField;
 import org.elasticsearch.xpack.core.upgrade.actions.IndexUpgradeAction;
 import org.elasticsearch.xpack.core.upgrade.actions.IndexUpgradeInfoAction;
@@ -171,7 +172,7 @@ public class IndexUpgradeTasksIT extends ESIntegTestCase {
         ensureYellow("test");
 
 
-        IndexUpgradeInfoAction.Response infoResponse = new IndexUpgradeInfoAction.RequestBuilder(client()).setIndices("test").get();
+        IndexUpgradeInfoResponse infoResponse = new IndexUpgradeInfoAction.RequestBuilder(client()).setIndices("test").get();
         assertThat(infoResponse.getActions().keySet(), contains("test"));
         assertThat(infoResponse.getActions().get("test"), equalTo(UpgradeActionRequired.UPGRADE));
 

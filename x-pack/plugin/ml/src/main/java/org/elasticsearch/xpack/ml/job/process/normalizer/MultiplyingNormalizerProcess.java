@@ -63,10 +63,11 @@ public class MultiplyingNormalizerProcess implements NormalizerProcess {
             result.setPartitionFieldName(record[1]);
             result.setPartitionFieldValue(record[2]);
             result.setPersonFieldName(record[3]);
-            result.setFunctionName(record[4]);
-            result.setValueFieldName(record[5]);
-            result.setProbability(Double.parseDouble(record[6]));
-            result.setNormalizedScore(factor * Double.parseDouble(record[7]));
+            result.setPersonFieldValue(record[4]);
+            result.setFunctionName(record[5]);
+            result.setValueFieldName(record[6]);
+            result.setProbability(Double.parseDouble(record[7]));
+            result.setNormalizedScore(factor * Double.parseDouble(record[8]));
         } catch (NumberFormatException | ArrayIndexOutOfBoundsException e) {
             throw new IOException("Unable to write to no-op normalizer", e);
         }

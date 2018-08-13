@@ -131,14 +131,14 @@ class PrecommitTasks {
                     args "-b", 'jdk-deprecated-1.8'
                     args "-b", 'jdk-non-portable'
                     args "-b", 'jdk-system-out'
-                    args "-f", buildResources.take("forbidden/jdk-signatures.txt")
-                    args "-f", buildResources.take("forbidden/es-all-signatures.txt")
+                    args "-f", buildResources.copy("forbidden/jdk-signatures.txt")
+                    args "-f", buildResources.copy("forbidden/es-all-signatures.txt")
                     args "--suppressannotation", '**.SuppressForbidden'
                     if (sourceSet.name == 'test') {
-                        args "-f", buildResources.take("forbidden/es-test-signatures.txt")
-                        args "-f", buildResources.take("forbidden/http-signatures.txt")
+                        args "-f", buildResources.copy("forbidden/es-test-signatures.txt")
+                        args "-f", buildResources.copy("forbidden/http-signatures.txt")
                     } else {
-                        args "-f", buildResources.take("forbidden/es-server-signatures.txt")
+                        args "-f", buildResources.copy("forbidden/es-server-signatures.txt")
                     }
                     dependsOn sourceSet.classesTaskName
                     doFirst {

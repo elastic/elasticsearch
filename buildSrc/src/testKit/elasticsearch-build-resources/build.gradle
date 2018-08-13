@@ -6,7 +6,7 @@ ext.licenseFile = file("$buildDir/dummy/license")
 ext.noticeFile = file("$buildDir/dummy/notice")
 
 buildResources {
-    take 'checkstyle.xml'
+    copy 'checkstyle.xml'
 }
 
 task sampleCopyAll(type: Sync) {
@@ -23,7 +23,7 @@ task sample {
     // for now it's just
     dependsOn buildResources
     // we have to refference it at configuration time in order to be picked up
-    ext.checkstyle_suppressions = buildResources.take('checkstyle_suppressions.xml')
+    ext.checkstyle_suppressions = buildResources.copy('checkstyle_suppressions.xml')
     doLast {
         println "This task is using ${file(checkstyle_suppressions)}"
     }
@@ -33,6 +33,6 @@ task noConfigAfterExecution {
     dependsOn buildResources
     doLast {
         println "This should cause an error because we are refferencing " +
-                "${buildResources.take('checkstyle_suppressions.xml')} after the `buildResources` task has ran."
+                "${buildResources.copy('checkstyle_suppressions.xml')} after the `buildResources` task has ran."
     }
 }

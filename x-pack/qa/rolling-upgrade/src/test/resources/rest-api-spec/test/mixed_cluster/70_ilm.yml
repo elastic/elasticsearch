@@ -1,0 +1,23 @@
+---
+"Test Set Policy On Index":
+  - do:
+      acknowledge: true
+      ilm.get_lifecycle:
+        lifecycle: "my_lifecycle"
+  - match: { my_timeseries_lifecycle.phases.warm.after: "1000d" }
+
+  - do:
+      indices.create:
+        index: my_index
+        body:
+          settings:
+            index.lifecycle.name: "my_lifecycle"
+
+    - do:
+        acknowledge: true
+        ilm.explain_lifecycle:
+          index: "my_index"
+
+    - is_true: indices.my_index.managed
+    - match: { indices.my_index.index: "my_index" }
+    - match: { indices.my_index.policy: "my_lifecycle" }

@@ -1,0 +1,37 @@
+---
+"Test Basic Policy Creation":
+  - do:
+      catch: missing
+      ilm.get_lifecycle:
+        lifecycle: "my_lifecycle"
+
+  - do:
+      catch: missing
+      ilm.delete_lifecycle:
+        lifecycle: "my_lifecycle"
+
+  - do:
+      acknowlege: true
+      ilm.put_lifecycle:
+        lifecycle: "my_lifecycle"
+        body: |
+           {
+             "policy": {
+               "phases": {
+                 "warm": {
+                   "after": "1000d",
+                   "actions": {
+                     "forcemerge": {
+                       "max_num_segments": 10000
+                     }
+                   }
+                 }
+               }
+             }
+           }
+
+  - do:
+      acknowledge: true
+      ilm.get_lifecycle:
+        lifecycle: "my_lifecycle"
+  - match: { my_timeseries_lifecycle.phases.warm.after: "1000d" }

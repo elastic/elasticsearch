@@ -510,7 +510,8 @@ public class GeoShapeFieldMapper extends FieldMapper {
             indexShape(context, shape);
         } catch (Exception e) {
             if (ignoreMalformed.value() == false) {
-                throw new MapperParsingException("failed to parse [" + fieldType().name() + "]", e);
+                throw new MapperParsingException("failed to parse field [{}] of type [{}]", e, fieldType().name(),
+                        fieldType().typeName());
             }
             context.addIgnoredField(fieldType.name());
         }

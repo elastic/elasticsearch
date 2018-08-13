@@ -28,7 +28,7 @@ import org.elasticsearch.action.ingest.SimulateDocumentResult;
 import org.elasticsearch.action.ingest.SimulateDocumentVerboseResult;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
-import org.elasticsearch.action.ingest.WritePipelineResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -50,7 +50,7 @@ public class IngestClientIT extends ESRestHighLevelClientTestCase {
             BytesReference.bytes(pipelineBuilder),
             pipelineBuilder.contentType());
 
-        WritePipelineResponse putPipelineResponse =
+        AcknowledgedResponse putPipelineResponse =
             execute(request, highLevelClient().ingest()::putPipeline, highLevelClient().ingest()::putPipelineAsync);
         assertTrue(putPipelineResponse.isAcknowledged());
     }
@@ -86,7 +86,7 @@ public class IngestClientIT extends ESRestHighLevelClientTestCase {
 
         DeletePipelineRequest request = new DeletePipelineRequest(id);
 
-        WritePipelineResponse response =
+        AcknowledgedResponse response =
             execute(request, highLevelClient().ingest()::deletePipeline, highLevelClient().ingest()::deletePipelineAsync);
         assertTrue(response.isAcknowledged());
     }

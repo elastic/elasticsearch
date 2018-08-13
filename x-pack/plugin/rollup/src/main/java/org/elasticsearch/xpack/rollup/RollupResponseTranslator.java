@@ -249,26 +249,8 @@ public class RollupResponseTranslator {
 
         // We had no rollup aggs, so there is nothing to process
         if (missingRollupAggs == rolledResponses.size()) {
-            // If we had a live response (even if it was empty) just return that
-            if (liveResponse != null) {
-                return liveResponse;
-            } else {
-                // Otherwise we just had rollup, so build an empty response
-                InternalSearchResponse combinedInternal = new InternalSearchResponse(SearchHits.empty(),
-                    InternalAggregations.EMPTY, null, null,
-                    rolledResponses.stream().anyMatch(SearchResponse::isTimedOut),
-                    rolledResponses.stream().anyMatch(SearchResponse::isTimedOut),
-                    rolledResponses.stream().mapToInt(SearchResponse::getNumReducePhases).sum());
-
-                int totalShards = rolledResponses.stream().mapToInt(SearchResponse::getTotalShards).sum();
-                int sucessfulShards = rolledResponses.stream().mapToInt(SearchResponse::getSuccessfulShards).sum();
-                int skippedShards = rolledResponses.stream().mapToInt(SearchResponse::getSkippedShards).sum();
-                long took = rolledResponses.stream().mapToLong(r -> r.getTook().getMillis()).sum() ;
-
-                // Shard failures are ignored atm, so returning an empty array is fine
-                return new SearchResponse(combinedInternal, null, totalShards, sucessfulShards, skippedShards,
-                    took, ShardSearchFailure.EMPTY_ARRAY, rolledResponses.get(0).getClusters());
-            }
+            // Return an empty response, but make sure we include all the shard, failure, etc stats
+            return mergeFinalResponse(liveResponse, rolledResponses, InternalAggregations.EMPTY);
         } else if (missingRollupAggs > 0 && missingRollupAggs != rolledResponses.size()) {
             // We were missing some but not all the aggs, unclear how to handle this.  Bail.
             throw new RuntimeException("Expected to find aggregations in rollup response, but none found.");
@@ -305,27 +287,39 @@ public class RollupResponseTranslator {
                     new InternalAggregation.ReduceContext(reduceContext.bigArrays(), reduceContext.scriptService(), true));
         }
 
-        // TODO allow profiling in the future
-        InternalSearchResponse combinedInternal = new InternalSearchResponse(SearchHits.empty(), currentTree, null, null,
-                rolledResponses.stream().anyMatch(SearchResponse::isTimedOut),
-                rolledResponses.stream().anyMatch(SearchResponse::isTimedOut),
-                rolledResponses.stream().mapToInt(SearchResponse::getNumReducePhases).sum());
+        return mergeFinalResponse(liveResponse, rolledResponses, currentTree);
+    }
+
+    private static SearchResponse mergeFinalResponse(SearchResponse liveResponse, List<SearchResponse> rolledResponses,
+                                              InternalAggregations aggs) {
 
         int totalShards = rolledResponses.stream().mapToInt(SearchResponse::getTotalShards).sum();
         int sucessfulShards = rolledResponses.stream().mapToInt(SearchResponse::getSuccessfulShards).sum();
         int skippedShards = rolledResponses.stream().mapToInt(SearchResponse::getSkippedShards).sum();
         long took = rolledResponses.stream().mapToLong(r -> r.getTook().getMillis()).sum() ;
 
+        boolean isTimedOut = rolledResponses.stream().anyMatch(SearchResponse::isTimedOut);
+        boolean isTerminatedEarly = rolledResponses.stream()
+            .filter(r -> r.isTerminatedEarly() != null)
+            .anyMatch(SearchResponse::isTerminatedEarly);
+        int numReducePhases = rolledResponses.stream().mapToInt(SearchResponse::getNumReducePhases).sum();
+
         if (liveResponse != null) {
             totalShards += liveResponse.getTotalShards();
             sucessfulShards += liveResponse.getSuccessfulShards();
             skippedShards += liveResponse.getSkippedShards();
             took = Math.max(took, liveResponse.getTook().getMillis());
+            isTimedOut = isTimedOut && liveResponse.isTimedOut();
+            isTerminatedEarly = isTerminatedEarly && liveResponse.isTerminatedEarly();
+            numReducePhases += liveResponse.getNumReducePhases();
         }
+
+        InternalSearchResponse combinedInternal = new InternalSearchResponse(SearchHits.empty(), aggs, null, null,
+            isTimedOut, isTerminatedEarly, numReducePhases);
 
         // Shard failures are ignored atm, so returning an empty array is fine
         return new SearchResponse(combinedInternal, null, totalShards, sucessfulShards, skippedShards,
-                took, ShardSearchFailure.EMPTY_ARRAY, rolledResponses.get(0).getClusters());
+            took, ShardSearchFailure.EMPTY_ARRAY, rolledResponses.get(0).getClusters());
     }
 
     /**

@@ -38,20 +38,19 @@ public class NativeNormalizerProcessFactory implements NormalizerProcessFactory 
 
     @Override
     public NormalizerProcess createNormalizerProcess(String jobId, String quantilesState, Integer bucketSpan,
-                                                     boolean perPartitionNormalization, ExecutorService executorService) {
+                                                     ExecutorService executorService) {
         ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, NormalizerBuilder.NORMALIZE, jobId,
                 true, false, true, true, false, false);
-        createNativeProcess(jobId, quantilesState, processPipes, bucketSpan, perPartitionNormalization);
+        createNativeProcess(jobId, quantilesState, processPipes, bucketSpan);
 
         return new NativeNormalizerProcess(jobId, settings, processPipes.getLogStream().get(),
                 processPipes.getProcessInStream().get(), processPipes.getProcessOutStream().get(), executorService);
     }
 
-    private void createNativeProcess(String jobId, String quantilesState, ProcessPipes processPipes, Integer bucketSpan,
-                                     boolean perPartitionNormalization) {
+    private void createNativeProcess(String jobId, String quantilesState, ProcessPipes processPipes, Integer bucketSpan) {
 
         try {
-            List<String> command = new NormalizerBuilder(env, jobId, quantilesState, bucketSpan, perPartitionNormalization).build();
+            List<String> command = new NormalizerBuilder(env, jobId, quantilesState, bucketSpan).build();
             processPipes.addArgs(command);
             nativeController.startProcess(command);
             processPipes.connectStreams(PROCESS_STARTUP_TIMEOUT);

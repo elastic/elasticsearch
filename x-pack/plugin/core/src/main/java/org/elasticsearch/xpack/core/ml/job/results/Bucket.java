@@ -43,7 +43,6 @@ public class Bucket implements ToXContentObject, Writeable {
     public static final ParseField BUCKET_INFLUENCERS = new ParseField("bucket_influencers");
     public static final ParseField BUCKET_SPAN = new ParseField("bucket_span");
     public static final ParseField PROCESSING_TIME_MS = new ParseField("processing_time_ms");
-    public static final ParseField PARTITION_SCORES = new ParseField("partition_scores");
     public static final ParseField SCHEDULED_EVENTS = new ParseField("scheduled_events");
 
     // Used for QueryPage
@@ -82,8 +81,6 @@ public class Bucket implements ToXContentObject, Writeable {
         parser.declareObjectArray(Bucket::setBucketInfluencers, ignoreUnknownFields ?
                 BucketInfluencer.LENIENT_PARSER : BucketInfluencer.STRICT_PARSER, BUCKET_INFLUENCERS);
         parser.declareLong(Bucket::setProcessingTimeMs, PROCESSING_TIME_MS);
-        parser.declareObjectArray(Bucket::setPartitionScores, ignoreUnknownFields ?
-                PartitionScore.LENIENT_PARSER : PartitionScore.STRICT_PARSER, PARTITION_SCORES);
         parser.declareString((bucket, s) -> {}, Result.RESULT_TYPE);
         parser.declareStringArray(Bucket::setScheduledEvents, SCHEDULED_EVENTS);
 
@@ -100,7 +97,6 @@ public class Bucket implements ToXContentObject, Writeable {
     private boolean isInterim;
     private List<BucketInfluencer> bucketInfluencers = new ArrayList<>(); // Can't use emptyList as might be appended to
     private long processingTimeMs;
-    private List<PartitionScore> partitionScores = Collections.emptyList();
     private List<String> scheduledEvents = Collections.emptyList();
 
     public Bucket(String jobId, Date timestamp, long bucketSpan) {
@@ -120,7 +116,6 @@ public class Bucket implements ToXContentObject, Writeable {
         this.isInterim = other.isInterim;
         this.bucketInfluencers = new ArrayList<>(other.bucketInfluencers);
         this.processingTimeMs = other.processingTimeMs;
-        this.partitionScores = new ArrayList<>(other.partitionScores);
         this.scheduledEvents = new ArrayList<>(other.scheduledEvents);
     }
 
@@ -143,7 +138,6 @@ public class Bucket implements ToXContentObject, Writeable {
         if (in.getVersion().before(Version.V_5_5_0)) {
             in.readGenericValue();
         }
-        partitionScores = in.readList(PartitionScore::new);
         if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
             scheduledEvents = in.readList(StreamInput::readString);
             if (scheduledEvents.isEmpty()) {
@@ -174,7 +168,6 @@ public class Bucket implements ToXContentObject, Writeable {
         if (out.getVersion().before(Version.V_5_5_0)) {
             out.writeGenericValue(Collections.emptyMap());
         }
-        out.writeList(partitionScores);
         if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
             out.writeStringList(scheduledEvents);
         }
@@ -195,9 +188,7 @@ public class Bucket implements ToXContentObject, Writeable {
         builder.field(Result.IS_INTERIM.getPreferredName(), isInterim);
         builder.field(BUCKET_INFLUENCERS.getPreferredName(), bucketInfluencers);
         builder.field(PROCESSING_TIME_MS.getPreferredName(), processingTimeMs);
-        if (partitionScores.isEmpty() == false) {
-            builder.field(PARTITION_SCORES.getPreferredName(), partitionScores);
-        }
+
         if (scheduledEvents.isEmpty() == false) {
             builder.field(SCHEDULED_EVENTS.getPreferredName(), scheduledEvents);
         }
@@ -304,14 +295,6 @@ public class Bucket implements ToXContentObject, Writeable {
         bucketInfluencers.add(bucketInfluencer);
     }
 
-    public List<PartitionScore> getPartitionScores() {
-        return partitionScores;
-    }
-
-    public void setPartitionScores(List<PartitionScore> scores) {
-        partitionScores = Objects.requireNonNull(scores);
-    }
-
     public List<String> getScheduledEvents() {
         return scheduledEvents;
     }
@@ -320,24 +303,10 @@ public class Bucket implements ToXContentObject, Writeable {
         this.scheduledEvents = ExceptionsHelper.requireNonNull(scheduledEvents, SCHEDULED_EVENTS.getPreferredName());
     }
 
-    public double partitionInitialAnomalyScore(String partitionValue) {
-        Optional<PartitionScore> first = partitionScores.stream().filter(s -> partitionValue.equals(s.getPartitionFieldValue()))
-                .findFirst();
-
-        return first.isPresent() ? first.get().getInitialRecordScore() : 0.0;
-    }
-
-    public double partitionAnomalyScore(String partitionValue) {
-        Optional<PartitionScore> first = partitionScores.stream().filter(s -> partitionValue.equals(s.getPartitionFieldValue()))
-                .findFirst();
-
-        return first.isPresent() ? first.get().getRecordScore() : 0.0;
-    }
-
     @Override
     public int hashCode() {
         return Objects.hash(jobId, timestamp, eventCount, initialAnomalyScore, anomalyScore, records,
-                isInterim, bucketSpan, bucketInfluencers, partitionScores, processingTimeMs, scheduledEvents);
+                isInterim, bucketSpan, bucketInfluencers, processingTimeMs, scheduledEvents);
     }
 
     /**
@@ -360,7 +329,6 @@ public class Bucket implements ToXContentObject, Writeable {
                 && (this.anomalyScore == that.anomalyScore) && (this.initialAnomalyScore == that.initialAnomalyScore)
                 && Objects.equals(this.records, that.records) && Objects.equals(this.isInterim, that.isInterim)
                 && Objects.equals(this.bucketInfluencers, that.bucketInfluencers)
-                && Objects.equals(this.partitionScores, that.partitionScores)
                 && (this.processingTimeMs == that.processingTimeMs)
                 && Objects.equals(this.scheduledEvents, that.scheduledEvents);
     }
@@ -374,6 +342,6 @@ public class Bucket implements ToXContentObject, Writeable {
      * @return true if the bucket should be normalized or false otherwise
      */
     public boolean isNormalizable() {
-        return anomalyScore > 0.0 || partitionScores.stream().anyMatch(s -> s.getRecordScore() > 0);
+        return anomalyScore > 0.0;
     }
 }

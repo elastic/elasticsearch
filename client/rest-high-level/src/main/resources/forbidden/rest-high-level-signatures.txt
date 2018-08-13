@@ -23,3 +23,6 @@ org.apache.http.entity.ContentType#create(java.lang.String,org.apache.http.NameV
 @defaultMessage Use Nonblocking org.apache.http.nio.entity.NByteArrayEntity
 org.apache.http.entity.ByteArrayEntity
 org.apache.http.entity.StringEntity
+
+@defaultMessage We can't rely on log4j2 being on the classpath so don't log deprecations!
+org.elasticsearch.common.xcontent.LoggingDeprecationHandler

@@ -22,7 +22,6 @@ package org.elasticsearch.cluster.service;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Assertions;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.AckedClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -249,50 +248,43 @@ public class MasterService extends AbstractLifecycleComponent {
         };
         clusterStatePublisher.publish(clusterChangedEvent, fut, taskOutputs.createAckListener(threadPool, clusterChangedEvent.state()));
 
-        final ActionListener<Void> publishListener = getPublishListener(clusterChangedEvent, taskOutputs, startTimeNS);
         // indefinitely wait for publication to complete
         try {
             FutureUtils.get(fut);
-            publishListener.onResponse(null);
+            onPublicationSuccess(clusterChangedEvent, taskOutputs, startTimeNS);
         } catch (Exception e) {
-            publishListener.onFailure(e);
+            onPublicationFailed(clusterChangedEvent, taskOutputs, startTimeNS, e);
         }
     }
 
-    protected ActionListener<Void> getPublishListener(ClusterChangedEvent clusterChangedEvent, TaskOutputs taskOutputs, long startTimeNS) {
-        return new ActionListener<Void>() {
+    protected void onPublicationSuccess(ClusterChangedEvent clusterChangedEvent, TaskOutputs taskOutputs, long startTimeNS) {
+        taskOutputs.processedDifferentClusterState(clusterChangedEvent.previousState(), clusterChangedEvent.state());
 
-            @Override
-            public void onResponse(Void ignore) {
-                taskOutputs.processedDifferentClusterState(clusterChangedEvent.previousState(), clusterChangedEvent.state());
+        try {
+            taskOutputs.clusterStatePublished(clusterChangedEvent);
+        } catch (Exception e) {
+            logger.error(() -> new ParameterizedMessage(
+                "exception thrown while notifying executor of new cluster state publication [{}]",
+                clusterChangedEvent.source()), e);
+        }
+        TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, TimeValue.nsecToMSec(currentTimeInNanos() - startTimeNS)));
+        logger.debug("processing [{}]: took [{}] done publishing updated cluster state (version: {}, uuid: {})",
+            clusterChangedEvent.source(),
+            executionTime, clusterChangedEvent.state().version(),
+            clusterChangedEvent.state().stateUUID());
+        warnAboutSlowTaskIfNeeded(executionTime, clusterChangedEvent.source());
+    }
 
-                try {
-                    taskOutputs.clusterStatePublished(clusterChangedEvent);
-                } catch (Exception e) {
-                    logger.error(() -> new ParameterizedMessage(
-                        "exception thrown while notifying executor of new cluster state publication [{}]",
-                        clusterChangedEvent.source()), e);
-                }
-                TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, TimeValue.nsecToMSec(currentTimeInNanos() - startTimeNS)));
-                logger.debug("processing [{}]: took [{}] done publishing updated cluster state (version: {}, uuid: {})",
-                    clusterChangedEvent.source(),
-                    executionTime, clusterChangedEvent.state().version(),
-                    clusterChangedEvent.state().stateUUID());
-                warnAboutSlowTaskIfNeeded(executionTime, clusterChangedEvent.source());
-            }
-
-            @Override
-            public void onFailure(Exception exception) {
-                if (exception instanceof FailedToCommitClusterStateException) {
-                    final long version = clusterChangedEvent.state().version();
-                    logger.warn(() -> new ParameterizedMessage(
-                        "failing [{}]: failed to commit cluster state version [{}]", clusterChangedEvent.source(), version), exception);
-                    taskOutputs.publishingFailed((FailedToCommitClusterStateException) exception);
-                } else {
-                    handleException(clusterChangedEvent.source(), startTimeNS, clusterChangedEvent.state(), exception);
-                }
-            }
-        };
+    protected void onPublicationFailed(ClusterChangedEvent clusterChangedEvent, TaskOutputs taskOutputs, long startTimeNS,
+                                       Exception exception) {
+        if (exception instanceof FailedToCommitClusterStateException) {
+            final long version = clusterChangedEvent.state().version();
+            logger.warn(() -> new ParameterizedMessage(
+                "failing [{}]: failed to commit cluster state version [{}]", clusterChangedEvent.source(), version), exception);
+            taskOutputs.publishingFailed((FailedToCommitClusterStateException) exception);
+        } else {
+            handleException(clusterChangedEvent.source(), startTimeNS, clusterChangedEvent.state(), exception);
+        }
     }
 
     private void handleException(String summary, long startTimeNS, ClusterState newClusterState, Exception e) {

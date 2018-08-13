@@ -170,7 +170,7 @@ public final class DissectParser {
      * <p>Entry point to dissect a string into it's parts.</p>
      *
      * @param inputString The string to dissect
-     * @return TODO:
+     * @return the key/value Map of the results
      * @throws DissectException if unable to dissect a pair into it's parts.
      */
     public Map<String, String> parse(String inputString) {

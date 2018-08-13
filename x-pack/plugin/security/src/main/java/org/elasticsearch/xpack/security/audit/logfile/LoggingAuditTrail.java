@@ -74,11 +74,11 @@ import static org.elasticsearch.xpack.security.audit.AuditUtil.restRequestConten
 public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, ClusterStateListener {
 
     // WARNING: changing any of this requires changing the log4j2.properties file too
-    public static final String ORIGIN_TYPE_FIELD_NAME = "origin.type";
     public static final String REST_ORIGIN_FIELD_VALUE = "rest";
     public static final String LOCAL_ORIGIN_FIELD_VALUE = "local_node";
     public static final String TRANSPORT_ORIGIN_FIELD_VALUE = "transport";
     public static final String IP_FILTER_ORIGIN_FIELD_VALUE = "ip_filter";
+    public static final String ORIGIN_TYPE_FIELD_NAME = "origin.type";
     public static final String ORIGIN_ADDRESS_FIELD_NAME = "origin.address";
     public static final String NODE_NAME_FIELD_NAME = "node.name";
     public static final String HOST_ADDRESS_FIELD_NAME = "host.ip";
@@ -499,7 +499,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                     .with(ORIGIN_TYPE_FIELD_NAME, IP_FILTER_ORIGIN_FIELD_VALUE)
                     .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(inetAddress))
                     .with(TRANSPORT_PROFILE_FIELD_NAME, profile)
-                    .with(RULE_FIELD_NAME, rule);
+                    .with(RULE_FIELD_NAME, rule.toString());
             opaqueId(threadContext, logEntry);
             logger.info(logEntry);
         }
@@ -514,7 +514,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                     .with(ORIGIN_TYPE_FIELD_NAME, IP_FILTER_ORIGIN_FIELD_VALUE)
                     .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(inetAddress))
                     .with(TRANSPORT_PROFILE_FIELD_NAME, profile)
-                    .with(RULE_FIELD_NAME, rule);
+                    .with(RULE_FIELD_NAME, rule.toString());
             opaqueId(threadContext, logEntry);
             logger.info(logEntry);
         }

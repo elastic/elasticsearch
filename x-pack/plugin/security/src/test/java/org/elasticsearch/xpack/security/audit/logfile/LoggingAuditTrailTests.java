@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.audit.logfile;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -62,9 +63,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class LoggingAuditTrailTests extends ESTestCase {
-
-    // parse log line as printed by the CapturingLogger (key/value with values between ")
-    private static final Pattern fieldPattern = Pattern.compile("(\\p{Graph}+)=\"((?:(?:(?<!\\\\)(?:\\\\{2})*\")|[^\"])*?)\"");
 
     enum RestContent {
         VALID() {
@@ -129,6 +127,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
     private ThreadContext threadContext;
     private boolean includeRequestBody;
     private Map<String, String> commonFields;
+    private PatternLayout patternLayout;
     private Logger logger;
     private LoggingAuditTrail auditTrail;
 
@@ -157,7 +156,37 @@ public class LoggingAuditTrailTests extends ESTestCase {
         if (randomBoolean()) {
             threadContext.putHeader(Task.X_OPAQUE_ID, randomAlphaOfLengthBetween(1, 4));
         }
-        logger = CapturingLogger.newCapturingLogger(Level.INFO);
+        patternLayout = PatternLayout.newBuilder().withPattern(
+                "{" +
+                "\"timestamp\":\"%d{ISO8601}\"" +
+                "%varsNotEmpty{, \"node.name\":\"%enc{%map{node.name}}{JSON}\"}" +
+                "%varsNotEmpty{, \"host.name\":\"%enc{%map{host.name}}{JSON}\"}" +
+                "%varsNotEmpty{, \"host.ip\":\"%enc{%map{host.ip}}{JSON}\"}" +
+                "%varsNotEmpty{, \"event.type\":\"%enc{%map{event.type}}{JSON}\"}" +
+                "%varsNotEmpty{, \"event.action\":\"%enc{%map{event.action}}{JSON}\"}" +
+                "%varsNotEmpty{, \"user.name\":\"%enc{%map{user.name}}{JSON}\"}" +
+                "%varsNotEmpty{, \"user.run_by.name\":\"%enc{%map{user.run_by.name}}{JSON}\"}" +
+                "%varsNotEmpty{, \"user.run_as.name\":\"%enc{%map{user.run_as.name}}{JSON}\"}" +
+                "%varsNotEmpty{, \"user.realm\":\"%enc{%map{user.realm}}{JSON}\"}" +
+                "%varsNotEmpty{, \"user.run_by.realm\":\"%enc{%map{user.run_by.realm}}{JSON}\"}" +
+                "%varsNotEmpty{, \"user.run_as.realm\":\"%enc{%map{user.run_as.realm}}{JSON}\"}" +
+                "%varsNotEmpty{, \"user.roles\":\"%enc{%map{user.roles}}{JSON}\"}" +
+                "%varsNotEmpty{, \"origin.type\":\"%enc{%map{origin.type}}{JSON}\"}" +
+                "%varsNotEmpty{, \"origin.address\":\"%enc{%map{origin.address}}{JSON}\"}" +
+                "%varsNotEmpty{, \"realm\":\"%enc{%map{realm}}{JSON}\"}" +
+                "%varsNotEmpty{, \"url.path\":\"%enc{%map{url.path}}{JSON}\"}" +
+                "%varsNotEmpty{, \"url.query\":\"%enc{%map{url.query}}{JSON}\"}" +
+                "%varsNotEmpty{, \"request.body\":\"%enc{%map{request.body}}{JSON}\"}" +
+                "%varsNotEmpty{, \"action\":\"%enc{%map{action}}{JSON}\"}" +
+                "%varsNotEmpty{, \"request.name\":\"%enc{%map{request.name}}{JSON}\"}" +
+                "%varsNotEmpty{, \"indices\":\"%enc{%map{indices}}{JSON}\"}" +
+                "%varsNotEmpty{, \"opaque_id\":\"%enc{%map{opaque_id}}{JSON}\"}" +
+                "%varsNotEmpty{, \"transport.profile\":\"%enc{%map{transport.profile}}{JSON}\"}" +
+                "%varsNotEmpty{, \"rule\":\"%enc{%map{rule}}{JSON}\"}" +
+                "%varsNotEmpty{, \"event.category\":\"%enc{%map{event.category}}{JSON}\"}" +
+                "}%n")
+                .build();
+        logger = CapturingLogger.newCapturingLogger(Level.INFO, patternLayout);
         auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
     }
 
@@ -657,7 +686,6 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertEmptyLog(logger);
 
         // test enabled
-        CapturingLogger.output(logger.getName(), Level.INFO).clear();
         settings = Settings.builder()
                 .put(settings)
                 .put("xpack.security.audit.logfile.events.include", "connection_granted")
@@ -885,7 +913,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
     private void assertMsg(Logger logger, Map<String, String> checkFields) {
         final List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
-        assertThat("Only one logEntry expected. Found: " + output.size(), output.size(), is(1));
+        assertThat("Exactly one logEntry expected. Found: " + output.size(), output.size(), is(1));
         if (checkFields == null) {
             // only check msg existence
             return;
@@ -898,14 +926,15 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 assertThat("Field: " + checkField.getKey() + " should be missing.", logLine.contains(Pattern.quote(checkField.getKey())),
                         is(false));
             } else {
-                final Pattern logEntryFieldPattern = Pattern
-                        .compile(Pattern.quote(checkField.getKey() + "=\"" + checkField.getValue() + "\""));
+                final Pattern logEntryFieldPattern = Pattern.compile(
+                        Pattern.quote("\"" + checkField.getKey() + "\":\"" + checkField.getValue().replaceAll("\"", "\\\\\"") + "\""));
                 assertThat("Field " + checkField.getKey() + " value mismatch. Expected " + checkField.getValue(),
                         logEntryFieldPattern.matcher(logLine).find(), is(true));
                 // remove checked field
                 logLine = logEntryFieldPattern.matcher(logLine).replaceFirst("");
             }
         }
+        logLine = logLine.replaceFirst("\"timestamp\":\"[^\"]*\"", "").replaceAll("[{},]", "");
         // check no extra fields
         assertThat("Log event has extra unexpected content: " + logLine, Strings.hasText(logLine), is(false));
     }

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.security.audit.logfile;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.Layout;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
@@ -17,17 +18,22 @@ import org.apache.logging.log4j.core.filter.RegexFilter;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.Loggers;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
 public class CapturingLogger {
 
     public static Logger newCapturingLogger(final Level level) throws IllegalAccessException {
+        return newCapturingLogger(level, null);
+    }
+
+    public static Logger newCapturingLogger(final Level level, Layout<? extends Serializable> layout) throws IllegalAccessException {
         final StackTraceElement caller = Thread.currentThread().getStackTrace()[2];
         final String name = caller.getClassName() + "." + caller.getMethodName() + "." + level.toString();
         final Logger logger = ESLoggerFactory.getLogger(name);
         Loggers.setLevel(logger, level);
-        final MockAppender appender = new MockAppender(name);
+        final MockAppender appender = new MockAppender(name, layout);
         appender.start();
         Loggers.addAppender(logger, appender);
         return logger;
@@ -59,13 +65,21 @@ public class CapturingLogger {
         public final List<String> trace = new ArrayList<>();
 
         private MockAppender(final String name) throws IllegalAccessException {
-            super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null);
+            this(name, null);
+        }
+
+        private MockAppender(final String name, Layout<? extends Serializable> layout) throws IllegalAccessException {
+            super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), layout);
         }
 
         @Override
         public void append(LogEvent event) {
-            // escape backslashes and quotes
-            final String logLine = event.getMessage().getFormattedMessage();
+            final String logLine;
+            if (getLayout() != null) {
+                logLine = new String(getLayout().toByteArray(event));
+            } else {
+                logLine = event.getMessage().getFormattedMessage();
+            }
             switch (event.getLevel().toString()) {
                 // we can not keep a reference to the event here because Log4j is using a thread
                 // local instance under the hood

@@ -84,6 +84,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
@@ -597,16 +598,36 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
     private void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state) {
         validateIndexName(request.index(), state);
-        validateIndexSettings(request.index(), request.settings());
+        validateIndexSettings(request.index(), request.settings(), state);
     }
 
-    public void validateIndexSettings(String indexName, Settings settings) throws IndexCreationException {
+    public void validateIndexSettings(String indexName, Settings settings, ClusterState clusterState) throws IndexCreationException {
         List<String> validationErrors = getIndexSettingsValidationErrors(settings);
+
+        Optional<String> shardAllocation = getShardLimitError(indexName, settings, clusterState);
+        shardAllocation.ifPresent(validationErrors::add);
+
         if (validationErrors.isEmpty() == false) {
             ValidationException validationException = new ValidationException();
             validationException.addValidationErrors(validationErrors);
             throw new IndexCreationException(indexName, validationException);
         }
+    }
+
+    private Optional<String> getShardLimitError(String indexName, Settings settings, ClusterState clusterState) {
+        int currentOpenShards = clusterState.getMetaData().getTotalOpenIndexShards();
+        int maxShardsPerNode = clusterService.getClusterSettings().get(MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE);
+        int nodeCount = clusterState.getNodes().getDataNodes().size();
+        long maxShardsInCluster = maxShardsPerNode * nodeCount;
+        int shardsToCreate = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(settings)
+            * (1 + IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.get(settings));
+
+        if ((currentOpenShards + shardsToCreate) > maxShardsInCluster) {
+            return Optional.of("creating [" + indexName + "] "
+                + "would create " + shardsToCreate + " total shards, but this cluster currently has "
+                + currentOpenShards + "/" + maxShardsInCluster + " maximum shards open");
+        }
+        return Optional.empty();
     }
 
     List<String> getIndexSettingsValidationErrors(Settings settings) {

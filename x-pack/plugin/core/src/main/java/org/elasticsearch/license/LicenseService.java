@@ -29,6 +29,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
+import org.elasticsearch.protocol.xpack.license.PostStartTrialRequest;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;

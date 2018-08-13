@@ -1,0 +1,59 @@
+[[java-rest-high-post-start-trial]]
+=== Post Start Trial
+
+[[java-rest-high-post-start-license-execution]]
+==== Execution
+
+This API creates and enables a trial license using the `postStartTrial()`
+method.
+
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc_tests}/LicensingDocumentationIT.java[post-start-trial-execute]
+---------------------------------------------------
+
+[[java-rest-high-post-start-license-response]]
+==== Response
+
+The returned `PostStartTrialResponse` returns a field indicating whether the
+trial was started. If it was started, the response returns a the type of
+license started. If it was not started, it returns an error message describing
+why.
+
+Acknowledgement messages may also be returned if this API was called without
+the `acknowledge` flag set to `true`.  In this case you need to display the
+messages to the end user and if they agree, resubmit the license with the
+`acknowledge` flag set to `true`. Please note that the request will still
+return a 200 return code even if requires an acknowledgement. So, it is
+necessary to check the `acknowledged` flag.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/LicensingDocumentationIT.java[post-start-trial-response]
+--------------------------------------------------
+
+[[java-rest-high-post-start-trial-async]]
+
+==== Asynchronous execution
+
+This request can be executed asynchronously:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/LicensingDocumentationIT.java[post-start-trial-execute-async]
+--------------------------------------------------
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `PostStartTrialResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/LicensingDocumentationIT.java[post-start-trial-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument
+<2> Called in case of failure. The raised exception is provided as an argument

@@ -7,6 +7,7 @@ package org.elasticsearch.license;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.protocol.xpack.license.PostStartTrialRequest;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -32,6 +33,7 @@ public class RestPostStartTrialLicense extends XPackRestHandler {
         PostStartTrialRequest startTrialRequest = new PostStartTrialRequest();
         startTrialRequest.setType(request.param("type", "trial"));
         startTrialRequest.acknowledge(request.paramAsBoolean("acknowledge", false));
+        startTrialRequest.masterNodeTimeout(request.paramAsTime("master_timeout", startTrialRequest.masterNodeTimeout()));
         return channel -> client.licensing().postStartTrial(startTrialRequest,
                 new RestBuilderListener<PostStartTrialResponse>(channel) {
                     @Override

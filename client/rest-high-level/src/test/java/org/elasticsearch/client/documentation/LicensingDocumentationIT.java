@@ -28,6 +28,8 @@ import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.GetLicenseResponse;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
+import org.elasticsearch.protocol.xpack.license.PostStartTrialRequest;
+import org.elasticsearch.protocol.xpack.license.PostStartTrialResponse;
 import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 
@@ -36,6 +38,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
@@ -165,6 +168,65 @@ public class LicensingDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(currentLicense, containsString("trial"));
             assertThat(currentLicense, containsString("client_rest-high-level_integTestCluster"));
             assertThat(currentLicense, endsWith("}"));
+        }
+    }
+
+    public void testPostStartTrial() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            // tag::post-start-trial-execute
+            PostStartTrialRequest request = new PostStartTrialRequest();
+            request.acknowledge(false);
+
+            PostStartTrialResponse response = client.license().postStartTrial(request, RequestOptions.DEFAULT);
+            // end::post-start-trial-execute
+
+            // tag::post-start-trial-response
+            boolean acknowledged = response.isAcknowledged();
+            boolean trialWasStarted = response.isTrialWasStarted();
+            String errorMessage = response.getErrorMessage();
+            String type = response.getType();
+            String acknowledgeMessage = response.getAcknowledgeMessage(); // todo rename this to acknowledgeheader for consistency
+            Map<String, String[]> acknowledgeMessages = response.getAcknowledgeMessages();
+            // end::post-start-trial-response
+
+            assertFalse(acknowledged);
+            assertFalse(trialWasStarted);
+            assertEquals("Operation failed: Needs acknowledgement.", errorMessage);
+            assertNull(type);
+            assertThat(acknowledgeMessage, containsString("To begin your free trial, call /start_trial again and specify " +
+                "the \"acknowledge=true\" parameter."));
+            assertThat(acknowledgeMessages.entrySet(), not(empty()));
+        }
+
+        {
+            PostStartTrialRequest request = new PostStartTrialRequest();
+
+            // tag::post-start-trial-execute-listener
+            ActionListener<PostStartTrialResponse> listener = new ActionListener<PostStartTrialResponse>() {
+                @Override
+                public void onResponse(PostStartTrialResponse postStartTrialResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::post-start-trial-execute-listener
+
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::post-start-trial-execute-async
+            client.license().postStartTrialAsync(request, RequestOptions.DEFAULT, listener);
+            // end::post-start-trial-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+
+            // todo add some other cases with randomization
+            // todo add a case that succeeds in starting the trial
         }
     }
 }

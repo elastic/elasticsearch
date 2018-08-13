@@ -31,13 +31,14 @@ public class FeatureIndexBuilderJobTask extends AllocatedPersistentTask implemen
     private final FeatureIndexBuilderIndexer indexer;
 
     static final String SCHEDULE_NAME = "xpack/feature_index_builder/job" + "/schedule";
-    
+
     public static class FeatureIndexBuilderJobPersistentTasksExecutor extends PersistentTasksExecutor<FeatureIndexBuilderJob> {
         private final Client client;
         private final SchedulerEngine schedulerEngine;
         private final ThreadPool threadPool;
 
-        public FeatureIndexBuilderJobPersistentTasksExecutor(Settings settings, Client client, SchedulerEngine schedulerEngine, ThreadPool threadPool) {
+        public FeatureIndexBuilderJobPersistentTasksExecutor(Settings settings, Client client, SchedulerEngine schedulerEngine,
+                ThreadPool threadPool) {
             super(settings, "xpack/feature_index_builder/job", FeatureIndexBuilder.TASK_THREAD_POOL_NAME);
             this.client = client;
             this.schedulerEngine = schedulerEngine;
@@ -47,17 +48,17 @@ public class FeatureIndexBuilderJobTask extends AllocatedPersistentTask implemen
         @Override
         protected void nodeOperation(AllocatedPersistentTask task, @Nullable FeatureIndexBuilderJob params, PersistentTaskState state) {
             FeatureIndexBuilderJobTask buildTask = (FeatureIndexBuilderJobTask) task;
-            SchedulerEngine.Job schedulerJob = new SchedulerEngine.Job(SCHEDULE_NAME + "_" + params.getConfig().getId(),
-                    next());
+            SchedulerEngine.Job schedulerJob = new SchedulerEngine.Job(SCHEDULE_NAME + "_" + params.getConfig().getId(), next());
 
-            // Note that while the task is added to the scheduler here, the internal state will prevent
+            // Note that while the task is added to the scheduler here, the internal state
+            // will prevent
             // it from doing any work until the task is "started" via the StartJob api
             schedulerEngine.register(buildTask);
             schedulerEngine.add(schedulerJob);
 
             logger.info("FeatureIndexBuilder job [" + params.getConfig().getId() + "] created.");
         }
-        
+
         static SchedulerEngine.Schedule next() {
             return (startTime, now) -> {
                 return now + 1000; // to be fixed, hardcode something
@@ -66,15 +67,14 @@ public class FeatureIndexBuilderJobTask extends AllocatedPersistentTask implemen
 
         @Override
         protected AllocatedPersistentTask createTask(long id, String type, String action, TaskId parentTaskId,
-                                                     PersistentTasksCustomMetaData.PersistentTask<FeatureIndexBuilderJob> persistentTask,
-                                                     Map<String, String> headers) {
+                PersistentTasksCustomMetaData.PersistentTask<FeatureIndexBuilderJob> persistentTask, Map<String, String> headers) {
             return new FeatureIndexBuilderJobTask(id, type, action, parentTaskId, persistentTask.getParams(),
                     (FeatureIndexBuilderJobState) persistentTask.getState(), client, schedulerEngine, threadPool, headers);
         }
     }
 
     private final FeatureIndexBuilderJob job;
-    
+
     public FeatureIndexBuilderJobTask(long id, String type, String action, TaskId parentTask, FeatureIndexBuilderJob job,
             FeatureIndexBuilderJobState state, Client client, SchedulerEngine schedulerEngine, ThreadPool threadPool,
             Map<String, String> headers) {

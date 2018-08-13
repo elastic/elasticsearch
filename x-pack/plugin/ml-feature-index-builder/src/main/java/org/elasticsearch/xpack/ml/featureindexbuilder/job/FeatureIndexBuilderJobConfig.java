@@ -99,7 +99,8 @@ public class FeatureIndexBuilderJobConfig implements NamedWriteable, ToXContentO
         return Strings.toString(this, true, true);
     }
 
-    public static FeatureIndexBuilderJobConfig fromXContent(final XContentParser parser, @Nullable final String optionalJobId) throws IOException {
+    public static FeatureIndexBuilderJobConfig fromXContent(final XContentParser parser, @Nullable final String optionalJobId)
+            throws IOException {
         return PARSER.parse(parser, optionalJobId);
     }
 }

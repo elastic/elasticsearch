@@ -28,9 +28,8 @@ public class FeatureIndexBuilderJobState implements Task.Status, PersistentTaskS
 
     private static final ParseField STATE = new ParseField("job_state");
 
-    public static final ConstructingObjectParser<FeatureIndexBuilderJobState, Void> PARSER =
-            new ConstructingObjectParser<>(NAME,
-                    args -> new FeatureIndexBuilderJobState((IndexerState) args[0]));
+    public static final ConstructingObjectParser<FeatureIndexBuilderJobState, Void> PARSER = new ConstructingObjectParser<>(NAME,
+            args -> new FeatureIndexBuilderJobState((IndexerState) args[0]));
 
     static {
         PARSER.declareField(constructorArg(), p -> {
@@ -96,6 +95,6 @@ public class FeatureIndexBuilderJobState implements Task.Status, PersistentTaskS
 
     @Override
     public int hashCode() {
-    return Objects.hash(state);
+        return Objects.hash(state);
     }
 }

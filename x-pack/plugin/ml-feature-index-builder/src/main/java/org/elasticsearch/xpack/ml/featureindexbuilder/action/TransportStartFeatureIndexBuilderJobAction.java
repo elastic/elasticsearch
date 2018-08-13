@@ -29,28 +29,30 @@ import java.util.List;
 import java.util.function.Consumer;
 
 public class TransportStartFeatureIndexBuilderJobAction extends
-        TransportTasksAction<FeatureIndexBuilderJobTask, StartFeatureIndexBuilderJobAction.Request, StartFeatureIndexBuilderJobAction.Response, StartFeatureIndexBuilderJobAction.Response> {
+        TransportTasksAction<FeatureIndexBuilderJobTask, StartFeatureIndexBuilderJobAction.Request, 
+        StartFeatureIndexBuilderJobAction.Response, StartFeatureIndexBuilderJobAction.Response> {
 
     private final XPackLicenseState licenseState;
 
-@Inject
-public TransportStartFeatureIndexBuilderJobAction(Settings settings, TransportService transportService,
-                              ActionFilters actionFilters, ClusterService clusterService, XPackLicenseState licenseState) {
-super(settings, StartFeatureIndexBuilderJobAction.NAME, clusterService, transportService, actionFilters,
-    StartFeatureIndexBuilderJobAction.Request::new, StartFeatureIndexBuilderJobAction.Response::new, ThreadPool.Names.SAME);
-this.licenseState = licenseState;
-}
+    @Inject
+    public TransportStartFeatureIndexBuilderJobAction(Settings settings, TransportService transportService, ActionFilters actionFilters,
+            ClusterService clusterService, XPackLicenseState licenseState) {
+        super(settings, StartFeatureIndexBuilderJobAction.NAME, clusterService, transportService, actionFilters,
+                StartFeatureIndexBuilderJobAction.Request::new, StartFeatureIndexBuilderJobAction.Response::new, ThreadPool.Names.SAME);
+        this.licenseState = licenseState;
+    }
 
     @Override
     protected void processTasks(StartFeatureIndexBuilderJobAction.Request request, Consumer<FeatureIndexBuilderJobTask> operation) {
         FeatureIndexBuilderJobTask matchingTask = null;
-        
+
         // todo: re-factor, see rollup TransportTaskHelper
         for (Task task : taskManager.getTasks().values()) {
-            if (task instanceof FeatureIndexBuilderJobTask && ((FeatureIndexBuilderJobTask)task).getConfig().getId().equals(request.getId())) {
+            if (task instanceof FeatureIndexBuilderJobTask
+                    && ((FeatureIndexBuilderJobTask) task).getConfig().getId().equals(request.getId())) {
                 if (matchingTask != null) {
-                    throw new IllegalArgumentException("Found more than one matching task for feature index builder job [" + request.getId() + "] when " +
-                            "there should only be one.");
+                    throw new IllegalArgumentException("Found more than one matching task for feature index builder job [" + request.getId()
+                            + "] when " + "there should only be one.");
                 }
                 matchingTask = (FeatureIndexBuilderJobTask) task;
             }
@@ -69,7 +71,7 @@ this.licenseState = licenseState;
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.FIB));
             return;
         }
-         
+
         super.doExecute(task, request, listener);
     }
 

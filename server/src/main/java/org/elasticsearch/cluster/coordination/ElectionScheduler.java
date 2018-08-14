@@ -179,7 +179,7 @@ public abstract class ElectionScheduler extends AbstractComponent {
                         return;
                     }
                     logger.debug("{} starting pre-voting", ActiveScheduler.this);
-                    new ScheduledPreVoteCollector().start();
+                    new ScheduledPreVoteCollector().start(getBroadcastNodes());
                 }
 
                 @Override
@@ -211,11 +211,6 @@ public abstract class ElectionScheduler extends AbstractComponent {
         ScheduledPreVoteCollector() {
             super(ElectionScheduler.this.settings, idSupplier.incrementAndGet(), ElectionScheduler.this.getLocalPreVoteResponse(),
                 transportService);
-        }
-
-        @Override
-        protected Iterable<DiscoveryNode> getBroadcastNodes() {
-            return ElectionScheduler.this.getBroadcastNodes();
         }
 
         @Override

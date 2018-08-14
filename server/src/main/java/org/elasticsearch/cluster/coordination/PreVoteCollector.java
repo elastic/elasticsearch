@@ -58,18 +58,16 @@ public abstract class PreVoteCollector extends AbstractComponent {
         maxTermSeen = new AtomicLong(currentTerm);
     }
 
-    protected abstract Iterable<DiscoveryNode> getBroadcastNodes();
-
     protected abstract boolean isElectionQuorum(VoteCollection voteCollection);
 
     protected abstract void startElection(long maxTermSeen);
 
     protected abstract long getCurrentId();
 
-    public void start() {
+    public void start(final Iterable<DiscoveryNode> broadcastNodes) {
         logger.debug("{} starting", this);
 
-        getBroadcastNodes().forEach(n -> transportService.sendRequest(n, REQUEST_PRE_VOTE_ACTION_NAME, preVoteRequest,
+        broadcastNodes.forEach(n -> transportService.sendRequest(n, REQUEST_PRE_VOTE_ACTION_NAME, preVoteRequest,
             new TransportResponseHandler<PreVoteResponse>() {
                 @Override
                 public void handleResponse(PreVoteResponse response) {

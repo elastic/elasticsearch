@@ -87,7 +87,6 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequestBui
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoreRequestBuilder;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
@@ -647,7 +646,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * @param request the update settings request
      * @return The result future
      */
-    ActionFuture<UpdateSettingsResponse> updateSettings(UpdateSettingsRequest request);
+    ActionFuture<AcknowledgedResponse> updateSettings(UpdateSettingsRequest request);
 
     /**
      * Updates settings of one or more indices.
@@ -655,7 +654,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * @param request  the update settings request
      * @param listener A listener to be notified with the response
      */
-    void updateSettings(UpdateSettingsRequest request, ActionListener<UpdateSettingsResponse> listener);
+    void updateSettings(UpdateSettingsRequest request, ActionListener<AcknowledgedResponse> listener);
 
     /**
      * Update indices settings.

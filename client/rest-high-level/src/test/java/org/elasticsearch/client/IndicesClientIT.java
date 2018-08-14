@@ -57,7 +57,6 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
@@ -1140,7 +1139,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(dynamicSetting.getDefault(Settings.EMPTY), not(dynamicSettingValue));
         UpdateSettingsRequest dynamicSettingRequest = new UpdateSettingsRequest();
         dynamicSettingRequest.settings(Settings.builder().put(dynamicSettingKey, dynamicSettingValue).build());
-        UpdateSettingsResponse response = execute(dynamicSettingRequest, highLevelClient().indices()::putSettings,
+        AcknowledgedResponse response = execute(dynamicSettingRequest, highLevelClient().indices()::putSettings,
                 highLevelClient().indices()::putSettingsAsync);
 
         assertTrue(response.isAcknowledged());

@@ -56,7 +56,6 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
@@ -2052,7 +2051,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::put-settings-request-indicesOptions
 
         // tag::put-settings-execute
-        UpdateSettingsResponse updateSettingsResponse =
+        AcknowledgedResponse updateSettingsResponse =
                 client.indices().putSettings(request, RequestOptions.DEFAULT);
         // end::put-settings-execute
 
@@ -2062,11 +2061,11 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         assertTrue(acknowledged);
 
         // tag::put-settings-execute-listener
-        ActionListener<UpdateSettingsResponse> listener =
-                new ActionListener<UpdateSettingsResponse>() {
+        ActionListener<AcknowledgedResponse> listener =
+                new ActionListener<AcknowledgedResponse>() {
 
             @Override
-            public void onResponse(UpdateSettingsResponse updateSettingsResponse) {
+            public void onResponse(AcknowledgedResponse updateSettingsResponse) {
                 // <1>
             }
 

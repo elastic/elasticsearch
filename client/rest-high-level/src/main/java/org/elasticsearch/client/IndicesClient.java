@@ -51,7 +51,6 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
@@ -703,9 +702,9 @@ public final class IndicesClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public UpdateSettingsResponse putSettings(UpdateSettingsRequest updateSettingsRequest, RequestOptions options) throws IOException {
+    public AcknowledgedResponse putSettings(UpdateSettingsRequest updateSettingsRequest, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(updateSettingsRequest, RequestConverters::indexPutSettings, options,
-                UpdateSettingsResponse::fromXContent, emptySet());
+            AcknowledgedResponse::fromXContent, emptySet());
     }
 
     /**
@@ -717,9 +716,9 @@ public final class IndicesClient {
      * @param listener the listener to be notified upon request completion
      */
     public void putSettingsAsync(UpdateSettingsRequest updateSettingsRequest, RequestOptions options,
-                                 ActionListener<UpdateSettingsResponse> listener) {
+                                 ActionListener<AcknowledgedResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(updateSettingsRequest, RequestConverters::indexPutSettings, options,
-                UpdateSettingsResponse::fromXContent, listener, emptySet());
+            AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
     /**

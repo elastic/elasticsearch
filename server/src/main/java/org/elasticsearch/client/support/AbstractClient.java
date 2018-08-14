@@ -219,7 +219,6 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoreRequestBuilder;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresAction;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
@@ -1603,12 +1602,12 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         }
 
         @Override
-        public ActionFuture<UpdateSettingsResponse> updateSettings(final UpdateSettingsRequest request) {
+        public ActionFuture<AcknowledgedResponse> updateSettings(final UpdateSettingsRequest request) {
             return execute(UpdateSettingsAction.INSTANCE, request);
         }
 
         @Override
-        public void updateSettings(final UpdateSettingsRequest request, final ActionListener<UpdateSettingsResponse> listener) {
+        public void updateSettings(final UpdateSettingsRequest request, final ActionListener<AcknowledgedResponse> listener) {
             execute(UpdateSettingsAction.INSTANCE, request, listener);
         }
 

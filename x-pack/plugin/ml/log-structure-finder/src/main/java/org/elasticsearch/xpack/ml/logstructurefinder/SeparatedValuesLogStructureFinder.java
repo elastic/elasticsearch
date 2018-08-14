@@ -43,23 +43,23 @@ public class SeparatedValuesLogStructureFinder extends AbstractStructuredLogStru
         List<Integer> lineNumbers = parsed.v2();
 
         Tuple<Boolean, String[]> headerInfo = findHeaderFromSample(explanation, rows);
-        boolean isCsvHeaderInFile = headerInfo.v1();
-        String[] csvHeader = headerInfo.v2();
-        String[] csvHeaderWithNamedBlanks = new String[csvHeader.length];
-        for (int i = 0; i < csvHeader.length; ++i) {
-            String rawHeader = csvHeader[i].isEmpty() ? "column" + (i + 1) : csvHeader[i];
-            csvHeaderWithNamedBlanks[i] = trimFields ? rawHeader.trim() : rawHeader;
+        boolean isHeaderInFile = headerInfo.v1();
+        String[] header = headerInfo.v2();
+        String[] headerWithNamedBlanks = new String[header.length];
+        for (int i = 0; i < header.length; ++i) {
+            String rawHeader = header[i].isEmpty() ? "column" + (i + 1) : header[i];
+            headerWithNamedBlanks[i] = trimFields ? rawHeader.trim() : rawHeader;
         }
 
         List<String> sampleLines = Arrays.asList(sample.split("\n"));
         sampleMessages = new ArrayList<>();
         List<Map<String, ?>> sampleRecords = new ArrayList<>();
-        int prevMessageEndLineNumber = isCsvHeaderInFile ? lineNumbers.get(0) : -1;
-        for (int index = isCsvHeaderInFile ? 1 : 0; index < rows.size(); ++index) {
+        int prevMessageEndLineNumber = isHeaderInFile ? lineNumbers.get(0) : -1;
+        for (int index = isHeaderInFile ? 1 : 0; index < rows.size(); ++index) {
             List<String> row = rows.get(index);
             int lineNumber = lineNumbers.get(index);
             Map<String, String> sampleRecord = new LinkedHashMap<>();
-            Util.filterListToMap(sampleRecord, csvHeaderWithNamedBlanks,
+            Util.filterListToMap(sampleRecord, headerWithNamedBlanks,
                 trimFields ? row.stream().map(String::trim).collect(Collectors.toList()) : row);
             sampleRecords.add(sampleRecord);
             sampleMessages.add(
@@ -76,8 +76,8 @@ public class SeparatedValuesLogStructureFinder extends AbstractStructuredLogStru
             .setSampleStart(preamble)
             .setNumLinesAnalyzed(lineNumbers.get(lineNumbers.size() - 1))
             .setNumMessagesAnalyzed(sampleRecords.size())
-            .setHasHeaderRow(isCsvHeaderInFile)
-            .setInputFields(Arrays.stream(csvHeaderWithNamedBlanks).collect(Collectors.toList()));
+            .setHasHeaderRow(isHeaderInFile)
+            .setInputFields(Arrays.stream(headerWithNamedBlanks).collect(Collectors.toList()));
 
         if (trimFields) {
             structureBuilder.setShouldTrimFields(true);
@@ -91,7 +91,7 @@ public class SeparatedValuesLogStructureFinder extends AbstractStructuredLogStru
             // timestamp is the last column then either our assumption is wrong (and the approach will completely
             // break down) or else every record is on a single line and there's no point creating a multiline config.
             // This is why the loop excludes the last column.
-            for (String column : Arrays.asList(csvHeader).subList(0, csvHeader.length - 1)) {
+            for (String column : Arrays.asList(header).subList(0, header.length - 1)) {
                 if (timeField.v1().equals(column)) {
                     builder.append("\"?");
                     String simpleTimePattern = timeField.v2().simplePattern.pattern();
@@ -108,8 +108,8 @@ public class SeparatedValuesLogStructureFinder extends AbstractStructuredLogStru
                 }
             }
 
-            if (isCsvHeaderInFile) {
-                structureBuilder.setExcludeLinesPattern("^" + Arrays.stream(csvHeader)
+            if (isHeaderInFile) {
+                structureBuilder.setExcludeLinesPattern("^" + Arrays.stream(header)
                     .map(column -> "\"?" + column.replace("\"", "\"\"").replaceAll("([\\\\|()\\[\\]{}^$*?])", "\\\\$1") + "\"?")
                     .collect(Collectors.joining(",")));
             }
@@ -189,15 +189,15 @@ public class SeparatedValuesLogStructureFinder extends AbstractStructuredLogStru
         assert rows.isEmpty() == false;
 
         List<String> firstRow = rows.get(0);
-        boolean isCsvHeaderInFile = true;
+        boolean isHeaderInFile = true;
 
         if (rows.size() < 3) {
             explanation.add("Too little data to accurately assess whether header is in sample - guessing it is");
         } else {
-            isCsvHeaderInFile = isFirstRowUnusual(explanation, rows);
+            isHeaderInFile = isFirstRowUnusual(explanation, rows);
         }
 
-        if (isCsvHeaderInFile) {
+        if (isHeaderInFile) {
             // SuperCSV will put nulls in the header if any columns don't have names, but empty strings are better for us
             return new Tuple<>(true, firstRow.stream().map(field -> (field == null) ? "" : field).toArray(String[]::new));
         } else {

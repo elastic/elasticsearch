@@ -10,6 +10,7 @@ import org.elasticsearch.xpack.ml.logstructurefinder.TimestampFormatFinder.Times
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -34,30 +35,31 @@ public abstract class AbstractLogStructureFinder {
      *                    append to it.
      * @param fieldName Name of the field for which mappings are to be guessed.
      * @param fieldValues Values of the field for which mappings are to be guessed.  The guessed
-     *                    mapping will be compatible with all the provided values.
+     *                    mapping will be compatible with all the provided values.  Must not be
+     *                    empty.
      * @return The sub-section of the index mappings most appropriate for the field,
      *         for example <code>{ "type" : "keyword" }</code>.
      */
     protected static Map<String, String> guessScalarMapping(List<String> explanation, String fieldName, Collection<String> fieldValues) {
 
+        assert fieldValues.isEmpty() == false;
+
         if (fieldValues.stream().allMatch(value -> "true".equals(value) || "false".equals(value))) {
             return Collections.singletonMap(MAPPING_TYPE_SETTING, "boolean");
         }
 
-        TimestampMatch singleMatch = null;
-        for (String fieldValue : fieldValues) {
-            if (singleMatch == null) {
-                singleMatch = TimestampFormatFinder.findFirstFullMatch(fieldValue);
-                if (singleMatch == null) {
-                    break;
-                }
-            } else if (singleMatch.equals(TimestampFormatFinder.findFirstFullMatch(fieldValue, singleMatch.candidateIndex)) == false) {
-                singleMatch = null;
-                break;
+        // This checks if a date mapping would be appropriate, and, if so, finds the correct format
+        Iterator<String> iter = fieldValues.iterator();
+        TimestampMatch timestampMatch = TimestampFormatFinder.findFirstFullMatch(iter.next());
+        while (timestampMatch != null && iter.hasNext()) {
+            // To be mapped as type date all the values must match the same date format - it is
+            // not acceptable for all values to be dates, but with different formats
+            if (timestampMatch.equals(TimestampFormatFinder.findFirstFullMatch(iter.next(), timestampMatch.candidateIndex)) == false) {
+                timestampMatch = null;
             }
         }
-        if (singleMatch != null) {
-            return singleMatch.getEsDateMappingTypeWithFormat();
+        if (timestampMatch != null) {
+            return timestampMatch.getEsDateMappingTypeWithFormat();
         }
 
         if (fieldValues.stream().allMatch(NUMBER_GROK::match)) {

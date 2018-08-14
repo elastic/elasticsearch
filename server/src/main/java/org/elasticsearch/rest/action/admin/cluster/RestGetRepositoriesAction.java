@@ -51,7 +51,8 @@ public class RestGetRepositoriesAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "get_repositories_action";
+        // FIXIME: the typo, just modifying the response will bring a breaking change to the REST Usage API, see also PR #32792
+        return "get_respositories_action";
     }
 
     @Override

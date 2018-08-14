@@ -18,9 +18,13 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -29,15 +33,27 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.index.query.WildcardQueryBuilder;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.job.persistence.ExpandedIdsMatcher;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -137,7 +153,7 @@ public class DatafeedConfigProvider extends AbstractComponent {
      *
      * @param datafeedId The Id of the datafeed to update
      * @param update The update
-     * @param headers
+     * @param headers Datafeed headers applied with the update
      * @param updatedConfigListener Updated datafeed config listener
      */
     public void updateDatefeedConfig(String datafeedId, DatafeedUpdate update, Map<String, String> headers,
@@ -200,8 +216,154 @@ public class DatafeedConfigProvider extends AbstractComponent {
         });
     }
 
-    private void parseLenientlyFromSource(BytesReference source, ActionListener<DatafeedConfig.Builder> datafeedConfigListener)  {
+    /**
+     * Expands an expression into the set of matching names. {@code expresssion}
+     * may be a wildcard, a datafeed ID or a list of those.
+     * If {@code expression} == 'ALL', '*' or the empty string then all
+     * datafeed IDs are returned.
+     *
+     * For example, given a set of names ["foo-1", "foo-2", "bar-1", bar-2"],
+     * expressions resolve follows:
+     * <ul>
+     *     <li>"foo-1" : ["foo-1"]</li>
+     *     <li>"bar-1" : ["bar-1"]</li>
+     *     <li>"foo-1,foo-2" : ["foo-1", "foo-2"]</li>
+     *     <li>"foo-*" : ["foo-1", "foo-2"]</li>
+     *     <li>"*-1" : ["bar-1", "foo-1"]</li>
+     *     <li>"*" : ["bar-1", "bar-2", "foo-1", "foo-2"]</li>
+     *     <li>"_all" : ["bar-1", "bar-2", "foo-1", "foo-2"]</li>
+     * </ul>
+     *
+     * @param expression the expression to resolve
+     * @param allowNoDatafeeds if {@code false}, an error is thrown when no name matches the {@code expression}.
+     *                     This only applies to wild card expressions, if {@code expression} is not a
+     *                     wildcard then setting this true will not suppress the exception
+     * @param listener The expanded datafeed IDs listener
+     */
+    public void expandDatafeedIds(String expression, boolean allowNoDatafeeds, ActionListener<Set<String>> listener) {
+        String [] tokens = ExpandedIdsMatcher.tokenizeExpression(expression);
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildQuery(tokens));
+        sourceBuilder.sort(DatafeedConfig.ID.getPreferredName());
+        String [] includes = new String[] {DatafeedConfig.ID.getPreferredName()};
+        sourceBuilder.fetchSource(includes, null);
 
+        SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                .setSource(sourceBuilder).request();
+
+        ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, allowNoDatafeeds);
+
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
+                ActionListener.<SearchResponse>wrap(
+                        response -> {
+                            Set<String> datafeedIds = new HashSet<>();
+                            SearchHit[] hits = response.getHits().getHits();
+                            for (SearchHit hit : hits) {
+                                datafeedIds.add((String)hit.getSourceAsMap().get(DatafeedConfig.ID.getPreferredName()));
+                            }
+
+                            requiredMatches.filterMatchedIds(datafeedIds);
+                            if (requiredMatches.hasUnmatchedIds()) {
+                                // some required datafeeds were not found
+                                listener.onFailure(ExceptionsHelper.missingDatafeedException(requiredMatches.unmatchedIdsString()));
+                                return;
+                            }
+
+                            listener.onResponse(datafeedIds);
+                        },
+                        listener::onFailure)
+                , client::search);
+
+    }
+
+    /**
+     * The same logic as {@link #expandDatafeedIds(String, boolean, ActionListener)} but
+     * the full datafeed configuration is returned.
+     *
+     * See {@link #expandDatafeedIds(String, boolean, ActionListener)}
+     *
+     * @param expression the expression to resolve
+     * @param allowNoDatafeeds if {@code false}, an error is thrown when no name matches the {@code expression}.
+     *                     This only applies to wild card expressions, if {@code expression} is not a
+     *                     wildcard then setting this true will not suppress the exception
+     * @param listener The expanded datafeed config listener
+     */
+    // NORELEASE datafeed configs should be paged or have a mechanism to return all jobs if there are many of them
+    public void expandDatafeedConfigs(String expression, boolean allowNoDatafeeds, ActionListener<List<DatafeedConfig.Builder>> listener) {
+        String [] tokens = ExpandedIdsMatcher.tokenizeExpression(expression);
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildQuery(tokens));
+        sourceBuilder.sort(DatafeedConfig.ID.getPreferredName());
+
+        SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                .setSource(sourceBuilder).request();
+
+        ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, allowNoDatafeeds);
+
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
+                ActionListener.<SearchResponse>wrap(
+                        response -> {
+                            List<DatafeedConfig.Builder> datafeeds = new ArrayList<>();
+                            Set<String> datafeedIds = new HashSet<>();
+                            SearchHit[] hits = response.getHits().getHits();
+                            for (SearchHit hit : hits) {
+                                try {
+                                    BytesReference source = hit.getSourceRef();
+                                    DatafeedConfig.Builder datafeed = parseLenientlyFromSource(source);
+                                    datafeeds.add(datafeed);
+                                    datafeedIds.add(datafeed.getId());
+                                } catch (IOException e) {
+                                    // TODO A better way to handle this rather than just ignoring the error?
+                                    logger.error("Error parsing datafeed configuration [" + hit.getId() + "]", e);
+                                }
+                            }
+
+                            requiredMatches.filterMatchedIds(datafeedIds);
+                            if (requiredMatches.hasUnmatchedIds()) {
+                                // some required datafeeds were not found
+                                listener.onFailure(ExceptionsHelper.missingDatafeedException(requiredMatches.unmatchedIdsString()));
+                                return;
+                            }
+
+                            listener.onResponse(datafeeds);
+                        },
+                        listener::onFailure)
+                , client::search);
+
+    }
+
+    private QueryBuilder buildQuery(String [] tokens) {
+        QueryBuilder jobQuery = new TermQueryBuilder(DatafeedConfig.CONFIG_TYPE.getPreferredName(), DatafeedConfig.TYPE);
+        if (ExpandedIdsMatcher.isWildcardAll(tokens)) {
+            // match all
+            return jobQuery;
+        }
+
+        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+        boolQueryBuilder.filter(jobQuery);
+        BoolQueryBuilder shouldQueries = new BoolQueryBuilder();
+
+        List<String> terms = new ArrayList<>();
+        for (String token : tokens) {
+            if (Regex.isSimpleMatchPattern(token)) {
+                shouldQueries.should(new WildcardQueryBuilder(DatafeedConfig.ID.getPreferredName(), token));
+            } else {
+                terms.add(token);
+            }
+        }
+
+        if (terms.isEmpty() == false) {
+            shouldQueries.should(new TermsQueryBuilder(DatafeedConfig.ID.getPreferredName(), terms));
+        }
+
+        if (shouldQueries.should().isEmpty() == false) {
+            boolQueryBuilder.filter(shouldQueries);
+        }
+
+        return boolQueryBuilder;
+    }
+
+    private void parseLenientlyFromSource(BytesReference source, ActionListener<DatafeedConfig.Builder> datafeedConfigListener)  {
         try (InputStream stream = source.streamInput();
              XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                      .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)) {

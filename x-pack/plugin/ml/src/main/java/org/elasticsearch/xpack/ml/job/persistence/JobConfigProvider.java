@@ -22,7 +22,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.regex.Regex;
@@ -51,13 +50,9 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -67,8 +62,6 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  * anomaly detector job configuration document
  */
 public class JobConfigProvider extends AbstractComponent {
-
-    public static String ALL = "_all";
 
     private final Client client;
 
@@ -189,7 +182,8 @@ public class JobConfigProvider extends AbstractComponent {
                 try {
                      jobBuilder = parseJobLenientlyFromSource(source);
                 } catch (IOException e) {
-                    updatedJobListener.onFailure(new ElasticsearchParseException("failed to parse " + getResponse.getType(), e));
+                    updatedJobListener.onFailure(
+                            new ElasticsearchParseException("Failed to parse job configuration [" + jobId + "]", e));
                     return;
                 }
 
@@ -222,8 +216,6 @@ public class JobConfigProvider extends AbstractComponent {
                     updatedJobListener.onFailure(
                             new ElasticsearchParseException("Failed to serialise job with id [" + jobId + "]", e));
                 }
-
-
             }
 
             @Override
@@ -259,7 +251,7 @@ public class JobConfigProvider extends AbstractComponent {
      * @param listener The expanded job IDs listener
      */
     public void expandJobsIds(String expression, boolean allowNoJobs, ActionListener<Set<String>> listener) {
-        String [] tokens = tokenizeExpression(expression);
+        String [] tokens = ExpandedIdsMatcher.tokenizeExpression(expression);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildQuery(tokens));
         sourceBuilder.sort(Job.ID.getPreferredName());
         String [] includes = new String[] {Job.ID.getPreferredName(), Job.GROUPS.getPreferredName()};
@@ -269,7 +261,7 @@ public class JobConfigProvider extends AbstractComponent {
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setSource(sourceBuilder).request();
 
-        LinkedList<IdMatcher> requiredMatches = requiredMatches(tokens, allowNoJobs);
+        ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, allowNoJobs);
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
                 ActionListener.<SearchResponse>wrap(
@@ -286,11 +278,10 @@ public class JobConfigProvider extends AbstractComponent {
                             }
 
                             groupsIds.addAll(jobIds);
-                            filterMatchedIds(requiredMatches, groupsIds);
-                            if (requiredMatches.isEmpty() == false) {
+                            requiredMatches.filterMatchedIds(groupsIds);
+                            if (requiredMatches.hasUnmatchedIds()) {
                                 // some required jobs were not found
-                                String missing = requiredMatches.stream().map(IdMatcher::getId).collect(Collectors.joining(","));
-                                listener.onFailure(ExceptionsHelper.missingJobException(missing));
+                                listener.onFailure(ExceptionsHelper.missingJobException(requiredMatches.unmatchedIdsString()));
                                 return;
                             }
 
@@ -315,7 +306,7 @@ public class JobConfigProvider extends AbstractComponent {
      */
     // NORELEASE jobs should be paged or have a mechanism to return all jobs if there are many of them
     public void expandJobs(String expression, boolean allowNoJobs, ActionListener<List<Job.Builder>> listener) {
-        String [] tokens = tokenizeExpression(expression);
+        String [] tokens = ExpandedIdsMatcher.tokenizeExpression(expression);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildQuery(tokens));
         sourceBuilder.sort(Job.ID.getPreferredName());
 
@@ -323,7 +314,7 @@ public class JobConfigProvider extends AbstractComponent {
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setSource(sourceBuilder).request();
 
-        LinkedList<IdMatcher> requiredMatches = requiredMatches(tokens, allowNoJobs);
+        ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, allowNoJobs);
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
                 ActionListener.<SearchResponse>wrap(
@@ -345,11 +336,10 @@ public class JobConfigProvider extends AbstractComponent {
                                 }
                             }
 
-                            filterMatchedIds(requiredMatches, jobAndGroupIds);
-                            if (requiredMatches.isEmpty() == false) {
+                            requiredMatches.filterMatchedIds(jobAndGroupIds);
+                            if (requiredMatches.hasUnmatchedIds()) {
                                 // some required jobs were not found
-                                String missing = requiredMatches.stream().map(IdMatcher::getId).collect(Collectors.joining(","));
-                                listener.onFailure(ExceptionsHelper.missingJobException(missing));
+                                listener.onFailure(ExceptionsHelper.missingJobException(requiredMatches.unmatchedIdsString()));
                                 return;
                             }
 
@@ -380,7 +370,7 @@ public class JobConfigProvider extends AbstractComponent {
 
     private QueryBuilder buildQuery(String [] tokens) {
         QueryBuilder jobQuery = new TermQueryBuilder(Job.JOB_TYPE.getPreferredName(), Job.ANOMALY_DETECTOR_JOB_TYPE);
-        if (isWildcardAll(tokens)) {
+        if (ExpandedIdsMatcher.isWildcardAll(tokens)) {
             // match all
             return jobQuery;
         }
@@ -409,133 +399,5 @@ public class JobConfigProvider extends AbstractComponent {
         }
 
         return boolQueryBuilder;
-    }
-
-    /**
-     * Does the {@code tokens} array resolves to a wildcard all expression.
-     * True if {@code tokens} is empty or if it contains a single element
-     * equal to {@link #ALL}, '*' or an empty string
-     *
-     * @param tokens Expression tokens
-     * @return True if tokens resolves to a wildcard all expression
-     */
-    static boolean isWildcardAll(String [] tokens) {
-        if (tokens.length == 0) {
-            return true;
-        }
-        return tokens.length == 1 && (ALL.equals(tokens[0]) || Regex.isMatchAllPattern(tokens[0]) || tokens[0].isEmpty());
-    }
-
-    static String [] tokenizeExpression(String expression) {
-        return Strings.tokenizeToStringArray(expression, ",");
-    }
-
-    /**
-     * Generate the list of required matches from the expressions in {@code tokens}
-     *
-     * @param tokens List of expressions that may be wildcards or full Ids
-     * @param allowNoJobForWildcards If true then it is not required for wildcard
-     *                               expressions to match an Id meaning they are
-     *                               not returned in the list of required matches
-     * @return A list of required Id matchers
-     */
-    static LinkedList<IdMatcher> requiredMatches(String [] tokens, boolean allowNoJobForWildcards) {
-        LinkedList<IdMatcher> matchers = new LinkedList<>();
-
-        if (isWildcardAll(tokens)) {
-            // if allowNoJobForWildcards == true then any number
-            // of jobs with any id is ok. Therefore no matches
-            // are required
-
-            if (allowNoJobForWildcards == false) {
-                // require something, anything to match
-                matchers.add(new WildcardMatcher("*"));
-            }
-            return matchers;
-        }
-
-        if (allowNoJobForWildcards) {
-            // matches are not required for wildcards but
-            // specific job Ids are
-            for (String token : tokens) {
-                if (Regex.isSimpleMatchPattern(token) == false) {
-                    matchers.add(new EqualsIdMatcher(token));
-                }
-            }
-        } else {
-            // Matches are required for wildcards
-            for (String token : tokens) {
-                if (Regex.isSimpleMatchPattern(token)) {
-                    matchers.add(new WildcardMatcher(token));
-                } else {
-                    matchers.add(new EqualsIdMatcher(token));
-                }
-            }
-        }
-
-        return matchers;
-    }
-
-    /**
-     * For each given {@code requiredMatchers} check there is an element
-     * present in {@code ids} that matches. Once a match is made the
-     * matcher is popped from {@code requiredMatchers}.
-     *
-     * If all matchers are satisfied the list {@code requiredMatchers} will
-     * be empty after the call otherwise only the unmatched remain.
-     *
-     * @param requiredMatchers This is modified by the function: all matched matchers
-     *                         are removed from the list. At the end of the call only
-     *                         the unmatched ones are in this list
-     * @param ids Ids required to be matched
-     */
-    static void filterMatchedIds(LinkedList<IdMatcher> requiredMatchers, Collection<String> ids) {
-        for (String id: ids) {
-            Iterator<IdMatcher> itr = requiredMatchers.iterator();
-            if (itr.hasNext() == false) {
-                break;
-            }
-            while (itr.hasNext()) {
-                if (itr.next().matches(id)) {
-                    itr.remove();
-                }
-            }
-        }
-    }
-
-    abstract static class IdMatcher {
-        protected final String id;
-
-        IdMatcher(String id) {
-            this.id = id;
-        }
-
-        public String getId() {
-            return id;
-        }
-
-        public abstract boolean matches(String jobId);
-    }
-
-    static class EqualsIdMatcher extends IdMatcher {
-        EqualsIdMatcher(String id) {
-            super(id);
-        }
-
-        @Override
-        public boolean matches(String id) {
-            return this.id.equals(id);
-        }
-    }
-
-    static class WildcardMatcher extends IdMatcher {
-        WildcardMatcher(String id) {
-            super(id);
-        }
-
-        @Override
-        public boolean matches(String id) {
-            return Regex.simpleMatch(this.id, id);
-        }
     }
 }

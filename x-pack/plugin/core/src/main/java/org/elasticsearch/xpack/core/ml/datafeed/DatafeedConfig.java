@@ -71,6 +71,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
     public static final String DOC_COUNT = "doc_count";
 
     public static final ParseField ID = new ParseField("datafeed_id");
+    public static final ParseField CONFIG_TYPE = new ParseField("config_type");
     public static final ParseField QUERY_DELAY = new ParseField("query_delay");
     public static final ParseField FREQUENCY = new ParseField("frequency");
     public static final ParseField INDEXES = new ParseField("indexes");
@@ -93,6 +94,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         ObjectParser<Builder, Void> parser = new ObjectParser<>("datafeed_config", ignoreUnknownFields, Builder::new);
 
         parser.declareString(Builder::setId, ID);
+        parser.declareString((c, s) -> {}, CONFIG_TYPE);
         parser.declareString(Builder::setJobId, Job.ID);
         parser.declareStringArray(Builder::setIndices, INDEXES);
         parser.declareStringArray(Builder::setIndices, INDICES);
@@ -220,6 +222,10 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         return jobId;
     }
 
+    public String getConfigType() {
+        return TYPE;
+    }
+
     public TimeValue getQueryDelay() {
         return queryDelay;
     }
@@ -314,14 +320,14 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        doXContentBody(builder, params);
-        builder.endObject();
-        return builder;
-    }
-
-    public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(ID.getPreferredName(), id);
         builder.field(Job.ID.getPreferredName(), jobId);
+        // Config type field is added for the migration to index documents
+        // and isn't needed in cluster state configs. Not writing the field
+        // protects against BWC issues.
+        if (params.paramAsBoolean(ToXContentParams.FOR_CLUSTER_STATE, false) == false) {
+            builder.field(CONFIG_TYPE.getPreferredName(), TYPE);
+        }
         builder.field(QUERY_DELAY.getPreferredName(), queryDelay.getStringRep());
         if (frequency != null) {
             builder.field(FREQUENCY.getPreferredName(), frequency.getStringRep());
@@ -346,6 +352,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         if (headers.isEmpty() == false && params.paramAsBoolean(ToXContentParams.FOR_CLUSTER_STATE, false) == true) {
             builder.field(HEADERS.getPreferredName(), headers);
         }
+        builder.endObject();
         return builder;
     }
 
@@ -483,6 +490,10 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
 
         public void setId(String datafeedId) {
             id = ExceptionsHelper.requireNonNull(datafeedId, ID.getPreferredName());
+        }
+
+        public String getId() {
+            return id;
         }
 
         public void setJobId(String jobId) {

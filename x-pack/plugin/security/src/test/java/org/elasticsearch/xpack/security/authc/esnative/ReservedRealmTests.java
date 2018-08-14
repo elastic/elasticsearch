@@ -83,7 +83,7 @@ public class ReservedRealmTests extends ESTestCase {
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new ReservedRealm(mock(Environment.class),
             invalidSettings, usersStore, new AnonymousUser(Settings.EMPTY), securityIndex, threadPool));
         assertThat(exception.getMessage(), containsString(invalidAlgoId));
-        assertThat(exception.getMessage(), containsString("Only pbkdf2 or bcrypt family algorithms can be used for password hashing"));
+        assertThat(exception.getMessage(), containsString("Invalid algorithm"));
     }
 
     public void testReservedUserEmptyPasswordAuthenticationFails() throws Throwable {

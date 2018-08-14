@@ -95,7 +95,6 @@ import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptReque
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequestBuilder;
-import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptResponse;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequestBuilder;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
@@ -688,12 +687,12 @@ public interface ClusterAdminClient extends ElasticsearchClient {
     /**
      * Store a script in the cluster state
      */
-    void putStoredScript(PutStoredScriptRequest request, ActionListener<PutStoredScriptResponse> listener);
+    void putStoredScript(PutStoredScriptRequest request, ActionListener<AcknowledgedResponse> listener);
 
     /**
      * Store a script in the cluster state
      */
-    ActionFuture<PutStoredScriptResponse> putStoredScript(PutStoredScriptRequest request);
+    ActionFuture<AcknowledgedResponse> putStoredScript(PutStoredScriptRequest request);
 
     /**
      * Get a script from the cluster state

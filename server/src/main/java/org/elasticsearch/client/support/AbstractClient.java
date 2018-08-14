@@ -125,7 +125,6 @@ import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRespo
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptAction;
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequestBuilder;
-import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptResponse;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksAction;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequestBuilder;
@@ -1188,13 +1187,13 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         }
 
         @Override
-        public void putStoredScript(final PutStoredScriptRequest request, ActionListener<PutStoredScriptResponse> listener){
+        public void putStoredScript(final PutStoredScriptRequest request, ActionListener<AcknowledgedResponse> listener){
             execute(PutStoredScriptAction.INSTANCE, request, listener);
 
         }
 
         @Override
-        public ActionFuture<PutStoredScriptResponse> putStoredScript(final PutStoredScriptRequest request){
+        public ActionFuture<AcknowledgedResponse> putStoredScript(final PutStoredScriptRequest request){
             return execute(PutStoredScriptAction.INSTANCE, request);
         }
 

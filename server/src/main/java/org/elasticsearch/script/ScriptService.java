@@ -24,7 +24,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
-import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -417,7 +416,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     }
 
     public void putStoredScript(ClusterService clusterService, PutStoredScriptRequest request,
-                                ActionListener<PutStoredScriptResponse> listener) {
+                                ActionListener<AcknowledgedResponse> listener) {
         int max = SCRIPT_MAX_SIZE_IN_BYTES.get(settings);
 
         if (request.content().length() > max) {
@@ -454,11 +453,11 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         }
 
         clusterService.submitStateUpdateTask("put-script-" + request.id(),
-            new AckedClusterStateUpdateTask<PutStoredScriptResponse>(request, listener) {
+            new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, listener) {
 
             @Override
-            protected PutStoredScriptResponse newResponse(boolean acknowledged) {
-                return new PutStoredScriptResponse(acknowledged);
+            protected AcknowledgedResponse newResponse(boolean acknowledged) {
+                return new AcknowledgedResponse(acknowledged);
             }
 
             @Override

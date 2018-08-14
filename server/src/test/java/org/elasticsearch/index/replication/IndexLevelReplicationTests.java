@@ -69,6 +69,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.elasticsearch.index.translog.SnapshotMatchers.containsOperationsInAnyOrder;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
@@ -265,7 +266,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                     barrier.await();
                     indexOnReplica(replicationRequest, shards, replica2, newReplica1Term);
                 } catch (IllegalStateException ise) {
-                    assertThat(ise.getMessage(), containsString("is too old"));
+                    assertThat(ise.getMessage(), either(containsString("is too old")).or(containsString("cannot be a replication target")));
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
@@ -307,7 +308,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                     indexOnReplica(replicationRequest, shards, replica, primaryPrimaryTerm);
                     successFullyIndexed.set(true);
                 } catch (IllegalStateException ise) {
-                    assertThat(ise.getMessage(), containsString("is too old"));
+                    assertThat(ise.getMessage(), either(containsString("is too old")).or(containsString("cannot be a replication target")));
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }

@@ -180,7 +180,7 @@ public class BucketSortPipelineAggregator extends PipelineAggregator {
     private static class TopNPriorityQueue extends PriorityQueue<ComparableBucket> {
 
         private TopNPriorityQueue(int n) {
-            super(n, false);
+            super(n);
         }
 
         @Override

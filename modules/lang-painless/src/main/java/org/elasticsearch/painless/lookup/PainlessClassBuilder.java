@@ -35,7 +35,7 @@ final class PainlessClassBuilder {
     final Map<String, MethodHandle> getterMethodHandles;
     final Map<String, MethodHandle> setterMethodHandles;
 
-    PainlessMethod functionalMethod;
+    PainlessMethod functionalInterfaceMethod;
 
     PainlessClassBuilder() {
         constructors = new HashMap<>();
@@ -49,11 +49,11 @@ final class PainlessClassBuilder {
         getterMethodHandles = new HashMap<>();
         setterMethodHandles = new HashMap<>();
 
-        functionalMethod = null;
+        functionalInterfaceMethod = null;
     }
 
     PainlessClass build() {
         return new PainlessClass(constructors, staticMethods, methods, staticFields, fields,
-                getterMethodHandles, setterMethodHandles, functionalMethod);
+                getterMethodHandles, setterMethodHandles, functionalInterfaceMethod);
     }
 }

@@ -201,8 +201,10 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         } else if (seenSequenceNumbers.containsKey(seqNo)) {
             final Tuple<BytesReference, Exception> previous = seenSequenceNumbers.get(seqNo);
             if (previous.v1().equals(data) == false) {
-                Translog.Operation newOp = Translog.readOperation(new BufferedChecksumStreamInput(data.streamInput()));
-                Translog.Operation prvOp = Translog.readOperation(new BufferedChecksumStreamInput(previous.v1().streamInput()));
+                Translog.Operation newOp = Translog.readOperation(
+                        new BufferedChecksumStreamInput(data.streamInput(), "assertion"));
+                Translog.Operation prvOp = Translog.readOperation(
+                        new BufferedChecksumStreamInput(previous.v1().streamInput(), "assertion"));
                 // TODO: We haven't had timestamp for Index operations in Lucene yet, we need to loosen this check without timestamp.
                 // We don't store versionType in Lucene index, we need to exclude it from this check
                 final boolean sameOp;
@@ -239,7 +241,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             .forEach(e -> {
                 final Translog.Operation op;
                 try {
-                    op = Translog.readOperation(new BufferedChecksumStreamInput(e.getValue().v1().streamInput()));
+                    op = Translog.readOperation(
+                            new BufferedChecksumStreamInput(e.getValue().v1().streamInput(), "assertion"));
                 } catch (IOException ex) {
                     throw new RuntimeException(ex);
                 }

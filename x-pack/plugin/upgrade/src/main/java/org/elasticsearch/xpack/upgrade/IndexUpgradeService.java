@@ -16,8 +16,8 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.protocol.xpack.migration.UpgradeActionRequired;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.xpack.core.upgrade.UpgradeActionRequired;
 
 import java.util.HashMap;
 import java.util.List;

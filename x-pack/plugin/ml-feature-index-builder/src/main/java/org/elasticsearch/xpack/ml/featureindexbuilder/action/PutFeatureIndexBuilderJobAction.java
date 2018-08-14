@@ -48,9 +48,8 @@ public class PutFeatureIndexBuilderJobAction extends Action<PutFeatureIndexBuild
 
         }
 
-        public static Request parseRequest(String id, XContentParser parser) {
-            FeatureIndexBuilderJobConfig.Builder config = FeatureIndexBuilderJobConfig.Builder.fromXContent(id, parser);
-            return new Request(config.build());
+        public static Request fromXContent(final XContentParser parser, final String id) throws IOException {
+            return new Request(FeatureIndexBuilderJobConfig.fromXContent(parser, id));
         }
 
         @Override
@@ -107,7 +106,7 @@ public class PutFeatureIndexBuilderJobAction extends Action<PutFeatureIndexBuild
             super(client, action, new Request());
         }
     }
-    
+
     public static class Response extends AcknowledgedResponse {
         public Response() {
             super();

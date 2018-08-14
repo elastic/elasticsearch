@@ -14,26 +14,26 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.XPackPlugin;
+
 import java.io.IOException;
 import java.util.Objects;
 
 public class FeatureIndexBuilderJob implements XPackPlugin.XPackPersistentTaskParams {
 
     public static final String NAME = "xpack/feature_index_builder/job";
-    
+
     private FeatureIndexBuilderJobConfig config;
-    
+
     private static final ParseField CONFIG = new ParseField("config");
-    
-    @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<FeatureIndexBuilderJob, Void> PARSER
-            = new ConstructingObjectParser<>(NAME, a -> new FeatureIndexBuilderJob((FeatureIndexBuilderJobConfig) a[0]));
+
+    public static final ConstructingObjectParser<FeatureIndexBuilderJob, Void> PARSER = new ConstructingObjectParser<>(NAME,
+            a -> new FeatureIndexBuilderJob((FeatureIndexBuilderJobConfig) a[0]));
 
     static {
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> FeatureIndexBuilderJobConfig.PARSER.apply(p,c).build(), CONFIG);
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> FeatureIndexBuilderJobConfig.fromXContent(p, null),
+                CONFIG);
     }
 
-    
     public FeatureIndexBuilderJob(FeatureIndexBuilderJobConfig config) {
         this.config = Objects.requireNonNull(config);
     }
@@ -41,7 +41,7 @@ public class FeatureIndexBuilderJob implements XPackPlugin.XPackPersistentTaskPa
     public FeatureIndexBuilderJob(StreamInput in) throws IOException {
         this.config = new FeatureIndexBuilderJobConfig(in);
     }
-    
+
     @Override
     public String getWriteableName() {
         return NAME;
@@ -68,11 +68,11 @@ public class FeatureIndexBuilderJob implements XPackPlugin.XPackPersistentTaskPa
     public FeatureIndexBuilderJobConfig getConfig() {
         return config;
     }
-    
+
     public static FeatureIndexBuilderJob fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
-    
+
     @Override
     public boolean equals(Object other) {
         if (this == other) {
@@ -87,7 +87,7 @@ public class FeatureIndexBuilderJob implements XPackPlugin.XPackPersistentTaskPa
 
         return Objects.equals(this.config, that.config);
     }
-    
+
     @Override
     public int hashCode() {
         return Objects.hash(config);

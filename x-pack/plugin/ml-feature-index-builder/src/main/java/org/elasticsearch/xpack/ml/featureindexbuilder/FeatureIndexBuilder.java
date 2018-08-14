@@ -30,8 +30,6 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.core.rollup.RollupField;
-import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.ml.featureindexbuilder.action.PutFeatureIndexBuilderJobAction;
 import org.elasticsearch.xpack.ml.featureindexbuilder.action.StartFeatureIndexBuilderJobAction;
@@ -58,7 +56,7 @@ public class FeatureIndexBuilder extends Plugin implements ActionPlugin, Persist
 
     public static final String NAME = "feature_index_builder";
     public static final String BASE_PATH = "/_xpack/feature_index_builder/";
-    public static final String TASK_THREAD_POOL_NAME = "feature_index_builder_indexing";
+    public static final String TASK_THREAD_POOL_NAME = "ml_feature_index_builder_indexing";
 
     // list of headers that will be stored when a job is created
     public static final Set<String> HEADER_FILTERS = new HashSet<>(

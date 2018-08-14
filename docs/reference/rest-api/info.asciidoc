@@ -62,6 +62,11 @@ Example response:
       "status" : "active"
    },
    "features" : {
+      "fib" : {
+          "description" : "Time series feature index creation",
+          "available" : false,
+          "enabled" : true
+      },
       "graph" : {
          "description" : "Graph Data Exploration for the Elastic Stack",
          "available" : false,

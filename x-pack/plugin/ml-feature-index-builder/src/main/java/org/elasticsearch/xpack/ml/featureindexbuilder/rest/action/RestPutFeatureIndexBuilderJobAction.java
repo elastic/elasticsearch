@@ -37,7 +37,7 @@ public class RestPutFeatureIndexBuilderJobAction extends BaseRestHandler {
         String id = restRequest.param(ID.getPreferredName());
         XContentParser parser = restRequest.contentParser();
 
-        PutFeatureIndexBuilderJobAction.Request request = PutFeatureIndexBuilderJobAction.Request.parseRequest(id, parser);
+        PutFeatureIndexBuilderJobAction.Request request = PutFeatureIndexBuilderJobAction.Request.fromXContent(parser, id);
 
         return channel -> client.execute(PutFeatureIndexBuilderJobAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

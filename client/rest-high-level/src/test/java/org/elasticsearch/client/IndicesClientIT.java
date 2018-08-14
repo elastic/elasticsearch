@@ -37,7 +37,6 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
@@ -496,7 +495,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             createIndex(indexName, Settings.EMPTY);
 
             DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(indexName);
-            DeleteIndexResponse deleteIndexResponse =
+            AcknowledgedResponse deleteIndexResponse =
                     execute(deleteIndexRequest, highLevelClient().indices()::delete, highLevelClient().indices()::deleteAsync);
             assertTrue(deleteIndexResponse.isAcknowledged());
 

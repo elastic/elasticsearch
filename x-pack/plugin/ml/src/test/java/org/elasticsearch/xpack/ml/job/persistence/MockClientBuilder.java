@@ -16,7 +16,6 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequestBuilder;
@@ -137,7 +136,7 @@ public class MockClientBuilder {
     @SuppressWarnings({ "unchecked" })
     public MockClientBuilder addIndicesDeleteResponse(String index, boolean exists, boolean exception,
             ActionListener<AcknowledgedResponse> actionListener) throws InterruptedException, ExecutionException, IOException {
-        DeleteIndexResponse response = DeleteIndexAction.INSTANCE.newResponse();
+        AcknowledgedResponse response = DeleteIndexAction.INSTANCE.newResponse();
         StreamInput si = mock(StreamInput.class);
         // this looks complicated but Mockito can't mock the final method
         // DeleteIndexResponse.isAcknowledged() and the only way to create

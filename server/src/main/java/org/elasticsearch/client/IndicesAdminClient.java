@@ -42,7 +42,6 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequestBuilder;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
@@ -279,7 +278,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * @return The result future
      * @see org.elasticsearch.client.Requests#deleteIndexRequest(String)
      */
-    ActionFuture<DeleteIndexResponse> delete(DeleteIndexRequest request);
+    ActionFuture<AcknowledgedResponse> delete(DeleteIndexRequest request);
 
     /**
      * Deletes an index based on the index name.
@@ -288,7 +287,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * @param listener A listener to be notified with a result
      * @see org.elasticsearch.client.Requests#deleteIndexRequest(String)
      */
-    void delete(DeleteIndexRequest request, ActionListener<DeleteIndexResponse> listener);
+    void delete(DeleteIndexRequest request, ActionListener<AcknowledgedResponse> listener);
 
     /**
      * Deletes an index based on the index name.

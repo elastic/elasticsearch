@@ -36,7 +36,6 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
@@ -219,7 +218,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::delete-index-request-indicesOptions
 
             // tag::delete-index-execute
-            DeleteIndexResponse deleteIndexResponse = client.indices().delete(request, RequestOptions.DEFAULT);
+            AcknowledgedResponse deleteIndexResponse = client.indices().delete(request, RequestOptions.DEFAULT);
             // end::delete-index-execute
 
             // tag::delete-index-response
@@ -254,10 +253,10 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             DeleteIndexRequest request = new DeleteIndexRequest("posts");
 
             // tag::delete-index-execute-listener
-            ActionListener<DeleteIndexResponse> listener =
-                    new ActionListener<DeleteIndexResponse>() {
+            ActionListener<AcknowledgedResponse> listener =
+                    new ActionListener<AcknowledgedResponse>() {
                 @Override
-                public void onResponse(DeleteIndexResponse deleteIndexResponse) {
+                public void onResponse(AcknowledgedResponse deleteIndexResponse) {
                     // <1>
                 }
 

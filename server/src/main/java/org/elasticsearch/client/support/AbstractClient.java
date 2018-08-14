@@ -160,7 +160,6 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsAction;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequestBuilder;
@@ -1368,12 +1367,12 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         }
 
         @Override
-        public ActionFuture<DeleteIndexResponse> delete(final DeleteIndexRequest request) {
+        public ActionFuture<AcknowledgedResponse> delete(final DeleteIndexRequest request) {
             return execute(DeleteIndexAction.INSTANCE, request);
         }
 
         @Override
-        public void delete(final DeleteIndexRequest request, final ActionListener<DeleteIndexResponse> listener) {
+        public void delete(final DeleteIndexRequest request, final ActionListener<AcknowledgedResponse> listener) {
             execute(DeleteIndexAction.INSTANCE, request, listener);
         }
 

@@ -52,6 +52,10 @@ sensitive nature of the information.
 `xpack.security.authc.accept_default_password`::
 In `elasticsearch.yml`, set this to `false` to disable support for the default "changeme" password.
 
+`xpack.security.authc.password_hashing.algorithm`::
+Specifies the hashing algorithm that is used for secure user credential storage
+(see {xpack-ref}/password-hashing.html#password-hashing-algorithms[Password hashing algorithms] table for all possible values). Defaults to `bcrypt`.
+
 [float]
 [[anonymous-access-settings]]
 ==== Anonymous access settings

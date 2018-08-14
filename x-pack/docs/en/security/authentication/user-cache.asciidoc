@@ -28,6 +28,20 @@ setting the `cache_hash_algo` setting to any of the following:
 | `bcrypt7`           | | | Uses `bcrypt` algorithm with salt generated in 128 rounds.
 | `bcrypt8`           | | | Uses `bcrypt` algorithm with salt generated in 256 rounds.
 | `bcrypt9`           | | | Uses `bcrypt` algorithm with salt generated in 512 rounds.
+| `pbkdf2`            | | | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a
+                             pseudorandom function using 10000 iterations.
+| `pbkdf2_1000`       | | | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a
+                             pseudorandom function using 1000 iterations.
+| `pbkdf2_10000`      | | | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a
+                             pseudorandom function using 10000 iterations.
+| `pbkdf2_50000`      | | | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a
+                             pseudorandom function using 50000 iterations.
+| `pbkdf2_100000`     | | | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a
+                             pseudorandom function using 100000 iterations.
+| `pbkdf2_500000`     | | | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a
+                              pseudorandom function using 500000 iterations.
+| `pbkdf2_1000000`    | | | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a
+                             pseudorandom function using 1000000 iterations.
 | `noop`,`clear_text` | | | Doesn't hash the credentials and keeps it in clear text in
                             memory. CAUTION: keeping clear text is considered insecure
                             and can be compromised at the OS level (for example through

@@ -17,18 +17,8 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.metadata;
-
-import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
-
 /**
- * Enables filtering the index templates that will be applied for an index, per create index request.
+ * Request and Response objects for the default distribution's Migration
+ * APIs.
  */
-public interface IndexTemplateFilter {
-
-    /**
-     * @return  {@code true} if the given template should be applied on the newly created index,
-     *          {@code false} otherwise.
-     */
-    boolean apply(CreateIndexClusterStateUpdateRequest request, IndexTemplateMetaData template);
-}
+package org.elasticsearch.protocol.xpack.migration;

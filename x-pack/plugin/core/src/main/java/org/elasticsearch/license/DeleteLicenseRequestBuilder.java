@@ -7,6 +7,8 @@ package org.elasticsearch.license;
 
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
+import org.elasticsearch.protocol.xpack.license.DeleteLicenseResponse;
 
 public class DeleteLicenseRequestBuilder extends AcknowledgedRequestBuilder<DeleteLicenseRequest, DeleteLicenseResponse,
         DeleteLicenseRequestBuilder> {

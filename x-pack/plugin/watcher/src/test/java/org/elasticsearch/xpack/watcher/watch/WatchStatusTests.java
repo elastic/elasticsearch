@@ -12,9 +12,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
-import org.elasticsearch.xpack.core.watcher.actions.ActionStatus.AckStatus.State;
-import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
+import org.elasticsearch.protocol.xpack.watcher.status.ActionAckStatus.State;
+import org.elasticsearch.protocol.xpack.watcher.status.WatchStatusParams;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
+import org.elasticsearch.protocol.xpack.watcher.status.WatchStatusField;
 import org.elasticsearch.xpack.watcher.actions.logging.LoggingAction;
 
 import java.io.IOException;
@@ -59,19 +60,19 @@ public class WatchStatusTests extends ESTestCase {
             status.toXContent(builder, ToXContent.EMPTY_PARAMS);
             try (XContentParser parser = createParser(builder)) {
                 Map<String, Object> fields = parser.map();
-                assertThat(fields, not(hasKey(WatchStatus.Field.HEADERS.getPreferredName())));
+                assertThat(fields, not(hasKey(WatchStatusField.HEADERS.getPreferredName())));
             }
         }
 
         // but they are required when storing a watch
         try (XContentBuilder builder = jsonBuilder()) {
-            status.toXContent(builder, WatcherParams.builder().hideHeaders(false).build());
+            status.toXContent(builder, WatchStatusParams.builder().hideHeaders(false).build());
             try (XContentParser parser = createParser(builder)) {
                 parser.nextToken();
                 Map<String, Object> fields = parser.map();
-                assertThat(fields, hasKey(WatchStatus.Field.HEADERS.getPreferredName()));
-                assertThat(fields.get(WatchStatus.Field.HEADERS.getPreferredName()), instanceOf(Map.class));
-                Map<String, Object> extractedHeaders = (Map<String, Object>) fields.get(WatchStatus.Field.HEADERS.getPreferredName());
+                assertThat(fields, hasKey(WatchStatusField.HEADERS.getPreferredName()));
+                assertThat(fields.get(WatchStatusField.HEADERS.getPreferredName()), instanceOf(Map.class));
+                Map<String, Object> extractedHeaders = (Map<String, Object>) fields.get(WatchStatusField.HEADERS.getPreferredName());
                 assertThat(extractedHeaders, is(headers));
             }
         }

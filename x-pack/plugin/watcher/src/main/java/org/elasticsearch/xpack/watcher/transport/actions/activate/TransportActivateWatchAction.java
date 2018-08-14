@@ -26,7 +26,7 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateW
 import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateWatchResponse;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.core.watcher.watch.WatchField;
-import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
+import org.elasticsearch.protocol.xpack.watcher.status.WatchStatusField;
 import org.elasticsearch.xpack.watcher.transport.actions.WatcherTransportAction;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.joda.time.DateTime;
@@ -37,7 +37,7 @@ import java.time.Clock;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils.writeDate;
+import static org.elasticsearch.protocol.xpack.watcher.status.WatcherDateTimeUtils.writeDate;
 import static org.joda.time.DateTimeZone.UTC;
 
 /**
@@ -99,10 +99,10 @@ public class TransportActivateWatchAction extends WatcherTransportAction<Activat
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject()
                     .startObject(WatchField.STATUS.getPreferredName())
-                    .startObject(WatchStatus.Field.STATE.getPreferredName())
-                    .field(WatchStatus.Field.ACTIVE.getPreferredName(), active);
+                    .startObject(WatchStatusField.STATE.getPreferredName())
+                    .field(WatchStatusField.ACTIVE.getPreferredName(), active);
 
-            writeDate(WatchStatus.Field.TIMESTAMP.getPreferredName(), builder, now);
+            writeDate(WatchStatusField.TIMESTAMP.getPreferredName(), builder, now);
             builder.endObject().endObject().endObject();
             return builder;
         }

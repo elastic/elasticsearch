@@ -9,6 +9,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.protocol.xpack.watcher.status.ActionAckStatus;
 import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapper;
 import org.elasticsearch.xpack.core.watcher.condition.ExecutableCondition;
@@ -21,9 +22,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams.includeStatus;
+
 public class Watch implements ToXContentObject {
 
-    public static final String INCLUDE_STATUS_KEY = "include_status";
     public static final String INDEX = ".watches";
     public static final String DOC_TYPE = "doc";
 
@@ -116,7 +118,7 @@ public class Watch implements ToXContentObject {
 
     public boolean acked(String actionId) {
         ActionStatus actionStatus = status.actionStatus(actionId);
-        return actionStatus.ackStatus().state() == ActionStatus.AckStatus.State.ACKED;
+        return actionStatus.ackStatus().state() == ActionAckStatus.State.ACKED;
     }
 
     @Override
@@ -154,7 +156,7 @@ public class Watch implements ToXContentObject {
         if (metadata != null) {
             builder.field(WatchField.METADATA.getPreferredName(), metadata);
         }
-        if (params.paramAsBoolean(INCLUDE_STATUS_KEY, false)) {
+        if (includeStatus(params)) {
             builder.field(WatchField.STATUS.getPreferredName(), status, params);
         }
         builder.endObject();

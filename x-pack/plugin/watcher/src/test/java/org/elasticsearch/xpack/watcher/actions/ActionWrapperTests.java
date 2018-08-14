@@ -7,8 +7,10 @@ package org.elasticsearch.xpack.watcher.actions;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
+import org.elasticsearch.protocol.xpack.watcher.status.ActionAckStatus;
 import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
-import org.elasticsearch.xpack.core.watcher.actions.ActionStatus.AckStatus.State;
+import org.elasticsearch.protocol.xpack.watcher.status.ActionAckStatus.State;
+import org.elasticsearch.protocol.xpack.watcher.status.ActionStatusExecution;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapper;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapperResult;
 import org.elasticsearch.xpack.core.watcher.actions.ExecutableAction;
@@ -68,8 +70,8 @@ public class ActionWrapperTests extends ESTestCase {
     }
 
     private ActionStatus createActionStatus(State state) {
-        ActionStatus.AckStatus ackStatus = new ActionStatus.AckStatus(now, state);
-        ActionStatus.Execution execution = ActionStatus.Execution.successful(now);
+        ActionAckStatus ackStatus = new ActionAckStatus(now, state);
+        ActionStatusExecution execution = ActionStatusExecution.successful(now);
         return new ActionStatus(ackStatus, execution, execution, null);
     }
 }

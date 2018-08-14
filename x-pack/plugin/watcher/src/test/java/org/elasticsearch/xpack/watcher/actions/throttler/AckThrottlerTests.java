@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.actions.throttler;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.protocol.xpack.watcher.status.ActionAckStatus;
 import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.core.watcher.actions.throttler.AckThrottler;
 import org.elasticsearch.xpack.core.watcher.actions.throttler.Throttler;
@@ -17,7 +18,7 @@ import org.joda.time.DateTime;
 
 import java.time.Clock;
 
-import static org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils.formatDate;
+import static org.elasticsearch.protocol.xpack.watcher.status.WatcherDateTimeUtils.formatDate;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.mockExecutionContext;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.is;
@@ -31,7 +32,7 @@ public class AckThrottlerTests extends ESTestCase {
         WatchExecutionContext ctx = mockExecutionContext("_watch", Payload.EMPTY);
         Watch watch = ctx.watch();
         ActionStatus actionStatus = mock(ActionStatus.class);
-        when(actionStatus.ackStatus()).thenReturn(new ActionStatus.AckStatus(timestamp, ActionStatus.AckStatus.State.ACKED));
+        when(actionStatus.ackStatus()).thenReturn(new ActionAckStatus(timestamp, ActionAckStatus.State.ACKED));
         WatchStatus watchStatus = mock(WatchStatus.class);
         when(watchStatus.actionStatus("_action")).thenReturn(actionStatus);
         when(watch.status()).thenReturn(watchStatus);
@@ -47,8 +48,8 @@ public class AckThrottlerTests extends ESTestCase {
         WatchExecutionContext ctx = mockExecutionContext("_watch", Payload.EMPTY);
         Watch watch = ctx.watch();
         ActionStatus actionStatus = mock(ActionStatus.class);
-        when(actionStatus.ackStatus()).thenReturn(new ActionStatus.AckStatus(timestamp,
-                ActionStatus.AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION));
+        when(actionStatus.ackStatus()).thenReturn(new ActionAckStatus(timestamp,
+                ActionAckStatus.State.AWAITS_SUCCESSFUL_EXECUTION));
         WatchStatus watchStatus = mock(WatchStatus.class);
         when(watchStatus.actionStatus("_action")).thenReturn(actionStatus);
         when(watch.status()).thenReturn(watchStatus);
@@ -63,7 +64,7 @@ public class AckThrottlerTests extends ESTestCase {
         WatchExecutionContext ctx = mockExecutionContext("_watch", Payload.EMPTY);
         Watch watch = ctx.watch();
         ActionStatus actionStatus = mock(ActionStatus.class);
-        when(actionStatus.ackStatus()).thenReturn(new ActionStatus.AckStatus(timestamp, ActionStatus.AckStatus.State.ACKABLE));
+        when(actionStatus.ackStatus()).thenReturn(new ActionAckStatus(timestamp, ActionAckStatus.State.ACKABLE));
         WatchStatus watchStatus = mock(WatchStatus.class);
         when(watchStatus.actionStatus("_action")).thenReturn(actionStatus);
         when(watch.status()).thenReturn(watchStatus);

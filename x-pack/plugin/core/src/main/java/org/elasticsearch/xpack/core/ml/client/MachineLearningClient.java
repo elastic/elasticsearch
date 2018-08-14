@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.client;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteDatafeedAction;
@@ -59,13 +60,13 @@ public class MachineLearningClient {
     }
 
     public void deleteDatafeed(DeleteDatafeedAction.Request request,
-            ActionListener<DeleteDatafeedAction.Response> listener) {
+            ActionListener<AcknowledgedResponse> listener) {
         client.execute(DeleteDatafeedAction.INSTANCE, request, listener);
     }
 
-    public ActionFuture<DeleteDatafeedAction.Response> deleteDatafeed(
+    public ActionFuture<AcknowledgedResponse> deleteDatafeed(
             DeleteDatafeedAction.Request request) {
-        PlainActionFuture<DeleteDatafeedAction.Response> listener = PlainActionFuture.newFuture();
+        PlainActionFuture<AcknowledgedResponse> listener = PlainActionFuture.newFuture();
         client.execute(DeleteDatafeedAction.INSTANCE, request, listener);
         return listener;
     }
@@ -94,13 +95,13 @@ public class MachineLearningClient {
     }
 
     public void deleteModelSnapshot(DeleteModelSnapshotAction.Request request,
-            ActionListener<DeleteModelSnapshotAction.Response> listener) {
+            ActionListener<AcknowledgedResponse> listener) {
         client.execute(DeleteModelSnapshotAction.INSTANCE, request, listener);
     }
 
-    public ActionFuture<DeleteModelSnapshotAction.Response> deleteModelSnapshot(
+    public ActionFuture<AcknowledgedResponse> deleteModelSnapshot(
             DeleteModelSnapshotAction.Request request) {
-        PlainActionFuture<DeleteModelSnapshotAction.Response> listener = PlainActionFuture.newFuture();
+        PlainActionFuture<AcknowledgedResponse> listener = PlainActionFuture.newFuture();
         client.execute(DeleteModelSnapshotAction.INSTANCE, request, listener);
         return listener;
     }
@@ -300,13 +301,13 @@ public class MachineLearningClient {
     }
 
     public void startDatafeed(StartDatafeedAction.Request request,
-            ActionListener<StartDatafeedAction.Response> listener) {
+            ActionListener<AcknowledgedResponse> listener) {
         client.execute(StartDatafeedAction.INSTANCE, request, listener);
     }
 
-    public ActionFuture<StartDatafeedAction.Response> startDatafeed(
+    public ActionFuture<AcknowledgedResponse> startDatafeed(
             StartDatafeedAction.Request request) {
-        PlainActionFuture<StartDatafeedAction.Response> listener = PlainActionFuture.newFuture();
+        PlainActionFuture<AcknowledgedResponse> listener = PlainActionFuture.newFuture();
         client.execute(StartDatafeedAction.INSTANCE, request, listener);
         return listener;
     }

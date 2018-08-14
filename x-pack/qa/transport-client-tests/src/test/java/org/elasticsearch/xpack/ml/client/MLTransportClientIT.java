@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.client;
 
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.unit.TimeValue;
@@ -154,7 +155,7 @@ public class MLTransportClientIT extends ESXPackSmokeClientTestCase {
         client.prepareIndex(datafeedIndex, datatype).setSource(source).get();
 
         StartDatafeedAction.Request startDatafeedRequest = new StartDatafeedAction.Request(datafeedId, new Date().getTime());
-        StartDatafeedAction.Response startDataFeedResponse = mlClient.startDatafeed(startDatafeedRequest).actionGet();
+        AcknowledgedResponse startDataFeedResponse = mlClient.startDatafeed(startDatafeedRequest).actionGet();
         assertThat(startDataFeedResponse.isAcknowledged(), equalTo(true));
 
         StopDatafeedAction.Response stopDataFeedResponse = mlClient.stopDatafeed(new StopDatafeedAction.Request(datafeedId)).actionGet();

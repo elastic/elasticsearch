@@ -28,7 +28,7 @@ import java.util.Objects;
  * constructors, methods, and fields that can be used within a Painless script at both compile-time
  * and run-time.
  *
- * A whitelist consists of several pieces with {@link WhitelistClass}s as the top level.  Each
+ * A whitelist consists of several pieces with {@link WhitelistClass}s as the top level. Each
  * {@link WhitelistClass} will contain zero-to-many {@link WhitelistConstructor}s, {@link WhitelistMethod}s, and
  * {@link WhitelistField}s which are what will be available with a Painless script.  See each individual
  * whitelist object for more detail.
@@ -56,14 +56,14 @@ public final class Whitelist {
         Collections.singletonList(WhitelistLoader.loadFromResourceFiles(Whitelist.class, BASE_WHITELIST_FILES));
 
     /** The {@link ClassLoader} used to look up the whitelisted Java classes, constructors, methods, and fields. */
-    public final ClassLoader javaClassLoader;
+    public final ClassLoader classLoader;
 
     /** The {@link List} of all the whitelisted Painless classes. */
-    public final List<WhitelistClass> whitelistStructs;
+    public final List<WhitelistClass> whitelistClasses;
 
     /** Standard constructor.  All values must be not {@code null}. */
-    public Whitelist(ClassLoader javaClassLoader, List<WhitelistClass> whitelistStructs) {
-        this.javaClassLoader = Objects.requireNonNull(javaClassLoader);
-        this.whitelistStructs = Collections.unmodifiableList(Objects.requireNonNull(whitelistStructs));
+    public Whitelist(ClassLoader classLoader, List<WhitelistClass> whitelistClasses) {
+        this.classLoader = Objects.requireNonNull(classLoader);
+        this.whitelistClasses = Collections.unmodifiableList(Objects.requireNonNull(whitelistClasses));
     }
 }

@@ -166,12 +166,13 @@ public final class DissectKey {
             this.modifier = modifier;
         }
 
+        //package private for testing
         static Modifier fromString(String modifier) {
             return EnumSet.allOf(Modifier.class).stream().filter(km -> km.modifier.equals(modifier))
                 .findFirst().orElseThrow(() -> new IllegalArgumentException("Found invalid modifier.")); //throw should never happen
         }
 
-        static Modifier findModifier(String key) {
+        private static Modifier findModifier(String key) {
             Modifier modifier = Modifier.NONE;
             if (key != null && !key.isEmpty()) {
                 Matcher matcher = MODIFIER_PATTERN.matcher(key);

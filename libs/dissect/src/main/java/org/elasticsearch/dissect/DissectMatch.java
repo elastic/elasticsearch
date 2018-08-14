@@ -126,19 +126,19 @@ final class DissectMatch {
     /**
      * a result that will need to be part of an append operation.
      */
-    final class AppendResult {
+    private final class AppendResult {
         private final List<AppendValue> values = new ArrayList<>();
         private final String appendSeparator;
 
-        AppendResult(String appendSeparator) {
+        private AppendResult(String appendSeparator) {
             this.appendSeparator = appendSeparator;
         }
 
-        void addValue(String value, int order) {
+        private void addValue(String value, int order) {
             values.add(new AppendValue(value, order));
         }
 
-        String getAppendResult() {
+        private String getAppendResult() {
             Collections.sort(values);
             return values.stream().map(AppendValue::getValue).collect(Collectors.joining(appendSeparator));
         }
@@ -147,20 +147,20 @@ final class DissectMatch {
     /**
      * An appendable value that can be sorted based on the provided order
      */
-    final class AppendValue implements Comparable<AppendValue> {
+    private final class AppendValue implements Comparable<AppendValue> {
         private final String value;
         private final int order;
 
-        AppendValue(String value, int order) {
+        private AppendValue(String value, int order) {
             this.value = value;
             this.order = order;
         }
 
-        String getValue() {
+        private String getValue() {
             return value;
         }
 
-        int getOrder() {
+        private int getOrder() {
             return order;
         }
 
@@ -173,25 +173,25 @@ final class DissectMatch {
     /**
      * A result that needs to be converted to a key/value reference
      */
-    final class ReferenceResult {
+    private final class ReferenceResult {
 
         private String key;
 
-        String getKey() {
+        private String getKey() {
             return key;
         }
 
-        String getValue() {
+        private String getValue() {
             return value;
         }
 
         private String value;
 
-        void setValue(String value) {
+        private void setValue(String value) {
             this.value = value;
         }
 
-        void setKey(String key) {
+        private void setKey(String key) {
             this.key = key;
         }
     }

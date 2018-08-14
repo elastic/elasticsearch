@@ -285,24 +285,23 @@ public final class DissectParser {
     /**
      * A tuple class to hold the dissect key and delimiter
      */
-    class DissectPair {
+    private class DissectPair {
 
         private final DissectKey key;
         private final String delimiter;
 
-        DissectPair(DissectKey key, String delimiter) {
+        private DissectPair(DissectKey key, String delimiter) {
             this.key = key;
             this.delimiter = delimiter;
         }
 
-        DissectKey getKey() {
+        private DissectKey getKey() {
             return key;
         }
 
-        String getDelimiter() {
+        private String getDelimiter() {
             return delimiter;
         }
-
     }
 
 }

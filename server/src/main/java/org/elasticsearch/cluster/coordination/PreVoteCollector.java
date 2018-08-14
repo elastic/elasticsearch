@@ -23,6 +23,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -43,10 +44,70 @@ public class PreVoteCollector extends AbstractComponent {
     public static final String REQUEST_PRE_VOTE_ACTION_NAME = "internal:cluster/request_pre_vote";
 
     private final AtomicLong maxTermSeen = new AtomicLong(0);
-    private volatile PreVoteResponse localPreVoteResponse;
     private final TransportService transportService;
     private final LongConsumer startElection; // consumes maximum known term
+    private volatile PreVoteResponse preVoteResponse;
+
+    @Nullable
     private volatile PreVotingRound currentRound;
+    @Nullable
+    private volatile DiscoveryNode currentLeader;
+
+    private long updateMaxTermSeen(long term) {
+        return maxTermSeen.accumulateAndGet(term, Math::max);
+    }
+
+    PreVoteCollector(Settings settings, PreVoteResponse preVoteResponse, TransportService transportService, LongConsumer startElection) {
+        super(settings);
+        this.preVoteResponse = preVoteResponse;
+        this.transportService = transportService;
+        this.startElection = startElection;
+
+        transportService.registerRequestHandler(REQUEST_PRE_VOTE_ACTION_NAME, Names.GENERIC, false, false,
+            PreVoteRequest::new,
+            (request, channel, task) -> channel.sendResponse(handlePreVoteRequest(request)));
+    }
+
+    public void start(final ClusterState clusterState, final Iterable<DiscoveryNode> broadcastNodes) {
+        logger.debug("{} starting", this);
+        assert currentRound == null;
+        currentRound = new PreVotingRound(clusterState);
+        currentRound.start(broadcastNodes);
+    }
+
+    public void stop() {
+        currentRound.stop();
+        currentRound = null;
+    }
+
+    public void update(PreVoteResponse preVoteResponse, DiscoveryNode currentLeader) {
+        logger.trace("updating with preVoteResponse={}, currentLeader={}", preVoteResponse, currentLeader);
+        this.preVoteResponse = preVoteResponse;
+        this.currentLeader = currentLeader;
+    }
+
+    private PreVoteResponse handlePreVoteRequest(PreVoteRequest request) {
+        updateMaxTermSeen(request.getCurrentTerm());
+        // TODO if we are a leader and the max term seen exceeds our term then we need to bump our term
+
+        DiscoveryNode currentLeader = this.currentLeader;
+
+        if (currentLeader == null || currentLeader.equals(request.getSourceNode())) {
+            // TODO comment about rare case.
+            return preVoteResponse;
+        } else {
+            throw new CoordinationStateRejectedException("rejecting " + request + " as there is already a leader");
+        }
+    }
+
+    @Override
+    public String toString() {
+        return "PreVoteCollector{" +
+            "currentRound=" + currentRound +
+            ", currentLeader=" + currentLeader +
+            ", preVoteResponse=" + preVoteResponse +
+            '}';
+    }
 
     private class PreVotingRound {
         private final Set<DiscoveryNode> preVotesReceived = newConcurrentSet();
@@ -57,7 +118,7 @@ public class PreVoteCollector extends AbstractComponent {
 
         PreVotingRound(ClusterState clusterState) {
             this.clusterState = clusterState;
-            preVoteRequest = new PreVoteRequest(transportService.getLocalNode(), localPreVoteResponse.getCurrentTerm());
+            preVoteRequest = new PreVoteRequest(transportService.getLocalNode(), preVoteResponse.getCurrentTerm());
         }
 
         void start(final Iterable<DiscoveryNode> broadcastNodes) {
@@ -106,9 +167,10 @@ public class PreVoteCollector extends AbstractComponent {
 
             final long currentMaxTermSeen = updateMaxTermSeen(response.getCurrentTerm());
 
-            if (response.getLastAcceptedTerm() > localPreVoteResponse.getLastAcceptedTerm()
-                || (response.getLastAcceptedTerm() == localPreVoteResponse.getLastAcceptedTerm()
-                && response.getLastAcceptedVersion() > localPreVoteResponse.getLastAcceptedVersion())) {
+            final PreVoteResponse currentPreVoteResponse = preVoteResponse;
+            if (response.getLastAcceptedTerm() > currentPreVoteResponse.getLastAcceptedTerm()
+                || (response.getLastAcceptedTerm() == currentPreVoteResponse.getLastAcceptedTerm()
+                && response.getLastAcceptedVersion() > currentPreVoteResponse.getLastAcceptedVersion())) {
                 logger.debug("{} ignoring {} from {} as it is fresher", this, response, sender);
                 return;
             }
@@ -140,37 +202,5 @@ public class PreVoteCollector extends AbstractComponent {
                 ", isRunning=" + isRunning +
                 '}';
         }
-    }
-
-    private long updateMaxTermSeen(long term) {
-        return maxTermSeen.accumulateAndGet(term, Math::max);
-    }
-
-    PreVoteCollector(Settings settings, PreVoteResponse localPreVoteResponse, TransportService transportService,
-                     LongConsumer startElection) {
-        super(settings);
-        this.localPreVoteResponse = localPreVoteResponse;
-        this.transportService = transportService;
-        this.startElection = startElection;
-    }
-
-    public void start(final ClusterState clusterState, final Iterable<DiscoveryNode> broadcastNodes) {
-        logger.debug("{} starting", this);
-        assert currentRound == null;
-        currentRound = new PreVotingRound(clusterState);
-        currentRound.start(broadcastNodes);
-    }
-
-    public void stop() {
-        currentRound.stop();
-        currentRound = null;
-    }
-
-    @Override
-    public String toString() {
-        return "PreVoteCollector{" +
-            "currentRound=" + currentRound +
-            ", localPreVoteResponse=" + localPreVoteResponse +
-            '}';
     }
 }

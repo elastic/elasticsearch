@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
-import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequest;
@@ -95,13 +94,6 @@ public class PreVoteCollectorTests extends ESTestCase {
             boundTransportAddress -> localNode, null, emptySet());
         transportService.start();
         transportService.acceptIncomingRequests();
-
-        transportService.registerRequestHandler(REQUEST_PRE_VOTE_ACTION_NAME, Names.GENERIC, PreVoteRequest::new,
-            (request, channel, task) -> {
-                assertThat(request.getSourceNode(), equalTo(localNode));
-                // this is just used for local messages
-                channel.sendResponse(getLocalPreVoteResponse());
-            });
 
         preVoteCollector = new PreVoteCollector(settings, getLocalPreVoteResponse(), transportService, maxTermSeen -> {
             assert electionOccurred == false;

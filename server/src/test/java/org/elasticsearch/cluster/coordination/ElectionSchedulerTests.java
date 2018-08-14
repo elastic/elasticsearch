@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -32,7 +31,6 @@ import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 
 import static java.util.Collections.emptySet;
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.coordination.ElectionScheduler.ELECTION_BACK_OFF_TIME_SETTING;
 import static org.elasticsearch.cluster.coordination.ElectionScheduler.ELECTION_MAX_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.coordination.ElectionScheduler.ELECTION_MIN_TIMEOUT_SETTING;
@@ -47,7 +45,7 @@ public class ElectionSchedulerTests extends ESTestCase {
 
     private DeterministicTaskQueue deterministicTaskQueue;
     private ElectionScheduler electionScheduler;
-    private boolean electionOccurred = false;
+    private boolean electionStarted = false;
     private DiscoveryNode localNode;
 
     @Before
@@ -65,28 +63,7 @@ public class ElectionSchedulerTests extends ESTestCase {
         transportService.registerRequestHandler(REQUEST_PRE_VOTE_ACTION_NAME, Names.GENERIC, PreVoteRequest::new,
             (request, channel, task) -> channel.sendResponse(new PreVoteResponse(3, 2, 1)));
 
-        electionScheduler = new ElectionScheduler(settings, random(), transportService) {
-            @Override
-            protected void startElection(long maxTermSeen) {
-                assert electionOccurred == false;
-                electionOccurred = true;
-            }
-
-            @Override
-            protected Iterable<DiscoveryNode> getBroadcastNodes() {
-                return singletonList(localNode);
-            }
-
-            @Override
-            protected boolean isElectionQuorum(VoteCollection voteCollection) {
-                return voteCollection.containsVoteFor(localNode);
-            }
-
-            @Override
-            protected PreVoteResponse getLocalPreVoteResponse() {
-                return new PreVoteResponse(3, 2, 1);
-            }
-        };
+        electionScheduler = new ElectionScheduler(settings, random(), transportService);
     }
 
     private TimeValue randomGracePeriod() {
@@ -95,7 +72,10 @@ public class ElectionSchedulerTests extends ESTestCase {
 
     private void assertElectionSchedule() {
         final TimeValue initialGracePeriod = randomGracePeriod();
-        electionScheduler.start(initialGracePeriod);
+        electionScheduler.start(initialGracePeriod, () -> {
+            assertFalse(electionStarted);
+            electionStarted = true;
+        });
 
         long lastElectionTime = deterministicTaskQueue.getCurrentTimeMillis();
         int electionCount = 0;
@@ -138,7 +118,7 @@ public class ElectionSchedulerTests extends ESTestCase {
         }
         electionScheduler.stop();
         deterministicTaskQueue.runAllTasks(random());
-        assertFalse(electionOccurred);
+        assertFalse(electionStarted);
     }
 
     public void testRetriesOnCorrectSchedule() {
@@ -149,13 +129,13 @@ public class ElectionSchedulerTests extends ESTestCase {
     }
 
     private void runElection() {
-        while (electionOccurred == false) {
+        while (electionStarted == false) {
             if (deterministicTaskQueue.hasRunnableTasks() == false) {
                 deterministicTaskQueue.advanceTime();
             }
             deterministicTaskQueue.runAllRunnableTasks(random());
         }
-        electionOccurred = false;
+        electionStarted = false;
     }
 
     public void testSettingsMustBeReasonable() {
@@ -177,27 +157,7 @@ public class ElectionSchedulerTests extends ESTestCase {
     }
 
     private void validateSettings(Settings settings) {
-        new ElectionScheduler(settings, random(), null) {
-            @Override
-            protected void startElection(long maxTermSeen) {
-                throw new AssertionError("unexpected");
-            }
-
-            @Override
-            protected Iterable<DiscoveryNode> getBroadcastNodes() {
-                throw new AssertionError("unexpected");
-            }
-
-            @Override
-            protected boolean isElectionQuorum(VoteCollection voteCollection) {
-                throw new AssertionError("unexpected");
-            }
-
-            @Override
-            protected PreVoteResponse getLocalPreVoteResponse() {
-                throw new AssertionError("unexpected");
-            }
-        };
+        new ElectionScheduler(settings, random(), null);
     }
 
     private IllegalArgumentException expectInvalid(Settings settings) {

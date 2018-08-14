@@ -20,8 +20,6 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
@@ -35,7 +33,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
 
-public abstract class ElectionScheduler extends AbstractComponent {
+public class ElectionScheduler extends AbstractComponent {
 
     /*
      * It's provably impossible to guarantee that any leader election algorithm ever elects a leader, but they generally work (with
@@ -92,11 +90,16 @@ public abstract class ElectionScheduler extends AbstractComponent {
         }
     }
 
-    public void start(TimeValue gracePeriod) {
+    /**
+     * Start the process to schedule repeated election attempts.
+     * @param gracePeriod An initial period to wait before attempting the first election.
+     * @param scheduledRunnable The action to run each time an election should be attempted.
+     */
+    public void start(TimeValue gracePeriod, Runnable scheduledRunnable) {
         final ActiveScheduler currentScheduler;
         assert this.currentScheduler == null;
         this.currentScheduler = currentScheduler = new ActiveScheduler();
-        currentScheduler.scheduleNextElection(gracePeriod);
+        currentScheduler.scheduleNextElection(gracePeriod, scheduledRunnable);
     }
 
     public void stop() {
@@ -122,13 +125,6 @@ public abstract class ElectionScheduler extends AbstractComponent {
         return Math.min(maxTimeout.getMillis(), currentMaxDelayMillis + backoffTime.getMillis());
     }
 
-    /**
-     * Start an election. Calls to this method are not completely synchronised with the start/stop state of the scheduler.
-     *
-     * @param maxTermSeen The maximum term seen before this election starts. The election should pick a higher term.
-     */
-    protected abstract void startElection(long maxTermSeen);
-
     @Override
     public String toString() {
         return "ElectionScheduler{" +
@@ -139,12 +135,6 @@ public abstract class ElectionScheduler extends AbstractComponent {
             '}';
     }
 
-    protected abstract Iterable<DiscoveryNode> getBroadcastNodes();
-
-    protected abstract boolean isElectionQuorum(VoteCollection voteCollection);
-
-    protected abstract PreVoteResponse getLocalPreVoteResponse();
-
     private class ActiveScheduler {
         private AtomicLong currentMaxDelayMillis = new AtomicLong(minTimeout.millis());
         private final long schedulerId = idSupplier.incrementAndGet();
@@ -153,7 +143,7 @@ public abstract class ElectionScheduler extends AbstractComponent {
             return this == currentScheduler;
         }
 
-        void scheduleNextElection(TimeValue gracePeriod) {
+        void scheduleNextElection(final TimeValue gracePeriod, final Runnable scheduledRunnable) {
             final long delay;
             if (isRunning() == false) {
                 logger.debug("{} not scheduling election", this);
@@ -179,12 +169,12 @@ public abstract class ElectionScheduler extends AbstractComponent {
                         return;
                     }
                     logger.debug("{} starting pre-voting", ActiveScheduler.this);
-                    new ScheduledPreVoteCollector().start(getBroadcastNodes());
+                    scheduledRunnable.run();
                 }
 
                 @Override
                 public void onAfter() {
-                    scheduleNextElection(TimeValue.ZERO);
+                    scheduleNextElection(TimeValue.ZERO, scheduledRunnable);
                 }
 
                 @Override
@@ -204,28 +194,6 @@ public abstract class ElectionScheduler extends AbstractComponent {
         @Override
         public String toString() {
             return "ActiveScheduler[" + schedulerId + ", currentMaxDelayMillis=" + currentMaxDelayMillis + "]";
-        }
-    }
-
-    private class ScheduledPreVoteCollector extends PreVoteCollector {
-        ScheduledPreVoteCollector() {
-            super(ElectionScheduler.this.settings, idSupplier.incrementAndGet(), ElectionScheduler.this.getLocalPreVoteResponse(),
-                transportService);
-        }
-
-        @Override
-        protected boolean isElectionQuorum(VoteCollection voteCollection) {
-            return ElectionScheduler.this.isElectionQuorum(voteCollection);
-        }
-
-        @Override
-        protected void startElection(long maxTermSeen) {
-            ElectionScheduler.this.startElection(maxTermSeen);
-        }
-
-        @Override
-        protected long getCurrentId() {
-            return idSupplier.get();
         }
     }
 }

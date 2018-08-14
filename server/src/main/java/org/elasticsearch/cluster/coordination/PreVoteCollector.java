@@ -86,18 +86,22 @@ public class PreVoteCollector extends AbstractComponent {
         this.currentLeader = currentLeader;
     }
 
-    private PreVoteResponse handlePreVoteRequest(PreVoteRequest request) {
+    // package-private for testing
+    PreVoteResponse handlePreVoteRequest(PreVoteRequest request) {
         updateMaxTermSeen(request.getCurrentTerm());
         // TODO if we are a leader and the max term seen exceeds our term then we need to bump our term
 
         DiscoveryNode currentLeader = this.currentLeader;
-
         if (currentLeader == null || currentLeader.equals(request.getSourceNode())) {
-            // TODO comment about rare case.
             return preVoteResponse;
         } else {
             throw new CoordinationStateRejectedException("rejecting " + request + " as there is already a leader");
         }
+    }
+
+    // package-private for testing, actual usages TODO
+    long getMaxTermSeen() {
+        return maxTermSeen.get();
     }
 
     @Override

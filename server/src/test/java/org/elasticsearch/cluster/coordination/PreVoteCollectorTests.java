@@ -192,4 +192,48 @@ public class PreVoteCollectorTests extends ESTestCase {
         assertTrue(electionOccurred);
         assertThat(lastElectionMaxTermSeen, is(5L));
     }
+
+    public void testResponseIfCandidate() {
+        final long term = randomNonNegativeLong();
+        final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
+
+        PreVoteResponse newPreVoteResponse = new PreVoteResponse(5, 4, 3);
+        preVoteCollector.update(newPreVoteResponse, null);
+        final PreVoteResponse preVoteResponse = preVoteCollector.handlePreVoteRequest(new PreVoteRequest(otherNode, term));
+
+        assertThat(preVoteResponse, equalTo(newPreVoteResponse));
+        assertThat(preVoteCollector.getMaxTermSeen(), is(term));
+    }
+
+    public void testResponseToNonLeaderIfNotCandidate() {
+        final long term = randomNonNegativeLong();
+        final DiscoveryNode leaderNode = new DiscoveryNode("leader-node", buildNewFakeTransportAddress(), Version.CURRENT);
+        final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
+
+        PreVoteResponse newPreVoteResponse = new PreVoteResponse(5, 4, 3);
+        preVoteCollector.update(newPreVoteResponse, leaderNode);
+
+        expectThrows(CoordinationStateRejectedException.class, () ->
+            preVoteCollector.handlePreVoteRequest(new PreVoteRequest(otherNode, term)));
+        assertThat(preVoteCollector.getMaxTermSeen(), is(term));
+    }
+
+    public void testResponseToRequestFromLeader() {
+        // This is a _rare_ case where our leader has detected a failure and stepped down, but we are still a
+        // follower. It's possible that the leader lost its quorum, but while we're still a follower we will not
+        // offer joins to any other node so there is no major drawback in offering a join to our old leader. The
+        // advantage of this is that it makes it slightly more likely that the leader won't change, and also that
+        // its re-election will happen more quickly than if it had to wait for a quorum of followers to also detect
+        // its failure.
+
+        final long term = randomNonNegativeLong();
+        final DiscoveryNode leaderNode = new DiscoveryNode("leader-node", buildNewFakeTransportAddress(), Version.CURRENT);
+
+        PreVoteResponse newPreVoteResponse = new PreVoteResponse(5, 4, 3);
+        preVoteCollector.update(newPreVoteResponse, leaderNode);
+        final PreVoteResponse preVoteResponse = preVoteCollector.handlePreVoteRequest(new PreVoteRequest(leaderNode, term));
+
+        assertThat(preVoteResponse, equalTo(newPreVoteResponse));
+        assertThat(preVoteCollector.getMaxTermSeen(), is(term));
+    }
 }

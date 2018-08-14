@@ -12,7 +12,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapperResult;
 import org.elasticsearch.xpack.core.watcher.condition.Condition;
 import org.elasticsearch.xpack.core.watcher.input.Input;
-import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
+import org.elasticsearch.protocol.xpack.watcher.status.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.core.watcher.transform.Transform;
 import org.joda.time.DateTime;
 

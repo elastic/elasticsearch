@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.condition;
 
-import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
+import org.elasticsearch.protocol.xpack.watcher.status.WatcherDateTimeUtils;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 

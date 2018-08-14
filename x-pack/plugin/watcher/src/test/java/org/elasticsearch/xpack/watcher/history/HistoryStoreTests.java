@@ -18,7 +18,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapperResult;
-import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
+import org.elasticsearch.protocol.xpack.watcher.status.ExecutionState;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionResult;
 import org.elasticsearch.xpack.core.watcher.execution.Wid;

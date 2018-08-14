@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.watcher.trigger.Trigger;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
+import org.elasticsearch.protocol.xpack.watcher.status.WatchStatusState;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.execution.TriggeredWatchStore;
@@ -181,7 +182,7 @@ public class WatcherServiceTests extends ESTestCase {
             if (active) {
                 activeWatchCount++;
             }
-            WatchStatus.State state = new WatchStatus.State(active, DateTime.now(DateTimeZone.UTC));
+            WatchStatusState state = new WatchStatusState(active, DateTime.now(DateTimeZone.UTC));
             WatchStatus watchStatus = mock(WatchStatus.class);
             Watch watch = mock(Watch.class);
             when(watchStatus.state()).thenReturn(state);

@@ -34,7 +34,7 @@ import java.util.Map;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils.formatDate;
+import static org.elasticsearch.protocol.xpack.watcher.status.WatcherDateTimeUtils.formatDate;
 import static org.elasticsearch.xpack.core.watcher.support.WatcherUtils.flattenModel;
 import static org.elasticsearch.xpack.watcher.input.search.ExecutableSearchInput.DEFAULT_SEARCH_TYPE;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.getRandomSupportedSearchType;

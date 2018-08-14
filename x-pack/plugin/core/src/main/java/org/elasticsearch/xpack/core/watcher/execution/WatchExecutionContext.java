@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.watcher.execution;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.protocol.xpack.watcher.status.ExecutionState;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapperResult;

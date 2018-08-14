@@ -6,19 +6,19 @@
 package org.elasticsearch.xpack.core.watcher.actions.throttler;
 
 import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
-import org.elasticsearch.xpack.core.watcher.actions.ActionStatus.AckStatus;
+import org.elasticsearch.protocol.xpack.watcher.status.ActionAckStatus;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 
 import static org.elasticsearch.xpack.core.watcher.actions.throttler.Throttler.Type.ACK;
-import static org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils.formatDate;
+import static org.elasticsearch.protocol.xpack.watcher.status.WatcherDateTimeUtils.formatDate;
 
 public class AckThrottler implements Throttler {
 
     @Override
     public Result throttle(String actionId, WatchExecutionContext ctx) {
         ActionStatus actionStatus = ctx.watch().status().actionStatus(actionId);
-        AckStatus ackStatus = actionStatus.ackStatus();
-        if (ackStatus.state() == AckStatus.State.ACKED) {
+        ActionAckStatus ackStatus = actionStatus.ackStatus();
+        if (ackStatus.state() == ActionAckStatus.State.ACKED) {
             return Result.throttle(ACK, "action [{}] was acked at [{}]", actionId, formatDate(ackStatus.timestamp()));
         }
         return Result.NO;

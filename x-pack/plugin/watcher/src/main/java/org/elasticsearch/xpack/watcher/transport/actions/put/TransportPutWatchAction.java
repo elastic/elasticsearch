@@ -24,6 +24,7 @@ import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.protocol.xpack.watcher.status.WatchStatusParams;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchAction;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
@@ -62,7 +63,8 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
     private final WatchParser parser;
     private final Client client;
     private static final ToXContent.Params DEFAULT_PARAMS =
-            WatcherParams.builder().hideSecrets(false).hideHeaders(false).includeStatus(true).build();
+            WatcherParams.builder(WatchStatusParams.builder().hideHeaders(false).build()).hideSecrets(false).includeStatus
+                    (true).build();
 
     @Inject
     public TransportPutWatchAction(Settings settings, TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,

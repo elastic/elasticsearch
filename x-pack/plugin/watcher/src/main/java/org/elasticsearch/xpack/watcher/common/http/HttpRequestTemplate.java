@@ -17,7 +17,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
+import org.elasticsearch.protocol.xpack.watcher.status.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuth;
 import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthRegistry;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;

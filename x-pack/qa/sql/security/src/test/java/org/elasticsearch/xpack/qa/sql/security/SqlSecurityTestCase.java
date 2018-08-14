@@ -84,7 +84,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
 
     @SuppressForbidden(reason="security doesn't work with mock filesystem")
     private static Path lookupAuditLog() {
-        final String auditLogFileString = System.getProperty("tests.audit.logfile");
+        String auditLogFileString = System.getProperty("tests.audit.logfile");
         if (null == auditLogFileString) {
             throw new IllegalStateException("tests.audit.logfile must be set to run this test. It is automatically "
                     + "set by gradle. If you must set it yourself then it should be the absolute path to the audit "
@@ -134,10 +134,10 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
              * write the test data once. */
             return;
         }
-        final Request request = new Request("PUT", "/_bulk");
+        Request request = new Request("PUT", "/_bulk");
         request.addParameter("refresh", "true");
 
-        final StringBuilder bulk = new StringBuilder();
+        StringBuilder bulk = new StringBuilder();
         bulk.append("{\"index\":{\"_index\": \"test\", \"_type\": \"doc\", \"_id\":\"1\"}\n");
         bulk.append("{\"a\": 1, \"b\": 2, \"c\": 3}\n");
         bulk.append("{\"index\":{\"_index\": \"test\", \"_type\": \"doc\", \"_id\":\"2\"}\n");
@@ -151,7 +151,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
 
     @Before
     public void setInitialAuditLogOffset() {
-        final SecurityManager sm = System.getSecurityManager();
+        SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
             sm.checkPermission(new SpecialPermission());
         }
@@ -165,7 +165,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
             }
             try {
                 auditLogWrittenBeforeTestStart = Files.size(AUDIT_LOG_FILE);
-            } catch (final IOException e) {
+            } catch (IOException e) {
                 throw new RuntimeException(e);
             }
             return null;
@@ -176,7 +176,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
     public static void wipeIndicesAfterTests() throws IOException {
         try {
             adminClient().performRequest(new Request("DELETE", "*"));
-        } catch (final ResponseException e) {
+        } catch (ResponseException e) {
             // 404 here just means we had no indexes
             if (e.getResponse().getStatusLine().getStatusCode() != 404) {
                 throw e;
@@ -388,7 +388,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
     }
 
     public void testDescribeWorksAsAdmin() throws Exception {
-        final Map<String, String> expected = new TreeMap<>();
+        Map<String, String> expected = new TreeMap<>();
         expected.put("a", "BIGINT");
         expected.put("b", "BIGINT");
         expected.put("c", "BIGINT");
@@ -441,7 +441,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
     public void testDescribeSingleFieldExcepted() throws Exception {
         createUser("not_c", "read_test_a_and_b");
 
-        final Map<String, String> expected = new TreeMap<>();
+        Map<String, String> expected = new TreeMap<>();
         expected.put("a", "BIGINT");
         expected.put("b", "BIGINT");
         actions.expectDescribe(expected, "not_c");
@@ -474,8 +474,8 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
     }
 
     protected static void createUser(String name, String role) throws IOException {
-        final Request request = new Request("PUT", "/_xpack/security/user/" + name);
-        final XContentBuilder user = JsonXContent.contentBuilder().prettyPrint();
+        Request request = new Request("PUT", "/_xpack/security/user/" + name);
+        XContentBuilder user = JsonXContent.contentBuilder().prettyPrint();
         user.startObject(); {
             user.field("password", "testpass");
             user.field("roles", role);
@@ -541,20 +541,20 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
                     + "guarantee that we fully cleaned up after the last test.", auditFailure);
             try {
                 assertBusy(() -> {
-                    final SecurityManager sm = System.getSecurityManager();
+                    SecurityManager sm = System.getSecurityManager();
                     if (sm != null) {
                         sm.checkPermission(new SpecialPermission());
                     }
-                    final BufferedReader logReader = AccessController.doPrivileged((PrivilegedAction<BufferedReader>) () -> {
+                    BufferedReader logReader = AccessController.doPrivileged((PrivilegedAction<BufferedReader>) () -> {
                         try {
                             return  Files.newBufferedReader(AUDIT_LOG_FILE, StandardCharsets.UTF_8);
-                        } catch (final IOException e) {
+                        } catch (IOException e) {
                             throw new RuntimeException(e);
                         }
                     });
                     logReader.skip(auditLogWrittenBeforeTestStart);
 
-                    final List<Map<String, Object>> logs = new ArrayList<>();
+                    List<Map<String, Object>> logs = new ArrayList<>();
                     String line;
                     while ((line = logReader.readLine()) != null) {
                         try {
@@ -590,12 +590,12 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
                             throw new IllegalArgumentException("Unrecognized log: " + line, e);
                         }
                     }
-                    final List<Map<String, Object>> allLogs = new ArrayList<>(logs);
-                    final List<Integer> notMatching = new ArrayList<>();
+                    List<Map<String, Object>> allLogs = new ArrayList<>(logs);
+                    List<Integer> notMatching = new ArrayList<>();
                     checker: for (int c = 0; c < logCheckers.size(); c++) {
-                        final Function<Map<String, Object>, Boolean> logChecker = logCheckers.get(c);
-                        for (final Iterator<Map<String, Object>> logsItr = logs.iterator(); logsItr.hasNext();) {
-                            final Map<String, Object> log = logsItr.next();
+                        Function<Map<String, Object>, Boolean> logChecker = logCheckers.get(c);
+                        for (Iterator<Map<String, Object>> logsItr = logs.iterator(); logsItr.hasNext();) {
+                            Map<String, Object> log = logsItr.next();
                             if (logChecker.apply(log)) {
                                 logsItr.remove();
                                 continue checker;
@@ -611,7 +611,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
                         fail("Not all logs matched. Unmatched logs:" + logsMessage(logs));
                     }
                 });
-            } catch (final AssertionError e) {
+            } catch (AssertionError e) {
                 auditFailure = true;
                 logger.warn("Failed to find an audit log. Skipping remaining tests in this class after this the missing audit"
                         + "logs could turn up later.");
@@ -623,8 +623,8 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
             if (logs.isEmpty()) {
                 return "  none!";
             }
-            final StringBuilder logsMessage = new StringBuilder();
-            for (final Map<String, Object> log : logs) {
+            StringBuilder logsMessage = new StringBuilder();
+            for (Map<String, Object> log : logs) {
                 logsMessage.append('\n').append(log);
             }
             return logsMessage.toString();

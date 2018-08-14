@@ -48,6 +48,7 @@ import org.mockito.stubbing.Answer;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -185,6 +186,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 "%varsNotEmpty{, \"rule\":\"%enc{%map{rule}}{JSON}\"}" +
                 "%varsNotEmpty{, \"event.category\":\"%enc{%map{event.category}}{JSON}\"}" +
                 "}%n")
+                .withCharset(StandardCharsets.UTF_8)
                 .build();
         logger = CapturingLogger.newCapturingLogger(Level.INFO, patternLayout);
         auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);

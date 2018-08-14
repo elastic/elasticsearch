@@ -18,6 +18,7 @@ import org.apache.logging.log4j.core.filter.RegexFilter;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.Loggers;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -75,7 +76,7 @@ public class CapturingLogger {
         public void append(LogEvent event) {
             final String logLine;
             if (getLayout() != null) {
-                logLine = new String(getLayout().toByteArray(event));
+                logLine = new String(getLayout().toByteArray(event), StandardCharsets.UTF_8);
             } else {
                 logLine = event.getMessage().getFormattedMessage();
             }

@@ -179,12 +179,15 @@ public final class KerberosRealm extends Realm implements CachingRealm {
 
     private void handleException(Exception e, final ActionListener<AuthenticationResult> listener) {
         if (e instanceof LoginException) {
+            logger.debug("failed to authenticate user, service login failure", e);
             listener.onResponse(AuthenticationResult.terminate("failed to authenticate user, service login failure",
                     unauthorized(e.getLocalizedMessage(), e)));
         } else if (e instanceof GSSException) {
+            logger.debug("failed to authenticate user, gss context negotiation failure", e);
             listener.onResponse(AuthenticationResult.terminate("failed to authenticate user, gss context negotiation failure",
                     unauthorized(e.getLocalizedMessage(), e)));
         } else {
+            logger.debug("failed to authenticate user", e);
             listener.onFailure(e);
         }
     }

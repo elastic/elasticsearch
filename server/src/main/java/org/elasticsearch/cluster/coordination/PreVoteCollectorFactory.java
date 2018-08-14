@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportException;
@@ -39,7 +40,7 @@ import java.util.function.LongConsumer;
 import static org.elasticsearch.cluster.coordination.CoordinationState.isElectionQuorum;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentSet;
 
-public class PreVoteCollector extends AbstractComponent {
+public class PreVoteCollectorFactory extends AbstractComponent {
 
     public static final String REQUEST_PRE_VOTE_ACTION_NAME = "internal:cluster/request_pre_vote";
 
@@ -49,15 +50,13 @@ public class PreVoteCollector extends AbstractComponent {
     private volatile PreVoteResponse preVoteResponse;
 
     @Nullable
-    private volatile PreVotingRound currentRound;
-    @Nullable
     private volatile DiscoveryNode currentLeader;
 
     private long updateMaxTermSeen(long term) {
         return maxTermSeen.accumulateAndGet(term, Math::max);
     }
 
-    PreVoteCollector(Settings settings, PreVoteResponse preVoteResponse, TransportService transportService, LongConsumer startElection) {
+    PreVoteCollectorFactory(Settings settings, PreVoteResponse preVoteResponse, TransportService transportService, LongConsumer startElection) {
         super(settings);
         this.preVoteResponse = preVoteResponse;
         this.transportService = transportService;
@@ -68,16 +67,11 @@ public class PreVoteCollector extends AbstractComponent {
             (request, channel, task) -> channel.sendResponse(handlePreVoteRequest(request)));
     }
 
-    public void start(final ClusterState clusterState, final Iterable<DiscoveryNode> broadcastNodes) {
+    public Releasable start(final ClusterState clusterState, final Iterable<DiscoveryNode> broadcastNodes) {
         logger.debug("{} starting", this);
-        assert currentRound == null;
-        currentRound = new PreVotingRound(clusterState);
+        PreVotingRound currentRound = new PreVotingRound(clusterState);
         currentRound.start(broadcastNodes);
-    }
-
-    public void stop() {
-        currentRound.stop();
-        currentRound = null;
+        return currentRound;
     }
 
     public void update(PreVoteResponse preVoteResponse, DiscoveryNode currentLeader) {
@@ -106,14 +100,13 @@ public class PreVoteCollector extends AbstractComponent {
 
     @Override
     public String toString() {
-        return "PreVoteCollector{" +
-            "currentRound=" + currentRound +
-            ", currentLeader=" + currentLeader +
+        return "PreVoteCollectorFactory{" +
+            "currentLeader=" + currentLeader +
             ", preVoteResponse=" + preVoteResponse +
             '}';
     }
 
-    private class PreVotingRound {
+    private class PreVotingRound implements Releasable {
         private final Set<DiscoveryNode> preVotesReceived = newConcurrentSet();
         private final AtomicBoolean electionStarted = new AtomicBoolean();
         private final PreVoteRequest preVoteRequest;
@@ -153,14 +146,9 @@ public class PreVoteCollector extends AbstractComponent {
 
                     @Override
                     public String toString() {
-                        return "TransportResponseHandler{" + PreVoteCollector.this + ", node=" + n + '}';
+                        return "TransportResponseHandler{" + PreVoteCollectorFactory.this + ", node=" + n + '}';
                     }
                 }));
-        }
-
-        void stop() {
-            final boolean isRunningChanged = isRunning.compareAndSet(true, false);
-            assert isRunningChanged;
         }
 
         private void handlePreVoteResponse(PreVoteResponse response, DiscoveryNode sender) {
@@ -205,6 +193,12 @@ public class PreVoteCollector extends AbstractComponent {
                 ", preVoteRequest=" + preVoteRequest +
                 ", isRunning=" + isRunning +
                 '}';
+        }
+
+        @Override
+        public void close() {
+            final boolean isRunningChanged = isRunning.compareAndSet(true, false);
+            assert isRunningChanged;
         }
     }
 }

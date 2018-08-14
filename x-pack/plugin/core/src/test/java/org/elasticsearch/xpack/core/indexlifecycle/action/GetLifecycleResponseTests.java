@@ -7,10 +7,10 @@ package org.elasticsearch.xpack.core.indexlifecycle.action;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.test.AbstractStreamableTestCase;
-import org.elasticsearch.xpack.core.indexlifecycle.DeleteAction;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleType;
+import org.elasticsearch.xpack.core.indexlifecycle.MockAction;
 import org.elasticsearch.xpack.core.indexlifecycle.TestLifecycleType;
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction.Response;
 
@@ -39,7 +39,7 @@ public class GetLifecycleResponseTests extends AbstractStreamableTestCase<GetLif
 
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
-            Arrays.asList(new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::new),
+            Arrays.asList(new NamedWriteableRegistry.Entry(LifecycleAction.class, MockAction.NAME, MockAction::new),
                         new NamedWriteableRegistry.Entry(LifecycleType.class, TestLifecycleType.TYPE, in -> TestLifecycleType.INSTANCE)));
     }
 

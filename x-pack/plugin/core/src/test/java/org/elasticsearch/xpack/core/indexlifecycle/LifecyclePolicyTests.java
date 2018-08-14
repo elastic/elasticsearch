@@ -50,7 +50,6 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
             Arrays.asList(
-                new NamedWriteableRegistry.Entry(LifecycleAction.class, MockAction.NAME, MockAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleType.class, TimeseriesLifecycleType.TYPE,
                     (in) -> TimeseriesLifecycleType.INSTANCE),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, AllocateAction.NAME, AllocateAction::new),

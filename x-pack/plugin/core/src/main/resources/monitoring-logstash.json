@@ -1,6 +1,6 @@
 {
   "index_patterns": [ ".monitoring-logstash-${monitoring.template.version}-*" ],
-  "version": 7000001,
+  "version": 7000099,
   "settings": {
     "index.number_of_shards": 1,
     "index.number_of_replicas": 0,

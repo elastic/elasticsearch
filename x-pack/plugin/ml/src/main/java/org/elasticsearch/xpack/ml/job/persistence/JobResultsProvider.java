@@ -13,7 +13,6 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -31,6 +30,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
@@ -260,7 +260,7 @@ public class JobResultsProvider {
                     .addAlias(indexName, readAliasName, QueryBuilders.termQuery(Job.ID.getPreferredName(), job.getId()))
                     .addAlias(indexName, writeAliasName).request();
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, request,
-                    ActionListener.<IndicesAliasesResponse>wrap(r -> finalListener.onResponse(true), finalListener::onFailure),
+                    ActionListener.<AcknowledgedResponse>wrap(r -> finalListener.onResponse(true), finalListener::onFailure),
                     client.admin().indices()::aliases);
             }, finalListener::onFailure);
 
@@ -1164,7 +1164,7 @@ public class JobResultsProvider {
                 }, errorHandler), client::search);
 
     }
-    
+
     public void updateCalendar(String calendarId, Set<String> jobIdsToAdd, Set<String> jobIdsToRemove,
                                Consumer<Calendar> handler, Consumer<Exception> errorHandler) {
 

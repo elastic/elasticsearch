@@ -27,7 +27,6 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
@@ -75,6 +74,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
@@ -529,7 +529,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         AliasActions addAction = new AliasActions(AliasActions.Type.ADD).index(index).aliases(alias);
         addAction.routing("routing").searchRouting("search_routing").filter("{\"term\":{\"year\":2016}}");
         aliasesAddRequest.addAliasAction(addAction);
-        IndicesAliasesResponse aliasesAddResponse = execute(aliasesAddRequest, highLevelClient().indices()::updateAliases,
+        AcknowledgedResponse aliasesAddResponse = execute(aliasesAddRequest, highLevelClient().indices()::updateAliases,
                 highLevelClient().indices()::updateAliasesAsync);
         assertTrue(aliasesAddResponse.isAcknowledged());
         assertThat(aliasExists(alias), equalTo(true));
@@ -547,7 +547,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         aliasesAddRemoveRequest.addAliasAction(addAction);
         AliasActions removeAction = new AliasActions(AliasActions.Type.REMOVE).index(index).alias(alias);
         aliasesAddRemoveRequest.addAliasAction(removeAction);
-        IndicesAliasesResponse aliasesAddRemoveResponse = execute(aliasesAddRemoveRequest, highLevelClient().indices()::updateAliases,
+        AcknowledgedResponse aliasesAddRemoveResponse = execute(aliasesAddRemoveRequest, highLevelClient().indices()::updateAliases,
                 highLevelClient().indices()::updateAliasesAsync);
         assertTrue(aliasesAddRemoveResponse.isAcknowledged());
         assertThat(aliasExists(alias), equalTo(false));
@@ -558,7 +558,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         IndicesAliasesRequest aliasesRemoveIndexRequest = new IndicesAliasesRequest();
         AliasActions removeIndexAction = new AliasActions(AliasActions.Type.REMOVE_INDEX).index(index);
         aliasesRemoveIndexRequest.addAliasAction(removeIndexAction);
-        IndicesAliasesResponse aliasesRemoveIndexResponse = execute(aliasesRemoveIndexRequest, highLevelClient().indices()::updateAliases,
+        AcknowledgedResponse aliasesRemoveIndexResponse = execute(aliasesRemoveIndexRequest, highLevelClient().indices()::updateAliases,
                 highLevelClient().indices()::updateAliasesAsync);
         assertTrue(aliasesRemoveIndexResponse.isAcknowledged());
         assertThat(aliasExists(alias), equalTo(false));

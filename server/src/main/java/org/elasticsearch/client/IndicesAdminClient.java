@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
@@ -119,6 +118,7 @@ import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeResponse;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Nullable;
 
 /**
@@ -547,7 +547,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * @return The result future
      * @see Requests#indexAliasesRequest()
      */
-    ActionFuture<IndicesAliasesResponse> aliases(IndicesAliasesRequest request);
+    ActionFuture<AcknowledgedResponse> aliases(IndicesAliasesRequest request);
 
     /**
      * Allows to add/remove aliases from indices.
@@ -556,7 +556,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * @param listener A listener to be notified with a result
      * @see Requests#indexAliasesRequest()
      */
-    void aliases(IndicesAliasesRequest request, ActionListener<IndicesAliasesResponse> listener);
+    void aliases(IndicesAliasesRequest request, ActionListener<AcknowledgedResponse> listener);
 
     /**
      * Allows to add/remove aliases from indices.

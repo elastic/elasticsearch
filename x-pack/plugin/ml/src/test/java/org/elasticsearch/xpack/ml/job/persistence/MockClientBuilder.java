@@ -11,7 +11,6 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -38,6 +37,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ClusterAdminClient;
@@ -294,9 +294,9 @@ public class MockClientBuilder {
         doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocationOnMock) throws Throwable {
-                ActionListener<IndicesAliasesResponse> listener =
-                        (ActionListener<IndicesAliasesResponse>) invocationOnMock.getArguments()[0];
-                listener.onResponse(mock(IndicesAliasesResponse.class));
+                ActionListener<AcknowledgedResponse> listener =
+                        (ActionListener<AcknowledgedResponse>) invocationOnMock.getArguments()[0];
+                listener.onResponse(mock(AcknowledgedResponse.class));
                 return null;
             }
         }).when(aliasesRequestBuilder).execute(any());
@@ -310,9 +310,9 @@ public class MockClientBuilder {
         doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocationOnMock) throws Throwable {
-                ActionListener<IndicesAliasesResponse> listener =
-                        (ActionListener<IndicesAliasesResponse>) invocationOnMock.getArguments()[1];
-                listener.onResponse(mock(IndicesAliasesResponse.class));
+                ActionListener<AcknowledgedResponse> listener =
+                        (ActionListener<AcknowledgedResponse>) invocationOnMock.getArguments()[1];
+                listener.onResponse(mock(AcknowledgedResponse.class));
                 return null;
             }
         }).when(indicesAdminClient).aliases(any(IndicesAliasesRequest.class), any(ActionListener.class));

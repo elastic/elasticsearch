@@ -25,7 +25,6 @@ import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
@@ -74,6 +73,7 @@ import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRespon
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.GetAliasesResponse;
 import org.elasticsearch.client.RequestOptions;
@@ -1649,7 +1649,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::update-aliases-request-masterTimeout
 
             // tag::update-aliases-execute
-            IndicesAliasesResponse indicesAliasesResponse =
+            AcknowledgedResponse indicesAliasesResponse =
                     client.indices().updateAliases(request, RequestOptions.DEFAULT);
             // end::update-aliases-execute
 
@@ -1665,10 +1665,10 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             request.addAliasAction(aliasAction);
 
             // tag::update-aliases-execute-listener
-            ActionListener<IndicesAliasesResponse> listener =
-                    new ActionListener<IndicesAliasesResponse>() {
+            ActionListener<AcknowledgedResponse> listener =
+                    new ActionListener<AcknowledgedResponse>() {
                 @Override
-                public void onResponse(IndicesAliasesResponse indicesAliasesResponse) {
+                public void onResponse(AcknowledgedResponse indicesAliasesResponse) {
                     // <1>
                 }
 

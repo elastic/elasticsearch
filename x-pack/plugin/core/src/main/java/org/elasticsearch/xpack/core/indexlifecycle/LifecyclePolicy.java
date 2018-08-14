@@ -69,10 +69,10 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
      *            a {@link Map} of {@link Phase}s which make up this
      *            {@link LifecyclePolicy}.
      */
-    public LifecyclePolicy(LifecycleType type, String name, Map<String, Phase> phases) {
+    public LifecyclePolicy(String name, Map<String, Phase> phases) {
         this.name = name;
         this.phases = phases;
-        this.type = (type == null) ? TimeseriesLifecycleType.INSTANCE : type;
+        this.type = TimeseriesLifecycleType.INSTANCE;
         this.type.validate(phases.values());
     }
 
@@ -85,6 +85,19 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         phases = Collections.unmodifiableMap(in.readMap(StreamInput::readString, Phase::new));
     }
 
+    /**
+     * @param name
+     *            the name of this {@link LifecyclePolicy}
+     * @param phases
+     *            a {@link Map} of {@link Phase}s which make up this
+     *            {@link LifecyclePolicy}.
+     */
+    LifecyclePolicy(LifecycleType type, String name, Map<String, Phase> phases) {
+        this.name = name;
+        this.phases = phases;
+        this.type = (type == null) ? TimeseriesLifecycleType.INSTANCE : type;
+        this.type.validate(phases.values());
+    }
     public static LifecyclePolicy parse(XContentParser parser, String name) {
         return PARSER.apply(parser, name);
     }

@@ -16,17 +16,18 @@ import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction.Res
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyTests.randomTestLifecyclePolicy;
+
 public class GetLifecycleResponseTests extends AbstractStreamableTestCase<GetLifecycleAction.Response> {
-    
+
     @Override
     protected Response createTestInstance() {
         String randomPrefix = randomAlphaOfLength(5);
         List<LifecyclePolicy> policies = new ArrayList<>();
         for (int i = 0; i < randomIntBetween(0, 2); i++) {
-            policies.add(new LifecyclePolicy(TestLifecycleType.INSTANCE, randomPrefix + i, Collections.emptyMap()));
+            policies.add(randomTestLifecyclePolicy(randomPrefix + i));
         }
         return new Response(policies);
     }
@@ -47,12 +48,12 @@ public class GetLifecycleResponseTests extends AbstractStreamableTestCase<GetLif
         List<LifecyclePolicy> policies = new ArrayList<>(response.getPolicies());
         if (policies.size() > 0) {
             if (randomBoolean()) {
-                policies.add(new LifecyclePolicy(TestLifecycleType.INSTANCE, randomAlphaOfLength(2), Collections.emptyMap()));
+                policies.add(randomTestLifecyclePolicy(randomAlphaOfLength(5)));
             } else {
                 policies.remove(policies.size() - 1);
             }
         } else {
-            policies.add(new LifecyclePolicy(TestLifecycleType.INSTANCE, randomAlphaOfLength(2), Collections.emptyMap()));
+            policies.add(randomTestLifecyclePolicy(randomAlphaOfLength(2)));
         }
         return new Response(policies);
     }

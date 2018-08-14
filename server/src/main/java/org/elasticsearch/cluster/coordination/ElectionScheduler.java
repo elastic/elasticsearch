@@ -103,7 +103,6 @@ public abstract class ElectionScheduler extends AbstractComponent {
         assert currentScheduler != null : currentScheduler;
         logger.debug("stopping {}", currentScheduler);
         currentScheduler = null;
-        idSupplier.incrementAndGet();
     }
 
     @SuppressForbidden(reason = "Argument to Math.abs() is definitely not Long.MIN_VALUE")

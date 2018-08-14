@@ -89,13 +89,6 @@ public class ElectionSchedulerTests extends ESTestCase {
         };
     }
 
-    public void testStartsElectionIfLocalNodeIsOnlyNode() {
-        electionScheduler.start(randomGracePeriod());
-        deterministicTaskQueue.advanceTime();
-        deterministicTaskQueue.runAllRunnableTasks(random());
-        assertTrue(electionOccurred);
-    }
-
     private TimeValue randomGracePeriod() {
         return TimeValue.timeValueMillis(randomLongBetween(0, 10000));
     }
@@ -144,6 +137,8 @@ public class ElectionSchedulerTests extends ESTestCase {
             lastElectionTime = thisElectionTime;
         }
         electionScheduler.stop();
+        deterministicTaskQueue.runAllTasks(random());
+        assertFalse(electionOccurred);
     }
 
     public void testRetriesOnCorrectSchedule() {

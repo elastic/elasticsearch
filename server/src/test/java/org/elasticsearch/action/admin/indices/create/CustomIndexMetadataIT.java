@@ -281,7 +281,7 @@ public class CustomIndexMetadataIT extends ESIntegTestCase {
             contentBuilder.field("payload", "template");
             contentBuilder.endObject();
             contentBuilder.endObject();
-            request.source(contentBuilder);
+            request.source(contentBuilder, xContentRegistry());
             assertAcked(client().admin().indices().putTemplate(request).get());
         }
 
@@ -318,7 +318,7 @@ public class CustomIndexMetadataIT extends ESIntegTestCase {
             Map<String, Object> custom = new HashMap<>();
             custom.put("payload", "frommap");
             indexDefinition.put("test_indexmeta", custom);
-            request.source(indexDefinition, LoggingDeprecationHandler.INSTANCE);
+            request.source(indexDefinition, LoggingDeprecationHandler.INSTANCE, xContentRegistry());
         } else {
             XContentBuilder contentBuilder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
             contentBuilder.startObject();
@@ -326,7 +326,7 @@ public class CustomIndexMetadataIT extends ESIntegTestCase {
             contentBuilder.field("payload", "frommap");
             contentBuilder.endObject();
             contentBuilder.endObject();
-            request.source(contentBuilder);
+            request.source(contentBuilder, xContentRegistry());
         }
 
         assertAcked(client().admin().indices().create(request).actionGet());

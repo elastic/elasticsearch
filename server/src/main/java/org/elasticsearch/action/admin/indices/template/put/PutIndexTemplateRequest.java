@@ -62,7 +62,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.action.admin.indices.create.CreateIndexRequest.getProvidedNamedXContents;
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
@@ -307,6 +306,17 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         }
     }
 
+    /**
+     * The template source definition.
+     */
+    public PutIndexTemplateRequest source(XContentBuilder templateBuilder, NamedXContentRegistry customsRegistry) {
+        try {
+            return source(BytesReference.bytes(templateBuilder), templateBuilder.contentType(), customsRegistry);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Failed to build json for template request", e);
+        }
+    }
+
     @SuppressWarnings("unchecked")
     public PutIndexTemplateRequest source(Map<String, Object> templateSource) {
         return source(templateSource, null);
@@ -363,8 +373,8 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
                 // maybe custom?
                 if (entry.getValue() instanceof Map) {
                     if (customsRegistry == null) {
-                        // Custom registry wasn't specified - we are in client mode let's try loading it from SPI
-                        customsRegistry = new NamedXContentRegistry(getProvidedNamedXContents());
+                        throw new ElasticsearchParseException("unknown key [{}] for create index, and custom registry is not specified",
+                            name);
                     }
                     try {
                         customs.put(name, IndexMetaData.parseCustom(name, (Map<String, Object>) entry.getValue(),

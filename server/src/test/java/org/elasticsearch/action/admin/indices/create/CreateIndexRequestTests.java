@@ -81,7 +81,7 @@ public class CreateIndexRequestTests extends ESTestCase {
         CreateIndexRequest request = new CreateIndexRequest();
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
                 () -> {request.source(createIndex, XContentType.JSON);});
-        assertEquals("unknown key [FOO_SHOULD_BE_ILLEGAL_HERE] for create index", e.getMessage());
+        assertEquals("unknown key [FOO_SHOULD_BE_ILLEGAL_HERE] for create index, and custom registry is not specified", e.getMessage());
     }
 
     public void testToXContent() throws IOException {

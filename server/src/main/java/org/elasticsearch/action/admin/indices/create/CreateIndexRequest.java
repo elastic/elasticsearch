@@ -48,18 +48,14 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.plugins.spi.NamedXContentProvider;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.ServiceLoader;
 import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -353,6 +349,14 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         return source(BytesReference.bytes(source), source.contentType());
     }
 
+
+    /**
+     * Sets the settings and mappings as a single source.
+     */
+    public CreateIndexRequest source(XContentBuilder source, NamedXContentRegistry xContentRegistry) {
+        return source(BytesReference.bytes(source), source.contentType(), xContentRegistry);
+    }
+
     /**
      * Sets the settings and mappings as a single source.
      */
@@ -373,6 +377,15 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     public CreateIndexRequest source(BytesReference source, XContentType xContentType) {
         Objects.requireNonNull(xContentType);
         source(XContentHelper.convertToMap(source, false, xContentType).v2(), LoggingDeprecationHandler.INSTANCE);
+        return this;
+    }
+
+    /**
+     * Sets the settings and mappings as a single source.
+     */
+    public CreateIndexRequest source(BytesReference source, XContentType xContentType, NamedXContentRegistry xContentRegistry) {
+        Objects.requireNonNull(xContentType);
+        source(XContentHelper.convertToMap(source, false, xContentType).v2(), LoggingDeprecationHandler.INSTANCE, xContentRegistry);
         return this;
     }
 
@@ -404,8 +417,8 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
                 // maybe custom?
                 if (entry.getValue() instanceof Map) {
                     if (customsRegistry == null) {
-                        // Custom registry wasn't specified - we are in client mode let's try loading it from SPI
-                        customsRegistry = new NamedXContentRegistry(getProvidedNamedXContents());
+                        throw new ElasticsearchParseException("unknown key [{}] for create index, and custom registry is not specified",
+                            name);
                     }
                     try {
                         customs.put(name, IndexMetaData.parseCustom(name, (Map<String, Object>) entry.getValue(), deprecationHandler,
@@ -565,14 +578,4 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         return builder;
     }
 
-    /**
-     * Loads and returns the {@link NamedXContentRegistry.Entry} parsers provided by plugins.
-     */
-    public static List<NamedXContentRegistry.Entry> getProvidedNamedXContents() {
-        List<NamedXContentRegistry.Entry> entries = new ArrayList<>();
-        for (NamedXContentProvider service : ServiceLoader.load(NamedXContentProvider.class)) {
-            entries.addAll(service.getNamedXContentParsers());
-        }
-        return entries;
-    }
 }

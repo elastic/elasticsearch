@@ -23,7 +23,6 @@ import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
@@ -282,7 +281,7 @@ public class AckIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("test").setSource("field", "type=keyword").setTimeout("0s").get();
+        AcknowledgedResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("test").setSource("field", "type=keyword").setTimeout("0s").get();
         assertThat(putMappingResponse.isAcknowledged(), equalTo(false));
     }
 

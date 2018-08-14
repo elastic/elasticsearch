@@ -199,7 +199,6 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequestBuilder;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequestBuilder;
@@ -1478,12 +1477,12 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         }
 
         @Override
-        public ActionFuture<PutMappingResponse> putMapping(final PutMappingRequest request) {
+        public ActionFuture<AcknowledgedResponse> putMapping(final PutMappingRequest request) {
             return execute(PutMappingAction.INSTANCE, request);
         }
 
         @Override
-        public void putMapping(final PutMappingRequest request, final ActionListener<PutMappingResponse> listener) {
+        public void putMapping(final PutMappingRequest request, final ActionListener<AcknowledgedResponse> listener) {
             execute(PutMappingAction.INSTANCE, request, listener);
         }
 

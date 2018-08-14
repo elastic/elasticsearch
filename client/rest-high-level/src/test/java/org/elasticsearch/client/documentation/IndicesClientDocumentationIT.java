@@ -49,7 +49,6 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRespon
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -480,7 +479,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                     "}", // <1>
                     XContentType.JSON);
                 // end::put-mapping-request-source
-                PutMappingResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
+                AcknowledgedResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
                 assertTrue(putMappingResponse.isAcknowledged());
             }
 
@@ -494,7 +493,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 jsonMap.put("properties", properties);
                 request.source(jsonMap); // <1>
                 //end::put-mapping-map
-                PutMappingResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
+                AcknowledgedResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
                 assertTrue(putMappingResponse.isAcknowledged());
             }
             {
@@ -515,14 +514,14 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 builder.endObject();
                 request.source(builder); // <1>
                 //end::put-mapping-xcontent
-                PutMappingResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
+                AcknowledgedResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
                 assertTrue(putMappingResponse.isAcknowledged());
             }
             {
                 //tag::put-mapping-shortcut
                 request.source("message", "type=text"); // <1>
                 //end::put-mapping-shortcut
-                PutMappingResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
+                AcknowledgedResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
                 assertTrue(putMappingResponse.isAcknowledged());
             }
 
@@ -536,7 +535,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::put-mapping-request-masterTimeout
 
             // tag::put-mapping-execute
-            PutMappingResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
+            AcknowledgedResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
             // end::put-mapping-execute
 
             // tag::put-mapping-response
@@ -558,10 +557,10 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             PutMappingRequest request = new PutMappingRequest("twitter").type("tweet");
 
             // tag::put-mapping-execute-listener
-            ActionListener<PutMappingResponse> listener =
-                new ActionListener<PutMappingResponse>() {
+            ActionListener<AcknowledgedResponse> listener =
+                new ActionListener<AcknowledgedResponse>() {
                     @Override
-                    public void onResponse(PutMappingResponse putMappingResponse) {
+                    public void onResponse(AcknowledgedResponse putMappingResponse) {
                         // <1>
                     }
 
@@ -601,7 +600,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                     "  }\n" +
                     "}", // <1>
                 XContentType.JSON);
-            PutMappingResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
+            AcknowledgedResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
             assertTrue(putMappingResponse.isAcknowledged());
         }
 
@@ -658,7 +657,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                     "  }\n" +
                     "}", // <1>
                 XContentType.JSON);
-            PutMappingResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
+            AcknowledgedResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
             assertTrue(putMappingResponse.isAcknowledged());
         }
 
@@ -731,7 +730,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                     "  }\n" +
                     "}", // <1>
                 XContentType.JSON);
-            PutMappingResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
+            AcknowledgedResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
             assertTrue(putMappingResponse.isAcknowledged());
         }
 
@@ -2461,7 +2460,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             .indices("my_index")
             .type("_doc")
             .source("my_field", "type=text,analyzer=english");
-        PutMappingResponse pmResp = client.indices().putMapping(pmReq, RequestOptions.DEFAULT);
+        AcknowledgedResponse pmResp = client.indices().putMapping(pmReq, RequestOptions.DEFAULT);
         assertTrue(pmResp.isAcknowledged());
 
         {

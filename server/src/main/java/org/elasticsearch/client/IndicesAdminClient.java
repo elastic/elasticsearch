@@ -69,7 +69,6 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequestBuil
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequestBuilder;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
@@ -524,7 +523,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * @return A result future
      * @see org.elasticsearch.client.Requests#putMappingRequest(String...)
      */
-    ActionFuture<PutMappingResponse> putMapping(PutMappingRequest request);
+    ActionFuture<AcknowledgedResponse> putMapping(PutMappingRequest request);
 
     /**
      * Add mapping definition for a type into one or more indices.
@@ -533,7 +532,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * @param listener A listener to be notified with a result
      * @see org.elasticsearch.client.Requests#putMappingRequest(String...)
      */
-    void putMapping(PutMappingRequest request, ActionListener<PutMappingResponse> listener);
+    void putMapping(PutMappingRequest request, ActionListener<AcknowledgedResponse> listener);
 
     /**
      * Add mapping definition for a type into one or more indices.

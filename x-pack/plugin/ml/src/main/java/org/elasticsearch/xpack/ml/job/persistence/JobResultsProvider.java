@@ -16,7 +16,6 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -340,9 +339,9 @@ public class JobResultsProvider {
         try (XContentBuilder termFieldsMapping = ElasticsearchMappings.docMapping(termFields)) {
             final PutMappingRequest request = client.admin().indices().preparePutMapping(indexName).setType(ElasticsearchMappings.DOC_TYPE)
                     .setSource(termFieldsMapping).request();
-            executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, request, new ActionListener<PutMappingResponse>() {
+            executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, request, new ActionListener<AcknowledgedResponse>() {
                 @Override
-                public void onResponse(PutMappingResponse putMappingResponse) {
+                public void onResponse(AcknowledgedResponse putMappingResponse) {
                     listener.onResponse(putMappingResponse.isAcknowledged());
                 }
 

@@ -50,7 +50,6 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRespon
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -411,7 +410,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         mappingBuilder.endObject().endObject().endObject();
         putMappingRequest.source(mappingBuilder);
 
-        PutMappingResponse putMappingResponse =
+        AcknowledgedResponse putMappingResponse =
                 execute(putMappingRequest, highLevelClient().indices()::putMapping, highLevelClient().indices()::putMappingAsync);
         assertTrue(putMappingResponse.isAcknowledged());
 
@@ -431,7 +430,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         mappingBuilder.endObject().endObject().endObject();
         putMappingRequest.source(mappingBuilder);
 
-        PutMappingResponse putMappingResponse =
+        AcknowledgedResponse putMappingResponse =
             execute(putMappingRequest, highLevelClient().indices()::putMapping, highLevelClient().indices()::putMappingAsync);
         assertTrue(putMappingResponse.isAcknowledged());
 
@@ -467,7 +466,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         mappingBuilder.endObject().endObject().endObject();
         putMappingRequest.source(mappingBuilder);
 
-        PutMappingResponse putMappingResponse =
+        AcknowledgedResponse putMappingResponse =
             execute(putMappingRequest, highLevelClient().indices()::putMapping, highLevelClient().indices()::putMappingAsync);
         assertTrue(putMappingResponse.isAcknowledged());
 

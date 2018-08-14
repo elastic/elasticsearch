@@ -22,7 +22,6 @@ import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRespon
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequestBuilder;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequestBuilder;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -337,15 +336,15 @@ public class MockClientBuilder {
         return this;
     }
 
-    public MockClientBuilder preparePutMapping(PutMappingResponse response, String type) {
+    public MockClientBuilder preparePutMapping(AcknowledgedResponse response, String type) {
         PutMappingRequestBuilder requestBuilder = mock(PutMappingRequestBuilder.class);
         when(requestBuilder.setType(eq(type))).thenReturn(requestBuilder);
         when(requestBuilder.setSource(any(XContentBuilder.class))).thenReturn(requestBuilder);
         doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocationOnMock) throws Throwable {
-                ActionListener<PutMappingResponse> listener =
-                        (ActionListener<PutMappingResponse>) invocationOnMock.getArguments()[0];
+                ActionListener<AcknowledgedResponse> listener =
+                        (ActionListener<AcknowledgedResponse>) invocationOnMock.getArguments()[0];
                 listener.onResponse(response);
                 return null;
             }

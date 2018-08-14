@@ -92,10 +92,12 @@ public class GlobalCheckpointListeners implements Closeable {
     synchronized void add(final long currentGlobalCheckpoint, final GlobalCheckpointListener listener) {
         if (closed) {
             executor.execute(() -> listener.accept(UNASSIGNED_SEQ_NO, new IndexShardClosedException(shardId)));
+            return;
         }
         if (lastKnownGlobalCheckpoint > currentGlobalCheckpoint) {
             // notify directly
-            executor.execute(() -> notifyListener(listener, lastKnownGlobalCheckpoint, null));
+            executor.execute(() -> listener.accept(lastKnownGlobalCheckpoint, null));
+            return;
         } else {
             if (listeners == null) {
                 listeners = new ArrayList<>();
@@ -110,6 +112,10 @@ public class GlobalCheckpointListeners implements Closeable {
             closed = true;
         }
         notifyListeners(UNASSIGNED_SEQ_NO, new IndexShardClosedException(shardId));
+    }
+
+    synchronized int pendingListeners() {
+        return listeners == null ? 0 : listeners.size();
     }
 
     /**

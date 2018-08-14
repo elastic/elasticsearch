@@ -26,6 +26,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -350,11 +351,21 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
         globalCheckpointListeners.globalCheckpointUpdated(globalCheckpoint.get());
         final CyclicBarrier barrier = new CyclicBarrier(3);
         final int numberOfIterations = randomIntBetween(1, 1024);
-
+        final AtomicBoolean closed = new AtomicBoolean();
         final Thread updatingThread = new Thread(() -> {
             awaitQuietly(barrier);
             for (int i = 0; i < numberOfIterations; i++) {
-                globalCheckpointListeners.globalCheckpointUpdated(globalCheckpoint.incrementAndGet());
+                if (rarely() && closed.get() == false) {
+                    closed.set(true);
+                    try {
+                        globalCheckpointListeners.close();
+                    } catch (final IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                }
+                if (closed.get() == false) {
+                    globalCheckpointListeners.globalCheckpointUpdated(globalCheckpoint.incrementAndGet());
+                }
             }
             awaitQuietly(barrier);
         });
@@ -381,7 +392,10 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
         barrier.await();
         barrier.await();
         // one last update to ensure all listeners are notified
-        globalCheckpointListeners.globalCheckpointUpdated(globalCheckpoint.incrementAndGet());
+        if (closed.get() == false) {
+            globalCheckpointListeners.globalCheckpointUpdated(globalCheckpoint.incrementAndGet());
+        }
+        assertThat(globalCheckpointListeners.pendingListeners(), equalTo(0));
         executor.shutdown();
         executor.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);
         for (final AtomicBoolean invocation : invocations) {

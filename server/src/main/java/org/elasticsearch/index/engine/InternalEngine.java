@@ -364,7 +364,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public InternalEngine recoverFromTranslog() throws IOException {
+    public InternalEngine recoverFromTranslog(long recoverUpToSeqNo) throws IOException {
         flushLock.lock();
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
@@ -372,7 +372,7 @@ public class InternalEngine extends Engine {
                 throw new IllegalStateException("Engine has already been recovered");
             }
             try {
-                recoverFromTranslogInternal();
+                recoverFromTranslogInternal(recoverUpToSeqNo);
             } catch (Exception e) {
                 try {
                     pendingTranslogRecovery.set(true); // just play safe and never allow commits on this see #ensureCanFlush
@@ -388,17 +388,23 @@ public class InternalEngine extends Engine {
         return this;
     }
 
+    // for testing
+    final Engine recoverFromTranslog() throws IOException {
+        return recoverFromTranslog(Long.MAX_VALUE);
+    }
+
     @Override
     public void skipTranslogRecovery() {
         assert pendingTranslogRecovery.get() : "translogRecovery is not pending but should be";
         pendingTranslogRecovery.set(false); // we are good - now we can commit
     }
 
-    private void recoverFromTranslogInternal() throws IOException {
+    private void recoverFromTranslogInternal(long recoverUpToSeqNo) throws IOException {
         Translog.TranslogGeneration translogGeneration = translog.getGeneration();
         final int opsRecovered;
         final long translogGen = Long.parseLong(lastCommittedSegmentInfos.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
-        try (Translog.Snapshot snapshot = translog.newSnapshotFromGen(translogGen)) {
+        try (Translog.Snapshot snapshot = translog.newSnapshotFromGen(
+            new Translog.TranslogGeneration(translog.getTranslogUUID(), translogGen), recoverUpToSeqNo)) {
             opsRecovered = config().getTranslogRecoveryRunner().run(this, snapshot);
         } catch (Exception e) {
             throw new EngineException(shardId, "failed to recover from translog", e);
@@ -2232,6 +2238,22 @@ public class InternalEngine extends Engine {
     @Override
     public SeqNoStats getSeqNoStats(long globalCheckpoint) {
         return localCheckpointTracker.getStats(globalCheckpoint);
+    }
+
+    @Override
+    public Engine lockDownEngine() throws IOException {
+        try (ReleasableLock ignored = writeLock.acquire()) {
+            refresh("lockdown", SearcherScope.INTERNAL);
+            Searcher searcher = acquireSearcher("lockdown", SearcherScope.INTERNAL);
+            try {
+                ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(this.engineConfig, lastCommittedSegmentInfos, searcher,
+                    getSeqNoStats(getLastSyncedGlobalCheckpoint()), getTranslogStats());
+                searcher = null;
+                return readOnlyEngine;
+            } finally {
+                IOUtils.close(searcher);
+            }
+        }
     }
 
     /**

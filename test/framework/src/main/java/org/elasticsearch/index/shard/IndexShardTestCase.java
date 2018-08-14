@@ -18,13 +18,8 @@
  */
 package org.elasticsearch.index.shard;
 
-import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexNotFoundException;
-import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -57,10 +52,8 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngineFactory;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -581,23 +574,12 @@ public abstract class IndexShardTestCase extends ESTestCase {
         return result;
     }
 
+    protected Set<String> getShardDocUIDs(final IndexShard shard, boolean refresh) throws IOException {
+        return EngineTestCase.getDocIds(shard.getEngine(), refresh);
+    }
+
     protected Set<String> getShardDocUIDs(final IndexShard shard) throws IOException {
-        shard.refresh("get_uids");
-        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-            Set<String> ids = new HashSet<>();
-            for (LeafReaderContext leafContext : searcher.reader().leaves()) {
-                LeafReader reader = leafContext.reader();
-                Bits liveDocs = reader.getLiveDocs();
-                for (int i = 0; i < reader.maxDoc(); i++) {
-                    if (liveDocs == null || liveDocs.get(i)) {
-                        Document uuid = reader.document(i, Collections.singleton(IdFieldMapper.NAME));
-                        BytesRef binaryID = uuid.getBinaryValue(IdFieldMapper.NAME);
-                        ids.add(Uid.decodeId(Arrays.copyOfRange(binaryID.bytes, binaryID.offset, binaryID.offset + binaryID.length)));
-                    }
-                }
-            }
-            return ids;
-        }
+        return getShardDocUIDs(shard, true);
     }
 
     protected void assertDocCount(IndexShard shard, int docDount) throws IOException {

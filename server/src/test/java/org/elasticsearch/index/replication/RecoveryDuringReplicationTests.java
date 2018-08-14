@@ -22,6 +22,7 @@ package org.elasticsearch.index.replication;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -55,7 +56,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -68,8 +68,10 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
@@ -299,14 +301,6 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 assertThat(newReplica.recoveryState().getIndex().fileDetails(), not(empty()));
                 assertThat(newReplica.recoveryState().getTranslog().recoveredOperations(), equalTo(uncommittedOpsOnPrimary));
             }
-
-            // roll back the extra ops in the replica
-            shards.removeReplica(replica);
-            replica.close("resync", false);
-            replica.store().close();
-            newReplica = shards.addReplicaWithExistingPath(replica.shardPath(), replica.routingEntry().currentNodeId());
-            shards.recoverReplica(newReplica);
-            shards.assertAllEqual(totalDocs);
             // Make sure that flushing on a recovering shard is ok.
             shards.flush();
             shards.assertAllEqual(totalDocs);
@@ -363,7 +357,6 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
         try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetaData(2, mappings))) {
             shards.startAll();
             int initialDocs = randomInt(10);
-
             for (int i = 0; i < initialDocs; i++) {
                 final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "initial_doc_" + i)
                     .source("{ \"f\": \"normal\"}", XContentType.JSON);
@@ -399,31 +392,15 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 indexOnReplica(bulkShardRequest, shards, justReplica);
             }
 
-            logger.info("--> seqNo primary {} replica {}", oldPrimary.seqNoStats(), newPrimary.seqNoStats());
-
-            logger.info("--> resyncing replicas");
-            PrimaryReplicaSyncer.ResyncTask task = shards.promoteReplicaToPrimary(newPrimary).get();
+            logger.info("--> resyncing replicas seqno_stats primary {} replica {}", oldPrimary.seqNoStats(), newPrimary.seqNoStats());
+            PrimaryReplicaSyncer.ResyncTask resyncTask = shards.promoteReplicaToPrimary(newPrimary).get();
             if (syncedGlobalCheckPoint) {
-                assertEquals(extraDocs, task.getResyncedOperations());
+                assertEquals(extraDocs, resyncTask.getResyncedOperations());
             } else {
-                assertThat(task.getResyncedOperations(), greaterThanOrEqualTo(extraDocs));
+                assertThat(resyncTask.getResyncedOperations(), greaterThanOrEqualTo(extraDocs));
             }
-            List<IndexShard> replicas = shards.getReplicas();
-
-            // check all docs on primary are available on replica
-            Set<String> primaryIds = getShardDocUIDs(newPrimary);
-            assertThat(primaryIds.size(), equalTo(initialDocs + extraDocs));
-            for (IndexShard replica : replicas) {
-                Set<String> replicaIds = getShardDocUIDs(replica);
-                Set<String> temp = new HashSet<>(primaryIds);
-                temp.removeAll(replicaIds);
-                assertThat(replica.routingEntry() + " is missing docs", temp, empty());
-                temp = new HashSet<>(replicaIds);
-                temp.removeAll(primaryIds);
-                // yeah, replica has more docs as there is no Lucene roll back on it
-                assertThat(replica.routingEntry() + " has to have extra docs", temp,
-                    extraDocsToBeTrimmed > 0 ? not(empty()) : empty());
-            }
+            // documents on replicas should be aligned with primary
+            shards.assertAllEqual(initialDocs + extraDocs);
 
             // check translog on replica is trimmed
             int translogOperations = 0;
@@ -647,6 +624,72 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                     // the global checkpoint advances can only advance here if a background global checkpoint sync fires
                     assertThat(replica.getGlobalCheckpoint(), anyOf(equalTo(expectedDocs - 1), equalTo(expectedDocs - 2)));
                 });
+            }
+        }
+    }
+
+    public void testRollbackOnPromotion() throws Exception {
+        int numberOfReplicas = between(2, 3);
+        try (ReplicationGroup shards = createGroup(numberOfReplicas)) {
+            shards.startAll();
+            IndexShard newPrimary = randomFrom(shards.getReplicas());
+            int initDocs = shards.indexDocs(randomInt(100));
+            Set<String> ackedDocIds = getShardDocUIDs(shards.getPrimary(), true);
+            int inFlightOps = scaledRandomIntBetween(10, 200);
+            int extraDocsOnNewPrimary = 0;
+            for (int i = 0; i < inFlightOps; i++) {
+                String id = "extra-" + i;
+                IndexRequest primaryRequest = new IndexRequest(index.getName(), "type", id).source("{}", XContentType.JSON);
+                BulkShardRequest replicationRequest = indexOnPrimary(primaryRequest, shards.getPrimary());
+                int indexed = 0;
+                for (IndexShard replica : shards.getReplicas()) {
+                    if (randomBoolean()) {
+                        indexOnReplica(replicationRequest, shards, replica);
+                        if (replica == newPrimary) {
+                            extraDocsOnNewPrimary++;
+                        }
+                        indexed++;
+                    }
+                }
+                if (indexed == numberOfReplicas) {
+                    ackedDocIds.add(id);
+                }
+                if (randomBoolean()) {
+                    shards.syncGlobalCheckpoint();
+                }
+                if (rarely()) {
+                    shards.flush();
+                }
+            }
+            AtomicBoolean isDone = new AtomicBoolean();
+            Thread[] threads = new Thread[numberOfReplicas];
+            for (int i = 0; i < threads.length; i++) {
+                IndexShard replica = shards.getReplicas().get(i);
+                threads[i] = new Thread(() -> {
+                    // should fail at most twice with two transitions: normal engine -> read-only engine -> resetting engine
+                    long hitClosedExceptions = 0;
+                    while (isDone.get() == false) {
+                        try {
+                            Set<String> docIds = getShardDocUIDs(replica, true);
+                            assertThat(ackedDocIds, everyItem(isIn(docIds)));
+                            assertThat(replica.getLocalCheckpoint(), greaterThanOrEqualTo(initDocs - 1L));
+                        } catch (AlreadyClosedException e) {
+                            hitClosedExceptions++;
+                        } catch (IOException e) {
+                            throw new AssertionError(e);
+                        }
+                    }
+                    assertThat(hitClosedExceptions, lessThanOrEqualTo(2L));
+                });
+                threads[i].start();
+            }
+            shards.promoteReplicaToPrimary(newPrimary).get();
+            shards.assertAllEqual(initDocs + extraDocsOnNewPrimary);
+            int moreDocs = shards.indexDocs(scaledRandomIntBetween(1, 10));
+            shards.assertAllEqual(initDocs + extraDocsOnNewPrimary + moreDocs);
+            isDone.set(true);
+            for (Thread thread : threads) {
+                thread.join();
             }
         }
     }

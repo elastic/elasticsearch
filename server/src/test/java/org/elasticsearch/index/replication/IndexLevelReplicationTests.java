@@ -469,11 +469,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                 assertThat("Remaining of snapshot should contain init operations", snapshot, containsOperationsInAnyOrder(initOperations));
                 assertThat("Peer-recovery should not send overridden operations", snapshot.skippedOperations(), equalTo(0));
             }
-            // TODO: We should assert the content of shards in the ReplicationGroup.
-            // Without rollback replicas(current implementation), we don't have the same content across shards:
-            // - replica1 has {doc1}
-            // - replica2 has {doc1, doc2}
-            // - replica3 can have either {doc2} only if operation-based recovery or {doc1, doc2} if file-based recovery
+            shards.assertAllEqual(initDocs + 1);
         }
     }
 

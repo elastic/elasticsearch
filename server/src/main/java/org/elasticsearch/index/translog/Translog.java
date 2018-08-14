@@ -555,21 +555,49 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      */
     public Snapshot newSnapshot() throws IOException {
         try (ReleasableLock ignored = readLock.acquire()) {
-            return newSnapshotFromGen(getMinFileGeneration());
+            return newSnapshotFromGen(new TranslogGeneration(translogUUID, getMinFileGeneration()), Long.MAX_VALUE);
         }
     }
 
-    public Snapshot newSnapshotFromGen(long minGeneration) throws IOException {
+    public Snapshot newSnapshotFromGen(TranslogGeneration minGeneration, long upToSeqNo) throws IOException {
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
-            if (minGeneration < getMinFileGeneration()) {
-                throw new IllegalArgumentException("requested snapshot generation [" + minGeneration + "] is not available. " +
+            final long minTranslogFileGen = minGeneration.translogFileGeneration;
+            if (minTranslogFileGen < getMinFileGeneration()) {
+                throw new IllegalArgumentException("requested snapshot generation [" + minTranslogFileGen + "] is not available. " +
                     "Min referenced generation is [" + getMinFileGeneration() + "]");
             }
             TranslogSnapshot[] snapshots = Stream.concat(readers.stream(), Stream.of(current))
-                .filter(reader -> reader.getGeneration() >= minGeneration)
+                .filter(reader -> reader.getGeneration() >= minTranslogFileGen && reader.getCheckpoint().minSeqNo <= upToSeqNo)
                 .map(BaseTranslogReader::newSnapshot).toArray(TranslogSnapshot[]::new);
-            return newMultiSnapshot(snapshots);
+            Snapshot snapshot = newMultiSnapshot(snapshots);
+            return new Snapshot() {
+                int skipped = 0;
+                @Override
+                public int totalOperations() {
+                    return snapshot.totalOperations();
+                }
+                @Override
+                public int skippedOperations() {
+                    return skipped + snapshot.skippedOperations();
+                }
+                @Override
+                public Operation next() throws IOException {
+                    Translog.Operation op;
+                    while ((op = snapshot.next()) != null) {
+                        if (op.seqNo() <= upToSeqNo) {
+                            return op;
+                        } else {
+                            skipped++;
+                        }
+                    }
+                    return null;
+                }
+                @Override
+                public void close() throws IOException {
+                    snapshot.close();
+                }
+            };
         }
     }
 

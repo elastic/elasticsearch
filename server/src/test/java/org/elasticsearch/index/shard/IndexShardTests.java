@@ -156,6 +156,7 @@ import static org.elasticsearch.repositories.RepositoryData.EMPTY_REPO_GEN;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -164,8 +165,10 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
  * Simple unit-test IndexShard related operations.
@@ -741,6 +744,11 @@ public class IndexShardTests extends IndexShardTestCase {
                 ActionListener<Releasable> listener = new ActionListener<Releasable>() {
                     @Override
                     public void onResponse(Releasable releasable) {
+                        try {
+                            indexShard.afterApplyResyncOperationsBulk(newGlobalCheckPoint);
+                        } catch (IOException e) {
+                            throw new AssertionError(e);
+                        }
                         assertThat(indexShard.getPendingPrimaryTerm(), equalTo(newPrimaryTerm));
                         assertThat(TestTranslog.getCurrentTerm(getTranslog(indexShard)), equalTo(newPrimaryTerm));
                         assertThat(indexShard.getLocalCheckpoint(), equalTo(expectedLocalCheckpoint));
@@ -807,7 +815,8 @@ public class IndexShardTests extends IndexShardTestCase {
                 } else {
                     assertTrue(onResponse.get());
                     assertNull(onFailure.get());
-                    assertThat(getTranslog(indexShard).getGeneration().translogFileGeneration, equalTo(translogGen + 1));
+                    assertThat(getTranslog(indexShard).getGeneration().translogFileGeneration,
+                        either(equalTo(translogGen + 1)).or(equalTo(translogGen + 2)));
                     assertThat(indexShard.getLocalCheckpoint(), equalTo(expectedLocalCheckpoint));
                     assertThat(indexShard.getGlobalCheckpoint(), equalTo(newGlobalCheckPoint));
                 }
@@ -879,23 +888,15 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(replicaShard, primaryShard);
     }
 
-    public void testRestoreLocalCheckpointTrackerFromTranslogOnPromotion() throws IOException, InterruptedException {
-        final IndexShard indexShard = newStartedShard(false);
-        final int operations = 1024 - scaledRandomIntBetween(0, 1024);
+    public void testRestoreLocalHistoryOnPromotion() throws IOException, InterruptedException {
+        final Version indexVersion = randomFrom(Version.V_5_5_0, Version.V_6_3_0, Version.V_6_4_0, Version.CURRENT);
+        final IndexShard indexShard = newStartedShard(false, indexVersion);
+        final int operations = scaledRandomIntBetween(1, 1000);
         indexOnReplicaWithGaps(indexShard, operations, Math.toIntExact(SequenceNumbers.NO_OPS_PERFORMED));
-
-        final long maxSeqNo = indexShard.seqNoStats().getMaxSeqNo();
-        final long globalCheckpointOnReplica = SequenceNumbers.UNASSIGNED_SEQ_NO;
-        randomIntBetween(
-                Math.toIntExact(SequenceNumbers.UNASSIGNED_SEQ_NO),
-                Math.toIntExact(indexShard.getLocalCheckpoint()));
+        long maxSeqNo = indexShard.seqNoStats().getMaxSeqNo();
+        final long globalCheckpoint = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, indexShard.getLocalCheckpoint());
+        final long globalCheckpointOnReplica = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, globalCheckpoint);
         indexShard.updateGlobalCheckpointOnReplica(globalCheckpointOnReplica, "test");
-
-        final int globalCheckpoint =
-                randomIntBetween(
-                        Math.toIntExact(SequenceNumbers.UNASSIGNED_SEQ_NO),
-                        Math.toIntExact(indexShard.getLocalCheckpoint()));
-
         final CountDownLatch latch = new CountDownLatch(1);
         indexShard.acquireReplicaOperationPermit(
                 indexShard.getPendingPrimaryTerm() + 1,
@@ -913,8 +914,14 @@ public class IndexShardTests extends IndexShardTestCase {
                     }
                 },
                 ThreadPool.Names.SAME, "");
-
         latch.await();
+        final boolean shouldReset = indexShard.canResetEngine() && globalCheckpoint < maxSeqNo;
+        assertThat(indexShard.getResettingEngine(), shouldReset ? notNullValue() : nullValue());
+        if (shouldReset && randomBoolean()) {
+            // trimmed by the max_seqno on the primary
+            maxSeqNo = randomLongBetween(globalCheckpoint, maxSeqNo);
+            indexShard.afterApplyResyncOperationsBulk(maxSeqNo);
+        }
 
         final ShardRouting newRouting = indexShard.routingEntry().moveActiveReplicaToPrimary();
         final CountDownLatch resyncLatch = new CountDownLatch(1);
@@ -927,9 +934,10 @@ public class IndexShardTests extends IndexShardTestCase {
                 new IndexShardRoutingTable.Builder(newRouting.shardId()).addShard(newRouting).build(),
                 Collections.emptySet());
         resyncLatch.await();
+        assertThat(indexShard.getResettingEngine(), nullValue());
+        assertThat(indexShard.state(), equalTo(IndexShardState.STARTED));
         assertThat(indexShard.getLocalCheckpoint(), equalTo(maxSeqNo));
         assertThat(indexShard.seqNoStats().getMaxSeqNo(), equalTo(maxSeqNo));
-
         closeShards(indexShard);
     }
 
@@ -958,6 +966,11 @@ public class IndexShardTests extends IndexShardTestCase {
                     @Override
                     public void onResponse(final Releasable releasable) {
                         releasable.close();
+                        try {
+                            indexShard.afterApplyResyncOperationsBulk(Math.max(globalCheckpoint, SequenceNumbers.NO_OPS_PERFORMED));
+                        } catch (IOException e) {
+                            throw new AssertionError(e);
+                        }
                         latch.countDown();
                     }
 
@@ -1840,7 +1853,6 @@ public class IndexShardTests extends IndexShardTestCase {
         flushShard(shard);
         assertThat(getShardDocUIDs(shard), containsInAnyOrder("doc-0", "doc-1"));
         // Simulate resync (without rollback): Noop #1, index #2
-        acquireReplicaOperationPermitBlockingly(shard, shard.pendingPrimaryTerm + 1);
         shard.markSeqNoAsNoop(1, "test");
         shard.applyIndexOperationOnReplica(2, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
             SourceToParse.source(indexName, "_doc", "doc-2", new BytesArray("{}"), XContentType.JSON));
@@ -1927,6 +1939,76 @@ public class IndexShardTests extends IndexShardTestCase {
         assertDocs(target, "0");
 
         closeShards(source, target);
+    }
+
+    public void testResetEngineOnAcquireReplicaShardPermits() throws Exception {
+        IndexShard shard = newStartedShard(false);
+        AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        indexOnReplicaWithGaps(shard, scaledRandomIntBetween(10, 1000), Math.toIntExact(SequenceNumbers.NO_OPS_PERFORMED));
+        globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), shard.getLocalCheckpoint()));
+        Set<String> lastDocIds = getShardDocUIDs(shard, true);
+        CountDownLatch acquired = new CountDownLatch(1);
+        Engine prevEngine = getEngine(shard);
+        shard.acquireReplicaOperationPermit(shard.getPendingPrimaryTerm() + 1, globalCheckpoint.get(), new ActionListener<Releasable>() {
+            @Override
+            public void onResponse(Releasable releasable) {
+                releasable.close();
+                acquired.countDown();
+            }
+            @Override
+            public void onFailure(Exception e) {
+
+            }
+        }, ThreadPool.Names.SAME, "");
+        acquired.await();
+        assertThat(getShardDocUIDs(shard, randomBoolean()), equalTo(lastDocIds));
+        final Engine resettingEngine = shard.getResettingEngine();
+        if (globalCheckpoint.get() == shard.seqNoStats().getMaxSeqNo()) {
+            assertThat("Engine without stale operations should not be reset", resettingEngine, nullValue());
+            assertThat(getEngine(shard), sameInstance(prevEngine));
+        } else {
+            assertThat(resettingEngine, notNullValue());
+            assertThat(getEngine(shard), not(sameInstance(prevEngine)));
+            SeqNoStats seqNoStats = resettingEngine.getSeqNoStats(globalCheckpoint.get());
+            assertThat(seqNoStats.getMaxSeqNo(), equalTo(globalCheckpoint.get()));
+            assertThat(seqNoStats.getLocalCheckpoint(), equalTo(globalCheckpoint.get()));
+            // should not activate the resetting engine
+            shard.afterApplyResyncOperationsBulk(randomLongBetween(globalCheckpoint.get() + 1, Long.MAX_VALUE));
+            assertThat(getEngine(shard), not(sameInstance(resettingEngine)));
+            // should activate if the resetting engine
+            shard.afterApplyResyncOperationsBulk(globalCheckpoint.get());
+            assertThat(getEngine(shard), sameInstance(resettingEngine));
+            assertThat(shard.getResettingEngine(), nullValue());
+        }
+        closeShards(shard);
+    }
+
+    public void testDoNoResetEngineOnOldVersions() throws Exception {
+        Version oldVersion = randomValueOtherThanMany(v -> v.onOrAfter(Version.V_6_4_0),
+            () -> randomFrom(Version.getDeclaredVersions(Version.class)));
+        IndexShard shard = newStartedShard(false, oldVersion);
+        assertThat(shard.canResetEngine(), equalTo(false));
+        indexOnReplicaWithGaps(shard, between(5, 50), Math.toIntExact(SequenceNumbers.NO_OPS_PERFORMED));
+        long globalCheckpoint = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, shard.getLocalCheckpoint());
+        Engine engine = shard.getEngine();
+        CountDownLatch acquired = new CountDownLatch(1);
+        shard.acquireReplicaOperationPermit(shard.getPendingPrimaryTerm() + 1, globalCheckpoint, new ActionListener<Releasable>() {
+            @Override
+            public void onResponse(Releasable releasable) {
+                releasable.close();
+                acquired.countDown();
+            }
+            @Override
+            public void onFailure(Exception e) {
+            }
+        }, ThreadPool.Names.SAME, "");
+        acquired.await();
+        assertThat(shard.getEngine(), sameInstance(engine));
+        assertThat(shard.getResettingEngine(), nullValue());
+        shard.afterApplyResyncOperationsBulk(randomLongBetween(globalCheckpoint, globalCheckpoint + 5));
+        assertThat(shard.getEngine(), sameInstance(engine));
+        assertThat(shard.getResettingEngine(), nullValue());
+        closeShards(shard);
     }
 
     public void testSearcherWrapperIsUsed() throws IOException {
@@ -2679,6 +2761,9 @@ public class IndexShardTests extends IndexShardTestCase {
             } else {
                 gap = true;
             }
+            if (rarely()) {
+                indexShard.flush(new FlushRequest());
+            }
         }
         assert localCheckpoint == indexShard.getLocalCheckpoint();
         assert !gap || (localCheckpoint != max);
@@ -3181,6 +3266,23 @@ public class IndexShardTests extends IndexShardTestCase {
             closeShards(indexShard);
         }
 
+    }
+
+    private IndexShard newStartedShard(boolean primary, Version indexCreatedVersion) throws IOException {
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, indexCreatedVersion)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).build();
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(new ShardId("index", "_na_", 0), randomAlphaOfLength(10), primary,
+            ShardRoutingState.INITIALIZING,
+            primary ? RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE);
+        IndexMetaData.Builder metaData = IndexMetaData.builder(shardRouting.getIndexName())
+            .settings(settings).primaryTerm(0, randomLongBetween(1, 1000)).putMapping("_doc", "{ \"properties\": {} }");
+        IndexShard shard = newShard(shardRouting, metaData.build());
+        if (primary) {
+            recoverShardFromStore(shard);
+        } else {
+            recoveryEmptyReplica(shard, true);
+        }
+        return shard;
     }
 
 }

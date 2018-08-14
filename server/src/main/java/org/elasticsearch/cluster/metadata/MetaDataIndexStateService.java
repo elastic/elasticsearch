@@ -221,11 +221,21 @@ public class MetaDataIndexStateService extends AbstractComponent {
     }
 
     private void validateShardLimit(ClusterState currentState, OpenIndexClusterStateUpdateRequest request) {
+        int nodeCount = currentState.getNodes().getDataNodes().size();
+
+        // Only enforce the shard limit if we have at least one data node, so that we don't block
+        // index creation during cluster setup
+        if (nodeCount == 0) {
+            return;
+        }
+
         int currentOpenShards = currentState.getMetaData().getTotalOpenIndexShards();
-        int maxShardsInCluster = getMaxAllowedShardCount(currentState);
+        int maxShardsPerNode = clusterService.getClusterSettings().get(MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE);
+        int maxShardsInCluster = maxShardsPerNode * nodeCount;
         int shardsToOpen = Arrays.stream(request.indices())
             .mapToInt(index -> getTotalShardCount(currentState, index))
             .sum();
+
         if ((currentOpenShards + shardsToOpen) > maxShardsInCluster) {
             ActionRequestValidationException exception = new ActionRequestValidationException();
             String[] indexNames = Arrays.stream(request.indices()).map(Index::getName).toArray(String[]::new);
@@ -236,12 +246,6 @@ public class MetaDataIndexStateService extends AbstractComponent {
         }
     }
 
-
-    private int getMaxAllowedShardCount(ClusterState state) {
-        int maxShardsPerNode = clusterService.getClusterSettings().get(MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE);
-        int nodeCount = state.getNodes().getDataNodes().size();
-        return maxShardsPerNode * nodeCount;
-    }
 
     private int getTotalShardCount(ClusterState state, Index index) {
         IndexMetaData indexMetaData = state.metaData().index(index);

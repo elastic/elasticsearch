@@ -615,9 +615,16 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     }
 
     private Optional<String> getShardLimitError(String indexName, Settings settings, ClusterState clusterState) {
+        int nodeCount = clusterState.getNodes().getDataNodes().size();
+
+        // Only enforce the shard limit if we have at least one data node, so that we don't block
+        // index creation during cluster setup
+        if (nodeCount == 0) {
+            return Optional.empty();
+        }
+
         int currentOpenShards = clusterState.getMetaData().getTotalOpenIndexShards();
         int maxShardsPerNode = clusterService.getClusterSettings().get(MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE);
-        int nodeCount = clusterState.getNodes().getDataNodes().size();
         long maxShardsInCluster = maxShardsPerNode * nodeCount;
         int shardsToCreate = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(settings)
             * (1 + IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.get(settings));

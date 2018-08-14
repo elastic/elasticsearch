@@ -22,9 +22,9 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
@@ -172,7 +172,7 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
         int deletionsCount = randomIntBetween(0, 3);
 
         List<ActionListener<PutIndexTemplateResponse>> putTemplateListeners = new ArrayList<>();
-        List<ActionListener<DeleteIndexTemplateResponse>> deleteTemplateListeners = new ArrayList<>();
+        List<ActionListener<AcknowledgedResponse>> deleteTemplateListeners = new ArrayList<>();
 
         Client mockClient = mock(Client.class);
         AdminClient mockAdminClient = mock(AdminClient.class);
@@ -240,7 +240,7 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
                 assertThat(prevUpdatesInProgress - service.upgradesInProgress.get(), equalTo(1));
             } else {
                 int prevUpdatesInProgress = service.upgradesInProgress.get();
-                deleteTemplateListeners.get(i).onResponse(new DeleteIndexTemplateResponse(randomBoolean()) {
+                deleteTemplateListeners.get(i).onResponse(new AcknowledgedResponse(randomBoolean()) {
 
                 });
                 assertThat(prevUpdatesInProgress - service.upgradesInProgress.get(), equalTo(1));
@@ -258,7 +258,7 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
 
         final AtomicReference<ActionListener<PutIndexTemplateResponse>> addedListener = new AtomicReference<>();
         final AtomicReference<ActionListener<PutIndexTemplateResponse>> changedListener = new AtomicReference<>();
-        final AtomicReference<ActionListener<DeleteIndexTemplateResponse>> removedListener = new AtomicReference<>();
+        final AtomicReference<ActionListener<AcknowledgedResponse>> removedListener = new AtomicReference<>();
         final Semaphore updateInvocation = new Semaphore(0);
         final Semaphore calculateInvocation = new Semaphore(0);
         final Semaphore changedInvocation = new Semaphore(0);
@@ -377,7 +377,7 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
         });
         changedListener.getAndSet(null).onResponse(new PutIndexTemplateResponse(true) {
         });
-        removedListener.getAndSet(null).onResponse(new DeleteIndexTemplateResponse(true) {
+        removedListener.getAndSet(null).onResponse(new AcknowledgedResponse(true) {
         });
 
         // 3 upgrades should be completed, in addition to the final calculate

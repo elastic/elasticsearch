@@ -248,14 +248,14 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
             final Matcher<String> runByRealmMatcher = realm.equals("default_file") ? Matchers.nullValue(String.class)
                     : Matchers.is("default_file");
             logCheckers.add(
-                    m -> eventType.equals(m.get("event_type"))
+                    m -> eventType.equals(m.get("event.action"))
                         && action.equals(m.get("action"))
-                        && principal.equals(m.get("principal"))
-                        && realm.equals(m.get("realm"))
-                        && runByPrincipalMatcher.matches(m.get("run_by_principal"))
-                        && runByRealmMatcher.matches(m.get("run_by_realm"))
+                        && principal.equals(m.get("user.name"))
+                        && realm.equals(m.get("user.realm"))
+                        && runByPrincipalMatcher.matches(m.get("user.run_by.name"))
+                        && runByRealmMatcher.matches(m.get("user.run_by.realm"))
                         && indicesMatcher.matches(m.get("indices"))
-                        && request.equals(m.get("request")));
+                        && request.equals(m.get("request.name")));
             return this;
         }
 

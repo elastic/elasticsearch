@@ -57,7 +57,6 @@ import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRe
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequestBuilder;
-import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequestBuilder;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
@@ -416,12 +415,12 @@ public interface ClusterAdminClient extends ElasticsearchClient {
     /**
      * Registers a snapshot repository.
      */
-    ActionFuture<PutRepositoryResponse> putRepository(PutRepositoryRequest request);
+    ActionFuture<AcknowledgedResponse> putRepository(PutRepositoryRequest request);
 
     /**
      * Registers a snapshot repository.
      */
-    void putRepository(PutRepositoryRequest request, ActionListener<PutRepositoryResponse> listener);
+    void putRepository(PutRepositoryRequest request, ActionListener<AcknowledgedResponse> listener);
 
     /**
      * Registers a snapshot repository.

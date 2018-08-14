@@ -73,7 +73,6 @@ import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRe
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequestBuilder;
-import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequestBuilder;
@@ -936,12 +935,12 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         }
 
         @Override
-        public ActionFuture<PutRepositoryResponse> putRepository(PutRepositoryRequest request) {
+        public ActionFuture<AcknowledgedResponse> putRepository(PutRepositoryRequest request) {
             return execute(PutRepositoryAction.INSTANCE, request);
         }
 
         @Override
-        public void putRepository(PutRepositoryRequest request, ActionListener<PutRepositoryResponse> listener) {
+        public void putRepository(PutRepositoryRequest request, ActionListener<AcknowledgedResponse> listener) {
             execute(PutRepositoryAction.INSTANCE, request, listener);
         }
 

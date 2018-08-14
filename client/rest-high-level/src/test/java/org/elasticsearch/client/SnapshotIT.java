@@ -25,20 +25,20 @@ import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteReposito
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
-import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.is;
 
 public class SnapshotIT extends ESRestHighLevelClientTestCase {
 
-    private PutRepositoryResponse createTestRepository(String repository, String type, String settings) throws IOException {
+    private AcknowledgedResponse createTestRepository(String repository, String type, String settings) throws IOException {
         PutRepositoryRequest request = new PutRepositoryRequest(repository);
         request.settings(settings, XContentType.JSON);
         request.type(type);
@@ -71,7 +71,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testCreateRepository() throws IOException {
-        PutRepositoryResponse response = createTestRepository("test", FsRepository.TYPE, "{\"location\": \".\"}");
+        AcknowledgedResponse response = createTestRepository("test", FsRepository.TYPE, "{\"location\": \".\"}");
         assertTrue(response.isAcknowledged());
     }
 
@@ -124,7 +124,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testVerifyRepository() throws IOException {
-        PutRepositoryResponse putRepositoryResponse = createTestRepository("test", FsRepository.TYPE, "{\"location\": \".\"}");
+        AcknowledgedResponse putRepositoryResponse = createTestRepository("test", FsRepository.TYPE, "{\"location\": \".\"}");
         assertTrue(putRepositoryResponse.isAcknowledged());
 
         VerifyRepositoryRequest request = new VerifyRepositoryRequest("test");
@@ -153,7 +153,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         String snapshot1 = "test_snapshot1";
         String snapshot2 = "test_snapshot2";
 
-        PutRepositoryResponse putRepositoryResponse = createTestRepository(repository, FsRepository.TYPE, "{\"location\": \".\"}");
+        AcknowledgedResponse putRepositoryResponse = createTestRepository(repository, FsRepository.TYPE, "{\"location\": \".\"}");
         assertTrue(putRepositoryResponse.isAcknowledged());
 
         CreateSnapshotRequest createSnapshotRequest1 = new CreateSnapshotRequest(repository, snapshot1);
@@ -187,7 +187,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         String testSnapshot = "snapshot";
         String testIndex = "test_index";
 
-        PutRepositoryResponse putRepositoryResponse = createTestRepository(testRepository, FsRepository.TYPE, "{\"location\": \".\"}");
+        AcknowledgedResponse putRepositoryResponse = createTestRepository(testRepository, FsRepository.TYPE, "{\"location\": \".\"}");
         assertTrue(putRepositoryResponse.isAcknowledged());
 
         createIndex(testIndex, Settings.EMPTY);
@@ -216,7 +216,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         String testIndex = "test_index";
         String restoredIndex = testIndex + "_restored";
 
-        PutRepositoryResponse putRepositoryResponse = createTestRepository(testRepository, FsRepository.TYPE, "{\"location\": \".\"}");
+        AcknowledgedResponse putRepositoryResponse = createTestRepository(testRepository, FsRepository.TYPE, "{\"location\": \".\"}");
         assertTrue(putRepositoryResponse.isAcknowledged());
 
         createIndex(testIndex, Settings.EMPTY);
@@ -250,7 +250,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         String repository = "test_repository";
         String snapshot = "test_snapshot";
 
-        PutRepositoryResponse putRepositoryResponse = createTestRepository(repository, FsRepository.TYPE, "{\"location\": \".\"}");
+        AcknowledgedResponse putRepositoryResponse = createTestRepository(repository, FsRepository.TYPE, "{\"location\": \".\"}");
         assertTrue(putRepositoryResponse.isAcknowledged());
 
         CreateSnapshotRequest createSnapshotRequest = new CreateSnapshotRequest(repository, snapshot);

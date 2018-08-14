@@ -74,15 +74,6 @@ You can restrict the use of the `mmapfs` store type via the setting
 for example, if you are in an environment where you can not control the ability
 to create a lot of memory maps so you need disable the ability to use `mmapfs`.
 
-ifdef::include-xpack[]
-NOTE: Some components of {xpack} create index templates on startup. These
-templates will not specify an store type and will therefore pick up the
-default. If the default store type is not allowed by
-`node.allowed_index_store_types`, template validation will fail. To workaround
-this you must set `node.default_index_store_type` to a store type allowed by
-`node.allowed_index_store_types`.
-endif::include-xpack[]
-
 === Pre-loading data into the file system cache
 
 NOTE: This is an expert setting, the details of which may change in the future.

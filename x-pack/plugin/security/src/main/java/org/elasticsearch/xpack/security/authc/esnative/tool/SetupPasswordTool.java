@@ -64,7 +64,8 @@ import static java.util.Arrays.asList;
 public class SetupPasswordTool extends LoggingAwareMultiCommand {
 
     private static final char[] CHARS = ("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789").toCharArray();
-    public static final List<String> USERS = asList(ElasticUser.NAME, KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME, APMServerSystemUser.NAME);
+    public static final List<String> USERS = asList(ElasticUser.NAME, KibanaUser.NAME, LogstashSystemUser.NAME,
+        BeatsSystemUser.NAME, APMServerSystemUser.NAME);
 
     private final BiFunction<Environment, Settings, CommandLineHttpClient> clientFunction;
     private final CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction;

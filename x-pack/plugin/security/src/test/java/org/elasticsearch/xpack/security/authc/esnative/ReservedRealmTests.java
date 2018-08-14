@@ -263,7 +263,8 @@ public class ReservedRealmTests extends ESTestCase {
         PlainActionFuture<Collection<User>> userFuture = new PlainActionFuture<>();
         reservedRealm.users(userFuture);
         assertThat(userFuture.actionGet(),
-            containsInAnyOrder(new ElasticUser(true), new KibanaUser(true), new LogstashSystemUser(true), new BeatsSystemUser(true), new APMServerSystemUser((true))));
+            containsInAnyOrder(new ElasticUser(true), new KibanaUser(true), new LogstashSystemUser(true),
+                new BeatsSystemUser(true), new APMServerSystemUser((true))));
     }
 
     public void testGetUsersDisabled() {
@@ -424,7 +425,8 @@ public class ReservedRealmTests extends ESTestCase {
     }
 
     private User randomReservedUser(boolean enabled) {
-        return randomFrom(new ElasticUser(enabled), new KibanaUser(enabled), new LogstashSystemUser(enabled), new BeatsSystemUser(enabled), new APMServerSystemUser(enabled));
+        return randomFrom(new ElasticUser(enabled), new KibanaUser(enabled), new LogstashSystemUser(enabled),
+            new BeatsSystemUser(enabled), new APMServerSystemUser(enabled));
     }
 
     /*

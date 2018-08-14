@@ -26,8 +26,10 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.UpdateScript;
 import org.junit.Before;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -54,10 +56,16 @@ public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
     protected <T extends ActionRequest> T applyScript(Consumer<Map<String, Object>> scriptBody) {
         IndexRequest index = new IndexRequest("index", "type", "1").source(singletonMap("foo", "bar"));
         ScrollableHitSource.Hit doc = new ScrollableHitSource.BasicHit("test", "type", "id", 0);
-        ExecutableScript executableScript = new SimpleExecutableScript(scriptBody);
-        ExecutableScript.Factory factory = params -> executableScript;
-        when(scriptService.compile(any(), eq(ExecutableScript.CONTEXT))).thenReturn(factory);
-        when(scriptService.compile(any(), eq(ExecutableScript.UPDATE_CONTEXT))).thenReturn(factory);
+        UpdateScript updateScript = new UpdateScript(Collections.emptyMap()) {
+            @Override
+            public void execute(Map<String, Object> ctx) {
+                scriptBody.accept(ctx);
+            }
+        };
+        UpdateScript.Factory factory = params -> updateScript;
+        ExecutableScript simpleExecutableScript = new SimpleExecutableScript(scriptBody);
+        when(scriptService.compile(any(), eq(ExecutableScript.CONTEXT))).thenReturn(params -> simpleExecutableScript);
+        when(scriptService.compile(any(), eq(UpdateScript.CONTEXT))).thenReturn(factory);
         AbstractAsyncBulkByScrollAction<Request> action = action(scriptService, request().setScript(mockScript("")));
         RequestWrapper<?> result = action.buildScriptApplier().apply(AbstractAsyncBulkByScrollAction.wrap(index), doc);
         return (result != null) ? (T) result.self() : null;

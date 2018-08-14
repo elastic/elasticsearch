@@ -32,7 +32,6 @@ import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.process.ProcessProbe;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
 
 import java.io.BufferedReader;
@@ -76,8 +75,7 @@ final class BootstrapChecks {
         combinedChecks.addAll(additionalChecks);
         check(  context,
                 enforceLimits(boundTransportAddress, DiscoveryModule.DISCOVERY_TYPE_SETTING.get(context.settings)),
-                Collections.unmodifiableList(combinedChecks),
-                Node.NODE_NAME_SETTING.get(context.settings));
+                Collections.unmodifiableList(combinedChecks));
     }
 
     /**
@@ -88,14 +86,12 @@ final class BootstrapChecks {
      * @param context        the current node boostrap context
      * @param enforceLimits {@code true} if the checks should be enforced or otherwise warned
      * @param checks        the checks to execute
-     * @param nodeName      the node name to be used as a logging prefix
      */
     static void check(
         final BootstrapContext context,
         final boolean enforceLimits,
-        final List<BootstrapCheck> checks,
-        final String nodeName) throws NodeValidationException {
-        check(context, enforceLimits, checks, Loggers.getLogger(BootstrapChecks.class, nodeName));
+        final List<BootstrapCheck> checks) throws NodeValidationException {
+        check(context, enforceLimits, checks, Loggers.getLogger(BootstrapChecks.class));
     }
 
     /**

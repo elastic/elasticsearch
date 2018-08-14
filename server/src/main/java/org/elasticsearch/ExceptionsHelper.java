@@ -39,6 +39,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
@@ -278,7 +279,7 @@ public final class ExceptionsHelper {
         List<ShardOperationFailedException> uniqueFailures = new ArrayList<>();
         Set<GroupBy> reasons = new HashSet<>();
         for (ShardOperationFailedException failure : failures) {
-            GroupBy reason = new GroupBy(failure.getCause());
+            GroupBy reason = new GroupBy(failure);
             if (reasons.contains(reason) == false) {
                 reasons.add(reason);
                 uniqueFailures.add(failure);
@@ -287,46 +288,47 @@ public final class ExceptionsHelper {
         return uniqueFailures.toArray(new ShardOperationFailedException[0]);
     }
 
-    static class GroupBy {
+    private static class GroupBy {
         final String reason;
         final String index;
         final Class<? extends Throwable> causeType;
 
-        GroupBy(Throwable t) {
-            if (t instanceof ElasticsearchException) {
-                final Index index = ((ElasticsearchException) t).getIndex();
-                if (index != null) {
-                    this.index = index.getName();
-                } else {
-                    this.index = null;
+        GroupBy(ShardOperationFailedException failure) {
+            Throwable cause = failure.getCause();
+            //the index name from the failure contains the cluster alias when using CCS. Ideally failures should be grouped by
+            //index name and cluster alias. That's why the failure index name has the precedence over the one coming from the cause,
+            //which does not include the cluster alias.
+            String indexName = failure.index();
+            if (indexName == null) {
+                if (cause instanceof ElasticsearchException) {
+                    final Index index = ((ElasticsearchException) cause).getIndex();
+                    if (index != null) {
+                        indexName = index.getName();
+                    }
                 }
-            } else {
-                index = null;
             }
-            reason = t.getMessage();
-            causeType = t.getClass();
+            this.index = indexName;
+            this.reason = cause.getMessage();
+            this.causeType = cause.getClass();
         }
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             GroupBy groupBy = (GroupBy) o;
-
-            if (!causeType.equals(groupBy.causeType)) return false;
-            if (index != null ? !index.equals(groupBy.index) : groupBy.index != null) return false;
-            if (reason != null ? !reason.equals(groupBy.reason) : groupBy.reason != null) return false;
-
-            return true;
+            return Objects.equals(reason, groupBy.reason) &&
+                Objects.equals(index, groupBy.index) &&
+                Objects.equals(causeType, groupBy.causeType);
         }
 
         @Override
         public int hashCode() {
-            int result = reason != null ? reason.hashCode() : 0;
-            result = 31 * result + (index != null ? index.hashCode() : 0);
-            result = 31 * result + causeType.hashCode();
-            return result;
+            return Objects.hash(reason, index, causeType);
         }
     }
 }

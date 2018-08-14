@@ -19,6 +19,8 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.protocol.xpack.ml.CloseJobRequest;
+import org.elasticsearch.protocol.xpack.ml.CloseJobResponse;
 import org.elasticsearch.protocol.xpack.ml.DeleteJobRequest;
 import org.elasticsearch.protocol.xpack.ml.DeleteJobResponse;
 import org.elasticsearch.protocol.xpack.ml.OpenJobRequest;
@@ -163,6 +165,44 @@ public final class MachineLearningClient {
             RequestConverters::machineLearningOpenJob,
             options,
             OpenJobResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Closes Machine Learning Jobs
+     * Closes one or more jobs. A job can be opened and closed multiple times throughout its lifecycle.
+     *
+     * A closed job cannot receive data or perform analysis operations, but you can still explore and navigate results.
+     *
+     * @param request request containing jobIds and additional optional options
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return response containing if the job was successfully closed or not.
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public CloseJobResponse closeJob(CloseJobRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            RequestConverters::machineLearningCloseJob,
+            options,
+            CloseJobResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Closes Machine Learning Jobs asynchronously, notifies listener on completion
+     * Closes one or more jobs. A job can be opened and closed multiple times throughout its lifecycle.
+     *
+     * A closed job cannot receive data or perform analysis operations, but you can still explore and navigate results.
+     *
+     * @param request request containing jobIds and additional optional options
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void closeJobAsync(CloseJobRequest request, RequestOptions options, ActionListener<CloseJobResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            RequestConverters::machineLearningCloseJob,
+            options,
+            CloseJobResponse::fromXContent,
             listener,
             Collections.emptySet());
     }

@@ -112,6 +112,7 @@ import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
 import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoRequest;
+import org.elasticsearch.protocol.xpack.ml.CloseJobRequest;
 import org.elasticsearch.protocol.xpack.ml.DeleteJobRequest;
 import org.elasticsearch.protocol.xpack.ml.OpenJobRequest;
 import org.elasticsearch.protocol.xpack.ml.PutJobRequest;
@@ -1237,6 +1238,26 @@ final class RequestConverters {
             .build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         request.setJsonEntity(openJobRequest.toString());
+        return request;
+    }
+
+    static Request machineLearningCloseJob(CloseJobRequest closeJobRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("ml")
+            .addPathPartAsIs("anomaly_detectors")
+            .addPathPart(closeJobRequest.getCommaDelimitedJobIdString())
+            .addPathPartAsIs("_close")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+
+        Params params = new Params(request);
+        params.putParam("force", Boolean.toString(closeJobRequest.isForce()));
+        params.putParam("allow_no_jobs", Boolean.toString(closeJobRequest.isAllowNoJobs()));
+        if (closeJobRequest.getTimeout() != null) {
+            params.putParam("timeout", closeJobRequest.getTimeout().getStringRep());
+        }
+
         return request;
     }
 

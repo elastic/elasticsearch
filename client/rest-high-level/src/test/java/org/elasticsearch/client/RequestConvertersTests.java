@@ -127,6 +127,7 @@ import org.elasticsearch.index.rankeval.RatedRequest;
 import org.elasticsearch.index.rankeval.RestRankEvalAction;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoRequest;
+import org.elasticsearch.protocol.xpack.ml.CloseJobRequest;
 import org.elasticsearch.protocol.xpack.ml.DeleteJobRequest;
 import org.elasticsearch.protocol.xpack.ml.OpenJobRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
@@ -2637,6 +2638,29 @@ public class RequestConvertersTests extends ESTestCase {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         request.getEntity().writeTo(bos);
         assertEquals(bos.toString("UTF-8"), "{\"job_id\":\""+ jobId +"\",\"timeout\":\"10m\"}");
+    }
+
+    public void testMachineLearningCloseJob() {
+        String jobId = "somejobid";
+        CloseJobRequest closeJobRequest = new CloseJobRequest(jobId);
+
+        Request request = RequestConverters.machineLearningCloseJob(closeJobRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + "/_close", request.getEndpoint());
+        assertEquals(Boolean.toString(closeJobRequest.isForce()), request.getParameters().get("force"));
+        assertEquals(Boolean.toString(closeJobRequest.isAllowNoJobs()), request.getParameters().get("allow_no_jobs"));
+        assertFalse(request.getParameters().containsKey("timeout"));
+
+        closeJobRequest.addJobId("otherjobs*");
+        closeJobRequest.setForce(true);
+        closeJobRequest.setAllowNoJobs(false);
+        closeJobRequest.setTimeout(TimeValue.timeValueMinutes(10));
+        request = RequestConverters.machineLearningCloseJob(closeJobRequest);
+
+        assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + ",otherjobs*/_close", request.getEndpoint());
+        assertEquals(Boolean.toString(true), request.getParameters().get("force"));
+        assertEquals(Boolean.toString(false), request.getParameters().get("allow_no_jobs"));
+        assertEquals("10m", request.getParameters().get("timeout"));
     }
 
     /**

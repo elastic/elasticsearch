@@ -3,22 +3,22 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.watcher.common.http.auth.basic;
+package org.elasticsearch.xpack.watcher.common.http;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.common.secret.Secret;
 import org.elasticsearch.xpack.core.watcher.crypto.CryptoService;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherXContentParser;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuth;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class BasicAuth implements HttpAuth {
+public class BasicAuth implements ToXContentObject {
 
     public static final String TYPE = "basic";
 
@@ -32,11 +32,6 @@ public class BasicAuth implements HttpAuth {
     public BasicAuth(String username, Secret password) {
         this.username = username;
         this.password = password;
-    }
-
-    @Override
-    public String type() {
-        return TYPE;
     }
 
     public String getUsername() {
@@ -74,7 +69,7 @@ public class BasicAuth implements HttpAuth {
         return builder.endObject();
     }
 
-    public static BasicAuth parse(XContentParser parser) throws IOException {
+    public static BasicAuth parseInner(XContentParser parser) throws IOException {
         String username = null;
         Secret password = null;
 
@@ -101,6 +96,20 @@ public class BasicAuth implements HttpAuth {
         }
 
         return new BasicAuth(username, password);
+    }
+
+    public static BasicAuth parse(XContentParser parser) throws IOException {
+        String type = null;
+        XContentParser.Token token;
+        BasicAuth auth = null;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                type = parser.currentName();
+            } else if (token == XContentParser.Token.START_OBJECT && type != null) {
+                auth = BasicAuth.parseInner(parser);
+            }
+        }
+        return auth;
     }
 
     interface Field {

@@ -16,19 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.protocol.xpack.license;
 
-package org.elasticsearch.cluster.metadata;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.common.xcontent.XContentParser;
 
-import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
+public class DeleteLicenseResponse extends AcknowledgedResponse {
 
-/**
- * Enables filtering the index templates that will be applied for an index, per create index request.
- */
-public interface IndexTemplateFilter {
+    public DeleteLicenseResponse() {
+    }
 
-    /**
-     * @return  {@code true} if the given template should be applied on the newly created index,
-     *          {@code false} otherwise.
-     */
-    boolean apply(CreateIndexClusterStateUpdateRequest request, IndexTemplateMetaData template);
+    public DeleteLicenseResponse(boolean acknowledged) {
+        super(acknowledged);
+    }
+
+    public static DeleteLicenseResponse fromXContent(XContentParser parser) {
+        return new DeleteLicenseResponse(parseAcknowledged(parser));
+    }
 }

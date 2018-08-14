@@ -16,7 +16,6 @@ import org.junit.Before;
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 

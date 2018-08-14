@@ -19,84 +19,87 @@
 
 package org.elasticsearch.cluster.coordination;
 
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
-import static org.elasticsearch.cluster.coordination.ElectionScheduler.ELECTION_BACK_OFF_TIME_SETTING;
-import static org.elasticsearch.cluster.coordination.ElectionScheduler.ELECTION_MAX_TIMEOUT_SETTING;
-import static org.elasticsearch.cluster.coordination.ElectionScheduler.ELECTION_MIN_TIMEOUT_SETTING;
-import static org.elasticsearch.cluster.coordination.ElectionScheduler.validationExceptionMessage;
+import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.ELECTION_BACK_OFF_TIME_SETTING;
+import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.ELECTION_MAX_TIMEOUT_SETTING;
+import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.ELECTION_MIN_TIMEOUT_SETTING;
+import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.validationExceptionMessage;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class ElectionSchedulerTests extends ESTestCase {
+public class ElectionSchedulerFactoryTests extends ESTestCase {
 
     private DeterministicTaskQueue deterministicTaskQueue;
-    private ElectionScheduler electionScheduler;
+    private ElectionSchedulerFactory electionSchedulerFactory;
     private boolean electionStarted = false;
 
     @Before
     public void createObjects() {
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build();
         deterministicTaskQueue = new DeterministicTaskQueue(settings);
-        electionScheduler = new ElectionScheduler(settings, random(), deterministicTaskQueue.getThreadPool());
+        electionSchedulerFactory = new ElectionSchedulerFactory(settings, random(), deterministicTaskQueue.getThreadPool());
     }
 
     private TimeValue randomGracePeriod() {
         return TimeValue.timeValueMillis(randomLongBetween(0, 10000));
     }
 
+    private void startElection() {
+        assertFalse(electionStarted);
+        electionStarted = true;
+    }
+
     private void assertElectionSchedule() {
         final TimeValue initialGracePeriod = randomGracePeriod();
-        electionScheduler.start(initialGracePeriod, () -> {
-            assertFalse(electionStarted);
-            electionStarted = true;
-        });
 
-        long lastElectionTime = deterministicTaskQueue.getCurrentTimeMillis();
-        int electionCount = 0;
-        while (true) {
-            electionCount++;
+        try (Releasable ignored = electionSchedulerFactory.startElectionScheduler(initialGracePeriod, this::startElection)) {
+            long lastElectionTime = deterministicTaskQueue.getCurrentTimeMillis();
+            int electionCount = 0;
+            while (true) {
+                electionCount++;
 
-            runElection();
+                runElection();
 
-            final long thisElectionTime = deterministicTaskQueue.getCurrentTimeMillis();
+                final long thisElectionTime = deterministicTaskQueue.getCurrentTimeMillis();
 
-            if (electionCount == 1) {
-                final long electionDelay = thisElectionTime - lastElectionTime;
+                if (electionCount == 1) {
+                    final long electionDelay = thisElectionTime - lastElectionTime;
 
-                // Check grace period
-                assertThat(electionDelay, greaterThanOrEqualTo(initialGracePeriod.millis()));
+                    // Check grace period
+                    assertThat(electionDelay, greaterThanOrEqualTo(initialGracePeriod.millis()));
 
-                // Check upper bound
-                assertThat(electionDelay, lessThanOrEqualTo(ELECTION_MIN_TIMEOUT_SETTING.get(Settings.EMPTY).millis()
-                    + ELECTION_BACK_OFF_TIME_SETTING.get(Settings.EMPTY).millis() + initialGracePeriod.millis()));
-                assertThat(electionDelay, lessThanOrEqualTo(
-                    ELECTION_MAX_TIMEOUT_SETTING.get(Settings.EMPTY).millis() + initialGracePeriod.millis()));
+                    // Check upper bound
+                    assertThat(electionDelay, lessThanOrEqualTo(ELECTION_MIN_TIMEOUT_SETTING.get(Settings.EMPTY).millis()
+                        + ELECTION_BACK_OFF_TIME_SETTING.get(Settings.EMPTY).millis() + initialGracePeriod.millis()));
+                    assertThat(electionDelay, lessThanOrEqualTo(
+                        ELECTION_MAX_TIMEOUT_SETTING.get(Settings.EMPTY).millis() + initialGracePeriod.millis()));
 
-            } else {
+                } else {
 
-                final long electionDelay = thisElectionTime - lastElectionTime;
-                final long backedOffMaximum = ELECTION_MIN_TIMEOUT_SETTING.get(Settings.EMPTY).millis()
-                    + ELECTION_BACK_OFF_TIME_SETTING.get(Settings.EMPTY).millis() * electionCount;
+                    final long electionDelay = thisElectionTime - lastElectionTime;
+                    final long backedOffMaximum = ELECTION_MIN_TIMEOUT_SETTING.get(Settings.EMPTY).millis()
+                        + ELECTION_BACK_OFF_TIME_SETTING.get(Settings.EMPTY).millis() * electionCount;
 
-                // Check upper bound
-                assertThat(electionDelay, lessThanOrEqualTo(backedOffMaximum));
-                assertThat(electionDelay, lessThanOrEqualTo(ELECTION_MAX_TIMEOUT_SETTING.get(Settings.EMPTY).millis()));
+                    // Check upper bound
+                    assertThat(electionDelay, lessThanOrEqualTo(backedOffMaximum));
+                    assertThat(electionDelay, lessThanOrEqualTo(ELECTION_MAX_TIMEOUT_SETTING.get(Settings.EMPTY).millis()));
 
-                // Run until we get a delay close to the maximum to show that backing off does work
-                if (electionDelay >= ELECTION_MAX_TIMEOUT_SETTING.get(Settings.EMPTY).millis() - 100 && electionCount >= 1000) {
-                    break;
+                    // Run until we get a delay close to the maximum to show that backing off does work
+                    if (electionDelay >= ELECTION_MAX_TIMEOUT_SETTING.get(Settings.EMPTY).millis() - 100 && electionCount >= 1000) {
+                        break;
+                    }
                 }
-            }
 
-            lastElectionTime = thisElectionTime;
+                lastElectionTime = thisElectionTime;
+            }
         }
-        electionScheduler.stop();
         deterministicTaskQueue.runAllTasks(random());
         assertFalse(electionStarted);
     }
@@ -137,7 +140,7 @@ public class ElectionSchedulerTests extends ESTestCase {
     }
 
     private void validateSettings(Settings settings) {
-        new ElectionScheduler(settings, random(), null);
+        new ElectionSchedulerFactory(settings, random(), null);
     }
 
     private IllegalArgumentException expectInvalid(Settings settings) {

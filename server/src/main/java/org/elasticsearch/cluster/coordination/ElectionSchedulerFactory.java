@@ -20,9 +20,9 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -32,9 +32,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 
 import java.util.Random;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class ElectionScheduler extends AbstractComponent {
+public class ElectionSchedulerFactory extends AbstractComponent {
 
     /*
      * It's provably impossible to guarantee that any leader election algorithm ever elects a leader, but they generally work (with
@@ -72,12 +73,8 @@ public class ElectionScheduler extends AbstractComponent {
     private final TimeValue maxTimeout;
     private final ThreadPool threadPool;
     private final Random random;
-    private final AtomicLong idSupplier = new AtomicLong();
 
-    @Nullable
-    private volatile Object currentScheduler; // only care about its identity; null if stopped
-
-    ElectionScheduler(Settings settings, Random random, ThreadPool threadPool) {
+    ElectionSchedulerFactory(Settings settings, Random random, ThreadPool threadPool) {
         super(settings);
 
         this.random = random;
@@ -94,20 +91,14 @@ public class ElectionScheduler extends AbstractComponent {
 
     /**
      * Start the process to schedule repeated election attempts.
-     * @param gracePeriod An initial period to wait before attempting the first election.
+     *
+     * @param gracePeriod       An initial period to wait before attempting the first election.
      * @param scheduledRunnable The action to run each time an election should be attempted.
      */
-    public void start(TimeValue gracePeriod, Runnable scheduledRunnable) {
-        final ActiveScheduler currentScheduler;
-        assert this.currentScheduler == null;
-        this.currentScheduler = currentScheduler = new ActiveScheduler();
+    public Releasable startElectionScheduler(TimeValue gracePeriod, Runnable scheduledRunnable) {
+        final ElectionScheduler currentScheduler = new ElectionScheduler();
         currentScheduler.scheduleNextElection(gracePeriod, scheduledRunnable);
-    }
-
-    public void stop() {
-        assert currentScheduler != null : currentScheduler;
-        logger.debug("stopping {}", currentScheduler);
-        currentScheduler = null;
+        return currentScheduler;
     }
 
     @SuppressForbidden(reason = "Argument to Math.abs() is definitely not Long.MIN_VALUE")
@@ -129,30 +120,25 @@ public class ElectionScheduler extends AbstractComponent {
 
     @Override
     public String toString() {
-        return "ElectionScheduler{" +
+        return "ElectionSchedulerFactory{" +
             "minTimeout=" + minTimeout +
             ", maxTimeout=" + maxTimeout +
             ", backoffTime=" + backoffTime +
-            ", currentScheduler=" + currentScheduler +
             '}';
     }
 
-    private class ActiveScheduler {
+    private class ElectionScheduler implements Releasable {
         private AtomicLong currentMaxDelayMillis = new AtomicLong(minTimeout.millis());
-        private final long schedulerId = idSupplier.incrementAndGet();
-
-        boolean isRunning() {
-            return this == currentScheduler;
-        }
+        private AtomicBoolean isRunning = new AtomicBoolean(true);
 
         void scheduleNextElection(final TimeValue gracePeriod, final Runnable scheduledRunnable) {
             final long delay;
-            if (isRunning() == false) {
+            if (isRunning.get() == false) {
                 logger.debug("{} not scheduling election", this);
                 return;
             }
 
-            long maxDelayMillis = this.currentMaxDelayMillis.getAndUpdate(ElectionScheduler.this::backOffCurrentMaxDelay);
+            long maxDelayMillis = this.currentMaxDelayMillis.getAndUpdate(ElectionSchedulerFactory.this::backOffCurrentMaxDelay);
             delay = randomPositiveLongLessThan(maxDelayMillis + 1) + gracePeriod.millis();
             logger.debug("{} scheduling election with delay [{}ms] (grace={}, min={}, backoff={}, current={}ms, max={})",
                 this, delay, gracePeriod, minTimeout, backoffTime, maxDelayMillis, maxTimeout);
@@ -166,11 +152,11 @@ public class ElectionScheduler extends AbstractComponent {
 
                 @Override
                 protected void doRun() {
-                    if (isRunning() == false) {
-                        logger.debug("{} not starting election", ActiveScheduler.this);
+                    if (isRunning.get() == false) {
+                        logger.debug("{} not starting election", ElectionScheduler.this);
                         return;
                     }
-                    logger.debug("{} starting pre-voting", ActiveScheduler.this);
+                    logger.debug("{} starting pre-voting", ElectionScheduler.this);
                     scheduledRunnable.run();
                 }
 
@@ -181,7 +167,7 @@ public class ElectionScheduler extends AbstractComponent {
 
                 @Override
                 public String toString() {
-                    return "scheduleNextElection[" + ActiveScheduler.this + "]";
+                    return "scheduleNextElection[" + ElectionScheduler.this + "]";
                 }
 
                 @Override
@@ -195,7 +181,13 @@ public class ElectionScheduler extends AbstractComponent {
 
         @Override
         public String toString() {
-            return "ActiveScheduler[" + schedulerId + ", currentMaxDelayMillis=" + currentMaxDelayMillis + "]";
+            return "ElectionScheduler{currentMaxDelayMillis=" + currentMaxDelayMillis + ", factory=" + ElectionSchedulerFactory.this + "}";
+        }
+
+        @Override
+        public void close() {
+            boolean isRunningChanged = isRunning.compareAndSet(true, false);
+            assert isRunningChanged;
         }
     }
 }

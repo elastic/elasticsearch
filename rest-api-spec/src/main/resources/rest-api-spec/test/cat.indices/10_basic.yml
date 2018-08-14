@@ -1,6 +1,10 @@
 ---
 "Test cat indices output":
 
+  - skip:
+      version: all
+      reason: https://github.com/elastic/elasticsearch/issues/32466
+
   - do:
       cat.indices: {}
 

@@ -49,7 +49,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.mockito.ArgumentCaptor;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
@@ -137,7 +136,7 @@ public class MockClientBuilder {
 
     @SuppressWarnings({ "unchecked" })
     public MockClientBuilder addIndicesDeleteResponse(String index, boolean exists, boolean exception,
-            ActionListener<DeleteJobAction.Response> actionListener) throws InterruptedException, ExecutionException, IOException {
+            ActionListener<AcknowledgedResponse> actionListener) throws InterruptedException, ExecutionException, IOException {
         DeleteIndexResponse response = DeleteIndexAction.INSTANCE.newResponse();
         StreamInput si = mock(StreamInput.class);
         // this looks complicated but Mockito can't mock the final method
@@ -152,7 +151,7 @@ public class MockClientBuilder {
             if (exception) {
                 actionListener.onFailure(new InterruptedException());
             } else {
-                actionListener.onResponse(new DeleteJobAction.Response(true));
+                actionListener.onResponse(new AcknowledgedResponse(true));
             }
             return null;
         }).when(indicesAdminClient).delete(any(DeleteIndexRequest.class), any(ActionListener.class));

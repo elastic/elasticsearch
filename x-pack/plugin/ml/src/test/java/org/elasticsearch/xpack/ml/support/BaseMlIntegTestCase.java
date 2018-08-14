@@ -345,7 +345,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
                         client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(job.getId())).actionGet();
                 assertEquals(JobState.CLOSED, statsResponse.getResponse().results().get(0).getState());
             });
-            DeleteJobAction.Response response =
+            AcknowledgedResponse response =
                     client.execute(DeleteJobAction.INSTANCE, new DeleteJobAction.Request(job.getId())).get();
             assertTrue(response.isAcknowledged());
         }

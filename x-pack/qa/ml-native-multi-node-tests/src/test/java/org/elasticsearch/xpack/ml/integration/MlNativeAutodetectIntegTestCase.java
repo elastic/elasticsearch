@@ -214,7 +214,7 @@ abstract class MlNativeAutodetectIntegTestCase extends ESIntegTestCase {
         return client().execute(PutJobAction.INSTANCE, request).actionGet();
     }
 
-    protected OpenJobAction.Response openJob(String jobId) {
+    protected AcknowledgedResponse openJob(String jobId) {
         OpenJobAction.Request request = new OpenJobAction.Request(jobId);
         return client().execute(OpenJobAction.INSTANCE, request).actionGet();
     }
@@ -235,7 +235,7 @@ abstract class MlNativeAutodetectIntegTestCase extends ESIntegTestCase {
         return client().execute(UpdateJobAction.INSTANCE, request).actionGet();
     }
 
-    protected DeleteJobAction.Response deleteJob(String jobId) {
+    protected AcknowledgedResponse deleteJob(String jobId) {
         DeleteJobAction.Request request = new DeleteJobAction.Request(jobId);
         return client().execute(DeleteJobAction.INSTANCE, request).actionGet();
     }

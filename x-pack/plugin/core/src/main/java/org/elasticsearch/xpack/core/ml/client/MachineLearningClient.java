@@ -72,13 +72,13 @@ public class MachineLearningClient {
     }
 
     public void deleteFilter(DeleteFilterAction.Request request,
-            ActionListener<DeleteFilterAction.Response> listener) {
+            ActionListener<AcknowledgedResponse> listener) {
         client.execute(DeleteFilterAction.INSTANCE, request, listener);
     }
 
-    public ActionFuture<DeleteFilterAction.Response> deleteFilter(
+    public ActionFuture<AcknowledgedResponse> deleteFilter(
             DeleteFilterAction.Request request) {
-        PlainActionFuture<DeleteFilterAction.Response> listener = PlainActionFuture.newFuture();
+        PlainActionFuture<AcknowledgedResponse> listener = PlainActionFuture.newFuture();
         client.execute(DeleteFilterAction.INSTANCE, request, listener);
         return listener;
     }

@@ -1190,13 +1190,14 @@ final class RequestConverters {
         return request;
     }
 
-<<<<<<< HEAD
     static Request deleteLicense(DeleteLicenseRequest deleteLicenseRequest) {
         Request request = new Request(HttpDelete.METHOD_NAME, "/_xpack/license");
         Params parameters = new Params(request);
         parameters.withTimeout(deleteLicenseRequest.timeout());
         parameters.withMasterTimeout(deleteLicenseRequest.masterNodeTimeout());
-=======
+        return request;
+    }
+
     static Request putMachineLearningJob(PutJobRequest putJobRequest) throws IOException {
         String endpoint = new EndpointBuilder()
             .addPathPartAsIs("_xpack")
@@ -1217,7 +1218,6 @@ final class RequestConverters {
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         Params parameters = new Params(request);
         parameters.withIndicesOptions(indexUpgradeInfoRequest.indicesOptions());
->>>>>>> elastic/master
         return request;
     }
 

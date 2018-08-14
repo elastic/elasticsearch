@@ -76,8 +76,8 @@ public class FsDirectoryService extends DirectoryService {
     }
 
     protected Directory newFSDirectory(Path location, LockFactory lockFactory) throws IOException {
-        final String storeType = indexSettings.getSettings().get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(),
-            IndexModule.Type.FS.getSettingsKey());
+        final String storeType =
+                indexSettings.getSettings().get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.FS.getSettingsKey());
         if (IndexModule.Type.FS.match(storeType)) {
             final IndexModule.Type type =
                     IndexModule.defaultStoreType(IndexModule.NODE_STORE_ALLOW_MMAPFS.get(indexSettings.getNodeSettings()));

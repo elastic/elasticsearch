@@ -127,7 +127,6 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
             Function.identity(), Property.Dynamic, Property.NodeScope);
 
     private final Logger tracerLog;
-    private final ConnectionProfile defaultConnectionProfile;
 
     volatile String[] tracerLogInclude;
     volatile String[] tracerLogExclude;
@@ -198,7 +197,6 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         this.connectToRemoteCluster = RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings);
         remoteClusterService = new RemoteClusterService(settings, this);
         responseHandlers = transport.getResponseHandlers();
-        defaultConnectionProfile = buildDefaultConnectionProfile(settings);
         if (clusterSettings != null) {
             clusterSettings.addSettingsUpdateConsumer(TRACE_LOG_INCLUDE_SETTING, this::setTracerLogInclude);
             clusterSettings.addSettingsUpdateConsumer(TRACE_LOG_EXCLUDE_SETTING, this::setTracerLogExclude);
@@ -366,8 +364,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
             return;
         }
 
-        ConnectionProfile resolvedProfile = ConnectionProfile.resolveConnectionProfile(connectionProfile, defaultConnectionProfile);
-        connectionManager.connectToNode(node, resolvedProfile, (newConnection, actualProfile) -> {
+        connectionManager.connectToNode(node, connectionProfile, (newConnection, actualProfile) -> {
             // We don't validate cluster names to allow for CCS connections.
             final DiscoveryNode remote = handshake(newConnection, actualProfile.getHandshakeTimeout().millis(), cn -> true).discoveryNode;
             if (validateConnections && node.equals(remote) == false) {
@@ -380,13 +377,13 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
      * Establishes and returns a new connection to the given node. The connection is NOT maintained by this service, it's the callers
      * responsibility to close the connection once it goes out of scope.
      * @param node the node to connect to
-     * @param profile the connection profile to use
+     * @param connectionProfile the connection profile to use
      */
-    public Transport.Connection openConnection(final DiscoveryNode node, ConnectionProfile profile) throws IOException {
+    public Transport.Connection openConnection(final DiscoveryNode node, ConnectionProfile connectionProfile) throws IOException {
         if (isLocalNode(node)) {
             return localNodeConnection;
         } else {
-            return transport.openConnection(node, ConnectionProfile.resolveConnectionProfile(profile, defaultConnectionProfile));
+            return connectionManager.openConnection(node, connectionProfile);
         }
     }
 
@@ -451,25 +448,6 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
 
     public ConnectionManager getConnectionManager() {
         return connectionManager;
-    }
-
-    static ConnectionProfile buildDefaultConnectionProfile(Settings settings) {
-        int connectionsPerNodeRecovery = CONNECTIONS_PER_NODE_RECOVERY.get(settings);
-        int connectionsPerNodeBulk = CONNECTIONS_PER_NODE_BULK.get(settings);
-        int connectionsPerNodeReg = CONNECTIONS_PER_NODE_REG.get(settings);
-        int connectionsPerNodeState = CONNECTIONS_PER_NODE_STATE.get(settings);
-        int connectionsPerNodePing = CONNECTIONS_PER_NODE_PING.get(settings);
-        ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
-        builder.setConnectTimeout(TCP_CONNECT_TIMEOUT.get(settings));
-        builder.setHandshakeTimeout(TCP_CONNECT_TIMEOUT.get(settings));
-        builder.addConnections(connectionsPerNodeBulk, TransportRequestOptions.Type.BULK);
-        builder.addConnections(connectionsPerNodePing, TransportRequestOptions.Type.PING);
-        // if we are not master eligible we don't need a dedicated channel to publish the state
-        builder.addConnections(DiscoveryNode.isMasterNode(settings) ? connectionsPerNodeState : 0, TransportRequestOptions.Type.STATE);
-        // if we are not a data-node we don't need any dedicated channels for recovery
-        builder.addConnections(DiscoveryNode.isDataNode(settings) ? connectionsPerNodeRecovery : 0, TransportRequestOptions.Type.RECOVERY);
-        builder.addConnections(connectionsPerNodeReg, TransportRequestOptions.Type.REG);
-        return builder.build();
     }
 
     static class HandshakeRequest extends TransportRequest {

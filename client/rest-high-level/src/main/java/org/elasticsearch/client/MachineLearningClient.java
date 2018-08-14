@@ -23,6 +23,8 @@ import org.elasticsearch.protocol.xpack.ml.CloseJobRequest;
 import org.elasticsearch.protocol.xpack.ml.CloseJobResponse;
 import org.elasticsearch.protocol.xpack.ml.DeleteJobRequest;
 import org.elasticsearch.protocol.xpack.ml.DeleteJobResponse;
+import org.elasticsearch.protocol.xpack.ml.GetBucketsRequest;
+import org.elasticsearch.protocol.xpack.ml.GetBucketsResponse;
 import org.elasticsearch.protocol.xpack.ml.GetJobRequest;
 import org.elasticsearch.protocol.xpack.ml.GetJobResponse;
 import org.elasticsearch.protocol.xpack.ml.OpenJobRequest;
@@ -247,4 +249,40 @@ public final class MachineLearningClient {
             listener,
             Collections.emptySet());
     }
+
+    /**
+     * Gets the buckets for a Machine Learning Job.
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-bucket.html">ML GET buckets documentation</a>
+     *
+     * @param request  the request
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     */
+    public GetBucketsResponse getBuckets(GetBucketsRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+                MLRequestConverters::getBuckets,
+                options,
+                GetBucketsResponse::fromXContent,
+                Collections.emptySet());
+    }
+
+    /**
+     * Gets the buckets for a Machine Learning Job, notifies listener once the requested buckets are retrieved.
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-bucket.html">ML GET buckets documentation</a>
+     *
+     * @param request  the request
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void getBucketsAsync(GetBucketsRequest request, RequestOptions options, ActionListener<GetBucketsResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+                MLRequestConverters::getBuckets,
+                options,
+                GetBucketsResponse::fromXContent,
+                listener,
+                Collections.emptySet());
+     }
 }

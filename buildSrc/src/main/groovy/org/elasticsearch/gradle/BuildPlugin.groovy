@@ -696,13 +696,13 @@ class BuildPlugin implements Plugin<Project> {
             jarTask.destinationDir = new File(project.buildDir, 'distributions')
             // fixup the jar manifest
             jarTask.doFirst {
-                final Version versionWithoutSnapshot = VersionProperties.elasticsearch.dropSnapshot()
                 // this doFirst is added before the info plugin, therefore it will run
                 // after the doFirst added by the info plugin, and we can override attributes
                 jarTask.manifest.attributes(
-                        'X-Compile-Elasticsearch-Version': versionWithoutSnapshot,
-                        'X-Compile-Lucene-Version': VersionProperties.lucene,
+                        'X-Compile-Elasticsearch-Version': VersionProperties.elasticsearch.dropSnapshot().dropQualifier(),
+                        'X-Compile-Elasticsearch-Qualifier': VersionProperties.elasticsearch.qualifier,
                         'X-Compile-Elasticsearch-Snapshot': VersionProperties.elasticsearch.isSnapshot(),
+                        'X-Compile-Lucene-Version': VersionProperties.lucene,
                         'Build-Date': ZonedDateTime.now(ZoneOffset.UTC),
                         'Build-Java-Version': project.compilerJavaVersion)
                 if (jarTask.manifest.attributes.containsKey('Change') == false) {

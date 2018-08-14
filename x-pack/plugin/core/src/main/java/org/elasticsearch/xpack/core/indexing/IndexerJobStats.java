@@ -30,8 +30,9 @@ public class IndexerJobStats implements ToXContentObject, Writeable {
     private static ParseField NUM_PAGES = new ParseField("pages_processed");
     private static ParseField NUM_INPUT_DOCUMENTS = new ParseField("documents_processed");
     // BWC for RollupJobStats
-    private static String ROLLUP_BWC_NUM_OUTPUT_DOCUMENTS = "rollups_indexed";
-    private static ParseField NUM_OUTPUT_DOCUMENTS = new ParseField("documents_indexed").withDeprecation(ROLLUP_BWC_NUM_OUTPUT_DOCUMENTS);
+    public static String ROLLUP_BWC_XCONTENT_PARAM = "rollup_6_4_compat";
+    public static String ROLLUP_BWC_NUM_OUTPUT_DOCUMENTS = "rollups_indexed";
+    private static ParseField NUM_OUTPUT_DOCUMENTS = new ParseField("documents_indexed", ROLLUP_BWC_NUM_OUTPUT_DOCUMENTS);
     private static ParseField NUM_INVOCATIONS = new ParseField("trigger_count");
 
     private long numPages = 0;
@@ -122,20 +123,17 @@ public class IndexerJobStats implements ToXContentObject, Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        toUnwrappedXContent(builder, false);
-        builder.endObject();
-        return builder;
-    }
-
-    public XContentBuilder toUnwrappedXContent(XContentBuilder builder, boolean rollupBWC) throws IOException {
         builder.field(NUM_PAGES.getPreferredName(), numPages);
         builder.field(NUM_INPUT_DOCUMENTS.getPreferredName(), numInputDocuments);
-        if (rollupBWC) {
+
+        // rollup BWC handling, defaulting here to the new format while rollup overrides this
+        if (params.paramAsBoolean(ROLLUP_BWC_XCONTENT_PARAM, false)) {
             builder.field(ROLLUP_BWC_NUM_OUTPUT_DOCUMENTS, numOuputDocuments);
         } else {
             builder.field(NUM_OUTPUT_DOCUMENTS.getPreferredName(), numOuputDocuments);
         }
         builder.field(NUM_INVOCATIONS.getPreferredName(), numInvocations);
+        builder.endObject();
         return builder;
     }
 

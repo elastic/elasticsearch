@@ -174,7 +174,14 @@ public class GetRollupJobsAction extends Action<GetRollupJobsAction.Response> {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(JOBS.getPreferredName(), jobs);
+
+            // XContentBuilder does not support passing the params object for Iterables
+            builder.field(JOBS.getPreferredName());
+            builder.startArray();
+            for (JobWrapper job : jobs) {
+                job.toXContent(builder, params);
+            }
+            builder.endArray();
             builder.endObject();
             return builder;
         }
@@ -254,12 +261,7 @@ public class GetRollupJobsAction extends Action<GetRollupJobsAction.Response> {
             builder.field(CONFIG.getPreferredName());
             job.toXContent(builder, params);
             builder.field(STATUS.getPreferredName(), status);
-
-            // special BWC handling for rollup
-            builder.startObject(STATS.getPreferredName());
-            stats.toUnwrappedXContent(builder, true);
-            builder.endObject();
-
+            builder.field(STATS.getPreferredName(), stats, params);
             builder.endObject();
             return builder;
         }

@@ -13,6 +13,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.rollup.Rollup;
+import org.elasticsearch.xpack.core.indexing.IndexerJobStats;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupJobsAction;
 
 import java.io.IOException;
@@ -22,7 +23,7 @@ public class RestGetRollupJobsAction extends BaseRestHandler {
 
     public RestGetRollupJobsAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.GET, Rollup.BASE_PATH +  "job/{id}/", this);
+        controller.registerHandler(RestRequest.Method.GET, Rollup.BASE_PATH + "job/{id}/", this);
     }
 
     @Override
@@ -30,7 +31,14 @@ public class RestGetRollupJobsAction extends BaseRestHandler {
         String id = restRequest.param(ID.getPreferredName());
         GetRollupJobsAction.Request request = new GetRollupJobsAction.Request(id);
 
-        return channel -> client.execute(GetRollupJobsAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        return channel -> {
+            // BWC: inject parameter to force the old style rollup output
+            // injecting after request handling avoids IAE
+            if (channel.request().hasParam(IndexerJobStats.ROLLUP_BWC_XCONTENT_PARAM) == false) {
+                channel.request().params().put(IndexerJobStats.ROLLUP_BWC_XCONTENT_PARAM, String.valueOf(true));
+            }
+            client.execute(GetRollupJobsAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        };
     }
 
     @Override

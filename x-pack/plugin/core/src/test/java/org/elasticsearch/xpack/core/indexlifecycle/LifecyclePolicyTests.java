@@ -154,8 +154,8 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
             name = name + randomAlphaOfLengthBetween(1, 5);
             break;
         case 1:
+            String phaseName = randomValueOtherThanMany(phases::containsKey, () -> randomFrom(TimeseriesLifecycleType.VALID_PHASES));
             phases = new LinkedHashMap<>(phases);
-            String phaseName = randomAlphaOfLengthBetween(1, 10);
             phases.put(phaseName, new Phase(phaseName, TimeValue.timeValueSeconds(randomIntBetween(1, 1000)), Collections.emptyMap()));
             break;
         default:

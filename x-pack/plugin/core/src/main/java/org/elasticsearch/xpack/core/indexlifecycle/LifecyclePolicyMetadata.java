@@ -32,7 +32,7 @@ public class LifecyclePolicyMetadata extends AbstractDiffable<LifecyclePolicyMet
     public static final ConstructingObjectParser<LifecyclePolicyMetadata, String> PARSER = new ConstructingObjectParser<>("policy_metadata",
             a -> {
                 LifecyclePolicy policy = (LifecyclePolicy) a[0];
-                return new LifecyclePolicyMetadata(policy, (Map<String, String>) a[2]);
+                return new LifecyclePolicyMetadata(policy, (Map<String, String>) a[1]);
             });
     static {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), LifecyclePolicy::parse, POLICY);

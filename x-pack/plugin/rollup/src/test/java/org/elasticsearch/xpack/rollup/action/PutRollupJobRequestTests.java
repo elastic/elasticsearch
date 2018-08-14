@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.rollup.action;
 
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.protocol.xpack.rollup.PutRollupJobRequest;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
@@ -13,6 +14,11 @@ import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.junit.Before;
 
 import java.io.IOException;
+
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class PutRollupJobRequestTests extends AbstractStreamableXContentTestCase<PutRollupJobRequest> {
 
@@ -43,4 +49,17 @@ public class PutRollupJobRequestTests extends AbstractStreamableXContentTestCase
         return PutRollupJobRequest.fromXContent(parser, jobId);
     }
 
+    public void testValidate() {
+        PutRollupJobRequest request = new PutRollupJobRequest(null);
+        ActionRequestValidationException validation = request.validate();
+        assertThat(validation, is(notNullValue()));
+        assertThat(validation.validationErrors(), contains(is("configuration of the rollup job is missing")));
+        assertThat(validation.validationErrors().size(), is(1));
+
+        request = new PutRollupJobRequest();
+        validation = request.validate();
+        assertThat(validation, is(notNullValue()));
+        assertThat(validation.validationErrors(), contains(is("configuration of the rollup job is missing")));
+        assertThat(validation.validationErrors().size(), is(1));
+    }
 }

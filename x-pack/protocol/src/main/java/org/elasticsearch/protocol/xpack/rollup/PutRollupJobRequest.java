@@ -20,6 +20,7 @@ package org.elasticsearch.protocol.xpack.rollup;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -75,7 +76,11 @@ public class PutRollupJobRequest extends AcknowledgedRequest<PutRollupJobRequest
 
     @Override
     public ActionRequestValidationException validate() {
-        return null;
+        ActionRequestValidationException validationException = null;
+        if (config == null) {
+            validationException = ValidateActions.addValidationError("configuration of the rollup job is missing", validationException);
+        }
+        return validationException;
     }
 
     public ActionRequestValidationException validateMappings(final Map<String, Map<String, FieldCapabilities>> fieldCapsResponse) {

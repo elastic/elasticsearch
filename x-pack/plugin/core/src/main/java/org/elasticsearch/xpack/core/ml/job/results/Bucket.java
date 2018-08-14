@@ -57,7 +57,7 @@ public class Bucket implements ToXContentObject, Writeable {
     public static final ConstructingObjectParser<Bucket, Void> LENIENT_PARSER = createParser(true);
 
     /* *
-     * Read and discard the old (prior to 6.5) perPartitionNormalization values 
+     * Read and discard the old (prior to 6.5) perPartitionNormalization values
      */
     public static Bucket readOldPerPartitionNormalization(StreamInput in)  throws IOException {
         in.readString();
@@ -186,7 +186,7 @@ public class Bucket implements ToXContentObject, Writeable {
         }
         // bwc for perPartitionNormalization
         if (out.getVersion().before(Version.V_6_5_0)) {
-            out.writeGenericValue(Collections.emptyList());
+            out.writeList(Collections.emptyList());
         }
         if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
             out.writeStringList(scheduledEvents);

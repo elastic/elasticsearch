@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.ack;
 
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -248,7 +247,7 @@ public class AckIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        CloseIndexResponse closeIndexResponse = client().admin().indices().prepareClose("test").setTimeout("0s").get();
+        AcknowledgedResponse closeIndexResponse = client().admin().indices().prepareClose("test").setTimeout("0s").get();
         assertThat(closeIndexResponse.isAcknowledged(), equalTo(false));
     }
 

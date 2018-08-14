@@ -33,7 +33,6 @@ import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
-import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -652,7 +651,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
 
         CloseIndexRequest closeIndexRequest = new CloseIndexRequest(index);
-        CloseIndexResponse closeIndexResponse = execute(closeIndexRequest, highLevelClient().indices()::close,
+        AcknowledgedResponse closeIndexResponse = execute(closeIndexRequest, highLevelClient().indices()::close,
                 highLevelClient().indices()::closeAsync);
         assertTrue(closeIndexResponse.isAcknowledged());
 

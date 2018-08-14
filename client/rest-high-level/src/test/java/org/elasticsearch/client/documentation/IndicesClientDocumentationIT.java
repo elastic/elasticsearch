@@ -32,7 +32,6 @@ import org.elasticsearch.action.admin.indices.analyze.DetailAnalyzeResponse;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
-import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -1495,7 +1494,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::close-index-request-indicesOptions
 
             // tag::close-index-execute
-            CloseIndexResponse closeIndexResponse = client.indices().close(request, RequestOptions.DEFAULT);
+            AcknowledgedResponse closeIndexResponse = client.indices().close(request, RequestOptions.DEFAULT);
             // end::close-index-execute
 
             // tag::close-index-response
@@ -1504,10 +1503,10 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             assertTrue(acknowledged);
 
             // tag::close-index-execute-listener
-            ActionListener<CloseIndexResponse> listener =
-                    new ActionListener<CloseIndexResponse>() {
+            ActionListener<AcknowledgedResponse> listener =
+                    new ActionListener<AcknowledgedResponse>() {
                 @Override
-                public void onResponse(CloseIndexResponse closeIndexResponse) {
+                public void onResponse(AcknowledgedResponse closeIndexResponse) {
                     // <1>
                 }
 

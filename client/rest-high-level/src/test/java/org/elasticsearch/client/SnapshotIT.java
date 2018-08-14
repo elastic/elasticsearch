@@ -21,7 +21,6 @@ package org.elasticsearch.client;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
-import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
@@ -116,7 +115,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         assertThat(1, equalTo(response.repositories().size()));
 
         DeleteRepositoryRequest deleteRequest = new DeleteRepositoryRequest(repository);
-        DeleteRepositoryResponse deleteResponse = execute(deleteRequest, highLevelClient().snapshot()::deleteRepository,
+        AcknowledgedResponse deleteResponse = execute(deleteRequest, highLevelClient().snapshot()::deleteRepository,
             highLevelClient().snapshot()::deleteRepositoryAsync);
 
         assertTrue(deleteResponse.isAcknowledged());

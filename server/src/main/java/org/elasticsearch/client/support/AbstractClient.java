@@ -65,7 +65,6 @@ import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageResponse;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequestBuilder;
-import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesAction;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequestBuilder;
@@ -994,12 +993,12 @@ public abstract class AbstractClient extends AbstractComponent implements Client
 
 
         @Override
-        public ActionFuture<DeleteRepositoryResponse> deleteRepository(DeleteRepositoryRequest request) {
+        public ActionFuture<AcknowledgedResponse> deleteRepository(DeleteRepositoryRequest request) {
             return execute(DeleteRepositoryAction.INSTANCE, request);
         }
 
         @Override
-        public void deleteRepository(DeleteRepositoryRequest request, ActionListener<DeleteRepositoryResponse> listener) {
+        public void deleteRepository(DeleteRepositoryRequest request, ActionListener<AcknowledgedResponse> listener) {
             execute(DeleteRepositoryAction.INSTANCE, request, listener);
         }
 

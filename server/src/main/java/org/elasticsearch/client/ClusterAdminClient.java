@@ -51,7 +51,6 @@ import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageRequestBuilde
 import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageResponse;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequestBuilder;
-import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequestBuilder;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
@@ -428,12 +427,12 @@ public interface ClusterAdminClient extends ElasticsearchClient {
     /**
      * Unregisters a repository.
      */
-    ActionFuture<DeleteRepositoryResponse> deleteRepository(DeleteRepositoryRequest request);
+    ActionFuture<AcknowledgedResponse> deleteRepository(DeleteRepositoryRequest request);
 
     /**
      * Unregisters a repository.
      */
-    void deleteRepository(DeleteRepositoryRequest request, ActionListener<DeleteRepositoryResponse> listener);
+    void deleteRepository(DeleteRepositoryRequest request, ActionListener<AcknowledgedResponse> listener);
 
     /**
      * Unregisters a repository.

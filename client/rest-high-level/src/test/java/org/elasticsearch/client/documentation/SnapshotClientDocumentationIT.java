@@ -22,7 +22,6 @@ package org.elasticsearch.client.documentation;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
-import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
@@ -387,7 +386,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         // end::delete-repository-request-timeout
 
         // tag::delete-repository-execute
-        DeleteRepositoryResponse response = client.snapshot().deleteRepository(request, RequestOptions.DEFAULT);
+        AcknowledgedResponse response = client.snapshot().deleteRepository(request, RequestOptions.DEFAULT);
         // end::delete-repository-execute
 
         // tag::delete-repository-response
@@ -402,10 +401,10 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
             DeleteRepositoryRequest request = new DeleteRepositoryRequest();
 
             // tag::delete-repository-execute-listener
-            ActionListener<DeleteRepositoryResponse> listener =
-                new ActionListener<DeleteRepositoryResponse>() {
+            ActionListener<AcknowledgedResponse> listener =
+                new ActionListener<AcknowledgedResponse>() {
                     @Override
-                    public void onResponse(DeleteRepositoryResponse deleteRepositoryResponse) {
+                    public void onResponse(AcknowledgedResponse deleteRepositoryResponse) {
                         // <1>
                     }
 

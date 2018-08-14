@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -164,7 +163,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
         logger.info("-->  deleting repository test-repo-2 with 0s timeout - shouldn't ack");
-        DeleteRepositoryResponse deleteRepositoryResponse = client().admin().cluster().prepareDeleteRepository("test-repo-2")
+        AcknowledgedResponse deleteRepositoryResponse = client().admin().cluster().prepareDeleteRepository("test-repo-2")
                 .setTimeout("0s").get();
         assertThat(deleteRepositoryResponse.isAcknowledged(), equalTo(false));
 

@@ -27,17 +27,18 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 public class FeatureIndexBuilderJobConfig implements NamedWriteable, ToXContentObject {
 
     private static final String NAME = "xpack/feature_index_builder/jobconfig";
-    private static final String ID = "id";
+    private static final ParseField ID = new ParseField("id");
 
     private final String id;
 
-    private static final ConstructingObjectParser<FeatureIndexBuilderJobConfig, String> PARSER;
+    private static final ConstructingObjectParser<FeatureIndexBuilderJobConfig, String> PARSER = new ConstructingObjectParser<>(NAME, false,
+            (args, optionalId) -> {
+                String id = args[0] != null ? (String) args[0] : optionalId;
+                return new FeatureIndexBuilderJobConfig(id);
+            });
+
     static {
-        PARSER = new ConstructingObjectParser<>(NAME, false, (args, optionalId) -> {
-            String id = args[0] != null ? (String) args[0] : optionalId;
-            return new FeatureIndexBuilderJobConfig(id);
-        });
-        PARSER.declareString(optionalConstructorArg(), new ParseField(ID));
+        PARSER.declareString(optionalConstructorArg(), ID);
     }
 
     public FeatureIndexBuilderJobConfig(final String id) {
@@ -62,9 +63,7 @@ public class FeatureIndexBuilderJobConfig implements NamedWriteable, ToXContentO
 
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         builder.startObject();
-        {
-            builder.field(ID, id);
-        }
+        builder.field(ID.getPreferredName(), id);
         builder.endObject();
         return builder;
     }

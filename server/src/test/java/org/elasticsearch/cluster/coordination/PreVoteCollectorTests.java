@@ -20,8 +20,8 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterState.VotingConfiguration;
-import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -35,13 +35,11 @@ import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySet;
-import static java.util.Collections.singleton;
 import static org.elasticsearch.cluster.coordination.PreVoteCollector.REQUEST_PRE_VOTE_ACTION_NAME;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.equalTo;
@@ -56,12 +54,13 @@ public class PreVoteCollectorTests extends ESTestCase {
     private boolean electionOccurred = false;
     private DiscoveryNode localNode;
     private Map<DiscoveryNode, PreVoteResponse> responsesByNode = new HashMap<>();
-    private VotingConfiguration votingConfiguration;
     private long lastElectionMaxTermSeen;
+    private TransportService transportService;
+    private Settings settings;
 
     @Before
     public void createObjects() {
-        final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build();
+        settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build();
         deterministicTaskQueue = new DeterministicTaskQueue(settings);
         final Transport capturingTransport = new CapturingTransport() {
             @Override
@@ -93,8 +92,7 @@ public class PreVoteCollectorTests extends ESTestCase {
         };
         localNode = new DiscoveryNode("local-node", buildNewFakeTransportAddress(), Version.CURRENT);
         responsesByNode.put(localNode, new PreVoteResponse(3, 2, 1));
-        votingConfiguration = new VotingConfiguration(singleton(localNode.getId()));
-        final TransportService transportService = new TransportService(settings, capturingTransport,
+        transportService = new TransportService(settings, capturingTransport,
             deterministicTaskQueue.getThreadPool(), TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundTransportAddress -> localNode, null, emptySet());
         transportService.start();
@@ -107,23 +105,16 @@ public class PreVoteCollectorTests extends ESTestCase {
                 channel.sendResponse(getLocalPreVoteResponse());
             });
 
-        preVoteCollector = new PreVoteCollector(settings, getLocalPreVoteResponse(), transportService) {
-            @Override
-            protected void startElection(long maxTermSeen) {
-                assert electionOccurred == false;
-                electionOccurred = true;
-                lastElectionMaxTermSeen = maxTermSeen;
-            }
-
-            @Override
-            protected boolean isElectionQuorum(VoteCollection voteCollection) {
-                return votingConfiguration.hasQuorum(voteCollection.nodes().stream().map(DiscoveryNode::getId).collect(Collectors.toSet()));
-            }
-        };
+        preVoteCollector = null;
     }
 
     private PreVoteResponse getLocalPreVoteResponse() {
         return Objects.requireNonNull(responsesByNode.get(localNode));
+    }
+
+    private void startAndRunCollector(DiscoveryNode... votingNodes) {
+        startCollector(votingNodes);
+        runCollector();
     }
 
     private void runCollector() {
@@ -132,51 +123,56 @@ public class PreVoteCollectorTests extends ESTestCase {
         assertFalse(deterministicTaskQueue.hasRunnableTasks());
     }
 
-    public void testStartsElectionIfLocalNodeIsOnlyNode() {
-        startAndRunCollector();
-        assertTrue(electionOccurred);
+    private void startCollector(DiscoveryNode... votingNodes) {
+        final VotingConfiguration votingConfiguration
+            = new VotingConfiguration(Arrays.stream(votingNodes).map(DiscoveryNode::getId).collect(Collectors.toSet()));
+        final ClusterState clusterState = CoordinationStateTests.clusterState(0, 0, localNode, votingConfiguration, votingConfiguration, 0);
+
+        assert preVoteCollector == null;
+
+        preVoteCollector = new PreVoteCollector(settings, getLocalPreVoteResponse(), transportService, clusterState) {
+            @Override
+            protected void startElection(long maxTermSeen) {
+                assert electionOccurred == false;
+                electionOccurred = true;
+                lastElectionMaxTermSeen = maxTermSeen;
+            }
+        };
+
+        preVoteCollector.start(responsesByNode.keySet());
     }
 
-    private void startCollector() {
-        preVoteCollector.start(responsesByNode.keySet());
+    public void testStartsElectionIfLocalNodeIsOnlyNode() {
+        startAndRunCollector(localNode);
+        assertTrue(electionOccurred);
     }
 
     public void testStartsElectionIfLocalNodeIsQuorum() {
         final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
         responsesByNode.put(otherNode, new PreVoteResponse(3, 2, 1));
-
-        startAndRunCollector();
+        startAndRunCollector(otherNode);
         assertTrue(electionOccurred);
     }
 
-    private void startAndRunCollector() {
-        startCollector();
-        runCollector();
-    }
 
     public void testStartsElectionIfOtherNodeIsQuorum() {
         final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
         responsesByNode.put(otherNode, new PreVoteResponse(3, 2, 1));
-        votingConfiguration = new VotingConfiguration(singleton(otherNode.getId()));
-
-        startAndRunCollector();
+        startAndRunCollector(otherNode);
         assertTrue(electionOccurred);
     }
 
     public void testDoesNotStartsElectionIfOtherNodeIsQuorumAndDoesNotRespond() {
         final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
         responsesByNode.put(otherNode, null);
-        votingConfiguration = new VotingConfiguration(singleton(otherNode.getId()));
-        startAndRunCollector();
+        startAndRunCollector(otherNode);
         assertFalse(electionOccurred);
     }
 
     public void testDoesNotStartElectionIfStopped() {
         final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
         responsesByNode.put(otherNode, new PreVoteResponse(3, 2, 1));
-        votingConfiguration = new VotingConfiguration(singleton(otherNode.getId()));
-
-        startCollector();
+        startCollector(otherNode);
         preVoteCollector.stop();
         runCollector();
         assertFalse(electionOccurred);
@@ -185,25 +181,21 @@ public class PreVoteCollectorTests extends ESTestCase {
     public void testIgnoresPreVotesFromLaterTerms() {
         final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
         responsesByNode.put(otherNode, new PreVoteResponse(3, 3, 1));
-        votingConfiguration = new VotingConfiguration(singleton(otherNode.getId()));
-        startAndRunCollector();
+        startAndRunCollector(otherNode);
         assertFalse(electionOccurred);
     }
 
     public void testIgnoresPreVotesFromLaterVersionInSameTerm() {
         final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
         responsesByNode.put(otherNode, new PreVoteResponse(3, 2, 2));
-        votingConfiguration = new VotingConfiguration(singleton(otherNode.getId()));
-        startAndRunCollector();
+        startAndRunCollector(otherNode);
         assertFalse(electionOccurred);
     }
 
     public void testAcceptsPreVotesFromLaterVersionInEarlierTerms() {
         final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
         responsesByNode.put(otherNode, new PreVoteResponse(3, 1, 2));
-        votingConfiguration = new VotingConfiguration(singleton(otherNode.getId()));
-
-        startAndRunCollector();
+        startAndRunCollector(otherNode);
         assertTrue(electionOccurred);
         assertThat(lastElectionMaxTermSeen, is(3L));
     }
@@ -213,9 +205,7 @@ public class PreVoteCollectorTests extends ESTestCase {
         final DiscoveryNode otherNode2 = new DiscoveryNode("other-node-2", buildNewFakeTransportAddress(), Version.CURRENT);
         responsesByNode.put(otherNode1, new PreVoteResponse(4, 2, 1));
         responsesByNode.put(otherNode2, new PreVoteResponse(5, 2, 1));
-        votingConfiguration = new VotingConfiguration(new HashSet<>(Arrays.asList(otherNode1.getId(), otherNode2.getId())));
-
-        startAndRunCollector();
+        startAndRunCollector(otherNode1, otherNode2);
         assertTrue(electionOccurred);
         assertThat(lastElectionMaxTermSeen, is(5L));
     }

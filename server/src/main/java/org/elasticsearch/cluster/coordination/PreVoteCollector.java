@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -33,6 +34,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.cluster.coordination.CoordinationState.isElectionQuorum;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentSet;
 
 public abstract class PreVoteCollector extends AbstractComponent {
@@ -45,18 +47,19 @@ public abstract class PreVoteCollector extends AbstractComponent {
     private final PreVoteResponse localPreVoteResponse;
     private final PreVoteRequest preVoteRequest;
     private final TransportService transportService;
+    private final ClusterState clusterState;
     private final AtomicBoolean isRunning = new AtomicBoolean();
 
-    PreVoteCollector(Settings settings, PreVoteResponse localPreVoteResponse, TransportService transportService) {
+    PreVoteCollector(Settings settings, PreVoteResponse localPreVoteResponse, TransportService transportService,
+                     ClusterState clusterState) {
         super(settings);
         this.localPreVoteResponse = localPreVoteResponse;
         this.transportService = transportService;
+        this.clusterState = clusterState;
         final long currentTerm = localPreVoteResponse.getCurrentTerm();
         preVoteRequest = new PreVoteRequest(transportService.getLocalNode(), currentTerm);
         maxTermSeen = new AtomicLong(currentTerm);
     }
-
-    protected abstract boolean isElectionQuorum(VoteCollection voteCollection);
 
     protected abstract void startElection(long maxTermSeen);
 
@@ -118,7 +121,7 @@ public abstract class PreVoteCollector extends AbstractComponent {
         final VoteCollection voteCollection = new VoteCollection();
         preVotesReceived.forEach(voteCollection::addVote);
 
-        if (isElectionQuorum(voteCollection) == false) {
+        if (isElectionQuorum(voteCollection, clusterState) == false) {
             logger.debug("{} added {} from {}, no quorum yet", this, response, sender);
             return;
         }

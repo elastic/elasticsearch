@@ -215,6 +215,11 @@ The ability to query and index context enabled suggestions without contexts
 has been deprecated. Context enabled suggestion queries without contexts have
 to visit every suggestion, which degrades the search performance considerably.
 
+For geo context the value of the `path` parameter is now validated against the mapping,
+and if `path` points to a non `geo_point` field or the field doesn't exist a deprecation
+warning will be issued. In 7.0 it will be required for the `path` to point to a correct
+`geo_point` field.
+
 ==== Limiting the length of regex that can be used in a Regexp Query request
 
 Regexp Query with long string made of many operators may run into a stack overflow.

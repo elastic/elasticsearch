@@ -53,6 +53,7 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.InvalidTypeNameException;
 import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.indices.mapper.MapperRegistry;
+import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -453,6 +454,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
             MapperMergeValidator.validateFieldReferences(indexSettings, fieldMappers,
                 fieldAliasMappers, fullPathObjectMappers, fieldTypes);
+
+            ContextMapping.validateContextPaths(indexSettings.getIndexVersionCreated(), fieldMappers, fieldTypes::get);
 
             if (reason == MergeReason.MAPPING_UPDATE) {
                 // this check will only be performed on the master node when there is

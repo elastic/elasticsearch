@@ -205,8 +205,10 @@ include::licensing/delete-license.asciidoc[]
 The Java High Level REST Client supports the following Machine Learning APIs:
 
 * <<java-rest-high-x-pack-ml-put-job>>
+* <<java-rest-high-x-pack-ml-delete-job>>
 
 include::ml/put_job.asciidoc[]
+include::ml/delete-job.asciidoc[]
 
 == Migration APIs
 
@@ -215,15 +217,6 @@ The Java High Level REST Client supports the following Migration APIs:
 * <<java-rest-high-migration-get-assistance>>
 
 include::migration/get-assistance.asciidoc[]
-
-== Machine Learning APIs
-
-The Java High Level REST Client supports the following Machine Learning APIs:
-
-* <<java-rest-high-x-pack-machine-learning-delete-job>>
-
-include::machine-learning/delete-job.asciidoc[]
-
 
 == Watcher APIs
 

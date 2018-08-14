@@ -1,0 +1,6 @@
+[[set-up-lifecycle-policy]]
+== Set up {ilm} policy
+
+Focus on how this is done in the general sense, not the fine points about
+rollover just yet. Specifically that `index.lifecycle.name` can be used here
+too, not just the create index API explicitly.

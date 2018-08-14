@@ -28,6 +28,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
@@ -47,26 +49,87 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
-                Arrays.asList(new NamedWriteableRegistry.Entry(LifecycleAction.class, MockAction.NAME, MockAction::new),
-                        new NamedWriteableRegistry.Entry(LifecycleType.class, TestLifecycleType.TYPE, (in) -> TestLifecycleType.INSTANCE)));
+            Arrays.asList(
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, MockAction.NAME, MockAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleType.class, TimeseriesLifecycleType.TYPE,
+                    (in) -> TimeseriesLifecycleType.INSTANCE),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, AllocateAction.NAME, AllocateAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, ForceMergeAction.NAME, ForceMergeAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, ReadOnlyAction.NAME, ReadOnlyAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, RolloverAction.NAME, RolloverAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, ShrinkAction.NAME, ShrinkAction::new)
+            ));
     }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> entries = new ArrayList<>(ClusterModule.getNamedXWriteables());
-        entries.add(new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(MockAction.NAME), MockAction::parse));
-        entries.add(new NamedXContentRegistry.Entry(LifecycleType.class, new ParseField(TestLifecycleType.TYPE),
-                (p) -> TestLifecycleType.INSTANCE));
+        entries.addAll(Arrays.asList(
+            new NamedXContentRegistry.Entry(LifecycleType.class, new ParseField(TimeseriesLifecycleType.TYPE),
+                (p) -> TimeseriesLifecycleType.INSTANCE),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(AllocateAction.NAME), AllocateAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ForceMergeAction.NAME), ForceMergeAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ReadOnlyAction.NAME), ReadOnlyAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RolloverAction.NAME), RolloverAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ShrinkAction.NAME), ShrinkAction::parse)
+        ));
         return new NamedXContentRegistry(entries);
     }
 
     @Override
     protected LifecyclePolicy createTestInstance() {
         lifecycleName = randomAlphaOfLength(5);
-        return randomLifecyclePolicy(lifecycleName);
+        return randomTimeseriesLifecyclePolicy(lifecycleName);
     }
 
-    public static LifecyclePolicy randomLifecyclePolicy(@Nullable String lifecycleName) {
+    public static LifecyclePolicy randomTimeseriesLifecyclePolicy(@Nullable String lifecycleName) {
+        List<String> phaseNames = randomSubsetOf(TimeseriesLifecycleType.VALID_PHASES);
+        Map<String, Phase> phases = new HashMap<>(phaseNames.size());
+        Function<String, Set<String>> validActions = (phase) ->  {
+            switch (phase) {
+                case "hot":
+                    return TimeseriesLifecycleType.VALID_HOT_ACTIONS;
+                case "warm":
+                    return TimeseriesLifecycleType.VALID_WARM_ACTIONS;
+                case "cold":
+                    return TimeseriesLifecycleType.VALID_COLD_ACTIONS;
+                case "delete":
+                    return TimeseriesLifecycleType.VALID_DELETE_ACTIONS;
+                default:
+                    throw new IllegalArgumentException("invalid phase [" + phase + "]");
+            }};
+        Function<String, LifecycleAction> randomAction = (action) ->  {
+            switch (action) {
+                case AllocateAction.NAME:
+                    return AllocateActionTests.randomInstance();
+                case DeleteAction.NAME:
+                    return new DeleteAction();
+                case ForceMergeAction.NAME:
+                    return ForceMergeActionTests.randomInstance();
+                case ReadOnlyAction.NAME:
+                    return new ReadOnlyAction();
+                case RolloverAction.NAME:
+                    return RolloverActionTests.randomInstance();
+                case ShrinkAction.NAME:
+                    return ShrinkActionTests.randomInstance();
+                default:
+                    throw new IllegalArgumentException("invalid action [" + action + "]");
+            }};
+        for (String phase : phaseNames) {
+            TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");
+            Map<String, LifecycleAction> actions = new HashMap<>();
+            List<String> actionNames = randomSubsetOf(validActions.apply(phase));
+            for (String action : actionNames) {
+                actions.put(action, randomAction.apply(action));
+            }
+            phases.put(phase, new Phase(phase, after, actions));
+        }
+        return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, lifecycleName, phases);
+    }
+
+    public static LifecyclePolicy randomTestLifecyclePolicy(@Nullable String lifecycleName) {
         int numberPhases = randomInt(5);
         Map<String, Phase> phases = new HashMap<>(numberPhases);
         for (int i = 0; i < numberPhases; i++) {

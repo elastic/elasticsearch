@@ -14,6 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.AllocateAction;
 import org.elasticsearch.xpack.core.indexlifecycle.DeleteAction;
@@ -23,7 +24,6 @@ import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.Phase;
 import org.elasticsearch.xpack.core.indexlifecycle.ReadOnlyAction;
-import org.elasticsearch.xpack.core.indexlifecycle.ReplicasAction;
 import org.elasticsearch.xpack.core.indexlifecycle.ShrinkAction;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
@@ -47,9 +47,20 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     private String policy;
 
     @Before
-    public void refreshIndex() {
+    public void refreshIndex() throws IOException {
         index = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         policy = randomAlphaOfLength(5);
+        Request request = new Request("PUT", "/_cluster/settings");
+        XContentBuilder pollIntervalEntity = JsonXContent.contentBuilder();
+        pollIntervalEntity.startObject();
+        {
+            pollIntervalEntity.startObject("transient");
+            {
+                pollIntervalEntity.field(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, "1s");
+            }pollIntervalEntity.endObject();
+        } pollIntervalEntity.endObject();
+        request.setJsonEntity(Strings.toString(pollIntervalEntity));
+        assertOK(adminClient().performRequest(request));
     }
 
     public static void updatePolicy(String indexName, String policy) throws IOException {
@@ -57,11 +68,11 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         client().performRequest(request);
     }
 
-    public void testAllocate() throws Exception {
+    public void testAllocateOnlyAllocation() throws Exception {
         createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
         String allocateNodeName = "node-" + randomFrom(0, 1);
-        AllocateAction allocateAction = new AllocateAction(null, null, singletonMap("_name", allocateNodeName));
+        AllocateAction allocateAction = new AllocateAction(null, null, null, singletonMap("_name", allocateNodeName));
         createNewSingletonPolicy(randomFrom("warm", "cold"), allocateAction);
         updatePolicy(index, policy);
         assertBusy(() -> {
@@ -69,6 +80,22 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             assertThat(getStepKey(settings), equalTo(TerminalPolicyStep.KEY));
         });
         ensureGreen(index);
+    }
+
+    public void testAllocateActionOnlyReplicas() throws Exception {
+        int numShards = randomFrom(1, 5);
+        int numReplicas = randomFrom(0, 1);
+        int finalNumReplicas = (numReplicas + 1) % 2;
+        createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numShards)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numReplicas));
+        AllocateAction allocateAction = new AllocateAction(finalNumReplicas, null, null, null);
+        createNewSingletonPolicy(randomFrom("warm", "cold"), allocateAction);
+        updatePolicy(index, policy);
+        assertBusy(() -> {
+            Map<String, Object> settings = getOnlyIndexSettings(index);
+            assertThat(getStepKey(settings), equalTo(TerminalPolicyStep.KEY));
+            assertThat(settings.get(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey()), equalTo(String.valueOf(finalNumReplicas)));
+        });
     }
 
     public void testDelete() throws Exception {
@@ -122,22 +149,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> {
             assertThat(getStepKey(getOnlyIndexSettings(index)), equalTo(TerminalPolicyStep.KEY));
             assertThat(numSegments.get(), equalTo(1));
-        });
-    }
-
-    public void testReplicasAction() throws Exception {
-        int numShards = randomFrom(1, 5);
-        int numReplicas = randomFrom(0, 1);
-        int finalNumReplicas = (numReplicas + 1) % 2;
-        createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numShards)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numReplicas));
-        createNewSingletonPolicy(randomFrom("warm", "cold"), new ReplicasAction(finalNumReplicas));
-        updatePolicy(index, policy);
-
-        assertBusy(() -> {
-            Map<String, Object> settings = getOnlyIndexSettings(index);
-            assertThat(getStepKey(settings), equalTo(TerminalPolicyStep.KEY));
-            assertThat(settings.get(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey()), equalTo(String.valueOf(finalNumReplicas)));
         });
     }
 

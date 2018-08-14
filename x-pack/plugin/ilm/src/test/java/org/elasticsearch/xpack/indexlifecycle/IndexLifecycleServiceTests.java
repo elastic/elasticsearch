@@ -24,13 +24,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.protocol.xpack.indexlifecycle.OperationMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.MockAction;
-import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 import org.elasticsearch.xpack.core.indexlifecycle.Phase;
 import org.elasticsearch.xpack.core.indexlifecycle.ShrinkAction;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
@@ -261,7 +261,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         indexLifecycleService.clusterChanged(noChangeEvent);
         assertThat(indexLifecycleService.getScheduler().jobCount(), equalTo(1));
         assertThat(((TimeValueSchedule) indexLifecycleService.getScheduledJob().getSchedule()).getInterval(),
-                equalTo(TimeValue.timeValueSeconds(3)));
+                equalTo(LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING.getDefault(previousState.metaData().settings())));
         indexLifecycleService.applyClusterState(event);
         indexLifecycleService.clusterChanged(event);
         assertThat(indexLifecycleService.getScheduler().jobCount(), equalTo(1));

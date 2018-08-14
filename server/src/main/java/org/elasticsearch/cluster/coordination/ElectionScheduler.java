@@ -30,16 +30,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool.Names;
-import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Random;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-
-import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentSet;
 
 public abstract class ElectionScheduler extends AbstractComponent {
 
@@ -56,8 +50,6 @@ public abstract class ElectionScheduler extends AbstractComponent {
     private static final String ELECTION_MIN_TIMEOUT_SETTING_KEY = "cluster.election.min_timeout";
     private static final String ELECTION_BACK_OFF_TIME_SETTING_KEY = "cluster.election.back_off_time";
     private static final String ELECTION_MAX_TIMEOUT_SETTING_KEY = "cluster.election.max_timeout";
-
-    public static final String REQUEST_PRE_VOTE_ACTION_NAME = "internal:cluster/request_pre_vote";
 
     public static final Setting<TimeValue> ELECTION_MIN_TIMEOUT_SETTING = Setting.timeSetting(ELECTION_MIN_TIMEOUT_SETTING_KEY,
         TimeValue.timeValueMillis(100), TimeValue.timeValueMillis(1), Property.NodeScope);
@@ -187,9 +179,8 @@ public abstract class ElectionScheduler extends AbstractComponent {
                         logger.debug("{} not starting election", ActiveScheduler.this);
                         return;
                     }
-                    long electionId = idSupplier.incrementAndGet();
-                    logger.debug("{} starting pre-voting round {}", ActiveScheduler.this, electionId);
-                    new PreVoteCollector(electionId).start();
+                    logger.debug("{} starting pre-voting", ActiveScheduler.this);
+                    new ScheduledPreVoteCollector().start();
                 }
 
                 @Override
@@ -217,95 +208,30 @@ public abstract class ElectionScheduler extends AbstractComponent {
         }
     }
 
-    private class PreVoteCollector {
-
-        private final long electionId;
-
-        private final Set<DiscoveryNode> preVotesReceived = newConcurrentSet();
-        private final AtomicBoolean electionStarted = new AtomicBoolean();
-        private final AtomicLong maxTermSeen;
-        private final PreVoteResponse localPreVoteResponse;
-        private final PreVoteRequest preVoteRequest;
-
-        PreVoteCollector(long electionId) {
-            this.electionId = electionId;
-            localPreVoteResponse = getLocalPreVoteResponse();
-            final long currentTerm = localPreVoteResponse.getCurrentTerm();
-            preVoteRequest = new PreVoteRequest(transportService.getLocalNode(), currentTerm);
-            maxTermSeen = new AtomicLong(currentTerm);
-        }
-
-        public void start() {
-            logger.debug("{} starting", this);
-
-            getBroadcastNodes().forEach(n -> transportService.sendRequest(n, REQUEST_PRE_VOTE_ACTION_NAME, preVoteRequest,
-                new TransportResponseHandler<PreVoteResponse>() {
-                    @Override
-                    public void handleResponse(PreVoteResponse response) {
-                        handlePreVoteResponse(response, n);
-                    }
-
-                    @Override
-                    public void handleException(TransportException exp) {
-                        if (exp.getRootCause() instanceof CoordinationStateRejectedException) {
-                            logger.debug("{} failed: {}", this, exp.getRootCause().getMessage());
-                        } else {
-                            logger.debug(new ParameterizedMessage("{} failed", this), exp);
-                        }
-                    }
-
-                    @Override
-                    public String executor() {
-                        return Names.GENERIC;
-                    }
-
-                    @Override
-                    public String toString() {
-                        return "TransportResponseHandler{" + PreVoteCollector.this + ", node=" + n + '}';
-                    }
-                }));
-        }
-
-        private void handlePreVoteResponse(PreVoteResponse response, DiscoveryNode sender) {
-            final long currentId = idSupplier.get();
-            if (currentId != electionId) {
-                logger.debug("{} ignoring {} from {} as current id is now {}", this, response, sender, currentId);
-                return;
-            }
-
-            final long currentMaxTermSeen = maxTermSeen.accumulateAndGet(response.getCurrentTerm(), Math::max);
-
-            if (response.getLastAcceptedTerm() > localPreVoteResponse.getLastAcceptedTerm()
-                || (response.getLastAcceptedTerm() == localPreVoteResponse.getLastAcceptedTerm()
-                && response.getLastAcceptedVersion() > localPreVoteResponse.getLastAcceptedVersion())) {
-                logger.debug("{} ignoring {} from {} as it is fresher", this, response, sender);
-                return;
-            }
-
-            preVotesReceived.add(sender);
-            final VoteCollection voteCollection = new VoteCollection();
-            preVotesReceived.forEach(voteCollection::addVote);
-
-            if (isElectionQuorum(voteCollection) == false) {
-                logger.debug("{} added {} from {}, no quorum yet", this, response, sender);
-                return;
-            }
-
-            if (electionStarted.compareAndSet(false, true) == false) {
-                logger.debug("{} added {} from {} but election has already started", this, response, sender);
-                return;
-            }
-
-            logger.debug("{} added {} from {}, starting election in term > {}", this, response, sender, currentMaxTermSeen);
-            startElection(currentMaxTermSeen);
+    private class ScheduledPreVoteCollector extends PreVoteCollector {
+        ScheduledPreVoteCollector() {
+            super(ElectionScheduler.this.settings, idSupplier.incrementAndGet(), ElectionScheduler.this.getLocalPreVoteResponse(),
+                transportService);
         }
 
         @Override
-        public String toString() {
-            return "PreVoteCollector{" +
-                "electionId=" + electionId +
-                ", localPreVoteResponse=" + localPreVoteResponse +
-                '}';
+        protected Iterable<DiscoveryNode> getBroadcastNodes() {
+            return ElectionScheduler.this.getBroadcastNodes();
+        }
+
+        @Override
+        protected boolean isElectionQuorum(VoteCollection voteCollection) {
+            return ElectionScheduler.this.isElectionQuorum(voteCollection);
+        }
+
+        @Override
+        protected void startElection(long maxTermSeen) {
+            ElectionScheduler.this.startElection(maxTermSeen);
+        }
+
+        @Override
+        protected long getCurrentId() {
+            return idSupplier.get();
         }
     }
 }

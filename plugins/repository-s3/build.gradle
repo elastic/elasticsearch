@@ -196,8 +196,8 @@ if (useFixture && minioDistribution) {
           javax.net.ServerSocketFactory.getDefault().createServerSocket(port, 1, InetAddress.getByName(minioAddress)).close()
           minioPort = port
           break
-        } catch (Exception e) {
-          logger.error("Failed to determine free port " + port + " for Minio process", e)
+        } catch (BindException e) {
+          logger.info("Port " + port + " for Minio process is already taken", e)
         }
       }
       if (minioPort == 0) {

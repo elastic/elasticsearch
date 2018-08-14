@@ -174,4 +174,39 @@ public class MessagesTests extends ESTestCase {
             new ClusterState.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(10, 10, false))),
             randomLong());
     }
+
+    public void testPreVoteRequestEqualsHashCodeSerialization() {
+        PreVoteRequest initialPreVoteRequest = new PreVoteRequest(createNode(randomAlphaOfLength(10)), randomNonNegativeLong());
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(initialPreVoteRequest,
+            preVoteRequest -> copyWriteable(preVoteRequest, writableRegistry(), PreVoteRequest::new),
+            preVoteRequest -> {
+                if (randomBoolean()) {
+                    return new PreVoteRequest(createNode(randomAlphaOfLength(10)), preVoteRequest.getCurrentTerm());
+                } else {
+                    return new PreVoteRequest(preVoteRequest.getSourceNode(), randomNonNegativeLong());
+                }
+            });
+    }
+
+    public void testPreVoteResponseEqualsHashCodeSerialization() {
+        PreVoteResponse initialPreVoteResponse
+            = new PreVoteResponse(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(initialPreVoteResponse,
+            preVoteResponse -> copyWriteable(preVoteResponse, writableRegistry(), PreVoteResponse::new),
+            preVoteResponse -> {
+                switch (randomInt(2)) {
+                    case 0:
+                        return new PreVoteResponse(randomNonNegativeLong(), preVoteResponse.getLastAcceptedTerm(),
+                            preVoteResponse.getLastAcceptedVersion());
+                    case 1:
+                        return new PreVoteResponse(preVoteResponse.getCurrentTerm(), randomNonNegativeLong(),
+                            preVoteResponse.getLastAcceptedVersion());
+                    case 2:
+                        return new PreVoteResponse(preVoteResponse.getCurrentTerm(), preVoteResponse.getLastAcceptedTerm(),
+                            randomNonNegativeLong());
+                    default:
+                        throw new AssertionError();
+                }
+            });
+    }
 }

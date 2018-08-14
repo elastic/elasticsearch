@@ -47,6 +47,7 @@ public class ScriptDocValuesDatesTests extends ESTestCase {
         assertDateDocValues(true);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32779")
     public void testJodaTimeBwc() throws IOException {
         assertDateDocValues(false, "The joda time api for doc values is deprecated." +
             " Use -Des.scripting.use_java_time=true to use the java time api for date field doc values");

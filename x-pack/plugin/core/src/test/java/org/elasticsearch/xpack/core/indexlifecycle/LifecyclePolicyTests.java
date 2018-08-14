@@ -43,29 +43,45 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
 
     @Override
     protected LifecyclePolicy doParseInstance(XContentParser parser) {
-        return LifecyclePolicy.parse(parser, lifecycleName, TestLifecycleType.INSTANCE);
+        return LifecyclePolicy.parse(parser, lifecycleName);
     }
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
-                Arrays.asList(new NamedWriteableRegistry.Entry(LifecycleAction.class, MockAction.NAME, MockAction::new),
-                        new NamedWriteableRegistry.Entry(LifecycleType.class, TestLifecycleType.TYPE, (in) -> TestLifecycleType.INSTANCE)));
+            Arrays.asList(
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, MockAction.NAME, MockAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleType.class, TimeseriesLifecycleType.TYPE,
+                    (in) -> TimeseriesLifecycleType.INSTANCE),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, AllocateAction.NAME, AllocateAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, ForceMergeAction.NAME, ForceMergeAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, ReadOnlyAction.NAME, ReadOnlyAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, RolloverAction.NAME, RolloverAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, ShrinkAction.NAME, ShrinkAction::new)
+            ));
     }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> entries = new ArrayList<>(ClusterModule.getNamedXWriteables());
-        entries.add(new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(MockAction.NAME), MockAction::parse));
-        entries.add(new NamedXContentRegistry.Entry(LifecycleType.class, new ParseField(TestLifecycleType.TYPE),
-                (p) -> TestLifecycleType.INSTANCE));
+        entries.addAll(Arrays.asList(
+            new NamedXContentRegistry.Entry(LifecycleType.class, new ParseField(TimeseriesLifecycleType.TYPE),
+                (p) -> TimeseriesLifecycleType.INSTANCE),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(AllocateAction.NAME), AllocateAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ForceMergeAction.NAME), ForceMergeAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ReadOnlyAction.NAME), ReadOnlyAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RolloverAction.NAME), RolloverAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ShrinkAction.NAME), ShrinkAction::parse)
+        ));
         return new NamedXContentRegistry(entries);
     }
 
     @Override
     protected LifecyclePolicy createTestInstance() {
         lifecycleName = randomAlphaOfLength(5);
-        return randomTestLifecyclePolicy(lifecycleName);
+        return randomTimeseriesLifecyclePolicy(lifecycleName);
     }
 
     public static LifecyclePolicy randomTimeseriesLifecyclePolicy(@Nullable String lifecycleName) {
@@ -87,29 +103,30 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         Function<String, LifecycleAction> randomAction = (action) ->  {
             switch (action) {
                 case AllocateAction.NAME:
-                    return AllocateActionTests
+                    return AllocateActionTests.randomInstance();
                 case DeleteAction.NAME:
-                    return TimeseriesLifecycleType.VALID_WARM_ACTIONS;
+                    return new DeleteAction();
+                case ForceMergeAction.NAME:
+                    return ForceMergeActionTests.randomInstance();
                 case ReadOnlyAction.NAME:
-                    return TimeseriesLifecycleType.VALID_COLD_ACTIONS;
+                    return new ReadOnlyAction();
                 case RolloverAction.NAME:
-                    return TimeseriesLifecycleType.VALID_DELETE_ACTIONS;
+                    return RolloverActionTests.randomInstance();
+                case ShrinkAction.NAME:
+                    return ShrinkActionTests.randomInstance();
                 default:
-                    throw new IllegalArgumentException("invalid phase [" + phase + "]");
+                    throw new IllegalArgumentException("invalid action [" + action + "]");
             }};
         for (String phase : phaseNames) {
             TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");
             Map<String, LifecycleAction> actions = new HashMap<>();
             List<String> actionNames = randomSubsetOf(validActions.apply(phase));
             for (String action : actionNames) {
-                actions.put(action, )
+                actions.put(action, randomAction.apply(action));
             }
+            phases.put(phase, new Phase(phase, after, actions));
         }
-
-        new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, lifecycleName, phases);
-    }
-
-    private Set<String> getValidActions(String phase) {
+        return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, lifecycleName, phases);
     }
 
     public static LifecyclePolicy randomTestLifecyclePolicy(@Nullable String lifecycleName) {

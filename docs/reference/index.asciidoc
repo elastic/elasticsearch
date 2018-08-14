@@ -57,6 +57,8 @@ include::index-modules.asciidoc[]
 
 include::ingest.asciidoc[]
 
+include::{xes-repo-dir}/ilm/index.asciidoc[]
+
 include::sql/index.asciidoc[]
 
 include::monitoring/index.asciidoc[]

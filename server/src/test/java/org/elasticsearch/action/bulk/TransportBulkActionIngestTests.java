@@ -121,7 +121,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     class TestTransportBulkAction extends TransportBulkAction {
         boolean isExecuted = false; // set when the "real" bulk execution happens
 
-        boolean needToCheck;
+        boolean needToCheck; // pluggable return value for `needToCheck`
 
         boolean indexCreated = true; // If set to false, will be set to true by call to createIndex
 

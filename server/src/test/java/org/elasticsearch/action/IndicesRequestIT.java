@@ -284,6 +284,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
         assertSameIndices(updateRequest, updateShardActions);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32808")
     public void testBulk() {
         String[] bulkShardActions = new String[]{BulkAction.NAME + "[s][p]", BulkAction.NAME + "[s][r]"};
         interceptTransportActions(bulkShardActions);

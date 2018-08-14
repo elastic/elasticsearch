@@ -25,7 +25,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -147,9 +146,9 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
             PutIndexTemplateRequest request =
                 new PutIndexTemplateRequest(change.getKey()).source(change.getValue(), XContentType.JSON);
             request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
-            client.admin().indices().putTemplate(request, new ActionListener<PutIndexTemplateResponse>() {
+            client.admin().indices().putTemplate(request, new ActionListener<AcknowledgedResponse>() {
                 @Override
-                public void onResponse(PutIndexTemplateResponse response) {
+                public void onResponse(AcknowledgedResponse response) {
                     if (response.isAcknowledged() == false) {
                         anyUpgradeFailed.set(true);
                         logger.warn("Error updating template [{}], request was not acknowledged", change.getKey());

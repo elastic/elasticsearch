@@ -104,7 +104,6 @@ import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequ
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusRequest;
 import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusRequestBuilder;
 import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusResponse;
@@ -697,12 +696,12 @@ public interface IndicesAdminClient extends ElasticsearchClient {
     /**
      * Puts an index template.
      */
-    ActionFuture<PutIndexTemplateResponse> putTemplate(PutIndexTemplateRequest request);
+    ActionFuture<AcknowledgedResponse> putTemplate(PutIndexTemplateRequest request);
 
     /**
      * Puts an index template.
      */
-    void putTemplate(PutIndexTemplateRequest request, ActionListener<PutIndexTemplateResponse> listener);
+    void putTemplate(PutIndexTemplateRequest request, ActionListener<AcknowledgedResponse> listener);
 
     /**
      * Puts an index template.

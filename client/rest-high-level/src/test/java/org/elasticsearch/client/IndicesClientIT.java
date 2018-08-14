@@ -64,7 +64,6 @@ import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -1224,7 +1223,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             .mapping("doc", "host_name", "type=keyword", "description", "type=text")
             .alias(new Alias("alias-1").indexRouting("abc")).alias(new Alias("{index}-write").searchRouting("xyz"));
 
-        PutIndexTemplateResponse putTemplateResponse = execute(putTemplateRequest,
+        AcknowledgedResponse putTemplateResponse = execute(putTemplateRequest,
             highLevelClient().indices()::putTemplate, highLevelClient().indices()::putTemplateAsync);
         assertThat(putTemplateResponse.isAcknowledged(), equalTo(true));
 

@@ -12,7 +12,6 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
@@ -401,7 +400,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     }
 
     // FIXME this should use the IndexTemplateMetaDataUpgrader
-    private void putTemplate(String template, String source, ActionListener<PutIndexTemplateResponse> listener) {
+    private void putTemplate(String template, String source, ActionListener<AcknowledgedResponse> listener) {
         logger.debug("installing template [{}]", template);
 
         PutIndexTemplateRequest request = new PutIndexTemplateRequest(template).source(source, XContentType.JSON);

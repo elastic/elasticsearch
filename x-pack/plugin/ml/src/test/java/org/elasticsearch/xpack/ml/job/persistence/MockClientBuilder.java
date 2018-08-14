@@ -22,7 +22,6 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequestBuil
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequestBuilder;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -373,9 +372,9 @@ public class MockClientBuilder {
         doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocationOnMock) throws Throwable {
-                ActionListener<PutIndexTemplateResponse> listener =
-                        (ActionListener<PutIndexTemplateResponse>) invocationOnMock.getArguments()[1];
-                listener.onResponse(mock(PutIndexTemplateResponse.class));
+                ActionListener<AcknowledgedResponse> listener =
+                        (ActionListener<AcknowledgedResponse>) invocationOnMock.getArguments()[1];
+                listener.onResponse(mock(AcknowledgedResponse.class));
                 return null;
             }
         }).when(indicesAdminClient).putTemplate(requestCaptor.capture(), any(ActionListener.class));

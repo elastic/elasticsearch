@@ -57,7 +57,6 @@ import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -732,10 +731,10 @@ public final class IndicesClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public PutIndexTemplateResponse putTemplate(PutIndexTemplateRequest putIndexTemplateRequest,
-                                                RequestOptions options) throws IOException {
+    public AcknowledgedResponse putTemplate(PutIndexTemplateRequest putIndexTemplateRequest,
+                                            RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(putIndexTemplateRequest, RequestConverters::putTemplate, options,
-            PutIndexTemplateResponse::fromXContent, emptySet());
+            AcknowledgedResponse::fromXContent, emptySet());
     }
 
     /**
@@ -747,9 +746,9 @@ public final class IndicesClient {
      * @param listener the listener to be notified upon request completion
      */
     public void putTemplateAsync(PutIndexTemplateRequest putIndexTemplateRequest, RequestOptions options,
-                                 ActionListener<PutIndexTemplateResponse> listener) {
+                                 ActionListener<AcknowledgedResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(putIndexTemplateRequest, RequestConverters::putTemplate, options,
-            PutIndexTemplateResponse::fromXContent, listener, emptySet());
+            AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
     /**

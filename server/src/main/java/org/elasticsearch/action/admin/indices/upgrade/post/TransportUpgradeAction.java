@@ -204,7 +204,7 @@ public class TransportUpgradeAction extends TransportBroadcastByNodeAction<Upgra
         super.doExecute(task, request, settingsUpdateListener);
     }
 
-    private void updateSettings(final UpgradeResponse upgradeResponse, final ActionListener<AcknowledgedResponse> listener) {
+    private void updateSettings(final UpgradeResponse upgradeResponse, final ActionListener<UpgradeResponse> listener) {
         UpgradeSettingsRequest upgradeSettingsRequest = new UpgradeSettingsRequest(upgradeResponse.versions());
         client.executeLocally(UpgradeSettingsAction.INSTANCE, upgradeSettingsRequest, new ActionListener<AcknowledgedResponse>() {
             @Override

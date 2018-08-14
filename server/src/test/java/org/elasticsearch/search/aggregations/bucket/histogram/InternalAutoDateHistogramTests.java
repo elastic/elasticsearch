@@ -69,7 +69,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         int targetBuckets = randomIntBetween(1, nbBuckets * 2 + 1);
         List<InternalAutoDateHistogram.Bucket> buckets = new ArrayList<>(nbBuckets);
 
-        long startingDate = /*1534192789667L;*/ System.currentTimeMillis();
+        long startingDate = System.currentTimeMillis();
 
         long interval = randomIntBetween(1, 3);
         long intervalMillis = randomFrom(timeValueSeconds(interval), timeValueMinutes(interval), timeValueHours(interval)).getMillis();
@@ -116,6 +116,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
 
         long lowest = Long.MAX_VALUE;
         long highest = 0;
+
         for (InternalAutoDateHistogram histogram : inputs) {
             for (Histogram.Bucket bucket : histogram.getBuckets()) {
                 long bucketKey = ((DateTime) bucket.getKey()).getMillis();
@@ -133,8 +134,10 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
 
         long normalizedDuration = (highest - lowest) / roundingInfo.getRoughEstimateDurationMillis();
         long innerIntervalToUse = roundingInfo.innerIntervals[0];
-
         int innerIntervalIndex = 0;
+
+        // First, try to calculate the correct innerInterval using the normalizedDuration.
+        // This handles cases where highest and lowest are further apart than the interval being used.
         if (normalizedDuration != 0) {
             for (int j = roundingInfo.innerIntervals.length-1; j >= 0; j--) {
                 int interval = roundingInfo.innerIntervals[j];
@@ -148,72 +151,53 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         long intervalInMillis = innerIntervalToUse * roundingInfo.getRoughEstimateDurationMillis();
         int bucketCount = getBucketCount(lowest, highest, roundingInfo, intervalInMillis);
 
+        //Next, if our bucketCount is still above what we need, we'll go back and determine the interval
+        // based on a size calculation.
         if (bucketCount > reduced.getBuckets().size()) {
             for (int i = innerIntervalIndex; i < roundingInfo.innerIntervals.length; i++) {
-                if (getBucketCount(lowest, highest, roundingInfo, roundingInfo.innerIntervals[i]*roundingInfo.getRoughEstimateDurationMillis()) <= reduced.getBuckets().size()) {
+                long newIntervalMillis = roundingInfo.innerIntervals[i] * roundingInfo.getRoughEstimateDurationMillis();
+                if (getBucketCount(lowest, highest, roundingInfo, newIntervalMillis) <= reduced.getBuckets().size()) {
                     innerIntervalToUse = roundingInfo.innerIntervals[i];
                     intervalInMillis = innerIntervalToUse * roundingInfo.getRoughEstimateDurationMillis();
                 }
             }
         }
 
-        /*
-
-        if (bucketCount != reduced.getBuckets().size()) {
-
-            for (long keyForBucket = roundingInfo.rounding.round(lowest);
-                 keyForBucket <= highest;
-                 keyForBucket = keyForBucket + intervalInMillis) {
-                logger.info("Expected key: "+keyForBucket);
-            }
-            for (InternalAutoDateHistogram.Bucket bucket : reduced.getBuckets()) {
-                logger.info("Actual Key: "+bucket.key);
-            }
-            logger.info("innerIntervalToUse "+innerIntervalToUse);
-            logger.info("roundingInfo.getRoughEstimateDurationMillis() "+roundingInfo.getRoughEstimateDurationMillis());
-            logger.info("intervalInMillis "+intervalInMillis);
-            logger.info("bucketCount "+bucketCount);
-            logger.info("highest "+highest);
-            logger.info("lowest "+lowest);
-            long diff = highest - lowest;
-            logger.info("highest - lowest "+diff);
-            logger.info("normalizedDuration "+normalizedDuration);
-        }
-        */
-
         Map<Long, Long> expectedCounts = new TreeMap<>();
-
         for (long keyForBucket = roundingInfo.rounding.round(lowest);
              keyForBucket <= roundingInfo.rounding.round(highest);
              keyForBucket = keyForBucket + intervalInMillis) {
             expectedCounts.put(keyForBucket, 0L);
+
+            // Iterate through the input buckets, and for each bucket, determine if it's inside
+            // the range of the bucket in the outer loop. if it is, add the doc count to the total
+            // for that bucket.
+
+            for (InternalAutoDateHistogram histogram : inputs) {
+                for (Histogram.Bucket bucket : histogram.getBuckets()) {
+                    long roundedBucketKey = roundingInfo.rounding.round(((DateTime) bucket.getKey()).getMillis());
+                    long docCount = bucket.getDocCount();
+                    if (roundedBucketKey >= keyForBucket
+                        && roundedBucketKey < keyForBucket + intervalInMillis) {
+                        expectedCounts.compute(keyForBucket,
+                            (key, oldValue) -> (oldValue == null ? 0 : oldValue) + docCount);
+                    }
+                }
+            }
         }
+
+        // If there is only a single bucket, and we haven't added it above, add a bucket with no documents.
+        // this step is necessary because of the roundedBucketKey < keyForBucket + intervalInMillis above.
         if (roundingInfo.rounding.round(lowest) == roundingInfo.rounding.round(highest) && expectedCounts.isEmpty()) {
             expectedCounts.put(roundingInfo.rounding.round(lowest), 0L);
         }
 
-        /*
-        for (InternalAutoDateHistogram histogram : inputs) {
-            for (Histogram.Bucket bucket : histogram.getBuckets()) {
-                long roundedBucketKey = roundingInfo.rounding.round(((DateTime) bucket.getKey()).getMillis());
-                long docCount = bucket.getDocCount();
-                if (roundedBucketKey >= keyForBucket
-                    && roundedBucketKey < keyForBucket + intervalInMillis) {
-                    expectedCounts.compute(keyForBucket,
-                        (key, oldValue) -> (oldValue == null ? 0 : oldValue) + docCount);
-                } else if (roundedBucketKey == (keyForBucket + intervalInMillis) && roundedBucketKey == roundingInfo.rounding.round(highest)) {
-                    expectedCounts.compute(keyForBucket,
-                        (key, oldValue) -> (oldValue == null ? 0 : oldValue) + docCount);
-                }
-            }
-        }
-        */
 
-
+        // pick out the actual reduced values to the make the assertion more readable
         Map<Long, Long> actualCounts = new TreeMap<>();
         for (Histogram.Bucket bucket : reduced.getBuckets()) {
             actualCounts.compute(((DateTime) bucket.getKey()).getMillis(),
-                    (key, oldValue) -> (oldValue == null ? 0 : oldValue) + /*bucket.getDocCount()*/0);
+                    (key, oldValue) -> (oldValue == null ? 0 : oldValue) + bucket.getDocCount());
         }
         assertEquals(expectedCounts, actualCounts);
     }

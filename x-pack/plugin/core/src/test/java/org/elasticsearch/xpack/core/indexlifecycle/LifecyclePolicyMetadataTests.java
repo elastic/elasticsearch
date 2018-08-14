@@ -59,7 +59,7 @@ public class LifecyclePolicyMetadataTests extends AbstractSerializingTestCase<Li
         for (int i = 0; i < numberHeaders; i++) {
             headers.put(randomAlphaOfLength(10), randomAlphaOfLength(10));
         }
-        return new LifecyclePolicyMetadata(LifecyclePolicyTests.randomLifecyclePolicy(lifecycleName), headers);
+        return new LifecyclePolicyMetadata(LifecyclePolicyTests.randomTestLifecyclePolicy(lifecycleName), headers);
     }
 
     @Override

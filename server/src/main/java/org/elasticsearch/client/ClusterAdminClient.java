@@ -74,7 +74,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotReq
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequestBuilder;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
@@ -505,12 +504,12 @@ public interface ClusterAdminClient extends ElasticsearchClient {
     /**
      * Delete snapshot.
      */
-    ActionFuture<DeleteSnapshotResponse> deleteSnapshot(DeleteSnapshotRequest request);
+    ActionFuture<AcknowledgedResponse> deleteSnapshot(DeleteSnapshotRequest request);
 
     /**
      * Delete snapshot.
      */
-    void deleteSnapshot(DeleteSnapshotRequest request, ActionListener<DeleteSnapshotResponse> listener);
+    void deleteSnapshot(DeleteSnapshotRequest request, ActionListener<AcknowledgedResponse> listener);
 
     /**
      * Delete snapshot.

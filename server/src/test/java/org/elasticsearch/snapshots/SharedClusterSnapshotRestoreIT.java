@@ -24,7 +24,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexShardStage;
@@ -3423,7 +3422,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             internalCluster().getInstances(ClusterService.class).forEach(clusterService -> clusterService.addListener(listener));
 
             // Delete the snapshot while it is being initialized
-            ActionFuture<DeleteSnapshotResponse> delete = client.admin().cluster().prepareDeleteSnapshot("repository", "snap").execute();
+            ActionFuture<AcknowledgedResponse> delete = client.admin().cluster().prepareDeleteSnapshot("repository", "snap").execute();
 
             // The deletion must set the snapshot in the ABORTED state
             assertBusy(() -> {

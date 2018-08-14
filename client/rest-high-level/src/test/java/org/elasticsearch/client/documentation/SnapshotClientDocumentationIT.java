@@ -31,7 +31,6 @@ import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyReposito
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
@@ -752,7 +751,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         // end::delete-snapshot-request-masterTimeout
 
         // tag::delete-snapshot-execute
-        DeleteSnapshotResponse response = client.snapshot().delete(request, RequestOptions.DEFAULT);
+        AcknowledgedResponse response = client.snapshot().delete(request, RequestOptions.DEFAULT);
         // end::delete-snapshot-execute
 
         // tag::delete-snapshot-response
@@ -767,10 +766,10 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
             DeleteSnapshotRequest request = new DeleteSnapshotRequest();
 
             // tag::delete-snapshot-execute-listener
-            ActionListener<DeleteSnapshotResponse> listener =
-                new ActionListener<DeleteSnapshotResponse>() {
+            ActionListener<AcknowledgedResponse> listener =
+                new ActionListener<AcknowledgedResponse>() {
                     @Override
-                    public void onResponse(DeleteSnapshotResponse deleteSnapshotResponse) {
+                    public void onResponse(AcknowledgedResponse deleteSnapshotResponse) {
                         // <1>
                     }
 

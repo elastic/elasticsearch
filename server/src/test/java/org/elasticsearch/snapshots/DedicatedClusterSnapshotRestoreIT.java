@@ -24,7 +24,6 @@ import com.carrotsearch.hppc.IntSet;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStats;
@@ -422,14 +421,14 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         logger.info("--> execution was blocked on node [{}], aborting snapshot", blockedNode);
 
-        ActionFuture<DeleteSnapshotResponse> deleteSnapshotResponseFuture = internalCluster().client(nodes.get(0)).admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap").execute();
+        ActionFuture<AcknowledgedResponse> deleteSnapshotResponseFuture = internalCluster().client(nodes.get(0)).admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap").execute();
         // Make sure that abort makes some progress
         Thread.sleep(100);
         unblockNode("test-repo", blockedNode);
         logger.info("--> stopping node [{}]", blockedNode);
         stopNode(blockedNode);
         try {
-            DeleteSnapshotResponse deleteSnapshotResponse = deleteSnapshotResponseFuture.actionGet();
+            AcknowledgedResponse deleteSnapshotResponse = deleteSnapshotResponseFuture.actionGet();
             assertThat(deleteSnapshotResponse.isAcknowledged(), equalTo(true));
         } catch (SnapshotMissingException ex) {
             // When master node is closed during this test, it sometime manages to delete the snapshot files before

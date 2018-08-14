@@ -30,7 +30,6 @@ import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyReposito
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
@@ -294,9 +293,9 @@ public final class SnapshotClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public DeleteSnapshotResponse delete(DeleteSnapshotRequest deleteSnapshotRequest, RequestOptions options) throws IOException {
+    public AcknowledgedResponse delete(DeleteSnapshotRequest deleteSnapshotRequest, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(deleteSnapshotRequest, RequestConverters::deleteSnapshot, options,
-            DeleteSnapshotResponse::fromXContent, emptySet());
+            AcknowledgedResponse::fromXContent, emptySet());
     }
 
     /**
@@ -309,8 +308,8 @@ public final class SnapshotClient {
      * @param listener the listener to be notified upon request completion
      */
     public void deleteAsync(DeleteSnapshotRequest deleteSnapshotRequest, RequestOptions options,
-                            ActionListener<DeleteSnapshotResponse> listener) {
+                            ActionListener<AcknowledgedResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(deleteSnapshotRequest, RequestConverters::deleteSnapshot, options,
-            DeleteSnapshotResponse::fromXContent, listener, emptySet());
+            AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 }

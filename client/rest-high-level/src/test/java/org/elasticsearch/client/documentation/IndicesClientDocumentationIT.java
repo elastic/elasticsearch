@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.admin.indices.alias.DeleteAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
@@ -74,6 +75,7 @@ import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRespon
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.GetAliasesResponse;
 import org.elasticsearch.client.RequestOptions;
@@ -1686,6 +1688,92 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // tag::update-aliases-execute-async
             client.indices().updateAliasesAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::update-aliases-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testDeleteAlias() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("index1").alias(new Alias("alias1")),
+                RequestOptions.DEFAULT);
+            assertTrue(createIndexResponse.isAcknowledged());
+        }
+
+        {
+            // tag::delete-alias-request
+            DeleteAliasesRequest request = new DeleteAliasesRequest(); // <1>
+            // end::delete-alias-request
+
+            // tag::delete-alias-request-alias
+            request.aliases("alias1"); // <1>
+            request.aliases("ali*"); // <2>
+            request.aliases("alias1", "ali*"); // <3>
+            // end::delete-alias-request-alias
+            // tag::delete-alias-request-indices
+            request.indices("index1"); // <1>
+            request.indices("ind*"); // <2>
+            request.indices("index1", "ind*"); // <3>
+            // end::delete-alias-request-indices
+
+            // tag::delete-alias-request-timeout
+            request.timeout(TimeValue.timeValueMinutes(2)); // <1>
+            request.timeout("2m"); // <2>
+            // end::delete-alias-request-timeout
+            // tag::delete-alias-request-masterTimeout
+            request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+            request.masterNodeTimeout("1m"); // <2>
+            // end::delete-alias-request-masterTimeout
+
+            // tag::delete-alias-execute
+            AcknowledgedResponse acknowledgedResponse =
+                client.indices().deleteAlias(request, RequestOptions.DEFAULT);
+            // end::delete-alias-execute
+
+            // tag::delete-alias-response
+            boolean acknowledged = acknowledgedResponse.isAcknowledged(); // <1>
+            // end::delete-alias-response
+            assertTrue(acknowledged);
+        }
+    }
+
+    public void testDeleteAliasAsync() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("index1").alias(new Alias("alias1")),
+                RequestOptions.DEFAULT);
+            assertTrue(createIndexResponse.isAcknowledged());
+        }
+
+        {
+            DeleteAliasesRequest request = new DeleteAliasesRequest().indices("index1").aliases("alias1");
+
+            // tag::delete-alias-listener
+            ActionListener<AcknowledgedResponse> listener =
+                new ActionListener<AcknowledgedResponse>() {
+                    @Override
+                    public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::delete-alias-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::delete-alias-execute-async
+            client.indices()
+                .deleteAliasAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::delete-alias-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

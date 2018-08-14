@@ -1,0 +1,102 @@
+[[java-rest-high-delete-alias]]
+=== Delete Alias API
+
+[[java-rest-high-delete-alias-request]]
+==== Delete Alias Request
+
+The Delete Alias API uses `DeleteAliasesRequest` as its request object.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[delete-alias-request]
+--------------------------------------------------
+<1> Construct a new, empty, `DeleteAliasesRequest`.
+
+==== Required arguments
+
+A `DeleteAliasesRequest` requires at least one alias name pattern and at least one index name pattern. The alias name patterns
+are specified as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[delete-alias-request-alias]
+--------------------------------------------------
+<1> A single alias name
+<2> A pattern matching multiple aliases
+<3> Multiple names and patterns
+
+The index name patterns are specified as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[delete-alias-request-indices]
+--------------------------------------------------
+<1> A single index name
+<2> A pattern matching multiple indices
+<3> Multiple names and patterns
+
+==== Optional arguments
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[delete-alias-request-timeout]
+--------------------------------------------------
+<1> Timeout to wait for the all the nodes to acknowledge the operation as a `TimeValue`
+<2> Timeout to wait for the all the nodes to acknowledge the operation as a `String`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[delete-alias-request-masterTimeout]
+--------------------------------------------------
+<1> Timeout to connect to the master node as a `TimeValue`
+<2> Timeout to connect to the master node as a `String`
+
+[[java-rest-high-delete-alias-sync]]
+==== Synchronous Execution
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[delete-alias-execute]
+--------------------------------------------------
+
+[[java-rest-high-delete-alias-async]]
+==== Asynchronous Execution
+
+The asynchronous execution of a delete alias request requires both a `DeleteAliasesRequest`
+instance and an `ActionListener` instance to be passed to the asynchronous
+method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[delete-alias-execute-async]
+--------------------------------------------------
+<1> The `DeleteAliasesRequest` to execute and the `ActionListener` to use when
+the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for the `AcknowledgedResponse` response looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[delete-alias-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument
+<2> Called in case of failure. The raised exception is provided as an argument
+
+[[java-rest-high-delete-alias-response]]
+==== Delete Alias Response
+
+The returned `AcknowledgedResponse` allows to retrieve a flag indicating whether the
+action was acknowledged on all nodes:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[delete-alias-response]
+--------------------------------------------------
+<1> Retrieves whether the action was acknowledged on all nodes

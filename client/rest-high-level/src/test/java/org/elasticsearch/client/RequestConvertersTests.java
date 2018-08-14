@@ -46,6 +46,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRe
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.admin.indices.alias.DeleteAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
@@ -1914,6 +1915,31 @@ public class RequestConvertersTests extends ESTestCase {
         }
 
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals(expectedEndpoint.toString(), request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertNull(request.getEntity());
+    }
+
+    public void testDeleteAlias() {
+        DeleteAliasesRequest deleteAliasesRequest = new DeleteAliasesRequest();
+
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomTimeout(deleteAliasesRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+        setRandomMasterTimeout(deleteAliasesRequest, expectedParams);
+
+        String[] indices = randomIndicesNames(1, 3);
+        String[] aliases = randomIndicesNames(1, 3);
+        deleteAliasesRequest.indices(indices);
+        deleteAliasesRequest.aliases(aliases);
+
+        Request request = RequestConverters.deleteAlias(deleteAliasesRequest);
+        StringJoiner expectedEndpoint = new StringJoiner("/", "/", "");
+
+        expectedEndpoint.add(String.join(",", indices));
+        expectedEndpoint.add("_alias");
+        expectedEndpoint.add(String.join(",", aliases));
+
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertEquals(expectedEndpoint.toString(), request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertNull(request.getEntity());

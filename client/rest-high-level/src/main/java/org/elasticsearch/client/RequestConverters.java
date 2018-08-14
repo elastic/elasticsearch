@@ -45,6 +45,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
+import org.elasticsearch.action.admin.indices.alias.DeleteAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
@@ -1070,6 +1071,16 @@ final class RequestConverters {
         Params params = new Params(request);
         params.withIndicesOptions(getAliasesRequest.indicesOptions());
         params.withLocal(getAliasesRequest.local());
+        return request;
+    }
+
+    static Request deleteAlias(DeleteAliasesRequest deleteAliasesRequest) {
+        String endpoint = endpoint(deleteAliasesRequest.indices(), "_alias", deleteAliasesRequest.aliases());
+        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+
+        Params parameters = new Params(request);
+        parameters.withTimeout(deleteAliasesRequest.timeout());
+        parameters.withMasterTimeout(deleteAliasesRequest.masterNodeTimeout());
         return request;
     }
 

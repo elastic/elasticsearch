@@ -24,7 +24,9 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.admin.indices.alias.DeleteAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
@@ -75,6 +77,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
@@ -98,6 +101,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -107,6 +111,7 @@ import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
@@ -1121,6 +1126,69 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
              }
             }
             */
+        }
+    }
+
+    public void testDeleteAlias() throws IOException {
+        {
+            createIndex("index1", Settings.EMPTY);
+            createIndex("index2", Settings.EMPTY);
+        }
+        {
+            client().performRequest(new Request(HttpPut.METHOD_NAME, "/index1/_alias/alias1"));
+            client().performRequest(new Request(HttpPut.METHOD_NAME, "/index1/_alias/alias2"));
+            client().performRequest(new Request(HttpPut.METHOD_NAME, "/index2/_alias/alias1"));
+
+            DeleteAliasesRequest deleteAliasesRequest = new DeleteAliasesRequest().indices("index1").aliases("alias1");
+            AcknowledgedResponse acknowledgedResponse = execute(deleteAliasesRequest, highLevelClient().indices()::deleteAlias,
+                highLevelClient().indices()::deleteAliasAsync);
+            assertTrue(acknowledgedResponse.isAcknowledged());
+
+            GetAliasesResponse getAliasesResponse = highLevelClient().indices().getAlias(new GetAliasesRequest(), RequestOptions.DEFAULT);
+            assertThat(getAliasesResponse.getAliases().get("index1").stream().map(AliasMetaData::getAlias).collect(Collectors.toSet()),
+                contains("alias2"));
+            assertThat(getAliasesResponse.getAliases().get("index2").stream().map(AliasMetaData::getAlias).collect(Collectors.toSet()),
+                contains("alias1"));
+        }
+        {
+            client().performRequest(new Request(HttpPut.METHOD_NAME, "/index1/_alias/alias1"));
+            client().performRequest(new Request(HttpPut.METHOD_NAME, "/index1/_alias/alias2"));
+            client().performRequest(new Request(HttpPut.METHOD_NAME, "/index2/_alias/alias1"));
+
+            DeleteAliasesRequest deleteAliasesRequest = new DeleteAliasesRequest().indices("index1", "index2").aliases("alias1");
+            AcknowledgedResponse acknowledgedResponse = execute(deleteAliasesRequest, highLevelClient().indices()::deleteAlias,
+                highLevelClient().indices()::deleteAliasAsync);
+            assertTrue(acknowledgedResponse.isAcknowledged());
+
+            GetAliasesResponse getAliasesResponse = highLevelClient().indices().getAlias(new GetAliasesRequest(), RequestOptions.DEFAULT);
+            assertThat(getAliasesResponse.getAliases().get("index1").stream().map(AliasMetaData::getAlias).collect(Collectors.toSet()),
+                contains("alias2"));
+            assertThat(getAliasesResponse.getAliases().get("index2"), empty());
+        }
+        {
+            client().performRequest(new Request(HttpPut.METHOD_NAME, "/index1/_alias/alias1"));
+            client().performRequest(new Request(HttpPut.METHOD_NAME, "/index1/_alias/alias2"));
+            client().performRequest(new Request(HttpPut.METHOD_NAME, "/index2/_alias/alias1"));
+
+            DeleteAliasesRequest deleteAliasesRequest = new DeleteAliasesRequest().indices("index1").aliases("alias1", "alias2");
+            AcknowledgedResponse acknowledgedResponse = execute(deleteAliasesRequest, highLevelClient().indices()::deleteAlias,
+                highLevelClient().indices()::deleteAliasAsync);
+            assertTrue(acknowledgedResponse.isAcknowledged());
+
+            GetAliasesResponse getAliasesResponse = highLevelClient().indices().getAlias(new GetAliasesRequest(), RequestOptions.DEFAULT);
+            assertThat(getAliasesResponse.getAliases().get("index1"), empty());
+            assertThat(getAliasesResponse.getAliases().get("index2").stream().map(AliasMetaData::getAlias).collect(Collectors.toSet()),
+                contains("alias1"));
+        }
+        {
+            DeleteAliasesRequest deleteAliasesRequest = new DeleteAliasesRequest().indices("index1");
+            expectThrows(ActionRequestValidationException.class, () -> execute(deleteAliasesRequest,
+                highLevelClient().indices()::deleteAlias, highLevelClient().indices()::deleteAliasAsync));
+        }
+        {
+            DeleteAliasesRequest deleteAliasesRequest = new DeleteAliasesRequest().aliases("aliases");
+            expectThrows(ActionRequestValidationException.class, () -> execute(deleteAliasesRequest,
+                highLevelClient().indices()::deleteAlias, highLevelClient().indices()::deleteAliasAsync));
         }
     }
 

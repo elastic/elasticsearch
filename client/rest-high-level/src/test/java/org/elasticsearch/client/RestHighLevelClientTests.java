@@ -652,7 +652,6 @@ public class RestHighLevelClientTests extends ESTestCase {
             "delete_by_query",
             "exists_source",
             "get_source",
-            "indices.delete_alias",
             "indices.delete_template",
             "indices.exists_template",
             "indices.exists_type",

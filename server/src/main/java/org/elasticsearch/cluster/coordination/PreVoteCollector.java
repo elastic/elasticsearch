@@ -39,18 +39,16 @@ public abstract class PreVoteCollector extends AbstractComponent {
 
     public static final String REQUEST_PRE_VOTE_ACTION_NAME = "internal:cluster/request_pre_vote";
 
-    private final long electionId;
-
     private final Set<DiscoveryNode> preVotesReceived = newConcurrentSet();
     private final AtomicBoolean electionStarted = new AtomicBoolean();
     private final AtomicLong maxTermSeen;
     private final PreVoteResponse localPreVoteResponse;
     private final PreVoteRequest preVoteRequest;
     private final TransportService transportService;
+    private final AtomicBoolean isRunning = new AtomicBoolean();
 
-    PreVoteCollector(Settings settings, long electionId, PreVoteResponse localPreVoteResponse, TransportService transportService) {
+    PreVoteCollector(Settings settings, PreVoteResponse localPreVoteResponse, TransportService transportService) {
         super(settings);
-        this.electionId = electionId;
         this.localPreVoteResponse = localPreVoteResponse;
         this.transportService = transportService;
         final long currentTerm = localPreVoteResponse.getCurrentTerm();
@@ -62,10 +60,11 @@ public abstract class PreVoteCollector extends AbstractComponent {
 
     protected abstract void startElection(long maxTermSeen);
 
-    protected abstract long getCurrentId();
-
     public void start(final Iterable<DiscoveryNode> broadcastNodes) {
         logger.debug("{} starting", this);
+
+        final boolean isRunningChanged = isRunning.compareAndSet(false, true);
+        assert isRunningChanged;
 
         broadcastNodes.forEach(n -> transportService.sendRequest(n, REQUEST_PRE_VOTE_ACTION_NAME, preVoteRequest,
             new TransportResponseHandler<PreVoteResponse>() {
@@ -95,10 +94,14 @@ public abstract class PreVoteCollector extends AbstractComponent {
             }));
     }
 
+    public void stop() {
+        final boolean isRunningChanged = isRunning.compareAndSet(true, false);
+        assert isRunningChanged;
+    }
+
     private void handlePreVoteResponse(PreVoteResponse response, DiscoveryNode sender) {
-        final long currentId = getCurrentId();
-        if (currentId != electionId) {
-            logger.debug("{} ignoring {} from {} as current id is now {}", this, response, sender, currentId);
+        if (isRunning.get() == false) {
+            logger.debug("{} ignoring {} from {}, no longer running", this, response, sender);
             return;
         }
 
@@ -132,7 +135,7 @@ public abstract class PreVoteCollector extends AbstractComponent {
     @Override
     public String toString() {
         return "PreVoteCollector{" +
-            "electionId=" + electionId +
+            "isRunning=" + isRunning.get() +
             ", localPreVoteResponse=" + localPreVoteResponse +
             '}';
     }

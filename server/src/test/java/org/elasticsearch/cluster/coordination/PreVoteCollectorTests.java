@@ -58,7 +58,6 @@ public class PreVoteCollectorTests extends ESTestCase {
     private Map<DiscoveryNode, PreVoteResponse> responsesByNode = new HashMap<>();
     private VotingConfiguration votingConfiguration;
     private long lastElectionMaxTermSeen;
-    private long electionId;
 
     @Before
     public void createObjects() {
@@ -108,8 +107,7 @@ public class PreVoteCollectorTests extends ESTestCase {
                 channel.sendResponse(getLocalPreVoteResponse());
             });
 
-        electionId = randomNonNegativeLong();
-        preVoteCollector = new PreVoteCollector(settings, electionId, getLocalPreVoteResponse(), transportService) {
+        preVoteCollector = new PreVoteCollector(settings, getLocalPreVoteResponse(), transportService) {
             @Override
             protected void startElection(long maxTermSeen) {
                 assert electionOccurred == false;
@@ -121,16 +119,7 @@ public class PreVoteCollectorTests extends ESTestCase {
             protected boolean isElectionQuorum(VoteCollection voteCollection) {
                 return votingConfiguration.hasQuorum(voteCollection.nodes().stream().map(DiscoveryNode::getId).collect(Collectors.toSet()));
             }
-
-            @Override
-            protected long getCurrentId() {
-                return electionId;
-            }
         };
-    }
-
-    private Iterable<DiscoveryNode> getBroadcastNodes() {
-        return responsesByNode.keySet();
     }
 
     private PreVoteResponse getLocalPreVoteResponse() {
@@ -144,18 +133,25 @@ public class PreVoteCollectorTests extends ESTestCase {
     }
 
     public void testStartsElectionIfLocalNodeIsOnlyNode() {
-        preVoteCollector.start(getBroadcastNodes());
-        runCollector();
+        startAndRunCollector();
         assertTrue(electionOccurred);
+    }
+
+    private void startCollector() {
+        preVoteCollector.start(responsesByNode.keySet());
     }
 
     public void testStartsElectionIfLocalNodeIsQuorum() {
         final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
         responsesByNode.put(otherNode, new PreVoteResponse(3, 2, 1));
 
-        preVoteCollector.start(getBroadcastNodes());
-        runCollector();
+        startAndRunCollector();
         assertTrue(electionOccurred);
+    }
+
+    private void startAndRunCollector() {
+        startCollector();
+        runCollector();
     }
 
     public void testStartsElectionIfOtherNodeIsQuorum() {
@@ -163,8 +159,7 @@ public class PreVoteCollectorTests extends ESTestCase {
         responsesByNode.put(otherNode, new PreVoteResponse(3, 2, 1));
         votingConfiguration = new VotingConfiguration(singleton(otherNode.getId()));
 
-        preVoteCollector.start(getBroadcastNodes());
-        runCollector();
+        startAndRunCollector();
         assertTrue(electionOccurred);
     }
 
@@ -172,8 +167,7 @@ public class PreVoteCollectorTests extends ESTestCase {
         final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
         responsesByNode.put(otherNode, null);
         votingConfiguration = new VotingConfiguration(singleton(otherNode.getId()));
-        preVoteCollector.start(getBroadcastNodes());
-        runCollector();
+        startAndRunCollector();
         assertFalse(electionOccurred);
     }
 
@@ -182,8 +176,8 @@ public class PreVoteCollectorTests extends ESTestCase {
         responsesByNode.put(otherNode, new PreVoteResponse(3, 2, 1));
         votingConfiguration = new VotingConfiguration(singleton(otherNode.getId()));
 
-        preVoteCollector.start(getBroadcastNodes());
-        electionId += 1;
+        startCollector();
+        preVoteCollector.stop();
         runCollector();
         assertFalse(electionOccurred);
     }
@@ -192,8 +186,7 @@ public class PreVoteCollectorTests extends ESTestCase {
         final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
         responsesByNode.put(otherNode, new PreVoteResponse(3, 3, 1));
         votingConfiguration = new VotingConfiguration(singleton(otherNode.getId()));
-        preVoteCollector.start(getBroadcastNodes());
-        runCollector();
+        startAndRunCollector();
         assertFalse(electionOccurred);
     }
 
@@ -201,8 +194,7 @@ public class PreVoteCollectorTests extends ESTestCase {
         final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
         responsesByNode.put(otherNode, new PreVoteResponse(3, 2, 2));
         votingConfiguration = new VotingConfiguration(singleton(otherNode.getId()));
-        preVoteCollector.start(getBroadcastNodes());
-        runCollector();
+        startAndRunCollector();
         assertFalse(electionOccurred);
     }
 
@@ -211,8 +203,7 @@ public class PreVoteCollectorTests extends ESTestCase {
         responsesByNode.put(otherNode, new PreVoteResponse(3, 1, 2));
         votingConfiguration = new VotingConfiguration(singleton(otherNode.getId()));
 
-        preVoteCollector.start(getBroadcastNodes());
-        runCollector();
+        startAndRunCollector();
         assertTrue(electionOccurred);
         assertThat(lastElectionMaxTermSeen, is(3L));
     }
@@ -222,11 +213,9 @@ public class PreVoteCollectorTests extends ESTestCase {
         final DiscoveryNode otherNode2 = new DiscoveryNode("other-node-2", buildNewFakeTransportAddress(), Version.CURRENT);
         responsesByNode.put(otherNode1, new PreVoteResponse(4, 2, 1));
         responsesByNode.put(otherNode2, new PreVoteResponse(5, 2, 1));
-        votingConfiguration
-            = new VotingConfiguration(new HashSet<>(Arrays.asList(otherNode1.getId(), otherNode2.getId())));
+        votingConfiguration = new VotingConfiguration(new HashSet<>(Arrays.asList(otherNode1.getId(), otherNode2.getId())));
 
-        preVoteCollector.start(getBroadcastNodes());
-        runCollector();
+        startAndRunCollector();
         assertTrue(electionOccurred);
         assertThat(lastElectionMaxTermSeen, is(5L));
     }

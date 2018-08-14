@@ -270,7 +270,8 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertEquals(2, type2.getDocCount());
         assertEquals(0, type2.getAggregations().asList().size());
     }
-    
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32855")
     public void testSearchWithSignificantTermsAgg() throws IOException {
         SearchRequest searchRequest = new SearchRequest();
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();

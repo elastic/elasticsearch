@@ -33,11 +33,12 @@ import org.elasticsearch.transport.TransportService;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongConsumer;
 
 import static org.elasticsearch.cluster.coordination.CoordinationState.isElectionQuorum;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentSet;
 
-public abstract class PreVoteCollector extends AbstractComponent {
+public class PreVoteCollector extends AbstractComponent {
 
     public static final String REQUEST_PRE_VOTE_ACTION_NAME = "internal:cluster/request_pre_vote";
 
@@ -48,20 +49,20 @@ public abstract class PreVoteCollector extends AbstractComponent {
     private final PreVoteRequest preVoteRequest;
     private final TransportService transportService;
     private final ClusterState clusterState;
+    private final LongConsumer startElection; // consumes maximum known term
     private final AtomicBoolean isRunning = new AtomicBoolean();
 
     PreVoteCollector(Settings settings, PreVoteResponse localPreVoteResponse, TransportService transportService,
-                     ClusterState clusterState) {
+                     ClusterState clusterState, LongConsumer startElection) {
         super(settings);
         this.localPreVoteResponse = localPreVoteResponse;
         this.transportService = transportService;
         this.clusterState = clusterState;
+        this.startElection = startElection;
         final long currentTerm = localPreVoteResponse.getCurrentTerm();
         preVoteRequest = new PreVoteRequest(transportService.getLocalNode(), currentTerm);
         maxTermSeen = new AtomicLong(currentTerm);
     }
-
-    protected abstract void startElection(long maxTermSeen);
 
     public void start(final Iterable<DiscoveryNode> broadcastNodes) {
         logger.debug("{} starting", this);
@@ -132,7 +133,7 @@ public abstract class PreVoteCollector extends AbstractComponent {
         }
 
         logger.debug("{} added {} from {}, starting election in term > {}", this, response, sender, currentMaxTermSeen);
-        startElection(currentMaxTermSeen);
+        startElection.accept(currentMaxTermSeen);
     }
 
     @Override

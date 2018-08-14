@@ -130,14 +130,11 @@ public class PreVoteCollectorTests extends ESTestCase {
 
         assert preVoteCollector == null;
 
-        preVoteCollector = new PreVoteCollector(settings, getLocalPreVoteResponse(), transportService, clusterState) {
-            @Override
-            protected void startElection(long maxTermSeen) {
-                assert electionOccurred == false;
-                electionOccurred = true;
-                lastElectionMaxTermSeen = maxTermSeen;
-            }
-        };
+        preVoteCollector = new PreVoteCollector(settings, getLocalPreVoteResponse(), transportService, clusterState, maxTermSeen -> {
+            assert electionOccurred == false;
+            electionOccurred = true;
+            lastElectionMaxTermSeen = maxTermSeen;
+        });
 
         preVoteCollector.start(responsesByNode.keySet());
     }

@@ -52,6 +52,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyTestsUtils.newLockableLifecyclePolicy;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsNull.nullValue;
@@ -112,7 +113,7 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
         steps.add(new ObservableClusterStateWaitStep(key, TerminalPolicyStep.KEY));
         Map<String, LifecycleAction> actions = Collections.singletonMap(ObservableAction.NAME, new ObservableAction(steps, true));
         Map<String, Phase> phases = Collections.singletonMap("mock", new Phase("mock", TimeValue.timeValueSeconds(0), actions));
-        lifecyclePolicy = new LifecyclePolicy(LockableLifecycleType.INSTANCE, "test", phases);
+        lifecyclePolicy = newLockableLifecyclePolicy("test", phases);
     }
 
     public void testSingleNodeCluster() throws Exception {

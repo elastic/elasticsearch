@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.core.indexlifecycle.ReadOnlyAction;
 import org.elasticsearch.xpack.core.indexlifecycle.ShrinkAction;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
-import org.elasticsearch.xpack.core.indexlifecycle.TimeseriesLifecycleType;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -172,8 +171,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
     private void createNewSingletonPolicy(String phaseName, LifecycleAction action) throws IOException {
         Phase phase = new Phase(phaseName, TimeValue.ZERO, singletonMap(action.getWriteableName(), action));
-        LifecyclePolicy lifecyclePolicy =
-            new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, policy, singletonMap(phase.getName(), phase));
+        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, singletonMap(phase.getName(), phase));
         XContentBuilder builder = jsonBuilder();
         lifecyclePolicy.toXContent(builder, null);
         final StringEntity entity = new StringEntity(

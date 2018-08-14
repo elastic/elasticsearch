@@ -111,8 +111,12 @@ subprojects {
             .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
     into outputDir
   }
-
-  for (Version version : bwcVersions.wireCompatible) {
+  List<Version> wireCompatibleVersions = bwcVersions.wireCompatible
+  // Versions before 6.4.0 cannot be run in a FIPS 140 JVM, so exclude them
+  if (inFipsJvm){
+    wireCompatibleVersions.removeAll{ it.before("6.4.0")}
+  }
+  for (Version version : wireCompatibleVersions) {
     String baseName = "v${version}"
 
     Task oldClusterTest = tasks.create(name: "${baseName}#oldClusterTest", type: RestIntegTestTask) {
@@ -276,7 +280,12 @@ subprojects {
   // basic integ tests includes testing bwc against the most recent version
   task integTest {
     if (project.bwc_tests_enabled) {
-      for (final def version : bwcVersions.snapshotsWireCompatible) {
+      List<Version> snapshotsWireCompatibleVersions = bwcVersions.snapshotsWireCompatible
+      // Versions before 6.4.0 cannot be run in a FIPS 140 JVM, so exclude them
+      if (inFipsJvm){
+          snapshotsWireCompatibleVersions.removeAll{ it.before("6.4.0")}
+      }
+      for (final def version : snapshotsWireCompatibleVersions) {
         dependsOn "v${version}#bwcTest"
       }
     }

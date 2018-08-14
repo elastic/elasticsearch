@@ -45,4 +45,10 @@ public class JobWrapperSerializingTests extends AbstractSerializingTestCase<GetR
                 new IndexerJobStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()),
                 new RollupJobStatus(state, Collections.emptyMap(), randomBoolean()));
     }
+
+    @Override
+    public void testFromXContent() throws IOException {
+        super.testFromXContent();
+        assertWarnings("Deprecated field [rollups_indexed] used, expected [documents_indexed] instead");
+    }
 }

@@ -70,10 +70,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
      *            {@link LifecyclePolicy}.
      */
     public LifecyclePolicy(String name, Map<String, Phase> phases) {
-        this.name = name;
-        this.phases = phases;
-        this.type = TimeseriesLifecycleType.INSTANCE;
-        this.type.validate(phases.values());
+        this(TimeseriesLifecycleType.INSTANCE, name, phases);
     }
 
     /**
@@ -86,6 +83,8 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
     }
 
     /**
+     * @param type
+     *            the {@link LifecycleType} of the policy
      * @param name
      *            the name of this {@link LifecyclePolicy}
      * @param phases
@@ -95,7 +94,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
     LifecyclePolicy(LifecycleType type, String name, Map<String, Phase> phases) {
         this.name = name;
         this.phases = phases;
-        this.type = (type == null) ? TimeseriesLifecycleType.INSTANCE : type;
+        this.type = type;
         this.type.validate(phases.values());
     }
     public static LifecyclePolicy parse(XContentParser parser, String name) {

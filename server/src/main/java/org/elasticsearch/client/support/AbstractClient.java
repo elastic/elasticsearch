@@ -119,7 +119,6 @@ import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptAction;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequestBuilder;
-import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptResponse;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptAction;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequestBuilder;
@@ -1203,12 +1202,12 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         }
 
         @Override
-        public void deleteStoredScript(DeleteStoredScriptRequest request, ActionListener<DeleteStoredScriptResponse> listener){
+        public void deleteStoredScript(DeleteStoredScriptRequest request, ActionListener<AcknowledgedResponse> listener){
             execute(DeleteStoredScriptAction.INSTANCE, request, listener);
         }
 
         @Override
-        public ActionFuture<DeleteStoredScriptResponse> deleteStoredScript(DeleteStoredScriptRequest request){
+        public ActionFuture<AcknowledgedResponse> deleteStoredScript(DeleteStoredScriptRequest request){
             return execute(DeleteStoredScriptAction.INSTANCE, request);
         }
 

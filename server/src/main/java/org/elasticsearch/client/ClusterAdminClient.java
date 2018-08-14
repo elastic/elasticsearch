@@ -91,7 +91,6 @@ import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequestBuilder;
-import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptResponse;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequestBuilder;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
@@ -670,12 +669,12 @@ public interface ClusterAdminClient extends ElasticsearchClient {
     /**
      * Delete a script from the cluster state
      */
-    void deleteStoredScript(DeleteStoredScriptRequest request, ActionListener<DeleteStoredScriptResponse> listener);
+    void deleteStoredScript(DeleteStoredScriptRequest request, ActionListener<AcknowledgedResponse> listener);
 
     /**
      * Delete a script from the cluster state
      */
-    ActionFuture<DeleteStoredScriptResponse> deleteStoredScript(DeleteStoredScriptRequest request);
+    ActionFuture<AcknowledgedResponse> deleteStoredScript(DeleteStoredScriptRequest request);
 
     /**
      * Delete a script from the cluster state

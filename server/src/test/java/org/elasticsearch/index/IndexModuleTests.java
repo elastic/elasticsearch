@@ -80,14 +80,11 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsString;
@@ -381,23 +378,19 @@ public class IndexModuleTests extends ESTestCase {
         indexService.close("simon says", false);
     }
 
-    public void testIndexStoreTypeNotAllowed() {
-        final Set<String> builtInIndexStoreTypes =
-                Arrays.stream(IndexModule.Type.values()).map(IndexModule.Type::getSettingsKey).collect(Collectors.toSet());
-        final String excludedIndexStoreType = randomFrom(builtInIndexStoreTypes);
-        builtInIndexStoreTypes.remove(excludedIndexStoreType);
+    public void testMmapfsStoreTypeNotAllowed() {
         final Settings settings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                .put("index.store.type", excludedIndexStoreType)
+                .put("index.store.type", "mmapfs")
                 .build();
         final Settings nodeSettings = Settings.builder()
-                .put(IndexModule.NODE_ALLOWED_INDEX_STORE_TYPES_SETTING.getKey(), String.join(",", builtInIndexStoreTypes))
+                .put(IndexModule.NODE_STORE_ALLOW_MMAPFS.getKey(), false)
                 .build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(new Index("foo", "_na_"), settings, nodeSettings);
         final IndexModule module =
                 new IndexModule(indexSettings, emptyAnalysisRegistry, new InternalEngineFactory(), Collections.emptyMap());
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> newIndexService(module));
-        assertThat(e, hasToString(containsString("store type [" + excludedIndexStoreType + "] is not allowed")));
+        assertThat(e, hasToString(containsString("store type [mmapfs] is not allowed")));
     }
 
     class CustomQueryCache implements QueryCache {

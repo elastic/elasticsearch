@@ -21,7 +21,6 @@ package org.elasticsearch.bootstrap;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
@@ -400,11 +399,7 @@ final class BootstrapChecks {
         @Override
         public BootstrapCheckResult check(final BootstrapContext context) {
             // we only enforce the check if mmapfs is an allowed store type
-            final List<String> allowedIndexStoreTypes = IndexModule.NODE_ALLOWED_INDEX_STORE_TYPES_SETTING.get(context.settings);
-            if (allowedIndexStoreTypes.isEmpty() || // all store types including mmapfs are allowed
-                    allowedIndexStoreTypes.contains(IndexModule.Type.MMAPFS.getSettingsKey()) || // mmapfs is explicitly allowed
-                    (allowedIndexStoreTypes.contains(IndexModule.Type.FS.getSettingsKey())
-                            && IndexModule.defaultStoreType().equals(MMapDirectory.class))) { // the default type is allowed and is mmapfs
+            if (IndexModule.NODE_STORE_ALLOW_MMAPFS.get(context.settings)) {
                 if (getMaxMapCount() != -1 && getMaxMapCount() < LIMIT) {
                     final String message = String.format(
                             Locale.ROOT,

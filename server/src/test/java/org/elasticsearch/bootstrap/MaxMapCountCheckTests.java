@@ -23,14 +23,12 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 
@@ -39,12 +37,9 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -80,20 +75,13 @@ public class MaxMapCountCheckTests extends ESTestCase {
     public void testMaxMapCountCheckBelowLimitAndMemoryMapAllowed() {
         /*
          * There are three ways that memory maps are allowed:
-         *  - all types are allowed
+         *  - by default
          *  - mmapfs is explicitly allowed
-         *  - fs is allowed and defaults to mmapfs
          * We want to test that if mmapfs is allowed then the max map count check is enforced.
          */
         final List<Settings> settingsThatAllowMemoryMap = new ArrayList<>();
         settingsThatAllowMemoryMap.add(Settings.EMPTY);
-        settingsThatAllowMemoryMap.add(Settings.builder().putList("node.allowed_index_store_types", Collections.emptyList()).build());
-        settingsThatAllowMemoryMap.add(
-                Settings.builder().put("node.allowed_index_store_types", IndexModule.Type.MMAPFS.getSettingsKey()).build());
-        if (Constants.JRE_IS_64BIT && MMapDirectory.UNMAP_SUPPORTED) {
-            settingsThatAllowMemoryMap.add(
-                    Settings.builder().put("node.allowed_index_store_types", IndexModule.Type.FS.getSettingsKey()).build());
-        }
+        settingsThatAllowMemoryMap.add(Settings.builder().put("node.store.allow_mmapfs", true).build());
 
         for (final Settings settingThatAllowsMemoryMap : settingsThatAllowMemoryMap) {
             assertFailure(check.check(new BootstrapContext(settingThatAllowsMemoryMap, MetaData.EMPTY_META_DATA)));
@@ -101,16 +89,8 @@ public class MaxMapCountCheckTests extends ESTestCase {
     }
 
     public void testMaxMapCountCheckNotEnforcedIfMemoryMapNotAllowed() {
-        // nothing should happen if current vm.max_map_count is under the limit but mmapfs is now allowed
-        final Set<String> allowedIndexStoreTypes =
-                Arrays.stream(IndexModule.Type.values()).map(IndexModule.Type::getSettingsKey).collect(Collectors.toSet());
-        allowedIndexStoreTypes.remove(IndexModule.Type.MMAPFS.getSettingsKey());
-        if (Constants.JRE_IS_64BIT && MMapDirectory.UNMAP_SUPPORTED) {
-            allowedIndexStoreTypes.remove(IndexModule.Type.FS.getSettingsKey());
-        }
-
-        final Settings settings =
-                Settings.builder().put("node.allowed_index_store_types", String.join(",", allowedIndexStoreTypes)).build();
+        // nothing should happen if current vm.max_map_count is under the limit but mmapfs is not allowed
+        final Settings settings = Settings.builder().put("node.store.allow_mmapfs", false).build();
         final BootstrapContext context = new BootstrapContext(settings, MetaData.EMPTY_META_DATA);
         final BootstrapCheck.BootstrapCheckResult result = check.check(context);
         assertTrue(result.isSuccess());

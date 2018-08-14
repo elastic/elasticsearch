@@ -25,19 +25,12 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.node.MockNode;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockHttpTransport;
-import org.elasticsearch.transport.MockTcpTransportPlugin;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.containsString;
@@ -84,66 +77,6 @@ public class IndexStorePluginTests extends ESTestCase {
                 IllegalStateException.class, () -> new MockNode(settings, Collections.singletonList(ConflictingStorePlugin.class)));
         assertThat(e, hasToString(containsString(
                 "registered index store type [" + ConflictingStorePlugin.TYPE + "] conflicts with a built-in type")));
-    }
-
-    public void testAllowedIndexStoreTypes() throws IOException {
-        final List<String> types =
-                Arrays.stream(IndexModule.Type.values()).map(IndexModule.Type::getSettingsKey).collect(Collectors.toList());
-        final List<Class<? extends Plugin>> plugins =
-                Stream.concat(Stream.of(BarStorePlugin.class), getNecessaryPlugins().stream()).collect(Collectors.toList());
-        {
-            final Settings settings =
-                    Settings.builder()
-                            .put("node.allowed_index_store_types", "")
-                            .put("path.home", createTempDir())
-                            .put("transport.type", MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
-                            .build();
-            // nothing bad should happen when all types are allowed
-            try (Node ignored = new MockNode(settings, plugins)) {
-
-            }
-        }
-
-        {
-            final String allowedBuiltInTypes = String.join(",", randomSubsetOf(types));
-            final String allowedIndexStoreTypes =
-                    randomBoolean()
-                            ? allowedBuiltInTypes
-                            : allowedBuiltInTypes.isEmpty() ? "store" : String.join(",", allowedBuiltInTypes, "store");
-            final Settings settings =
-                    Settings.builder()
-                            .put("node.allowed_index_store_types", allowedIndexStoreTypes)
-                            .put("path.home", createTempDir())
-                            .put("transport.type", MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
-                            .build();
-            // nothing bad should happen when all the types exist
-            try (Node ignored = new MockNode(settings, plugins)) {
-
-            }
-        }
-
-        {
-            final String allowedBuiltInTypes = String.join(",", randomSubsetOf(types));
-            final String allowedIndexStoreTypes =
-                    randomBoolean()
-                            ? allowedBuiltInTypes
-                            : allowedBuiltInTypes.isEmpty() ? "store" : String.join(",", allowedBuiltInTypes, "store");
-            final String allowedIndexStoreTypesAndNonExisting =
-                    allowedIndexStoreTypes.isEmpty() ? "non-existent" : String.join(",", allowedIndexStoreTypes, "non-existent");
-            final Settings settings =
-                    Settings.builder()
-                            .put("node.allowed_index_store_types", allowedIndexStoreTypesAndNonExisting)
-                            .put("path.home", createTempDir())
-                            .put("transport.type", MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
-                            .build();
-            // we should not be able to specify as allowed a store type that does not exist
-            final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new MockNode(settings, plugins));
-            assertThat(e, hasToString(containsString("allowed index store type [non-existent] does not exist")));
-        }
-    }
-
-    private List<Class<? extends Plugin>> getNecessaryPlugins() {
-        return Arrays.asList(MockHttpTransport.TestPlugin.class, MockTcpTransportPlugin.class);
     }
 
     public void testDuplicateIndexStoreFactories() {

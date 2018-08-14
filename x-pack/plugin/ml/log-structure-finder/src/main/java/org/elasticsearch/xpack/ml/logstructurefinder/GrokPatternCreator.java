@@ -107,19 +107,39 @@ public final class GrokPatternCreator {
         // apply some heuristic based on those.
     );
 
-    private GrokPatternCreator() {
+    /**
+     * It is expected that the explanation will be shared with other code.
+     * Both this class and other classes will update it.
+     */
+    private final List<String> explanation;
+    private final Collection<String> sampleMessages;
+
+    /**
+     * It is expected that the mappings will be shared with other code.
+     * Both this class and other classes will update it.
+     */
+    private final Map<String, Object> mappings;
+    private final Map<String, Integer> fieldNameCountStore = new HashMap<>();
+    private final StringBuilder overallGrokPatternBuilder = new StringBuilder();
+
+    /**
+     *
+     * @param explanation List of reasons for making decisions.  May contain items when passed and new reasons
+     *                    can be appended by the methods of this class.
+     * @param sampleMessages Sample messages that any Grok pattern found must match.
+     * @param mappings Will be updated with mappings appropriate for the returned pattern, if non-<code>null</code>.
+     */
+    public GrokPatternCreator(List<String> explanation, Collection<String> sampleMessages, Map<String, Object> mappings) {
+        this.explanation = explanation;
+        this.sampleMessages = Collections.unmodifiableCollection(sampleMessages);
+        this.mappings = mappings;
     }
 
     /**
      * This method attempts to find a Grok pattern that will match all of the sample messages in their entirety.
-     * @param explanation List of reasons for making decisions.  May contain items when passed and new reasons
-     *                    can be appended by this method.
-     * @param sampleMessages Sample messages that any non-<code>null</code> return will match.
-     * @param mappings Will be updated with mappings appropriate for the returned pattern, if non-<code>null</code>.
      * @return A tuple of (time field name, Grok string), or <code>null</code> if no suitable Grok pattern was found.
      */
-    public static Tuple<String, String> findFullLineGrokPattern(List<String> explanation, Collection<String> sampleMessages,
-                                                                Map<String, Object> mappings) {
+    public Tuple<String, String> findFullLineGrokPattern() {
 
         for (FullMatchGrokPatternCandidate candidate : FULL_MATCH_GROK_PATTERNS) {
             if (candidate.matchesAll(sampleMessages)) {
@@ -132,26 +152,27 @@ public final class GrokPatternCreator {
 
     /**
      * Build a Grok pattern that will match all of the sample messages in their entirety.
-     * @param explanation List of reasons for making decisions.  May contain items when passed and new reasons
-     *                    can be appended by this method.
-     * @param sampleMessages Sample messages that the returned Grok pattern will match.
      * @param seedPatternName A pattern that has already been determined to match some portion of every sample message.
      * @param seedFieldName The field name to be used for the portion of every sample message that the seed pattern matches.
-     * @param mappings Will be updated with mappings appropriate for the returned pattern, excluding the seed field name.
      * @return The built Grok pattern.
      */
-    public static String createGrokPatternFromExamples(List<String> explanation, Collection<String> sampleMessages, String seedPatternName,
-                                                       String seedFieldName, Map<String, Object> mappings) {
+    public String createGrokPatternFromExamples(String seedPatternName, String seedFieldName) {
+
+        overallGrokPatternBuilder.setLength(0);
 
         GrokPatternCandidate seedCandidate = new NoMappingGrokPatternCandidate(seedPatternName, seedFieldName);
 
-        Map<String, Integer> fieldNameCountStore = new HashMap<>();
-        StringBuilder overallGrokPatternBuilder = new StringBuilder();
-
-        processCandidateAndSplit(explanation, fieldNameCountStore, overallGrokPatternBuilder, seedCandidate, true, sampleMessages, mappings,
-            false, 0, false, 0);
+        processCandidateAndSplit(seedCandidate, true, sampleMessages, false, 0, false, 0);
 
         return overallGrokPatternBuilder.toString().replace("\t", "\\t").replace("\n", "\\n");
+    }
+
+    /**
+     * This is purely to allow unit tests to inspect the partial Grok pattern after testing implementation details.
+     * It should not be used in production code.
+     */
+    StringBuilder getOverallGrokPatternBuilder() {
+        return overallGrokPatternBuilder;
     }
 
     /**
@@ -159,20 +180,16 @@ public final class GrokPatternCreator {
      * matched section and the pieces before and after it.  Recurse to find more matches in the pieces
      * before and after and update the supplied string builder.
      */
-    private static void processCandidateAndSplit(List<String> explanation, Map<String, Integer> fieldNameCountStore,
-                                                 StringBuilder overallGrokPatternBuilder, GrokPatternCandidate chosenPattern,
-                                                 boolean isLast, Collection<String> snippets, Map<String, Object> mappings,
-                                                 boolean ignoreKeyValueCandidateLeft, int ignoreValueOnlyCandidatesLeft,
-                                                 boolean ignoreKeyValueCandidateRight, int ignoreValueOnlyCandidatesRight) {
+    private void processCandidateAndSplit(GrokPatternCandidate chosenPattern, boolean isLast, Collection<String> snippets,
+                                          boolean ignoreKeyValueCandidateLeft, int ignoreValueOnlyCandidatesLeft,
+                                          boolean ignoreKeyValueCandidateRight, int ignoreValueOnlyCandidatesRight) {
 
         Collection<String> prefaces = new ArrayList<>();
         Collection<String> epilogues = new ArrayList<>();
         String patternBuilderContent = chosenPattern.processCaptures(fieldNameCountStore, snippets, prefaces, epilogues, mappings);
-        appendBestGrokMatchForStrings(explanation, fieldNameCountStore, overallGrokPatternBuilder, false, prefaces, mappings,
-            ignoreKeyValueCandidateLeft, ignoreValueOnlyCandidatesLeft);
+        appendBestGrokMatchForStrings(false, prefaces, ignoreKeyValueCandidateLeft, ignoreValueOnlyCandidatesLeft);
         overallGrokPatternBuilder.append(patternBuilderContent);
-        appendBestGrokMatchForStrings(explanation, fieldNameCountStore, overallGrokPatternBuilder, isLast, epilogues, mappings,
-            ignoreKeyValueCandidateRight, ignoreValueOnlyCandidatesRight);
+        appendBestGrokMatchForStrings(isLast, epilogues, ignoreKeyValueCandidateRight, ignoreValueOnlyCandidatesRight);
     }
 
     /**
@@ -180,12 +197,10 @@ public final class GrokPatternCreator {
      * to use matches it best.  Then append the appropriate Grok language to represent that finding onto
      * the supplied string builder.
      */
-    static void appendBestGrokMatchForStrings(List<String> explanation, Map<String, Integer> fieldNameCountStore,
-                                              StringBuilder overallGrokPatternBuilder, boolean isLast, Collection<String> snippets,
-                                              Map<String, Object> mappings, boolean ignoreKeyValueCandidate,
-                                              int ignoreValueOnlyCandidates) {
+    void appendBestGrokMatchForStrings(boolean isLast, Collection<String> snippets,
+                                       boolean ignoreKeyValueCandidate, int ignoreValueOnlyCandidates) {
 
-        snippets = adjustForPunctuation(snippets, overallGrokPatternBuilder);
+        snippets = adjustForPunctuation(snippets);
 
         GrokPatternCandidate bestCandidate = null;
         if (snippets.isEmpty() == false) {
@@ -207,13 +222,13 @@ public final class GrokPatternCreator {
 
         if (bestCandidate == null) {
             if (isLast) {
-                finalizeGrokPattern(overallGrokPatternBuilder, snippets);
+                finalizeGrokPattern(snippets);
             } else {
-                addIntermediateRegex(overallGrokPatternBuilder, snippets);
+                addIntermediateRegex(snippets);
             }
         } else {
-            processCandidateAndSplit(explanation, fieldNameCountStore, overallGrokPatternBuilder, bestCandidate, isLast, snippets, mappings,
-                true, ignoreValueOnlyCandidates + (ignoreKeyValueCandidate ? 1 : 0), ignoreKeyValueCandidate, ignoreValueOnlyCandidates);
+            processCandidateAndSplit(bestCandidate, isLast, snippets, true, ignoreValueOnlyCandidates + (ignoreKeyValueCandidate ? 1 : 0),
+                ignoreKeyValueCandidate, ignoreValueOnlyCandidates);
         }
     }
 
@@ -222,13 +237,10 @@ public final class GrokPatternCreator {
      * then add all but the last of these characters to the overall pattern and remove them from the
      * snippets.
      * @param snippets Input snippets - not modified.
-     * @param overallPatternBuilder The string builder in which a regex is being built to which common
-     *                              punctuation characters will be appended (with appropriate escaping
-     *                              if necessary).
      * @return Output snippets, which will be a copy of the input snippets but with whatever characters
      *         were added to <code>overallPatternBuilder</code> removed from the beginning.
      */
-    static Collection<String> adjustForPunctuation(Collection<String> snippets, StringBuilder overallPatternBuilder) {
+    Collection<String> adjustForPunctuation(Collection<String> snippets) {
 
         assert snippets.isEmpty() == false;
 
@@ -268,9 +280,9 @@ public final class GrokPatternCreator {
         for (int index = 0; index < numLiteralCharacters; ++index) {
             char ch = commonInitialPunctuation.charAt(index);
             if (PUNCTUATION_OR_SPACE_NEEDS_ESCAPING.getOrDefault(ch, false)) {
-                overallPatternBuilder.append('\\');
+                overallGrokPatternBuilder.append('\\');
             }
-            overallPatternBuilder.append(ch);
+            overallGrokPatternBuilder.append(ch);
         }
 
         return snippets.stream().map(snippet -> snippet.substring(numLiteralCharacters)).collect(Collectors.toList());
@@ -287,7 +299,11 @@ public final class GrokPatternCreator {
         return (numberSeen > 1) ? fieldName + numberSeen : fieldName;
     }
 
-    public static void addIntermediateRegex(StringBuilder overallPatternBuilder, Collection<String> snippets) {
+    private void addIntermediateRegex(Collection<String> snippets) {
+        addIntermediateRegex(overallGrokPatternBuilder, snippets);
+    }
+
+    public static void addIntermediateRegex(StringBuilder patternBuilder, Collection<String> snippets) {
         if (snippets.isEmpty()) {
             return;
         }
@@ -301,26 +317,26 @@ public final class GrokPatternCreator {
             Boolean punctuationOrSpaceNeedsEscaping = PUNCTUATION_OR_SPACE_NEEDS_ESCAPING.get(ch);
             if (punctuationOrSpaceNeedsEscaping != null && others.stream().allMatch(other -> other.indexOf(ch) >= 0)) {
                 if (wildcardRequiredIfNonMatchFound && others.stream().anyMatch(other -> other.indexOf(ch) > 0)) {
-                    overallPatternBuilder.append(".*?");
+                    patternBuilder.append(".*?");
                 }
                 if (punctuationOrSpaceNeedsEscaping) {
-                    overallPatternBuilder.append('\\');
+                    patternBuilder.append('\\');
                 }
-                overallPatternBuilder.append(ch);
+                patternBuilder.append(ch);
                 wildcardRequiredIfNonMatchFound = true;
                 others = others.stream().map(other -> other.substring(other.indexOf(ch) + 1)).collect(Collectors.toList());
             } else if (wildcardRequiredIfNonMatchFound) {
-                overallPatternBuilder.append(".*?");
+                patternBuilder.append(".*?");
                 wildcardRequiredIfNonMatchFound = false;
             }
         }
 
         if (wildcardRequiredIfNonMatchFound && others.stream().anyMatch(s -> s.isEmpty() == false)) {
-            overallPatternBuilder.append(".*?");
+            patternBuilder.append(".*?");
         }
     }
 
-    private static void finalizeGrokPattern(StringBuilder overallPatternBuilder, Collection<String> snippets) {
+    private void finalizeGrokPattern(Collection<String> snippets) {
         if (snippets.stream().allMatch(String::isEmpty)) {
             return;
         }
@@ -335,9 +351,9 @@ public final class GrokPatternCreator {
             if (punctuationOrSpaceNeedsEscaping != null &&
                 others.stream().allMatch(other -> other.length() > driverIndex && other.charAt(driverIndex) == ch)) {
                 if (punctuationOrSpaceNeedsEscaping) {
-                    overallPatternBuilder.append('\\');
+                    overallGrokPatternBuilder.append('\\');
                 }
-                overallPatternBuilder.append(ch);
+                overallGrokPatternBuilder.append(ch);
                 if (i == driver.length() - 1 && others.stream().allMatch(driver::equals)) {
                     return;
                 }
@@ -346,7 +362,7 @@ public final class GrokPatternCreator {
             }
         }
 
-        overallPatternBuilder.append(".*");
+        overallGrokPatternBuilder.append(".*");
     }
 
     interface GrokPatternCandidate {

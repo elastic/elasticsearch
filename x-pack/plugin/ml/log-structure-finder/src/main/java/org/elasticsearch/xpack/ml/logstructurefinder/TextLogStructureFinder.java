@@ -84,15 +84,14 @@ public class TextLogStructureFinder extends AbstractLogStructureFinder implement
         // We can't parse directly into @timestamp using Grok, so parse to some other time field, which the date filter will then remove
         String interimTimestampField;
         String grokPattern;
-        Tuple<String, String> timestampFieldAndFullMatchGrokPattern =
-            GrokPatternCreator.findFullLineGrokPattern(explanation, sampleMessages, mappings);
+        GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, sampleMessages, mappings);
+        Tuple<String, String> timestampFieldAndFullMatchGrokPattern = grokPatternCreator.findFullLineGrokPattern();
         if (timestampFieldAndFullMatchGrokPattern != null) {
             interimTimestampField = timestampFieldAndFullMatchGrokPattern.v1();
             grokPattern = timestampFieldAndFullMatchGrokPattern.v2();
         } else {
             interimTimestampField = "timestamp";
-            grokPattern = GrokPatternCreator.createGrokPatternFromExamples(explanation, sampleMessages, bestTimestamp.v1().grokPatternName,
-                interimTimestampField, mappings);
+            grokPattern = grokPatternCreator.createGrokPatternFromExamples(bestTimestamp.v1().grokPatternName, interimTimestampField);
         }
 
         structure = structureBuilder

@@ -56,6 +56,19 @@ public class Bucket implements ToXContentObject, Writeable {
     public static final ConstructingObjectParser<Bucket, Void> STRICT_PARSER = createParser(false);
     public static final ConstructingObjectParser<Bucket, Void> LENIENT_PARSER = createParser(true);
 
+    /* *
+     * Read and discard the old (prior to 6.5) perPartitionNormalization values 
+     */
+    public static Bucket readOldPerPartitionNormalization(StreamInput in)  throws IOException {
+        in.readString();
+        in.readString();
+        in.readDouble();
+        in.readDouble();
+        in.readDouble();
+
+        return null;
+    }
+
     private static ConstructingObjectParser<Bucket, Void> createParser(boolean ignoreUnknownFields) {
         ConstructingObjectParser<Bucket, Void> parser = new ConstructingObjectParser<>(RESULT_TYPE_VALUE, ignoreUnknownFields,
                 a -> new Bucket((String) a[0], (Date) a[1], (long) a[2]));
@@ -137,6 +150,10 @@ public class Bucket implements ToXContentObject, Writeable {
         if (in.getVersion().before(Version.V_5_5_0)) {
             in.readGenericValue();
         }
+        // bwc for perPartitionNormalization
+        if (in.getVersion().before(Version.V_6_5_0)) {
+            in.readList(Bucket::readOldPerPartitionNormalization);
+        }
         if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
             scheduledEvents = in.readList(StreamInput::readString);
             if (scheduledEvents.isEmpty()) {
@@ -166,6 +183,10 @@ public class Bucket implements ToXContentObject, Writeable {
         // bwc for perPartitionMaxProbability
         if (out.getVersion().before(Version.V_5_5_0)) {
             out.writeGenericValue(Collections.emptyMap());
+        }
+        // bwc for perPartitionNormalization
+        if (out.getVersion().before(Version.V_6_5_0)) {
+            out.writeGenericValue(Collections.emptyList());
         }
         if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
             out.writeStringList(scheduledEvents);

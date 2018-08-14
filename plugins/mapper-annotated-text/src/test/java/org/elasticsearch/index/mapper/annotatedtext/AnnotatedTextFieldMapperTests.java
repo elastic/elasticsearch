@@ -46,7 +46,6 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -637,24 +636,7 @@ public class AnnotatedTextFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getField("field6").fieldType().storeTermVectorPositions(), equalTo(true));
         assertThat(doc.rootDoc().getField("field6").fieldType().storeTermVectorPayloads(), equalTo(true));
     }
-
-
-    public void testEagerGlobalOrdinals() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field")
-                    .field("type", getFieldType())
-                    .field("eager_global_ordinals", true)
-                .endObject().endObject()
-                .endObject().endObject());
-
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-        assertEquals(mapping, mapper.mappingSource().toString());
-
-        FieldMapper fieldMapper = (FieldMapper) mapper.mappers().getMapper("field");
-        assertTrue(fieldMapper.fieldType().eagerGlobalOrdinals());
-    }    
-
-
+   
     public void testNullConfigValuesFail() throws MapperParsingException, IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
                 .startObject("type")

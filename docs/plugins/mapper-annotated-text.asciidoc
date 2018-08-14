@@ -31,7 +31,7 @@ the search index:
 PUT my_index
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "properties": {
         "my_field": {
           "type": "annotated_text"
@@ -119,12 +119,12 @@ in this example where a search for `Beck` will not match `Jeff Beck` :
 [source,js]
 --------------------------
 # Example documents
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "my_field": "[Beck](Beck) announced a new tour"<2>
 }
 
-PUT my_index/my_type/2
+PUT my_index/_doc/2
 {
   "my_field": "[Jeff Beck](person=Jeff+Beck&role=Guitarist) plays a strat"<1>
 }
@@ -167,7 +167,7 @@ It often makes sense to also provide dedicated structured fields to support disc
 PUT my_index
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "properties": {
         "my_unstructured_text_field": {
           "type": "annotated_text"
@@ -192,7 +192,7 @@ Applications would then typically provide content and discover it as follows:
 [source,js]
 --------------------------
 # Example documents
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "my_unstructured_text_field": "[Shay](%40kimchy) created elasticsearch",
   "my_twitter_handles": ["@kimchy"] <1>
@@ -268,7 +268,7 @@ in a way which is respectful of the original markup:
 [source,js]
 --------------------------
 # Example documents
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "my_field": "The cat sat on the [mat](sku=3578)"
 }

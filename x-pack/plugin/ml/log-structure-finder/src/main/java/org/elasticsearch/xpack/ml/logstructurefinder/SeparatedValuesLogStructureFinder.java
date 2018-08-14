@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.DoubleSummaryStatistics;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -189,12 +190,17 @@ public class SeparatedValuesLogStructureFinder extends AbstractStructuredLogStru
         assert rows.isEmpty() == false;
 
         List<String> firstRow = rows.get(0);
-        boolean isHeaderInFile = true;
 
-        if (rows.size() < 3) {
-            explanation.add("Too little data to accurately assess whether header is in sample - guessing it is");
+        boolean isHeaderInFile = true;
+        if (rowContainsDuplicateNonEmptyValues(firstRow)) {
+            isHeaderInFile = false;
+            explanation.add("First row contains duplicate values, so assuming it's not a header");
         } else {
-            isHeaderInFile = isFirstRowUnusual(explanation, rows);
+            if (rows.size() < 3) {
+                explanation.add("Too little data to accurately assess whether header is in sample - guessing it is");
+            } else {
+                isHeaderInFile = isFirstRowUnusual(explanation, rows);
+            }
         }
 
         if (isHeaderInFile) {
@@ -203,6 +209,19 @@ public class SeparatedValuesLogStructureFinder extends AbstractStructuredLogStru
         } else {
             return new Tuple<>(false, IntStream.rangeClosed(1, firstRow.size()).mapToObj(num -> "column" + num).toArray(String[]::new));
         }
+    }
+
+    static boolean rowContainsDuplicateNonEmptyValues(List<String> row) {
+
+        HashSet<String> values = new HashSet<>();
+
+        for (String value : row) {
+            if (value != null && value.isEmpty() == false && values.add(value) == false) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static boolean isFirstRowUnusual(List<String> explanation, List<List<String>> rows) {

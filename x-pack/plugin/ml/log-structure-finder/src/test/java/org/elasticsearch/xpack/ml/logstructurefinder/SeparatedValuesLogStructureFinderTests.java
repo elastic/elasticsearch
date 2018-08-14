@@ -279,4 +279,15 @@ public class SeparatedValuesLogStructureFinderTests extends LogStructureTestCase
         assertTrue(SeparatedValuesLogStructureFinder.lineHasUnescapedQuote("between\"words\tb\tc", CsvPreference.TAB_PREFERENCE));
         assertTrue(SeparatedValuesLogStructureFinder.lineHasUnescapedQuote("x and \"y\"\tb\tc", CsvPreference.TAB_PREFERENCE));
     }
+
+    public void testRowContainsDuplicateNonEmptyValues() {
+
+        assertFalse(SeparatedValuesLogStructureFinder.rowContainsDuplicateNonEmptyValues(Collections.singletonList("a")));
+        assertFalse(SeparatedValuesLogStructureFinder.rowContainsDuplicateNonEmptyValues(Collections.singletonList("")));
+        assertFalse(SeparatedValuesLogStructureFinder.rowContainsDuplicateNonEmptyValues(Arrays.asList("a", "b", "c")));
+        assertTrue(SeparatedValuesLogStructureFinder.rowContainsDuplicateNonEmptyValues(Arrays.asList("a", "b", "a")));
+        assertTrue(SeparatedValuesLogStructureFinder.rowContainsDuplicateNonEmptyValues(Arrays.asList("a", "b", "b")));
+        assertFalse(SeparatedValuesLogStructureFinder.rowContainsDuplicateNonEmptyValues(Arrays.asList("a", "", "")));
+        assertFalse(SeparatedValuesLogStructureFinder.rowContainsDuplicateNonEmptyValues(Arrays.asList("", "a", "")));
+    }
 }

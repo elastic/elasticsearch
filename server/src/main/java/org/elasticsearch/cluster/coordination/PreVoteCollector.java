@@ -42,104 +42,134 @@ public class PreVoteCollector extends AbstractComponent {
 
     public static final String REQUEST_PRE_VOTE_ACTION_NAME = "internal:cluster/request_pre_vote";
 
-    private final Set<DiscoveryNode> preVotesReceived = newConcurrentSet();
-    private final AtomicBoolean electionStarted = new AtomicBoolean();
-    private final AtomicLong maxTermSeen;
-    private final PreVoteResponse localPreVoteResponse;
-    private final PreVoteRequest preVoteRequest;
+    private final AtomicLong maxTermSeen = new AtomicLong(0);
+    private volatile PreVoteResponse localPreVoteResponse;
     private final TransportService transportService;
-    private final ClusterState clusterState;
     private final LongConsumer startElection; // consumes maximum known term
-    private final AtomicBoolean isRunning = new AtomicBoolean();
+    private volatile PreVotingRound currentRound;
+
+    private class PreVotingRound {
+        private final Set<DiscoveryNode> preVotesReceived = newConcurrentSet();
+        private final AtomicBoolean electionStarted = new AtomicBoolean();
+        private final PreVoteRequest preVoteRequest;
+        private final ClusterState clusterState;
+        private final AtomicBoolean isRunning = new AtomicBoolean();
+
+        PreVotingRound(ClusterState clusterState) {
+            this.clusterState = clusterState;
+            preVoteRequest = new PreVoteRequest(transportService.getLocalNode(), localPreVoteResponse.getCurrentTerm());
+        }
+
+        void start(final Iterable<DiscoveryNode> broadcastNodes) {
+
+            final boolean isRunningChanged = isRunning.compareAndSet(false, true);
+            assert isRunningChanged;
+
+            broadcastNodes.forEach(n -> transportService.sendRequest(n, REQUEST_PRE_VOTE_ACTION_NAME, preVoteRequest,
+                new TransportResponseHandler<PreVoteResponse>() {
+                    @Override
+                    public void handleResponse(PreVoteResponse response) {
+                        handlePreVoteResponse(response, n);
+                    }
+
+                    @Override
+                    public void handleException(TransportException exp) {
+                        if (exp.getRootCause() instanceof CoordinationStateRejectedException) {
+                            logger.debug("{} failed: {}", this, exp.getRootCause().getMessage());
+                        } else {
+                            logger.debug(new ParameterizedMessage("{} failed", this), exp);
+                        }
+                    }
+
+                    @Override
+                    public String executor() {
+                        return Names.GENERIC;
+                    }
+
+                    @Override
+                    public String toString() {
+                        return "TransportResponseHandler{" + PreVoteCollector.this + ", node=" + n + '}';
+                    }
+                }));
+        }
+
+        void stop() {
+            final boolean isRunningChanged = isRunning.compareAndSet(true, false);
+            assert isRunningChanged;
+        }
+
+        private void handlePreVoteResponse(PreVoteResponse response, DiscoveryNode sender) {
+            if (isRunning.get() == false) {
+                logger.debug("{} ignoring {} from {}, no longer running", this, response, sender);
+                return;
+            }
+
+            final long currentMaxTermSeen = updateMaxTermSeen(response.getCurrentTerm());
+
+            if (response.getLastAcceptedTerm() > localPreVoteResponse.getLastAcceptedTerm()
+                || (response.getLastAcceptedTerm() == localPreVoteResponse.getLastAcceptedTerm()
+                && response.getLastAcceptedVersion() > localPreVoteResponse.getLastAcceptedVersion())) {
+                logger.debug("{} ignoring {} from {} as it is fresher", this, response, sender);
+                return;
+            }
+
+            preVotesReceived.add(sender);
+            final VoteCollection voteCollection = new VoteCollection();
+            preVotesReceived.forEach(voteCollection::addVote);
+
+            if (isElectionQuorum(voteCollection, clusterState) == false) {
+                logger.debug("{} added {} from {}, no quorum yet", this, response, sender);
+                return;
+            }
+
+            if (electionStarted.compareAndSet(false, true) == false) {
+                logger.debug("{} added {} from {} but election has already started", this, response, sender);
+                return;
+            }
+
+            logger.debug("{} added {} from {}, starting election in term > {}", this, response, sender, currentMaxTermSeen);
+            startElection.accept(currentMaxTermSeen);
+        }
+
+        @Override
+        public String toString() {
+            return "PreVotingRound{" +
+                "preVotesReceived=" + preVotesReceived +
+                ", electionStarted=" + electionStarted +
+                ", preVoteRequest=" + preVoteRequest +
+                ", isRunning=" + isRunning +
+                '}';
+        }
+    }
+
+    private long updateMaxTermSeen(long term) {
+        return maxTermSeen.accumulateAndGet(term, Math::max);
+    }
 
     PreVoteCollector(Settings settings, PreVoteResponse localPreVoteResponse, TransportService transportService,
-                     ClusterState clusterState, LongConsumer startElection) {
+                     LongConsumer startElection) {
         super(settings);
         this.localPreVoteResponse = localPreVoteResponse;
         this.transportService = transportService;
-        this.clusterState = clusterState;
         this.startElection = startElection;
-        final long currentTerm = localPreVoteResponse.getCurrentTerm();
-        preVoteRequest = new PreVoteRequest(transportService.getLocalNode(), currentTerm);
-        maxTermSeen = new AtomicLong(currentTerm);
     }
 
-    public void start(final Iterable<DiscoveryNode> broadcastNodes) {
+    public void start(final ClusterState clusterState, final Iterable<DiscoveryNode> broadcastNodes) {
         logger.debug("{} starting", this);
-
-        final boolean isRunningChanged = isRunning.compareAndSet(false, true);
-        assert isRunningChanged;
-
-        broadcastNodes.forEach(n -> transportService.sendRequest(n, REQUEST_PRE_VOTE_ACTION_NAME, preVoteRequest,
-            new TransportResponseHandler<PreVoteResponse>() {
-                @Override
-                public void handleResponse(PreVoteResponse response) {
-                    handlePreVoteResponse(response, n);
-                }
-
-                @Override
-                public void handleException(TransportException exp) {
-                    if (exp.getRootCause() instanceof CoordinationStateRejectedException) {
-                        logger.debug("{} failed: {}", this, exp.getRootCause().getMessage());
-                    } else {
-                        logger.debug(new ParameterizedMessage("{} failed", this), exp);
-                    }
-                }
-
-                @Override
-                public String executor() {
-                    return Names.GENERIC;
-                }
-
-                @Override
-                public String toString() {
-                    return "TransportResponseHandler{" + PreVoteCollector.this + ", node=" + n + '}';
-                }
-            }));
+        assert currentRound == null;
+        currentRound = new PreVotingRound(clusterState);
+        currentRound.start(broadcastNodes);
     }
 
     public void stop() {
-        final boolean isRunningChanged = isRunning.compareAndSet(true, false);
-        assert isRunningChanged;
-    }
-
-    private void handlePreVoteResponse(PreVoteResponse response, DiscoveryNode sender) {
-        if (isRunning.get() == false) {
-            logger.debug("{} ignoring {} from {}, no longer running", this, response, sender);
-            return;
-        }
-
-        final long currentMaxTermSeen = maxTermSeen.accumulateAndGet(response.getCurrentTerm(), Math::max);
-
-        if (response.getLastAcceptedTerm() > localPreVoteResponse.getLastAcceptedTerm()
-            || (response.getLastAcceptedTerm() == localPreVoteResponse.getLastAcceptedTerm()
-            && response.getLastAcceptedVersion() > localPreVoteResponse.getLastAcceptedVersion())) {
-            logger.debug("{} ignoring {} from {} as it is fresher", this, response, sender);
-            return;
-        }
-
-        preVotesReceived.add(sender);
-        final VoteCollection voteCollection = new VoteCollection();
-        preVotesReceived.forEach(voteCollection::addVote);
-
-        if (isElectionQuorum(voteCollection, clusterState) == false) {
-            logger.debug("{} added {} from {}, no quorum yet", this, response, sender);
-            return;
-        }
-
-        if (electionStarted.compareAndSet(false, true) == false) {
-            logger.debug("{} added {} from {} but election has already started", this, response, sender);
-            return;
-        }
-
-        logger.debug("{} added {} from {}, starting election in term > {}", this, response, sender, currentMaxTermSeen);
-        startElection.accept(currentMaxTermSeen);
+        currentRound.stop();
+        currentRound = null;
     }
 
     @Override
     public String toString() {
         return "PreVoteCollector{" +
-            "isRunning=" + isRunning.get() +
+            "currentRound=" + currentRound +
             ", localPreVoteResponse=" + localPreVoteResponse +
             '}';
     }

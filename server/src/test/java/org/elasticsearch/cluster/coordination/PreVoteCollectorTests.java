@@ -55,12 +55,10 @@ public class PreVoteCollectorTests extends ESTestCase {
     private DiscoveryNode localNode;
     private Map<DiscoveryNode, PreVoteResponse> responsesByNode = new HashMap<>();
     private long lastElectionMaxTermSeen;
-    private TransportService transportService;
-    private Settings settings;
 
     @Before
     public void createObjects() {
-        settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build();
+        Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build();
         deterministicTaskQueue = new DeterministicTaskQueue(settings);
         final Transport capturingTransport = new CapturingTransport() {
             @Override
@@ -92,7 +90,7 @@ public class PreVoteCollectorTests extends ESTestCase {
         };
         localNode = new DiscoveryNode("local-node", buildNewFakeTransportAddress(), Version.CURRENT);
         responsesByNode.put(localNode, new PreVoteResponse(3, 2, 1));
-        transportService = new TransportService(settings, capturingTransport,
+        TransportService transportService = new TransportService(settings, capturingTransport,
             deterministicTaskQueue.getThreadPool(), TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundTransportAddress -> localNode, null, emptySet());
         transportService.start();
@@ -105,7 +103,11 @@ public class PreVoteCollectorTests extends ESTestCase {
                 channel.sendResponse(getLocalPreVoteResponse());
             });
 
-        preVoteCollector = null;
+        preVoteCollector = new PreVoteCollector(settings, getLocalPreVoteResponse(), transportService, maxTermSeen -> {
+            assert electionOccurred == false;
+            electionOccurred = true;
+            lastElectionMaxTermSeen = maxTermSeen;
+        });
     }
 
     private PreVoteResponse getLocalPreVoteResponse() {
@@ -128,15 +130,7 @@ public class PreVoteCollectorTests extends ESTestCase {
             = new VotingConfiguration(Arrays.stream(votingNodes).map(DiscoveryNode::getId).collect(Collectors.toSet()));
         final ClusterState clusterState = CoordinationStateTests.clusterState(0, 0, localNode, votingConfiguration, votingConfiguration, 0);
 
-        assert preVoteCollector == null;
-
-        preVoteCollector = new PreVoteCollector(settings, getLocalPreVoteResponse(), transportService, clusterState, maxTermSeen -> {
-            assert electionOccurred == false;
-            electionOccurred = true;
-            lastElectionMaxTermSeen = maxTermSeen;
-        });
-
-        preVoteCollector.start(responsesByNode.keySet());
+        preVoteCollector.start(clusterState, responsesByNode.keySet());
     }
 
     public void testStartsElectionIfLocalNodeIsOnlyNode() {

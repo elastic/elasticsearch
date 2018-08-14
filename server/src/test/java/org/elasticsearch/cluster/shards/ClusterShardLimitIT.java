@@ -52,6 +52,27 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
         setShardsPerNode(shardsPerNode);
     }
 
+    public void testMinimumPerNode() {
+        int negativeShardsPerNode = between(-50_000, 0);
+        try {
+            if (frequently()) {
+                client().admin().cluster()
+                    .prepareUpdateSettings()
+                    .setPersistentSettings(Settings.builder().put(shardsPerNodeKey, negativeShardsPerNode).build())
+                    .get();
+            } else {
+                client().admin().cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(Settings.builder().put(shardsPerNodeKey, negativeShardsPerNode).build())
+                    .get();
+            }
+            fail("should not be able to set negative shards per node");
+        } catch (IllegalArgumentException ex) {
+            assertEquals("Failed to parse value [" + negativeShardsPerNode + "] for setting [cluster.shards.max_per_node] must be >= 1",
+                ex.getMessage());
+        }
+    }
+
     public void testIndexCreationOverLimit() {
         int dataNodes = client().admin().cluster().prepareState().get().getState().getNodes().getDataNodes().size();
 

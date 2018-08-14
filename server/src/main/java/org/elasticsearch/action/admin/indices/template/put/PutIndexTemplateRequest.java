@@ -76,6 +76,8 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
 
     private String cause = "";
 
+    private boolean autoCreateIndex;
+
     private List<String> indexPatterns;
 
     private int order;
@@ -136,6 +138,15 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
 
     public List<String> patterns() {
         return this.indexPatterns;
+    }
+
+    public PutIndexTemplateRequest autoCreateIndex(boolean autoCreateIndex) {
+        this.autoCreateIndex = autoCreateIndex;
+        return this;
+    }
+
+    public boolean autoCreateIndex() {
+        return autoCreateIndex;
     }
 
     public PutIndexTemplateRequest order(int order) {
@@ -328,6 +339,8 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
                 } else {
                     throw new IllegalArgumentException("Malformed [template] value, should be a string or a list of strings");
                 }
+            } else if (name.equals("auto_create_index")) {
+                autoCreateIndex(XContentMapValues.nodeBooleanValue(entry.getValue(), false));
             } else if (name.equals("order")) {
                 order(XContentMapValues.nodeIntegerValue(entry.getValue(), order()));
             } else if ("version".equals(name)) {
@@ -510,6 +523,9 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             aliases.add(Alias.read(in));
         }
         version = in.readOptionalVInt();
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            autoCreateIndex = in.readBoolean();
+        }
     }
 
     @Override
@@ -540,11 +556,15 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             alias.writeTo(out);
         }
         out.writeOptionalVInt(version);
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            out.writeBoolean(autoCreateIndex);
+        }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("index_patterns", indexPatterns);
+        builder.field("auto_create_index", autoCreateIndex);
         builder.field("order", order);
         if (version != null) {
             builder.field("version", version);

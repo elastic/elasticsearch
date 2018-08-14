@@ -21,6 +21,7 @@ package org.elasticsearch.action.support;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -40,6 +41,8 @@ import java.util.List;
  * a write operation is about to happen in a non existing index.
  */
 public final class AutoCreateIndex {
+
+    public static final String AUTO_CREATE_TEMPLATE_BASED = "_template";
 
     public static final Setting<AutoCreate> AUTO_CREATE_INDEX_SETTING =
         new Setting<>("action.auto_create_index", "true", AutoCreate::new, Property.NodeScope, Setting.Property.Dynamic);
@@ -62,6 +65,10 @@ public final class AutoCreateIndex {
         return this.autoCreate.autoCreateIndex;
     }
 
+    public boolean templateBased() {
+        return autoCreate.templateBased;
+    }
+
     /**
      * Should the index be auto created?
      * @throws IndexNotFoundException if the index doesn't exist and shouldn't be auto created
@@ -69,6 +76,24 @@ public final class AutoCreateIndex {
     public boolean shouldAutoCreate(String index, ClusterState state) {
         if (resolver.hasIndexOrAlias(index, state)) {
             return false;
+        }
+        if (templateBased()) {
+            return MetaDataIndexTemplateService.findTemplates(state.metaData(), index).stream().findFirst()
+                .map(template -> {
+                    if (template.autoCreateIndex()) {
+                        return true;
+                    }
+                    throw new IndexNotFoundException(
+                        "no such index and [" + AUTO_CREATE_INDEX_SETTING.getKey()
+                            + "] is set to [_template] but the matching template does not allow for auto creating the index.",
+                        index
+                    );
+                }).orElseThrow(
+                    () -> new IndexNotFoundException(
+                        "no such index and [" + AUTO_CREATE_INDEX_SETTING.getKey()
+                            + "] is set to [_template] but there is no matching template.", index
+                    )
+                );
         }
         // One volatile read, so that all checks are done against the same instance:
         final AutoCreate autoCreate = this.autoCreate;
@@ -108,45 +133,58 @@ public final class AutoCreateIndex {
 
     static class AutoCreate {
         private final boolean autoCreateIndex;
+        private final boolean templateBased;
         private final List<Tuple<String, Boolean>> expressions;
         private final String string;
 
         private AutoCreate(String value) {
             boolean autoCreateIndex;
             List<Tuple<String, Boolean>> expressions = new ArrayList<>();
-            try {
-                autoCreateIndex = Booleans.parseBoolean(value);
-            } catch (IllegalArgumentException ex) {
+            if (AUTO_CREATE_TEMPLATE_BASED.equals(value)) {
+                autoCreateIndex = true;
+                templateBased = true;
+            } else {
+                templateBased = false;
                 try {
-                    String[] patterns = Strings.commaDelimitedListToStringArray(value);
-                    for (String pattern : patterns) {
-                        if (pattern == null || pattern.trim().length() == 0) {
-                            throw new IllegalArgumentException("Can't parse [" + value + "] for setting [action.auto_create_index] must "
-                                    + "be either [true, false, or a comma separated list of index patterns]");
-                        }
-                        pattern = pattern.trim();
-                        Tuple<String, Boolean> expression;
-                        if (pattern.startsWith("-")) {
-                            if (pattern.length() == 1) {
-                                throw new IllegalArgumentException("Can't parse [" + value + "] for setting [action.auto_create_index] "
-                                        + "must contain an index name after [-]");
+                    autoCreateIndex = Booleans.parseBoolean(value);
+                } catch (IllegalArgumentException ex) {
+                    try {
+                        String[] patterns = Strings.commaDelimitedListToStringArray(value);
+                        for (String pattern : patterns) {
+                            if (pattern == null || pattern.trim().length() == 0) {
+                                throw new IllegalArgumentException(
+                                    "Can't parse [" + value + "] for setting [action.auto_create_index] must "
+                                    + "be either [true, false, or a comma separated list of index patterns]"
+                                );
                             }
-                            expression = new Tuple<>(pattern.substring(1), false);
-                        } else if(pattern.startsWith("+")) {
-                            if (pattern.length() == 1) {
-                                throw new IllegalArgumentException("Can't parse [" + value + "] for setting [action.auto_create_index] "
-                                        + "must contain an index name after [+]");
+                            pattern = pattern.trim();
+                            Tuple<String, Boolean> expression;
+                            if (pattern.startsWith("-")) {
+                                if (pattern.length() == 1) {
+                                    throw new IllegalArgumentException(
+                                        "Can't parse [" + value + "] for setting [action.auto_create_index] "
+                                        + "must contain an index name after [-]"
+                                    );
+                                }
+                                expression = new Tuple<>(pattern.substring(1), false);
+                            } else if (pattern.startsWith("+")) {
+                                if (pattern.length() == 1) {
+                                    throw new IllegalArgumentException(
+                                        "Can't parse [" + value + "] for setting [action.auto_create_index] "
+                                        + "must contain an index name after [+]"
+                                    );
+                                }
+                                expression = new Tuple<>(pattern.substring(1), true);
+                            } else {
+                                expression = new Tuple<>(pattern, true);
                             }
-                            expression = new Tuple<>(pattern.substring(1), true);
-                        } else {
-                            expression = new Tuple<>(pattern, true);
+                            expressions.add(expression);
                         }
-                        expressions.add(expression);
+                        autoCreateIndex = true;
+                    } catch (IllegalArgumentException ex1) {
+                        ex1.addSuppressed(ex);
+                        throw ex1;
                     }
-                    autoCreateIndex = true;
-                } catch (IllegalArgumentException ex1) {
-                    ex1.addSuppressed(ex);
-                    throw ex1;
                 }
             }
             this.expressions = expressions;

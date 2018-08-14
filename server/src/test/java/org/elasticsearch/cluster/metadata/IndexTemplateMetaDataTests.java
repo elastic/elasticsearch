@@ -128,13 +128,15 @@ public class IndexTemplateMetaDataTests extends ESTestCase {
     public void testValidateInvalidIndexPatterns() throws Exception {
         final IllegalArgumentException emptyPatternError = expectThrows(IllegalArgumentException.class, () -> {
             new IndexTemplateMetaData(randomRealisticUnicodeOfLengthBetween(5, 10), randomInt(), randomInt(),
-                Collections.emptyList(), Settings.EMPTY, ImmutableOpenMap.of(), ImmutableOpenMap.of(), ImmutableOpenMap.of());
+                Collections.emptyList(), Settings.EMPTY, ImmutableOpenMap.of(), ImmutableOpenMap.of(), ImmutableOpenMap.of(),
+                false);
         });
         assertThat(emptyPatternError.getMessage(), equalTo("Index patterns must not be null or empty; got []"));
 
         final IllegalArgumentException nullPatternError = expectThrows(IllegalArgumentException.class, () -> {
             new IndexTemplateMetaData(randomRealisticUnicodeOfLengthBetween(5, 10), randomInt(), randomInt(),
-                null, Settings.EMPTY, ImmutableOpenMap.of(), ImmutableOpenMap.of(), ImmutableOpenMap.of());
+                null, Settings.EMPTY, ImmutableOpenMap.of(), ImmutableOpenMap.of(), ImmutableOpenMap.of(),
+                false);
         });
         assertThat(nullPatternError.getMessage(), equalTo("Index patterns must not be null or empty; got null"));
 

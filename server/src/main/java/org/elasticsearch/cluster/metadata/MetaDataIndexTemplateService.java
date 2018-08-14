@@ -240,6 +240,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
             templateBuilder.order(request.order);
             templateBuilder.version(request.version);
             templateBuilder.patterns(request.indexPatterns);
+            templateBuilder.autoCreateIndex(request.autoCreateIndex);
             templateBuilder.settings(request.settings);
 
             Map<String, Map<String, Object>> mappingsForValidation = new HashMap<>();
@@ -336,6 +337,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         int order;
         Integer version;
         List<String> indexPatterns;
+        boolean autoCreateIndex;
         Settings settings = Settings.Builder.EMPTY_SETTINGS;
         Map<String, String> mappings = new HashMap<>();
         List<Alias> aliases = new ArrayList<>();
@@ -355,6 +357,11 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
 
         public PutRequest patterns(List<String> indexPatterns) {
             this.indexPatterns = indexPatterns;
+            return this;
+        }
+
+        public PutRequest autoCreateIndex(boolean autoCreateIndex) {
+            this.autoCreateIndex = autoCreateIndex;
             return this;
         }
 

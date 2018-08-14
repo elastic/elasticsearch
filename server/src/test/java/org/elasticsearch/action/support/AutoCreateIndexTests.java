@@ -19,11 +19,13 @@
 
 package org.elasticsearch.action.support;
 
+import java.util.Collections;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -188,6 +190,81 @@ public class AutoCreateIndexTests extends ESTestCase {
         assertThat(autoCreateIndex.getAutoCreate().isAutoCreateIndex(), equalTo(true));
         assertThat(autoCreateIndex.getAutoCreate().getExpressions().size(), equalTo(1));
         assertThat(autoCreateIndex.getAutoCreate().getExpressions().get(0).v1(), equalTo("logs-*"));
+    }
+
+    public void testAutoCreationByTemplateNoTemplateExists() {
+        Settings settings = Settings.builder().put(
+            AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), AutoCreateIndex.AUTO_CREATE_TEMPLATE_BASED
+        ).build();
+        AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
+        IndexNotFoundException e = expectThrows(
+            IndexNotFoundException.class,
+            () -> autoCreateIndex.shouldAutoCreate(randomAlphaOfLengthBetween(1, 10), buildClusterState())
+        );
+        assertEquals(
+            "no such index and [" + AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey()
+            + "] is set to [_template] but there is no matching template.",
+            e.getMessage()
+        );
+    }
+
+    public void testAutoCreationByTemplateWithMatch() {
+        Settings settings = Settings.builder().put(
+            AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), AutoCreateIndex.AUTO_CREATE_TEMPLATE_BASED
+        ).build();
+        AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
+        String indexName = randomAlphaOfLengthBetween(1, 10);
+        assertThat(
+            autoCreateIndex.shouldAutoCreate(
+            indexName, buildClusterStateWithTemplates(
+                IndexTemplateMetaData.builder("test_template").autoCreateIndex(true)
+                    .patterns(Collections.singletonList(indexName + "*"))
+                )
+            ), equalTo(true)
+        );
+    }
+
+    public void testAutoCreationByTemplateWithOrder() {
+        Settings settings = Settings.builder().put(
+            AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), AutoCreateIndex.AUTO_CREATE_TEMPLATE_BASED
+        ).build();
+        AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
+        String indexName = randomAlphaOfLengthBetween(1, 10);
+        assertThat(
+            autoCreateIndex.shouldAutoCreate(
+                indexName, buildClusterStateWithTemplates(
+                    IndexTemplateMetaData.builder("test_template1").autoCreateIndex(true)
+                        .patterns(Collections.singletonList(indexName + "*")).order(2),
+                    IndexTemplateMetaData.builder("test_template2").autoCreateIndex(false)
+                        .patterns(Collections.singletonList(indexName + "*")).order(1)
+                )
+            ), equalTo(true)
+        );
+        Exception e = expectThrows(
+            IndexNotFoundException.class,
+            () -> autoCreateIndex.shouldAutoCreate(
+                indexName, buildClusterStateWithTemplates(
+                    IndexTemplateMetaData.builder("test_template2").autoCreateIndex(false)
+                        .patterns(Collections.singletonList(indexName + "*")).order(2),
+                    IndexTemplateMetaData.builder("test_template1").autoCreateIndex(true)
+                        .patterns(Collections.singletonList(indexName + "*")).order(1)
+                )
+            )
+        );
+        assertEquals(
+            "no such index and [" + AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey()
+            + "] is set to [_template] but the matching template does not allow for auto creating the index.",
+            e.getMessage()
+        );
+    }
+
+    private static ClusterState buildClusterStateWithTemplates(IndexTemplateMetaData.Builder... templates) {
+        MetaData.Builder metaData = MetaData.builder();
+        for (IndexTemplateMetaData.Builder template : templates) {
+            metaData.put(template);
+        }
+        return ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metaData(metaData).build();
     }
 
     private static ClusterState buildClusterState(String... indices) {

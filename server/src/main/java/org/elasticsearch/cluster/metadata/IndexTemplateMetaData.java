@@ -80,6 +80,8 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
 
     private final List<String> patterns;
 
+    private final boolean autoCreateIndex;
+
     private final Settings settings;
 
     // the mapping source should always include the type as top level
@@ -93,7 +95,8 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                                  List<String> patterns, Settings settings,
                                  ImmutableOpenMap<String, CompressedXContent> mappings,
                                  ImmutableOpenMap<String, AliasMetaData> aliases,
-                                 ImmutableOpenMap<String, IndexMetaData.Custom> customs) {
+                                 ImmutableOpenMap<String, IndexMetaData.Custom> customs,
+                                 boolean autoCreateIndex) {
         if (patterns == null || patterns.isEmpty()) {
             throw new IllegalArgumentException("Index patterns must not be null or empty; got " + patterns);
         }
@@ -101,6 +104,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         this.order = order;
         this.version = version;
         this.patterns= patterns;
+        this.autoCreateIndex = autoCreateIndex;
         this.settings = settings;
         this.mappings = mappings;
         this.aliases = aliases;
@@ -139,6 +143,14 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
 
     public List<String> getPatterns() {
         return this.patterns;
+    }
+
+    public boolean getAutoCreateIndex() {
+        return this.autoCreateIndex;
+    }
+
+    public boolean autoCreateIndex() {
+        return this.autoCreateIndex;
     }
 
     public Settings settings() {
@@ -234,6 +246,9 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             builder.putCustom(type, customIndexMetaData);
         }
         builder.version(in.readOptionalVInt());
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            builder.autoCreateIndex(in.readBoolean());
+        }
         return builder.build();
     }
 
@@ -266,12 +281,15 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             cursor.value.writeTo(out);
         }
         out.writeOptionalVInt(version);
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            out.writeBoolean(autoCreateIndex);
+        }
     }
 
     public static class Builder {
 
         private static final Set<String> VALID_FIELDS = Sets.newHashSet(
-            "template", "order", "mappings", "settings", "index_patterns", "aliases", "version");
+            "template", "order", "mappings", "settings", "index_patterns", "auto_create_index" , "aliases", "version");
         static {
             VALID_FIELDS.addAll(IndexMetaData.customPrototypes.keySet());
         }
@@ -283,6 +301,8 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         private Integer version;
 
         private List<String> indexPatterns;
+
+        private boolean autoCreateIndex;
 
         private Settings settings = Settings.Builder.EMPTY_SETTINGS;
 
@@ -326,6 +346,10 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             return this;
         }
 
+        public Builder autoCreateIndex(boolean autoCreateIndex) {
+            this.autoCreateIndex = autoCreateIndex;
+            return this;
+        }
 
         public Builder settings(Settings.Builder settings) {
             this.settings = settings.build();
@@ -378,7 +402,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
 
         public IndexTemplateMetaData build() {
             return new IndexTemplateMetaData(name, order, version, indexPatterns, settings, mappings.build(),
-                aliases.build(), customs.build());
+                aliases.build(), customs.build(), autoCreateIndex);
         }
 
         public static void toXContent(IndexTemplateMetaData indexTemplateMetaData, XContentBuilder builder, ToXContent.Params params)
@@ -398,6 +422,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                 builder.field("version", indexTemplateMetaData.version());
             }
             builder.field("index_patterns", indexTemplateMetaData.patterns());
+            builder.field("auto_create_index", indexTemplateMetaData.autoCreateIndex());
 
             builder.startObject("settings");
             indexTemplateMetaData.settings().toXContent(builder, params);
@@ -509,6 +534,8 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                         builder.order(parser.intValue());
                     } else if ("version".equals(currentFieldName)) {
                         builder.version(parser.intValue());
+                    } else if ("auto_create_index".equals(currentFieldName)) {
+                        builder.autoCreateIndex(parser.booleanValue());
                     }
                 }
             }

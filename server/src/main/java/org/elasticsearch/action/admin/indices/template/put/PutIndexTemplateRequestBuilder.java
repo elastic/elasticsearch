@@ -60,6 +60,11 @@ public class PutIndexTemplateRequestBuilder
         return this;
     }
 
+    public PutIndexTemplateRequestBuilder setAutoCreateIndex(boolean autoCreateIndex) {
+        request.autoCreateIndex(autoCreateIndex);
+        return this;
+    }
+
     /**
      * Sets the order of this template if more than one template matches.
      */

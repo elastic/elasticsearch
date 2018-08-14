@@ -91,12 +91,12 @@ public class GlobalCheckpointListeners implements Closeable {
      */
     synchronized void add(final long currentGlobalCheckpoint, final GlobalCheckpointListener listener) {
         if (closed) {
-            executor.execute(() -> listener.accept(UNASSIGNED_SEQ_NO, new IndexShardClosedException(shardId)));
+            executor.execute(() -> notifyListener(listener, UNASSIGNED_SEQ_NO, new IndexShardClosedException(shardId)));
             return;
         }
         if (lastKnownGlobalCheckpoint > currentGlobalCheckpoint) {
             // notify directly
-            executor.execute(() -> listener.accept(lastKnownGlobalCheckpoint, null));
+            executor.execute(() -> notifyListener(listener, lastKnownGlobalCheckpoint, null));
             return;
         } else {
             if (listeners == null) {
@@ -107,10 +107,8 @@ public class GlobalCheckpointListeners implements Closeable {
     }
 
     @Override
-    public void close() throws IOException {
-        synchronized (this) {
-            closed = true;
-        }
+    public synchronized void close() throws IOException {
+        closed = true;
         notifyListeners(UNASSIGNED_SEQ_NO, new IndexShardClosedException(shardId));
     }
 
@@ -123,25 +121,22 @@ public class GlobalCheckpointListeners implements Closeable {
      *
      * @param globalCheckpoint the updated global checkpoint
      */
-    void globalCheckpointUpdated(final long globalCheckpoint) {
+    synchronized void globalCheckpointUpdated(final long globalCheckpoint) {
         assert globalCheckpoint >= NO_OPS_PERFORMED;
-        synchronized (this) {
-            assert globalCheckpoint > lastKnownGlobalCheckpoint
-                    : "updated global checkpoint [" + globalCheckpoint + "]"
-                    + " is not more than the last known global checkpoint [" + lastKnownGlobalCheckpoint + "]";
-            lastKnownGlobalCheckpoint = globalCheckpoint;
-        }
+        assert globalCheckpoint > lastKnownGlobalCheckpoint
+                : "updated global checkpoint [" + globalCheckpoint + "]"
+                + " is not more than the last known global checkpoint [" + lastKnownGlobalCheckpoint + "]";
+        lastKnownGlobalCheckpoint = globalCheckpoint;
         notifyListeners(globalCheckpoint, null);
     }
 
     private void notifyListeners(final long globalCheckpoint, final IndexShardClosedException e) {
+        assert Thread.holdsLock(this);
         assert (globalCheckpoint == UNASSIGNED_SEQ_NO && e != null) || (globalCheckpoint >= NO_OPS_PERFORMED && e == null);
         if (listeners != null) {
-            final List<GlobalCheckpointListener> currentListeners;
-            synchronized (this) {
-                currentListeners = listeners;
-                listeners = null;
-            }
+            // capture the current listeners
+            final List<GlobalCheckpointListener> currentListeners = listeners;
+            listeners = null;
             if (currentListeners != null) {
                 executor.execute(() -> {
                     for (final GlobalCheckpointListener listener : currentListeners) {

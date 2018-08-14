@@ -78,7 +78,7 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
         }
 
         // test the listeners are not invoked twice
-        final long nextGlobalCheckpoint = randomValueOtherThan(globalCheckpoint, () -> randomLongBetween(NO_OPS_PERFORMED, Long.MAX_VALUE));
+        final long nextGlobalCheckpoint = randomLongBetween(globalCheckpoint + 1, Long.MAX_VALUE);
         globalCheckpointListeners.globalCheckpointUpdated(nextGlobalCheckpoint);
         for (int i = 0; i < numberOfListeners; i++) {
             assertThat(globalCheckpoints[i], equalTo(globalCheckpoint));
@@ -115,7 +115,7 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
         }
 
         // test the listeners are not invoked twice
-        final long nextGlobalCheckpoint = randomValueOtherThan(globalCheckpoint, () -> randomLongBetween(NO_OPS_PERFORMED, Long.MAX_VALUE));
+        final long nextGlobalCheckpoint = randomLongBetween(globalCheckpoint + 1, Long.MAX_VALUE);
         globalCheckpointListeners.globalCheckpointUpdated(nextGlobalCheckpoint);
         for (int i = 0; i < numberOfListeners; i++) {
             assertThat(globalCheckpoints[i], equalTo(globalCheckpoint));

@@ -25,7 +25,8 @@ public class TextLogStructureFinder extends AbstractLogStructureFinder implement
     private final List<String> sampleMessages;
     private final LogStructure structure;
 
-    TextLogStructureFinder(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker) {
+    static TextLogStructureFinder makeTextLogStructureFinder(List<String> explanation, String sample, String charsetName,
+                                                             Boolean hasByteOrderMarker) {
 
         String[] sampleLines = sample.split("\n");
         Tuple<TimestampMatch, Set<String>> bestTimestamp = mostLikelyTimestamp(sampleLines);
@@ -37,7 +38,7 @@ public class TextLogStructureFinder extends AbstractLogStructureFinder implement
 
         explanation.add("Most likely timestamp format is [" + bestTimestamp.v1() + "]");
 
-        sampleMessages = new ArrayList<>();
+        List<String> sampleMessages = new ArrayList<>();
         StringBuilder preamble = new StringBuilder();
         int linesConsumed = 0;
         StringBuilder message = null;
@@ -94,7 +95,7 @@ public class TextLogStructureFinder extends AbstractLogStructureFinder implement
             grokPattern = grokPatternCreator.createGrokPatternFromExamples(bestTimestamp.v1().grokPatternName, interimTimestampField);
         }
 
-        structure = structureBuilder
+        LogStructure structure = structureBuilder
             .setTimestampField(interimTimestampField)
             .setTimestampFormats(bestTimestamp.v1().dateFormats)
             .setNeedClientTimezone(bestTimestamp.v1().hasTimezoneDependentParsing())
@@ -102,11 +103,18 @@ public class TextLogStructureFinder extends AbstractLogStructureFinder implement
             .setMappings(mappings)
             .setExplanation(explanation)
             .build();
+
+        return new TextLogStructureFinder(sampleMessages, structure);
+    }
+
+    private TextLogStructureFinder(List<String> sampleMessages, LogStructure structure) {
+        this.sampleMessages = Collections.unmodifiableList(sampleMessages);
+        this.structure = structure;
     }
 
     @Override
     public List<String> getSampleMessages() {
-        return Collections.unmodifiableList(sampleMessages);
+        return sampleMessages;
     }
 
     @Override

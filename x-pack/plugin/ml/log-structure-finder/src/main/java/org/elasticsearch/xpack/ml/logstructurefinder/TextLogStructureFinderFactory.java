@@ -33,8 +33,7 @@ public class TextLogStructureFinderFactory implements LogStructureFinderFactory 
     }
 
     @Override
-    public LogStructureFinder createFromSample(List<String> explanation, String sample, String charsetName,
-                                               Boolean hasByteOrderMarker) {
-        return new TextLogStructureFinder(explanation, sample, charsetName, hasByteOrderMarker);
+    public LogStructureFinder createFromSample(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker) {
+        return TextLogStructureFinder.makeTextLogStructureFinder(explanation, sample, charsetName, hasByteOrderMarker);
     }
 }

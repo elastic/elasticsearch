@@ -63,7 +63,7 @@ public class JsonLogStructureFinderFactory implements LogStructureFinderFactory 
     @Override
     public LogStructureFinder createFromSample(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker)
         throws IOException {
-        return new JsonLogStructureFinder(explanation, sample, charsetName, hasByteOrderMarker);
+        return JsonLogStructureFinder.makeJsonLogStructureFinder(explanation, sample, charsetName, hasByteOrderMarker);
     }
 
     private static class ContextPrintingStringReader extends StringReader {

@@ -34,7 +34,7 @@ public abstract class AbstractStructuredLogStructureFinder extends AbstractLogSt
      * @return A tuple of (field name, timestamp format) if one can be found, or <code>null</code> if
      *         there is no consistent timestamp.
      */
-    protected Tuple<String, TimestampMatch> guessTimestampField(List<String> explanation, List<Map<String, ?>> sampleRecords) {
+    protected static Tuple<String, TimestampMatch> guessTimestampField(List<String> explanation, List<Map<String, ?>> sampleRecords) {
         if (sampleRecords.isEmpty()) {
             return null;
         }
@@ -70,7 +70,7 @@ public abstract class AbstractStructuredLogStructureFinder extends AbstractLogSt
         return null;
     }
 
-    private List<Tuple<String, TimestampMatch>> findCandidates(List<String> explanation, List<Map<String, ?>> sampleRecords) {
+    private static List<Tuple<String, TimestampMatch>> findCandidates(List<String> explanation, List<Map<String, ?>> sampleRecords) {
 
         List<Tuple<String, TimestampMatch>> candidates = new ArrayList<>();
 
@@ -95,7 +95,7 @@ public abstract class AbstractStructuredLogStructureFinder extends AbstractLogSt
      * @param sampleRecords The sampled records.
      * @return A map of field name to mapping settings.
      */
-    protected SortedMap<String, Object> guessMappings(List<String> explanation, List<Map<String, ?>> sampleRecords) {
+    protected static SortedMap<String, Object> guessMappings(List<String> explanation, List<Map<String, ?>> sampleRecords) {
 
         SortedMap<String, Object> mappings = new TreeMap<>();
 
@@ -113,7 +113,7 @@ public abstract class AbstractStructuredLogStructureFinder extends AbstractLogSt
         return mappings;
     }
 
-    Map<String, String> guessMapping(List<String> explanation, String fieldName, List<Object> fieldValues) {
+    static Map<String, String> guessMapping(List<String> explanation, String fieldName, List<Object> fieldValues) {
 
         if (fieldValues == null || fieldValues.isEmpty()) {
             // We can get here if all the records that contained a given field had a null value for it.

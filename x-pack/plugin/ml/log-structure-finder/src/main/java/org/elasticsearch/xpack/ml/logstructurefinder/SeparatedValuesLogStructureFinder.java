@@ -36,8 +36,10 @@ public class SeparatedValuesLogStructureFinder extends AbstractStructuredLogStru
     private final List<String> sampleMessages;
     private final LogStructure structure;
 
-    SeparatedValuesLogStructureFinder(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker,
-                                      CsvPreference csvPreference, boolean trimFields) throws IOException {
+    static SeparatedValuesLogStructureFinder makeSeparatedValuesLogStructureFinder(List<String> explanation, String sample,
+                                                                                   String charsetName, Boolean hasByteOrderMarker,
+                                                                                   CsvPreference csvPreference, boolean trimFields)
+        throws IOException {
 
         Tuple<List<List<String>>, List<Integer>> parsed = readRows(sample, csvPreference);
         List<List<String>> rows = parsed.v1();
@@ -53,7 +55,7 @@ public class SeparatedValuesLogStructureFinder extends AbstractStructuredLogStru
         }
 
         List<String> sampleLines = Arrays.asList(sample.split("\n"));
-        sampleMessages = new ArrayList<>();
+        List<String> sampleMessages = new ArrayList<>();
         List<Map<String, ?>> sampleRecords = new ArrayList<>();
         int prevMessageEndLineNumber = isHeaderInFile ? lineNumbers.get(0) : -1;
         for (int index = isHeaderInFile ? 1 : 0; index < rows.size(); ++index) {
@@ -124,15 +126,22 @@ public class SeparatedValuesLogStructureFinder extends AbstractStructuredLogStru
         SortedMap<String, Object> mappings = guessMappings(explanation, sampleRecords);
         mappings.put(DEFAULT_TIMESTAMP_FIELD, Collections.singletonMap(MAPPING_TYPE_SETTING, "date"));
 
-        structure = structureBuilder
+        LogStructure structure = structureBuilder
             .setMappings(mappings)
             .setExplanation(explanation)
             .build();
+
+        return new SeparatedValuesLogStructureFinder(sampleMessages, structure);
+    }
+
+    private SeparatedValuesLogStructureFinder(List<String> sampleMessages, LogStructure structure) {
+        this.sampleMessages = Collections.unmodifiableList(sampleMessages);
+        this.structure = structure;
     }
 
     @Override
     public List<String> getSampleMessages() {
-        return Collections.unmodifiableList(sampleMessages);
+        return sampleMessages;
     }
 
     @Override

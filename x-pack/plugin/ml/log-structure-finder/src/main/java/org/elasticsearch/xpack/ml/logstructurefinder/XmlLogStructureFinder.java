@@ -35,7 +35,8 @@ public class XmlLogStructureFinder extends AbstractStructuredLogStructureFinder 
     private final List<String> sampleMessages;
     private final LogStructure structure;
 
-    XmlLogStructureFinder(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker)
+    static XmlLogStructureFinder makeXmlLogStructureFinder(List<String> explanation, String sample, String charsetName,
+                                                           Boolean hasByteOrderMarker)
         throws IOException, ParserConfigurationException, SAXException {
 
         String messagePrefix;
@@ -47,7 +48,7 @@ public class XmlLogStructureFinder extends AbstractStructuredLogStructureFinder 
         docBuilderFactory.setNamespaceAware(false);
         docBuilderFactory.setValidating(false);
 
-        sampleMessages = new ArrayList<>();
+        List<String> sampleMessages = new ArrayList<>();
         List<Map<String, ?>> sampleRecords = new ArrayList<>();
 
         String[] sampleDocEnds = sample.split(Pattern.quote(messagePrefix));
@@ -102,15 +103,22 @@ public class XmlLogStructureFinder extends AbstractStructuredLogStructureFinder 
         outerMappings.put(topLevelTag, secondLevelProperties);
         outerMappings.put(DEFAULT_TIMESTAMP_FIELD, Collections.singletonMap(MAPPING_TYPE_SETTING, "date"));
 
-        structure = structureBuilder
+        LogStructure structure = structureBuilder
             .setMappings(outerMappings)
             .setExplanation(explanation)
             .build();
+
+        return new XmlLogStructureFinder(sampleMessages, structure);
+    }
+
+    private XmlLogStructureFinder(List<String> sampleMessages, LogStructure structure) {
+        this.sampleMessages = Collections.unmodifiableList(sampleMessages);
+        this.structure = structure;
     }
 
     @Override
     public List<String> getSampleMessages() {
-        return Collections.unmodifiableList(sampleMessages);
+        return sampleMessages;
     }
 
     @Override

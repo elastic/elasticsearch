@@ -29,7 +29,7 @@ public class CsvLogStructureFinderFactory implements LogStructureFinderFactory {
     @Override
     public LogStructureFinder createFromSample(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker)
         throws IOException {
-        return new SeparatedValuesLogStructureFinder(explanation, sample, charsetName, hasByteOrderMarker,
+        return SeparatedValuesLogStructureFinder.makeSeparatedValuesLogStructureFinder(explanation, sample, charsetName, hasByteOrderMarker,
             CsvPreference.EXCEL_PREFERENCE, false);
     }
 }

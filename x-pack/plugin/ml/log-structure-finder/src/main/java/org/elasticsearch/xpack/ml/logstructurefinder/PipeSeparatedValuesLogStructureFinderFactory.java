@@ -32,6 +32,7 @@ public class PipeSeparatedValuesLogStructureFinderFactory implements LogStructur
     @Override
     public LogStructureFinder createFromSample(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker)
         throws IOException {
-        return new SeparatedValuesLogStructureFinder(explanation, sample, charsetName, hasByteOrderMarker, PIPE_PREFERENCE, true);
+        return SeparatedValuesLogStructureFinder.makeSeparatedValuesLogStructureFinder(explanation, sample, charsetName, hasByteOrderMarker,
+            PIPE_PREFERENCE, true);
     }
 }

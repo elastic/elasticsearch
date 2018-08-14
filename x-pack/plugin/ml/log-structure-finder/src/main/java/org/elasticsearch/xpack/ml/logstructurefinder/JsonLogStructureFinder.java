@@ -30,11 +30,12 @@ public class JsonLogStructureFinder extends AbstractStructuredLogStructureFinder
     private final List<String> sampleMessages;
     private final LogStructure structure;
 
-    JsonLogStructureFinder(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker) throws IOException {
+    static JsonLogStructureFinder makeJsonLogStructureFinder(List<String> explanation, String sample, String charsetName,
+                                                             Boolean hasByteOrderMarker) throws IOException {
 
         List<Map<String, ?>> sampleRecords = new ArrayList<>();
 
-        sampleMessages = Arrays.asList(sample.split("\n"));
+        List<String> sampleMessages = Arrays.asList(sample.split("\n"));
         for (String sampleMessage : sampleMessages) {
             XContentParser parser = jsonXContent.createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
                 sampleMessage);
@@ -58,15 +59,22 @@ public class JsonLogStructureFinder extends AbstractStructuredLogStructureFinder
         SortedMap<String, Object> mappings = guessMappings(explanation, sampleRecords);
         mappings.put(DEFAULT_TIMESTAMP_FIELD, Collections.singletonMap(MAPPING_TYPE_SETTING, "date"));
 
-        structure = structureBuilder
+        LogStructure structure = structureBuilder
             .setMappings(mappings)
             .setExplanation(explanation)
             .build();
+
+        return new JsonLogStructureFinder(sampleMessages, structure);
+    }
+
+    private JsonLogStructureFinder(List<String> sampleMessages, LogStructure structure) {
+        this.sampleMessages = Collections.unmodifiableList(sampleMessages);
+        this.structure = structure;
     }
 
     @Override
     public List<String> getSampleMessages() {
-        return Collections.unmodifiableList(sampleMessages);
+        return sampleMessages;
     }
 
     @Override

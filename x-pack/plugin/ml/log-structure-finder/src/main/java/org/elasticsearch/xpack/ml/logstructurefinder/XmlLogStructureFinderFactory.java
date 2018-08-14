@@ -117,6 +117,6 @@ public class XmlLogStructureFinderFactory implements LogStructureFinderFactory {
     @Override
     public LogStructureFinder createFromSample(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker)
         throws IOException, ParserConfigurationException, SAXException {
-        return new XmlLogStructureFinder(explanation, sample, charsetName, hasByteOrderMarker);
+        return XmlLogStructureFinder.makeXmlLogStructureFinder(explanation, sample, charsetName, hasByteOrderMarker);
     }
 }

@@ -119,7 +119,7 @@ public class BaseRestHandlerTests extends ESTestCase {
         final HashMap<String, String> params = new HashMap<>();
         params.put("consumed", randomAlphaOfLength(8));
         params.put("flied", randomAlphaOfLength(8));
-        params.put("response_param", randomAlphaOfLength(8));
+        params.put("respones_param", randomAlphaOfLength(8));
         params.put("tokenzier", randomAlphaOfLength(8));
         params.put("very_close_to_parametre", randomAlphaOfLength(8));
         params.put("very_far_from_every_consumed_parameter", randomAlphaOfLength(8));

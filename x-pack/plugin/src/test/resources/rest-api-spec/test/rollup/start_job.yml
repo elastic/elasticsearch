@@ -37,7 +37,7 @@ setup:
           }
 
 ---
-"Test start non-existent job":
+"Test start nonexistent job":
 
   - do:
       catch: /Task for Rollup Job \[does_not_exist\] not found/

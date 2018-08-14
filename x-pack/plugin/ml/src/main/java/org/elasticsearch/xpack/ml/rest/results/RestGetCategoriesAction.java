@@ -39,7 +39,7 @@ public class RestGetCategoriesAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "xpack_ml_get_categories_action";
+        return "xpack_ml_get_catagories_action";
     }
 
     @Override

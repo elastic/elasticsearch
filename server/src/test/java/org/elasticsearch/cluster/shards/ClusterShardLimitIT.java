@@ -49,15 +49,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
 
     public void testSettingClusterMaxShards() {
         int shardsPerNode = between(1, 500_000);
-        try {
-            ClusterUpdateSettingsResponse response = client().admin().cluster()
-                .prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put(shardsPerNodeKey, shardsPerNode).build())
-                .get();
-            assertEquals(shardsPerNode, response.getTransientSettings().getAsInt(shardsPerNodeKey, -1).intValue());
-        } catch (IllegalArgumentException ex) {
-            fail(ex.getMessage());
-        }
+        setShardsPerNode(shardsPerNode);
     }
 
     public void testIndexCreationOverLimit() {
@@ -192,11 +184,20 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
 
     private void setShardsPerNode(int shardsPerNode) {
         try {
-            ClusterUpdateSettingsResponse response = client().admin().cluster()
-                .prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put(shardsPerNodeKey, shardsPerNode).build())
-                .get();
-            assertEquals(shardsPerNode, response.getTransientSettings().getAsInt(shardsPerNodeKey, -1).intValue());
+            ClusterUpdateSettingsResponse response;
+            if (frequently()) {
+                response = client().admin().cluster()
+                    .prepareUpdateSettings()
+                    .setPersistentSettings(Settings.builder().put(shardsPerNodeKey, shardsPerNode).build())
+                    .get();
+                assertEquals(shardsPerNode, response.getPersistentSettings().getAsInt(shardsPerNodeKey, -1).intValue());
+            } else {
+                response = client().admin().cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(Settings.builder().put(shardsPerNodeKey, shardsPerNode).build())
+                    .get();
+                assertEquals(shardsPerNode, response.getTransientSettings().getAsInt(shardsPerNodeKey, -1).intValue());
+            }
         } catch (IllegalArgumentException ex) {
             fail(ex.getMessage());
         }

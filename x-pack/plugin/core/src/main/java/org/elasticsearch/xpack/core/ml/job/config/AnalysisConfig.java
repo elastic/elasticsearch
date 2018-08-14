@@ -160,6 +160,13 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
                 }
             }
         }
+
+        // BWC for removed per-partition normalization
+        // Version check is temporarily against the latest to satisfy CI tests
+        // TODO change to V_6_5_0 after successful backport to 6.x
+        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+            in.readBoolean();
+        }
     }
 
     @Override
@@ -186,6 +193,13 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         // BWC for removed multiple_bucket_spans
         // TODO Remove in 7.0.0
         if (out.getVersion().before(Version.V_6_5_0)) {
+            out.writeBoolean(false);
+        }
+
+        // BWC for removed per-partition normalization
+        // Version check is temporarily against the latest to satisfy CI tests
+        // TODO change to V_6_5_0 after successful backport to 6.x
+        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
             out.writeBoolean(false);
         }
     }

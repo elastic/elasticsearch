@@ -306,8 +306,8 @@ public class TcpTransportTests extends ESTestCase {
     }
 
     public void testConnectionProfileResolve() {
-        final ConnectionProfile defaultProfile = TcpTransport.buildDefaultConnectionProfile(Settings.EMPTY);
-        assertEquals(defaultProfile, TcpTransport.resolveConnectionProfile(null, defaultProfile));
+        final ConnectionProfile defaultProfile = TransportService.buildDefaultConnectionProfile(Settings.EMPTY);
+        assertEquals(defaultProfile, ConnectionProfile.resolveConnectionProfile(null, defaultProfile));
 
         final ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
         builder.addConnections(randomIntBetween(0, 5), TransportRequestOptions.Type.BULK);
@@ -326,7 +326,7 @@ public class TcpTransportTests extends ESTestCase {
         }
 
         final ConnectionProfile profile = builder.build();
-        final ConnectionProfile resolved = TcpTransport.resolveConnectionProfile(profile, defaultProfile);
+        final ConnectionProfile resolved = ConnectionProfile.resolveConnectionProfile(profile, defaultProfile);
         assertNotEquals(resolved, defaultProfile);
         assertThat(resolved.getNumConnections(), equalTo(profile.getNumConnections()));
         assertThat(resolved.getHandles(), equalTo(profile.getHandles()));
@@ -338,7 +338,7 @@ public class TcpTransportTests extends ESTestCase {
     }
 
     public void testDefaultConnectionProfile() {
-        ConnectionProfile profile = TcpTransport.buildDefaultConnectionProfile(Settings.EMPTY);
+        ConnectionProfile profile = TransportService.buildDefaultConnectionProfile(Settings.EMPTY);
         assertEquals(13, profile.getNumConnections());
         assertEquals(1, profile.getNumConnectionsPerType(TransportRequestOptions.Type.PING));
         assertEquals(6, profile.getNumConnectionsPerType(TransportRequestOptions.Type.REG));
@@ -346,7 +346,7 @@ public class TcpTransportTests extends ESTestCase {
         assertEquals(2, profile.getNumConnectionsPerType(TransportRequestOptions.Type.RECOVERY));
         assertEquals(3, profile.getNumConnectionsPerType(TransportRequestOptions.Type.BULK));
 
-        profile = TcpTransport.buildDefaultConnectionProfile(Settings.builder().put("node.master", false).build());
+        profile = TransportService.buildDefaultConnectionProfile(Settings.builder().put("node.master", false).build());
         assertEquals(12, profile.getNumConnections());
         assertEquals(1, profile.getNumConnectionsPerType(TransportRequestOptions.Type.PING));
         assertEquals(6, profile.getNumConnectionsPerType(TransportRequestOptions.Type.REG));
@@ -354,7 +354,7 @@ public class TcpTransportTests extends ESTestCase {
         assertEquals(2, profile.getNumConnectionsPerType(TransportRequestOptions.Type.RECOVERY));
         assertEquals(3, profile.getNumConnectionsPerType(TransportRequestOptions.Type.BULK));
 
-        profile = TcpTransport.buildDefaultConnectionProfile(Settings.builder().put("node.data", false).build());
+        profile = TransportService.buildDefaultConnectionProfile(Settings.builder().put("node.data", false).build());
         assertEquals(11, profile.getNumConnections());
         assertEquals(1, profile.getNumConnectionsPerType(TransportRequestOptions.Type.PING));
         assertEquals(6, profile.getNumConnectionsPerType(TransportRequestOptions.Type.REG));
@@ -362,7 +362,7 @@ public class TcpTransportTests extends ESTestCase {
         assertEquals(0, profile.getNumConnectionsPerType(TransportRequestOptions.Type.RECOVERY));
         assertEquals(3, profile.getNumConnectionsPerType(TransportRequestOptions.Type.BULK));
 
-        profile = TcpTransport.buildDefaultConnectionProfile(Settings.builder().put("node.data", false).put("node.master", false).build());
+        profile = TransportService.buildDefaultConnectionProfile(Settings.builder().put("node.data", false).put("node.master", false).build());
         assertEquals(10, profile.getNumConnections());
         assertEquals(1, profile.getNumConnectionsPerType(TransportRequestOptions.Type.PING));
         assertEquals(6, profile.getNumConnectionsPerType(TransportRequestOptions.Type.REG));

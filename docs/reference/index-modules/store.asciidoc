@@ -67,19 +67,12 @@ process equal to the size of the file being mapped. Before using this
 class, be sure you have allowed plenty of
 <<vm-max-map-count,virtual address space>>.
 
-[[allowed-index-store-types]]
-You can restrict the allowed store types via the setting
-`node.allowed_index_store_types`. This setting is a comma-delimited list of
-allowed store types from the above built-in types, or those added by a
-plugin. The default is to allow all store types, and this is equivalent to this
-setting being empty. This setting is useful, for example, if you are in an
-environment where you can not control the ability to create a lot of memory maps
-so you need disable the ability to use `mmapfs`. To do this, you must set
-`node.allowed_index_store_types` to a list of store types that does not include
-`mmapfs`, and if on a system that defaults to `mmapfs` you must also not include
-`fs`. On systems where `mmapfs` is the default store type, you can use the
-setting `node.default_index_store_type` to specify an alternative default store
-type.
+[[allow-mmapfs]]
+You can restrict the use of the `mmapfs` store type via the setting
+`node.store.allow_mmapfs`. This is a boolean setting indicating whether or not
+`mmapfs` is allowed. The default is to allow `mmapfs`. This setting is useful,
+for example, if you are in an environment where you can not control the ability
+to create a lot of memory maps so you need disable the ability to use `mmapfs`.
 
 ifdef::include-xpack[]
 NOTE: Some components of {xpack} create index templates on startup. These

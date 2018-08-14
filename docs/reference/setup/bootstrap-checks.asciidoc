@@ -157,8 +157,8 @@ must configure `vm.max_map_count` via `sysctl` to be at least `262144`.
 
 Alternatively, the maximum map count check is only needed if you are using
 `mmapfs` as the <<index-modules-store,store type>> for your indices. If you
-<<allowed-index-store-types,do not allow>> the use of `mmapfs` then this
-bootstrap check will not be enforced.
+<<allow-mmapfs,do not allow>> the use of `mmapfs` then this bootstrap check will
+not be enforced.
 
 === Client JVM check
 

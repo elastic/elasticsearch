@@ -119,6 +119,9 @@ public class GlobalCheckpointListeners implements Closeable {
     void globalCheckpointUpdated(final long globalCheckpoint) {
         assert globalCheckpoint >= NO_OPS_PERFORMED;
         synchronized (this) {
+            assert globalCheckpoint > lastKnownGlobalCheckpoint
+                    : "updated global checkpoint [" + globalCheckpoint + "]"
+                    + " is not more than the last known global checkpoint [" + lastKnownGlobalCheckpoint + "]";
             lastKnownGlobalCheckpoint = globalCheckpoint;
         }
         notifyListeners(globalCheckpoint, null);

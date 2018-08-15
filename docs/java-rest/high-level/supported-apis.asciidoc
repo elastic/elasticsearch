@@ -239,7 +239,3 @@ The Java High Level REST Client supports the following Graph APIs:
 * <<java-rest-high-x-pack-graph-explore>>
 
 include::graph/explore.asciidoc[]
-
-
-
-

@@ -35,16 +35,15 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
+/**
+ * It's provably impossible to guarantee that any leader election algorithm ever elects a leader, but they generally work (with probability
+ * that approaches 1 over time) as long as elections occur sufficiently infrequently, compared to the time it takes to send a message to
+ * another node and receive a response back. We do not know the round-trip latency here, but we can approximate it by attempting elections
+ * randomly at reasonably high frequency and backing off (linearly) until one of them succeeds. We also place an upper bound on the backoff
+ * so that if elections are failing due to a network partition that lasts for a long time then when the partition heals there is an election
+ * attempt reasonably quickly.
+ */
 public class ElectionSchedulerFactory extends AbstractComponent {
-
-    /*
-     * It's provably impossible to guarantee that any leader election algorithm ever elects a leader, but they generally work (with
-     * probability that approaches 1 over time) as long as elections occur sufficiently infrequently, compared to the time it takes to send
-     * a message to another node and receive a response back. We do not know the round-trip latency here, but we can approximate it by
-     * attempting elections randomly at reasonably high frequency and backing off (linearly) until one of them succeeds. We also place an
-     * upper bound on the backoff so that if elections are failing due to a network partition that lasts for a long time then when the
-     * partition heals there is an election attempt reasonably quickly.
-     */
 
     // bounds on the time between election attempts
     private static final String ELECTION_MIN_TIMEOUT_SETTING_KEY = "cluster.election.min_timeout";

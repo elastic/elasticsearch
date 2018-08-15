@@ -68,12 +68,12 @@ public final class RestReloadSecureSettingsAction extends BaseRestHandler {
                     public RestResponse buildResponse(NodesReloadSecureSettingsResponse response, XContentBuilder builder)
                             throws Exception {
                         builder.startObject();
-                        RestActions.buildNodesHeader(builder, channel.request(), response);
-                        builder.field("cluster_name", response.getClusterName().value());
-                        response.toXContent(builder, channel.request());
+                        {
+                            RestActions.buildNodesHeader(builder, channel.request(), response);
+                            builder.field("cluster_name", response.getClusterName().value());
+                            response.toXContent(builder, channel.request());
+                        }
                         builder.endObject();
-                        // clear password for the original request
-                        nodesRequest.secureSettingsPassword().close();
                         return new BytesRestResponse(RestStatus.OK, builder);
                     }
                 });

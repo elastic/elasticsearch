@@ -44,7 +44,7 @@ import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.disruption.SlowClusterStateProcessing;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 
 import java.util.Arrays;
@@ -139,7 +139,7 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
             .put(FaultDetection.PING_RETRIES_SETTING.getKey(), "1") // for hitting simulated network failures quickly
             .put("discovery.zen.join_timeout", "10s")  // still long to induce failures but to long so test won't time out
             .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "1s") // <-- for hitting simulated network failures quickly
-            .put(TcpTransport.TCP_CONNECT_TIMEOUT.getKey(), "10s") // Network delay disruption waits for the min between this
+            .put(TransportService.TCP_CONNECT_TIMEOUT.getKey(), "10s") // Network delay disruption waits for the min between this
             // value and the time of disruption and does not recover immediately
             // when disruption is stop. We should make sure we recover faster
             // then the default of 30s, causing ensureGreen and friends to time out

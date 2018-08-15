@@ -309,7 +309,7 @@ public final class MockTransportService extends TransportService {
             }
 
             // TODO: Replace with proper setting
-            TimeValue connectingTimeout = TcpTransport.TCP_CONNECT_TIMEOUT.getDefault(Settings.EMPTY);
+            TimeValue connectingTimeout = TransportService.TCP_CONNECT_TIMEOUT.getDefault(Settings.EMPTY);
             try {
                 if (delay.millis() < connectingTimeout.millis()) {
                     Thread.sleep(delay.millis());

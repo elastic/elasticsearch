@@ -113,7 +113,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
             if (aggHistogramInterval == null) {
                 builder.setFrequency(TimeValue.timeValueSeconds(randomIntBetween(1, 1_000_000)));
             } else {
-                builder.setFrequency(TimeValue.timeValueMillis(randomIntBetween(1, 5) * aggHistogramInterval));
+                builder.setFrequency(TimeValue.timeValueSeconds(randomIntBetween(1, 5) * aggHistogramInterval));
             }
         }
         if (randomBoolean()) {
@@ -180,7 +180,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         assertNotNull(DatafeedConfig.LENIENT_PARSER.apply(parser, null).build());
     }
 
-    public void testToXContentForClusterState() throws IOException {
+    public void testToXContentForInternalStorage() throws IOException {
         DatafeedConfig.Builder builder = createRandomizedDatafeedConfigBuilder("foo", 300);
 
         // headers are only persisted to cluster state
@@ -189,7 +189,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         builder.setHeaders(headers);
         DatafeedConfig config = builder.build();
 
-        ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_CLUSTER_STATE, "true"));
+        ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"));
 
         BytesReference forClusterstateXContent = XContentHelper.toXContent(config, XContentType.JSON, params, false);
         XContentParser parser = XContentFactory.xContent(XContentType.JSON)
@@ -198,18 +198,10 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         DatafeedConfig parsedConfig = DatafeedConfig.LENIENT_PARSER.apply(parser, null).build();
         assertThat(parsedConfig.getHeaders(), hasEntry("header-name", "header-value"));
 
-        // The config type field is not written to cluster state
-        String configTypeEntry = "\""+DatafeedConfig.CONFIG_TYPE.getPreferredName()+"\":\""+DatafeedConfig.TYPE+"\"";
-        assertThat(forClusterstateXContent.utf8ToString(), not(containsString(configTypeEntry)));
-
-        // headers are not written without the FOR_CLUSTER_STATE param
+        // headers are not written without the FOR_INTERNAL_STORAGE param
         BytesReference nonClusterstateXContent = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
         parser = XContentFactory.xContent(XContentType.JSON)
                 .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, nonClusterstateXContent.streamInput());
-
-
-        // The config type field should be present when the document is indexed
-        assertThat(nonClusterstateXContent.utf8ToString(), containsString(configTypeEntry));
 
         parsedConfig = DatafeedConfig.LENIENT_PARSER.apply(parser, null).build();
         assertThat(parsedConfig.getHeaders().entrySet(), hasSize(0));

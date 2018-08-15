@@ -22,6 +22,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.regex.Regex;
@@ -45,11 +46,13 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.job.persistence.ExpandedIdsMatcher;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -62,6 +65,12 @@ public class DatafeedConfigProvider extends AbstractComponent {
 
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
+
+    private static final Map<String, String> TO_XCONTENT_PARAMS = new HashMap<>();
+    static {
+        TO_XCONTENT_PARAMS.put(ToXContentParams.FOR_INTERNAL_STORAGE, "true");
+        TO_XCONTENT_PARAMS.put(ToXContentParams.INCLUDE_TYPE, "true");
+    }
 
     public DatafeedConfigProvider(Client client, Settings settings, NamedXContentRegistry xContentRegistry) {
         super(settings);
@@ -79,7 +88,8 @@ public class DatafeedConfigProvider extends AbstractComponent {
      */
     public void putDatafeedConfig(DatafeedConfig config, ActionListener<IndexResponse> listener) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            XContentBuilder source = config.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            XContentBuilder source = config.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
+
             IndexRequest indexRequest =  client.prepareIndex(AnomalyDetectorsIndex.configIndexName(),
                     ElasticsearchMappings.DOC_TYPE, DatafeedConfig.documentId(config.getId()))
                     .setSource(source)
@@ -334,7 +344,7 @@ public class DatafeedConfigProvider extends AbstractComponent {
 
     private QueryBuilder buildQuery(String [] tokens) {
         QueryBuilder jobQuery = new TermQueryBuilder(DatafeedConfig.CONFIG_TYPE.getPreferredName(), DatafeedConfig.TYPE);
-        if (ExpandedIdsMatcher.isWildcardAll(tokens)) {
+        if (Strings.isAllOrWildcard(tokens)) {
             // match all
             return jobQuery;
         }

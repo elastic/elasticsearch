@@ -186,7 +186,7 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
         DatafeedConfig foo2 = putDatafeedConfig(createDatafeedConfig("foo-2", "j2"));
         DatafeedConfig bar1 = putDatafeedConfig(createDatafeedConfig("bar-1", "j3"));
         DatafeedConfig bar2 = putDatafeedConfig(createDatafeedConfig("bar-2", "j4"));
-        DatafeedConfig nbar = putDatafeedConfig(createDatafeedConfig("nbar", "j5"));
+        putDatafeedConfig(createDatafeedConfig("not-used", "j5"));
 
         client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.configIndexName()).get();
 
@@ -237,6 +237,12 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
     private DatafeedConfig createDatafeedConfig(String id, String jobId) {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(id, jobId);
         builder.setIndices(Collections.singletonList("beats*"));
+
+        Map<String, String> headers = new HashMap<>();
+        // Only security headers are updated, grab the first one
+        String securityHeader = ClientHelper.SECURITY_HEADER_FILTERS.iterator().next();
+        headers.put(securityHeader, "SECURITY_");
+        builder.setHeaders(headers);
         return builder.build();
     }
 

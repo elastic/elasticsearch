@@ -22,6 +22,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.regex.Regex;
@@ -370,7 +371,7 @@ public class JobConfigProvider extends AbstractComponent {
 
     private QueryBuilder buildQuery(String [] tokens) {
         QueryBuilder jobQuery = new TermQueryBuilder(Job.JOB_TYPE.getPreferredName(), Job.ANOMALY_DETECTOR_JOB_TYPE);
-        if (ExpandedIdsMatcher.isWildcardAll(tokens)) {
+        if (Strings.isAllOrWildcard(tokens)) {
             // match all
             return jobQuery;
         }

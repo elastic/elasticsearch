@@ -33,21 +33,6 @@ public final class ExpandedIdsMatcher {
     public static String ALL = "_all";
 
     /**
-     * Does the {@code tokens} array resolves to a wildcard all expression.
-     * True if {@code tokens} is empty or if it contains a single element
-     * equal to {@link #ALL}, '*' or an empty string
-     *
-     * @param tokens Expression tokens
-     * @return True if tokens resolves to a wildcard all expression
-     */
-    public static boolean isWildcardAll(String [] tokens) {
-        if (tokens.length == 0) {
-            return true;
-        }
-        return tokens.length == 1 && (ALL.equals(tokens[0]) || Regex.isMatchAllPattern(tokens[0]) || tokens[0].isEmpty());
-    }
-
-    /**
      * Split {@code expression} into tokens separated by a ','
      *
      * @param expression Expression containing zero or more ','s
@@ -71,7 +56,7 @@ public final class ExpandedIdsMatcher {
     public ExpandedIdsMatcher(String [] tokens, boolean allowNoMatchForWildcards) {
         requiredMatches = new LinkedList<>();
 
-        if (ExpandedIdsMatcher.isWildcardAll(tokens)) {
+        if (Strings.isAllOrWildcard(tokens)) {
             // if allowNoJobForWildcards == true then any number
             // of jobs with any id is ok. Therefore no matches
             // are required

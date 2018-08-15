@@ -322,10 +322,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         builder.startObject();
         builder.field(ID.getPreferredName(), id);
         builder.field(Job.ID.getPreferredName(), jobId);
-        // Config type field is added for the migration to index documents
-        // and isn't needed in cluster state configs. Not writing the field
-        // protects against BWC issues.
-        if (params.paramAsBoolean(ToXContentParams.FOR_CLUSTER_STATE, false) == false) {
+        if (params.paramAsBoolean(ToXContentParams.INCLUDE_TYPE, false) == true) {
             builder.field(CONFIG_TYPE.getPreferredName(), TYPE);
         }
         builder.field(QUERY_DELAY.getPreferredName(), queryDelay.getStringRep());
@@ -349,7 +346,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         if (chunkingConfig != null) {
             builder.field(CHUNKING_CONFIG.getPreferredName(), chunkingConfig);
         }
-        if (headers.isEmpty() == false && params.paramAsBoolean(ToXContentParams.FOR_CLUSTER_STATE, false) == true) {
+        if (headers.isEmpty() == false && params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false) == true) {
             builder.field(HEADERS.getPreferredName(), headers);
         }
         builder.endObject();

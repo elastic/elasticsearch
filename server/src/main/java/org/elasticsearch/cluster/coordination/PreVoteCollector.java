@@ -61,6 +61,12 @@ public class PreVoteCollector extends AbstractComponent {
             (request, channel, task) -> channel.sendResponse(handlePreVoteRequest(request)));
     }
 
+    /**
+     * Start a new pre-voting round.
+     * @param clusterState the last-accepted cluster state
+     * @param broadcastNodes the nodes from whom to request pre-votes
+     * @return the pre-voting round, which can be closed to end the round early.
+     */
     public Releasable start(final ClusterState clusterState, final Iterable<DiscoveryNode> broadcastNodes) {
         logger.debug("{} starting", this);
         PreVotingRound currentRound = new PreVotingRound(clusterState, preVoteResponse.getCurrentTerm());
@@ -143,10 +149,9 @@ public class PreVoteCollector extends AbstractComponent {
 
             // TODO the response carries the sender's current term. If an election starts then it should be in a higher term.
 
-            final PreVoteResponse currentPreVoteResponse = preVoteResponse;
-            if (response.getLastAcceptedTerm() > currentPreVoteResponse.getLastAcceptedTerm()
-                || (response.getLastAcceptedTerm() == currentPreVoteResponse.getLastAcceptedTerm()
-                && response.getLastAcceptedVersion() > currentPreVoteResponse.getLastAcceptedVersion())) {
+            if (response.getLastAcceptedTerm() > clusterState.term()
+                || (response.getLastAcceptedTerm() == clusterState.term()
+                && response.getLastAcceptedVersion() > clusterState.version())) {
                 logger.debug("{} ignoring {} from {} as it is fresher", this, response, sender);
                 return;
             }

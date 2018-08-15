@@ -120,7 +120,7 @@ public class PreVoteCollectorTests extends ESTestCase {
     private Releasable startCollector(DiscoveryNode... votingNodes) {
         final VotingConfiguration votingConfiguration
             = new VotingConfiguration(Arrays.stream(votingNodes).map(DiscoveryNode::getId).collect(Collectors.toSet()));
-        final ClusterState clusterState = CoordinationStateTests.clusterState(0, 0, localNode, votingConfiguration, votingConfiguration, 0);
+        final ClusterState clusterState = CoordinationStateTests.clusterState(2, 1, localNode, votingConfiguration, votingConfiguration, 0);
         return preVoteCollector.start(clusterState, responsesByNode.keySet());
     }
 
@@ -179,7 +179,6 @@ public class PreVoteCollectorTests extends ESTestCase {
         startAndRunCollector(otherNode);
         assertTrue(electionOccurred);
     }
-
 
     public void testResponseIfCandidate() {
         final long term = randomNonNegativeLong();

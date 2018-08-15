@@ -36,7 +36,7 @@ public class PhaseAfterStepTests extends AbstractStepTestCase<PhaseAfterStep> {
     public PhaseAfterStep mutateInstance(PhaseAfterStep instance) {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
-        TimeValue after = instance.getAfter();
+        TimeValue indexAge = instance.getIndexAge();
 
         switch (between(0, 2)) {
         case 0:
@@ -46,18 +46,18 @@ public class PhaseAfterStepTests extends AbstractStepTestCase<PhaseAfterStep> {
             nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
             break;
         case 2:
-            after = randomValueOtherThan(after, this::createRandomTimeValue);
+            indexAge = randomValueOtherThan(indexAge, this::createRandomTimeValue);
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new PhaseAfterStep(instance.getNowSupplier(), after, key, nextKey);
+        return new PhaseAfterStep(instance.getNowSupplier(), indexAge, key, nextKey);
     }
 
     @Override
     public PhaseAfterStep copyInstance(PhaseAfterStep instance) {
-        return new PhaseAfterStep(instance.getNowSupplier(), instance.getAfter(),
+        return new PhaseAfterStep(instance.getNowSupplier(), instance.getIndexAge(),
             instance.getKey(), instance.getNextStepKey());
     }
 

@@ -13,7 +13,7 @@ setup:
                "type": "timeseries",
                "phases": {
                  "warm": {
-                   "after": "1000s",
+                   "index_age": "1000s",
                    "actions": {
                      "forcemerge": {
                        "max_num_segments": 10000
@@ -21,7 +21,7 @@ setup:
                    }
                  },
                  "hot": {
-                   "after": "1000s",
+                   "index_age": "1000s",
                    "actions": { }
                  }
                }
@@ -77,8 +77,8 @@ teardown:
         body:
           current_step:
             phase: "new"
-            action: "after"
-            name: "after"
+            action: "index_age"
+            name: "index_age"
           next_step:
             phase: "warm"
             action: "forcemerge"
@@ -117,8 +117,8 @@ teardown:
       indices.get:
         index: my_index
   - match: { my_index.settings.index.lifecycle.name: "my_moveable_timeseries_lifecycle" }
-  - match: { my_index.settings.index.lifecycle.step: "after" }
-  - match: { my_index.settings.index.lifecycle.action: "after" }
+  - match: { my_index.settings.index.lifecycle.step: "index_age" }
+  - match: { my_index.settings.index.lifecycle.action: "index_age" }
   - match: { my_index.settings.index.lifecycle.phase: "new" }
 
 ---
@@ -131,8 +131,8 @@ teardown:
         body:
           current_step:
             phase: "new"
-            action: "after"
-            name: "after"
+            action: "index_age"
+            name: "index_age"
           next_step:
             phase: "invalid"
             action: "invalid"
@@ -145,8 +145,8 @@ teardown:
       indices.get:
         index: my_index
   - match: { my_index.settings.index.lifecycle.name: "my_moveable_timeseries_lifecycle" }
-  - match: { my_index.settings.index.lifecycle.step: "after" }
-  - match: { my_index.settings.index.lifecycle.action: "after" }
+  - match: { my_index.settings.index.lifecycle.step: "index_age" }
+  - match: { my_index.settings.index.lifecycle.action: "index_age" }
   - match: { my_index.settings.index.lifecycle.phase: "new" }
 
 ---
@@ -160,7 +160,7 @@ teardown:
           current_step:
             phase: "hot"
             action: "pre-pre-readonly"
-            name: "after"
+            name: "index_age"
           next_step:
             phase: "warm"
             action: "forcemerge"
@@ -179,7 +179,7 @@ teardown:
           current_step:
             phase: "hot"
             action: "pre-pre-readonly"
-            name: "after"
+            name: "index_age"
           next_step:
             phase: "warm"
             action: "forcemerge"

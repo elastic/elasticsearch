@@ -52,7 +52,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
             "     \"type\": \"timeseries\",\n" +
             "     \"phases\": {\n" +
             "       \"hot\": {\n" +
-            "         \"after\": \"60s\",\n" +
+            "         \"index_age\": \"60s\",\n" +
             "         \"actions\": {\n" +
             "          \"rollover\": {\n" +
             "            \"max_age\": \"500s\"\n" +
@@ -60,7 +60,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
             "         }\n" +
             "       },\n" +
             "       \"warm\": {\n" +
-            "         \"after\": \"1000s\",\n" +
+            "         \"index_age\": \"1000s\",\n" +
             "         \"actions\": {\n" +
             "           \"allocate\": {\n" +
             "             \"require\": { \"_name\": \"node-1\" },\n" +
@@ -76,7 +76,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
             "         }\n" +
             "       },\n" +
             "       \"cold\": {\n" +
-            "         \"after\": \"2000s\",\n" +
+            "         \"index_age\": \"2000s\",\n" +
             "         \"actions\": {\n" +
             "          \"allocate\": {\n" +
             "            \"number_of_replicas\": 0\n" +
@@ -84,7 +84,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
             "         }\n" +
             "       },\n" +
             "       \"delete\": {\n" +
-            "         \"after\": \"3000s\",\n" +
+            "         \"index_age\": \"3000s\",\n" +
             "         \"actions\": {\n" +
             "           \"delete\": {}\n" +
             "         }\n" +
@@ -110,7 +110,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         assertThat(settingsResponse.getSetting("foo", "index.lifecycle.name"), equalTo(policy));
         assertThat(settingsResponse.getSetting("baz", "index.lifecycle.name"), equalTo(policy));
     }
-    
+
     public void testStartStopILM() throws Exception {
         String policy = randomAlphaOfLength(10);
 
@@ -127,7 +127,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
             "         }\n" +
             "       },\n" +
             "       \"warm\": {\n" +
-            "         \"after\": \"1000s\",\n" +
+            "         \"index_age\": \"1000s\",\n" +
             "         \"actions\": {\n" +
             "           \"allocate\": {\n" +
             "             \"require\": { \"_name\": \"node-1\" },\n" +
@@ -143,7 +143,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
             "         }\n" +
             "       },\n" +
             "       \"cold\": {\n" +
-            "         \"after\": \"2000s\",\n" +
+            "         \"index_age\": \"2000s\",\n" +
             "         \"actions\": {\n" +
             "          \"allocate\": {\n" +
             "            \"number_of_replicas\": 0\n" +
@@ -151,7 +151,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
             "         }\n" +
             "       },\n" +
             "       \"delete\": {\n" +
-            "         \"after\": \"3000s\",\n" +
+            "         \"index_age\": \"3000s\",\n" +
             "         \"actions\": {\n" +
             "           \"delete\": {}\n" +
             "         }\n" +
@@ -174,7 +174,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         Response statusResponse = client().performRequest(statusReq);
         String statusResponseString = EntityUtils.toString(statusResponse.getEntity());
         assertEquals("{\"operation_mode\":\"RUNNING\"}", statusResponseString);
-        
+
         StopILMRequest stopReq = new StopILMRequest();
         AcknowledgedResponse stopResponse = execute(stopReq, highLevelClient().indexLifecycle()::stopILM,
                 highLevelClient().indexLifecycle()::stopILMAsync);
@@ -186,7 +186,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         statusResponseString = EntityUtils.toString(statusResponse.getEntity());
         assertThat(statusResponseString,
                 Matchers.anyOf(equalTo("{\"operation_mode\":\"STOPPING\"}"), equalTo("{\"operation_mode\":\"STOPPED\"}")));
-        
+
         StartILMRequest startReq = new StartILMRequest();
         AcknowledgedResponse startResponse = execute(startReq, highLevelClient().indexLifecycle()::startILM,
                 highLevelClient().indexLifecycle()::startILMAsync);
@@ -215,7 +215,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
             "         }\n" +
             "       },\n" +
             "       \"warm\": {\n" +
-            "         \"after\": \"1000s\",\n" +
+            "         \"index_age\": \"1000s\",\n" +
             "         \"actions\": {\n" +
             "           \"allocate\": {\n" +
             "             \"require\": { \"_name\": \"node-1\" },\n" +
@@ -231,7 +231,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
             "         }\n" +
             "       },\n" +
             "       \"cold\": {\n" +
-            "         \"after\": \"2000s\",\n" +
+            "         \"index_age\": \"2000s\",\n" +
             "         \"actions\": {\n" +
             "          \"allocate\": {\n" +
             "            \"number_of_replicas\": 0\n" +
@@ -239,7 +239,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
             "         }\n" +
             "       },\n" +
             "       \"delete\": {\n" +
-            "         \"after\": \"3000s\",\n" +
+            "         \"index_age\": \"3000s\",\n" +
             "         \"actions\": {\n" +
             "           \"delete\": {}\n" +
             "         }\n" +

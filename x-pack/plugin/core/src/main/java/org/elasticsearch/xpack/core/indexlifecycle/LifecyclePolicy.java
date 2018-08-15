@@ -183,10 +183,10 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
 
             // add `after` step for phase before next
             if (phase != null) {
-                // after step should have the name of the previous phase since the index is still in the 
+                // after step should have the name of the previous phase since the index is still in the
                 // previous phase until the after condition is reached
                 Step.StepKey afterStepKey = new Step.StepKey(previousPhase.getName(), PhaseAfterStep.NAME, PhaseAfterStep.NAME);
-                Step phaseAfterStep = new PhaseAfterStep(nowSupplier, phase.getAfter(), afterStepKey, lastStepKey);
+                Step phaseAfterStep = new PhaseAfterStep(nowSupplier, phase.getIndexAge(), afterStepKey, lastStepKey);
                 steps.add(phaseAfterStep);
                 lastStepKey = phaseAfterStep.getKey();
             }
@@ -210,7 +210,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         if (phase != null) {
             // The very first after step is in a phase before the hot phase so call this "new"
             Step.StepKey afterStepKey = new Step.StepKey("new", PhaseAfterStep.NAME, PhaseAfterStep.NAME);
-            Step phaseAfterStep = new PhaseAfterStep(nowSupplier, phase.getAfter(), afterStepKey, lastStepKey);
+            Step phaseAfterStep = new PhaseAfterStep(nowSupplier, phase.getIndexAge(), afterStepKey, lastStepKey);
             steps.add(phaseAfterStep);
             lastStepKey = phaseAfterStep.getKey();
         }
@@ -278,7 +278,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
             }
         }
     }
-    
+
     private StepKey getNextAfterStep(String currentPhaseName) {
         String nextPhaseName = type.getNextPhaseName(currentPhaseName, phases);
         if (nextPhaseName == null) {
@@ -335,7 +335,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
             return false;
         }
         LifecyclePolicy other = (LifecyclePolicy) obj;
-        return Objects.equals(name, other.name) && 
+        return Objects.equals(name, other.name) &&
                 Objects.equals(phases, other.phases);
     }
 

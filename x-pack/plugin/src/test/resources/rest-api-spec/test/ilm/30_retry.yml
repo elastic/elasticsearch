@@ -14,7 +14,7 @@ setup:
                "type": "timeseries",
                "phases": {
                  "warm": {
-                   "after": "1000s",
+                   "index_age": "1000s",
                    "actions": {
                      "forcemerge": {
                        "max_num_segments": 10000
@@ -22,7 +22,7 @@ setup:
                    }
                  },
                  "hot": {
-                   "after": "1000s",
+                   "index_age": "1000s",
                    "actions": { }
                  }
                }
@@ -74,8 +74,8 @@ teardown:
       indices.get:
         index: my_index
   - match: { my_index.settings.index.lifecycle.name: "my_lifecycle" }
-  - match: { my_index.settings.index.lifecycle.step: "after" }
-  - match: { my_index.settings.index.lifecycle.action: "after" }
+  - match: { my_index.settings.index.lifecycle.step: "index_age" }
+  - match: { my_index.settings.index.lifecycle.action: "index_age" }
   - match: { my_index.settings.index.lifecycle.phase: "new" }
 
 

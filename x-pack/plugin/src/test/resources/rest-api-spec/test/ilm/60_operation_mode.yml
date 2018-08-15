@@ -20,7 +20,7 @@ setup:
                "type": "timeseries",
                "phases": {
                  "warm": {
-                   "after": "10s",
+                   "index_age": "10s",
                    "actions": {
                      "forcemerge": {
                        "max_num_segments": 10000
@@ -28,7 +28,7 @@ setup:
                    }
                  },
                  "delete": {
-                   "after": "30s",
+                   "index_age": "30s",
                    "actions": {
                      "delete": {}
                    }

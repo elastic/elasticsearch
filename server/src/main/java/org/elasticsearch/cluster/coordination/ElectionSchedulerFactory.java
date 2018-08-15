@@ -73,7 +73,6 @@ public class ElectionSchedulerFactory extends AbstractComponent {
     private final TimeValue initialTimeout;
     private final TimeValue backoffTime;
     private final TimeValue maxTimeout;
-    private final long attemptsBeforeMaximumTimeout;
     private final ThreadPool threadPool;
     private final Random random;
 
@@ -86,7 +85,6 @@ public class ElectionSchedulerFactory extends AbstractComponent {
         initialTimeout = ELECTION_INITIAL_TIMEOUT_SETTING.get(settings);
         backoffTime = ELECTION_BACK_OFF_TIME_SETTING.get(settings);
         maxTimeout = ELECTION_MAX_TIMEOUT_SETTING.get(settings);
-        attemptsBeforeMaximumTimeout = (maxTimeout.millis() - initialTimeout.millis()) / backoffTime.millis();
 
         if (maxTimeout.millis() < initialTimeout.millis()) {
             throw new IllegalArgumentException(new ParameterizedMessage("[{}] is [{}], but must be at least [{}] which is [{}]",
@@ -128,7 +126,6 @@ public class ElectionSchedulerFactory extends AbstractComponent {
             "initialTimeout=" + initialTimeout +
             ", backoffTime=" + backoffTime +
             ", maxTimeout=" + maxTimeout +
-            ", attemptsBeforeMaximumTimeout=" + attemptsBeforeMaximumTimeout +
             '}';
     }
 
@@ -143,8 +140,7 @@ public class ElectionSchedulerFactory extends AbstractComponent {
             }
 
             final long thisAttempt = attempt.getAndIncrement();
-            final long maxDelayMillis = thisAttempt < 0 || attemptsBeforeMaximumTimeout < thisAttempt ? maxTimeout.millis()
-                : Math.min(maxTimeout.millis(), initialTimeout.millis() + thisAttempt * backoffTime.millis());
+            final long maxDelayMillis = Math.min(maxTimeout.millis(), initialTimeout.millis() + thisAttempt * backoffTime.millis());
             final long delayMillis = toPositiveLongAtMost(random.nextLong(), maxDelayMillis) + gracePeriod.millis();
             final Runnable runnable = new AbstractRunnable() {
                 @Override

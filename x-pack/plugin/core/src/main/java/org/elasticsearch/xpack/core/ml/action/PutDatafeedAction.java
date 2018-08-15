@@ -39,7 +39,7 @@ public class PutDatafeedAction extends Action<PutDatafeedAction.Response> {
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
 
         public static Request parseRequest(String datafeedId, XContentParser parser) {
-            DatafeedConfig.Builder datafeed = DatafeedConfig.CONFIG_PARSER.apply(parser, null);
+            DatafeedConfig.Builder datafeed = DatafeedConfig.STRICT_PARSER.apply(parser, null);
             datafeed.setId(datafeedId);
             return new Request(datafeed.build());
         }

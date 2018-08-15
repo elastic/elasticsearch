@@ -361,7 +361,7 @@ public final class ConfigurationUtils {
             return readProcessor(processorFactories, type, (Map<String, Object>) config);
         } else if (config instanceof String && "script".equals(type)) {
             Map<String, Object> normalizedScript = new HashMap<>(1);
-            normalizedScript.put(ScriptType.INLINE.getName(), config);
+            normalizedScript.put(ScriptType.INLINE.getParseField().getPreferredName(), config);
             return readProcessor(processorFactories, type, normalizedScript);
         } else {
             throw newConfigurationException(type, null, null,

@@ -41,7 +41,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
@@ -51,7 +50,6 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
-import org.elasticsearch.transport.TransportService;
 import org.hamcrest.CustomMatcher;
 
 import java.io.Closeable;
@@ -83,7 +81,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
     private static class TestIteration implements Closeable {
         private final ThreadPool threadPool;
         private final FailAndRetryMockTransport<TestResponse> transport;
-        private final TransportService transportService;
+        private final MockTransportService transportService;
         private final TransportClientNodesService transportClientNodesService;
         private final int listNodesCount;
         private final int sniffNodesCount;
@@ -143,7 +141,8 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                     return ClusterState.builder(clusterName).nodes(TestIteration.this.nodeMap.get(node.getAddress())).build();
                 }
             };
-            transportService = new TransportService(settings, transport, threadPool, new TransportInterceptor() {
+
+            transportService = new MockTransportService(settings, transport, threadPool, new TransportInterceptor() {
                 @Override
                 public AsyncSender interceptSender(AsyncSender sender) {
                     return new AsyncSender() {
@@ -165,6 +164,11 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                 assert addr == null : "boundAddress: " + addr;
                 return DiscoveryNode.createLocal(settings, buildNewFakeTransportAddress(), UUIDs.randomBase64UUID());
             }, null, Collections.emptySet());
+            transportService.addNodeConnectedBehavior((connectionManager, discoveryNode) -> false);
+            transportService.addGetConnectionBehavior((connectionManager, discoveryNode) -> {
+                // The FailAndRetryTransport does not use the connection profile
+                return transport.openConnection(discoveryNode, null);
+            });
             transportService.start();
             transportService.acceptIncomingRequests();
             transportClientNodesService =
@@ -356,24 +360,14 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                     .build();
 
             try (MockTransportService clientService = createNewService(clientSettings, Version.CURRENT, threadPool, null)) {
-                final List<MockConnection> establishedConnections = new CopyOnWriteArrayList<>();
-                final List<MockConnection> reusedConnections = new CopyOnWriteArrayList<>();
+                final List<Transport.Connection> establishedConnections = new CopyOnWriteArrayList<>();
 
-                clientService.addDelegate(remoteService,  new MockTransportService.DelegateTransport(clientService.original()) {
-                    @Override
-                    public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) throws IOException {
-                        MockConnection connection = new MockConnection(super.openConnection(node, profile));
-                        establishedConnections.add(connection);
-                        return connection;
-                    }
-
-                    @Override
-                    public Connection getConnection(DiscoveryNode node) {
-                        MockConnection connection = new MockConnection(super.getConnection(node));
-                        reusedConnections.add(connection);
-                        return connection;
-                    }
+                clientService.addConnectBehavior(remoteService, (transport, discoveryNode, profile) -> {
+                    Transport.Connection connection = transport.openConnection(discoveryNode, profile);
+                    establishedConnections.add(connection);
+                    return connection;
                 });
+
 
                 clientService.start();
                 clientService.acceptIncomingRequests();
@@ -382,81 +376,30 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                         new TransportClientNodesService(clientSettings, clientService, threadPool, (a, b) -> {})) {
                     assertEquals(0, transportClientNodesService.connectedNodes().size());
                     assertEquals(0, establishedConnections.size());
-                    assertEquals(0, reusedConnections.size());
 
                     transportClientNodesService.addTransportAddresses(remoteService.getLocalDiscoNode().getAddress());
                     assertEquals(1, transportClientNodesService.connectedNodes().size());
-                    assertClosedConnections(establishedConnections, 1);
+                    assertEquals(1, clientService.connectionManager().connectedNodeCount());
 
                     transportClientNodesService.doSample();
-                    assertClosedConnections(establishedConnections, 2);
-                    assertOpenConnections(reusedConnections, 1);
+                    assertEquals(1, clientService.connectionManager().connectedNodeCount());
 
+                    establishedConnections.clear();
                     handler.blockRequest();
                     Thread thread = new Thread(transportClientNodesService::doSample);
                     thread.start();
 
-                    assertBusy(() ->  assertEquals(3, establishedConnections.size()));
-                    assertFalse("Temporary ping connection must be opened", establishedConnections.get(2).isClosed());
+                    assertBusy(() ->  assertTrue(establishedConnections.size() >= 1));
+                    assertFalse("Temporary ping connection must be opened", establishedConnections.get(0).isClosed());
 
                     handler.releaseRequest();
                     thread.join();
 
-                    assertClosedConnections(establishedConnections, 3);
+                    assertTrue(establishedConnections.get(0).isClosed());
                 }
             }
         } finally {
             terminate(threadPool);
-        }
-    }
-
-    private void assertClosedConnections(final List<MockConnection> connections, final int size) {
-        assertEquals("Expecting " + size + " closed connections but got " + connections.size(), size, connections.size());
-        connections.forEach(c -> assertConnection(c, true));
-    }
-
-    private void assertOpenConnections(final List<MockConnection> connections, final int size) {
-        assertEquals("Expecting " + size + " open connections but got " + connections.size(), size, connections.size());
-        connections.forEach(c -> assertConnection(c, false));
-    }
-
-    private static void assertConnection(final MockConnection connection, final boolean closed) {
-        assertEquals("Connection [" + connection + "] must be " + (closed ? "closed" : "open"), closed, connection.isClosed());
-    }
-
-    class MockConnection implements Transport.Connection {
-        private final AtomicBoolean closed = new AtomicBoolean(false);
-        private final Transport.Connection connection;
-
-        private MockConnection(Transport.Connection connection) {
-            this.connection = connection;
-        }
-
-        @Override
-        public DiscoveryNode getNode() {
-            return connection.getNode();
-        }
-
-        @Override
-        public Version getVersion() {
-            return connection.getVersion();
-        }
-
-        @Override
-        public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
-                throws IOException, TransportException {
-            connection.sendRequest(requestId, action, request, options);
-        }
-
-        @Override
-        public void close() throws IOException {
-            if (closed.compareAndSet(false, true)) {
-                connection.close();
-            }
-        }
-
-        boolean isClosed() {
-            return closed.get();
         }
     }
 

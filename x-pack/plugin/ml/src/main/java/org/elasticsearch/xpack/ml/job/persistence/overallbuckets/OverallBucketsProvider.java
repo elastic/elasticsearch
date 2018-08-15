@@ -71,7 +71,7 @@ public class OverallBucketsProvider {
     static class TopNScores extends PriorityQueue<Double> {
 
         TopNScores(int n) {
-            super(n, false);
+            super(n);
         }
 
         @Override

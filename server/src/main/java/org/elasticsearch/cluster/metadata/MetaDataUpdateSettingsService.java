@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeSettingsClusterStateUpdateRequest;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -45,9 +46,11 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
@@ -114,6 +117,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent {
 
             @Override
             public ClusterState execute(ClusterState currentState) {
+
                 RoutingTable.Builder routingTableBuilder = RoutingTable.builder(currentState.routingTable());
                 MetaData.Builder metaDataBuilder = MetaData.builder(currentState.metaData());
 
@@ -140,6 +144,18 @@ public class MetaDataUpdateSettingsService extends AbstractComponent {
 
                 int updatedNumberOfReplicas = openSettings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, -1);
                 if (updatedNumberOfReplicas != -1 && preserveExisting == false) {
+
+                    // Verify that this won't take us over the cluster shard limit.
+                    int totalNewShards = Arrays.stream(request.indices())
+                        .mapToInt(i -> getTotalNewShards(i, currentState, updatedNumberOfReplicas))
+                        .sum();
+                    Optional<String> error = IndicesService.getShardLimitError(totalNewShards, currentState, clusterService.getClusterSettings());
+                    if (error.isPresent()) {
+                        ActionRequestValidationException ex = new ActionRequestValidationException();
+                        ex.addValidationError(error.get());
+                        throw ex;
+                    }
+
                     // we do *not* update the in sync allocation ids as they will be removed upon the first index
                     // operation which make these copies stale
                     // TODO: update the list once the data is deleted by the node?
@@ -213,6 +229,14 @@ public class MetaDataUpdateSettingsService extends AbstractComponent {
                 return updatedState;
             }
         });
+    }
+
+    private int getTotalNewShards(Index index, ClusterState currentState, int updatedNumberOfReplicas) {
+        IndexMetaData indexMetaData = currentState.metaData().index(index);
+        int shardsInIndex = indexMetaData.getNumberOfShards();
+        int oldNumberOfReplicas = indexMetaData.getNumberOfReplicas();
+        int replicaIncrease = updatedNumberOfReplicas - oldNumberOfReplicas;
+        return replicaIncrease * shardsInIndex;
     }
 
     /**

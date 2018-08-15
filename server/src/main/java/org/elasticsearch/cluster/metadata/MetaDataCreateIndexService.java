@@ -604,7 +604,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     public void validateIndexSettings(String indexName, Settings settings, ClusterState clusterState) throws IndexCreationException {
         List<String> validationErrors = getIndexSettingsValidationErrors(settings);
 
-        Optional<String> shardAllocation = getShardLimitError(indexName, settings, clusterState);
+        Optional<String> shardAllocation = getShardLimitError(settings, clusterState);
         shardAllocation.ifPresent(validationErrors::add);
 
         if (validationErrors.isEmpty() == false) {
@@ -614,27 +614,11 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         }
     }
 
-    private Optional<String> getShardLimitError(String indexName, Settings settings, ClusterState clusterState) {
-        int nodeCount = clusterState.getNodes().getDataNodes().size();
-
-        // Only enforce the shard limit if we have at least one data node, so that we don't block
-        // index creation during cluster setup
-        if (nodeCount == 0) {
-            return Optional.empty();
-        }
-
-        int currentOpenShards = clusterState.getMetaData().getTotalOpenIndexShards();
-        int maxShardsPerNode = clusterService.getClusterSettings().get(MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE);
-        long maxShardsInCluster = maxShardsPerNode * nodeCount;
+    private Optional<String> getShardLimitError(Settings settings, ClusterState clusterState) {
         int shardsToCreate = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(settings)
             * (1 + IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.get(settings));
 
-        if ((currentOpenShards + shardsToCreate) > maxShardsInCluster) {
-            return Optional.of("creating [" + indexName + "] "
-                + "would create " + shardsToCreate + " total shards, but this cluster currently has "
-                + currentOpenShards + "/" + maxShardsInCluster + " maximum shards open");
-        }
-        return Optional.empty();
+        return IndicesService.getShardLimitError(shardsToCreate, clusterState, clusterService.getClusterSettings());
     }
 
     List<String> getIndexSettingsValidationErrors(Settings settings) {

@@ -51,6 +51,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -221,28 +222,15 @@ public class MetaDataIndexStateService extends AbstractComponent {
     }
 
     private void validateShardLimit(ClusterState currentState, OpenIndexClusterStateUpdateRequest request) {
-        int nodeCount = currentState.getNodes().getDataNodes().size();
-
-        // Only enforce the shard limit if we have at least one data node, so that we don't block
-        // index creation during cluster setup
-        if (nodeCount == 0) {
-            return;
-        }
-
-        int currentOpenShards = currentState.getMetaData().getTotalOpenIndexShards();
-        int maxShardsPerNode = clusterService.getClusterSettings().get(MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE);
-        int maxShardsInCluster = maxShardsPerNode * nodeCount;
         int shardsToOpen = Arrays.stream(request.indices())
             .mapToInt(index -> getTotalShardCount(currentState, index))
             .sum();
 
-        if ((currentOpenShards + shardsToOpen) > maxShardsInCluster) {
-            ActionRequestValidationException exception = new ActionRequestValidationException();
-            String[] indexNames = Arrays.stream(request.indices()).map(Index::getName).toArray(String[]::new);
-            exception.addValidationError("opening " + Arrays.toString(indexNames)
-                + " would open " + shardsToOpen + " total shards, but this cluster currently has "
-                + currentOpenShards + "/" + maxShardsInCluster + " maximum shards open");
-            throw exception;
+        Optional<String> error = IndicesService.getShardLimitError(shardsToOpen, currentState, clusterService.getClusterSettings());
+        if (error.isPresent()) {
+            ActionRequestValidationException ex = new ActionRequestValidationException();
+            ex.addValidationError(error.get());
+            throw ex;
         }
     }
 

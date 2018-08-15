@@ -349,10 +349,12 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
         final GlobalCheckpointListeners globalCheckpointListeners = new GlobalCheckpointListeners(shardId, executor, logger);
         final AtomicLong globalCheckpoint = new AtomicLong(NO_OPS_PERFORMED);
         globalCheckpointListeners.globalCheckpointUpdated(globalCheckpoint.get());
+        // we are going to synchronize the actions of three threads: the updating thread, the listener thread, and the main test thread
         final CyclicBarrier barrier = new CyclicBarrier(3);
         final int numberOfIterations = randomIntBetween(1, 1024);
         final AtomicBoolean closed = new AtomicBoolean();
         final Thread updatingThread = new Thread(() -> {
+            // synchronize starting with the listener thread and the main test thread
             awaitQuietly(barrier);
             for (int i = 0; i < numberOfIterations; i++) {
                 if (rarely() && closed.get() == false) {
@@ -367,11 +369,13 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
                     globalCheckpointListeners.globalCheckpointUpdated(globalCheckpoint.incrementAndGet());
                 }
             }
+            // synchronize ending with the listener thread and the main test thread
             awaitQuietly(barrier);
         });
 
         final List<AtomicBoolean> invocations = new CopyOnWriteArrayList<>();
         final Thread listenersThread = new Thread(() -> {
+            // synchronize starting with the updating thread and the main test thread
             awaitQuietly(barrier);
             for (int i = 0; i < numberOfIterations; i++) {
                 final AtomicBoolean invocation = new AtomicBoolean();
@@ -385,11 +389,14 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
                             }
                         });
             }
+            // synchronize ending with the updating thread and the main test thread
             awaitQuietly(barrier);
         });
         updatingThread.start();
         listenersThread.start();
+        // synchronize starting with the updating thread and the listener thread
         barrier.await();
+        // synchronize ending with the updating thread and the listener thread
         barrier.await();
         // one last update to ensure all listeners are notified
         if (closed.get() == false) {

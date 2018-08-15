@@ -49,7 +49,6 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         // TODO: NORELEASE convert this to using the high level client once there are APIs for it
         String jsonString = "{\n" +
             "   \"policy\": {\n" +
-            "     \"type\": \"timeseries\",\n" +
             "     \"phases\": {\n" +
             "       \"hot\": {\n" +
             "         \"after\": \"60s\",\n" +
@@ -110,14 +109,13 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         assertThat(settingsResponse.getSetting("foo", "index.lifecycle.name"), equalTo(policy));
         assertThat(settingsResponse.getSetting("baz", "index.lifecycle.name"), equalTo(policy));
     }
-    
+
     public void testStartStopILM() throws Exception {
         String policy = randomAlphaOfLength(10);
 
         // TODO: NORELEASE convert this to using the high level client once there are APIs for it
         String jsonString = "{\n" +
             "   \"policy\": {\n" +
-            "     \"type\": \"timeseries\",\n" +
             "     \"phases\": {\n" +
             "       \"hot\": {\n" +
             "         \"actions\": {\n" +
@@ -174,7 +172,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         Response statusResponse = client().performRequest(statusReq);
         String statusResponseString = EntityUtils.toString(statusResponse.getEntity());
         assertEquals("{\"operation_mode\":\"RUNNING\"}", statusResponseString);
-        
+
         StopILMRequest stopReq = new StopILMRequest();
         AcknowledgedResponse stopResponse = execute(stopReq, highLevelClient().indexLifecycle()::stopILM,
                 highLevelClient().indexLifecycle()::stopILMAsync);
@@ -186,7 +184,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         statusResponseString = EntityUtils.toString(statusResponse.getEntity());
         assertThat(statusResponseString,
                 Matchers.anyOf(equalTo("{\"operation_mode\":\"STOPPING\"}"), equalTo("{\"operation_mode\":\"STOPPED\"}")));
-        
+
         StartILMRequest startReq = new StartILMRequest();
         AcknowledgedResponse startResponse = execute(startReq, highLevelClient().indexLifecycle()::startILM,
                 highLevelClient().indexLifecycle()::startILMAsync);
@@ -205,7 +203,6 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         // TODO: NORELEASE convert this to using the high level client once there are APIs for it
         String jsonString = "{\n" +
             "   \"policy\": {\n" +
-            "     \"type\": \"timeseries\",\n" +
             "     \"phases\": {\n" +
             "       \"hot\": {\n" +
             "         \"actions\": {\n" +

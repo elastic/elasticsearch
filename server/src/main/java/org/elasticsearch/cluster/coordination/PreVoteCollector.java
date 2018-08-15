@@ -80,8 +80,7 @@ public class PreVoteCollector extends AbstractComponent {
         this.currentLeader = currentLeader;
     }
 
-    // package-private for testing
-    PreVoteResponse handlePreVoteRequest(final PreVoteRequest request) {
+    private PreVoteResponse handlePreVoteRequest(final PreVoteRequest request) {
         // TODO if we are a leader and the max term seen exceeds our term then we need to bump our term
 
         final DiscoveryNode currentLeader = this.currentLeader;

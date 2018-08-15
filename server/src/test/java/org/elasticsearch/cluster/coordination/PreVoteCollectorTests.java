@@ -29,8 +29,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 
@@ -40,15 +43,18 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.coordination.PreVoteCollector.REQUEST_PRE_VOTE_ACTION_NAME;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.elasticsearch.threadpool.ThreadPool.Names.SAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class PreVoteCollectorTests extends ESTestCase {
 
@@ -58,6 +64,7 @@ public class PreVoteCollectorTests extends ESTestCase {
     private DiscoveryNode localNode;
     private Map<DiscoveryNode, PreVoteResponse> responsesByNode = new HashMap<>();
     private long currentTerm, lastAcceptedTerm, lastAcceptedVersion;
+    private TransportService transportService;
 
     @Before
     public void createObjects() {
@@ -97,7 +104,7 @@ public class PreVoteCollectorTests extends ESTestCase {
 
         localNode = new DiscoveryNode("local-node", buildNewFakeTransportAddress(), Version.CURRENT);
         responsesByNode.put(localNode, new PreVoteResponse(currentTerm, lastAcceptedTerm, lastAcceptedVersion));
-        TransportService transportService = new TransportService(settings, capturingTransport,
+        transportService = new TransportService(settings, capturingTransport,
             deterministicTaskQueue.getThreadPool(), TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundTransportAddress -> localNode, null, emptySet());
         transportService.start();
@@ -245,15 +252,51 @@ public class PreVoteCollectorTests extends ESTestCase {
         assertThat(coordinationState.electionWon(), equalTo(electionOccurred));
     }
 
+    private PreVoteResponse handlePreVoteRequestViaTransportService(PreVoteRequest preVoteRequest) {
+        final AtomicReference<PreVoteResponse> responseRef = new AtomicReference<>();
+        final AtomicReference<TransportException> exceptionRef = new AtomicReference<>();
+
+        transportService.sendRequest(localNode, REQUEST_PRE_VOTE_ACTION_NAME, preVoteRequest,
+            new TransportResponseHandler<PreVoteResponse>() {
+                @Override
+                public void handleResponse(PreVoteResponse response) {
+                    responseRef.set(response);
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    exceptionRef.set(exp);
+                }
+
+                @Override
+                public String executor() {
+                    return SAME;
+                }
+            });
+
+        deterministicTaskQueue.runAllRunnableTasks(random());
+        assertFalse(deterministicTaskQueue.hasDeferredTasks());
+
+        final PreVoteResponse response = responseRef.get();
+        final TransportException transportException = exceptionRef.get();
+
+        if (transportException != null) {
+            assertThat(response, nullValue());
+            throw transportException;
+        }
+
+        assertThat(response, not(nullValue()));
+        return response;
+    }
+
     public void testResponseIfCandidate() {
         final long term = randomNonNegativeLong();
         final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
 
         PreVoteResponse newPreVoteResponse = new PreVoteResponse(currentTerm, lastAcceptedTerm, lastAcceptedVersion);
         preVoteCollector.update(newPreVoteResponse, null);
-        final PreVoteResponse preVoteResponse = preVoteCollector.handlePreVoteRequest(new PreVoteRequest(otherNode, term));
 
-        assertThat(preVoteResponse, equalTo(newPreVoteResponse));
+        assertThat(handlePreVoteRequestViaTransportService(new PreVoteRequest(otherNode, term)), equalTo(newPreVoteResponse));
     }
 
     public void testResponseToNonLeaderIfNotCandidate() {
@@ -264,8 +307,9 @@ public class PreVoteCollectorTests extends ESTestCase {
         PreVoteResponse newPreVoteResponse = new PreVoteResponse(currentTerm, lastAcceptedTerm, lastAcceptedVersion);
         preVoteCollector.update(newPreVoteResponse, leaderNode);
 
-        expectThrows(CoordinationStateRejectedException.class, () ->
-            preVoteCollector.handlePreVoteRequest(new PreVoteRequest(otherNode, term)));
+        RemoteTransportException remoteTransportException = expectThrows(RemoteTransportException.class, () ->
+            handlePreVoteRequestViaTransportService(new PreVoteRequest(otherNode, term)));
+        assertThat(remoteTransportException.getCause(), instanceOf(CoordinationStateRejectedException.class));
     }
 
     public void testResponseToRequestFromLeader() {
@@ -280,8 +324,7 @@ public class PreVoteCollectorTests extends ESTestCase {
 
         PreVoteResponse newPreVoteResponse = new PreVoteResponse(currentTerm, lastAcceptedTerm, lastAcceptedVersion);
         preVoteCollector.update(newPreVoteResponse, leaderNode);
-        final PreVoteResponse preVoteResponse = preVoteCollector.handlePreVoteRequest(new PreVoteRequest(leaderNode, term));
 
-        assertThat(preVoteResponse, equalTo(newPreVoteResponse));
+        assertThat(handlePreVoteRequestViaTransportService(new PreVoteRequest(leaderNode, term)), equalTo(newPreVoteResponse));
     }
 }

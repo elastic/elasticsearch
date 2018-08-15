@@ -14,6 +14,20 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * Class for tracking the set of Ids returned from some
+ * function a satisfy the required Ids as defined by an
+ * expression that may contain wildcards.
+ *
+ * For example, given a set of Ids ["foo-1", "foo-2", "bar-1", bar-2"]:
+ * <ul>
+ *     <li>The expression foo* would be satisfied by foo-1 and foo-2</li>
+ *     <li>The expression bar-1 would be satisfied by bar-1</li>
+ *     <li>The expression bar-1,car-1 would leave car-1 unmatched</li>
+ *     <li>The expression * would be satisfied by anything or nothing depending on the
+ *     value of {@code allowNoMatchForWildcards}</li>
+ * </ul>
+ */
 public final class ExpandedIdsMatcher {
 
     public static String ALL = "_all";
@@ -46,15 +60,15 @@ public final class ExpandedIdsMatcher {
     private final LinkedList<IdMatcher> requiredMatches;
 
     /**
-     * Construct an instance and generate the list of required matches
-     * from the expressions in {@code tokens}
+     * Generate the list of required matches from the expressions in {@code tokens}
+     * and initialize.
      *
      * @param tokens List of expressions that may be wildcards or full Ids
-     * @param allowNoJobForWildcards If true then it is not required for wildcard
+     * @param allowNoMatchForWildcards If true then it is not required for wildcard
      *                               expressions to match an Id meaning they are
      *                               not returned in the list of required matches
      */
-    public ExpandedIdsMatcher(String [] tokens, boolean allowNoJobForWildcards) {
+    public ExpandedIdsMatcher(String [] tokens, boolean allowNoMatchForWildcards) {
         requiredMatches = new LinkedList<>();
 
         if (ExpandedIdsMatcher.isWildcardAll(tokens)) {
@@ -62,14 +76,14 @@ public final class ExpandedIdsMatcher {
             // of jobs with any id is ok. Therefore no matches
             // are required
 
-            if (allowNoJobForWildcards == false) {
+            if (allowNoMatchForWildcards == false) {
                 // require something, anything to match
                 requiredMatches.add(new WildcardMatcher("*"));
             }
             return;
         }
 
-        if (allowNoJobForWildcards) {
+        if (allowNoMatchForWildcards) {
             // matches are not required for wildcards but
             // specific job Ids are
             for (String token : tokens) {
@@ -92,7 +106,7 @@ public final class ExpandedIdsMatcher {
     /**
      * For each {@code requiredMatchers} check there is an element
      * present in {@code ids} that matches. Once a match is made the
-     * matcher is popped from {@code requiredMatchers}.
+     * matcher is removed from {@code requiredMatchers}.
      */
     public void filterMatchedIds(Collection<String> ids) {
         for (String id: ids) {

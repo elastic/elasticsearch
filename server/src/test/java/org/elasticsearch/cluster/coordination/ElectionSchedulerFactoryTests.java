@@ -23,8 +23,8 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Before;
 
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.ELECTION_BACK_OFF_TIME_SETTING;
@@ -40,36 +40,32 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ElectionSchedulerFactoryTests extends ESTestCase {
 
-    private DeterministicTaskQueue deterministicTaskQueue;
-    private ElectionSchedulerFactory electionSchedulerFactory;
-    private boolean electionStarted = false;
-
-    @Before
-    public void createObjects() {
-        final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build();
-        deterministicTaskQueue = new DeterministicTaskQueue(settings);
-        electionSchedulerFactory = new ElectionSchedulerFactory(settings, random(), deterministicTaskQueue.getThreadPool());
-    }
-
     private TimeValue randomGracePeriod() {
         return TimeValue.timeValueMillis(randomLongBetween(0, 10000));
     }
 
-    private void startElection() {
-        assertFalse(electionStarted);
-        electionStarted = true;
-    }
+    private void assertElectionSchedule(final DeterministicTaskQueue deterministicTaskQueue,
+                                        final ElectionSchedulerFactory electionSchedulerFactory) {
 
-    private void assertElectionSchedule() {
         final TimeValue initialGracePeriod = randomGracePeriod();
+        final AtomicBoolean electionStarted = new AtomicBoolean();
 
-        try (Releasable ignored = electionSchedulerFactory.startElectionScheduler(initialGracePeriod, this::startElection)) {
+        try (Releasable ignored = electionSchedulerFactory.startElectionScheduler(initialGracePeriod,
+            () -> assertTrue(electionStarted.compareAndSet(false, true)))) {
+
             long lastElectionTime = deterministicTaskQueue.getCurrentTimeMillis();
             int electionCount = 0;
+
             while (true) {
                 electionCount++;
 
-                runElection();
+                while (electionStarted.get() == false) {
+                    if (deterministicTaskQueue.hasRunnableTasks() == false) {
+                        deterministicTaskQueue.advanceTime();
+                    }
+                    deterministicTaskQueue.runAllRunnableTasks(random());
+                }
+                assertTrue(electionStarted.compareAndSet(true, false));
 
                 final long thisElectionTime = deterministicTaskQueue.getCurrentTimeMillis();
 
@@ -105,24 +101,19 @@ public class ElectionSchedulerFactoryTests extends ESTestCase {
             }
         }
         deterministicTaskQueue.runAllTasks(random());
-        assertFalse(electionStarted);
+        assertFalse(electionStarted.get());
     }
 
     public void testRetriesOnCorrectSchedule() {
-        assertElectionSchedule();
+        final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build();
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings);
+        final ElectionSchedulerFactory electionSchedulerFactory
+            = new ElectionSchedulerFactory(settings, random(), deterministicTaskQueue.getThreadPool());
+
+        assertElectionSchedule(deterministicTaskQueue, electionSchedulerFactory);
 
         // do it again to show that the max is reset when the scheduler is restarted
-        assertElectionSchedule();
-    }
-
-    private void runElection() {
-        while (electionStarted == false) {
-            if (deterministicTaskQueue.hasRunnableTasks() == false) {
-                deterministicTaskQueue.advanceTime();
-            }
-            deterministicTaskQueue.runAllRunnableTasks(random());
-        }
-        electionStarted = false;
+        assertElectionSchedule(deterministicTaskQueue, electionSchedulerFactory);
     }
 
     public void testSettingsMustBeReasonable() {

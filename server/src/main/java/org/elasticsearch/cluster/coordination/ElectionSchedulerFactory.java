@@ -197,8 +197,8 @@ public class ElectionSchedulerFactory extends AbstractComponent {
 
         @Override
         public void close() {
-            boolean isClosedChanged = isClosed.compareAndSet(false, true);
-            assert isClosedChanged;
+            boolean wasNotPreviouslyClosed = isClosed.compareAndSet(false, true);
+            assert wasNotPreviouslyClosed;
         }
     }
 }

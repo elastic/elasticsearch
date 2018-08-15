@@ -18,3 +18,8 @@ dependencies {
 dependencyLicenses {
     mapping from: /bc.*/, to: 'bouncycastle'
 }
+
+if (inFipsJvm) {
+    test.enabled = false
+}
+

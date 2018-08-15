@@ -70,9 +70,9 @@ public class LegacyHasParentQueryBuilderTests extends AbstractQueryTestCase<HasP
     }
 
     @Override
-    protected Settings indexSettings() {
+    protected Settings createTestIndexSettings() {
         return Settings.builder()
-            .put(super.indexSettings())
+            .put(super.createTestIndexSettings())
             .put("index.version.created", Version.V_5_6_0) // legacy needs multi types
             .build();
     }

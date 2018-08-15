@@ -268,7 +268,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         Terms.Bucket type2 = termsAgg.getBucketByKey("type2");
         assertEquals(2, type2.getDocCount());
         assertEquals(0, type2.getAggregations().asList().size());
-    }
+    }  
 
     public void testSearchWithRangeAgg() throws IOException {
         {

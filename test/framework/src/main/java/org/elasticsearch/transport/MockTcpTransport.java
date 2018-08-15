@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.transport;
 
+import org.elasticsearch.cli.SuppressForbidden;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -171,6 +172,7 @@ public class MockTcpTransport extends TcpTransport {
     }
 
     @Override
+    @SuppressForbidden(reason = "real socket for mocking remote connections")
     protected MockChannel initiateChannel(DiscoveryNode node, TimeValue connectTimeout, ActionListener<Void> connectListener)
         throws IOException {
         InetSocketAddress address = node.getAddress().address();

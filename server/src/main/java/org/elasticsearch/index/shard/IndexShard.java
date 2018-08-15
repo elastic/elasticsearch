@@ -164,6 +164,8 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.index.mapper.SourceToParse.source;
+import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 public class IndexShard extends AbstractIndexShardComponent implements IndicesClusterStateService.Shard {
 
@@ -192,6 +194,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final SearchOperationListener searchOperationListener;
 
+    private final GlobalCheckpointListeners globalCheckpointListeners;
     private final ReplicationTracker replicationTracker;
 
     protected volatile ShardRouting shardRouting;
@@ -297,8 +300,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         this.checkIndexOnStartup = indexSettings.getValue(IndexSettings.INDEX_CHECK_ON_STARTUP);
         this.translogConfig = new TranslogConfig(shardId, shardPath().resolveTranslog(), indexSettings, bigArrays);
-        this.replicationTracker = new ReplicationTracker(shardId, shardRouting.allocationId().getId(), indexSettings,
-            SequenceNumbers.UNASSIGNED_SEQ_NO);
+        final String aId = shardRouting.allocationId().getId();
+        this.globalCheckpointListeners = new GlobalCheckpointListeners(shardId, threadPool.executor(ThreadPool.Names.LISTENER), logger);
+        this.replicationTracker =
+                new ReplicationTracker(shardId, aId, indexSettings, UNASSIGNED_SEQ_NO, globalCheckpointListeners::globalCheckpointUpdated);
+
         // the query cache is a node-level thing, however we want the most popular filters
         // to be computed on a per-shard basis
         if (IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.get(settings)) {
@@ -1229,7 +1235,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 } finally {
                     // playing safe here and close the engine even if the above succeeds - close can be called multiple times
                     // Also closing refreshListeners to prevent us from accumulating any more listeners
-                    IOUtils.close(engine, refreshListeners);
+                    IOUtils.close(engine, globalCheckpointListeners, refreshListeners);
                     indexShardOperationPermits.close();
                 }
             }
@@ -1488,10 +1494,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
         } else {
             if (origin == Engine.Operation.Origin.PRIMARY) {
-                verifyPrimary();
+                assert assertPrimaryMode();
             } else {
                 assert origin == Engine.Operation.Origin.REPLICA;
-                verifyReplicationTarget();
+                assert assertReplicationTarget();
             }
             if (writeAllowedStates.contains(state) == false) {
                 throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when shard state is one of " + writeAllowedStates + ", origin [" + origin + "]");
@@ -1499,19 +1505,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    private void verifyPrimary() {
-        if (shardRouting.primary() == false) {
-            throw new IllegalStateException("shard " + shardRouting + " is not a primary");
-        }
+    private boolean assertPrimaryMode() {
+        assert shardRouting.primary() && replicationTracker.isPrimaryMode() : "shard " + shardRouting + " is not a primary shard in primary mode";
+        return true;
     }
 
-    private void verifyReplicationTarget() {
-        final IndexShardState state = state();
-        if (shardRouting.primary() && shardRouting.active() && replicationTracker.isPrimaryMode()) {
-            // must use exception that is not ignored by replication logic. See TransportActions.isShardNotAvailableException
-            throw new IllegalStateException("active primary shard " + shardRouting + " cannot be a replication target before " +
-                "relocation hand off, state is [" + state + "]");
-        }
+    private boolean assertReplicationTarget() {
+        assert replicationTracker.isPrimaryMode() == false : "shard " + shardRouting + " in primary mode cannot be a replication target";
+        return true;
     }
 
     private void verifyNotClosed() throws IllegalIndexShardStateException {
@@ -1791,7 +1792,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param checkpoint   the local checkpoint for the shard
      */
     public void updateLocalCheckpointForShard(final String allocationId, final long checkpoint) {
-        verifyPrimary();
+        assert assertPrimaryMode();
         verifyNotClosed();
         replicationTracker.updateLocalCheckpoint(allocationId, checkpoint);
     }
@@ -1803,9 +1804,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param globalCheckpoint the global checkpoint
      */
     public void updateGlobalCheckpointForShard(final String allocationId, final long globalCheckpoint) {
-        verifyPrimary();
+        assert assertPrimaryMode();
         verifyNotClosed();
         replicationTracker.updateGlobalCheckpointForShard(allocationId, globalCheckpoint);
+    }
+
+    /**
+     * Add a global checkpoint listener. If the global checkpoint is above the current global checkpoint known to the listener then the
+     * listener will fire immediately on the calling thread.
+     *
+     * @param currentGlobalCheckpoint the current global checkpoint known to the listener
+     * @param listener                the listener
+     */
+    public void addGlobalCheckpointListener(
+            final long currentGlobalCheckpoint,
+            final GlobalCheckpointListeners.GlobalCheckpointListener listener) {
+        this.globalCheckpointListeners.add(currentGlobalCheckpoint, listener);
     }
 
     /**
@@ -1825,7 +1839,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param allocationId  the allocation ID of the shard for which recovery was initiated
      */
     public void initiateTracking(final String allocationId) {
-        verifyPrimary();
+        assert assertPrimaryMode();
         replicationTracker.initiateTracking(allocationId);
     }
 
@@ -1838,7 +1852,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param localCheckpoint the current local checkpoint on the shard
      */
     public void markAllocationIdAsInSync(final String allocationId, final long localCheckpoint) throws InterruptedException {
-        verifyPrimary();
+        assert assertPrimaryMode();
         replicationTracker.markAllocationIdAsInSync(allocationId, localCheckpoint);
     }
 
@@ -1873,7 +1887,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @return a map from allocation ID to the local knowledge of the global checkpoint for that allocation ID
      */
     public ObjectLongMap<String> getInSyncGlobalCheckpoints() {
-        verifyPrimary();
+        assert assertPrimaryMode();
         verifyNotClosed();
         return replicationTracker.getInSyncGlobalCheckpoints();
     }
@@ -1883,11 +1897,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * primary.
      */
     public void maybeSyncGlobalCheckpoint(final String reason) {
-        verifyPrimary();
         verifyNotClosed();
+        assert shardRouting.primary() : "only call maybeSyncGlobalCheckpoint on primary shard";
         if (replicationTracker.isPrimaryMode() == false) {
             return;
         }
+        assert assertPrimaryMode();
         // only sync if there are not operations in flight
         final SeqNoStats stats = getEngine().getSeqNoStats(replicationTracker.getGlobalCheckpoint());
         if (stats.getMaxSeqNo() == stats.getGlobalCheckpoint()) {
@@ -1913,7 +1928,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @return the replication group
      */
     public ReplicationGroup getReplicationGroup() {
-        verifyPrimary();
+        assert assertPrimaryMode();
         verifyNotClosed();
         return replicationTracker.getReplicationGroup();
     }
@@ -1925,7 +1940,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param reason           the reason the global checkpoint was updated
      */
     public void updateGlobalCheckpointOnReplica(final long globalCheckpoint, final String reason) {
-        verifyReplicationTarget();
+        assert assertReplicationTarget();
         final long localCheckpoint = getLocalCheckpoint();
         if (globalCheckpoint > localCheckpoint) {
             /*
@@ -1952,8 +1967,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param primaryContext the sequence number context
      */
     public void activateWithPrimaryContext(final ReplicationTracker.PrimaryContext primaryContext) {
-        verifyPrimary();
-        assert shardRouting.isRelocationTarget() : "only relocation target can update allocation IDs from primary context: " + shardRouting;
+        assert shardRouting.primary() && shardRouting.isRelocationTarget() : "only primary relocation target can update allocation IDs from primary context: " + shardRouting;
         assert primaryContext.getCheckpointStates().containsKey(routingEntry().allocationId().getId()) &&
             getLocalCheckpoint() == primaryContext.getCheckpointStates().get(routingEntry().allocationId().getId()).getLocalCheckpoint();
         synchronized (mutex) {
@@ -1967,7 +1981,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @return {@code true} if there is at least one shard pending in-sync, otherwise false
      */
     public boolean pendingInSync() {
-        verifyPrimary();
+        assert assertPrimaryMode();
         return replicationTracker.pendingInSync();
     }
 
@@ -2284,7 +2298,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void acquirePrimaryOperationPermit(ActionListener<Releasable> onPermitAcquired, String executorOnDelay, Object debugInfo) {
         verifyNotClosed();
-        verifyPrimary();
+        assert shardRouting.primary() : "acquirePrimaryOperationPermit should only be called on primary shard: " + shardRouting;
 
         indexShardOperationPermits.acquire(onPermitAcquired, executorOnDelay, false, debugInfo);
     }
@@ -2334,7 +2348,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                               final ActionListener<Releasable> onPermitAcquired, final String executorOnDelay,
                                               final Object debugInfo) {
         verifyNotClosed();
-        verifyReplicationTarget();
         if (opPrimaryTerm > pendingPrimaryTerm) {
             synchronized (mutex) {
                 if (opPrimaryTerm > pendingPrimaryTerm) {
@@ -2353,8 +2366,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                 updateGlobalCheckpointOnReplica(globalCheckpoint, "primary term transition");
                                 final long currentGlobalCheckpoint = getGlobalCheckpoint();
                                 final long localCheckpoint;
-                                if (currentGlobalCheckpoint == SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                                    localCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
+                                if (currentGlobalCheckpoint == UNASSIGNED_SEQ_NO) {
+                                    localCheckpoint = NO_OPS_PERFORMED;
                                 } else {
                                     localCheckpoint = currentGlobalCheckpoint;
                                 }
@@ -2387,6 +2400,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                     operationPrimaryTerm);
                             onPermitAcquired.onFailure(new IllegalStateException(message));
                         } else {
+                            assert assertReplicationTarget();
                             try {
                                 updateGlobalCheckpointOnReplica(globalCheckpoint, "operation");
                             } catch (Exception e) {

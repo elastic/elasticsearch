@@ -35,6 +35,7 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
@@ -279,7 +280,8 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
 
         assertThat(bulkResponse.getItems()[1].getResponse().getId(), equalTo("2"));
         assertThat(bulkResponse.getItems()[1].getResponse().getVersion(), equalTo(2L));
-        assertThat(((UpdateResponse) bulkResponse.getItems()[1].getResponse()).getGetResult().field("field").getValue(), equalTo(2));
+        final GetResult getResult = ((UpdateResponse) bulkResponse.getItems()[1].getResponse()).getGetResult();
+        assertThat(getResult.field("field").getValue(), equalTo(2));
         assertThat(bulkResponse.getItems()[1].getFailure(), nullValue());
 
         assertThat(bulkResponse.getItems()[2].getFailure().getId(), equalTo("3"));
@@ -407,16 +409,20 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         assertThat("expected no failures but got: " + response.buildFailureMessage(), response.hasFailures(), equalTo(false));
         assertThat(response.getItems().length, equalTo(numDocs));
         for (int i = 0; i < numDocs; i++) {
-            assertThat(response.getItems()[i].getItemId(), equalTo(i));
-            assertThat(response.getItems()[i].getId(), equalTo(Integer.toString(i)));
-            assertThat(response.getItems()[i].getIndex(), equalTo("test"));
-            assertThat(response.getItems()[i].getType(), equalTo("type1"));
-            assertThat(response.getItems()[i].getOpType(), equalTo(OpType.UPDATE));
+            final BulkItemResponse itemResponse = response.getItems()[i];
+            assertThat(itemResponse.getFailure(), nullValue());
+            assertThat(itemResponse.isFailed(), equalTo(false));
+            assertThat(itemResponse.getItemId(), equalTo(i));
+            assertThat(itemResponse.getId(), equalTo(Integer.toString(i)));
+            assertThat(itemResponse.getIndex(), equalTo("test"));
+            assertThat(itemResponse.getType(), equalTo("type1"));
+            assertThat(itemResponse.getOpType(), equalTo(OpType.UPDATE));
             for (int j = 0; j < 5; j++) {
                 GetResponse getResponse = client().prepareGet("test", "type1", Integer.toString(i)).get();
                 assertThat(getResponse.isExists(), equalTo(false));
             }
         }
+        assertThat(response.hasFailures(), equalTo(false));
     }
 
     public void testBulkIndexingWhileInitializing() throws Exception {

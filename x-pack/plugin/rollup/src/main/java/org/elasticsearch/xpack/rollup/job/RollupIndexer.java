@@ -219,7 +219,7 @@ public abstract class RollupIndexer {
 
                 // rounds the current time to its current bucket based on the date histogram interval.
                 // this is needed to exclude buckets that can still receive new documents.
-                DateHistogramGroupConfig dateHisto = job.getConfig().getGroupConfig().getDateHisto();
+                DateHistogramGroupConfig dateHisto = job.getConfig().getGroupConfig().getDateHistogram();
                 long rounded = dateHisto.createRounding().round(now);
                 if (dateHisto.getDelay() != null) {
                     // if the job has a delay we filter all documents that appear before it.
@@ -396,11 +396,11 @@ public abstract class RollupIndexer {
 
         // Add all the agg builders to our request in order: date_histo -> histo -> terms
         if (groupConfig != null) {
-            builders.addAll(groupConfig.getDateHisto().toBuilders());
-            metadata.putAll(groupConfig.getDateHisto().getMetadata());
-            if (groupConfig.getHisto() != null) {
-                builders.addAll(groupConfig.getHisto().toBuilders());
-                metadata.putAll(groupConfig.getHisto().getMetadata());
+            builders.addAll(groupConfig.getDateHistogram().toBuilders());
+            metadata.putAll(groupConfig.getDateHistogram().getMetadata());
+            if (groupConfig.getHistogram() != null) {
+                builders.addAll(groupConfig.getHistogram().toBuilders());
+                metadata.putAll(groupConfig.getHistogram().getMetadata());
             }
             if (groupConfig.getTerms() != null) {
                 builders.addAll(groupConfig.getTerms().toBuilders());
@@ -426,7 +426,7 @@ public abstract class RollupIndexer {
      */
     private QueryBuilder createBoundaryQuery(Map<String, Object> position) {
         assert maxBoundary < Long.MAX_VALUE;
-        DateHistogramGroupConfig dateHisto = job.getConfig().getGroupConfig().getDateHisto();
+        DateHistogramGroupConfig dateHisto = job.getConfig().getGroupConfig().getDateHistogram();
         String fieldName = dateHisto.getField();
         String rollupFieldName = fieldName + "."  + DateHistogramAggregationBuilder.NAME;
         long lowerBound = 0L;

@@ -47,6 +47,12 @@ class RecordNormalizable extends AbstractLeafNormalizable {
     }
 
     @Override
+    public String getPersonFieldValue() {
+        String over = record.getOverFieldValue();
+        return over != null ? over : record.getByFieldValue();
+    }
+
+    @Override
     public String getFunctionName() {
         return record.getFunction();
     }

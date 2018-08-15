@@ -46,6 +46,11 @@ public class PartitionScoreNormalizable extends AbstractLeafNormalizable {
     }
 
     @Override
+    public String getPersonFieldValue() {
+        return null;
+    }
+
+    @Override
     public String getFunctionName() {
         return null;
     }

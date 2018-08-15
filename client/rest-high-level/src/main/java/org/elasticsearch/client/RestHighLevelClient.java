@@ -59,7 +59,7 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ContextParser;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -207,6 +207,8 @@ public class RestHighLevelClient implements Closeable {
     private final XPackClient xPackClient = new XPackClient(this);
     private final WatcherClient watcherClient = new WatcherClient(this);
     private final LicenseClient licenseClient = new LicenseClient(this);
+    private final MigrationClient migrationClient = new MigrationClient(this);
+    private final MachineLearningClient machineLearningClient = new MachineLearningClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -329,6 +331,32 @@ public class RestHighLevelClient implements Closeable {
      * Licensing APIs on elastic.co</a> for more information.
      */
     public LicenseClient license() { return licenseClient; }
+
+    /**
+     * Provides methods for accessing the Elastic Licensed Licensing APIs that
+     * are shipped with the default distribution of Elasticsearch. All of
+     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
+     * <p>
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/migration-api.html">
+     * Migration APIs on elastic.co</a> for more information.
+     */
+    public MigrationClient migration() {
+        return migrationClient;
+    }
+
+    /**
+     * Provides methods for accessing the Elastic Licensed Machine Learning APIs that
+     * are shipped with the Elastic Stack distribution of Elasticsearch. All of
+     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
+     * <p>
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-apis.html">
+     * Machine Learning APIs on elastic.co</a> for more information.
+     *
+     * @return the client wrapper for making Machine Learning API calls
+     */
+    public MachineLearningClient machineLearning() {
+        return machineLearningClient;
+    }
 
     /**
      * Executes a bulk request using the Bulk API.
@@ -1415,8 +1443,7 @@ public class RestHighLevelClient implements Closeable {
         if (xContentType == null) {
             throw new IllegalStateException("Unsupported Content-Type: " + entity.getContentType().getValue());
         }
-        try (XContentParser parser = xContentType.xContent().createParser(registry,
-            LoggingDeprecationHandler.INSTANCE, entity.getContent())) {
+        try (XContentParser parser = xContentType.xContent().createParser(registry, DEPRECATION_HANDLER, entity.getContent())) {
             return entityParser.apply(parser);
         }
     }
@@ -1433,6 +1460,19 @@ public class RestHighLevelClient implements Closeable {
     static boolean convertExistsResponse(Response response) {
         return response.getStatusLine().getStatusCode() == 200;
     }
+
+    /**
+     * Ignores deprecation warnings. This is appropriate because it is only
+     * used to parse responses from Elasticsearch. Any deprecation warnings
+     * emitted there just mean that you are talking to an old version of
+     * Elasticsearch. There isn't anything you can do about the deprecation.
+     */
+    private static final DeprecationHandler DEPRECATION_HANDLER = new DeprecationHandler() {
+        @Override
+        public void usedDeprecatedName(String usedName, String modernName) {}
+        @Override
+        public void usedDeprecatedField(String usedName, String replacedWith) {}
+    };
 
     static List<NamedXContentRegistry.Entry> getDefaultNamedXContents() {
         Map<String, ContextParser<Object, ? extends Aggregation>> map = new HashMap<>();

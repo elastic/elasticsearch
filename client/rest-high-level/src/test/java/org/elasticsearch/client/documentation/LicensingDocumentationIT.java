@@ -25,6 +25,11 @@ import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.common.Booleans;
+import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
+import org.elasticsearch.protocol.xpack.license.DeleteLicenseResponse;
+import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
+import org.elasticsearch.protocol.xpack.license.GetLicenseResponse;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
@@ -33,6 +38,8 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
@@ -43,7 +50,7 @@ import static org.hamcrest.Matchers.startsWith;
  */
 public class LicensingDocumentationIT extends ESRestHighLevelClientTestCase {
 
-    public void testPutLicense() throws Exception {
+    public void testLicense() throws Exception {
         assumeTrue("License is only valid when tested against snapshot/test builds", Build.CURRENT.isSnapshot());
         RestHighLevelClient client = highLevelClient();
         String license = "{\"license\": {\"uid\":\"893361dc-9749-4997-93cb-802e3d7fa4a8\",\"type\":\"gold\"," +
@@ -82,7 +89,7 @@ public class LicensingDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::put-license-execute-listener
             ActionListener<PutLicenseResponse> listener = new ActionListener<PutLicenseResponse>() {
                 @Override
-                public void onResponse(PutLicenseResponse indexResponse) {
+                public void onResponse(PutLicenseResponse putLicenseResponse) {
                     // <1>
                 }
 
@@ -103,6 +110,109 @@ public class LicensingDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::put-license-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+
+        // we cannot actually delete the license, otherwise the remaining tests won't work
+        if (Booleans.isTrue("true")) {
+            return;
+        }
+        {
+            //tag::delete-license-execute
+            DeleteLicenseRequest request = new DeleteLicenseRequest();
+
+            DeleteLicenseResponse response = client.license().deleteLicense(request, RequestOptions.DEFAULT);
+            //end::delete-license-execute
+
+            //tag::delete-license-response
+            boolean acknowledged = response.isAcknowledged(); // <1>
+            //end::delete-license-response
+
+            assertTrue(acknowledged);
+        }
+        {
+            DeleteLicenseRequest request = new DeleteLicenseRequest();
+            // tag::delete-license-execute-listener
+            ActionListener<DeleteLicenseResponse> listener = new ActionListener<DeleteLicenseResponse>() {
+                @Override
+                public void onResponse(DeleteLicenseResponse deleteLicenseResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::delete-license-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::delete-license-execute-async
+            client.license().deleteLicenseAsync(
+                request, RequestOptions.DEFAULT, listener); // <1>
+            // end::delete-license-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testGetLicense() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            //tag::get-license-execute
+            GetLicenseRequest request = new GetLicenseRequest();
+
+            GetLicenseResponse response = client.license().getLicense(request, RequestOptions.DEFAULT);
+            //end::get-license-execute
+
+            //tag::get-license-response
+            String currentLicense = response.getLicenseDefinition(); // <1>
+            //end::get-license-response
+
+            assertThat(currentLicense, containsString("trial"));
+            assertThat(currentLicense, containsString("client_rest-high-level_integTestCluster"));
+        }
+        {
+            GetLicenseRequest request = new GetLicenseRequest();
+            // tag::get-license-execute-listener
+            ActionListener<GetLicenseResponse> listener = new ActionListener<GetLicenseResponse>() {
+                @Override
+                public void onResponse(GetLicenseResponse indexResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::get-license-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::get-license-execute-async
+            client.license().getLicenseAsync(
+                request, RequestOptions.DEFAULT, listener); // <1>
+            // end::get-license-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+        {
+            GetLicenseRequest request = new GetLicenseRequest();
+            RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
+            // Make sure that it still works in other formats
+            builder.addHeader("Accept", randomFrom("application/smile", "application/cbor"));
+            RequestOptions options = builder.build();
+            GetLicenseResponse response = client.license().getLicense(request, options);
+            String currentLicense = response.getLicenseDefinition();
+            assertThat(currentLicense, startsWith("{"));
+            assertThat(currentLicense, containsString("trial"));
+            assertThat(currentLicense, containsString("client_rest-high-level_integTestCluster"));
+            assertThat(currentLicense, endsWith("}"));
         }
     }
 }

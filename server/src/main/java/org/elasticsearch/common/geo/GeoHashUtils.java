@@ -48,6 +48,8 @@ public class GeoHashUtils {
     private static final double LAT_SCALE = (0x1L<<BITS)/180.0D;
     private static final double LON_SCALE = (0x1L<<BITS)/360.0D;
     private static final short MORTON_OFFSET = (BITS<<1) - (PRECISION*5);
+    /** Bit encoded representation of the latitude of north pole */
+    private static final long MAX_LAT_BITS = (0x1L << (PRECISION * 5 / 2)) - 1;
 
     // No instance:
     private GeoHashUtils() {
@@ -219,9 +221,13 @@ public class GeoHashUtils {
         // shift away the level
         ghLong >>>= 4;
         // deinterleave and add 1 to lat and lon to get topRight
-        long lat = BitUtil.deinterleave(ghLong >>> 1) + 1;
-        long lon = BitUtil.deinterleave(ghLong) + 1;
-        GeoPoint topRight = GeoPoint.fromGeohash(BitUtil.interleave((int)lon, (int)lat) << 4 | len);
+        long lon = BitUtil.deinterleave(ghLong >>> 1) + 1;
+        long lat = BitUtil.deinterleave(ghLong);
+        if (lat < MAX_LAT_BITS) {
+            // We cannot go north of north pole
+            lat = lat + 1;
+        }
+        GeoPoint topRight = GeoPoint.fromGeohash(BitUtil.interleave((int)lat, (int)lon) << 4 | len);
 
         return new Rectangle(bottomLeft.lat(), topRight.lat(), bottomLeft.lon(), topRight.lon());
     }

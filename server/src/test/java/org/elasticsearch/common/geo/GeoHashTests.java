@@ -98,6 +98,11 @@ public class GeoHashTests extends ESTestCase {
         }
     }
 
+    public void testNorthPoleBoundingBox() {
+        Rectangle bbox = GeoHashUtils.bbox("zzbxfpgzupbx"); // Bounding box with maximum precision touching north pole
+        assertEquals(bbox.maxLat, bbox.minLat, 0.00001); // Should be the same
+    }
+
     public void testInvalidGeohashes() {
         IllegalArgumentException ex;
 

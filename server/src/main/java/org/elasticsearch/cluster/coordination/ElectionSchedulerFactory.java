@@ -61,13 +61,13 @@ public class ElectionSchedulerFactory extends AbstractComponent {
      */
 
     public static final Setting<TimeValue> ELECTION_INITIAL_TIMEOUT_SETTING = Setting.timeSetting(ELECTION_INITIAL_TIMEOUT_SETTING_KEY,
-        TimeValue.timeValueMillis(100), TimeValue.timeValueMillis(1), Property.NodeScope);
+        TimeValue.timeValueMillis(100), TimeValue.timeValueMillis(1), TimeValue.timeValueSeconds(10), Property.NodeScope);
 
     public static final Setting<TimeValue> ELECTION_BACK_OFF_TIME_SETTING = Setting.timeSetting(ELECTION_BACK_OFF_TIME_SETTING_KEY,
-        TimeValue.timeValueMillis(100), TimeValue.timeValueMillis(1), Property.NodeScope);
+        TimeValue.timeValueMillis(100), TimeValue.timeValueMillis(1), TimeValue.timeValueSeconds(60), Property.NodeScope);
 
     public static final Setting<TimeValue> ELECTION_MAX_TIMEOUT_SETTING = Setting.timeSetting(ELECTION_MAX_TIMEOUT_SETTING_KEY,
-        TimeValue.timeValueSeconds(10), TimeValue.timeValueMillis(200), Property.NodeScope);
+        TimeValue.timeValueSeconds(10), TimeValue.timeValueMillis(200), TimeValue.timeValueSeconds(300), Property.NodeScope);
 
     private final TimeValue initialTimeout;
     private final TimeValue backoffTime;

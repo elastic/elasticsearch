@@ -1242,6 +1242,20 @@ public class Setting<T> implements ToXContentObject {
         return new GroupSetting(key, validator, properties);
     }
 
+    public static Setting<TimeValue> timeSetting(String key, TimeValue defaultValue, TimeValue minValue, TimeValue maxValue,
+                                                 Property... properties) {
+        return new Setting<>(key, (s) -> defaultValue.getStringRep(), (s) -> {
+            TimeValue timeValue = TimeValue.parseTimeValue(s, null, key);
+            if (timeValue.millis() < minValue.millis()) {
+                throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be >= " + minValue);
+            }
+            if (maxValue.millis() < timeValue.millis()) {
+                throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be <= " + maxValue);
+            }
+            return timeValue;
+        }, properties);
+    }
+
     public static Setting<TimeValue> timeSetting(String key, Function<Settings, TimeValue> defaultValue, TimeValue minValue,
                                                  Property... properties) {
         return new Setting<>(key, (s) -> defaultValue.apply(s).getStringRep(), (s) -> {

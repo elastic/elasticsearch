@@ -198,10 +198,18 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         DatafeedConfig parsedConfig = DatafeedConfig.LENIENT_PARSER.apply(parser, null).build();
         assertThat(parsedConfig.getHeaders(), hasEntry("header-name", "header-value"));
 
+        // The config type field is not written to cluster state
+        String configTypeEntry = "\""+DatafeedConfig.CONFIG_TYPE.getPreferredName()+"\":\""+DatafeedConfig.TYPE+"\"";
+        assertThat(forClusterstateXContent.utf8ToString(), not(containsString(configTypeEntry)));
+
         // headers are not written without the FOR_CLUSTER_STATE param
         BytesReference nonClusterstateXContent = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
         parser = XContentFactory.xContent(XContentType.JSON)
                 .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, nonClusterstateXContent.streamInput());
+
+
+        // The config type field should be present when the document is indexed
+        assertThat(nonClusterstateXContent.utf8ToString(), containsString(configTypeEntry));
 
         parsedConfig = DatafeedConfig.LENIENT_PARSER.apply(parser, null).build();
         assertThat(parsedConfig.getHeaders().entrySet(), hasSize(0));

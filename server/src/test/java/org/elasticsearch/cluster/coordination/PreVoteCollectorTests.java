@@ -40,7 +40,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.cluster.coordination.PreVoteCollectorFactory.REQUEST_PRE_VOTE_ACTION_NAME;
+import static org.elasticsearch.cluster.coordination.PreVoteCollector.REQUEST_PRE_VOTE_ACTION_NAME;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -50,7 +50,7 @@ import static org.hamcrest.Matchers.not;
 public class PreVoteCollectorTests extends ESTestCase {
 
     private DeterministicTaskQueue deterministicTaskQueue;
-    private PreVoteCollectorFactory preVoteCollectorFactory;
+    private PreVoteCollector preVoteCollector;
     private boolean electionOccurred = false;
     private DiscoveryNode localNode;
     private Map<DiscoveryNode, PreVoteResponse> responsesByNode = new HashMap<>();
@@ -96,7 +96,7 @@ public class PreVoteCollectorTests extends ESTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
 
-        preVoteCollectorFactory = new PreVoteCollectorFactory(settings, getLocalPreVoteResponse(), transportService, maxTermSeen -> {
+        preVoteCollector = new PreVoteCollector(settings, getLocalPreVoteResponse(), transportService, maxTermSeen -> {
             assert electionOccurred == false;
             electionOccurred = true;
             lastElectionMaxTermSeen = maxTermSeen;
@@ -123,7 +123,7 @@ public class PreVoteCollectorTests extends ESTestCase {
         final VotingConfiguration votingConfiguration
             = new VotingConfiguration(Arrays.stream(votingNodes).map(DiscoveryNode::getId).collect(Collectors.toSet()));
         final ClusterState clusterState = CoordinationStateTests.clusterState(0, 0, localNode, votingConfiguration, votingConfiguration, 0);
-        return preVoteCollectorFactory.start(clusterState, responsesByNode.keySet());
+        return preVoteCollector.start(clusterState, responsesByNode.keySet());
     }
 
     public void testStartsElectionIfLocalNodeIsOnlyNode() {
@@ -198,11 +198,11 @@ public class PreVoteCollectorTests extends ESTestCase {
         final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
 
         PreVoteResponse newPreVoteResponse = new PreVoteResponse(5, 4, 3);
-        preVoteCollectorFactory.update(newPreVoteResponse, null);
-        final PreVoteResponse preVoteResponse = preVoteCollectorFactory.handlePreVoteRequest(new PreVoteRequest(otherNode, term));
+        preVoteCollector.update(newPreVoteResponse, null);
+        final PreVoteResponse preVoteResponse = preVoteCollector.handlePreVoteRequest(new PreVoteRequest(otherNode, term));
 
         assertThat(preVoteResponse, equalTo(newPreVoteResponse));
-        assertThat(preVoteCollectorFactory.getMaxTermSeen(), is(term));
+        assertThat(preVoteCollector.getMaxTermSeen(), is(term));
     }
 
     public void testResponseToNonLeaderIfNotCandidate() {
@@ -211,11 +211,11 @@ public class PreVoteCollectorTests extends ESTestCase {
         final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
 
         PreVoteResponse newPreVoteResponse = new PreVoteResponse(5, 4, 3);
-        preVoteCollectorFactory.update(newPreVoteResponse, leaderNode);
+        preVoteCollector.update(newPreVoteResponse, leaderNode);
 
         expectThrows(CoordinationStateRejectedException.class, () ->
-            preVoteCollectorFactory.handlePreVoteRequest(new PreVoteRequest(otherNode, term)));
-        assertThat(preVoteCollectorFactory.getMaxTermSeen(), is(term));
+            preVoteCollector.handlePreVoteRequest(new PreVoteRequest(otherNode, term)));
+        assertThat(preVoteCollector.getMaxTermSeen(), is(term));
     }
 
     public void testResponseToRequestFromLeader() {
@@ -230,10 +230,10 @@ public class PreVoteCollectorTests extends ESTestCase {
         final DiscoveryNode leaderNode = new DiscoveryNode("leader-node", buildNewFakeTransportAddress(), Version.CURRENT);
 
         PreVoteResponse newPreVoteResponse = new PreVoteResponse(5, 4, 3);
-        preVoteCollectorFactory.update(newPreVoteResponse, leaderNode);
-        final PreVoteResponse preVoteResponse = preVoteCollectorFactory.handlePreVoteRequest(new PreVoteRequest(leaderNode, term));
+        preVoteCollector.update(newPreVoteResponse, leaderNode);
+        final PreVoteResponse preVoteResponse = preVoteCollector.handlePreVoteRequest(new PreVoteRequest(leaderNode, term));
 
         assertThat(preVoteResponse, equalTo(newPreVoteResponse));
-        assertThat(preVoteCollectorFactory.getMaxTermSeen(), is(term));
+        assertThat(preVoteCollector.getMaxTermSeen(), is(term));
     }
 }

@@ -40,7 +40,7 @@ import java.util.function.LongConsumer;
 import static org.elasticsearch.cluster.coordination.CoordinationState.isElectionQuorum;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentSet;
 
-public class PreVoteCollectorFactory extends AbstractComponent {
+public class PreVoteCollector extends AbstractComponent {
 
     public static final String REQUEST_PRE_VOTE_ACTION_NAME = "internal:cluster/request_pre_vote";
 
@@ -56,7 +56,7 @@ public class PreVoteCollectorFactory extends AbstractComponent {
         return maxTermSeen.accumulateAndGet(term, Math::max);
     }
 
-    PreVoteCollectorFactory(Settings settings, PreVoteResponse preVoteResponse, TransportService transportService, LongConsumer startElection) {
+    PreVoteCollector(Settings settings, PreVoteResponse preVoteResponse, TransportService transportService, LongConsumer startElection) {
         super(settings);
         this.preVoteResponse = preVoteResponse;
         this.transportService = transportService;
@@ -100,7 +100,7 @@ public class PreVoteCollectorFactory extends AbstractComponent {
 
     @Override
     public String toString() {
-        return "PreVoteCollectorFactory{" +
+        return "PreVoteCollector{" +
             "currentLeader=" + currentLeader +
             ", preVoteResponse=" + preVoteResponse +
             '}';
@@ -146,7 +146,7 @@ public class PreVoteCollectorFactory extends AbstractComponent {
 
                     @Override
                     public String toString() {
-                        return "TransportResponseHandler{" + PreVoteCollectorFactory.this + ", node=" + n + '}';
+                        return "TransportResponseHandler{" + PreVoteCollector.this + ", node=" + n + '}';
                     }
                 }));
         }

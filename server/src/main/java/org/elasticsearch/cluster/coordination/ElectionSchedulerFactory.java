@@ -33,7 +33,6 @@ import org.elasticsearch.threadpool.ThreadPool.Names;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.LongSupplier;
 
 /**
  * It's provably impossible to guarantee that any leader election algorithm ever elects a leader, but they generally work (with probability
@@ -105,14 +104,14 @@ public class ElectionSchedulerFactory extends AbstractComponent {
     }
 
     /**
-     * @param randomSupplier supplier of randomly-chosen longs
-     * @param upperBound     inclusive upper bound
+     * @param randomNumber a randomly-chosen long
+     * @param upperBound   inclusive upper bound
      * @return a number in the range (0, upperBound]
      */
     // package-private for testing
-    static long randomPositiveLongAtMost(LongSupplier randomSupplier, long upperBound) {
+    static long toPositiveLongAtMost(long randomNumber, long upperBound) {
         assert 0 < upperBound : upperBound;
-        return nonNegative(randomSupplier.getAsLong()) % upperBound + 1;
+        return nonNegative(randomNumber) % upperBound + 1;
     }
 
     @Override
@@ -125,19 +124,8 @@ public class ElectionSchedulerFactory extends AbstractComponent {
     }
 
     private class ElectionScheduler implements Releasable {
-        /**
-         * The current maximum timeout: the next election is scheduled randomly no later than this number of milliseconds in the future. On
-         * each election attempt this value is increased by `backoffTime`, up to the `maxTimeout`, to adapt to higher-than-expected latency.
-         */
-        private final AtomicLong currentMaxTimeoutMillis = new AtomicLong(Math.min(initialTimeout.millis(), maxTimeout.millis()));
         private final AtomicBoolean isClosed = new AtomicBoolean();
-
-        /**
-         * Calculate the next maximum timeout by backing off the current value by `backoffTime` up to the `maxTimeout`.
-         */
-        private long backOffCurrentMaxTimeout(long currentMaxTimeoutMillis) {
-            return Math.min(maxTimeout.getMillis(), currentMaxTimeoutMillis + backoffTime.getMillis());
-        }
+        private final AtomicLong attempt = new AtomicLong();
 
         void scheduleNextElection(final TimeValue gracePeriod, final Runnable scheduledRunnable) {
             if (isClosed.get()) {
@@ -145,8 +133,9 @@ public class ElectionSchedulerFactory extends AbstractComponent {
                 return;
             }
 
-            final long maxDelayMillis = currentMaxTimeoutMillis.getAndUpdate(this::backOffCurrentMaxTimeout);
-            final long delayMillis = randomPositiveLongAtMost(random::nextLong, maxDelayMillis) + gracePeriod.millis();
+            final long thisAttempt = attempt.getAndIncrement();
+            final long maxDelayMillis = Math.min(maxTimeout.millis(), initialTimeout.millis() + thisAttempt * backoffTime.millis());
+            final long delayMillis = toPositiveLongAtMost(random.nextLong(), maxDelayMillis) + gracePeriod.millis();
             final Runnable runnable = new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
@@ -172,6 +161,7 @@ public class ElectionSchedulerFactory extends AbstractComponent {
                 @Override
                 public String toString() {
                     return "scheduleNextElection{gracePeriod=" + gracePeriod
+                        + ", thisAttempt=" + thisAttempt
                         + ", maxDelayMillis=" + maxDelayMillis
                         + ", delayMillis=" + delayMillis
                         + ", " + ElectionScheduler.this + "}";
@@ -191,7 +181,7 @@ public class ElectionSchedulerFactory extends AbstractComponent {
 
         @Override
         public String toString() {
-            return "ElectionScheduler{currentMaxTimeoutMillis=" + currentMaxTimeoutMillis
+            return "ElectionScheduler{attempt=" + attempt
                 + ", " + ElectionSchedulerFactory.this + "}";
         }
 

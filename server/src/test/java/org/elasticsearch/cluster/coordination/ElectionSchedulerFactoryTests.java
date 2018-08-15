@@ -26,12 +26,11 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.LongSupplier;
 
 import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.ELECTION_BACK_OFF_TIME_SETTING;
 import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.ELECTION_INITIAL_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.ELECTION_MAX_TIMEOUT_SETTING;
-import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.randomPositiveLongAtMost;
+import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.toPositiveLongAtMost;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -152,18 +151,9 @@ public class ElectionSchedulerFactoryTests extends ESTestCase {
     }
 
     public void testRandomPositiveLongLessThan() {
-        LongSupplier[] longSuppliers = new LongSupplier[]{
-            () -> 0,
-            () -> 1,
-            () -> -1,
-            () -> Long.MIN_VALUE,
-            () -> Long.MAX_VALUE,
-            ESTestCase::randomLong
-        };
-
-        for (LongSupplier longSupplier : longSuppliers) {
+        for (long input : new long[]{0, 1, -1, Long.MIN_VALUE, Long.MAX_VALUE, randomLong()}) {
             for (long upperBound : new long[]{1, 2, 3, 100, Long.MAX_VALUE}) {
-                long l = randomPositiveLongAtMost(longSupplier, upperBound);
+                long l = toPositiveLongAtMost(input, upperBound);
                 assertThat(l, greaterThan(0L));
                 assertThat(l, lessThanOrEqualTo(upperBound));
             }

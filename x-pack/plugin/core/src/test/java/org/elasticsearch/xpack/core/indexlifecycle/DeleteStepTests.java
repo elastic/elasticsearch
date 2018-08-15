@@ -10,7 +10,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
@@ -80,7 +80,7 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
         Mockito.doAnswer(invocation -> {
                 DeleteIndexRequest request = (DeleteIndexRequest) invocation.getArguments()[0];
                 @SuppressWarnings("unchecked")
-                ActionListener<DeleteIndexResponse> listener = (ActionListener<DeleteIndexResponse>) invocation.getArguments()[1];
+                ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
                 assertNotNull(request);
                 assertEquals(1, request.indices().length);
                 assertEquals(indexMetaData.getIndex().getName(), request.indices()[0]);
@@ -126,7 +126,7 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
             public Void answer(InvocationOnMock invocation) throws Throwable {
                 DeleteIndexRequest request = (DeleteIndexRequest) invocation.getArguments()[0];
                 @SuppressWarnings("unchecked")
-                ActionListener<DeleteIndexResponse> listener = (ActionListener<DeleteIndexResponse>) invocation.getArguments()[1];
+                ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
                 assertNotNull(request);
                 assertEquals(1, request.indices().length);
                 assertEquals(indexMetaData.getIndex().getName(), request.indices()[0]);

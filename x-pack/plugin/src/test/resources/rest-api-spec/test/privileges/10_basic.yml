@@ -93,8 +93,6 @@ teardown:
             {
               "app": {
                 "p1": {
-                  "application": "app",
-                  "name": "p1",
                   "actions": [ "data:read/*" , "action:login" ],
                   "metadata": {
                     "key3" : "val3"

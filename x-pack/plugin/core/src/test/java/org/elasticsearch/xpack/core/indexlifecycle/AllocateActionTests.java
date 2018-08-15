@@ -90,6 +90,35 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
         return new AllocateAction(numberOfReplicas, include, exclude, require);
     }
 
+    public void testAllMapsNullOrEmpty() {
+        Map<String, String> include = randomBoolean() ? null : Collections.emptyMap();
+        Map<String, String> exclude = randomBoolean() ? null : Collections.emptyMap();
+        Map<String, String> require = randomBoolean() ? null : Collections.emptyMap();
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+                () -> new AllocateAction(null, include, exclude, require));
+        assertEquals("At least one of " + AllocateAction.INCLUDE_FIELD.getPreferredName() + ", "
+                + AllocateAction.EXCLUDE_FIELD.getPreferredName() + " or " + AllocateAction.REQUIRE_FIELD.getPreferredName()
+                + "must contain attributes for action " + AllocateAction.NAME, exception.getMessage());
+    }
+
+    public void testInvalidNumberOfReplicas() {
+        Map<String, String> include = randomMap(1, 5);
+        Map<String, String> exclude = randomBoolean() ? null : Collections.emptyMap();
+        Map<String, String> require = randomBoolean() ? null : Collections.emptyMap();
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+            () -> new AllocateAction(randomIntBetween(-1000, -1), include, exclude, require));
+        assertEquals("[" + AllocateAction.NUMBER_OF_REPLICAS_FIELD.getPreferredName() + "] must be >= 0", exception.getMessage());
+    }
+
+    public static Map<String, String> randomMap(int minEntries, int maxEntries) {
+        Map<String, String> map = new HashMap<>();
+        int numIncludes = randomIntBetween(minEntries, maxEntries);
+        for (int i = 0; i < numIncludes; i++) {
+            map.put(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
+        }
+        return map;
+    }
+
     public void testToSteps() {
         AllocateAction action = createTestInstance();
         String phase = randomAlphaOfLengthBetween(1, 10);
@@ -119,12 +148,4 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
         assertEquals(nextStepKey, secondStep.getNextStepKey());
     }
 
-    public static Map<String, String> randomMap(int minEntries, int maxEntries) {
-        Map<String, String> map = new HashMap<>();
-        int numIncludes = randomIntBetween(minEntries, maxEntries);
-        for (int i = 0; i < numIncludes; i++) {
-            map.put(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        }
-        return map;
-    }
 }

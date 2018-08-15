@@ -106,15 +106,15 @@ public class ElectionSchedulerFactoryTests extends ESTestCase {
         final Builder settingsBuilder = Settings.builder();
 
         if (randomBoolean()) {
-            settingsBuilder.put(ELECTION_INITIAL_TIMEOUT_SETTING.getKey(), randomLongBetween(1, 100000) + "ms");
+            settingsBuilder.put(ELECTION_INITIAL_TIMEOUT_SETTING.getKey(), randomLongBetween(1, 10000) + "ms");
         }
 
         if (randomBoolean()) {
-            settingsBuilder.put(ELECTION_BACK_OFF_TIME_SETTING.getKey(), randomLongBetween(1, 100000) + "ms");
+            settingsBuilder.put(ELECTION_BACK_OFF_TIME_SETTING.getKey(), randomLongBetween(1, 60000) + "ms");
         }
 
         if (randomBoolean()) {
-            settingsBuilder.put(ELECTION_MAX_TIMEOUT_SETTING.getKey(), randomLongBetween(200, 100000) + "ms");
+            settingsBuilder.put(ELECTION_MAX_TIMEOUT_SETTING.getKey(), randomLongBetween(200, 180000) + "ms");
         }
 
         final Settings settings = settingsBuilder.put(NODE_NAME_SETTING.getKey(), "node").build();

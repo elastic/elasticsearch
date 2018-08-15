@@ -21,6 +21,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -53,7 +54,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRollupJobAction.Request, PutRollupJobAction.Response> {
+public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRollupJobAction.Request, AcknowledgedResponse> {
     private final XPackLicenseState licenseState;
     private final PersistentTasksService persistentTasksService;
     private final Client client;
@@ -76,13 +77,13 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
     }
 
     @Override
-    protected PutRollupJobAction.Response newResponse() {
-        return new PutRollupJobAction.Response();
+    protected AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     @Override
     protected void masterOperation(PutRollupJobAction.Request request, ClusterState clusterState,
-                                   ActionListener<PutRollupJobAction.Response> listener) {
+                                   ActionListener<AcknowledgedResponse> listener) {
 
         if (!licenseState.isRollupAllowed()) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.ROLLUP));
@@ -123,7 +124,7 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
         return new RollupJob(config, filteredHeaders);
     }
 
-    static void createIndex(RollupJob job, ActionListener<PutRollupJobAction.Response> listener,
+    static void createIndex(RollupJob job, ActionListener<AcknowledgedResponse> listener,
                             PersistentTasksService persistentTasksService, Client client, Logger logger) {
 
         String jobMetadata = "\"" + job.getConfig().getId() + "\":" + job.getConfig().toJSONString();
@@ -148,7 +149,7 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
     }
 
     @SuppressWarnings("unchecked")
-    static void updateMapping(RollupJob job, ActionListener<PutRollupJobAction.Response> listener,
+    static void updateMapping(RollupJob job, ActionListener<AcknowledgedResponse> listener,
                               PersistentTasksService persistentTasksService, Client client, Logger logger) {
 
         final String indexName = job.getConfig().getRollupIndex();
@@ -210,7 +211,7 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
                 }));
     }
 
-    static void startPersistentTask(RollupJob job, ActionListener<PutRollupJobAction.Response> listener,
+    static void startPersistentTask(RollupJob job, ActionListener<AcknowledgedResponse> listener,
                                     PersistentTasksService persistentTasksService) {
 
         persistentTasksService.sendStartRequest(job.getConfig().getId(), RollupField.TASK_NAME, job,
@@ -226,13 +227,13 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
     }
 
 
-    private static void waitForRollupStarted(RollupJob job, ActionListener<PutRollupJobAction.Response> listener,
+    private static void waitForRollupStarted(RollupJob job, ActionListener<AcknowledgedResponse> listener,
                                              PersistentTasksService persistentTasksService) {
         persistentTasksService.waitForPersistentTaskCondition(job.getConfig().getId(), Objects::nonNull, job.getConfig().getTimeout(),
                 new PersistentTasksService.WaitForPersistentTaskListener<RollupJob>() {
                     @Override
                     public void onResponse(PersistentTasksCustomMetaData.PersistentTask<RollupJob> task) {
-                        listener.onResponse(new PutRollupJobAction.Response(true));
+                        listener.onResponse(new AcknowledgedResponse(true));
                     }
 
                     @Override

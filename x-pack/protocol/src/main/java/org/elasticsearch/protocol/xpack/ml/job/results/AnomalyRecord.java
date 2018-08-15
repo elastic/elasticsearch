@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.protocol.xpack.ml.job.config.Job;
 
 import java.io.IOException;
 import java.time.format.DateTimeFormatter;
@@ -88,7 +89,7 @@ public class AnomalyRecord implements ToXContentObject {
 
 
     static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), Result.JOB_ID);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
         PARSER.declareField(ConstructingObjectParser.constructorArg(), p -> {
             if (p.currentToken() == Token.VALUE_NUMBER) {
                 return new Date(p.longValue());
@@ -159,7 +160,7 @@ public class AnomalyRecord implements ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(Result.JOB_ID.getPreferredName(), jobId);
+        builder.field(Job.ID.getPreferredName(), jobId);
         builder.field(Result.RESULT_TYPE.getPreferredName(), RESULT_TYPE_VALUE);
         builder.field(PROBABILITY.getPreferredName(), probability);
         builder.field(RECORD_SCORE.getPreferredName(), recordScore);

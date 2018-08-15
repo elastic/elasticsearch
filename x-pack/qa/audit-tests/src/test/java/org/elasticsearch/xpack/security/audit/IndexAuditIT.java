@@ -7,9 +7,9 @@ package org.elasticsearch.xpack.security.audit;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.http.message.BasicHeader;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -28,8 +28,8 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.SecurityField;
-import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -132,7 +132,7 @@ public class IndexAuditIT extends ESIntegTestCase {
         awaitIndexTemplateCreation();
 
         // delete the template
-        DeleteIndexTemplateResponse deleteResponse = client().admin().indices()
+        AcknowledgedResponse deleteResponse = client().admin().indices()
                 .prepareDeleteTemplate(IndexAuditTrail.INDEX_TEMPLATE_NAME).execute().actionGet();
         assertThat(deleteResponse.isAcknowledged(), is(true));
         awaitIndexTemplateCreation();

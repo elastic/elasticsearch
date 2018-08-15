@@ -23,6 +23,10 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
 
     @Override
     protected ShrinkAction createTestInstance() {
+        return randomInstance();
+    }
+
+    static ShrinkAction randomInstance() {
         return new ShrinkAction(randomIntBetween(1, 100));
     }
 

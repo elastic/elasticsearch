@@ -53,7 +53,7 @@ public final class WhitelistLoader {
      *     a Painless type name with the exception that any dollar symbols used as part of inner classes will
      *     be replaced with dot symbols. </li>
      *     <li> short Java type name - The text after the final dot symbol of any specified Java class. A
-     *     short type Java name may be excluded by using the 'only_fqn' token during Painless class parsing
+     *     short type Java name may be excluded by using the 'no_import' token during Painless class parsing
      *     as described later. </li>
      * </ul>
      *
@@ -65,7 +65,7 @@ public final class WhitelistLoader {
      *   <li> Primitive types may be specified starting with 'class' and followed by the Java type name,
      *   an opening bracket, a newline, a closing bracket, and a final newline. </li>
      *   <li> Complex types may be specified starting with 'class' and followed the fully-qualified Java
-     *   class name, optionally followed by an 'only_fqn' token, an opening bracket, a newline,
+     *   class name, optionally followed by an 'no_import' token, an opening bracket, a newline,
      *   constructor/method/field specifications, a closing bracket, and a final newline. Within a complex
      *   type the following may be parsed:
      *   <ul>
@@ -109,7 +109,7 @@ public final class WhitelistLoader {
      *
      * # complex types
      *
-     * class my.package.Example only_fqn {
+     * class my.package.Example no_import {
      *   # constructors
      *   ()
      *   (int)
@@ -145,7 +145,7 @@ public final class WhitelistLoader {
 
                 String whitelistClassOrigin = null;
                 String javaClassName = null;
-                boolean onlyFQNJavaClassName = false;
+                boolean noImport = false;
                 List<WhitelistConstructor> whitelistConstructors = null;
                 List<WhitelistMethod> whitelistMethods = null;
                 List<WhitelistField> whitelistFields = null;
@@ -160,7 +160,7 @@ public final class WhitelistLoader {
                     }
 
                     // Handle a new class by resetting all the variables necessary to construct a new WhitelistClass for the whitelist.
-                    // Expects the following format: 'class' ID 'only_fqn'? '{' '\n'
+                    // Expects the following format: 'class' ID 'no_import'? '{' '\n'
                     if (line.startsWith("class ")) {
                         // Ensure the final token of the line is '{'.
                         if (line.endsWith("{") == false) {
@@ -172,8 +172,8 @@ public final class WhitelistLoader {
                         String[] tokens = line.substring(5, line.length() - 1).trim().split("\\s+");
 
                         // Ensure the correct number of tokens.
-                        if (tokens.length == 2 && "only_fqn".equals(tokens[1])) {
-                            onlyFQNJavaClassName = true;
+                        if (tokens.length == 2 && "no_import".equals(tokens[1])) {
+                            noImport = true;
                         } else if (tokens.length != 1) {
                             throw new IllegalArgumentException("invalid class definition: failed to parse class name [" + line + "]");
                         }
@@ -194,13 +194,13 @@ public final class WhitelistLoader {
                             throw new IllegalArgumentException("invalid class definition: extraneous closing bracket");
                         }
 
-                        whitelistClasses.add(new WhitelistClass(whitelistClassOrigin, javaClassName, onlyFQNJavaClassName,
+                        whitelistClasses.add(new WhitelistClass(whitelistClassOrigin, javaClassName, noImport,
                             whitelistConstructors, whitelistMethods, whitelistFields));
 
                         // Set all the variables to null to ensure a new class definition is found before other parsable values.
                         whitelistClassOrigin = null;
                         javaClassName = null;
-                        onlyFQNJavaClassName = false;
+                        noImport = false;
                         whitelistConstructors = null;
                         whitelistMethods = null;
                         whitelistFields = null;

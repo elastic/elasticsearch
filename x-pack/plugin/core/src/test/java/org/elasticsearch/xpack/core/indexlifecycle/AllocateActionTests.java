@@ -27,6 +27,10 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
 
     @Override
     protected AllocateAction createTestInstance() {
+        return randomInstance();
+    }
+
+    static AllocateAction randomInstance() {
         boolean hasAtLeastOneMap = false;
         Map<String, String> includes;
         if (randomBoolean()) {
@@ -51,6 +55,7 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
         Integer numberOfReplicas = randomBoolean() ? null : randomIntBetween(0, 10);
         return new AllocateAction(numberOfReplicas, includes, excludes, requires);
     }
+
 
     @Override
     protected Reader<AllocateAction> instanceReader() {

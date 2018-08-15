@@ -152,7 +152,7 @@ public class ElectionSchedulerFactory extends AbstractComponent {
                         logger.debug("{} not starting election", ElectionScheduler.this);
                         return;
                     }
-                    logger.debug("{} starting pre-voting", ElectionScheduler.this);
+                    logger.debug("{} starting election", ElectionScheduler.this);
                     scheduledRunnable.run();
                 }
 

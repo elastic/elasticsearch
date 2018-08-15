@@ -87,6 +87,7 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Nullable;
@@ -1093,6 +1094,29 @@ final class RequestConverters {
         Request req = new Request(HttpGet.METHOD_NAME, builder.build());
         req.setEntity(createEntity(request, REQUEST_BODY_CONTENT_TYPE));
         return req;
+    }
+
+    static Request termVectors(TermVectorsRequest tvrequest) throws IOException {
+        String endpoint = "_termvectors";
+        if (tvrequest.doc() != null) {
+            endpoint = new EndpointBuilder().addPathPart(tvrequest.index(), tvrequest.type()).addPathPartAsIs(endpoint).build();
+        } else {
+            endpoint = new EndpointBuilder().addPathPart(tvrequest.index(), tvrequest.type(),
+                tvrequest.id()).addPathPartAsIs(endpoint).build();
+        }
+
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        Params params = new Params(request);
+        params.withRouting(tvrequest.routing());
+        params.withVersion(tvrequest.version());
+        params.withVersionType(tvrequest.versionType());
+        params.withRealtime(tvrequest.realtime());
+        params.withPreference(tvrequest.preference());
+        if (tvrequest.selectedFields() != null) {
+            params.withFields(tvrequest.selectedFields().stream().toArray(String[]::new));
+        }
+        request.setEntity(createEntity(tvrequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
     }
 
     static Request getScript(GetStoredScriptRequest getStoredScriptRequest) {

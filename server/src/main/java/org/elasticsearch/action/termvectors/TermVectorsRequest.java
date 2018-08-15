@@ -38,9 +38,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.index.VersionType;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -59,7 +61,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
  * Note, the {@link #index()}, {@link #type(String)} and {@link #id(String)} are
  * required.
  */
-public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> implements RealtimeRequest {
+public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> implements RealtimeRequest, ToXContentObject {
 
     private static final ParseField INDEX = new ParseField("_index");
     private static final ParseField TYPE = new ParseField("_type");
@@ -163,6 +165,14 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
     public TermVectorsRequest(String index, String type, String id) {
         super(index);
         this.id = id;
+        this.type = type;
+    }
+
+    /**
+     * Constructor for artificial documents
+     */
+    public TermVectorsRequest(String index, String type) {
+        super(index);
         this.type = type;
     }
 
@@ -505,7 +515,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
             }
         }
         routing = in.readOptionalString();
-        
+
         if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
             in.readOptionalString(); // _parent
         }
@@ -579,6 +589,37 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         out.writeBoolean(realtime);
         out.writeByte(versionType.getValue());
         out.writeLong(version);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        // as there are defaults, set values only when different from defaults
+        if (selectedFields != null) builder.field(FIELDS.getPreferredName(), selectedFields.toArray());
+        if (flagsEnum.contains(Flag.Positions) == false) builder.field(POSITIONS.getPreferredName(), false);
+        if (flagsEnum.contains(Flag.Payloads) == false) builder.field(PAYLOADS.getPreferredName(), false);
+        if (flagsEnum.contains(Flag.Offsets) == false) builder.field(OFFSETS.getPreferredName(), false);
+        if (flagsEnum.contains(Flag.FieldStatistics) == false) builder.field("field_statistics", false);
+        if (flagsEnum.contains(Flag.TermStatistics)) builder.field("term_statistics", true);
+        if (perFieldAnalyzer != null) builder.field("per_field_analyzer", perFieldAnalyzer);
+        if (filterSettings != null) {
+            builder.startObject(FILTER.getPreferredName());
+            if (filterSettings.maxNumTerms != null) builder.field("max_num_terms", filterSettings.maxNumTerms);
+            if (filterSettings.minTermFreq != null) builder.field("min_term_freq", filterSettings.minTermFreq);
+            if (filterSettings.maxTermFreq != null) builder.field("max_term_freq", filterSettings.maxTermFreq);
+            if (filterSettings.minDocFreq != null) builder.field("min_doc_freq", filterSettings.minDocFreq);
+            if (filterSettings.maxDocFreq != null) builder.field("max_doc_freq", filterSettings.maxDocFreq);
+            if (filterSettings.minWordLength != null) builder.field("min_word_length", filterSettings.minWordLength);
+            if (filterSettings.maxWordLength != null) builder.field("max_word_length", filterSettings.maxWordLength);
+            builder.endObject();
+        }
+        if (doc != null) {
+            try (InputStream stream = doc.streamInput()) {
+                builder.rawField(DOC.getPreferredName(), stream, xContentType);
+            }
+        }
+        builder.endObject();
+        return builder;
     }
 
     public enum Flag {

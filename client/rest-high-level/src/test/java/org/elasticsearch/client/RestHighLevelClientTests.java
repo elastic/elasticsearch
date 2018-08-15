@@ -665,7 +665,6 @@ public class RestHighLevelClientTests extends ESTestCase {
             "render_search_template",
             "scripts_painless_execute",
             "tasks.get",
-            "termvectors",
             "update_by_query"
         };
         //These API are not required for high-level client feature completeness

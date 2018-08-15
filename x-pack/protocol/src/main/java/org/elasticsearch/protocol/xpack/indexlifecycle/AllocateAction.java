@@ -34,10 +34,10 @@ import java.util.Objects;
 public class AllocateAction implements ToXContentObject {
 
     public static final String NAME = "allocate";
-    public static final ParseField NUMBER_OF_REPLICAS_FIELD = new ParseField("number_of_replicas");
-    public static final ParseField INCLUDE_FIELD = new ParseField("include");
-    public static final ParseField EXCLUDE_FIELD = new ParseField("exclude");
-    public static final ParseField REQUIRE_FIELD = new ParseField("require");
+    private static final ParseField NUMBER_OF_REPLICAS_FIELD = new ParseField("number_of_replicas");
+    private static final ParseField INCLUDE_FIELD = new ParseField("include");
+    private static final ParseField EXCLUDE_FIELD = new ParseField("exclude");
+    private static final ParseField REQUIRE_FIELD = new ParseField("require");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<AllocateAction, Void> PARSER = new ConstructingObjectParser<>(NAME,

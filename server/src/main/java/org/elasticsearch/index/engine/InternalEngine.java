@@ -2235,22 +2235,6 @@ public class InternalEngine extends Engine {
         return localCheckpointTracker.getStats(globalCheckpoint);
     }
 
-    @Override
-    public Engine lockDownEngine() throws IOException {
-        try (ReleasableLock ignored = writeLock.acquire()) {
-            refresh("lockdown", SearcherScope.INTERNAL);
-            Searcher searcher = acquireSearcher("lockdown", SearcherScope.INTERNAL);
-            try {
-                ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(this.engineConfig, lastCommittedSegmentInfos, searcher,
-                    getSeqNoStats(getLastSyncedGlobalCheckpoint()), getTranslogStats());
-                searcher = null;
-                return readOnlyEngine;
-            } finally {
-                IOUtils.close(searcher);
-            }
-        }
-    }
-
     /**
      * Returns the number of times a version was looked up either from the index.
      * Note this is only available if assertions are enabled

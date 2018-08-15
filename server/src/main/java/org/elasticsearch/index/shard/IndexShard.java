@@ -84,6 +84,7 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngine;
+import org.elasticsearch.index.engine.SearchOnlyEngine;
 import org.elasticsearch.index.engine.RefreshFailedEngineException;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.engine.SegmentsStats;
@@ -2679,12 +2680,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 return;
             }
             final String translogUUID = currentEngine.commitStats().getUserData().get(Translog.TRANSLOG_UUID_KEY);
-            final Engine lockedEngine = currentEngine.lockDownEngine();
-            if (lockedEngine != currentEngine) {
-                boolean swapped = currentEngineReference.compareAndSet(currentEngine, lockedEngine);
-                assert swapped : "Failed to swap engine";
-                currentEngine.close();
-            }
+            IOUtils.close(currentEngineReference.getAndSet(new SearchOnlyEngine(currentEngine)));
             final long minRetainedTranslogGen = Translog.readMinTranslogGeneration(translogConfig.getTranslogPath(), translogUUID);
             store.trimUnsafeCommits(globalCheckpoint, minRetainedTranslogGen, indexSettings.getIndexVersionCreated());
             final EngineConfig config = newEngineConfig();
@@ -2706,7 +2702,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         synchronized (mutex) {
             final Engine resettingEngine = resettingEngineReference.get();
             if (resettingEngine != null && resettingEngine.getLocalCheckpoint() >= minRequiredCheckpointForResettingEngine.get()) {
-                final Engine currentEngine = currentEngineReference.getAndSet(resettingEngineReference.getAndSet(null));
+                final Engine newEngine = resettingEngineReference.getAndSet(null);
+                final Engine currentEngine = currentEngineReference.getAndSet(newEngine);
                 IOUtils.close(currentEngine);
                 changeState(IndexShardState.STARTED, "engine was reset");
             }

@@ -39,30 +39,36 @@ import java.util.function.BiFunction;
 import java.util.stream.Stream;
 
 /**
- * An engine that does not accept writes, and always points stats, searcher to the last commit.
+ * A minimal engine that does not accept writes, and always points stats, searcher to the last commit.
  */
-final class ReadOnlyEngine extends Engine {
+public final class SearchOnlyEngine extends Engine {
     private final SegmentInfos lastCommittedSegmentInfos;
     private final SeqNoStats seqNoStats;
     private final TranslogStats translogStats;
     private final SearcherManager searcherManager;
     private final Searcher lastCommitSearcher;
 
-    ReadOnlyEngine(EngineConfig engineConfig, SegmentInfos lastCommittedSegmentInfos,
-                   Searcher lastCommitSearcher, SeqNoStats seqNoStats, TranslogStats translogStats) throws IOException {
-        super(engineConfig);
-        this.lastCommittedSegmentInfos = lastCommittedSegmentInfos;
-        this.lastCommitSearcher = lastCommitSearcher;
-        this.seqNoStats = seqNoStats;
-        this.translogStats = translogStats;
-        this.searcherManager = new SearcherManager(lastCommitSearcher.getDirectoryReader(),
-            new RamAccountingSearcherFactory(engineConfig.getCircuitBreakerService()));
+    public SearchOnlyEngine(Engine engine) throws IOException {
+        super(engine.config());
+        engine.refresh("lockdown");
+        this.seqNoStats = engine.getSeqNoStats(engine.getLastSyncedGlobalCheckpoint());
+        this.translogStats = engine.getTranslogStats();
+        this.lastCommittedSegmentInfos = engine.getLastCommittedSegmentInfos();
+        Searcher searcher = engine.acquireSearcher("lockdown", SearcherScope.INTERNAL);
+        try {
+            this.searcherManager = new SearcherManager(searcher.getDirectoryReader(),
+                new RamAccountingSearcherFactory(engineConfig.getCircuitBreakerService()));
+            this.lastCommitSearcher = searcher;
+            searcher = null;
+        } finally {
+            IOUtils.close(searcher);
+        }
     }
 
     @Override
     protected void closeNoLock(String reason, CountDownLatch closedLatch) {
         try {
-            IOUtils.close(lastCommitSearcher, searcherManager);
+            IOUtils.close(lastCommitSearcher);
         } catch (Exception ex) {
             logger.warn("failed to close searcher", ex);
         } finally {
@@ -131,11 +137,6 @@ final class ReadOnlyEngine extends Engine {
     @Override
     public NoOpResult noOp(NoOp noOp) {
         throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public Engine lockDownEngine() {
-        return this;
     }
 
     @Override
@@ -215,7 +216,7 @@ final class ReadOnlyEngine extends Engine {
 
     @Override
     public void refresh(String source) throws EngineException {
-        // noop
+        throw new UnsupportedOperationException();
     }
 
     @Override

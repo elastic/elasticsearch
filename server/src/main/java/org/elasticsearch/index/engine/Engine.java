@@ -1634,11 +1634,6 @@ public abstract class Engine implements Closeable {
     public abstract void skipTranslogRecovery();
 
     /**
-     * Returns a {@link ReadOnlyEngine} that points to the last commit of the current engine.
-     */
-    public abstract Engine lockDownEngine() throws IOException;
-
-    /**
      * Returns <code>true</code> iff this engine is currently recovering from translog.
      */
     public boolean isRecovering() {

@@ -143,7 +143,6 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.ReplicationTracker;
-import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.ShardId;
@@ -4723,72 +4722,6 @@ public class InternalEngineTests extends EngineTestCase {
                 }
             }
         }
-    }
-
-    public void testLockDownEngine() throws Exception {
-        IOUtils.close(engine, store);
-        Engine lockedDownEngine = null;
-        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
-        try (Store store = createStore()) {
-            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
-            int numDocs = scaledRandomIntBetween(10, 1000);
-            final SeqNoStats lastSeqNoStats;
-            final Set<String> lastDocIds;
-            try (InternalEngine engine = createEngine(config)) {
-                for (int i = 0; i < numDocs; i++) {
-                    if (rarely()) {
-                        continue; // gap in sequence number
-                    }
-                    ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"), null);
-                    engine.index(new Engine.Index(newUid(doc), doc, i, primaryTerm.get(), 1, null, REPLICA,
-                        System.nanoTime(), -1, false));
-                    if (rarely()) {
-                        engine.flush();
-                    }
-                    globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getLocalCheckpoint()));
-                }
-                engine.syncTranslog();
-                lockedDownEngine = engine.lockDownEngine();
-                lastSeqNoStats = engine.getSeqNoStats(globalCheckpoint.get());
-                lastDocIds = getDocIds(engine, true);
-                assertThat(lockedDownEngine.getLocalCheckpoint(), equalTo(lastSeqNoStats.getLocalCheckpoint()));
-                assertThat(lockedDownEngine.getSeqNoStats(globalCheckpoint.get()).getMaxSeqNo(), equalTo(lastSeqNoStats.getMaxSeqNo()));
-                assertThat(getDocIds(lockedDownEngine, randomBoolean()), equalTo(lastDocIds));
-                for (int i = 0; i < numDocs; i++) {
-                    if (randomBoolean()) {
-                        String delId = Integer.toString(i);
-                        engine.delete(new Engine.Delete("test", delId, newUid(delId), primaryTerm.get()));
-                    }
-                    if (rarely()) {
-                        engine.flush();
-                    }
-                }
-                // the locked down engine should still point to the previous commit
-                assertThat(lockedDownEngine.getLocalCheckpoint(), equalTo(lastSeqNoStats.getLocalCheckpoint()));
-                assertThat(lockedDownEngine.getSeqNoStats(globalCheckpoint.get()).getMaxSeqNo(), equalTo(lastSeqNoStats.getMaxSeqNo()));
-                assertThat(getDocIds(lockedDownEngine, randomBoolean()), equalTo(lastDocIds));
-            }
-            // Close and reopen the main engine
-            trimUnsafeCommits(config);
-            try (InternalEngine recoveringEngine = new InternalEngine(config)) {
-                recoveringEngine.recoverFromTranslog(Long.MAX_VALUE);
-                // the locked down engine should still point to the previous commit
-                assertThat(lockedDownEngine.getLocalCheckpoint(), equalTo(lastSeqNoStats.getLocalCheckpoint()));
-                assertThat(lockedDownEngine.getSeqNoStats(globalCheckpoint.get()).getMaxSeqNo(), equalTo(lastSeqNoStats.getMaxSeqNo()));
-                assertThat(getDocIds(lockedDownEngine, randomBoolean()), equalTo(lastDocIds));
-            }
-        } finally {
-            IOUtils.close(lockedDownEngine);
-        }
-    }
-
-    private static void trimUnsafeCommits(EngineConfig config) throws IOException {
-        final Store store = config.getStore();
-        final TranslogConfig translogConfig = config.getTranslogConfig();
-        final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
-        final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
-        final long minRetainedTranslogGen = Translog.readMinTranslogGeneration(translogConfig.getTranslogPath(), translogUUID);
-        store.trimUnsafeCommits(globalCheckpoint, minRetainedTranslogGen, config.getIndexSettings().getIndexVersionCreated());
     }
 
     void assertLuceneOperations(InternalEngine engine, long expectedAppends, long expectedUpdates, long expectedDeletes) {

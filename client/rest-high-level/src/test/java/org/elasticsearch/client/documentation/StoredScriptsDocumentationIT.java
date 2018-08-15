@@ -23,9 +23,9 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
-import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptResponse;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -154,7 +154,7 @@ public class StoredScriptsDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::delete-stored-script-request-timeout
 
         // tag::delete-stored-script-execute
-        DeleteStoredScriptResponse deleteResponse = client.deleteScript(deleteRequest, RequestOptions.DEFAULT);
+        AcknowledgedResponse deleteResponse = client.deleteScript(deleteRequest, RequestOptions.DEFAULT);
         // end::delete-stored-script-execute
 
         // tag::delete-stored-script-response
@@ -164,10 +164,10 @@ public class StoredScriptsDocumentationIT extends ESRestHighLevelClientTestCase 
         putStoredScript("calculate-score", scriptSource);
 
         // tag::delete-stored-script-execute-listener
-        ActionListener<DeleteStoredScriptResponse> listener =
-            new ActionListener<DeleteStoredScriptResponse>() {
+        ActionListener<AcknowledgedResponse> listener =
+            new ActionListener<AcknowledgedResponse>() {
                 @Override
-                public void onResponse(DeleteStoredScriptResponse response) {
+                public void onResponse(AcknowledgedResponse response) {
                     // <1>
                 }
 

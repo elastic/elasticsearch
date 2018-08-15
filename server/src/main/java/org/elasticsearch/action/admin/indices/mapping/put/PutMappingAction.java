@@ -21,8 +21,9 @@ package org.elasticsearch.action.admin.indices.mapping.put;
 
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 
-public class PutMappingAction extends Action<PutMappingRequest, PutMappingResponse, PutMappingRequestBuilder> {
+public class PutMappingAction extends Action<PutMappingRequest, AcknowledgedResponse, PutMappingRequestBuilder> {
 
     public static final PutMappingAction INSTANCE = new PutMappingAction();
     public static final String NAME = "indices:admin/mapping/put";
@@ -32,8 +33,8 @@ public class PutMappingAction extends Action<PutMappingRequest, PutMappingRespon
     }
 
     @Override
-    public PutMappingResponse newResponse() {
-        return new PutMappingResponse();
+    public AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     @Override

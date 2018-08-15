@@ -22,9 +22,8 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
@@ -171,8 +170,8 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
         int additionsCount = randomIntBetween(0, 5);
         int deletionsCount = randomIntBetween(0, 3);
 
-        List<ActionListener<PutIndexTemplateResponse>> putTemplateListeners = new ArrayList<>();
-        List<ActionListener<DeleteIndexTemplateResponse>> deleteTemplateListeners = new ArrayList<>();
+        List<ActionListener<AcknowledgedResponse>> putTemplateListeners = new ArrayList<>();
+        List<ActionListener<AcknowledgedResponse>> deleteTemplateListeners = new ArrayList<>();
 
         Client mockClient = mock(Client.class);
         AdminClient mockAdminClient = mock(AdminClient.class);
@@ -227,7 +226,7 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
             if (randomBoolean()) {
                 putTemplateListeners.get(i).onFailure(new RuntimeException("test - ignore"));
             } else {
-                putTemplateListeners.get(i).onResponse(new PutIndexTemplateResponse(randomBoolean()) {
+                putTemplateListeners.get(i).onResponse(new AcknowledgedResponse(randomBoolean()) {
 
                 });
             }
@@ -240,7 +239,7 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
                 assertThat(prevUpdatesInProgress - service.upgradesInProgress.get(), equalTo(1));
             } else {
                 int prevUpdatesInProgress = service.upgradesInProgress.get();
-                deleteTemplateListeners.get(i).onResponse(new DeleteIndexTemplateResponse(randomBoolean()) {
+                deleteTemplateListeners.get(i).onResponse(new AcknowledgedResponse(randomBoolean()) {
 
                 });
                 assertThat(prevUpdatesInProgress - service.upgradesInProgress.get(), equalTo(1));
@@ -256,9 +255,9 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testClusterStateUpdate() throws InterruptedException {
 
-        final AtomicReference<ActionListener<PutIndexTemplateResponse>> addedListener = new AtomicReference<>();
-        final AtomicReference<ActionListener<PutIndexTemplateResponse>> changedListener = new AtomicReference<>();
-        final AtomicReference<ActionListener<DeleteIndexTemplateResponse>> removedListener = new AtomicReference<>();
+        final AtomicReference<ActionListener<AcknowledgedResponse>> addedListener = new AtomicReference<>();
+        final AtomicReference<ActionListener<AcknowledgedResponse>> changedListener = new AtomicReference<>();
+        final AtomicReference<ActionListener<AcknowledgedResponse>> removedListener = new AtomicReference<>();
         final Semaphore updateInvocation = new Semaphore(0);
         final Semaphore calculateInvocation = new Semaphore(0);
         final Semaphore changedInvocation = new Semaphore(0);
@@ -373,11 +372,11 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
         assertThat(updateInvocation.availablePermits(), equalTo(0));
         assertThat(finishInvocation.availablePermits(), equalTo(0));
 
-        addedListener.getAndSet(null).onResponse(new PutIndexTemplateResponse(true) {
+        addedListener.getAndSet(null).onResponse(new AcknowledgedResponse(true) {
         });
-        changedListener.getAndSet(null).onResponse(new PutIndexTemplateResponse(true) {
+        changedListener.getAndSet(null).onResponse(new AcknowledgedResponse(true) {
         });
-        removedListener.getAndSet(null).onResponse(new DeleteIndexTemplateResponse(true) {
+        removedListener.getAndSet(null).onResponse(new AcknowledgedResponse(true) {
         });
 
         // 3 upgrades should be completed, in addition to the final calculate

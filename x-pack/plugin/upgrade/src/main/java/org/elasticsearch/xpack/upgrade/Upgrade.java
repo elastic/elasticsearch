@@ -10,11 +10,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateResponse;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -324,11 +323,11 @@ public class Upgrade extends Plugin implements ActionPlugin {
                                                         final boolean restart) {
         final String legacyTriggeredWatchesTemplateName = "triggered_watches";
 
-        ActionListener<DeleteIndexTemplateResponse> returnToCallerListener =
+        ActionListener<AcknowledgedResponse> returnToCallerListener =
                 deleteIndexTemplateListener(legacyTriggeredWatchesTemplateName, listener, () -> listener.onResponse(restart));
 
         // step 2, after put new .triggered_watches template: delete triggered_watches index template, then return to caller
-        ActionListener<PutIndexTemplateResponse> putTriggeredWatchesListener =
+        ActionListener<AcknowledgedResponse> putTriggeredWatchesListener =
                 putIndexTemplateListener(WatcherIndexTemplateRegistryField.TRIGGERED_TEMPLATE_NAME, listener,
                         () -> client.admin().indices().prepareDeleteTemplate(legacyTriggeredWatchesTemplateName)
                                 .execute(returnToCallerListener));
@@ -365,11 +364,11 @@ public class Upgrade extends Plugin implements ActionPlugin {
 
     private static void preWatchesIndexUpgrade(final Client client, final ActionListener<Boolean> listener, final boolean restart) {
         final String legacyWatchesTemplateName = "watches";
-        ActionListener<DeleteIndexTemplateResponse> returnToCallerListener =
+        ActionListener<AcknowledgedResponse> returnToCallerListener =
                 deleteIndexTemplateListener(legacyWatchesTemplateName, listener, () -> listener.onResponse(restart));
 
         // step 3, after put new .watches template: delete watches index template, then return to caller
-        ActionListener<PutIndexTemplateResponse> putTriggeredWatchesListener =
+        ActionListener<AcknowledgedResponse> putTriggeredWatchesListener =
                 putIndexTemplateListener(WatcherIndexTemplateRegistryField.TRIGGERED_TEMPLATE_NAME, listener,
                         () -> client.admin().indices().prepareDeleteTemplate(legacyWatchesTemplateName)
                                 .execute(returnToCallerListener));
@@ -379,7 +378,7 @@ public class Upgrade extends Plugin implements ActionPlugin {
                 WatcherIndexTemplateRegistryField.INDEX_TEMPLATE_VERSION,
                 Pattern.quote("${xpack.watcher.template.version}")).getBytes(StandardCharsets.UTF_8);
 
-        ActionListener<DeleteIndexTemplateResponse> deleteWatchHistoryTemplatesListener = deleteIndexTemplateListener("watch_history_*",
+        ActionListener<AcknowledgedResponse> deleteWatchHistoryTemplatesListener = deleteIndexTemplateListener("watch_history_*",
                 listener,
                 () -> client.admin().indices().preparePutTemplate(WatcherIndexTemplateRegistryField.WATCHES_TEMPLATE_NAME)
                         .setSource(watchesTemplate, XContentType.JSON)
@@ -432,8 +431,8 @@ public class Upgrade extends Plugin implements ActionPlugin {
         }, listener::onFailure);
     }
 
-    private static ActionListener<PutIndexTemplateResponse> putIndexTemplateListener(String name, ActionListener<Boolean> listener,
-                                                                                     Runnable runnable) {
+    private static ActionListener<AcknowledgedResponse> putIndexTemplateListener(String name, ActionListener<Boolean> listener,
+                                                                                 Runnable runnable) {
         return ActionListener.wrap(
                 r -> {
                     if (r.isAcknowledged()) {
@@ -445,8 +444,8 @@ public class Upgrade extends Plugin implements ActionPlugin {
                 listener::onFailure);
     }
 
-    private static ActionListener<DeleteIndexTemplateResponse> deleteIndexTemplateListener(String name, ActionListener<Boolean> listener,
-                                                                                           Runnable runnable) {
+    private static ActionListener<AcknowledgedResponse> deleteIndexTemplateListener(String name, ActionListener<Boolean> listener,
+                                                                                    Runnable runnable) {
         return ActionListener.wrap(
                 r -> {
                     if (r.isAcknowledged()) {

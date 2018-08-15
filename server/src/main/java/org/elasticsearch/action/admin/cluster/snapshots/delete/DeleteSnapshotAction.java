@@ -21,11 +21,12 @@ package org.elasticsearch.action.admin.cluster.snapshots.delete;
 
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 
 /**
  * Delete snapshot action
  */
-public class DeleteSnapshotAction extends Action<DeleteSnapshotRequest, DeleteSnapshotResponse, DeleteSnapshotRequestBuilder> {
+public class DeleteSnapshotAction extends Action<DeleteSnapshotRequest, AcknowledgedResponse, DeleteSnapshotRequestBuilder> {
 
     public static final DeleteSnapshotAction INSTANCE = new DeleteSnapshotAction();
     public static final String NAME = "cluster:admin/snapshot/delete";
@@ -35,8 +36,8 @@ public class DeleteSnapshotAction extends Action<DeleteSnapshotRequest, DeleteSn
     }
 
     @Override
-    public DeleteSnapshotResponse newResponse() {
-        return new DeleteSnapshotResponse();
+    public AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     @Override

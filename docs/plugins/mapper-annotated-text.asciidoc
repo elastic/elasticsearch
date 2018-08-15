@@ -7,11 +7,7 @@ The mapper-annotated-text plugin provides the ability to index text that is a
 combination of free-text and special markup that is typically used to identify
 items of interest such as people or organisations (see NER or Named Entity Recognition
 tools). 
-While NER only aims to mark the positions and types of name uses in text,
-`entity resolution` goes a step further and associates an ID with the text.
-The ID is used to resolve any number of aliases or distinguish between people with the
-same name. The hyperlinks connecting Wikipedia's articles are a good example of resolved 
-entity IDs woven into text.
+
 
 The elasticsearch markup allows one or more additional tokens to be injected, unchanged, into the token
 stream at the same position as the underlying text it annotates.
@@ -45,7 +41,7 @@ PUT my_index
 
 Such a mapping would allow marked-up text eg wikipedia articles to be indexed as both text
 and structured tokens. The annotations use a markdown-like syntax using URL encoding of
-either untyped values or typed key=value pairs.
+one or more values separated by the `&` symbol.
 
 
 We can use the "_analyze" api to test how an example annotation would be stored as tokens
@@ -126,7 +122,7 @@ PUT my_index/_doc/1
 
 PUT my_index/_doc/2
 {
-  "my_field": "[Jeff Beck](person=Jeff+Beck&role=Guitarist) plays a strat"<1>
+  "my_field": "[Jeff Beck](Jeff+Beck&Guitarist) plays a strat"<1>
 }
 
 # Example search
@@ -146,9 +142,6 @@ inject the single token value `Beck` at the same position as `beck` in the token
 <2> Note annotations can inject multiple tokens at the same position - here we inject both
 the very specific value `Jeff Beck` and the broader term `Guitarist`. This enables
 broader positional queries e.g. finding mentions of a `Guitarist` near to `strat`.
-In this example the optional type information (`person` and `role`) is not 
-indexed or searchable but may be of use to client applications that want to render text in 
-special ways according to the annotation type.
 <3> A benefit of searching with these carefully defined annotation tokens is that a query for 
 `Beck` will not match document 2 that contains the tokens `jeff`, `beck` and `Jeff Beck`
 
@@ -160,7 +153,15 @@ special ways according to the annotation type.
 
 Annotations are normally a way of weaving structured information into unstructured text for
 higher-precision search.
-It often makes sense to also provide dedicated structured fields to support discovery via aggregations:
+
+`Entity resolution` is a form of document enrichment undertaken by specialist software or people 
+where references to entities in a document are disambiguated by attaching a canonical ID.
+The ID is used to resolve any number of aliases or distinguish between people with the
+same name. The hyperlinks connecting Wikipedia's articles are a good example of resolved 
+entity IDs woven into text. 
+
+These IDs can be embedded as annotations in an annotated_text field but it often makes 
+sense to include them in dedicated structured fields to support discovery via aggregations:
 
 [source,js]
 --------------------------
@@ -270,7 +271,7 @@ in a way which is respectful of the original markup:
 # Example documents
 PUT my_index/_doc/1
 {
-  "my_field": "The cat sat on the [mat](sku=3578)"
+  "my_field": "The cat sat on the [mat](sku3578)"
 }
 
 GET my_index/_search
@@ -296,10 +297,10 @@ GET my_index/_search
 The annotated highlighter is based on the `unified` highlighter and supports the same
 settings but does not use the `pre_tags` or `post_tags` parameters. Rather than using
 html-like markup such as `<em>cat</em>` the annotated highlighter uses the same 
-markdown-like syntax used for annotations and injects the `_hit_term` key with the 
-matched search term as the value e.g. 
+markdown-like syntax used for annotations and injects a key=value annotation where `_hit_term`
+is the  key and the matched search term is the value e.g. 
 
-    The [cat](_hit_term=cat) sat on the [mat](sku=3578)
+    The [cat](_hit_term=cat) sat on the [mat](sku3578)
 
 The annotated highlighter tries to be respectful of any existing markup in the original 
 text:

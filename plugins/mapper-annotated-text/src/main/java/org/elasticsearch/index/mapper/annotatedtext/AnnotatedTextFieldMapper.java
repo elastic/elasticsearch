@@ -62,6 +62,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import java.io.IOException;
 import java.io.Reader;
 import java.io.StringReader;
+import java.io.UncheckedIOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.ArrayList;
@@ -129,6 +130,9 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
         @Override
         public AnnotatedTextFieldMapper build(BuilderContext context) {
+            if (fieldType().indexOptions() == IndexOptions.NONE ) {
+                throw new IllegalArgumentException("[" + CONTENT_TYPE + "] fields must be indexed");
+            }
             if (positionIncrementGap != POSITION_INCREMENT_GAP_USE_ANALYZER) {
                 if (fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
                     throw new IllegalArgumentException("Cannot set position_increment_gap on field ["
@@ -465,7 +469,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             reader.close();
             return buffer.toString();            
         } catch (IOException e) {
-            throw new ElasticsearchException("IO Error reading field content", e);
+            throw new UncheckedIOException("IO Error reading field content", e);
         }
     }         
 

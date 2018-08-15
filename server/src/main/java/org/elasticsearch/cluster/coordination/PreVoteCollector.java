@@ -44,10 +44,10 @@ public class PreVoteCollector extends AbstractComponent {
 
     private final TransportService transportService;
     private final Runnable startElection;
-    private volatile PreVoteResponse preVoteResponse;
 
     @Nullable
     private volatile DiscoveryNode currentLeader; // null if there is currently no known leader
+    private volatile PreVoteResponse preVoteResponse;
 
     PreVoteCollector(final Settings settings, final PreVoteResponse preVoteResponse,
                      final TransportService transportService, final Runnable startElection) {

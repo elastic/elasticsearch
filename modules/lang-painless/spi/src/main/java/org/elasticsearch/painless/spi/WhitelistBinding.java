@@ -17,24 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.painless.lookup;
+package org.elasticsearch.painless.spi;
 
-import java.lang.invoke.MethodHandle;
-import java.lang.reflect.Field;
+import java.util.Objects;
 
-public final class PainlessField {
+public class WhitelistBinding {
 
-    public final Field javaField;
-    public final Class<?> typeParameter;
+    public final String origin;
+    public final String targetClass;
+    public final WhitelistConstructor whitelistConstructor;
+    public final WhitelistMethod whitelistMethod;
 
-    public final MethodHandle getterMethodHandle;
-    public final MethodHandle setterMethodHandle;
-
-    PainlessField(Field javaField, Class<?> typeParameter, MethodHandle getterMethodHandle, MethodHandle setterMethodHandle) {
-        this.javaField = javaField;
-        this.typeParameter = typeParameter;
-
-        this.getterMethodHandle = getterMethodHandle;
-        this.setterMethodHandle = setterMethodHandle;
+    public WhitelistBinding(String origin, String targetClass, WhitelistConstructor whitelistConstructor, WhitelistMethod whitelistMethod) {
+        this.origin = Objects.requireNonNull(origin);
+        this.targetClass = Objects.requireNonNull(targetClass);
+        this.whitelistConstructor = Objects.requireNonNull(whitelistConstructor);
+        this.whitelistMethod = Objects.requireNonNull(whitelistMethod);
     }
 }

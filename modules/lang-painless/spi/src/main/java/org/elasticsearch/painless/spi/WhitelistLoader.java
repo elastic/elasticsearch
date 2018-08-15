@@ -133,6 +133,7 @@ public final class WhitelistLoader {
      */
     public static Whitelist loadFromResourceFiles(Class<?> resource, String... filepaths) {
         List<WhitelistClass> whitelistClasses = new ArrayList<>();
+        List<WhitelistBinding> whitelistBindings = new ArrayList<>();
 
         // Execute a single pass through the whitelist text files.  This will gather all the
         // constructors, methods, augmented methods, and fields for each whitelisted class.
@@ -144,6 +145,7 @@ public final class WhitelistLoader {
                 new InputStreamReader(resource.getResourceAsStream(filepath), StandardCharsets.UTF_8))) {
 
                 String whitelistClassOrigin = null;
+                String specificationType = null;
                 String javaClassName = null;
                 boolean noImport = false;
                 List<WhitelistConstructor> whitelistConstructors = null;
@@ -159,23 +161,38 @@ public final class WhitelistLoader {
                         continue;
                     }
 
-                    // Handle a new class by resetting all the variables necessary to construct a new WhitelistClass for the whitelist.
-                    // Expects the following format: 'class' ID 'no_import'? '{' '\n'
-                    if (line.startsWith("class ")) {
+                    // Handle a new type (class or binding) by resetting all the variables necessary
+                    // to construct a new WhitelistClass or WhitelistBinding for the whitelist.
+                    // Expects the following format: ('class' | 'binding') ID 'no_import'? '{' '\n'
+                    if (line.startsWith("class ") || line.startsWith("binding ")) {
+                        int tokensStartIndex;
+
+                        if (line.startsWith("class ")) {
+                            specificationType = "class";
+                            tokensStartIndex = 5;
+                        } else if (line.startsWith("binding ")) {
+                            specificationType = "binding";
+                            tokensStartIndex = 8;
+                        } else {
+                            throw new IllegalArgumentException(
+                                    "invalid type definition: must start with one of the tokens [class, binding] [" + line + "]");
+                        }
+
                         // Ensure the final token of the line is '{'.
                         if (line.endsWith("{") == false) {
                             throw new IllegalArgumentException(
-                                "invalid class definition: failed to parse class opening bracket [" + line + "]");
+                                    "invalid " + specificationType + " definition: failed to parse opening bracket [" + line + "]");
                         }
 
                         // Parse the Java class name.
-                        String[] tokens = line.substring(5, line.length() - 1).trim().split("\\s+");
+                        String[] tokens = line.substring(tokensStartIndex, line.length() - 1).trim().split("\\s+");
 
                         // Ensure the correct number of tokens.
-                        if (tokens.length == 2 && "no_import".equals(tokens[1])) {
+                        if (tokens.length == 2 && "no_import".equals(tokens[1]) && "class".equals(specificationType)) {
                             noImport = true;
                         } else if (tokens.length != 1) {
-                            throw new IllegalArgumentException("invalid class definition: failed to parse class name [" + line + "]");
+                            throw new IllegalArgumentException(
+                                    "invalid " + specificationType + " definition: failed to parse name [" + line + "]");
                         }
 
                         whitelistClassOrigin = "[" + filepath + "]:[" + number + "]";
@@ -186,16 +203,45 @@ public final class WhitelistLoader {
                         whitelistMethods = new ArrayList<>();
                         whitelistFields = new ArrayList<>();
 
-                    // Handle the end of a class, by creating a new WhitelistClass with all the previously gathered
-                    // constructors, methods, augmented methods, and fields, and adding it to the list of whitelisted classes.
+                    // Handle the end of a type (class or binding), by creating a new WhitelistClass or WhitelistBinding with all the
+                    // previously gathered constructors, methods, augmented methods, and fields, and adding it to the list of whitelisted
+                    // classes.
                     // Expects the following format: '}' '\n'
                     } else if (line.equals("}")) {
                         if (javaClassName == null) {
                             throw new IllegalArgumentException("invalid class definition: extraneous closing bracket");
                         }
 
-                        whitelistClasses.add(new WhitelistClass(whitelistClassOrigin, javaClassName, noImport,
-                            whitelistConstructors, whitelistMethods, whitelistFields));
+                        if ("class".equals(specificationType)) {
+                            whitelistClasses.add(new WhitelistClass(whitelistClassOrigin, javaClassName, noImport,
+                                    whitelistConstructors, whitelistMethods, whitelistFields));
+                        } else if ("binding".equals(specificationType)) {
+                            if (whitelistConstructors.size() != 1) {
+                                throw new IllegalArgumentException(
+                                        "invalid binding definition: binding [" + javaClassName + "] must have exactly one constructor");
+                            }
+
+                            if (whitelistMethods.size() != 1) {
+                                throw new IllegalArgumentException(
+                                        "invalid binding definition: binding [" + javaClassName + "] must have exactly one method");
+                            }
+
+                            if (whitelistMethods.get(0).augmentedCanonicalClassName != null) {
+                                throw new IllegalArgumentException("invalid binding definition: binding [" + javaClassName + "] " +
+                                        "method must not have an augmented target [" + whitelistMethods.get(0).origin + "]");
+                            }
+
+                            if (whitelistFields.isEmpty() == false) {
+                                throw new IllegalArgumentException(
+                                        "invalid binding definition: binding [" + javaClassName + "] must have no fields");
+                            }
+
+                            whitelistBindings.add(new WhitelistBinding(whitelistClassOrigin,
+                                    javaClassName, whitelistConstructors.get(0), whitelistMethods.get(0)));
+                        } else {
+                            throw new IllegalArgumentException(
+                                    "invalid class definition: must start with one of the tokens [class, binding] [" + line + "]");
+                        }
 
                         // Set all the variables to null to ensure a new class definition is found before other parsable values.
                         whitelistClassOrigin = null;
@@ -300,7 +346,7 @@ public final class WhitelistLoader {
         }
         ClassLoader loader = AccessController.doPrivileged((PrivilegedAction<ClassLoader>)resource::getClassLoader);
 
-        return new Whitelist(loader, whitelistClasses);
+        return new Whitelist(loader, whitelistClasses, whitelistBindings);
     }
 
     private WhitelistLoader() {}

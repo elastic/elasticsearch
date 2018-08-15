@@ -115,7 +115,7 @@ public final class LogStructureFinderManager {
         CharsetDetector charsetDetector = new CharsetDetector().setText(inputStream);
         CharsetMatch[] charsetMatches = charsetDetector.detectAll();
 
-        // Determine some extra characteristics of the input to compenstate for some deficiencies of ICU4J
+        // Determine some extra characteristics of the input to compensate for some deficiencies of ICU4J
         boolean pureAscii = true;
         boolean containsZeroBytes = false;
         inputStream.mark(BUFFER_SIZE);

@@ -2389,6 +2389,7 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(sourceShard, targetShard);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32766")
     public void testDocStats() throws IOException {
         IndexShard indexShard = null;
         try {

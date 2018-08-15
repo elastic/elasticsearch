@@ -1211,7 +1211,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request postMachineLearningOpenJob(OpenJobRequest openJobRequest) throws IOException {
+    static Request machineLearningOpenJob(OpenJobRequest openJobRequest) throws IOException {
         String endpoint = new EndpointBuilder()
             .addPathPartAsIs("_xpack")
             .addPathPartAsIs("ml")

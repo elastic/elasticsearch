@@ -2616,7 +2616,7 @@ public class RequestConvertersTests extends ESTestCase {
         OpenJobRequest openJobRequest = new OpenJobRequest(jobId);
         openJobRequest.setTimeout(TimeValue.timeValueMinutes(10));
 
-        Request request = RequestConverters.postMachineLearningOpenJob(openJobRequest);
+        Request request = RequestConverters.machineLearningOpenJob(openJobRequest);
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + "/_open", request.getEndpoint());
         ByteArrayOutputStream bos = new ByteArrayOutputStream();

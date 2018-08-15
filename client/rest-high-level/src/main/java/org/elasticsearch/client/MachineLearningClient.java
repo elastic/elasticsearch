@@ -98,7 +98,7 @@ public final class MachineLearningClient {
      */
     public OpenJobResponse openJob(OpenJobRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(request,
-            RequestConverters::postMachineLearningOpenJob,
+            RequestConverters::machineLearningOpenJob,
             options,
             OpenJobResponse::fromXContent,
             Collections.emptySet());
@@ -120,7 +120,7 @@ public final class MachineLearningClient {
      */
     public void openJobAsync(OpenJobRequest request, RequestOptions options, ActionListener<OpenJobResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request,
-            RequestConverters::postMachineLearningOpenJob,
+            RequestConverters::machineLearningOpenJob,
             options,
             OpenJobResponse::fromXContent,
             listener,

@@ -23,7 +23,6 @@ import org.elasticsearch.protocol.xpack.ml.job.config.Job;
 import org.elasticsearch.protocol.xpack.ml.job.config.JobTests;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
-import java.io.IOException;
 
 public class PutJobRequestTests extends AbstractXContentTestCase<PutJobRequest> {
 

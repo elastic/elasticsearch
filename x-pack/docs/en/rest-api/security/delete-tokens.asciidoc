@@ -38,9 +38,7 @@ DELETE /_xpack/security/oauth2/token
   "token" : "dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ=="
 }
 --------------------------------------------------
-// CONSOLE
-// TEST[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]
-// TEST[continued]
+// NOTCONSOLE
 
 A successful call returns a JSON structure that indicates whether the token
 has already been invalidated.
@@ -51,6 +49,6 @@ has already been invalidated.
   "created" : true <1>
 }
 --------------------------------------------------
-// TESTRESPONSE
+// NOTCONSOLE
 
 <1> When a token has already been invalidated, `created` is set to false.

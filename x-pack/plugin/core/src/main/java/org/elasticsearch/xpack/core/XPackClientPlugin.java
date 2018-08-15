@@ -468,7 +468,10 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                     org.elasticsearch.protocol.xpack.indexlifecycle.ReadOnlyAction::parse),
                 new NamedXContentRegistry.Entry(org.elasticsearch.protocol.xpack.indexlifecycle.RolloverAction.class,
                     new ParseField(org.elasticsearch.protocol.xpack.indexlifecycle.RolloverAction.NAME),
-                    org.elasticsearch.protocol.xpack.indexlifecycle.RolloverAction::parse)
+                    org.elasticsearch.protocol.xpack.indexlifecycle.RolloverAction::parse),
+                new NamedXContentRegistry.Entry(org.elasticsearch.protocol.xpack.indexlifecycle.ShrinkAction.class,
+                    new ParseField(org.elasticsearch.protocol.xpack.indexlifecycle.ShrinkAction.NAME),
+                    org.elasticsearch.protocol.xpack.indexlifecycle.ShrinkAction::parse)
             );
     }
 

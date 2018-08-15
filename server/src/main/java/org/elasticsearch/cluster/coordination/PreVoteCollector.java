@@ -34,8 +34,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.LongConsumer;
 
 import static org.elasticsearch.cluster.coordination.CoordinationState.isElectionQuorum;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentSet;
@@ -44,19 +42,15 @@ public class PreVoteCollector extends AbstractComponent {
 
     public static final String REQUEST_PRE_VOTE_ACTION_NAME = "internal:cluster/request_pre_vote";
 
-    private final AtomicLong maxTermSeen = new AtomicLong(0);
     private final TransportService transportService;
-    private final LongConsumer startElection; // consumes maximum known term
+    private final Runnable startElection;
     private volatile PreVoteResponse preVoteResponse;
 
     @Nullable
-    private volatile DiscoveryNode currentLeader;
+    private volatile DiscoveryNode currentLeader; // null if there is currently no known leader
 
-    private long updateMaxTermSeen(long term) {
-        return maxTermSeen.accumulateAndGet(term, Math::max);
-    }
-
-    PreVoteCollector(Settings settings, PreVoteResponse preVoteResponse, TransportService transportService, LongConsumer startElection) {
+    PreVoteCollector(final Settings settings, final PreVoteResponse preVoteResponse,
+                     final TransportService transportService, final Runnable startElection) {
         super(settings);
         this.preVoteResponse = preVoteResponse;
         this.transportService = transportService;
@@ -69,33 +63,27 @@ public class PreVoteCollector extends AbstractComponent {
 
     public Releasable start(final ClusterState clusterState, final Iterable<DiscoveryNode> broadcastNodes) {
         logger.debug("{} starting", this);
-        PreVotingRound currentRound = new PreVotingRound(clusterState);
+        PreVotingRound currentRound = new PreVotingRound(clusterState, preVoteResponse.getCurrentTerm());
         currentRound.start(broadcastNodes);
         return currentRound;
     }
 
-    public void update(PreVoteResponse preVoteResponse, DiscoveryNode currentLeader) {
+    public void update(final PreVoteResponse preVoteResponse, final DiscoveryNode currentLeader) {
         logger.trace("updating with preVoteResponse={}, currentLeader={}", preVoteResponse, currentLeader);
         this.preVoteResponse = preVoteResponse;
         this.currentLeader = currentLeader;
     }
 
     // package-private for testing
-    PreVoteResponse handlePreVoteRequest(PreVoteRequest request) {
-        updateMaxTermSeen(request.getCurrentTerm());
+    PreVoteResponse handlePreVoteRequest(final PreVoteRequest request) {
         // TODO if we are a leader and the max term seen exceeds our term then we need to bump our term
 
-        DiscoveryNode currentLeader = this.currentLeader;
+        final DiscoveryNode currentLeader = this.currentLeader;
         if (currentLeader == null || currentLeader.equals(request.getSourceNode())) {
             return preVoteResponse;
         } else {
             throw new CoordinationStateRejectedException("rejecting " + request + " as there is already a leader");
         }
-    }
-
-    // package-private for testing, actual usages TODO
-    long getMaxTermSeen() {
-        return maxTermSeen.get();
     }
 
     @Override
@@ -113,9 +101,9 @@ public class PreVoteCollector extends AbstractComponent {
         private final ClusterState clusterState;
         private final AtomicBoolean isClosed = new AtomicBoolean();
 
-        PreVotingRound(ClusterState clusterState) {
+        PreVotingRound(final ClusterState clusterState, final long currentTerm) {
             this.clusterState = clusterState;
-            preVoteRequest = new PreVoteRequest(transportService.getLocalNode(), preVoteResponse.getCurrentTerm());
+            preVoteRequest = new PreVoteRequest(transportService.getLocalNode(), currentTerm);
         }
 
         void start(final Iterable<DiscoveryNode> broadcastNodes) {
@@ -147,13 +135,13 @@ public class PreVoteCollector extends AbstractComponent {
                 }));
         }
 
-        private void handlePreVoteResponse(PreVoteResponse response, DiscoveryNode sender) {
+        private void handlePreVoteResponse(final PreVoteResponse response, final DiscoveryNode sender) {
             if (isClosed.get()) {
                 logger.debug("{} is closed, ignoring {} from {}", this, response, sender);
                 return;
             }
 
-            final long currentMaxTermSeen = updateMaxTermSeen(response.getCurrentTerm());
+            // TODO the response carries the sender's current term. If an election starts then it should be in a higher term.
 
             final PreVoteResponse currentPreVoteResponse = preVoteResponse;
             if (response.getLastAcceptedTerm() > currentPreVoteResponse.getLastAcceptedTerm()
@@ -177,8 +165,8 @@ public class PreVoteCollector extends AbstractComponent {
                 return;
             }
 
-            logger.debug("{} added {} from {}, starting election in term > {}", this, response, sender, currentMaxTermSeen);
-            startElection.accept(currentMaxTermSeen);
+            logger.debug("{} added {} from {}, starting election", this, response, sender);
+            startElection.run();
         }
 
         @Override

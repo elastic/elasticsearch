@@ -54,7 +54,6 @@ public class PreVoteCollectorTests extends ESTestCase {
     private boolean electionOccurred = false;
     private DiscoveryNode localNode;
     private Map<DiscoveryNode, PreVoteResponse> responsesByNode = new HashMap<>();
-    private long lastElectionMaxTermSeen;
 
     @Before
     public void createObjects() {
@@ -96,10 +95,9 @@ public class PreVoteCollectorTests extends ESTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
 
-        preVoteCollector = new PreVoteCollector(settings, getLocalPreVoteResponse(), transportService, maxTermSeen -> {
+        preVoteCollector = new PreVoteCollector(settings, getLocalPreVoteResponse(), transportService, () -> {
             assert electionOccurred == false;
             electionOccurred = true;
-            lastElectionMaxTermSeen = maxTermSeen;
         });
     }
 
@@ -180,18 +178,8 @@ public class PreVoteCollectorTests extends ESTestCase {
         responsesByNode.put(otherNode, new PreVoteResponse(3, 1, 2));
         startAndRunCollector(otherNode);
         assertTrue(electionOccurred);
-        assertThat(lastElectionMaxTermSeen, is(3L));
     }
 
-    public void testReturnsMaximumSeenTerm() {
-        final DiscoveryNode otherNode1 = new DiscoveryNode("other-node-1", buildNewFakeTransportAddress(), Version.CURRENT);
-        final DiscoveryNode otherNode2 = new DiscoveryNode("other-node-2", buildNewFakeTransportAddress(), Version.CURRENT);
-        responsesByNode.put(otherNode1, new PreVoteResponse(4, 2, 1));
-        responsesByNode.put(otherNode2, new PreVoteResponse(5, 2, 1));
-        startAndRunCollector(otherNode1, otherNode2);
-        assertTrue(electionOccurred);
-        assertThat(lastElectionMaxTermSeen, is(5L));
-    }
 
     public void testResponseIfCandidate() {
         final long term = randomNonNegativeLong();
@@ -202,7 +190,6 @@ public class PreVoteCollectorTests extends ESTestCase {
         final PreVoteResponse preVoteResponse = preVoteCollector.handlePreVoteRequest(new PreVoteRequest(otherNode, term));
 
         assertThat(preVoteResponse, equalTo(newPreVoteResponse));
-        assertThat(preVoteCollector.getMaxTermSeen(), is(term));
     }
 
     public void testResponseToNonLeaderIfNotCandidate() {
@@ -215,16 +202,14 @@ public class PreVoteCollectorTests extends ESTestCase {
 
         expectThrows(CoordinationStateRejectedException.class, () ->
             preVoteCollector.handlePreVoteRequest(new PreVoteRequest(otherNode, term)));
-        assertThat(preVoteCollector.getMaxTermSeen(), is(term));
     }
 
     public void testResponseToRequestFromLeader() {
-        // This is a _rare_ case where our leader has detected a failure and stepped down, but we are still a
-        // follower. It's possible that the leader lost its quorum, but while we're still a follower we will not
-        // offer joins to any other node so there is no major drawback in offering a join to our old leader. The
-        // advantage of this is that it makes it slightly more likely that the leader won't change, and also that
-        // its re-election will happen more quickly than if it had to wait for a quorum of followers to also detect
-        // its failure.
+        // This is a _rare_ case where our leader has detected a failure and stepped down, but we are still a follower. It's possible that
+        // the leader lost its quorum, but while we're still a follower we will not offer joins to any other node so there is no major
+        // drawback in offering a join to our old leader. The advantage of this is that it makes it slightly more likely that the leader
+        // won't change, and also that its re-election will happen more quickly than if it had to wait for a quorum of followers to also
+        // detect its failure.
 
         final long term = randomNonNegativeLong();
         final DiscoveryNode leaderNode = new DiscoveryNode("leader-node", buildNewFakeTransportAddress(), Version.CURRENT);
@@ -234,6 +219,5 @@ public class PreVoteCollectorTests extends ESTestCase {
         final PreVoteResponse preVoteResponse = preVoteCollector.handlePreVoteRequest(new PreVoteRequest(leaderNode, term));
 
         assertThat(preVoteResponse, equalTo(newPreVoteResponse));
-        assertThat(preVoteCollector.getMaxTermSeen(), is(term));
     }
 }

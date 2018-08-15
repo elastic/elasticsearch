@@ -452,8 +452,24 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ReadOnlyAction.NAME), ReadOnlyAction::parse),
                 new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RolloverAction.NAME), RolloverAction::parse),
                 new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ShrinkAction.NAME), ShrinkAction::parse),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse)
-        );
+                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse),
+                // ILM - Client - Lifecycle Actions
+                new NamedXContentRegistry.Entry(org.elasticsearch.protocol.xpack.indexlifecycle.DeleteAction.class,
+                    new ParseField(org.elasticsearch.protocol.xpack.indexlifecycle.DeleteAction.NAME),
+                    org.elasticsearch.protocol.xpack.indexlifecycle.DeleteAction::parse),
+                new NamedXContentRegistry.Entry(org.elasticsearch.protocol.xpack.indexlifecycle.ForceMergeAction.class,
+                    new ParseField(org.elasticsearch.protocol.xpack.indexlifecycle.ForceMergeAction.NAME),
+                    org.elasticsearch.protocol.xpack.indexlifecycle.ForceMergeAction::parse),
+                new NamedXContentRegistry.Entry(org.elasticsearch.protocol.xpack.indexlifecycle.ReadOnlyAction.class,
+                    new ParseField(org.elasticsearch.protocol.xpack.indexlifecycle.ReadOnlyAction.NAME),
+                    org.elasticsearch.protocol.xpack.indexlifecycle.ReadOnlyAction::parse),
+                new NamedXContentRegistry.Entry(org.elasticsearch.protocol.xpack.indexlifecycle.ReadOnlyAction.class,
+                    new ParseField(org.elasticsearch.protocol.xpack.indexlifecycle.ReadOnlyAction.NAME),
+                    org.elasticsearch.protocol.xpack.indexlifecycle.ReadOnlyAction::parse),
+                new NamedXContentRegistry.Entry(org.elasticsearch.protocol.xpack.indexlifecycle.RolloverAction.class,
+                    new ParseField(org.elasticsearch.protocol.xpack.indexlifecycle.RolloverAction.NAME),
+                    org.elasticsearch.protocol.xpack.indexlifecycle.RolloverAction::parse)
+            );
     }
 
     @Override

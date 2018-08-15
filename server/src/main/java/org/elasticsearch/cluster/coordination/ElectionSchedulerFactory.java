@@ -118,7 +118,7 @@ public class ElectionSchedulerFactory extends AbstractComponent {
          * each election attempt this value is increased by `backoffTime`, up to the `maxTimeout`, to adapt to higher-than-expected latency.
          */
         private final AtomicLong currentMaxTimeoutMillis = new AtomicLong(initialTimeout.millis());
-        private final AtomicBoolean isRunning = new AtomicBoolean(true);
+        private final AtomicBoolean isClosed = new AtomicBoolean();
 
         /**
          * Calculate the next maximum timeout by backing off the current value by `backoffTime` up to the `maxTimeout`.
@@ -128,7 +128,7 @@ public class ElectionSchedulerFactory extends AbstractComponent {
         }
 
         void scheduleNextElection(final TimeValue gracePeriod, final Runnable scheduledRunnable) {
-            if (isRunning.get() == false) {
+            if (isClosed.get()) {
                 logger.debug("{} not scheduling election", this);
                 return;
             }
@@ -144,7 +144,7 @@ public class ElectionSchedulerFactory extends AbstractComponent {
 
                 @Override
                 protected void doRun() {
-                    if (isRunning.get() == false) {
+                    if (isClosed.get()) {
                         logger.debug("{} not starting election", this);
                         return;
                     }
@@ -185,8 +185,8 @@ public class ElectionSchedulerFactory extends AbstractComponent {
 
         @Override
         public void close() {
-            boolean isRunningChanged = isRunning.compareAndSet(true, false);
-            assert isRunningChanged;
+            boolean isClosedChanged = isClosed.compareAndSet(false, true);
+            assert isClosedChanged;
         }
     }
 }

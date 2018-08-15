@@ -59,7 +59,6 @@ public final class RestReloadSecureSettingsAction extends BaseRestHandler {
                 .cluster()
                 .prepareReloadSecureSettings()
                 .setTimeout(request.param("timeout"))
-                .source(request.requiredContent(), request.getXContentType())
                 .setNodesIds(nodesIds);
         final NodesReloadSecureSettingsRequest nodesRequest = nodesRequestBuilder.request();
         return channel -> nodesRequestBuilder

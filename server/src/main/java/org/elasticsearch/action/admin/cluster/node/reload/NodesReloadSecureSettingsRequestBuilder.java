@@ -19,18 +19,8 @@
 
 package org.elasticsearch.action.admin.cluster.node.reload;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.Objects;
 
 /**
  * Builder for the reload secure settings nodes request
@@ -40,25 +30,6 @@ public class NodesReloadSecureSettingsRequestBuilder extends NodesOperationReque
 
     public NodesReloadSecureSettingsRequestBuilder(ElasticsearchClient client, NodesReloadSecureSettingsAction action) {
         super(client, action, new NodesReloadSecureSettingsRequest());
-    }
-
-    public NodesReloadSecureSettingsRequestBuilder source(BytesReference source, XContentType xContentType) throws IOException {
-        Objects.requireNonNull(xContentType);
-        // EMPTY is ok here because we never call namedObject
-        try (InputStream stream = source.streamInput();
-                XContentParser parser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY,
-                        LoggingDeprecationHandler.INSTANCE, stream)) {
-            XContentParser.Token token;
-            token = parser.nextToken();
-            if (token != XContentParser.Token.START_OBJECT) {
-                throw new ElasticsearchParseException("expected an object, but found token [{}]", token);
-            }
-            token = parser.nextToken();
-            if (token != XContentParser.Token.END_OBJECT) {
-                throw new ElasticsearchParseException("expected end of object, but found token [{}]", token);
-            }
-        }
-        return this;
     }
 
 }

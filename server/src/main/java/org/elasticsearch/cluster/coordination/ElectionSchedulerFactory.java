@@ -45,10 +45,21 @@ import java.util.function.LongSupplier;
  */
 public class ElectionSchedulerFactory extends AbstractComponent {
 
-    // bounds on the time between election attempts
     private static final String ELECTION_INITIAL_TIMEOUT_SETTING_KEY = "cluster.election.initial_timeout";
     private static final String ELECTION_BACK_OFF_TIME_SETTING_KEY = "cluster.election.back_off_time";
     private static final String ELECTION_MAX_TIMEOUT_SETTING_KEY = "cluster.election.max_timeout";
+
+    /*
+     * The first election is scheduled to occur a random number of milliseconds after the scheduler is started, where the random number of
+     * milliseconds is chosen uniformly from
+     *
+     *     (0, min(ELECTION_INITIAL_TIMEOUT_SETTING, ELECTION_MAX_TIMEOUT_SETTING_KEY)]
+     *
+     * For `n > 1`, the `n`th election is scheduled to occur a random number of milliseconds after the `n - 1`th election, where the random
+     * number of milliseconds is chosen uniformly from
+     *
+     *     (0, min(ELECTION_INITIAL_TIMEOUT_SETTING + (n-1) * ELECTION_BACK_OFF_TIME_SETTING, ELECTION_MAX_TIMEOUT_SETTING_KEY)]
+     */
 
     public static final Setting<TimeValue> ELECTION_INITIAL_TIMEOUT_SETTING = Setting.timeSetting(ELECTION_INITIAL_TIMEOUT_SETTING_KEY,
         TimeValue.timeValueMillis(100), TimeValue.timeValueMillis(1), Property.NodeScope);
@@ -117,7 +128,7 @@ public class ElectionSchedulerFactory extends AbstractComponent {
          * The current maximum timeout: the next election is scheduled randomly no later than this number of milliseconds in the future. On
          * each election attempt this value is increased by `backoffTime`, up to the `maxTimeout`, to adapt to higher-than-expected latency.
          */
-        private final AtomicLong currentMaxTimeoutMillis = new AtomicLong(initialTimeout.millis());
+        private final AtomicLong currentMaxTimeoutMillis = new AtomicLong(Math.min(initialTimeout.millis(), maxTimeout.millis()));
         private final AtomicBoolean isClosed = new AtomicBoolean();
 
         /**

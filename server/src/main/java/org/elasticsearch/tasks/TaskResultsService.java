@@ -25,9 +25,9 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
@@ -113,9 +113,9 @@ public class TaskResultsService extends AbstractComponent {
                 // The index already exists but doesn't have our mapping
                 client.admin().indices().preparePutMapping(TASK_INDEX).setType(TASK_TYPE)
                     .setSource(taskResultIndexMapping(), XContentType.JSON)
-                    .execute(new ActionListener<PutMappingResponse>() {
+                    .execute(new ActionListener<AcknowledgedResponse>() {
                                  @Override
-                                 public void onResponse(PutMappingResponse putMappingResponse) {
+                                 public void onResponse(AcknowledgedResponse putMappingResponse) {
                                      doStoreResult(taskResult, listener);
                                  }
 

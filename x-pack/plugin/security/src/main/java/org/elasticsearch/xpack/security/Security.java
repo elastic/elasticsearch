@@ -300,7 +300,6 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 new TokenSSLBootstrapCheck(),
                 new PkiRealmBootstrapCheck(getSslService()),
                 new TLSLicenseBootstrapCheck(),
-                new PasswordHashingAlgorithmBootstrapCheck(),
                 new FIPS140SecureSettingsBootstrapCheck(settings, env),
                 new FIPS140JKSKeystoreBootstrapCheck(settings),
                 new FIPS140PasswordHashingAlgorithmBootstrapCheck(settings)));

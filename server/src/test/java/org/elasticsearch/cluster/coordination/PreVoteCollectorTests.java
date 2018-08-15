@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.coordination;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterState.VotingConfiguration;
+import org.elasticsearch.cluster.coordination.CoordinationStateTests.InMemoryPersistedState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
@@ -35,8 +36,10 @@ import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySet;
@@ -122,12 +125,15 @@ public class PreVoteCollectorTests extends ESTestCase {
         assertFalse(deterministicTaskQueue.hasRunnableTasks());
     }
 
-    private Releasable startCollector(DiscoveryNode... votingNodes) {
+    private ClusterState makeClusterState(DiscoveryNode[] votingNodes) {
         final VotingConfiguration votingConfiguration
             = new VotingConfiguration(Arrays.stream(votingNodes).map(DiscoveryNode::getId).collect(Collectors.toSet()));
-        final ClusterState clusterState = CoordinationStateTests.clusterState(lastAcceptedTerm, lastAcceptedVersion, localNode,
+        return CoordinationStateTests.clusterState(lastAcceptedTerm, lastAcceptedVersion, localNode,
             votingConfiguration, votingConfiguration, 0);
-        return preVoteCollector.start(clusterState, responsesByNode.keySet());
+    }
+
+    private Releasable startCollector(DiscoveryNode... votingNodes) {
+        return preVoteCollector.start(makeClusterState(votingNodes), responsesByNode.keySet());
     }
 
     public void testStartsElectionIfLocalNodeIsOnlyNode() {
@@ -193,6 +199,50 @@ public class PreVoteCollectorTests extends ESTestCase {
             new PreVoteResponse(currentTerm, randomLongBetween(0, lastAcceptedTerm - 1), randomNonNegativeLong()));
         startAndRunCollector(otherNode);
         assertTrue(electionOccurred);
+    }
+
+    private PreVoteResponse randomPreVoteResponse() {
+        final long currentTerm = randomNonNegativeLong();
+        return new PreVoteResponse(currentTerm, randomLongBetween(0, currentTerm), randomNonNegativeLong());
+    }
+
+    public void testPrevotingIndicatesElectionSuccess() {
+        assumeTrue("unluckily hit currentTerm = Long.MAX_VALUE, cannot increment", currentTerm < Long.MAX_VALUE);
+
+        final Set<DiscoveryNode> votingNodesSet = new HashSet<>();
+        final int nodeCount = randomIntBetween(0, 5);
+        for (int i = 0; i < nodeCount; i++) {
+            final DiscoveryNode otherNode = new DiscoveryNode("other-node-" + i, buildNewFakeTransportAddress(), Version.CURRENT);
+            responsesByNode.put(otherNode, randomBoolean() ? null : randomPreVoteResponse());
+            PreVoteResponse newPreVoteResponse = new PreVoteResponse(currentTerm, lastAcceptedTerm, lastAcceptedVersion);
+            preVoteCollector.update(newPreVoteResponse, null);
+            if (randomBoolean()) {
+                votingNodesSet.add(otherNode);
+            }
+        }
+
+        DiscoveryNode[] votingNodes = votingNodesSet.toArray(new DiscoveryNode[0]);
+        startAndRunCollector(votingNodes);
+
+        final CoordinationState coordinationState = new CoordinationState(Settings.EMPTY, localNode,
+            new InMemoryPersistedState(currentTerm, makeClusterState(votingNodes)));
+
+        final long newTerm = randomLongBetween(currentTerm + 1, Long.MAX_VALUE);
+
+        coordinationState.handleStartJoin(new StartJoinRequest(localNode, newTerm));
+
+        responsesByNode.forEach((otherNode, preVoteResponse) -> {
+            if (preVoteResponse != null) {
+                try {
+                    coordinationState.handleJoin(new Join(otherNode, localNode, newTerm,
+                        preVoteResponse.getLastAcceptedTerm(), preVoteResponse.getLastAcceptedVersion()));
+                } catch (CoordinationStateRejectedException ignored) {
+                    // ok to reject some joins.
+                }
+            }
+        });
+
+        assertThat(coordinationState.electionWon(), equalTo(electionOccurred));
     }
 
     public void testResponseIfCandidate() {

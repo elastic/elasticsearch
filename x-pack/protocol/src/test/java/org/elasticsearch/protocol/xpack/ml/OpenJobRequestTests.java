@@ -18,26 +18,31 @@
  */
 package org.elasticsearch.protocol.xpack.ml;
 
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.protocol.xpack.ml.job.config.Job;
 import org.elasticsearch.protocol.xpack.ml.job.config.JobTests;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
+import java.io.IOException;
 
-public class PutJobRequestTests extends AbstractXContentTestCase<PutJobRequest> {
+public class OpenJobRequestTests extends AbstractXContentTestCase<OpenJobRequest> {
 
     @Override
-    protected PutJobRequest createTestInstance() {
-        return new PutJobRequest(JobTests.createRandomizedJob());
+    protected OpenJobRequest createTestInstance() {
+        OpenJobRequest openJobRequest = new OpenJobRequest(JobTests.randomValidJobId());
+        if (randomBoolean()) {
+            openJobRequest.setTimeout(TimeValue.timeValueSeconds(randomIntBetween(1, Integer.MAX_VALUE)));
+        }
+        return openJobRequest;
     }
 
     @Override
-    protected PutJobRequest doParseInstance(XContentParser parser) {
-        return new PutJobRequest(Job.PARSER.apply(parser, null).build());
+    protected OpenJobRequest doParseInstance(XContentParser parser) throws IOException {
+        return OpenJobRequest.fromXContent(parser);
     }
 
     @Override
     protected boolean supportsUnknownFields() {
-        return false;
+        return true;
     }
 }

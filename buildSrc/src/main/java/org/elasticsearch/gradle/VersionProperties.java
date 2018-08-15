@@ -29,10 +29,12 @@ public class VersionProperties {
         Properties props = getVersionProperties();
         Version baseVersion = Version.fromString(props.getProperty("elasticsearch"));
         if (baseVersion.isSnapshot()) {
-            throw new IllegalArgumentException("version.properties can't contain a snapshot version for elasticsearch");
+            throw new IllegalArgumentException("version.properties can't contain a snapshot version for elasticsearch. " +
+                "Use the `build.snapshot` property instead.");
         }
         if (baseVersion.getQualifier().isEmpty() == false) {
-            throw new IllegalArgumentException("version.properties can't contain a version suffix for elasticsearch");
+            throw new IllegalArgumentException("version.properties can't contain a version qualifier for elasticsearch." +
+                "Use the `build.version_qualifier` property instead.");
         }
         elasticsearch = new Version(
             baseVersion.getMajor(),

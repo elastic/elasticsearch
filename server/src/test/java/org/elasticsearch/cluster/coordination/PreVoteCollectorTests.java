@@ -54,6 +54,7 @@ public class PreVoteCollectorTests extends ESTestCase {
     private boolean electionOccurred = false;
     private DiscoveryNode localNode;
     private Map<DiscoveryNode, PreVoteResponse> responsesByNode = new HashMap<>();
+    private long currentTerm, lastAcceptedTerm, lastAcceptedVersion;
 
     @Before
     public void createObjects() {
@@ -87,8 +88,12 @@ public class PreVoteCollectorTests extends ESTestCase {
                 });
             }
         };
+        lastAcceptedTerm = randomNonNegativeLong();
+        currentTerm = randomLongBetween(lastAcceptedTerm, Long.MAX_VALUE);
+        lastAcceptedVersion = randomNonNegativeLong();
+
         localNode = new DiscoveryNode("local-node", buildNewFakeTransportAddress(), Version.CURRENT);
-        responsesByNode.put(localNode, new PreVoteResponse(3, 2, 1));
+        responsesByNode.put(localNode, new PreVoteResponse(currentTerm, lastAcceptedTerm, lastAcceptedVersion));
         TransportService transportService = new TransportService(settings, capturingTransport,
             deterministicTaskQueue.getThreadPool(), TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundTransportAddress -> localNode, null, emptySet());
@@ -120,7 +125,8 @@ public class PreVoteCollectorTests extends ESTestCase {
     private Releasable startCollector(DiscoveryNode... votingNodes) {
         final VotingConfiguration votingConfiguration
             = new VotingConfiguration(Arrays.stream(votingNodes).map(DiscoveryNode::getId).collect(Collectors.toSet()));
-        final ClusterState clusterState = CoordinationStateTests.clusterState(2, 1, localNode, votingConfiguration, votingConfiguration, 0);
+        final ClusterState clusterState = CoordinationStateTests.clusterState(lastAcceptedTerm, lastAcceptedVersion, localNode,
+            votingConfiguration, votingConfiguration, 0);
         return preVoteCollector.start(clusterState, responsesByNode.keySet());
     }
 
@@ -131,7 +137,7 @@ public class PreVoteCollectorTests extends ESTestCase {
 
     public void testStartsElectionIfLocalNodeIsQuorum() {
         final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
-        responsesByNode.put(otherNode, new PreVoteResponse(3, 2, 1));
+        responsesByNode.put(otherNode, getLocalPreVoteResponse());
         startAndRunCollector(otherNode);
         assertTrue(electionOccurred);
     }
@@ -139,7 +145,7 @@ public class PreVoteCollectorTests extends ESTestCase {
 
     public void testStartsElectionIfOtherNodeIsQuorum() {
         final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
-        responsesByNode.put(otherNode, new PreVoteResponse(3, 2, 1));
+        responsesByNode.put(otherNode, getLocalPreVoteResponse());
         startAndRunCollector(otherNode);
         assertTrue(electionOccurred);
     }
@@ -153,29 +159,38 @@ public class PreVoteCollectorTests extends ESTestCase {
 
     public void testDoesNotStartElectionIfStopped() {
         final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
-        responsesByNode.put(otherNode, new PreVoteResponse(3, 2, 1));
+        responsesByNode.put(otherNode, getLocalPreVoteResponse());
         startCollector(otherNode).close();
         runCollector();
         assertFalse(electionOccurred);
     }
 
     public void testIgnoresPreVotesFromLaterTerms() {
+        assumeTrue("unluckily chose lastAcceptedTerm too close to currentTerm, no later terms", lastAcceptedTerm < currentTerm - 1);
+
         final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
-        responsesByNode.put(otherNode, new PreVoteResponse(3, 3, 1));
+        responsesByNode.put(otherNode,
+            new PreVoteResponse(currentTerm, randomLongBetween(lastAcceptedTerm + 1, currentTerm - 1), randomNonNegativeLong()));
         startAndRunCollector(otherNode);
         assertFalse(electionOccurred);
     }
 
     public void testIgnoresPreVotesFromLaterVersionInSameTerm() {
+        assumeTrue("unluckily hit Long.MAX_VALUE for lastAcceptedVersion, cannot increment", lastAcceptedVersion < Long.MAX_VALUE);
+
         final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
-        responsesByNode.put(otherNode, new PreVoteResponse(3, 2, 2));
+        responsesByNode.put(otherNode,
+            new PreVoteResponse(currentTerm, lastAcceptedTerm, randomLongBetween(lastAcceptedVersion + 1, Long.MAX_VALUE)));
         startAndRunCollector(otherNode);
         assertFalse(electionOccurred);
     }
 
-    public void testAcceptsPreVotesFromLaterVersionInEarlierTerms() {
+    public void testAcceptsPreVotesFromAnyVersionInEarlierTerms() {
+        assumeTrue("unluckily hit 0 for lastAcceptedTerm, cannot decrement", 0 < lastAcceptedTerm);
+
         final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
-        responsesByNode.put(otherNode, new PreVoteResponse(3, 1, 2));
+        responsesByNode.put(otherNode,
+            new PreVoteResponse(currentTerm, randomLongBetween(0, lastAcceptedTerm - 1), randomNonNegativeLong()));
         startAndRunCollector(otherNode);
         assertTrue(electionOccurred);
     }
@@ -184,7 +199,7 @@ public class PreVoteCollectorTests extends ESTestCase {
         final long term = randomNonNegativeLong();
         final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
 
-        PreVoteResponse newPreVoteResponse = new PreVoteResponse(5, 4, 3);
+        PreVoteResponse newPreVoteResponse = new PreVoteResponse(currentTerm, lastAcceptedTerm, lastAcceptedVersion);
         preVoteCollector.update(newPreVoteResponse, null);
         final PreVoteResponse preVoteResponse = preVoteCollector.handlePreVoteRequest(new PreVoteRequest(otherNode, term));
 
@@ -196,7 +211,7 @@ public class PreVoteCollectorTests extends ESTestCase {
         final DiscoveryNode leaderNode = new DiscoveryNode("leader-node", buildNewFakeTransportAddress(), Version.CURRENT);
         final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
 
-        PreVoteResponse newPreVoteResponse = new PreVoteResponse(5, 4, 3);
+        PreVoteResponse newPreVoteResponse = new PreVoteResponse(currentTerm, lastAcceptedTerm, lastAcceptedVersion);
         preVoteCollector.update(newPreVoteResponse, leaderNode);
 
         expectThrows(CoordinationStateRejectedException.class, () ->
@@ -213,7 +228,7 @@ public class PreVoteCollectorTests extends ESTestCase {
         final long term = randomNonNegativeLong();
         final DiscoveryNode leaderNode = new DiscoveryNode("leader-node", buildNewFakeTransportAddress(), Version.CURRENT);
 
-        PreVoteResponse newPreVoteResponse = new PreVoteResponse(5, 4, 3);
+        PreVoteResponse newPreVoteResponse = new PreVoteResponse(currentTerm, lastAcceptedTerm, lastAcceptedVersion);
         preVoteCollector.update(newPreVoteResponse, leaderNode);
         final PreVoteResponse preVoteResponse = preVoteCollector.handlePreVoteRequest(new PreVoteRequest(leaderNode, term));
 

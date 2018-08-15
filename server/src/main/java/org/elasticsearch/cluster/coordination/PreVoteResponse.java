@@ -35,12 +35,14 @@ public class PreVoteResponse extends TransportResponse {
         this.currentTerm = currentTerm;
         this.lastAcceptedTerm = lastAcceptedTerm;
         this.lastAcceptedVersion = lastAcceptedVersion;
+        assert lastAcceptedTerm <= currentTerm : currentTerm + " < " + lastAcceptedTerm;
     }
 
     public PreVoteResponse(StreamInput in) throws IOException {
         currentTerm = in.readLong();
         lastAcceptedTerm = in.readLong();
         lastAcceptedVersion = in.readLong();
+        assert lastAcceptedTerm <= currentTerm : currentTerm + " < " + lastAcceptedTerm;
     }
 
     @Override

@@ -1350,4 +1350,33 @@ public class RemoteClusterConnectionTests extends ESTestCase {
             }
         }
     }
+
+    public void testLazyResolveTransportAddress() throws Exception {
+        List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
+        try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
+             MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes, Version.CURRENT)) {
+            DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
+            knownNodes.add(seedTransport.getLocalDiscoNode());
+            knownNodes.add(discoverableTransport.getLocalDiscoNode());
+            Collections.shuffle(knownNodes, random());
+
+            try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
+                service.start();
+                service.acceptIncomingRequests();
+                AtomicInteger resolveCount = new AtomicInteger(0);
+                Supplier<DiscoveryNode> seedSupplier = () -> {
+                    resolveCount.incrementAndGet();
+                    return seedNode;
+                };
+                try (RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",
+                    Arrays.asList(seedSupplier), service, Integer.MAX_VALUE, n -> true)) {
+                    updateSeedNodes(connection, Arrays.asList(seedSupplier));
+                    // Closing connection leads to RemoteClusterConnection.ConnectHandler.collectRemoteNodes
+                    // being called again so we try to resolve the same seed node's host twice
+                    discoverableTransport.close();
+                }
+                assertEquals(2, resolveCount.get());
+            }
+        }
+    }
 }

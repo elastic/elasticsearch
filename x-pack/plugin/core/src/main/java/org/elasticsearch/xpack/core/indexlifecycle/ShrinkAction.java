@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -29,7 +28,7 @@ public class ShrinkAction implements LifecycleAction {
     public static final String SHRUNKEN_INDEX_PREFIX = "shrink-";
     public static final ParseField NUMBER_OF_SHARDS_FIELD = new ParseField("number_of_shards");
 
-    private static final ConstructingObjectParser<ShrinkAction, CreateIndexRequest> PARSER =
+    private static final ConstructingObjectParser<ShrinkAction, Void> PARSER =
         new ConstructingObjectParser<>(NAME, a -> new ShrinkAction((Integer) a[0]));
 
     static {
@@ -39,7 +38,7 @@ public class ShrinkAction implements LifecycleAction {
     private int numberOfShards;
 
     public static ShrinkAction parse(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new CreateIndexRequest());
+        return PARSER.parse(parser, null);
     }
 
     public ShrinkAction(int numberOfShards) {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.lease.Releasable;
@@ -139,7 +140,7 @@ public class ElectionSchedulerFactory extends AbstractComponent {
             final Runnable runnable = new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
-                    logger.debug("unexpected exception in wakeup", e);
+                    logger.debug(new ParameterizedMessage("unexpected exception in wakeup of {}", this), e);
                     assert false : e;
                 }
 
@@ -165,13 +166,6 @@ public class ElectionSchedulerFactory extends AbstractComponent {
                         + ", maxDelayMillis=" + maxDelayMillis
                         + ", delayMillis=" + delayMillis
                         + ", " + ElectionScheduler.this + "}";
-                }
-
-                @Override
-                public boolean isForceExecution() {
-                    // There are very few of these scheduled, and they back off, but it's important that they're not rejected as
-                    // this could prevent a cluster from ever forming.
-                    return true;
                 }
             };
 

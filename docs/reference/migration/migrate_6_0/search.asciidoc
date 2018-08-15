@@ -215,13 +215,6 @@ The ability to query and index context enabled suggestions without contexts
 has been deprecated. Context enabled suggestion queries without contexts have
 to visit every suggestion, which degrades the search performance considerably.
 
-==== Limiting the length of regex that can be used in a Regexp Query request
-
-Regexp Query with long string made of many operators may run into a stack overflow.
-To safeguard against this, the maximum length of regex that can be used in a
-Regexp Query request has been limited to 1000. This default maximum can be changed
-for a particular index with the index setting `index.max_regex_length`.
-
 ==== Limiting the max number of expansion of span_multi queries
 
 `span_multi` queries will hit too many clauses failure if the number of terms that match the

@@ -41,11 +41,10 @@ operation.
 
 ==== Limiting the length of regex that can be used in a Regexp Query request
 
-Executing a <<query-dsl-regexp-query,Regexp Query>> with a long regex string may 
-degrade search performance. To safeguard against this, the maximum length of 
-regex that can be used in a Regexp Query request has been limited to 1000. This 
-default maximum can be changed for a particular index with the index setting 
-`index.max_regex_length`.
+<<query-dsl-regexp-query,Regexp Query>> with long string made of many operators may run into a stack overflow.
+To safeguard against this, the maximum length of regex that can be used in a
+Regexp Query request has been limited to 1000. This default maximum can be changed
+for a particular index with the index setting `index.max_regex_length`.
 
 [[breaking_64_scripting_changes]]
 === Scripting

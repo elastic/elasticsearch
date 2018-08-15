@@ -53,12 +53,12 @@ public class ElectionSchedulerFactory extends AbstractComponent {
      * The first election is scheduled to occur a random number of milliseconds after the scheduler is started, where the random number of
      * milliseconds is chosen uniformly from
      *
-     *     (0, min(ELECTION_INITIAL_TIMEOUT_SETTING, ELECTION_MAX_TIMEOUT_SETTING_KEY)]
+     *     (0, min(ELECTION_INITIAL_TIMEOUT_SETTING, ELECTION_MAX_TIMEOUT_SETTING)]
      *
      * For `n > 1`, the `n`th election is scheduled to occur a random number of milliseconds after the `n - 1`th election, where the random
      * number of milliseconds is chosen uniformly from
      *
-     *     (0, min(ELECTION_INITIAL_TIMEOUT_SETTING + (n-1) * ELECTION_BACK_OFF_TIME_SETTING, ELECTION_MAX_TIMEOUT_SETTING_KEY)]
+     *     (0, min(ELECTION_INITIAL_TIMEOUT_SETTING + (n-1) * ELECTION_BACK_OFF_TIME_SETTING, ELECTION_MAX_TIMEOUT_SETTING)]
      */
 
     public static final Setting<TimeValue> ELECTION_INITIAL_TIMEOUT_SETTING = Setting.timeSetting(ELECTION_INITIAL_TIMEOUT_SETTING_KEY,
@@ -94,9 +94,9 @@ public class ElectionSchedulerFactory extends AbstractComponent {
      * @param scheduledRunnable The action to run each time an election should be attempted.
      */
     public Releasable startElectionScheduler(TimeValue gracePeriod, Runnable scheduledRunnable) {
-        final ElectionScheduler currentScheduler = new ElectionScheduler();
-        currentScheduler.scheduleNextElection(gracePeriod, scheduledRunnable);
-        return currentScheduler;
+        final ElectionScheduler scheduler = new ElectionScheduler();
+        scheduler.scheduleNextElection(gracePeriod, scheduledRunnable);
+        return scheduler;
     }
 
     @SuppressForbidden(reason = "Argument to Math.abs() is definitely not Long.MIN_VALUE")
@@ -106,12 +106,13 @@ public class ElectionSchedulerFactory extends AbstractComponent {
 
     /**
      * @param randomSupplier supplier of randomly-chosen longs
-     * @param upperBound     exclusive upper bound
+     * @param upperBound     inclusive upper bound
+     * @return a number in the range (0, upperBound]
      */
     // package-private for testing
-    static long randomPositiveLongLessThan(LongSupplier randomSupplier, long upperBound) {
-        assert 1 < upperBound : upperBound;
-        return nonNegative(randomSupplier.getAsLong()) % (upperBound - 1) + 1;
+    static long randomPositiveLongAtMost(LongSupplier randomSupplier, long upperBound) {
+        assert 0 < upperBound : upperBound;
+        return nonNegative(randomSupplier.getAsLong()) % upperBound + 1;
     }
 
     @Override
@@ -145,7 +146,7 @@ public class ElectionSchedulerFactory extends AbstractComponent {
             }
 
             final long maxDelayMillis = currentMaxTimeoutMillis.getAndUpdate(this::backOffCurrentMaxTimeout);
-            final long delayMillis = randomPositiveLongLessThan(random::nextLong, maxDelayMillis + 1) + gracePeriod.millis();
+            final long delayMillis = randomPositiveLongAtMost(random::nextLong, maxDelayMillis) + gracePeriod.millis();
             final Runnable runnable = new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {

@@ -39,6 +39,7 @@ pertain to creating a token:
 
 `grant_type`::
 (string) The type of grant. Currently only the `password` grant type is supported.
+
 //TBD: What about the `refresh_token` type in the example below?
 
 `password` (required)::

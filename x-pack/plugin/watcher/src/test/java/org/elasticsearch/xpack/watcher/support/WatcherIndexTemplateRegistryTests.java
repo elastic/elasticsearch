@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.watcher.support;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
@@ -65,8 +65,8 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         when(adminClient.indices()).thenReturn(indicesAdminClient);
         when(client.admin()).thenReturn(adminClient);
         doAnswer(invocationOnMock -> {
-            ActionListener<PutIndexTemplateResponse> listener =
-                    (ActionListener<PutIndexTemplateResponse>) invocationOnMock.getArguments()[1];
+            ActionListener<AcknowledgedResponse> listener =
+                    (ActionListener<AcknowledgedResponse>) invocationOnMock.getArguments()[1];
             listener.onResponse(new TestPutIndexTemplateResponse(true));
             return null;
         }).when(indicesAdminClient).putTemplate(any(PutIndexTemplateRequest.class), any(ActionListener.class));
@@ -173,7 +173,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         return ClusterState.builder(new ClusterName("foo")).metaData(metaDataBuilder.build()).build();
     }
 
-    private static class TestPutIndexTemplateResponse extends PutIndexTemplateResponse {
+    private static class TestPutIndexTemplateResponse extends AcknowledgedResponse {
         TestPutIndexTemplateResponse(boolean acknowledged) {
             super(acknowledged);
         }

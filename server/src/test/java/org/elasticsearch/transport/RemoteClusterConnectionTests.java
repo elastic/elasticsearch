@@ -1363,19 +1363,20 @@ public class RemoteClusterConnectionTests extends ESTestCase {
             try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
                 service.start();
                 service.acceptIncomingRequests();
-                AtomicInteger resolveCount = new AtomicInteger(0);
+                CountDownLatch multipleResolveLatch = new CountDownLatch(2);
                 Supplier<DiscoveryNode> seedSupplier = () -> {
-                    resolveCount.incrementAndGet();
+                    multipleResolveLatch.countDown();
                     return seedNode;
                 };
                 try (RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",
                     Arrays.asList(seedSupplier), service, Integer.MAX_VALUE, n -> true)) {
                     updateSeedNodes(connection, Arrays.asList(seedSupplier));
-                    // Closing connection leads to RemoteClusterConnection.ConnectHandler.collectRemoteNodes
+                    // Closing connections leads to RemoteClusterConnection.ConnectHandler.collectRemoteNodes
                     // being called again so we try to resolve the same seed node's host twice
                     discoverableTransport.close();
+                    seedTransport.close();
+                    assertTrue(multipleResolveLatch.await(30L, TimeUnit.SECONDS));
                 }
-                assertEquals(2, resolveCount.get());
             }
         }
     }

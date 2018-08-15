@@ -21,11 +21,11 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
-import org.elasticsearch.xpack.core.rollup.RollupField;
-import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
+import org.elasticsearch.protocol.xpack.rollup.RollupField;
+import org.elasticsearch.protocol.xpack.rollup.job.GroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.IndexerState;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
-import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
+import org.elasticsearch.protocol.xpack.rollup.job.RollupJobConfig;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;

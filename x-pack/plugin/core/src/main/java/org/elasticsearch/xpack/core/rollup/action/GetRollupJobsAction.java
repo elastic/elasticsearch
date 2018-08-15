@@ -24,9 +24,9 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.protocol.xpack.rollup.job.RollupJobConfig;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xpack.core.rollup.RollupField;
-import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
+import org.elasticsearch.protocol.xpack.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobStats;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobStatus;
 

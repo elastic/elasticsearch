@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.rollup.job;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.protocol.xpack.rollup.job.RollupJobConfig;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.junit.Before;
 
@@ -85,15 +86,6 @@ public class RollupJobConfigTests extends AbstractSerializingTestCase<RollupJobC
             new RollupJobConfig("", sample.getIndexPattern(), sample.getRollupIndex(), sample.getCron(), sample.getPageSize(),
                 sample.getGroupConfig(), sample.getMetricsConfig(), sample.getTimeout()));
         assertThat(e.getMessage(), equalTo("Id must be a non-null, non-empty string"));
-    }
-
-    public void testBadCron() {
-        final RollupJobConfig sample = randomRollupJobConfig(random());
-
-        Exception e = expectThrows(IllegalArgumentException.class, () ->
-            new RollupJobConfig(sample.getId(), sample.getIndexPattern(), sample.getRollupIndex(), "0 * * *", sample.getPageSize(),
-                sample.getGroupConfig(), sample.getMetricsConfig(), sample.getTimeout()));
-        assertThat(e.getMessage(), equalTo("invalid cron expression [0 * * *]"));
     }
 
     public void testMatchAllIndexPattern() {

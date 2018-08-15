@@ -87,6 +87,11 @@ public class ElectionSchedulerFactory extends AbstractComponent {
         backoffTime = ELECTION_BACK_OFF_TIME_SETTING.get(settings);
         maxTimeout = ELECTION_MAX_TIMEOUT_SETTING.get(settings);
         attemptsBeforeMaximumTimeout = (maxTimeout.millis() - initialTimeout.millis()) / backoffTime.millis();
+
+        if (maxTimeout.millis() < initialTimeout.millis()) {
+            throw new IllegalArgumentException(new ParameterizedMessage("[{}] is [{}], but must be at least [{}] which is [{}]",
+                ELECTION_MAX_TIMEOUT_SETTING_KEY, maxTimeout, ELECTION_INITIAL_TIMEOUT_SETTING_KEY, initialTimeout).getFormattedMessage());
+        }
     }
 
     /**

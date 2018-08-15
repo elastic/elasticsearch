@@ -32,10 +32,13 @@ import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.EL
 import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.ELECTION_MAX_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.toPositiveLongAtMost;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ElectionSchedulerFactoryTests extends ESTestCase {
 
@@ -105,16 +108,21 @@ public class ElectionSchedulerFactoryTests extends ESTestCase {
     public void testRetriesOnCorrectSchedule() {
         final Builder settingsBuilder = Settings.builder();
 
+        final long initialTimeoutMillis;
         if (randomBoolean()) {
-            settingsBuilder.put(ELECTION_INITIAL_TIMEOUT_SETTING.getKey(), randomLongBetween(1, 10000) + "ms");
+            initialTimeoutMillis = randomLongBetween(1, 10000);
+            settingsBuilder.put(ELECTION_INITIAL_TIMEOUT_SETTING.getKey(), initialTimeoutMillis + "ms");
+        } else {
+            initialTimeoutMillis = ELECTION_INITIAL_TIMEOUT_SETTING.get(Settings.EMPTY).millis();
         }
 
         if (randomBoolean()) {
             settingsBuilder.put(ELECTION_BACK_OFF_TIME_SETTING.getKey(), randomLongBetween(1, 60000) + "ms");
         }
 
-        if (randomBoolean()) {
-            settingsBuilder.put(ELECTION_MAX_TIMEOUT_SETTING.getKey(), randomLongBetween(200, 180000) + "ms");
+        if (ELECTION_MAX_TIMEOUT_SETTING.get(Settings.EMPTY).millis() < initialTimeoutMillis || randomBoolean()) {
+            settingsBuilder.put(ELECTION_MAX_TIMEOUT_SETTING.getKey(),
+                randomLongBetween(Math.max(200, initialTimeoutMillis), 180000) + "ms");
         }
 
         final Settings settings = settingsBuilder.put(NODE_NAME_SETTING.getKey(), "node").build();
@@ -132,7 +140,7 @@ public class ElectionSchedulerFactoryTests extends ESTestCase {
         assertElectionSchedule(deterministicTaskQueue, electionSchedulerFactory, initialTimeout, backOffTime, maxTimeout);
     }
 
-    public void testSettingsMustBeReasonable() {
+    public void testSettingsValidation() {
         {
             final Settings settings = Settings.builder().put(ELECTION_INITIAL_TIMEOUT_SETTING.getKey(), "0s").build();
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ELECTION_INITIAL_TIMEOUT_SETTING.get(settings));
@@ -170,15 +178,38 @@ public class ElectionSchedulerFactoryTests extends ESTestCase {
         }
 
         {
+            final long initialTimeoutMillis = randomLongBetween(1, 10000);
+            final long backOffMillis = randomLongBetween(1, 60000);
+            final long maxTimeoutMillis = randomLongBetween(Math.max(200, initialTimeoutMillis), 180000);
+
             final Settings settings = Settings.builder()
-                .put(ELECTION_INITIAL_TIMEOUT_SETTING.getKey(), "1ms")
-                .put(ELECTION_BACK_OFF_TIME_SETTING.getKey(), "150ms")
-                .put(ELECTION_MAX_TIMEOUT_SETTING.getKey(), "60s")
+                .put(ELECTION_INITIAL_TIMEOUT_SETTING.getKey(), initialTimeoutMillis + "ms")
+                .put(ELECTION_BACK_OFF_TIME_SETTING.getKey(), backOffMillis + "ms")
+                .put(ELECTION_MAX_TIMEOUT_SETTING.getKey(), maxTimeoutMillis + "ms")
                 .build();
 
-            assertThat(ELECTION_INITIAL_TIMEOUT_SETTING.get(settings), is(TimeValue.timeValueMillis(1)));
-            assertThat(ELECTION_BACK_OFF_TIME_SETTING.get(settings), is(TimeValue.timeValueMillis(150)));
-            assertThat(ELECTION_MAX_TIMEOUT_SETTING.get(settings), is(TimeValue.timeValueSeconds(60)));
+            assertThat(ELECTION_INITIAL_TIMEOUT_SETTING.get(settings), is(TimeValue.timeValueMillis(initialTimeoutMillis)));
+            assertThat(ELECTION_BACK_OFF_TIME_SETTING.get(settings), is(TimeValue.timeValueMillis(backOffMillis)));
+            assertThat(ELECTION_MAX_TIMEOUT_SETTING.get(settings), is(TimeValue.timeValueMillis(maxTimeoutMillis)));
+
+            assertThat(new ElectionSchedulerFactory(settings, random(), null), not(nullValue())); // doesn't throw an IAE
+        }
+
+        {
+            final long initialTimeoutMillis = randomLongBetween(201, 10000);
+            final long maxTimeoutMillis = randomLongBetween(200, initialTimeoutMillis - 1);
+
+            final Settings settings = Settings.builder()
+                .put(ELECTION_INITIAL_TIMEOUT_SETTING.getKey(), initialTimeoutMillis + "ms")
+                .put(ELECTION_MAX_TIMEOUT_SETTING.getKey(), maxTimeoutMillis + "ms")
+                .build();
+
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> new ElectionSchedulerFactory(settings, random(), null));
+            assertThat(e.getMessage(), equalTo("[cluster.election.max_timeout] is ["
+                + TimeValue.timeValueMillis(maxTimeoutMillis)
+                + "], but must be at least [cluster.election.initial_timeout] which is ["
+                + TimeValue.timeValueMillis(initialTimeoutMillis) + "]"));
         }
     }
 

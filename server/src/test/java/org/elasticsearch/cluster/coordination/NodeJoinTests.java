@@ -50,7 +50,7 @@ public class NodeJoinTests extends ESTestCase {
 
     @BeforeClass
     public static void beforeClass() {
-        threadPool = new TestThreadPool("NodeJoinControllerTests");
+        threadPool = new TestThreadPool(NodeJoinTests.getTestClass().getName());
     }
 
     @AfterClass
@@ -172,7 +172,7 @@ public class NodeJoinTests extends ESTestCase {
 
         // we need at least a quorum of voting nodes with a correct term
 
-        List<Thread> threads = randomSubsetOf(nodes).stream().map(node -> new Thread(() -> {
+        List<Thread> threads = nodes.stream().map(node -> new Thread(() -> {
             JoinRequest joinRequest = new JoinRequest(node, Optional.of(new Join(node, localNode, 2, 1, 1)));
             try {
                 joinNode(joinRequest);

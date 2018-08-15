@@ -58,13 +58,12 @@ public class CronEvalTool extends LoggingAwareCommand {
 
         DateTime date = DateTime.now(DateTimeZone.UTC);
         terminal.println("Now is [" + formatter.print(date) + "]");
+        terminal.println("Here are the next " + count + " times this cron expression will trigger:");
 
         Cron cron = new Cron(expression);
         long time = date.getMillis();
-        int i = 0;
-        List<String> times = new ArrayList<>();
 
-        for (; i < count; i++) {
+        for (int i = 0; i < count; i++) {
             long prevTime = time;
             time = cron.getNextValidTimeAfter(time);
             if (time < 0) {
@@ -74,9 +73,7 @@ public class CronEvalTool extends LoggingAwareCommand {
                 }
                 break;
             }
-            times.add((i + 1) + ".\t" + formatter.print(time));
+            terminal.println((i + 1) + ".\t" + formatter.print(time));
         }
-        terminal.println((i == count ? "Here are the next " : "There are ") + i + " times this cron expression will trigger:");
-        times.forEach(terminal::println);
     }
 }

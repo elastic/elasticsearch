@@ -12,6 +12,9 @@ import java.util.Calendar;
 import java.util.Locale;
 import java.util.TimeZone;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
+
 public class CronEvalToolTests extends CommandTestCase {
     @Override
     protected Command newCommand() {
@@ -27,25 +30,24 @@ public class CronEvalToolTests extends CommandTestCase {
 
     public void testGetNextValidTimes() throws Exception {
         {
-            String output = execute(
-                    "0 3 23 8 9 ? " + (Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT).get(Calendar.YEAR) + 1));
-            assertTrue(output, output.contains("There are 1 times this cron expression will trigger:"));
-            assertFalse(output.contains("ERROR"));
-            assertFalse(output.contains("2.\t"));
+            final int nextYear = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT).get(Calendar.YEAR) + 1;
+            String output = execute("0 3 23 8 9 ? " + nextYear);
+            assertThat(output, containsString("Here are the next 10 times this cron expression will trigger:"));
+            assertThat(output, not(containsString("ERROR")));
+            assertThat(output, not(containsString("2.\t")));
         }
         {
-            String output = execute(
-                    "0 3 23 */4 9 ? " + (Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT).get(Calendar.YEAR) + 1));
-            assertTrue(output, output.contains("There are 8 times this cron expression will trigger:"));
-            assertFalse(output, output.contains("Here are the next 10 times this cron expression will trigger:"));
-            assertFalse(output, output.contains("ERROR"));
+            final int nextYear = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT).get(Calendar.YEAR) + 1;
+            String output = execute("0 3 23 */4 9 ? " + nextYear);
+            assertThat(output, containsString("Here are the next 10 times this cron expression will trigger:"));
+            assertThat(output, not(containsString("ERROR")));
         }
         {
-            Exception expectThrows = expectThrows(Exception.class, () -> execute(
-                    "0 3 23 */4 9 ? " + (Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT).get(Calendar.YEAR) - 1)));
+            final int previousYear = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT).get(Calendar.YEAR) - 1;
+            Exception expectThrows = expectThrows(Exception.class, () -> execute("0 3 23 */4 9 ? " + previousYear));
             String message = expectThrows.getMessage();
-            assertTrue(message, message.contains("Could not compute future times since"));
-            assertTrue(message, message.contains("(perhaps the cron expression only points to times in the past?)"));
+            assertThat(message, containsString("Could not compute future times since"));
+            assertThat(message, containsString("(perhaps the cron expression only points to times in the past?)"));
         }
     }
 }

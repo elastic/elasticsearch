@@ -117,8 +117,8 @@ public class ElectionSchedulerFactory extends AbstractComponent {
          * The current maximum timeout: the next election is scheduled randomly no later than this number of milliseconds in the future. On
          * each election attempt this value is increased by `backoffTime`, up to the `maxTimeout`, to adapt to higher-than-expected latency.
          */
-        private AtomicLong currentMaxTimeoutMillis = new AtomicLong(initialTimeout.millis());
-        private AtomicBoolean isRunning = new AtomicBoolean(true);
+        private final AtomicLong currentMaxTimeoutMillis = new AtomicLong(initialTimeout.millis());
+        private final AtomicBoolean isRunning = new AtomicBoolean(true);
 
         /**
          * Calculate the next maximum timeout by backing off the current value by `backoffTime` up to the `maxTimeout`.

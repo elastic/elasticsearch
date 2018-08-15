@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.transport;
 
+import org.elasticsearch.cli.SuppressForbidden;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -160,6 +161,7 @@ public class MockTcpTransport extends TcpTransport {
     }
 
     @Override
+    @SuppressForbidden(reason = "real socket for mocking remote connections")
     protected MockChannel initiateChannel(InetSocketAddress address, ActionListener<Void> connectListener) throws IOException {
         final MockSocket socket = new MockSocket();
         final MockChannel channel = new MockChannel(socket, address, "none");

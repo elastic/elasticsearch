@@ -293,7 +293,7 @@ public final class PainlessLookupBuilder {
 
         if (canonicalClassName.equals(importedCanonicalClassName)) {
             if (importClassName == true) {
-                throw new IllegalArgumentException("must use only_fqn parameter on class [" + canonicalClassName + "] with no package");
+                throw new IllegalArgumentException("must use no_import parameter on class [" + canonicalClassName + "] with no package");
             }
         } else {
             Class<?> importedPainlessClass = canonicalClassNamesToClasses.get(importedCanonicalClassName);
@@ -301,7 +301,8 @@ public final class PainlessLookupBuilder {
             if (importedPainlessClass == null) {
                 if (importClassName) {
                     if (existingPainlessClassBuilder != null) {
-                        throw new IllegalArgumentException("inconsistent only_fqn parameters found for class [" + canonicalClassName + "]");
+                        throw new IllegalArgumentException(
+                                "inconsistent no_import parameters found for class [" + canonicalClassName + "]");
                     }
 
                     canonicalClassNamesToClasses.put(importedCanonicalClassName, clazz);
@@ -310,7 +311,7 @@ public final class PainlessLookupBuilder {
                 throw new IllegalArgumentException("imported class [" + importedCanonicalClassName + "] cannot represent multiple " +
                         "classes [" + canonicalClassName + "] and [" + typeToCanonicalTypeName(importedPainlessClass) + "]");
             } else if (importClassName == false) {
-                throw new IllegalArgumentException("inconsistent only_fqn parameters found for class [" + canonicalClassName + "]");
+                throw new IllegalArgumentException("inconsistent no_import parameters found for class [" + canonicalClassName + "]");
             }
         }
     }

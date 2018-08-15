@@ -452,8 +452,7 @@ public final class GrokPatternCreator {
             }
             String adjustedFieldName = buildFieldName(fieldNameCountStore, fieldName);
             if (mappings != null) {
-                Map<String, String> fullMappingType = Collections.singletonMap(AbstractLogStructureFinder.MAPPING_TYPE_SETTING,
-                    mappingType);
+                Map<String, String> fullMappingType = Collections.singletonMap(LogStructureUtils.MAPPING_TYPE_SETTING, mappingType);
                 if ("date".equals(mappingType)) {
                     TimestampMatch timestampMatch = TimestampFormatFinder.findFirstFullMatch(sampleValue);
                     if (timestampMatch != null) {
@@ -525,7 +524,7 @@ public final class GrokPatternCreator {
             }
             String adjustedFieldName = buildFieldName(fieldNameCountStore, fieldName);
             if (mappings != null) {
-                mappings.put(adjustedFieldName, AbstractLogStructureFinder.guessScalarMapping(explanation, adjustedFieldName, values));
+                mappings.put(adjustedFieldName, LogStructureUtils.guessScalarMapping(explanation, adjustedFieldName, values));
             }
             return "\\b" + fieldName + "=%{USER:" + adjustedFieldName + "}";
         }
@@ -606,7 +605,7 @@ public final class GrokPatternCreator {
                 for (Map.Entry<String, Collection<String>> valuesForField : valuesPerField.entrySet()) {
                     String fieldName = valuesForField.getKey();
                     mappings.put(fieldName,
-                        AbstractLogStructureFinder.guessScalarMapping(explanation, fieldName, valuesForField.getValue()));
+                        LogStructureUtils.guessScalarMapping(explanation, fieldName, valuesForField.getValue()));
                 }
             }
 

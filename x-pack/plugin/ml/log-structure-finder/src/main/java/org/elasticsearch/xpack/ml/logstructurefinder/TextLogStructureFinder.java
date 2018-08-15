@@ -20,7 +20,7 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.regex.Pattern;
 
-public class TextLogStructureFinder extends AbstractLogStructureFinder implements LogStructureFinder {
+public class TextLogStructureFinder implements LogStructureFinder {
 
     private final List<String> sampleMessages;
     private final LogStructure structure;
@@ -79,8 +79,8 @@ public class TextLogStructureFinder extends AbstractLogStructureFinder implement
             .setMultilineStartPattern(multiLineRegex);
 
         SortedMap<String, Object> mappings = new TreeMap<>();
-        mappings.put("message", Collections.singletonMap(MAPPING_TYPE_SETTING, "text"));
-        mappings.put(DEFAULT_TIMESTAMP_FIELD, Collections.singletonMap(MAPPING_TYPE_SETTING, "date"));
+        mappings.put("message", Collections.singletonMap(LogStructureUtils.MAPPING_TYPE_SETTING, "text"));
+        mappings.put(LogStructureUtils.DEFAULT_TIMESTAMP_FIELD, Collections.singletonMap(LogStructureUtils.MAPPING_TYPE_SETTING, "date"));
 
         // We can't parse directly into @timestamp using Grok, so parse to some other time field, which the date filter will then remove
         String interimTimestampField;

@@ -29,7 +29,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class SeparatedValuesLogStructureFinder extends AbstractStructuredLogStructureFinder implements LogStructureFinder {
+public class SeparatedValuesLogStructureFinder implements LogStructureFinder {
 
     private static final int MAX_LEVENSHTEIN_COMPARISONS = 100;
 
@@ -86,7 +86,7 @@ public class SeparatedValuesLogStructureFinder extends AbstractStructuredLogStru
             structureBuilder.setShouldTrimFields(true);
         }
 
-        Tuple<String, TimestampMatch> timeField = guessTimestampField(explanation, sampleRecords);
+        Tuple<String, TimestampMatch> timeField = LogStructureUtils.guessTimestampField(explanation, sampleRecords);
         if (timeField != null) {
             String timeLineRegex = null;
             StringBuilder builder = new StringBuilder("^");
@@ -123,8 +123,8 @@ public class SeparatedValuesLogStructureFinder extends AbstractStructuredLogStru
                 .setMultilineStartPattern(timeLineRegex);
         }
 
-        SortedMap<String, Object> mappings = guessMappings(explanation, sampleRecords);
-        mappings.put(DEFAULT_TIMESTAMP_FIELD, Collections.singletonMap(MAPPING_TYPE_SETTING, "date"));
+        SortedMap<String, Object> mappings = LogStructureUtils.guessMappings(explanation, sampleRecords);
+        mappings.put(LogStructureUtils.DEFAULT_TIMESTAMP_FIELD, Collections.singletonMap(LogStructureUtils.MAPPING_TYPE_SETTING, "date"));
 
         LogStructure structure = structureBuilder
             .setMappings(mappings)

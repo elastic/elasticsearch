@@ -25,7 +25,7 @@ import static org.elasticsearch.common.xcontent.json.JsonXContent.jsonXContent;
 /**
  * Really ND-JSON.
  */
-public class JsonLogStructureFinder extends AbstractStructuredLogStructureFinder implements LogStructureFinder {
+public class JsonLogStructureFinder implements LogStructureFinder {
 
     private final List<String> sampleMessages;
     private final LogStructure structure;
@@ -49,15 +49,15 @@ public class JsonLogStructureFinder extends AbstractStructuredLogStructureFinder
             .setNumLinesAnalyzed(sampleMessages.size())
             .setNumMessagesAnalyzed(sampleRecords.size());
 
-        Tuple<String, TimestampMatch> timeField = guessTimestampField(explanation, sampleRecords);
+        Tuple<String, TimestampMatch> timeField = LogStructureUtils.guessTimestampField(explanation, sampleRecords);
         if (timeField != null) {
             structureBuilder.setTimestampField(timeField.v1())
                 .setTimestampFormats(timeField.v2().dateFormats)
                 .setNeedClientTimezone(timeField.v2().hasTimezoneDependentParsing());
         }
 
-        SortedMap<String, Object> mappings = guessMappings(explanation, sampleRecords);
-        mappings.put(DEFAULT_TIMESTAMP_FIELD, Collections.singletonMap(MAPPING_TYPE_SETTING, "date"));
+        SortedMap<String, Object> mappings = LogStructureUtils.guessMappings(explanation, sampleRecords);
+        mappings.put(LogStructureUtils.DEFAULT_TIMESTAMP_FIELD, Collections.singletonMap(LogStructureUtils.MAPPING_TYPE_SETTING, "date"));
 
         LogStructure structure = structureBuilder
             .setMappings(mappings)

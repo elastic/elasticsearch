@@ -30,7 +30,7 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.regex.Pattern;
 
-public class XmlLogStructureFinder extends AbstractStructuredLogStructureFinder implements LogStructureFinder {
+public class XmlLogStructureFinder implements LogStructureFinder {
 
     private final List<String> sampleMessages;
     private final LogStructure structure;
@@ -88,20 +88,21 @@ public class XmlLogStructureFinder extends AbstractStructuredLogStructureFinder 
             .setNumMessagesAnalyzed(sampleRecords.size())
             .setMultilineStartPattern("^\\s*<" + topLevelTag);
 
-        Tuple<String, TimestampMatch> timeField = guessTimestampField(explanation, sampleRecords);
+        Tuple<String, TimestampMatch> timeField = LogStructureUtils.guessTimestampField(explanation, sampleRecords);
         if (timeField != null) {
             structureBuilder.setTimestampField(timeField.v1())
                 .setTimestampFormats(timeField.v2().dateFormats)
                 .setNeedClientTimezone(timeField.v2().hasTimezoneDependentParsing());
         }
 
-        SortedMap<String, Object> innerMappings = guessMappings(explanation, sampleRecords);
+        SortedMap<String, Object> innerMappings = LogStructureUtils.guessMappings(explanation, sampleRecords);
         Map<String, Object> secondLevelProperties = new LinkedHashMap<>();
-        secondLevelProperties.put(MAPPING_TYPE_SETTING, "object");
-        secondLevelProperties.put(MAPPING_PROPERTIES_SETTING, innerMappings);
+        secondLevelProperties.put(LogStructureUtils.MAPPING_TYPE_SETTING, "object");
+        secondLevelProperties.put(LogStructureUtils.MAPPING_PROPERTIES_SETTING, innerMappings);
         SortedMap<String, Object> outerMappings = new TreeMap<>();
         outerMappings.put(topLevelTag, secondLevelProperties);
-        outerMappings.put(DEFAULT_TIMESTAMP_FIELD, Collections.singletonMap(MAPPING_TYPE_SETTING, "date"));
+        outerMappings.put(LogStructureUtils.DEFAULT_TIMESTAMP_FIELD,
+            Collections.singletonMap(LogStructureUtils.MAPPING_TYPE_SETTING, "date"));
 
         LogStructure structure = structureBuilder
             .setMappings(outerMappings)

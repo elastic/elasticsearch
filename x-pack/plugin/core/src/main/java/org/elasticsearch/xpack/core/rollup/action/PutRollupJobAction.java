@@ -25,7 +25,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class PutRollupJobAction extends Action<PutRollupJobAction.Request, PutRollupJobAction.Response,
+public class PutRollupJobAction extends Action<PutRollupJobAction.Request, AcknowledgedResponse,
         PutRollupJobAction.RequestBuilder> {
 
     public static final PutRollupJobAction INSTANCE = new PutRollupJobAction();
@@ -41,8 +41,8 @@ public class PutRollupJobAction extends Action<PutRollupJobAction.Request, PutRo
     }
 
     @Override
-    public Response newResponse() {
-        return new Response();
+    public AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest, ToXContentObject {
@@ -133,21 +133,10 @@ public class PutRollupJobAction extends Action<PutRollupJobAction.Request, PutRo
         }
     }
 
-    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
+    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, AcknowledgedResponse, RequestBuilder> {
 
         protected RequestBuilder(ElasticsearchClient client, PutRollupJobAction action) {
             super(client, action, new Request());
-        }
-    }
-
-    public static class Response extends AcknowledgedResponse {
-
-        public Response() {
-            super();
-        }
-
-        public Response(boolean acknowledged) {
-            super(acknowledged);
         }
     }
 }

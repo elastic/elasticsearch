@@ -25,6 +25,7 @@ import org.elasticsearch.action.PrimaryMissingActionException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -205,9 +206,9 @@ public class TransportUpgradeAction extends TransportBroadcastByNodeAction<Upgra
 
     private void updateSettings(final UpgradeResponse upgradeResponse, final ActionListener<UpgradeResponse> listener) {
         UpgradeSettingsRequest upgradeSettingsRequest = new UpgradeSettingsRequest(upgradeResponse.versions());
-        upgradeSettingsAction.execute(upgradeSettingsRequest, new ActionListener<UpgradeSettingsResponse>() {
+        upgradeSettingsAction.execute(upgradeSettingsRequest, new ActionListener<AcknowledgedResponse>() {
             @Override
-            public void onResponse(UpgradeSettingsResponse updateSettingsResponse) {
+            public void onResponse(AcknowledgedResponse updateSettingsResponse) {
                 listener.onResponse(upgradeResponse);
             }
 

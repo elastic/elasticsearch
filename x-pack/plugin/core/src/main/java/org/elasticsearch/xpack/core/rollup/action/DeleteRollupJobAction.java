@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.core.rollup.RollupField;
 import java.io.IOException;
 import java.util.Objects;
 
-public class DeleteRollupJobAction extends Action<DeleteRollupJobAction.Request, DeleteRollupJobAction.Response,
+public class DeleteRollupJobAction extends Action<DeleteRollupJobAction.Request, AcknowledgedResponse,
         DeleteRollupJobAction.RequestBuilder> {
 
     public static final DeleteRollupJobAction INSTANCE = new DeleteRollupJobAction();
@@ -38,8 +38,8 @@ public class DeleteRollupJobAction extends Action<DeleteRollupJobAction.Request,
     }
 
     @Override
-    public Response newResponse() {
-        return new Response();
+    public AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContent {
@@ -96,21 +96,10 @@ public class DeleteRollupJobAction extends Action<DeleteRollupJobAction.Request,
         }
     }
 
-    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
+    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, AcknowledgedResponse, RequestBuilder> {
 
         protected RequestBuilder(ElasticsearchClient client, DeleteRollupJobAction action) {
             super(client, action, new Request());
-        }
-    }
-
-    public static class Response extends AcknowledgedResponse {
-
-        public Response() {
-            super();
-        }
-
-        public Response(boolean acknowledged) {
-            super(acknowledged);
         }
     }
 }

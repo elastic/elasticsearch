@@ -21,7 +21,7 @@ package org.elasticsearch.search.child;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -127,7 +127,7 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
         assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), equalTo(0L));
 
-        PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("child")
+        AcknowledgedResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("child")
                 .setSource(childMapping(true))
                 .setUpdateAllTypes(true)
                 .get();

@@ -24,7 +24,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class DeleteJobAction extends Action<DeleteJobAction.Request, DeleteJobAction.Response, DeleteJobAction.RequestBuilder> {
+public class DeleteJobAction extends Action<DeleteJobAction.Request, AcknowledgedResponse, DeleteJobAction.RequestBuilder> {
 
     public static final DeleteJobAction INSTANCE = new DeleteJobAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/delete";
@@ -39,8 +39,8 @@ public class DeleteJobAction extends Action<DeleteJobAction.Request, DeleteJobAc
     }
 
     @Override
-    public Response newResponse() {
-        return new Response();
+    public AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -116,20 +116,10 @@ public class DeleteJobAction extends Action<DeleteJobAction.Request, DeleteJobAc
         }
     }
 
-    static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
+    static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, AcknowledgedResponse, RequestBuilder> {
 
         RequestBuilder(ElasticsearchClient client, DeleteJobAction action) {
             super(client, action, new Request());
         }
     }
-
-    public static class Response extends AcknowledgedResponse {
-
-        public Response(boolean acknowledged) {
-            super(acknowledged);
-        }
-
-        public Response() {}
-    }
-
 }

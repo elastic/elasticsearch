@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.delete;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -36,7 +37,7 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Transport action for delete snapshot operation
  */
-public class TransportDeleteSnapshotAction extends TransportMasterNodeAction<DeleteSnapshotRequest, DeleteSnapshotResponse> {
+public class TransportDeleteSnapshotAction extends TransportMasterNodeAction<DeleteSnapshotRequest, AcknowledgedResponse> {
     private final SnapshotsService snapshotsService;
 
     @Inject
@@ -53,8 +54,8 @@ public class TransportDeleteSnapshotAction extends TransportMasterNodeAction<Del
     }
 
     @Override
-    protected DeleteSnapshotResponse newResponse() {
-        return new DeleteSnapshotResponse();
+    protected AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     @Override
@@ -64,11 +65,11 @@ public class TransportDeleteSnapshotAction extends TransportMasterNodeAction<Del
     }
 
     @Override
-    protected void masterOperation(final DeleteSnapshotRequest request, ClusterState state, final ActionListener<DeleteSnapshotResponse> listener) {
+    protected void masterOperation(final DeleteSnapshotRequest request, ClusterState state, final ActionListener<AcknowledgedResponse> listener) {
         snapshotsService.deleteSnapshot(request.repository(), request.snapshot(), new SnapshotsService.DeleteSnapshotListener() {
             @Override
             public void onResponse() {
-                listener.onResponse(new DeleteSnapshotResponse(true));
+                listener.onResponse(new AcknowledgedResponse(true));
             }
 
             @Override

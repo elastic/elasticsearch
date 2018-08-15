@@ -29,42 +29,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 public interface TransportConnectionListener {
 
     /**
-     * Called once a request is received
-     * @param requestId the internal request ID
-     * @param action the request action
-     *
-     */
-    default void onRequestReceived(long requestId, String action) {}
-
-    /**
-     * Called for every action response sent after the response has been passed to the underlying network implementation.
-     * @param requestId the request ID (unique per client)
-     * @param action the request action
-     * @param response the response send
-     * @param finalOptions the response options
-     */
-    default void onResponseSent(long requestId, String action, TransportResponse response, TransportResponseOptions finalOptions) {}
-
-    /***
-     * Called for every failed action response after the response has been passed to the underlying network implementation.
-     * @param requestId the request ID (unique per client)
-     * @param action the request action
-     * @param error the error sent back to the caller
-     */
-    default void onResponseSent(long requestId, String action, Exception error) {}
-
-    /**
-     * Called for every request sent to a server after the request has been passed to the underlying network implementation
-     * @param node the node the request was sent to
-     * @param requestId the internal request id
-     * @param action the action name
-     * @param request the actual request
-     * @param finalOptions the request options
-     */
-    default void onRequestSent(DiscoveryNode node, long requestId, String action, TransportRequest request,
-                               TransportRequestOptions finalOptions) {}
-
-    /**
      * Called once a connection was opened
      * @param connection the connection
      */

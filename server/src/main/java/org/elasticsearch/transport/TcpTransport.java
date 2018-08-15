@@ -185,6 +185,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     protected final Set<ProfileSettings> profileSettings;
 
     private final DelegatingTransportConnectionListener transportListener = new DelegatingTransportConnectionListener();
+    private final DelegatingTransportMessageListener messageListener = new DelegatingTransportMessageListener();
 
     private final ConcurrentMap<String, BoundTransportAddress> profileBoundAddresses = newConcurrentMap();
     private final Map<String, List<TcpServerChannel>> serverChannels = newConcurrentMap();
@@ -246,6 +247,14 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     @Override
     protected void doStart() {
+    }
+
+    public void addMessageListener(TransportMessageListener listener) {
+        messageListener.listeners.add(listener);
+    }
+
+    public boolean removeMessageListener(TransportMessageListener listener) {
+        return messageListener.listeners.remove(listener);
     }
 
     @Override
@@ -907,7 +916,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             final TransportRequestOptions finalOptions = options;
             // this might be called in a different thread
             SendListener onRequestSent = new SendListener(channel, stream,
-                () -> transportListener.onRequestSent(node, requestId, action, request, finalOptions), message.length());
+                () -> messageListener.onRequestSent(node, requestId, action, request, finalOptions), message.length());
             internalSendMessage(channel, message, onRequestSent);
             addedReleaseListener = true;
         } finally {
@@ -961,7 +970,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             final BytesReference header = buildHeader(requestId, status, nodeVersion, bytes.length());
             CompositeBytesReference message = new CompositeBytesReference(header, bytes);
             SendListener onResponseSent = new SendListener(channel, null,
-                () -> transportListener.onResponseSent(requestId, action, error), message.length());
+                () -> messageListener.onResponseSent(requestId, action, error), message.length());
             internalSendMessage(channel, message, onResponseSent);
         }
     }
@@ -1010,7 +1019,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             final TransportResponseOptions finalOptions = options;
             // this might be called in a different thread
             SendListener listener = new SendListener(channel, stream,
-                () -> transportListener.onResponseSent(requestId, action, response, finalOptions), message.length());
+                () -> messageListener.onResponseSent(requestId, action, response, finalOptions), message.length());
             internalSendMessage(channel, message, listener);
             addedReleaseListener = true;
         } finally {
@@ -1266,7 +1275,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 if (isHandshake) {
                     handler = pendingHandshakes.remove(requestId);
                 } else {
-                    TransportResponseHandler theHandler = responseHandlers.onResponseReceived(requestId, transportListener);
+                    TransportResponseHandler theHandler = responseHandlers.onResponseReceived(requestId, messageListener);
                     if (theHandler == null && TransportStatus.isError(status)) {
                         handler = pendingHandshakes.remove(requestId);
                     } else {
@@ -1373,7 +1382,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             features = Collections.emptySet();
         }
         final String action = stream.readString();
-        transportListener.onRequestReceived(requestId, action);
+        messageListener.onRequestReceived(requestId, action);
         TransportChannel transportChannel = null;
         try {
             if (TransportStatus.isHandshake(status)) {
@@ -1682,26 +1691,27 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
     }
 
-    private static final class DelegatingTransportConnectionListener implements TransportConnectionListener {
-        private final List<TransportConnectionListener> listeners = new CopyOnWriteArrayList<>();
+    private static final class DelegatingTransportMessageListener implements TransportMessageListener {
+
+        private final List<TransportMessageListener> listeners = new CopyOnWriteArrayList<>();
 
         @Override
         public void onRequestReceived(long requestId, String action) {
-            for (TransportConnectionListener listener : listeners) {
+            for (TransportMessageListener listener : listeners) {
                 listener.onRequestReceived(requestId, action);
             }
         }
 
         @Override
         public void onResponseSent(long requestId, String action, TransportResponse response, TransportResponseOptions finalOptions) {
-            for (TransportConnectionListener listener : listeners) {
+            for (TransportMessageListener listener : listeners) {
                 listener.onResponseSent(requestId, action, response, finalOptions);
             }
         }
 
         @Override
         public void onResponseSent(long requestId, String action, Exception error) {
-            for (TransportConnectionListener listener : listeners) {
+            for (TransportMessageListener listener : listeners) {
                 listener.onResponseSent(requestId, action, error);
             }
         }
@@ -1709,10 +1719,21 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         @Override
         public void onRequestSent(DiscoveryNode node, long requestId, String action, TransportRequest request,
                                   TransportRequestOptions finalOptions) {
-            for (TransportConnectionListener listener : listeners) {
+            for (TransportMessageListener listener : listeners) {
                 listener.onRequestSent(node, requestId, action, request, finalOptions);
             }
         }
+
+        @Override
+        public void onResponseReceived(long requestId, ResponseContext holder) {
+            for (TransportMessageListener listener : listeners) {
+                listener.onResponseReceived(requestId, holder);
+            }
+        }
+    }
+
+    private static final class DelegatingTransportConnectionListener implements TransportConnectionListener {
+        private final List<TransportConnectionListener> listeners = new CopyOnWriteArrayList<>();
 
         @Override
         public void onNodeDisconnected(DiscoveryNode key) {
@@ -1739,13 +1760,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         public void onConnectionClosed(Connection nodeChannels) {
             for (TransportConnectionListener listener : listeners) {
                 listener.onConnectionClosed(nodeChannels);
-            }
-        }
-
-        @Override
-        public void onResponseReceived(long requestId, ResponseContext holder) {
-            for (TransportConnectionListener listener : listeners) {
-                listener.onResponseReceived(requestId, holder);
             }
         }
     }

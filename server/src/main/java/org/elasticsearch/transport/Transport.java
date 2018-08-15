@@ -56,6 +56,15 @@ public interface Transport extends LifecycleComponent {
      */
     RequestHandlerRegistry getRequestHandler(String action);
 
+    default void addMessageListener(TransportMessageListener listener) {
+        // TODO: Not default
+    }
+
+    default boolean removeMessageListener(TransportMessageListener listener) {
+        // TODO: Not default
+        return false;
+    }
+
     /**
      * Adds a new event listener
      * @param listener the listener to add
@@ -254,7 +263,7 @@ public interface Transport extends LifecycleComponent {
          * sent request (before any processing or deserialization was done). Returns the appropriate response handler or null if not
          * found.
          */
-        public TransportResponseHandler onResponseReceived(final long requestId, TransportConnectionListener listener) {
+        public TransportResponseHandler onResponseReceived(final long requestId, TransportMessageListener listener) {
             ResponseContext context = handlers.remove(requestId);
             listener.onResponseReceived(requestId, context);
             if (context == null) {

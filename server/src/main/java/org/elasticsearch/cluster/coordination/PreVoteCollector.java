@@ -111,7 +111,7 @@ public class PreVoteCollector extends AbstractComponent {
         private final AtomicBoolean electionStarted = new AtomicBoolean();
         private final PreVoteRequest preVoteRequest;
         private final ClusterState clusterState;
-        private final AtomicBoolean isRunning = new AtomicBoolean();
+        private final AtomicBoolean isClosed = new AtomicBoolean();
 
         PreVotingRound(ClusterState clusterState) {
             this.clusterState = clusterState;
@@ -119,10 +119,6 @@ public class PreVoteCollector extends AbstractComponent {
         }
 
         void start(final Iterable<DiscoveryNode> broadcastNodes) {
-
-            final boolean isRunningChanged = isRunning.compareAndSet(false, true);
-            assert isRunningChanged;
-
             broadcastNodes.forEach(n -> transportService.sendRequest(n, REQUEST_PRE_VOTE_ACTION_NAME, preVoteRequest,
                 new TransportResponseHandler<PreVoteResponse>() {
                     @Override
@@ -152,8 +148,8 @@ public class PreVoteCollector extends AbstractComponent {
         }
 
         private void handlePreVoteResponse(PreVoteResponse response, DiscoveryNode sender) {
-            if (isRunning.get() == false) {
-                logger.debug("{} ignoring {} from {}, no longer running", this, response, sender);
+            if (isClosed.get()) {
+                logger.debug("{} is closed, ignoring {} from {}", this, response, sender);
                 return;
             }
 
@@ -191,14 +187,14 @@ public class PreVoteCollector extends AbstractComponent {
                 "preVotesReceived=" + preVotesReceived +
                 ", electionStarted=" + electionStarted +
                 ", preVoteRequest=" + preVoteRequest +
-                ", isRunning=" + isRunning +
+                ", isClosed=" + isClosed +
                 '}';
         }
 
         @Override
         public void close() {
-            final boolean isRunningChanged = isRunning.compareAndSet(true, false);
-            assert isRunningChanged;
+            final boolean isClosedChanged = isClosed.compareAndSet(false, true);
+            assert isClosedChanged;
         }
     }
 }

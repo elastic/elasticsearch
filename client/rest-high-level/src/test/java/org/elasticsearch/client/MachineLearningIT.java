@@ -20,6 +20,8 @@ package org.elasticsearch.client;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.protocol.xpack.ml.OpenJobRequest;
+import org.elasticsearch.protocol.xpack.ml.OpenJobResponse;
 import org.elasticsearch.protocol.xpack.ml.PutJobRequest;
 import org.elasticsearch.protocol.xpack.ml.PutJobResponse;
 import org.elasticsearch.protocol.xpack.ml.job.config.AnalysisConfig;
@@ -46,12 +48,24 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(createdJob.getJobType(), is(Job.ANOMALY_DETECTOR_JOB_TYPE));
     }
 
+    public void testOpenJob() throws Exception {
+        String jobId = randomValidJobId();
+        Job job = buildJob(jobId);
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+
+        machineLearningClient.putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+
+        OpenJobResponse response = execute(new OpenJobRequest(jobId), machineLearningClient::openJob, machineLearningClient::openJobAsync);
+
+        assertTrue(response.isOpened());
+    }
+
     public static String randomValidJobId() {
         CodepointSetGenerator generator = new CodepointSetGenerator("abcdefghijklmnopqrstuvwxyz0123456789".toCharArray());
         return generator.ofCodePointsLength(random(), 10, 10);
     }
 
-    private static Job buildJob(String jobId) {
+    public static Job buildJob(String jobId) {
         Job.Builder builder = new Job.Builder(jobId);
         builder.setDescription(randomAlphaOfLength(10));
 

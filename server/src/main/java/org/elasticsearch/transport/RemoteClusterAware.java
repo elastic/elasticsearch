@@ -49,13 +49,19 @@ public abstract class RemoteClusterAware extends AbstractComponent {
     /**
      * A list of initial seed nodes to discover eligible nodes from the remote cluster
      */
-    public static final Setting.AffixSetting<List<String>> REMOTE_CLUSTERS_SEEDS = Setting.affixKeySetting("search.remote.",
-        "seeds", (key) -> Setting.listSetting(key, Collections.emptyList(), s -> {
-            // validate seed address
-            RemoteClusterAware.parseSeedAddress(s);
-            return s;
+    public static final Setting.AffixSetting<List<String>> REMOTE_CLUSTERS_SEEDS = Setting.affixKeySetting(
+        "search.remote.",
+        "seeds",
+        key -> Setting.listSetting(
+            key, Collections.emptyList(),
+            s -> {
+                // validate seed address
+                RemoteClusterAware.parseSeedAddress(s);
+                return s;
             },
-            Setting.Property.NodeScope, Setting.Property.Dynamic));
+            Setting.Property.NodeScope, Setting.Property.Dynamic
+        )
+    );
     public static final char REMOTE_CLUSTER_INDEX_SEPARATOR = ':';
     public static final String LOCAL_CLUSTER_GROUP_KEY = "";
 

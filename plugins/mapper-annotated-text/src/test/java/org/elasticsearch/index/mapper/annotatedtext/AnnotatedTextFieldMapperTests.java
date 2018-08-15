@@ -308,26 +308,6 @@ public class AnnotatedTextFieldMapperTests extends ESSingleNodeTestCase {
         assertTrue(fields[0].fieldType().stored());
     }
 
-    public void testDisableIndex() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", getFieldType()).field("index", false).endObject().endObject()
-                .endObject().endObject());
-
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-
-        assertEquals(mapping, mapper.mappingSource().toString());
-
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
-                .bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("field", "1234")
-                        .endObject()),
-                XContentType.JSON));
-
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(0, fields.length);
-    }
-
     public void testDisableNorms() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")
@@ -652,17 +632,16 @@ public class AnnotatedTextFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals("[analyzer] must not have a [null] value", e.getMessage());
     }
 
-    public void testNotIndexedFieldPositionIncrement() throws IOException {
+    public void testNotIndexedField() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("field")
             .field("type", getFieldType())
             .field("index", false)
-            .field("position_increment_gap", 10)
             .endObject().endObject().endObject().endObject());
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> parser.parse("type", new CompressedXContent(mapping)));
-        assertEquals("Cannot set position_increment_gap on field [field] without positions enabled", e.getMessage());
+        assertEquals("[annotated_text] fields must be indexed", e.getMessage());
     }
 
     public void testAnalyzedFieldPositionIncrementWithoutPositions() throws IOException {

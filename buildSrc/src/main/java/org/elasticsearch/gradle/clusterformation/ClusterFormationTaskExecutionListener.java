@@ -28,13 +28,13 @@ public class ClusterFormationTaskExecutionListener implements TaskExecutionListe
     public void afterExecute(Task task, TaskState state) {
         // always unclaim the cluster, even if _this_ task is up-to-date, as others might not have been and caused the
         // cluster to start.
-        ClusterformationPlugin.getTaskExtension(task).getClaimedClusters().forEach(ElasticsearchConfiguration::unClaimAndStop);
+        ClusterFormationTaskExtension.getForTask(task).getClaimedClusters().forEach(ElasticsearchConfiguration::unClaimAndStop);
     }
 
     @Override
     public void beforeActions(Task task) {
         // we only start the cluster before the actions, so we'll not start it if the task is up-to-date
-        ClusterformationPlugin.getTaskExtension(task).getClaimedClusters().forEach(ElasticsearchConfiguration::start);
+        ClusterFormationTaskExtension.getForTask(task).getClaimedClusters().forEach(ElasticsearchConfiguration::start);
     }
 
     @Override

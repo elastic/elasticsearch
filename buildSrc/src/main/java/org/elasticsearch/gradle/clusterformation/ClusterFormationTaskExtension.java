@@ -38,7 +38,7 @@ public class ClusterFormationTaskExtension {
         this.task = task;
     }
 
-    public void use(ElasticsearchConfiguration cluster) {
+    public void call(ElasticsearchConfiguration cluster) {
         // not likely to configure the same task from multiple threads as of Gradle 4.7, but it's the right thing to do
         synchronized (claimedClusters) {
             if (claimedClusters.contains(cluster)) {
@@ -56,5 +56,9 @@ public class ClusterFormationTaskExtension {
         synchronized (claimedClusters) {
             return Collections.unmodifiableList(claimedClusters);
         }
+    }
+
+    static ClusterFormationTaskExtension getForTask(Task task) {
+        return task.getExtensions().getByType(ClusterFormationTaskExtension.class);
     }
 }

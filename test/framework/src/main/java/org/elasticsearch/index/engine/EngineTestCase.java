@@ -381,7 +381,7 @@ public abstract class EngineTestCase extends ESTestCase {
 
         }
         InternalEngine internalEngine = createInternalEngine(indexWriterFactory, localCheckpointTrackerSupplier, seqNoForOperation, config);
-        internalEngine.recoverFromTranslog();
+        internalEngine.recoverFromTranslog(Long.MAX_VALUE);
         return internalEngine;
     }
 

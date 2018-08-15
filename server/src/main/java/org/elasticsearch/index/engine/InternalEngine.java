@@ -388,11 +388,6 @@ public class InternalEngine extends Engine {
         return this;
     }
 
-    // for testing
-    final Engine recoverFromTranslog() throws IOException {
-        return recoverFromTranslog(Long.MAX_VALUE);
-    }
-
     @Override
     public void skipTranslogRecovery() {
         assert pendingTranslogRecovery.get() : "translogRecovery is not pending but should be";

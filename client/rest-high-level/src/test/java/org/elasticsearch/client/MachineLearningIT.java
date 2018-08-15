@@ -22,6 +22,8 @@ import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.protocol.xpack.ml.DeleteJobRequest;
 import org.elasticsearch.protocol.xpack.ml.DeleteJobResponse;
+import org.elasticsearch.protocol.xpack.ml.OpenJobRequest;
+import org.elasticsearch.protocol.xpack.ml.OpenJobResponse;
 import org.elasticsearch.protocol.xpack.ml.PutJobRequest;
 import org.elasticsearch.protocol.xpack.ml.PutJobResponse;
 import org.elasticsearch.protocol.xpack.ml.job.config.AnalysisConfig;
@@ -59,6 +61,18 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             machineLearningClient::deleteJobAsync);
 
         assertTrue(response.isAcknowledged());
+    }
+
+    public void testOpenJob() throws Exception {
+        String jobId = randomValidJobId();
+        Job job = buildJob(jobId);
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+
+        machineLearningClient.putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+
+        OpenJobResponse response = execute(new OpenJobRequest(jobId), machineLearningClient::openJob, machineLearningClient::openJobAsync);
+
+        assertTrue(response.isOpened());
     }
 
     public static String randomValidJobId() {

@@ -113,6 +113,7 @@ import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
 import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoRequest;
 import org.elasticsearch.protocol.xpack.ml.DeleteJobRequest;
+import org.elasticsearch.protocol.xpack.ml.OpenJobRequest;
 import org.elasticsearch.protocol.xpack.ml.PutJobRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
@@ -1223,6 +1224,19 @@ final class RequestConverters {
         Params params = new Params(request);
         params.putParam("force", Boolean.toString(deleteJobRequest.isForce()));
 
+        return request;
+    }
+
+    static Request machineLearningOpenJob(OpenJobRequest openJobRequest) throws IOException {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("ml")
+            .addPathPartAsIs("anomaly_detectors")
+            .addPathPart(openJobRequest.getJobId())
+            .addPathPartAsIs("_open")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        request.setJsonEntity(openJobRequest.toString());
         return request;
     }
 

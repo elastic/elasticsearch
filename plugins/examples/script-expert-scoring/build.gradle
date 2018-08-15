@@ -16,9 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-plugins {
-  id 'elasticsearch.esplugin'
-}
+apply plugin: 'elasticsearch.esplugin'
 
 esplugin {
   name 'script-expert-scoring'

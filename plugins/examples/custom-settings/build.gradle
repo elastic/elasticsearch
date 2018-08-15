@@ -16,10 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-plugins {
-  id 'elasticsearch.esplugin'
-}
+apply plugin: 'elasticsearch.esplugin'
 
 esplugin {
   name 'custom-settings'
@@ -33,5 +30,3 @@ integTestCluster {
   // Adds a setting in the Elasticsearch keystore before running the integration tests
   keystoreSetting 'custom.secured', 'password'
 }
-
-

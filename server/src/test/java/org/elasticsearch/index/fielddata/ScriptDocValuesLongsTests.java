@@ -128,6 +128,9 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
             }
         }, noPermissionsAcc);
 
+        // using "hasItems" here instead of "containsInAnyOrder",
+        // because values are randomly initialized, sometimes some of docs will not have any values
+        // and warnings in this case will contain another deprecation warning on missing values
         assertThat(warnings, hasItems(
                 "getDate on numeric fields is deprecated. Use a date field to get dates.",
                 "getDates on numeric fields is deprecated. Use a date field to get dates."));

@@ -104,7 +104,9 @@ public class ScriptDocValuesDatesTests extends ESTestCase {
                 assertEquals(expectedDates[d][i], dateValueI);
             }
         }
-
+        // using "hasItems" here instead of "containsInAnyOrder",
+        // because values are randomly initialized, sometimes some of docs will not have any values
+        // and warnings in this case will contain another deprecation warning on missing values
         assertThat(warnings, hasItems(expectedWarnings));
     }
 

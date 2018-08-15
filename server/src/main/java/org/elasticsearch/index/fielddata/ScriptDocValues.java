@@ -261,6 +261,13 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         /**
          * Constructor for testing with a deprecation callback.
          */
+        Dates(SortedNumericDocValues in, BiConsumer<String, String> deprecationCallback) {
+            this(in, deprecationCallback, USE_JAVA_TIME);
+        }
+
+        /**
+         * Constructor for testing with a deprecation callback.
+         */
         Dates(SortedNumericDocValues in, BiConsumer<String, String> deprecationCallback, boolean useJavaTime) {
             this.in = in;
             this.deprecationCallback = deprecationCallback;

@@ -10,11 +10,11 @@ to create incremental, storage optimized, and minimal snapshots of an index.
 ==== Configuration
 
 The `_source` only repository always requires a delegate repository to be used as it's storage backend.
-In order to use the `fs` respository:
+In order to use the `fs` repository:
 
 [source,js]
 -----------------------------------
-PUT _snapshot/my_src-only_repository
+PUT _snapshot/my_src_only_repository
 {
   "type": "source",
   "settings": {
@@ -24,7 +24,6 @@ PUT _snapshot/my_src-only_repository
 }
 -----------------------------------
 // CONSOLE
-// TESTSETUP
 
 Since the `_source` only repository doesn't snapshot any index or doc-values structures but only stored
 fields and index metadata, it's required to reindex the data during the restore process. This can either happen

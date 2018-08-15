@@ -1,0 +1,56 @@
+[role="xpack"]
+[[security-api-invalidate-token]]
+=== Delete tokens API
+
+Invalidates bearer tokens for access without requiring basic authentication.
+
+==== Request
+
+`DELETE /_xpack/security/oauth2/token`
+
+==== Description
+
+The tokens returned by the <<security-api-get-token,get tokens API>> have a 
+finite period of time for which they are valid and after that time period, they 
+can no longer be used. That time period is defined by the 
+`xpack.security.authc.token.timeout` setting. For more information, see 
+<<token-service-settings>>.
+
+If you want to invalidate a token immediately, use this delete tokens API.
+
+
+==== Request Body
+
+The following parameters can be specified in the body of a DELETE request and
+pertain to deleting a token:
+
+`token` (required)::
+(string) An access token.
+
+==== Examples
+
+The following example invalidates the specified token immediately:
+
+[source,js]
+--------------------------------------------------
+DELETE /_xpack/security/oauth2/token
+{
+  "token" : "dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ=="
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]
+// TEST[continued]
+
+A successful call returns a JSON structure that indicates whether the token
+has already been invalidated.
+
+[source,js]
+--------------------------------------------------
+{
+  "created" : true <1>
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+<1> When a token has already been invalidated, `created` is set to false.

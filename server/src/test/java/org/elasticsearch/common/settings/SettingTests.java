@@ -754,6 +754,35 @@ public class SettingTests extends ESTestCase {
         assertThat(setting.get(Settings.EMPTY).getMillis(), equalTo(random.getMillis() * factor));
     }
 
+    public void testTimeValueBounds() {
+        Setting<TimeValue> settingWithLowerBound
+            = Setting.timeSetting("foo", TimeValue.timeValueSeconds(10), TimeValue.timeValueSeconds(5));
+        assertThat(settingWithLowerBound.get(Settings.EMPTY), equalTo(TimeValue.timeValueSeconds(10)));
+
+        assertThat(settingWithLowerBound.get(Settings.builder().put("foo", "5000ms").build()), equalTo(TimeValue.timeValueSeconds(5)));
+        IllegalArgumentException illegalArgumentException
+            = expectThrows(IllegalArgumentException.class,
+            () -> settingWithLowerBound.get(Settings.builder().put("foo", "4999ms").build()));
+
+        assertThat(illegalArgumentException.getMessage(), equalTo("Failed to parse value [4999ms] for setting [foo] must be >= 5s"));
+
+        Setting<TimeValue> settingWithBothBounds = Setting.timeSetting("bar",
+            TimeValue.timeValueSeconds(10), TimeValue.timeValueSeconds(5), TimeValue.timeValueSeconds(20));
+        assertThat(settingWithBothBounds.get(Settings.EMPTY), equalTo(TimeValue.timeValueSeconds(10)));
+
+        assertThat(settingWithBothBounds.get(Settings.builder().put("bar", "5000ms").build()), equalTo(TimeValue.timeValueSeconds(5)));
+        assertThat(settingWithBothBounds.get(Settings.builder().put("bar", "20000ms").build()), equalTo(TimeValue.timeValueSeconds(20)));
+        illegalArgumentException
+            = expectThrows(IllegalArgumentException.class,
+            () -> settingWithBothBounds.get(Settings.builder().put("bar", "4999ms").build()));
+        assertThat(illegalArgumentException.getMessage(), equalTo("Failed to parse value [4999ms] for setting [bar] must be >= 5s"));
+
+        illegalArgumentException
+            = expectThrows(IllegalArgumentException.class,
+            () -> settingWithBothBounds.get(Settings.builder().put("bar", "20001ms").build()));
+        assertThat(illegalArgumentException.getMessage(), equalTo("Failed to parse value [20001ms] for setting [bar] must be <= 20s"));
+    }
+
     public void testSettingsGroupUpdater() {
         Setting<Integer> intSetting = Setting.intSetting("prefix.foo", 1, Property.NodeScope, Property.Dynamic);
         Setting<Integer> intSetting2 = Setting.intSetting("prefix.same", 1, Property.NodeScope, Property.Dynamic);

@@ -21,7 +21,6 @@ package org.elasticsearch.test;
 import org.apache.logging.log4j.core.util.Throwables;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -36,14 +35,13 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.Discovery.AckListener;
+import org.elasticsearch.cluster.coordination.ClusterStatePublisher;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
 
 import static junit.framework.TestCase.fail;
 
@@ -52,7 +50,10 @@ public class ClusterServiceUtils {
     public static MasterService createMasterService(ThreadPool threadPool, ClusterState initialClusterState) {
         MasterService masterService = new MasterService(Settings.EMPTY, threadPool);
         AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(initialClusterState);
-        masterService.setClusterStatePublisher((event, ackListener) -> clusterStateRef.set(event.state()));
+        masterService.setClusterStatePublisher((event, publishListener, ackListener) -> {
+            clusterStateRef.set(event.state());
+            publishListener.onResponse(null);
+        });
         masterService.setClusterStateSupplier(clusterStateRef::get);
         masterService.start();
         return masterService;
@@ -158,33 +159,21 @@ public class ClusterServiceUtils {
         return clusterService;
     }
 
-    public static BiConsumer<ClusterChangedEvent, AckListener> createClusterStatePublisher(ClusterApplier clusterApplier) {
-        return (event, ackListener) -> {
-            CountDownLatch latch = new CountDownLatch(1);
-            AtomicReference<Exception> ex = new AtomicReference<>();
+    public static ClusterStatePublisher createClusterStatePublisher(ClusterApplier clusterApplier) {
+        return (event, publishListener, ackListener) ->
             clusterApplier.onNewClusterState("mock_publish_to_self[" + event.source() + "]", () -> event.state(),
                 new ClusterApplyListener() {
                     @Override
                     public void onSuccess(String source) {
-                        latch.countDown();
+                        publishListener.onResponse(null);
                     }
 
                     @Override
                     public void onFailure(String source, Exception e) {
-                        ex.set(e);
-                        latch.countDown();
+                        publishListener.onFailure(e);
                     }
                 }
-            );
-            try {
-                latch.await();
-            } catch (InterruptedException e) {
-                Throwables.rethrow(e);
-            }
-            if (ex.get() != null) {
-                Throwables.rethrow(ex.get());
-            }
-        };
+        );
     }
 
     public static ClusterService createClusterService(ClusterState initialState, ThreadPool threadPool) {

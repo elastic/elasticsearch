@@ -38,7 +38,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
@@ -174,7 +174,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
 
                             @Override
                             public void onFailure(Exception t) {
-                                if (t instanceof Discovery.FailedToCommitClusterStateException
+                                if (t instanceof FailedToCommitClusterStateException
                                     || (t instanceof NotMasterException)) {
                                     logger.debug(() -> new ParameterizedMessage("master could not publish cluster state or stepped down before publishing action [{}], scheduling a retry", actionName), t);
                                     retry(t, masterChangePredicate);

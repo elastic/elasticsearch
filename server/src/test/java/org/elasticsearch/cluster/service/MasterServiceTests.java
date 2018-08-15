@@ -42,7 +42,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.cluster.coordination.ClusterStatePublisher;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -71,7 +72,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -122,7 +122,10 @@ public class MasterServiceTests extends ESTestCase {
                 .masterNodeId(makeMaster ? localNode.getId() : null))
             .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).build();
         AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(initialClusterState);
-        timedMasterService.setClusterStatePublisher((event, ackListener) -> clusterStateRef.set(event.state()));
+        timedMasterService.setClusterStatePublisher((event, publishListener, ackListener) -> {
+            clusterStateRef.set(event.state());
+            publishListener.onResponse(null);
+        });
         timedMasterService.setClusterStateSupplier(clusterStateRef::get);
         timedMasterService.start();
         return timedMasterService;
@@ -789,18 +792,17 @@ public class MasterServiceTests extends ESTestCase {
                 .localNodeId(node1.getId())
                 .masterNodeId(node1.getId()))
             .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).build();
-        final AtomicReference<BiConsumer<ClusterChangedEvent, Discovery.AckListener>> publisherRef = new AtomicReference<>();
-        timedMasterService.setClusterStatePublisher((cce, l) -> publisherRef.get().accept(cce, l));
+        final AtomicReference<ClusterStatePublisher> publisherRef = new AtomicReference<>();
+        timedMasterService.setClusterStatePublisher((e, pl, al) -> publisherRef.get().publish(e, pl, al));
         timedMasterService.setClusterStateSupplier(() -> initialClusterState);
         timedMasterService.start();
-
 
         // check that we don't time out before even committing the cluster state
         {
             final CountDownLatch latch = new CountDownLatch(1);
 
-            publisherRef.set((clusterChangedEvent, ackListener) -> {
-                throw new Discovery.FailedToCommitClusterStateException("mock exception");
+            publisherRef.set((clusterChangedEvent, publishListener, ackListener) -> {
+                publishListener.onFailure(new FailedToCommitClusterStateException("mock exception"));
             });
 
             timedMasterService.submitStateUpdateTask("test2", new AckedClusterStateUpdateTask<Void>(null, null) {
@@ -850,7 +852,8 @@ public class MasterServiceTests extends ESTestCase {
 
             final TimeValue ackTimeout = TimeValue.timeValueMillis(randomInt(100));
 
-            publisherRef.set((clusterChangedEvent, ackListener) -> {
+            publisherRef.set((clusterChangedEvent, publishListener, ackListener) -> {
+                publishListener.onResponse(null);
                 ackListener.onCommit(TimeValue.timeValueMillis(ackTimeout.millis() + randomInt(100)));
                 ackListener.onNodeAck(node1, null);
                 ackListener.onNodeAck(node2, null);

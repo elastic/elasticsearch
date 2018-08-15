@@ -49,7 +49,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
@@ -132,7 +132,7 @@ public class ShardStateAction extends AbstractComponent {
     private static Class[] MASTER_CHANNEL_EXCEPTIONS = new Class[]{
         NotMasterException.class,
         ConnectTransportException.class,
-        Discovery.FailedToCommitClusterStateException.class
+        FailedToCommitClusterStateException.class
     };
 
     private static boolean isMasterChannelException(TransportException exp) {
@@ -625,7 +625,7 @@ public class ShardStateAction extends AbstractComponent {
          * are:
          *  - {@link NotMasterException}
          *  - {@link NodeDisconnectedException}
-         *  - {@link Discovery.FailedToCommitClusterStateException}
+         *  - {@link FailedToCommitClusterStateException}
          *
          * Any other exception is communicated to the requester via
          * this notification.

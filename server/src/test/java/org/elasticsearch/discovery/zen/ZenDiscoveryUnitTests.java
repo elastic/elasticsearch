@@ -19,8 +19,8 @@
 
 package org.elasticsearch.discovery.zen;
 
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterModule;
@@ -43,7 +43,8 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.discovery.zen.PublishClusterStateActionTests.AssertingAckListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -56,6 +57,7 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseOptions;
 import org.elasticsearch.transport.TransportService;
+import org.hamcrest.core.IsInstanceOf;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -68,6 +70,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
@@ -83,11 +86,11 @@ import static org.elasticsearch.cluster.routing.RoutingTableTests.updateActiveAl
 import static org.elasticsearch.cluster.service.MasterServiceTests.discoveryState;
 import static org.elasticsearch.discovery.zen.ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING;
 import static org.elasticsearch.discovery.zen.ZenDiscovery.shouldIgnoreOrRejectNewClusterState;
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.is;
 
 public class ZenDiscoveryUnitTests extends ESTestCase {
 
@@ -225,16 +228,19 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
                 DiscoveryNodes.builder(state.nodes()).add(otherNode).masterNodeId(masterNode.getId())
             ).build();
 
-            try {
-                // publishing a new cluster state
-                ClusterChangedEvent clusterChangedEvent = new ClusterChangedEvent("testing", newState, state);
-                AssertingAckListener listener = new AssertingAckListener(newState.nodes().getSize() - 1);
-                expectedFDNodes = masterZen.getFaultDetectionNodes();
-                masterZen.publish(clusterChangedEvent, listener);
+            // publishing a new cluster state
+            ClusterChangedEvent clusterChangedEvent = new ClusterChangedEvent("testing", newState, state);
+            AssertingAckListener listener = new AssertingAckListener(newState.nodes().getSize() - 1);
+            expectedFDNodes = masterZen.getFaultDetectionNodes();
+            AwaitingPublishListener awaitingPublishListener = new AwaitingPublishListener();
+            masterZen.publish(clusterChangedEvent, awaitingPublishListener, listener);
+            awaitingPublishListener.await();
+            if (awaitingPublishListener.getException() == null) {
+                // publication succeeded, wait for acks
                 listener.await(10, TimeUnit.SECONDS);
                 // publish was a success, update expected FD nodes based on new cluster state
                 expectedFDNodes = fdNodesForState(newState, masterNode);
-            } catch (Discovery.FailedToCommitClusterStateException e) {
+            } else {
                 // not successful, so expectedFDNodes above should remain what it was originally assigned
                 assertEquals(3, minMasterNodes); // ensure min master nodes is the higher value, otherwise we shouldn't fail
             }
@@ -278,22 +284,47 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
                 DiscoveryNodes.builder(discoveryState(masterMasterService).nodes()).masterNodeId(masterNode.getId())
             ).build();
 
-
-            try {
-                // publishing a new cluster state
-                ClusterChangedEvent clusterChangedEvent = new ClusterChangedEvent("testing", newState, state);
-                AssertingAckListener listener = new AssertingAckListener(newState.nodes().getSize() - 1);
-                masterZen.publish(clusterChangedEvent, listener);
+            // publishing a new cluster state
+            ClusterChangedEvent clusterChangedEvent = new ClusterChangedEvent("testing", newState, state);
+            AssertingAckListener listener = new AssertingAckListener(newState.nodes().getSize() - 1);
+            AwaitingPublishListener awaitingPublishListener = new AwaitingPublishListener();
+            masterZen.publish(clusterChangedEvent, awaitingPublishListener, listener);
+            awaitingPublishListener.await();
+            if (awaitingPublishListener.getException() == null) {
+                // publication succeeded, wait for acks
                 listener.await(1, TimeUnit.HOURS);
-                // publish was a success, check that queue as cleared
-                assertThat(masterZen.pendingClusterStates(), emptyArray());
-            } catch (Discovery.FailedToCommitClusterStateException e) {
-                // not successful, so the pending queue should be cleaned
-                assertThat(Arrays.toString(masterZen.pendingClusterStates()), masterZen.pendingClusterStates(), arrayWithSize(0));
             }
+            // queue should be cleared whether successful or not
+            assertThat(Arrays.toString(masterZen.pendingClusterStates()), masterZen.pendingClusterStates(), emptyArray());
         } finally {
             IOUtils.close(toClose);
             terminate(threadPool);
+        }
+    }
+
+    private class AwaitingPublishListener implements ActionListener<Void> {
+        private final CountDownLatch countDownLatch = new CountDownLatch(1);
+        private FailedToCommitClusterStateException exception;
+
+        @Override
+        public synchronized void onResponse(Void aVoid) {
+            assertThat(countDownLatch.getCount(), is(1L));
+            countDownLatch.countDown();
+        }
+
+        @Override
+        public synchronized void onFailure(Exception e) {
+            assertThat(e, IsInstanceOf.instanceOf(FailedToCommitClusterStateException.class));
+            exception = (FailedToCommitClusterStateException) e;
+            onResponse(null);
+        }
+
+        public void await() throws InterruptedException {
+            countDownLatch.await();
+        }
+
+        public synchronized FailedToCommitClusterStateException getException() {
+            return exception;
         }
     }
 

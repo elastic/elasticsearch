@@ -22,12 +22,11 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.coordination.ClusterStatePublisher.AckListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.discovery.Discovery.AckListener;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
 
@@ -145,7 +144,7 @@ public abstract class Publication extends AbstractComponent {
         if (isPublishQuorum(possiblySuccessfulNodes) == false) {
             logger.debug("onPossibleCommitFailure: non-failed nodes {} do not form a quorum, so {} cannot succeed",
                 possiblySuccessfulNodes, this);
-            Exception e = new Discovery.FailedToCommitClusterStateException("non-failed nodes do not form a quorum");
+            Exception e = new FailedToCommitClusterStateException("non-failed nodes do not form a quorum");
             publicationTargets.stream().filter(PublicationTarget::isActive).forEach(pt -> pt.setFailed(e));
             onPossibleCompletion();
         }

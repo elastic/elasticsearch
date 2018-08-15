@@ -801,7 +801,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(137, org.elasticsearch.indices.TypeMissingException.class);
         ids.put(138, null);
         ids.put(139, null);
-        ids.put(140, org.elasticsearch.discovery.Discovery.FailedToCommitClusterStateException.class);
+        ids.put(140, org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException.class);
         ids.put(141, org.elasticsearch.index.query.QueryShardException.class);
         ids.put(142, ShardStateAction.NoLongerPrimaryShardException.class);
         ids.put(143, org.elasticsearch.script.ScriptException.class);

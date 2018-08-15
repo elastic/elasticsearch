@@ -2,16 +2,10 @@
 [[security-api-app-privileges]]
 === Application Privileges APIs
 
-The Application Privileges API enables you to add and retrieve
+The Application Privileges API enables you to add 
 {xpack-ref}/defining-roles.html#roles-application-priv[Application Privileges].
 
 ==== Request
-
-`GET /_xpack/security/privilege` +
-
-`GET /_xpack/security/privilege/<application>` +
-
-`GET /_xpack/security/privilege/<application>/<privilege>` +
 
 `POST /_xpack/security/privilege/` +
 
@@ -43,21 +37,15 @@ A user's application privileges may be checked by using the
   (string) The name of the application. Application Privileges are always
   associated with exactly one application.
   The validation rules for application names are described below.
-  If you do not specify this parameter, then the Get Application Privileges API
-  returns information about all privileges for all applications.
   This parameter is mandatory for the Put Application Privileges API.
 
 `privilege`::
   (string) The name of the privilege.
   The validation rules for privilege names are described below.
-  If you do not specify this parameter, then the Get Application Privileges API
-  returns information about all privileges for the requested application.
   This parameter is mandatory for the Put Application Privileges API.
 
 
 ==== Request Body
-
-The GET requests do not accept a body.
 
 For PUT and POST requests where the application name and privilege name are
 included as path parameters, the body of the request is a JSON object that
@@ -206,51 +194,3 @@ created or updated.
 }
 --------------------------------------------------
 // TESTRESPONSE
-
-[[security-api-get-privilege]]
-To retrieve a privilege, issue a GET request to the
-`/_xpack/security/privilege/<application>/<privilege>` endpoint:
-
-[source,js]
---------------------------------------------------
-GET /_xpack/security/privilege/app01/read
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-A successful call returns an object keyed by application name and privilege
-name. If the privilege is not defined, the request responds with a 404 status.
-
-[source,js]
---------------------------------------------------
-{
-  "app01": {
-    "read": {
-      "application": "app01",
-      "name": "read",
-      "actions": [ "action:login", "data:read/*" ],
-      "metadata": { }
-    }
-  }
-}
---------------------------------------------------
-// TESTRESPONSE
-
-To retrieve all privileges for an application, omit the privilege name.
-
-[source,js]
---------------------------------------------------
-GET /_xpack/security/privilege/app01/
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-To retrieve every privileges, omit both the application and privilege names.
-
-[source,js]
---------------------------------------------------
-GET /_xpack/security/privilege/
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-

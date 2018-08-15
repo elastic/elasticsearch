@@ -162,6 +162,8 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.index.mapper.SourceToParse.source;
+import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 public class IndexShard extends AbstractIndexShardComponent implements IndicesClusterStateService.Shard {
 
@@ -190,6 +192,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final SearchOperationListener searchOperationListener;
 
+    private final GlobalCheckpointListeners globalCheckpointListeners;
     private final ReplicationTracker replicationTracker;
 
     protected volatile ShardRouting shardRouting;
@@ -296,8 +299,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.checkIndexOnStartup = indexSettings.getValue(IndexSettings.INDEX_CHECK_ON_STARTUP);
         this.translogConfig = new TranslogConfig(shardId, shardPath().resolveTranslog(), indexSettings, bigArrays);
         final String aId = shardRouting.allocationId().getId();
+        this.globalCheckpointListeners = new GlobalCheckpointListeners(shardId, threadPool.executor(ThreadPool.Names.LISTENER), logger);
         this.replicationTracker =
-                new ReplicationTracker(shardId, aId, indexSettings, SequenceNumbers.UNASSIGNED_SEQ_NO, globalCheckpoint -> {});
+                new ReplicationTracker(shardId, aId, indexSettings, UNASSIGNED_SEQ_NO, globalCheckpointListeners::globalCheckpointUpdated);
+
         // the query cache is a node-level thing, however we want the most popular filters
         // to be computed on a per-shard basis
         if (IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.get(settings)) {
@@ -1223,7 +1228,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 } finally {
                     // playing safe here and close the engine even if the above succeeds - close can be called multiple times
                     // Also closing refreshListeners to prevent us from accumulating any more listeners
-                    IOUtils.close(engine, refreshListeners);
+                    IOUtils.close(engine, globalCheckpointListeners, refreshListeners);
                     indexShardOperationPermits.close();
                 }
             }
@@ -1762,6 +1767,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert assertPrimaryMode();
         verifyNotClosed();
         replicationTracker.updateGlobalCheckpointForShard(allocationId, globalCheckpoint);
+    }
+
+    /**
+     * Add a global checkpoint listener. If the global checkpoint is above the current global checkpoint known to the listener then the
+     * listener will fire immediately on the calling thread.
+     *
+     * @param currentGlobalCheckpoint the current global checkpoint known to the listener
+     * @param listener                the listener
+     */
+    public void addGlobalCheckpointListener(
+            final long currentGlobalCheckpoint,
+            final GlobalCheckpointListeners.GlobalCheckpointListener listener) {
+        this.globalCheckpointListeners.add(currentGlobalCheckpoint, listener);
     }
 
     /**
@@ -2308,8 +2326,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                 updateGlobalCheckpointOnReplica(globalCheckpoint, "primary term transition");
                                 final long currentGlobalCheckpoint = getGlobalCheckpoint();
                                 final long localCheckpoint;
-                                if (currentGlobalCheckpoint == SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                                    localCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
+                                if (currentGlobalCheckpoint == UNASSIGNED_SEQ_NO) {
+                                    localCheckpoint = NO_OPS_PERFORMED;
                                 } else {
                                     localCheckpoint = currentGlobalCheckpoint;
                                 }

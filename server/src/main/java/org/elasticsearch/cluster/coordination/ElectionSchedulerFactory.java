@@ -128,18 +128,14 @@ public class ElectionSchedulerFactory extends AbstractComponent {
         }
 
         void scheduleNextElection(final TimeValue gracePeriod, final Runnable scheduledRunnable) {
-            final long delay;
             if (isRunning.get() == false) {
                 logger.debug("{} not scheduling election", this);
                 return;
             }
 
-            long maxDelayMillis = currentMaxTimeoutMillis.getAndUpdate(this::backOffCurrentMaxTimeout);
-            delay = randomPositiveLongLessThan(random::nextLong, maxDelayMillis + 1) + gracePeriod.millis();
-            logger.debug("{} scheduling election with delay [{}ms] (grace={}, initial={}, backoff={}, current={}ms, max={})",
-                this, delay, gracePeriod, initialTimeout, backoffTime, maxDelayMillis, maxTimeout);
-
-            threadPool.schedule(TimeValue.timeValueMillis(delay), Names.GENERIC, new AbstractRunnable() {
+            final long maxDelayMillis = currentMaxTimeoutMillis.getAndUpdate(this::backOffCurrentMaxTimeout);
+            final long delayMillis = randomPositiveLongLessThan(random::nextLong, maxDelayMillis + 1) + gracePeriod.millis();
+            final Runnable runnable = new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
                     logger.debug("unexpected exception in wakeup", e);
@@ -149,10 +145,10 @@ public class ElectionSchedulerFactory extends AbstractComponent {
                 @Override
                 protected void doRun() {
                     if (isRunning.get() == false) {
-                        logger.debug("{} not starting election", ElectionScheduler.this);
+                        logger.debug("{} not starting election", this);
                         return;
                     }
-                    logger.debug("{} starting election", ElectionScheduler.this);
+                    logger.debug("{} starting election", this);
                     scheduledRunnable.run();
                 }
 
@@ -163,7 +159,10 @@ public class ElectionSchedulerFactory extends AbstractComponent {
 
                 @Override
                 public String toString() {
-                    return "scheduleNextElection[" + ElectionScheduler.this + "]";
+                    return "scheduleNextElection{gracePeriod=" + gracePeriod
+                        + ", maxDelayMillis=" + maxDelayMillis
+                        + ", delayMillis=" + delayMillis
+                        + ", " + ElectionScheduler.this + "}";
                 }
 
                 @Override
@@ -172,13 +171,16 @@ public class ElectionSchedulerFactory extends AbstractComponent {
                     // this could prevent a cluster from ever forming.
                     return true;
                 }
-            });
+            };
+
+            logger.debug("scheduling {}", runnable);
+            threadPool.schedule(TimeValue.timeValueMillis(delayMillis), Names.GENERIC, runnable);
         }
 
         @Override
         public String toString() {
             return "ElectionScheduler{currentMaxTimeoutMillis=" + currentMaxTimeoutMillis
-                + ", factory=" + ElectionSchedulerFactory.this + "}";
+                + ", " + ElectionSchedulerFactory.this + "}";
         }
 
         @Override

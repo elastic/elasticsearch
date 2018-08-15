@@ -161,7 +161,7 @@ be set to `true` in the response.
   },
   "hits": {
     "total": 1,
-    "max_score": 0.0,
+    "max_score": null,
     "hits": []
   }
 }

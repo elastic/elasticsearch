@@ -34,6 +34,7 @@ import org.elasticsearch.threadpool.ThreadPool.Names;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongSupplier;
 
 /**
  * It's provably impossible to guarantee that any leader election algorithm ever elects a leader, but they generally work (with probability
@@ -106,11 +107,13 @@ public class ElectionSchedulerFactory extends AbstractComponent {
     }
 
     /**
-     * @param upperBound exclusive upper bound
+     * @param randomSupplier supplier of randomly-chosen longs
+     * @param upperBound     exclusive upper bound
      */
-    private long randomPositiveLongLessThan(long upperBound) {
+    // package-private for testing
+    static long randomPositiveLongLessThan(LongSupplier randomSupplier, long upperBound) {
         assert 1 < upperBound : upperBound;
-        return nonNegative(random.nextLong()) % (upperBound - 1) + 1;
+        return nonNegative(randomSupplier.getAsLong()) % (upperBound - 1) + 1;
     }
 
     private long backOffCurrentMaxDelay(long currentMaxDelayMillis) {
@@ -138,7 +141,7 @@ public class ElectionSchedulerFactory extends AbstractComponent {
             }
 
             long maxDelayMillis = this.currentMaxDelayMillis.getAndUpdate(ElectionSchedulerFactory.this::backOffCurrentMaxDelay);
-            delay = randomPositiveLongLessThan(maxDelayMillis + 1) + gracePeriod.millis();
+            delay = randomPositiveLongLessThan(random::nextLong, maxDelayMillis + 1) + gracePeriod.millis();
             logger.debug("{} scheduling election with delay [{}ms] (grace={}, min={}, backoff={}, current={}ms, max={})",
                 this, delay, gracePeriod, minTimeout, backoffTime, maxDelayMillis, maxTimeout);
 

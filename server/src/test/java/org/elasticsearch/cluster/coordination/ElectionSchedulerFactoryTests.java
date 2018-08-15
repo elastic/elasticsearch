@@ -25,13 +25,18 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import java.util.function.LongSupplier;
+
 import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.ELECTION_BACK_OFF_TIME_SETTING;
 import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.ELECTION_MAX_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.ELECTION_MIN_TIMEOUT_SETTING;
+import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.randomPositiveLongLessThan;
 import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.validationExceptionMessage;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ElectionSchedulerFactoryTests extends ESTestCase {
@@ -174,5 +179,24 @@ public class ElectionSchedulerFactoryTests extends ESTestCase {
             .put(ELECTION_MIN_TIMEOUT_SETTING.getKey(), "149ms")
             .put(ELECTION_MAX_TIMEOUT_SETTING.getKey(), "249ms")
             .build());
+    }
+
+    public void testRandomPositiveLongLessThan() {
+        LongSupplier[] longSuppliers = new LongSupplier[]{
+            () -> 0,
+            () -> 1,
+            () -> -1,
+            () -> Long.MIN_VALUE,
+            () -> Long.MAX_VALUE,
+            ESTestCase::randomLong
+        };
+
+        for (LongSupplier longSupplier : longSuppliers) {
+            for (long upperBound : new long[]{2, 3, 100, Long.MAX_VALUE}) {
+                long l = randomPositiveLongLessThan(longSupplier, upperBound);
+                assertThat(l, greaterThan(0L));
+                assertThat(l, lessThan(upperBound));
+            }
+        }
     }
 }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.coordination;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.lease.Releasable;
@@ -47,11 +46,11 @@ import java.util.function.LongSupplier;
 public class ElectionSchedulerFactory extends AbstractComponent {
 
     // bounds on the time between election attempts
-    private static final String ELECTION_MIN_TIMEOUT_SETTING_KEY = "cluster.election.min_timeout";
+    private static final String ELECTION_INITIAL_TIMEOUT_SETTING_KEY = "cluster.election.initial_timeout";
     private static final String ELECTION_BACK_OFF_TIME_SETTING_KEY = "cluster.election.back_off_time";
     private static final String ELECTION_MAX_TIMEOUT_SETTING_KEY = "cluster.election.max_timeout";
 
-    public static final Setting<TimeValue> ELECTION_MIN_TIMEOUT_SETTING = Setting.timeSetting(ELECTION_MIN_TIMEOUT_SETTING_KEY,
+    public static final Setting<TimeValue> ELECTION_INITIAL_TIMEOUT_SETTING = Setting.timeSetting(ELECTION_INITIAL_TIMEOUT_SETTING_KEY,
         TimeValue.timeValueMillis(100), TimeValue.timeValueMillis(1), Property.NodeScope);
 
     public static final Setting<TimeValue> ELECTION_BACK_OFF_TIME_SETTING = Setting.timeSetting(ELECTION_BACK_OFF_TIME_SETTING_KEY,
@@ -60,15 +59,7 @@ public class ElectionSchedulerFactory extends AbstractComponent {
     public static final Setting<TimeValue> ELECTION_MAX_TIMEOUT_SETTING = Setting.timeSetting(ELECTION_MAX_TIMEOUT_SETTING_KEY,
         TimeValue.timeValueSeconds(10), TimeValue.timeValueMillis(200), Property.NodeScope);
 
-    static String validationExceptionMessage(final String electionMinTimeout, final String electionMaxTimeout) {
-        return new ParameterizedMessage(
-            "Invalid election retry timeouts: [{}] is [{}] and [{}] is [{}], but [{}] should be at least 100ms longer than [{}]",
-            ELECTION_MIN_TIMEOUT_SETTING_KEY, electionMinTimeout,
-            ELECTION_MAX_TIMEOUT_SETTING_KEY, electionMaxTimeout,
-            ELECTION_MAX_TIMEOUT_SETTING_KEY, ELECTION_MIN_TIMEOUT_SETTING_KEY).getFormattedMessage();
-    }
-
-    private final TimeValue minTimeout;
+    private final TimeValue initialTimeout;
     private final TimeValue backoffTime;
     private final TimeValue maxTimeout;
     private final ThreadPool threadPool;
@@ -80,13 +71,9 @@ public class ElectionSchedulerFactory extends AbstractComponent {
         this.random = random;
         this.threadPool = threadPool;
 
-        minTimeout = ELECTION_MIN_TIMEOUT_SETTING.get(settings);
+        initialTimeout = ELECTION_INITIAL_TIMEOUT_SETTING.get(settings);
         backoffTime = ELECTION_BACK_OFF_TIME_SETTING.get(settings);
         maxTimeout = ELECTION_MAX_TIMEOUT_SETTING.get(settings);
-
-        if (maxTimeout.millis() < minTimeout.millis() + 100) {
-            throw new IllegalArgumentException(validationExceptionMessage(minTimeout.toString(), maxTimeout.toString()));
-        }
     }
 
     /**
@@ -116,22 +103,29 @@ public class ElectionSchedulerFactory extends AbstractComponent {
         return nonNegative(randomSupplier.getAsLong()) % (upperBound - 1) + 1;
     }
 
-    private long backOffCurrentMaxDelay(long currentMaxDelayMillis) {
-        return Math.min(maxTimeout.getMillis(), currentMaxDelayMillis + backoffTime.getMillis());
-    }
-
     @Override
     public String toString() {
         return "ElectionSchedulerFactory{" +
-            "minTimeout=" + minTimeout +
-            ", maxTimeout=" + maxTimeout +
+            "initialTimeout=" + initialTimeout +
             ", backoffTime=" + backoffTime +
+            ", maxTimeout=" + maxTimeout +
             '}';
     }
 
     private class ElectionScheduler implements Releasable {
-        private AtomicLong currentMaxDelayMillis = new AtomicLong(minTimeout.millis());
+        /**
+         * The current maximum timeout: the next election is scheduled randomly no later than this number of milliseconds in the future. On
+         * each election attempt this value is increased by `backoffTime`, up to the `maxTimeout`, to adapt to higher-than-expected latency.
+         */
+        private AtomicLong currentMaxTimeoutMillis = new AtomicLong(initialTimeout.millis());
         private AtomicBoolean isRunning = new AtomicBoolean(true);
+
+        /**
+         * Calculate the next maximum timeout by backing off the current value by `backoffTime` up to the `maxTimeout`.
+         */
+        private long backOffCurrentMaxTimeout(long currentMaxTimeoutMillis) {
+            return Math.min(maxTimeout.getMillis(), currentMaxTimeoutMillis + backoffTime.getMillis());
+        }
 
         void scheduleNextElection(final TimeValue gracePeriod, final Runnable scheduledRunnable) {
             final long delay;
@@ -140,10 +134,10 @@ public class ElectionSchedulerFactory extends AbstractComponent {
                 return;
             }
 
-            long maxDelayMillis = this.currentMaxDelayMillis.getAndUpdate(ElectionSchedulerFactory.this::backOffCurrentMaxDelay);
+            long maxDelayMillis = currentMaxTimeoutMillis.getAndUpdate(this::backOffCurrentMaxTimeout);
             delay = randomPositiveLongLessThan(random::nextLong, maxDelayMillis + 1) + gracePeriod.millis();
-            logger.debug("{} scheduling election with delay [{}ms] (grace={}, min={}, backoff={}, current={}ms, max={})",
-                this, delay, gracePeriod, minTimeout, backoffTime, maxDelayMillis, maxTimeout);
+            logger.debug("{} scheduling election with delay [{}ms] (grace={}, initial={}, backoff={}, current={}ms, max={})",
+                this, delay, gracePeriod, initialTimeout, backoffTime, maxDelayMillis, maxTimeout);
 
             threadPool.schedule(TimeValue.timeValueMillis(delay), Names.GENERIC, new AbstractRunnable() {
                 @Override
@@ -183,7 +177,8 @@ public class ElectionSchedulerFactory extends AbstractComponent {
 
         @Override
         public String toString() {
-            return "ElectionScheduler{currentMaxDelayMillis=" + currentMaxDelayMillis + ", factory=" + ElectionSchedulerFactory.this + "}";
+            return "ElectionScheduler{currentMaxTimeoutMillis=" + currentMaxTimeoutMillis
+                + ", factory=" + ElectionSchedulerFactory.this + "}";
         }
 
         @Override

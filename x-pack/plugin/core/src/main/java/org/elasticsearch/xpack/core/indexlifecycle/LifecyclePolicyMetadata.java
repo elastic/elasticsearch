@@ -28,10 +28,13 @@ public class LifecyclePolicyMetadata extends AbstractDiffable<LifecyclePolicyMet
     public static final ParseField HEADERS = new ParseField("headers");
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<LifecyclePolicyMetadata, String> PARSER = new ConstructingObjectParser<>("policy_metadata",
-            a -> new LifecyclePolicyMetadata((LifecyclePolicy) a[0], (Map<String, String>) a[1]));
+            a -> {
+                LifecyclePolicy policy = (LifecyclePolicy) a[0];
+                return new LifecyclePolicyMetadata(policy, (Map<String, String>) a[1]);
+            });
     static {
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> LifecyclePolicy.parse(p, c), POLICY);
-        PARSER.declareField(ConstructingObjectParser.constructorArg(), p -> p.mapStrings(), HEADERS, ValueType.OBJECT);
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), LifecyclePolicy::parse, POLICY);
+        PARSER.declareField(ConstructingObjectParser.constructorArg(), XContentParser::mapStrings, HEADERS, ValueType.OBJECT);
     }
 
     public static LifecyclePolicyMetadata parse(XContentParser parser, String name) {
@@ -40,12 +43,12 @@ public class LifecyclePolicyMetadata extends AbstractDiffable<LifecyclePolicyMet
 
     private final LifecyclePolicy policy;
     private final Map<String, String> headers;
-    
+
     public LifecyclePolicyMetadata(LifecyclePolicy policy, Map<String, String> headers) {
         this.policy = policy;
         this.headers = headers;
     }
-    
+
     @SuppressWarnings("unchecked")
     public LifecyclePolicyMetadata(StreamInput in) throws IOException {
         this.policy = new LifecyclePolicy(in);
@@ -55,11 +58,11 @@ public class LifecyclePolicyMetadata extends AbstractDiffable<LifecyclePolicyMet
     public Map<String, String> getHeaders() {
         return headers;
     }
-    
+
     public LifecyclePolicy getPolicy() {
         return policy;
     }
-    
+
     public String getName() {
         return policy.getName();
     }
@@ -78,12 +81,12 @@ public class LifecyclePolicyMetadata extends AbstractDiffable<LifecyclePolicyMet
         policy.writeTo(out);
         out.writeGenericValue(headers);
     }
-    
+
     @Override
     public int hashCode() {
         return Objects.hash(policy, headers);
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (obj == null) {
@@ -94,7 +97,7 @@ public class LifecyclePolicyMetadata extends AbstractDiffable<LifecyclePolicyMet
         }
         LifecyclePolicyMetadata other = (LifecyclePolicyMetadata) obj;
         return Objects.equals(policy, other.policy) &&
-                Objects.equals(headers, other.headers);
+            Objects.equals(headers, other.headers);
     }
 
 }

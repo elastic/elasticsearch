@@ -9,7 +9,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
@@ -251,7 +251,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
             public Void answer(InvocationOnMock invocation) throws Throwable {
                 UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
                 @SuppressWarnings("unchecked")
-                ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
+                ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
                 assertSettingsRequestContainsValueFrom(request,
                         IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_name", validNodeNames, true,
                         indexMetaData.getIndex().getName());
@@ -363,11 +363,11 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
             public Void answer(InvocationOnMock invocation) throws Throwable {
                 UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
                 @SuppressWarnings("unchecked")
-                ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
+                ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
                 assertSettingsRequestContainsValueFrom(request,
                         IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_name", validNodeNames, true,
                         indexMetaData.getIndex().getName());
-                listener.onResponse(new UpdateSettingsResponse(true));
+                listener.onResponse(new AcknowledgedResponse(true));
                 return null;
             }
 

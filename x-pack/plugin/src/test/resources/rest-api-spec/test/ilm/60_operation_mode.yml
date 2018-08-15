@@ -17,7 +17,6 @@ setup:
         body: |
            {
              "policy": {
-               "type": "timeseries",
                "phases": {
                  "warm": {
                    "after": "10s",

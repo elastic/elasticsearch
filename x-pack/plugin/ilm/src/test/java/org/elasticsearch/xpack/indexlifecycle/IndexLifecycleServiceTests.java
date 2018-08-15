@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.core.indexlifecycle.MockAction;
 import org.elasticsearch.xpack.core.indexlifecycle.Phase;
 import org.elasticsearch.xpack.core.indexlifecycle.ShrinkAction;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
-import org.elasticsearch.xpack.core.indexlifecycle.TestLifecycleType;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.junit.After;
 import org.junit.Before;
@@ -51,6 +50,7 @@ import java.util.concurrent.ExecutorService;
 
 import static org.elasticsearch.node.Node.NODE_MASTER_SETTING;
 import static org.elasticsearch.xpack.core.indexlifecycle.AbstractStepTestCase.randomStepKey;
+import static org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyTestsUtils.newTestLifecyclePolicy;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
@@ -284,8 +284,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             new IndexLifecycleRunnerTests.MockClusterStateActionStep(randomStepKey(), randomStepKey());
         MockAction mockAction = new MockAction(Collections.singletonList(mockStep));
         Phase phase = new Phase("phase", TimeValue.ZERO, Collections.singletonMap("action", mockAction));
-        LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, policyName,
-                Collections.singletonMap(phase.getName(), phase));
+        LifecyclePolicy policy = newTestLifecyclePolicy(policyName, Collections.singletonMap(phase.getName(), phase));
         SortedMap<String, LifecyclePolicyMetadata> policyMap = new TreeMap<>();
         policyMap.put(policyName, new LifecyclePolicyMetadata(policy, Collections.emptyMap()));
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
@@ -314,8 +313,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             new IndexLifecycleRunnerTests.MockClusterStateActionStep(mockShrinkStep, randomStepKey());
         MockAction mockAction = new MockAction(Collections.singletonList(mockStep));
         Phase phase = new Phase("phase", TimeValue.ZERO, Collections.singletonMap("action", mockAction));
-        LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, policyName,
-            Collections.singletonMap(phase.getName(), phase));
+        LifecyclePolicy policy = newTestLifecyclePolicy(policyName, Collections.singletonMap(phase.getName(), phase));
         SortedMap<String, LifecyclePolicyMetadata> policyMap = new TreeMap<>();
         policyMap.put(policyName, new LifecyclePolicyMetadata(policy, Collections.emptyMap()));
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
@@ -355,8 +353,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             new IndexLifecycleRunnerTests.MockClusterStateActionStep(currentStepKey, randomStepKey());
         MockAction mockAction = new MockAction(Collections.singletonList(mockStep));
         Phase phase = new Phase("phase", TimeValue.ZERO, Collections.singletonMap("action", mockAction));
-        LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, policyName,
-            Collections.singletonMap(phase.getName(), phase));
+        LifecyclePolicy policy = newTestLifecyclePolicy(policyName, Collections.singletonMap(phase.getName(), phase));
         SortedMap<String, LifecyclePolicyMetadata> policyMap = new TreeMap<>();
         policyMap.put(policyName, new LifecyclePolicyMetadata(policy, Collections.emptyMap()));
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));

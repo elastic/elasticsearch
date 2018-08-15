@@ -10,7 +10,6 @@ setup:
         body: |
            {
              "policy": {
-               "type": "timeseries",
                "phases": {
                  "warm": {
                    "after": "1000s",
@@ -40,7 +39,6 @@ setup:
         body: |
            {
              "policy": {
-               "type": "timeseries",
                "phases": {
                  "warm": {
                    "after": "1000s",

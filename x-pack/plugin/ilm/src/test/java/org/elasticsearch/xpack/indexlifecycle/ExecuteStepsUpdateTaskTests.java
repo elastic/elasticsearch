@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.core.indexlifecycle.Phase;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
-import org.elasticsearch.xpack.core.indexlifecycle.TestLifecycleType;
 import org.elasticsearch.xpack.indexlifecycle.IndexLifecycleRunnerTests.MockClusterStateActionStep;
 import org.elasticsearch.xpack.indexlifecycle.IndexLifecycleRunnerTests.MockClusterStateWaitStep;
 import org.junit.Before;
@@ -44,6 +43,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyTestsUtils.newTestLifecyclePolicy;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -84,11 +84,11 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
             new MockAction(Arrays.asList(firstStep, allClusterSecondStep))));
         Phase invalidPhase = new Phase("invalid_phase", TimeValue.ZERO, Collections.singletonMap(MockAction.NAME,
             new MockAction(Arrays.asList(new MockClusterStateActionStep(firstStepKey, invalidStepKey)))));
-        LifecyclePolicy mixedPolicy = new LifecyclePolicy(TestLifecycleType.INSTANCE, mixedPolicyName,
+        LifecyclePolicy mixedPolicy = newTestLifecyclePolicy(mixedPolicyName,
             Collections.singletonMap(mixedPhase.getName(), mixedPhase));
-        LifecyclePolicy allClusterPolicy = new LifecyclePolicy(TestLifecycleType.INSTANCE, allClusterPolicyName,
+        LifecyclePolicy allClusterPolicy = newTestLifecyclePolicy(allClusterPolicyName,
             Collections.singletonMap(allClusterPhase.getName(), allClusterPhase));
-        LifecyclePolicy invalidPolicy = new LifecyclePolicy(TestLifecycleType.INSTANCE, invalidPolicyName,
+        LifecyclePolicy invalidPolicy = newTestLifecyclePolicy(invalidPolicyName,
             Collections.singletonMap(invalidPhase.getName(), invalidPhase));
         Map<String, LifecyclePolicyMetadata> policyMap = new HashMap<>();
         policyMap.put(mixedPolicyName, new LifecyclePolicyMetadata(mixedPolicy, Collections.emptyMap()));

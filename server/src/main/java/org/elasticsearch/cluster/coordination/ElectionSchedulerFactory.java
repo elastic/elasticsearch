@@ -140,6 +140,7 @@ public class ElectionSchedulerFactory extends AbstractComponent {
             }
 
             final long thisAttempt = attempt.getAndIncrement();
+            // to overflow here would take over a million years of failed election attempts, so we won't worry about that:
             final long maxDelayMillis = Math.min(maxTimeout.millis(), initialTimeout.millis() + thisAttempt * backoffTime.millis());
             final long delayMillis = toPositiveLongAtMost(random.nextLong(), maxDelayMillis) + gracePeriod.millis();
             final Runnable runnable = new AbstractRunnable() {

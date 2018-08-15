@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import java.io.IOException;
 import java.util.Objects;
 
-public class ValidateDetectorAction extends Action<ValidateDetectorAction.Response> {
+public class ValidateDetectorAction extends Action<AcknowledgedResponse> {
 
     public static final ValidateDetectorAction INSTANCE = new ValidateDetectorAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/validate/detector";
@@ -31,11 +31,11 @@ public class ValidateDetectorAction extends Action<ValidateDetectorAction.Respon
     }
 
     @Override
-    public Response newResponse() {
-        return new Response();
+    public AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
+    public static class RequestBuilder extends ActionRequestBuilder<Request, AcknowledgedResponse> {
 
         protected RequestBuilder(ElasticsearchClient client, ValidateDetectorAction action) {
             super(client, action, new Request());
@@ -105,16 +105,4 @@ public class ValidateDetectorAction extends Action<ValidateDetectorAction.Respon
         }
 
     }
-
-    public static class Response extends AcknowledgedResponse {
-
-        public Response() {
-            super();
-        }
-
-        public Response(boolean acknowledged) {
-            super(acknowledged);
-        }
-    }
-
 }

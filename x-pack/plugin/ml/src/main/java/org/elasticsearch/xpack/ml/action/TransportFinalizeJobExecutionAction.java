@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -20,14 +21,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.util.Date;
 
 public class TransportFinalizeJobExecutionAction extends TransportMasterNodeAction<FinalizeJobExecutionAction.Request,
-        FinalizeJobExecutionAction.Response> {
+    AcknowledgedResponse> {
 
     @Inject
     public TransportFinalizeJobExecutionAction(Settings settings, TransportService transportService,
@@ -44,13 +45,13 @@ public class TransportFinalizeJobExecutionAction extends TransportMasterNodeActi
     }
 
     @Override
-    protected FinalizeJobExecutionAction.Response newResponse() {
-        return new FinalizeJobExecutionAction.Response();
+    protected AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     @Override
     protected void masterOperation(FinalizeJobExecutionAction.Request request, ClusterState state,
-                                   ActionListener<FinalizeJobExecutionAction.Response> listener) throws Exception {
+                                   ActionListener<AcknowledgedResponse> listener) throws Exception {
         String jobIdString = String.join(",", request.getJobIds());
         String source = "finalize_job_execution [" + jobIdString + "]";
         logger.debug("finalizing jobs [{}]", jobIdString);
@@ -82,7 +83,7 @@ public class TransportFinalizeJobExecutionAction extends TransportMasterNodeActi
             public void clusterStateProcessed(String source, ClusterState oldState,
                                               ClusterState newState) {
                 logger.debug("finalized job [{}]", jobIdString);
-                listener.onResponse(new FinalizeJobExecutionAction.Response(true));
+                listener.onResponse(new AcknowledgedResponse(true));
             }
         });
     }

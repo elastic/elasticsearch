@@ -162,8 +162,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         }
 
         // BWC for removed per-partition normalization
-        // Version check is temporarily against the latest to satisfy CI tests
-        // TODO change to V_6_5_0 after successful backport to 6.x
+        // TODO Remove in 7.0.0
         if (in.getVersion().before(Version.V_6_5_0)) {
             in.readBoolean();
         }
@@ -197,8 +196,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         }
 
         // BWC for removed per-partition normalization
-        // Version check is temporarily against the latest to satisfy CI tests
-        // TODO change to V_6_5_0 after successful backport to 6.x
+        // TODO Remove in 7.0.0
         if (out.getVersion().before(Version.V_6_5_0)) {
             out.writeBoolean(false);
         }

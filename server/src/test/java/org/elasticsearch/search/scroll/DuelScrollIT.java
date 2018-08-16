@@ -199,6 +199,8 @@ public class DuelScrollIT extends ESIntegTestCase {
         }
         // no replicas, as they might be ordered differently
         settings.put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0);
+        // we need to control refreshes as they might take different merges into account
+        settings.put("index.refresh_interval", -1);
 
         assertAcked(prepareCreate("test").setSettings(settings.build()).get());
         final int numDocs = randomIntBetween(10, 200);
@@ -257,7 +259,6 @@ public class DuelScrollIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32682")
     public void testDuelIndexOrderQueryThenFetch() throws Exception {
         final SearchType searchType = RandomPicks.randomFrom(random(), Arrays.asList(SearchType.QUERY_THEN_FETCH,
             SearchType.DFS_QUERY_THEN_FETCH));

@@ -64,9 +64,8 @@ alpacino:$2a$10$cNwHnElYiMYZ/T3K4PvzGeJ1KbpXZp2PfoQD.gfaVdImnHOwIuBKS
 jacknich:{PBKDF2}50000$z1CLJt0MEFjkIK5iEfgvfnA6xq7lF25uasspsTKSo5Q=$XxCVLbaKDimOdyWgLCLJiyoiWpA/XDMe/xtVgn1r5Sg=
 ----------------------------------------------------------------------
 
-{security} by default uses `bcrypt` with 1024 rounds to hash the user passwords. You can select the algorithm used for
-password hashing using the `xpack.security.authc.password_hashing.algorithm` setting.
-(see {xpack-ref}/password-hashing.html#password-hashing-algorithms[Password hashing algorithms] table for all possible values)
+{security} by default uses `bcrypt` with 1024 rounds to hash the user passwords. 
+You can select the algorithm for password hashing by using the `xpack.security.authc.password_hashing.algorithm` setting. See <<hashing-settings>>. 
 
 While it is possible to modify this files directly using any standard text
 editor, we strongly recommend using the <<users-command>> tool to apply the 

@@ -40,7 +40,7 @@ Leading or trailing whitespace is not allowed.
 [[credential-storage]]
 NOTE: Passwords are stored salted and hashed. By default `bcrypt` is used but you can select the algorithm used for
 password hashing using the `xpack.security.authc.password_hashing.algorithm` setting.
-(see {xpack-ref}/password-hashing.html#password-hashing-algorithms[Password hashing algorithms] table for all possible values)
+See <<hashing-settings>>.
 
 ==== Path Parameters
 

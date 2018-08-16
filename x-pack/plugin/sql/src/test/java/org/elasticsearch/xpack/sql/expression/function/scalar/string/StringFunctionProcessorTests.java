@@ -75,7 +75,7 @@ public class StringFunctionProcessorTests extends AbstractWireSerializingTestCas
         stringCharInputValidation(proc);
     }
     
-    public void testLCaseWithTRLocale() {
+    public void testLCaseWithAZTRLocale() {
         Locale.setDefault(Locale.forLanguageTag("tr"));
         StringProcessor proc = new StringProcessor(StringOperation.LCASE);
 
@@ -85,6 +85,10 @@ public class StringFunctionProcessorTests extends AbstractWireSerializingTestCas
         assertEquals("\u0069\u0307", proc.process("\u0130"));
         // unicode 0049 = I (regular capital letter i)
         // in Turkish locale this would be lowercased to a "i" without dot (unicode 0131)
+        assertEquals("\u0069", proc.process("\u0049"));
+        
+        Locale.setDefault(Locale.forLanguageTag("az"));
+        assertEquals("\u0069\u0307", proc.process("\u0130"));
         assertEquals("\u0069", proc.process("\u0049"));
     }
 
@@ -102,12 +106,15 @@ public class StringFunctionProcessorTests extends AbstractWireSerializingTestCas
         stringCharInputValidation(proc);
     }
     
-    public void testUCaseWithTRLocale() {
+    public void testUCaseWithAZTRLocale() {
         Locale.setDefault(Locale.forLanguageTag("tr"));
         StringProcessor proc = new StringProcessor(StringOperation.UCASE);
 
         // ES-SQL is not Locale sensitive (so far).
         // in Turkish locale, small letter "i" is uppercased to "I" with a dot above (unicode 130), otherwise in "i" (unicode 49)
+        assertEquals("\u0049", proc.process("\u0069"));
+        
+        Locale.setDefault(Locale.forLanguageTag("az"));
         assertEquals("\u0049", proc.process("\u0069"));
     }
 

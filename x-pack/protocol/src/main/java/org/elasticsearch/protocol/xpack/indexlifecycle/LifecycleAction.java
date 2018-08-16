@@ -18,10 +18,8 @@
  */
 package org.elasticsearch.protocol.xpack.indexlifecycle;
 
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-
 /**
- * Parent class for the client-side ilm actions for the {@link NamedXContentRegistry}
+ * Marker interface for index lifecycle management actions
  */
 public class LifecycleAction {
 }

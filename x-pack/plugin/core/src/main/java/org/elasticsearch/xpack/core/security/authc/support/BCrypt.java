@@ -690,7 +690,11 @@ public class BCrypt {
 
         // the next lines are the SecureString replacement for the above commented-out section
         if (minor >= 'a') {
-            try (SecureString secureString = new SecureString(CharArrays.concat(password.getChars(), "\000".toCharArray()))) {
+            final char[] suffix = "\000".toCharArray();
+            final char[] result = new char[password.length() + suffix.length];
+            System.arraycopy(password.getChars(), 0, result, 0, password.length());
+            System.arraycopy(suffix, 0, result, password.length(), suffix.length);
+            try (SecureString secureString = new SecureString(result)) {
                 passwordb = CharArrays.toUtf8Bytes(secureString.getChars());
             }
         } else {

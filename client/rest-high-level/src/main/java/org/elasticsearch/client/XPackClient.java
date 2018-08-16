@@ -41,19 +41,9 @@ import static java.util.Collections.emptySet;
 public final class XPackClient {
 
     private final RestHighLevelClient restHighLevelClient;
-    private final WatcherClient watcherClient;
-    private final SecurityClient securityClient;
-    private final LicenseClient licenseClient;
 
     XPackClient(RestHighLevelClient restHighLevelClient) {
         this.restHighLevelClient = restHighLevelClient;
-        this.watcherClient = new WatcherClient(restHighLevelClient);
-        this.securityClient = new SecurityClient(restHighLevelClient);
-        this.licenseClient = new LicenseClient(restHighLevelClient);
-    }
-
-    public WatcherClient watcher() {
-        return watcherClient;
     }
 
     /**
@@ -103,25 +93,5 @@ public final class XPackClient {
     public void usageAsync(XPackUsageRequest request, RequestOptions options, ActionListener<XPackUsageResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::xpackUsage, options,
             XPackUsageResponse::fromXContent, listener, emptySet());
-    }
-
-    /**
-     * Provides an {@link SecurityClient} which can be used to access the Security APIs.
-     *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api.html">Security APIs on elastic.co</a>
-     */
-    public SecurityClient security() {
-        return securityClient;
-    }
-
-    /**
-     * A wrapper for the {@link RestHighLevelClient} that provides methods for
-     * accessing the Elastic Licensing APIs.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/licensing-apis.html">
-     * X-Pack APIs on elastic.co</a> for more information.
-     */
-    public LicenseClient license() {
-        return licenseClient;
     }
 }

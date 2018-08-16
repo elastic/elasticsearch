@@ -17,8 +17,6 @@
  * under the License.
  */
 
-
-
 esplugin {
   description 'An easy, safe and fast scripting language for Elasticsearch'
   classname 'org.elasticsearch.painless.PainlessPlugin'
@@ -26,6 +24,8 @@ esplugin {
 
 integTestCluster {
   module project.project(':modules:mapper-extras')
+  systemProperty 'es.scripting.use_java_time', 'true'
+  systemProperty 'es.scripting.update.ctx_in_params', 'false'
 }
 
 dependencies {

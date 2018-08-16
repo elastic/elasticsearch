@@ -108,7 +108,7 @@ public class UsernamePasswordToken implements AuthenticationToken {
             throw authenticationError("invalid basic authentication header encoding", e);
         }
 
-        int i = CharArrays.indexOf(userpasswd, ':');
+        int i = indexOfColon(userpasswd);
         if (i < 0) {
             throw authenticationError("invalid basic authentication header value");
         }
@@ -122,4 +122,15 @@ public class UsernamePasswordToken implements AuthenticationToken {
         context.putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue(token.username, token.password));
     }
 
+    /**
+     * Like String.indexOf for for an array of chars
+     */
+    private static int indexOfColon(char[] array) {
+        for (int i = 0; (i < array.length); i++) {
+            if (array[i] == ':') {
+                return i;
+            }
+        }
+        return -1;
+    }
 }

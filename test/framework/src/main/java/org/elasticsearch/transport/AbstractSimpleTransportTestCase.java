@@ -29,6 +29,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -64,6 +65,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -1894,7 +1896,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             // means that once we received an ACK from the client we just drop the packet on the floor (which is what we want) and we run
             // into a connection timeout quickly. Yet other implementations can for instance can terminate the connection within the 3 way
             // handshake which I haven't tested yet.
-            socket.bind(new InetSocketAddress(InetAddress.getLocalHost(), 0), 1);
+            socket.bind(getLocalEphemeral(), 1);
             socket.setReuseAddress(true);
             DiscoveryNode first = new DiscoveryNode("TEST", new TransportAddress(socket.getInetAddress(),
                 socket.getLocalPort()), emptyMap(),
@@ -1995,11 +1997,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertEquals("handshake failed", exception.getCause().getMessage());
         }
 
+        ConnectionProfile connectionProfile = ConnectionManager.buildDefaultConnectionProfile(Settings.EMPTY);
         try (TransportService service = buildService("TS_TPC", Version.CURRENT, null);
              TcpTransport.NodeChannels connection = originalTransport.openConnection(
                  new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0),
-                 null
-             )) {
+                 connectionProfile)) {
             Version version = originalTransport.executeHandshake(connection.getNode(),
                 connection.channel(TransportRequestOptions.Type.PING), TimeValue.timeValueSeconds(10));
             assertEquals(version, Version.CURRENT);
@@ -2008,7 +2010,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     public void testTcpHandshakeTimeout() throws IOException {
         try (ServerSocket socket = new MockServerSocket()) {
-            socket.bind(new InetSocketAddress(InetAddress.getLocalHost(), 0), 1);
+            socket.bind(getLocalEphemeral(), 1);
             socket.setReuseAddress(true);
             DiscoveryNode dummy = new DiscoveryNode("TEST", new TransportAddress(socket.getInetAddress(),
                 socket.getLocalPort()), emptyMap(),
@@ -2029,7 +2031,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     public void testTcpHandshakeConnectionReset() throws IOException, InterruptedException {
         try (ServerSocket socket = new MockServerSocket()) {
-            socket.bind(new InetSocketAddress(InetAddress.getLocalHost(), 0), 1);
+            socket.bind(getLocalEphemeral(), 1);
             socket.setReuseAddress(true);
             DiscoveryNode dummy = new DiscoveryNode("TEST", new TransportAddress(socket.getInetAddress(),
                 socket.getLocalPort()), emptyMap(),
@@ -2665,4 +2667,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     protected abstract void closeConnectionChannel(Transport transport, Transport.Connection connection) throws IOException;
 
+    @SuppressForbidden(reason = "need local ephemeral port")
+    private InetSocketAddress getLocalEphemeral() throws UnknownHostException {
+        return new InetSocketAddress(InetAddress.getLocalHost(), 0);
+    }
 }

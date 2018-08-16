@@ -22,7 +22,7 @@ import org.elasticsearch.protocol.xpack.security.PutUserRequest;
 import org.elasticsearch.protocol.xpack.security.PutUserResponse;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.support.Validation;
-import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.protocol.xpack.security.User;
 import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
 
 import java.io.IOException;

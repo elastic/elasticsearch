@@ -66,19 +66,6 @@ public interface Transport extends LifecycleComponent {
     }
 
     /**
-     * Adds a new event listener
-     * @param listener the listener to add
-     */
-    void addConnectionListener(TransportConnectionListener listener);
-
-    /**
-     * Removes an event listener
-     * @param listener the listener to remove
-     * @return <code>true</code> iff the listener was removed otherwise <code>false</code>
-     */
-    boolean removeConnectionListener(TransportConnectionListener listener);
-
-    /**
      * The address the transport is bound on.
      */
     BoundTransportAddress boundAddress();

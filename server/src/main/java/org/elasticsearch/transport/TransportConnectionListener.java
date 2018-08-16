@@ -41,13 +41,6 @@ public interface TransportConnectionListener {
     default void onConnectionClosed(Transport.Connection connection) {}
 
     /**
-     * Called for every response received
-     * @param requestId the request id for this reponse
-     * @param context the response context or null if the context was already processed ie. due to a timeout.
-     */
-    default void onResponseReceived(long requestId, Transport.ResponseContext context) {}
-
-    /**
      * Called once a node connection is opened and registered.
      */
     default void onNodeConnected(DiscoveryNode node) {}

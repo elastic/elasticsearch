@@ -201,16 +201,6 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
-        public void addConnectionListener(TransportConnectionListener listener) {
-            this.listener = listener;
-        }
-
-        @Override
-        public boolean removeConnectionListener(TransportConnectionListener listener) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
         public BoundTransportAddress boundAddress() {
             return null;
         }

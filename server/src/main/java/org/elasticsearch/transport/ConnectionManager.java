@@ -227,6 +227,16 @@ public class ConnectionManager implements Closeable {
         }
     }
 
+    private Transport.Connection internalOpenConnection(DiscoveryNode node, ConnectionProfile connectionProfile) {
+        Transport.Connection connection = transport.openConnection(node, ConnectionProfile.resolveConnectionProfile(connectionProfile, defaultProfile));
+        try {
+            connectionListener.onConnectionOpened(connection);
+        } finally {
+            connection.addCloseListener(ActionListener.wrap(() -> connectionListener.onConnectionClosed(connection)));
+        }
+        return connection;
+    }
+
     private void ensureOpen() {
         if (lifecycle.started() == false) {
             throw new IllegalStateException("connection manager is closed");
@@ -287,6 +297,20 @@ public class ConnectionManager implements Closeable {
         public void onNodeConnected(DiscoveryNode node) {
             for (TransportConnectionListener listener : listeners) {
                 listener.onNodeConnected(node);
+            }
+        }
+
+        @Override
+        public void onConnectionOpened(Transport.Connection connection) {
+            for (TransportConnectionListener listener : listeners) {
+                listener.onConnectionOpened(connection);
+            }
+        }
+
+        @Override
+        public void onConnectionClosed(Transport.Connection connection) {
+            for (TransportConnectionListener listener : listeners) {
+                listener.onConnectionClosed(connection);
             }
         }
     }

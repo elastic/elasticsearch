@@ -2642,7 +2642,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     public void testChannelCloseWhileConnecting() {
         try (MockTransportService service = build(Settings.builder().put("name", "close").build(), version0, null, true)) {
-            service.transport.addConnectionListener(new TransportConnectionListener() {
+            service.addConnectionListener(new TransportConnectionListener() {
                 @Override
                 public void onConnectionOpened(final Transport.Connection connection) {
                     try {

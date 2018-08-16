@@ -184,7 +184,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     protected final NetworkService networkService;
     protected final Set<ProfileSettings> profileSettings;
 
-    private final DelegatingTransportConnectionListener transportListener = new DelegatingTransportConnectionListener();
     private final DelegatingTransportMessageListener messageListener = new DelegatingTransportMessageListener();
 
     private final ConcurrentMap<String, BoundTransportAddress> profileBoundAddresses = newConcurrentMap();
@@ -255,16 +254,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     public boolean removeMessageListener(TransportMessageListener listener) {
         return messageListener.listeners.remove(listener);
-    }
-
-    @Override
-    public void addConnectionListener(TransportConnectionListener listener) {
-        transportListener.listeners.add(listener);
-    }
-
-    @Override
-    public boolean removeConnectionListener(TransportConnectionListener listener) {
-        return transportListener.listeners.remove(listener);
     }
 
     @Override
@@ -490,11 +479,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 // underlying channels.
                 nodeChannels = new NodeChannels(node, channels, connectionProfile, version);
                 final NodeChannels finalNodeChannels = nodeChannels;
-                try {
-                    transportListener.onConnectionOpened(nodeChannels);
-                } finally {
-                    nodeChannels.addCloseListener(ActionListener.wrap(() -> transportListener.onConnectionClosed(finalNodeChannels)));
-                }
 
                 Consumer<TcpChannel> onClose = c -> {
                     assert c.isOpen() == false : "channel is still open when onClose is called";
@@ -1728,38 +1712,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         public void onResponseReceived(long requestId, ResponseContext holder) {
             for (TransportMessageListener listener : listeners) {
                 listener.onResponseReceived(requestId, holder);
-            }
-        }
-    }
-
-    private static final class DelegatingTransportConnectionListener implements TransportConnectionListener {
-        private final List<TransportConnectionListener> listeners = new CopyOnWriteArrayList<>();
-
-        @Override
-        public void onNodeDisconnected(DiscoveryNode key) {
-            for (TransportConnectionListener listener : listeners) {
-                listener.onNodeDisconnected(key);
-            }
-        }
-
-        @Override
-        public void onConnectionOpened(Connection nodeChannels) {
-            for (TransportConnectionListener listener : listeners) {
-                listener.onConnectionOpened(nodeChannels);
-            }
-        }
-
-        @Override
-        public void onNodeConnected(DiscoveryNode node) {
-            for (TransportConnectionListener listener : listeners) {
-                listener.onNodeConnected(node);
-            }
-        }
-
-        @Override
-        public void onConnectionClosed(Connection nodeChannels) {
-            for (TransportConnectionListener listener : listeners) {
-                listener.onConnectionClosed(nodeChannels);
             }
         }
     }

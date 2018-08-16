@@ -38,7 +38,6 @@ import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportRequest;
@@ -235,13 +234,4 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
         throw new UnsupportedOperationException();
     }
 
-    @Override
-    public void addConnectionListener(TransportConnectionListener listener) {
-        // TODO: Remove
-    }
-
-    @Override
-    public boolean removeConnectionListener(TransportConnectionListener listener) {
-        throw new UnsupportedOperationException();
-    }
 }

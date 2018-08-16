@@ -506,12 +506,10 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
     }
 
     public void addConnectionListener(TransportConnectionListener listener) {
-        transport.addConnectionListener(listener);
         connectionManager.addListener(listener);
     }
 
     public void removeConnectionListener(TransportConnectionListener listener) {
-        transport.removeConnectionListener(listener);
         connectionManager.removeListener(listener);
     }
 

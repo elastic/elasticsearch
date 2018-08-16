@@ -41,7 +41,6 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportMessageListener;
@@ -358,21 +357,4 @@ public class CapturingTransport implements Transport {
         return false;
     }
 
-    @Override
-    public void addConnectionListener(TransportConnectionListener listener) {
-//        if (this.listener != null) {
-//            throw new IllegalStateException("listener already set");
-//        }
-//        this.listener = listener;
-    }
-
-    @Override
-    public boolean removeConnectionListener(TransportConnectionListener listener) {
-//        if (listener == this.listener) {
-//            this.listener = null;
-//            return true;
-//        }
-//        return false;
-        return false;
-    }
 }

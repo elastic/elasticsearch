@@ -41,7 +41,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             request.username("example");
             request.roles("superuser");
             request.password(new char[] { 'p', 'a', 's', 's', 'w', 'o', 'r', 'd' } );
-            PutUserResponse response = client.xpack().security().putUser(request, RequestOptions.DEFAULT);
+            PutUserResponse response = client.security().putUser(request, RequestOptions.DEFAULT);
             //end::x-pack-put-user-execute
 
             //tag::x-pack-put-user-response
@@ -73,7 +73,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::x-pack-put-user-execute-async
-            client.xpack().security().putUserAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            client.security().putUserAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::x-pack-put-user-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));

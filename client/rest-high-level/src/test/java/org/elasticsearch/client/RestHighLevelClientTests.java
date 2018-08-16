@@ -758,7 +758,8 @@ public class RestHighLevelClientTests extends ESTestCase {
                             apiName.startsWith("license.") == false &&
                             apiName.startsWith("machine_learning.") == false &&
                             apiName.startsWith("watcher.") == false &&
-                            apiName.startsWith("migration.") == false) {
+                            apiName.startsWith("migration.") == false &&
+                            apiName.startsWith("security.") == false) {
                             apiNotFound.add(apiName);
                         }
                     }

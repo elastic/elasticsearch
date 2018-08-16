@@ -1070,8 +1070,7 @@ and have read permissions. Required.
 
 `remove_realm_name`:: Set to `true` to remove the realm part of principal names. 
 Principal names in Kerberos have the form `user/instance@REALM`. If this option 
-is `true`, the realm part (`@REALM`) is removed before setting the `username` 
-field in `User`. The shortened `username` value can then used during role mapping. 
+is `true`, the realm part (`@REALM`) will not be included in the username.
 Defaults to `false`.
 
 `krb.debug`:: Set to `true` to enable debug logs for the Java login module that

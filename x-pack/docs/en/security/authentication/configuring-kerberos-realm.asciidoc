@@ -90,11 +90,11 @@ For more information, see http://web.mit.edu/kerberos/krb5-latest/doc/admin/conf
 
 --
 
-. Create a keytab for the service node. 
+. Create a keytab for the {es} node.
 +
 --
 A keytab is a file that stores pairs of principals and encryption keys. {es} 
-uses the key from the keytab to decrypt the tickets presented by the user. You 
+uses the keys from the keytab to decrypt the tickets presented by the user. You 
 must create a keytab for {es} by using the tools provided by your Kerberos 
 implementation. For example, some tools that create keytabs are `ktpass.exe` on 
 Windows and `kadmin` for MIT Kerberos. 
@@ -107,8 +107,9 @@ Make sure that this keytab file has read permissions. This file contains
 credentials, therefore you must take appropriate measures to protect it.
 
 IMPORTANT: On every {es} node, there must be a keytab file for the HTTP
-principal. The keytab files are unique for each node since they include the
-hostname. Usually it will be of format `HTTP/es.domain.local@ES.DOMAIN.LOCAL`.
+service principal. As we are supporting Kerberos on the http network layer,
+service principal name will be of format `HTTP/es.domain.local@ES.DOMAIN.LOCAL`.
+The keytab files are unique for each node since they include the hostname.
 An {es} node can act as any principal a client requests as long as that
 principal and its credentials are found in the configured keytab.
 
@@ -123,7 +124,7 @@ realm chain.
 
 NOTE: You can configure only one Kerberos realm on {es} nodes.
 
-To configure a Kerberos realm, there are few mandatory realm settings and
+To configure a Kerberos realm, there are a few mandatory realm settings and
 other optional settings that you need to configure in the `elasticsearch.yml`
 configuration file. Add a realm of type `kerberos` under the 
 `xpack.security.authc.realms` namespace.
@@ -140,10 +141,10 @@ xpack.security.authc.realms.kerb1:
 ------------------------------------------------------------
 
 The `username` is extracted from the ticket presented by user and usually has 
-the format `username@REALM`. This `username` can then be used for mapping
-roles to the user. There is a realm setting `remove_realm_name` which when
-set to `true` removes the realm part (`@REALM`) and the resulting `username` can 
-then be used for role mapping.
+the format `username@REALM`. This `username` is used for mapping 
+roles to the user. If realm setting `remove_realm_name` is 
+set to `true` then we remove the realm part (`@REALM`). The resulting `username` 
+is used for role mapping.
 
 For detailed information of available realm settings,
 see {ref}/security-settings.html#ref-kerberos-settings[Kerberos realm settings].

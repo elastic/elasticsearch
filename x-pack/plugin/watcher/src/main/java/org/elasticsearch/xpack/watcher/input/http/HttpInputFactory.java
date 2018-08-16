@@ -9,7 +9,6 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.common.http.HttpClient;
-import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.input.InputFactory;
 
@@ -19,14 +18,11 @@ public final class HttpInputFactory extends InputFactory<HttpInput, HttpInput.Re
 
     private final HttpClient httpClient;
     private final TextTemplateEngine templateEngine;
-    private final HttpRequestTemplate.Parser requestTemplateParser;
 
-    public HttpInputFactory(Settings settings, HttpClient httpClient, TextTemplateEngine templateEngine,
-                            HttpRequestTemplate.Parser requestTemplateParser) {
+    public HttpInputFactory(Settings settings, HttpClient httpClient, TextTemplateEngine templateEngine) {
         super(Loggers.getLogger(ExecutableHttpInput.class, settings));
         this.templateEngine = templateEngine;
         this.httpClient = httpClient;
-        this.requestTemplateParser = requestTemplateParser;
     }
 
     @Override
@@ -36,7 +32,7 @@ public final class HttpInputFactory extends InputFactory<HttpInput, HttpInput.Re
 
     @Override
     public HttpInput parseInput(String watchId, XContentParser parser) throws IOException {
-        return HttpInput.parse(watchId, parser, requestTemplateParser);
+        return HttpInput.parse(watchId, parser);
     }
 
     @Override

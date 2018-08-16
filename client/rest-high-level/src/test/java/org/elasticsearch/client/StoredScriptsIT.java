@@ -23,9 +23,9 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
-import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptResponse;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -90,7 +90,7 @@ public class StoredScriptsIT extends ESRestHighLevelClientTestCase {
         deleteRequest.masterNodeTimeout("50s");
         deleteRequest.timeout("50s");
 
-        DeleteStoredScriptResponse deleteResponse = execute(deleteRequest, highLevelClient()::deleteScript,
+        AcknowledgedResponse deleteResponse = execute(deleteRequest, highLevelClient()::deleteScript,
             highLevelClient()::deleteScriptAsync);
 
         assertThat(deleteResponse.isAcknowledged(), equalTo(true));

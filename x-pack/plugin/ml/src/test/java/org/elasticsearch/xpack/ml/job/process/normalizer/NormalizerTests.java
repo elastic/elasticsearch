@@ -49,7 +49,7 @@ public class NormalizerTests extends ESTestCase {
         ExecutorService threadpool = Executors.newScheduledThreadPool(1);
         try {
             NormalizerProcessFactory processFactory = mock(NormalizerProcessFactory.class);
-            when(processFactory.createNormalizerProcess(eq(JOB_ID), eq(QUANTILES_STATE), eq(BUCKET_SPAN), eq(false),
+            when(processFactory.createNormalizerProcess(eq(JOB_ID), eq(QUANTILES_STATE), eq(BUCKET_SPAN),
                     any())).thenReturn(new MultiplyingNormalizerProcess(Settings.EMPTY, FACTOR));
             Normalizer normalizer = new Normalizer(JOB_ID, processFactory, threadpool);
 
@@ -58,7 +58,7 @@ public class NormalizerTests extends ESTestCase {
             bucket.addBucketInfluencer(createTimeBucketInfluencer(bucket.getTimestamp(), 0.07, INITIAL_SCORE));
 
             List<Normalizable> asNormalizables = Arrays.asList(new BucketNormalizable(bucket, INDEX_NAME));
-            normalizer.normalize(BUCKET_SPAN, false, asNormalizables, QUANTILES_STATE);
+            normalizer.normalize(BUCKET_SPAN, asNormalizables, QUANTILES_STATE);
 
             assertEquals(1, asNormalizables.size());
             assertEquals(FACTOR * INITIAL_SCORE, asNormalizables.get(0).getNormalizedScore(), 0.0001);

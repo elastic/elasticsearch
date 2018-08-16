@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.transport;
 
+import org.elasticsearch.cli.SuppressForbidden;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -160,6 +161,7 @@ public class MockTcpTransport extends TcpTransport {
     }
 
     @Override
+    @SuppressForbidden(reason = "real socket for mocking remote connections")
     protected MockChannel initiateChannel(InetSocketAddress address, ActionListener<Void> connectListener) throws IOException {
         final MockSocket socket = new MockSocket();
         final MockChannel channel = new MockChannel(socket, address, "none");
@@ -189,12 +191,11 @@ public class MockTcpTransport extends TcpTransport {
     }
 
     @Override
-    protected ConnectionProfile resolveConnectionProfile(ConnectionProfile connectionProfile) {
-        ConnectionProfile connectionProfile1 = resolveConnectionProfile(connectionProfile, defaultConnectionProfile);
+    protected ConnectionProfile maybeOverrideConnectionProfile(ConnectionProfile connectionProfile) {
         ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
         Set<TransportRequestOptions.Type> allTypesWithConnection = new HashSet<>();
         Set<TransportRequestOptions.Type> allTypesWithoutConnection = new HashSet<>();
-        for (ConnectionProfile.ConnectionTypeHandle handle : connectionProfile1.getHandles()) {
+        for (ConnectionProfile.ConnectionTypeHandle handle : connectionProfile.getHandles()) {
             Set<TransportRequestOptions.Type> types = handle.getTypes();
             if (handle.length > 0) {
                 allTypesWithConnection.addAll(types);
@@ -207,8 +208,8 @@ public class MockTcpTransport extends TcpTransport {
         if (allTypesWithoutConnection.isEmpty() == false) {
             builder.addConnections(0, allTypesWithoutConnection.toArray(new TransportRequestOptions.Type[0]));
         }
-        builder.setHandshakeTimeout(connectionProfile1.getHandshakeTimeout());
-        builder.setConnectTimeout(connectionProfile1.getConnectTimeout());
+        builder.setHandshakeTimeout(connectionProfile.getHandshakeTimeout());
+        builder.setConnectTimeout(connectionProfile.getConnectTimeout());
         return builder.build();
     }
 

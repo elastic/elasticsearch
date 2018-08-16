@@ -244,7 +244,7 @@ the different modes, see {xpack-ref}/ldap-realm.html[LDAP realms].
 The names of the realms that should be consulted for delegate authorization.
 If this setting is used, then the LDAP realm does not perform role mapping and
 instead loads the user from the listed realms.
-See {xpack-ref}/realms.html#authorization_realms[Delegating authorization to another realm] 
+See {stack-ov}/realm-chains.html#authorization_realms[Delegating authorization to another realm] 
 +
 --
 NOTE: If any settings starting with `user_search` are specified, the 
@@ -737,7 +737,7 @@ Defaults to `ES_PATH_CONF/role_mapping.yml`.
 The names of the realms that should be consulted for delegate authorization.
 If this setting is used, then the PKI realm does not perform role mapping and
 instead loads the user from the listed realms.
-See {xpack-ref}/realms.html#authorization_realms[Delegating authorization to another realm] 
+See {stack-ov}/realm-chains.html#authorization_realms[Delegating authorization to another realm] 
 
 `cache.ttl`::
 Specifies the time-to-live for cached user entries. A user and a hash of its 
@@ -866,7 +866,7 @@ provided by the SAML attributes. Defaults to `true`.
 The names of the realms that should be consulted for delegate authorization.
 If this setting is used, then the SAML realm does not perform role mapping and
 instead loads the user from the listed realms.
-See {xpack-ref}/realms.html#authorization_realms[Delegating authorization to another realm] 
+See {stack-ov}/realm-chains.html#authorization_realms[Delegating authorization to another realm] 
 
 `allowed_clock_skew`::
 The maximum amount of skew that can be tolerated between the IdP's clock and the

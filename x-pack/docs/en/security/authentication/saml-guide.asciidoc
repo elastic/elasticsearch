@@ -442,7 +442,7 @@ or separate keys used for each of those.
 
 The Elastic Stack uses X.509 certificates with RSA private keys for SAML
 cryptography. These keys can be generated using any standard SSL tool, including
-the `elasticsearch-certutil` tool that ships with X-Pack.
+the `elasticsearch-certutil` tool that ships with {xpack}.
 
 Your IdP may require that the Elastic Stack have a cryptographic key for signing
 SAML messages, and that you provide the corresponding signing certificate within
@@ -592,7 +592,7 @@ When a user authenticates using SAML, they are identified to the Elastic Stack,
 but this does not automatically grant them access to perform any actions or
 access any data.
 
-Your SAML users cannot do anything until they are assigned X-Pack Security
+Your SAML users cannot do anything until they are assigned {security}
 roles. This is done through either the
 {ref}/security-api-role-mapping.html[role-mapping API], or with 
 <<authorization_realms, authorization realms>>.

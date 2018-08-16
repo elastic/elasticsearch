@@ -221,7 +221,7 @@ Your SAML users cannot do anything until they are mapped to {security}
 roles. See {stack-ov}/saml-role-mapping.html[Configuring role mappings]. 
 
 NOTE: The SAML realm supports
-{xpack-ref}/realms.html#authorization_realms[authorization realms] as an
+{stack-ov}/realm-chains.html#authorization_realms[authorization realms] as an
 alternative to role mapping.
 
 --

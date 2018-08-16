@@ -127,6 +127,7 @@ import org.elasticsearch.index.rankeval.RatedRequest;
 import org.elasticsearch.index.rankeval.RestRankEvalAction;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoRequest;
+import org.elasticsearch.protocol.xpack.ml.OpenJobRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -2608,6 +2609,19 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertEquals("/_xpack/watcher/watch/" + watchId, request.getEndpoint());
         assertThat(request.getEntity(), nullValue());
+    }
+
+    public void testPostMachineLearningOpenJob() throws Exception {
+        String jobId = "some-job-id";
+        OpenJobRequest openJobRequest = new OpenJobRequest(jobId);
+        openJobRequest.setTimeout(TimeValue.timeValueMinutes(10));
+
+        Request request = RequestConverters.machineLearningOpenJob(openJobRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + "/_open", request.getEndpoint());
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        request.getEntity().writeTo(bos);
+        assertEquals(bos.toString("UTF-8"), "{\"job_id\":\""+ jobId +"\",\"timeout\":\"10m\"}");
     }
 
     /**

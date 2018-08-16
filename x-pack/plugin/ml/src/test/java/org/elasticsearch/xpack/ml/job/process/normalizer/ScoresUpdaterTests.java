@@ -33,7 +33,6 @@ import java.util.Deque;
 import java.util.List;
 
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.anyListOf;
@@ -95,7 +94,7 @@ public class ScoresUpdaterTests extends ESTestCase {
         buckets.add(bucket);
         givenProviderReturnsBuckets(buckets);
 
-        scoresUpdater.update(QUANTILES_STATE, 3600, 0, false);
+        scoresUpdater.update(QUANTILES_STATE, 3600, 0);
 
         verifyNormalizerWasInvoked(0);
         verifyNothingWasUpdated();
@@ -113,7 +112,7 @@ public class ScoresUpdaterTests extends ESTestCase {
         givenProviderReturnsBuckets(buckets);
         givenProviderReturnsRecords(new ArrayDeque<>());
 
-        scoresUpdater.update(QUANTILES_STATE, 3600, 0, false);
+        scoresUpdater.update(QUANTILES_STATE, 3600, 0);
 
         verifyNormalizerWasInvoked(1);
         verify(jobRenormalizedResultsPersister, times(1)).updateBucket(any());
@@ -129,7 +128,7 @@ public class ScoresUpdaterTests extends ESTestCase {
         givenProviderReturnsBuckets(buckets);
         givenProviderReturnsRecords(new ArrayDeque<>());
 
-        scoresUpdater.update(QUANTILES_STATE, 3600, 0, false);
+        scoresUpdater.update(QUANTILES_STATE, 3600, 0);
 
         verifyNormalizerWasInvoked(1);
         verifyBucketWasUpdated(1);
@@ -150,7 +149,7 @@ public class ScoresUpdaterTests extends ESTestCase {
         givenProviderReturnsBuckets(buckets);
         givenProviderReturnsRecords(records);
 
-        scoresUpdater.update(QUANTILES_STATE, 3600, 0, false);
+        scoresUpdater.update(QUANTILES_STATE, 3600, 0);
 
         verifyNormalizerWasInvoked(2);
         verify(jobRenormalizedResultsPersister, times(1)).updateBucket(any());
@@ -176,7 +175,7 @@ public class ScoresUpdaterTests extends ESTestCase {
         givenProviderReturnsBuckets(batch1, batch2);
         givenProviderReturnsRecords(new ArrayDeque<>());
 
-        scoresUpdater.update(QUANTILES_STATE, 3600, 0, false);
+        scoresUpdater.update(QUANTILES_STATE, 3600, 0);
 
         verifyNormalizerWasInvoked(1);
 
@@ -212,7 +211,7 @@ public class ScoresUpdaterTests extends ESTestCase {
         recordIter.requireIncludeInterim(false);
         when(jobResultsProvider.newBatchedRecordsIterator(JOB_ID)).thenReturn(recordIter);
 
-        scoresUpdater.update(QUANTILES_STATE, 3600, 0, false);
+        scoresUpdater.update(QUANTILES_STATE, 3600, 0);
 
         verifyNormalizerWasInvoked(2);
     }
@@ -224,7 +223,7 @@ public class ScoresUpdaterTests extends ESTestCase {
         influencers.add(influencer);
         givenProviderReturnsInfluencers(influencers);
 
-        scoresUpdater.update(QUANTILES_STATE, 3600, 0, false);
+        scoresUpdater.update(QUANTILES_STATE, 3600, 0);
 
         verifyNormalizerWasInvoked(1);
         verify(jobRenormalizedResultsPersister, times(1)).updateResults(any());
@@ -253,7 +252,7 @@ public class ScoresUpdaterTests extends ESTestCase {
         givenProviderReturnsRecords(records);
 
         scoresUpdater.shutdown();
-        scoresUpdater.update(QUANTILES_STATE, 3600, 0, false);
+        scoresUpdater.update(QUANTILES_STATE, 3600, 0);
 
         verifyNormalizerWasInvoked(0);
         verify(jobRenormalizedResultsPersister, never()).updateBucket(any());
@@ -272,7 +271,7 @@ public class ScoresUpdaterTests extends ESTestCase {
         givenProviderReturnsRecords(new ArrayDeque<>());
         givenProviderReturnsNoInfluencers();
 
-        scoresUpdater.update(QUANTILES_STATE, 2595600000L, 0, false);
+        scoresUpdater.update(QUANTILES_STATE, 2595600000L, 0);
 
         verifyNormalizerWasInvoked(1);
         verifyBucketWasUpdated(1);
@@ -289,7 +288,7 @@ public class ScoresUpdaterTests extends ESTestCase {
         givenProviderReturnsRecords(new ArrayDeque<>());
         givenProviderReturnsNoInfluencers();
 
-        scoresUpdater.update(QUANTILES_STATE, 90000000L, 0, false);
+        scoresUpdater.update(QUANTILES_STATE, 90000000L, 0);
 
         verifyNormalizerWasInvoked(1);
         verifyBucketWasUpdated(1);
@@ -307,7 +306,7 @@ public class ScoresUpdaterTests extends ESTestCase {
         givenProviderReturnsRecords(new ArrayDeque<>());
         givenProviderReturnsNoInfluencers();
 
-        scoresUpdater.update(QUANTILES_STATE, 90000000L, 900000, false);
+        scoresUpdater.update(QUANTILES_STATE, 90000000L, 900000);
 
         verifyNormalizerWasInvoked(1);
         verifyBucketWasUpdated(1);
@@ -339,7 +338,7 @@ public class ScoresUpdaterTests extends ESTestCase {
         doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocationOnMock) throws Throwable {
-                List<Normalizable> normalizables = (List<Normalizable>) invocationOnMock.getArguments()[2];
+                List<Normalizable> normalizables = (List<Normalizable>) invocationOnMock.getArguments()[1];
                 for (Normalizable normalizable : normalizables) {
                     normalizable.raiseBigChangeFlag();
                     for (Normalizable child : normalizable.getChildren()) {
@@ -348,7 +347,7 @@ public class ScoresUpdaterTests extends ESTestCase {
                 }
                 return null;
             }
-        }).when(normalizer).normalize(anyInt(), anyBoolean(), anyList(), anyString());
+        }).when(normalizer).normalize(anyInt(), anyList(), anyString());
     }
 
     private void givenProviderReturnsBuckets(Deque<Bucket> batch1, Deque<Bucket> batch2) {
@@ -416,7 +415,7 @@ public class ScoresUpdaterTests extends ESTestCase {
     private void verifyNormalizerWasInvoked(int times) throws IOException {
         int bucketSpan = job.getAnalysisConfig() == null ? 0 : ((Long) job.getAnalysisConfig().getBucketSpan().seconds()).intValue();
         verify(normalizer, times(times)).normalize(
-                eq(bucketSpan), eq(false), anyListOf(Normalizable.class),
+                eq(bucketSpan), anyListOf(Normalizable.class),
                 eq(QUANTILES_STATE));
     }
 

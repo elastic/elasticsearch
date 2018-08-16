@@ -29,7 +29,6 @@ import org.elasticsearch.action.NotifyOnceListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -135,18 +134,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     // the scheduled internal ping interval setting, defaults to disabled (-1)
     public static final Setting<TimeValue> PING_SCHEDULE =
         timeSetting("transport.ping_schedule", TimeValue.timeValueSeconds(-1), Setting.Property.NodeScope);
-    public static final Setting<Integer> CONNECTIONS_PER_NODE_RECOVERY =
-        intSetting("transport.connections_per_node.recovery", 2, 1, Setting.Property.NodeScope);
-    public static final Setting<Integer> CONNECTIONS_PER_NODE_BULK =
-        intSetting("transport.connections_per_node.bulk", 3, 1, Setting.Property.NodeScope);
-    public static final Setting<Integer> CONNECTIONS_PER_NODE_REG =
-        intSetting("transport.connections_per_node.reg", 6, 1, Setting.Property.NodeScope);
-    public static final Setting<Integer> CONNECTIONS_PER_NODE_STATE =
-        intSetting("transport.connections_per_node.state", 1, 1, Setting.Property.NodeScope);
-    public static final Setting<Integer> CONNECTIONS_PER_NODE_PING =
-        intSetting("transport.connections_per_node.ping", 1, 1, Setting.Property.NodeScope);
-    public static final Setting<TimeValue> TCP_CONNECT_TIMEOUT =
-        timeSetting("transport.tcp.connect_timeout", NetworkService.TCP_CONNECT_TIMEOUT, Setting.Property.NodeScope);
     public static final Setting<Boolean> TCP_NO_DELAY =
         boolSetting("transport.tcp_no_delay", NetworkService.TCP_NO_DELAY, Setting.Property.NodeScope);
     public static final Setting<Boolean> TCP_KEEP_ALIVE =
@@ -154,11 +141,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     public static final Setting<Boolean> TCP_REUSE_ADDRESS =
         boolSetting("transport.tcp.reuse_address", NetworkService.TCP_REUSE_ADDRESS, Setting.Property.NodeScope);
     public static final Setting<ByteSizeValue> TCP_SEND_BUFFER_SIZE =
-        Setting.byteSizeSetting("transport.tcp.send_buffer_size", NetworkService.TCP_SEND_BUFFER_SIZE,
-            Setting.Property.NodeScope);
+        Setting.byteSizeSetting("transport.tcp.send_buffer_size", NetworkService.TCP_SEND_BUFFER_SIZE, Setting.Property.NodeScope);
     public static final Setting<ByteSizeValue> TCP_RECEIVE_BUFFER_SIZE =
-        Setting.byteSizeSetting("transport.tcp.receive_buffer_size", NetworkService.TCP_RECEIVE_BUFFER_SIZE,
-            Setting.Property.NodeScope);
+        Setting.byteSizeSetting("transport.tcp.receive_buffer_size", NetworkService.TCP_RECEIVE_BUFFER_SIZE, Setting.Property.NodeScope);
 
 
     public static final Setting.AffixSetting<Boolean> TCP_NO_DELAY_PROFILE = affixKeySetting("transport.profiles.", "tcp_no_delay",
@@ -213,7 +198,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     protected final boolean compress;
     private volatile BoundTransportAddress boundAddress;
     private final String transportName;
-    protected final ConnectionProfile defaultConnectionProfile;
 
     private final ConcurrentMap<Long, HandshakeResponseHandler> pendingHandshakes = new ConcurrentHashMap<>();
     private final CounterMetric numHandshakes = new CounterMetric();
@@ -237,7 +221,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.compress = Transport.TRANSPORT_TCP_COMPRESS.get(settings);
         this.networkService = networkService;
         this.transportName = transportName;
-        defaultConnectionProfile = buildDefaultConnectionProfile(settings);
         final Settings defaultFeatures = DEFAULT_FEATURES_SETTING.get(settings);
         if (defaultFeatures == null) {
             this.features = new String[0];
@@ -259,25 +242,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         } catch (IOException e) {
             throw new AssertionError(e.getMessage(), e); // won't happen
         }
-    }
-
-    static ConnectionProfile buildDefaultConnectionProfile(Settings settings) {
-        int connectionsPerNodeRecovery = CONNECTIONS_PER_NODE_RECOVERY.get(settings);
-        int connectionsPerNodeBulk = CONNECTIONS_PER_NODE_BULK.get(settings);
-        int connectionsPerNodeReg = CONNECTIONS_PER_NODE_REG.get(settings);
-        int connectionsPerNodeState = CONNECTIONS_PER_NODE_STATE.get(settings);
-        int connectionsPerNodePing = CONNECTIONS_PER_NODE_PING.get(settings);
-        ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
-        builder.setConnectTimeout(TCP_CONNECT_TIMEOUT.get(settings));
-        builder.setHandshakeTimeout(TCP_CONNECT_TIMEOUT.get(settings));
-        builder.addConnections(connectionsPerNodeBulk, TransportRequestOptions.Type.BULK);
-        builder.addConnections(connectionsPerNodePing, TransportRequestOptions.Type.PING);
-        // if we are not master eligible we don't need a dedicated channel to publish the state
-        builder.addConnections(DiscoveryNode.isMasterNode(settings) ? connectionsPerNodeState : 0, TransportRequestOptions.Type.STATE);
-        // if we are not a data-node we don't need any dedicated channels for recovery
-        builder.addConnections(DiscoveryNode.isDataNode(settings) ? connectionsPerNodeRecovery : 0, TransportRequestOptions.Type.RECOVERY);
-        builder.addConnections(connectionsPerNodeReg, TransportRequestOptions.Type.REG);
-        return builder.build();
     }
 
     @Override
@@ -456,41 +420,21 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
     }
 
-    /**
-     * takes a {@link ConnectionProfile} that have been passed as a parameter to the public methods
-     * and resolves it to a fully specified (i.e., no nulls) profile
-     */
-    protected static ConnectionProfile resolveConnectionProfile(@Nullable ConnectionProfile connectionProfile,
-                                                      ConnectionProfile defaultConnectionProfile) {
-        Objects.requireNonNull(defaultConnectionProfile);
-        if (connectionProfile == null) {
-            return defaultConnectionProfile;
-        } else if (connectionProfile.getConnectTimeout() != null && connectionProfile.getHandshakeTimeout() != null) {
-            return connectionProfile;
-        } else {
-            ConnectionProfile.Builder builder = new ConnectionProfile.Builder(connectionProfile);
-            if (connectionProfile.getConnectTimeout() == null) {
-                builder.setConnectTimeout(defaultConnectionProfile.getConnectTimeout());
-            }
-            if (connectionProfile.getHandshakeTimeout() == null) {
-                builder.setHandshakeTimeout(defaultConnectionProfile.getHandshakeTimeout());
-            }
-            return builder.build();
-        }
-    }
-
-    protected ConnectionProfile resolveConnectionProfile(ConnectionProfile connectionProfile) {
-        return resolveConnectionProfile(connectionProfile, defaultConnectionProfile);
+    // This allows transport implementations to potentially override specific connection profiles. This
+    // primarily exists for the test implementations.
+    protected ConnectionProfile maybeOverrideConnectionProfile(ConnectionProfile connectionProfile) {
+        return connectionProfile;
     }
 
     @Override
     public NodeChannels openConnection(DiscoveryNode node, ConnectionProfile connectionProfile) {
+        Objects.requireNonNull(connectionProfile, "connection profile cannot be null");
         if (node == null) {
             throw new ConnectTransportException(null, "can't open connection to a null node");
         }
         boolean success = false;
         NodeChannels nodeChannels = null;
-        connectionProfile = resolveConnectionProfile(connectionProfile);
+        connectionProfile = maybeOverrideConnectionProfile(connectionProfile);
         closeLock.readLock().lock(); // ensure we don't open connections while we are closing
         try {
             ensureOpen();

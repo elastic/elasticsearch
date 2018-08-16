@@ -290,10 +290,10 @@ class BulkPrimaryExecutionContext {
     /** finishes the execution of the current request, with the response that should be returned to the user */
     public void markAsCompleted(BulkItemResponse translatedResponse) {
         assertInvariants(ItemProcessingState.EXECUTED);
-        assert executionResult == null || translatedResponse.getItemId() == executionResult.getItemId();
+        assert executionResult != null && translatedResponse.getItemId() == executionResult.getItemId();
         assert translatedResponse.getItemId() == getCurrentItem().id();
 
-        if (translatedResponse.isFailed() == false && requestToExecute != getCurrent())  {
+        if (translatedResponse.isFailed() == false && requestToExecute != null && requestToExecute != getCurrent())  {
             request.items()[currentIndex] = new BulkItemRequest(request.items()[currentIndex].id(), requestToExecute);
         }
         getCurrentItem().setPrimaryResponse(translatedResponse);

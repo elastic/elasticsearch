@@ -28,8 +28,7 @@ import org.elasticsearch.xpack.watcher.common.http.HttpProxy;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuth;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthRegistry;
+import org.elasticsearch.xpack.watcher.common.http.BasicAuth;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.notification.email.Attachment;
@@ -69,15 +68,12 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
     private final int retries;
     private HttpClient httpClient;
     private final TextTemplateEngine templateEngine;
-    private HttpAuthRegistry authRegistry;
 
-    public ReportingAttachmentParser(Settings settings, HttpClient httpClient,
-                                     TextTemplateEngine templateEngine, HttpAuthRegistry authRegistry) {
+    public ReportingAttachmentParser(Settings settings, HttpClient httpClient, TextTemplateEngine templateEngine) {
         this.interval = INTERVAL_SETTING.get(settings);
         this.retries = RETRIES_SETTING.get(settings);
         this.httpClient = httpClient;
         this.templateEngine = templateEngine;
-        this.authRegistry = authRegistry;
         this.logger = Loggers.getLogger(getClass());
     }
 
@@ -89,7 +85,7 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
     @Override
     public ReportingAttachment parse(String id, XContentParser parser) throws IOException {
         Builder builder = new Builder(id);
-        PARSER.parse(parser, builder, new AuthParseContext(authRegistry));
+        PARSER.parse(parser, builder, new AuthParseContext());
         return builder.build();
     }
 
@@ -222,15 +218,9 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
      */
     private static class AuthParseContext {
 
-        private final HttpAuthRegistry authRegistry;
-
-        AuthParseContext(HttpAuthRegistry authRegistry) {
-            this.authRegistry = authRegistry;
-        }
-
-        HttpAuth parseAuth(XContentParser parser) {
+        BasicAuth parseAuth(XContentParser parser) {
             try {
-                return authRegistry.parse(parser);
+                return BasicAuth.parse(parser);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
@@ -273,7 +263,7 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
         private String url;
         private TimeValue interval;
         private Integer retries;
-        private HttpAuth auth;
+        private BasicAuth auth;
         private HttpProxy proxy;
 
         Builder(String id) {
@@ -301,7 +291,7 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
             return this;
         }
 
-        Builder auth(HttpAuth auth) {
+        Builder auth(BasicAuth auth) {
             this.auth = auth;
             return this;
         }

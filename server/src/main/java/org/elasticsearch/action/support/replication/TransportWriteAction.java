@@ -83,7 +83,7 @@ public abstract class TransportWriteAction<
         return location;
     }
 
-    protected static Location locationToSync(Location current, Location next) {
+    public static Location locationToSync(Location current, Location next) {
         /* here we are moving forward in the translog with each operation. Under the hood this might
          * cross translog files which is ok since from the user perspective the translog is like a
          * tape where only the highest location needs to be fsynced in order to sync all previous

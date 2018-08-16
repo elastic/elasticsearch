@@ -48,6 +48,7 @@ import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardEntry;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.FailedShardEntry;
+import org.elasticsearch.cluster.coordination.JoinTaskExecutor;
 import org.elasticsearch.cluster.metadata.AliasValidator;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -73,7 +74,6 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.discovery.zen.ElectMasterService;
-import org.elasticsearch.discovery.zen.NodeJoinController;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -121,7 +121,7 @@ public class ClusterStateChanges extends AbstractComponent {
     private final TransportCreateIndexAction transportCreateIndexAction;
 
     private final ZenDiscovery.NodeRemovalClusterStateTaskExecutor nodeRemovalExecutor;
-    private final NodeJoinController.JoinTaskExecutor joinTaskExecutor;
+    private final JoinTaskExecutor joinTaskExecutor;
 
     public ClusterStateChanges(NamedXContentRegistry xContentRegistry, ThreadPool threadPool) {
         super(Settings.builder().put(PATH_HOME_SETTING.getKey(), "dummy").build());
@@ -201,7 +201,7 @@ public class ClusterStateChanges extends AbstractComponent {
         ElectMasterService electMasterService = new ElectMasterService(settings);
         nodeRemovalExecutor = new ZenDiscovery.NodeRemovalClusterStateTaskExecutor(allocationService, electMasterService,
             s -> { throw new AssertionError("rejoin not implemented"); }, logger);
-        joinTaskExecutor = new NodeJoinController.JoinTaskExecutor(allocationService, electMasterService, logger);
+        joinTaskExecutor = new JoinTaskExecutor(allocationService, logger);
     }
 
     public ClusterState createIndex(ClusterState state, CreateIndexRequest request) {
@@ -229,14 +229,16 @@ public class ClusterStateChanges extends AbstractComponent {
     }
 
     public ClusterState addNodes(ClusterState clusterState, List<DiscoveryNode> nodes) {
-        return runTasks(joinTaskExecutor, clusterState, nodes);
+        return runTasks(joinTaskExecutor, clusterState, nodes.stream().map(node -> new JoinTaskExecutor.Task(node, "dummy reason"))
+            .collect(Collectors.toList()));
     }
 
     public ClusterState joinNodesAndBecomeMaster(ClusterState clusterState, List<DiscoveryNode> nodes) {
-        List<DiscoveryNode> joinNodes = new ArrayList<>();
-        joinNodes.add(NodeJoinController.BECOME_MASTER_TASK);
-        joinNodes.add(NodeJoinController.FINISH_ELECTION_TASK);
-        joinNodes.addAll(nodes);
+        List<JoinTaskExecutor.Task> joinNodes = new ArrayList<>();
+        joinNodes.add(JoinTaskExecutor.BECOME_MASTER_TASK);
+        joinNodes.add(JoinTaskExecutor.FINISH_ELECTION_TASK);
+        joinNodes.addAll(nodes.stream().map(node -> new JoinTaskExecutor.Task(node, "dummy reason"))
+            .collect(Collectors.toList()));
 
         return runTasks(joinTaskExecutor, clusterState, joinNodes);
     }

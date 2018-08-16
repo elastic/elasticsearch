@@ -20,7 +20,6 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.protocol.xpack.security.PutUserRequest;
 import org.elasticsearch.protocol.xpack.security.PutUserResponse;
 
@@ -52,7 +51,7 @@ public final class SecurityClient {
      */
     public PutUserResponse putUser(PutUserRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::putUser, options,
-            SecurityClient::parsePutUserResponse, emptySet());
+            PutUserResponse::fromXContent, emptySet());
     }
 
     /**
@@ -65,27 +64,6 @@ public final class SecurityClient {
      */
     public void putUserAsync(PutUserRequest request, RequestOptions options, ActionListener<PutUserResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::putUser, options,
-            SecurityClient::parsePutUserResponse, listener, emptySet());
-    }
-
-    /**
-     * Parses the rest response from the put user API. The rest API wraps the XContent of the
-     * {@link PutUserResponse} in a field, so this method unwraps this value.
-     *
-     * @param parser the XContent parser for the response body
-     * @return the {@link PutUserResponse} parsed
-     * @throws IOException in case there is a problem parsing the response
-     */
-    private static PutUserResponse parsePutUserResponse(XContentParser parser) throws IOException {
-        XContentParser.Token token;
-        String currentFieldName = null;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if ("user".equals(currentFieldName)) {
-                return PutUserResponse.fromXContent(parser);
-            }
-        }
-        throw new IOException("Failed to parse [put_user_response]");
+            PutUserResponse::fromXContent, listener, emptySet());
     }
 }

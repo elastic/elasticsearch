@@ -24,7 +24,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -37,7 +37,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
  * Response when adding a user to the security index. Returns a
  * single boolean field for whether the user was created or updated.
  */
-public class PutUserResponse extends ActionResponse implements ToXContentObject {
+public class PutUserResponse extends ActionResponse implements ToXContentFragment {
 
     private boolean created;
 
@@ -54,8 +54,7 @@ public class PutUserResponse extends ActionResponse implements ToXContentObject 
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject().field("created", created).endObject();
-        return builder;
+        return builder.field("created", created);
     }
 
     @Override
@@ -74,6 +73,7 @@ public class PutUserResponse extends ActionResponse implements ToXContentObject 
         true, args -> new PutUserResponse((boolean) args[0]));
     static {
         PARSER.declareBoolean(constructorArg(), new ParseField("created"));
+        PARSER.declareObject((a,b) -> {}, (parser, context) -> null, new ParseField("user")); // ignore the user field!
     }
 
     public static PutUserResponse fromXContent(XContentParser parser) throws IOException {

@@ -22,7 +22,6 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.close.CloseIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActiveShardsObserver;
@@ -37,6 +36,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -228,7 +228,7 @@ public class MetaDataIndexStateService extends AbstractComponent {
 
         Optional<String> error = IndicesService.getShardLimitError(shardsToOpen, currentState, clusterService.getClusterSettings());
         if (error.isPresent()) {
-            ActionRequestValidationException ex = new ActionRequestValidationException();
+            ValidationException ex = new ValidationException();
             ex.addValidationError(error.get());
             throw ex;
         }

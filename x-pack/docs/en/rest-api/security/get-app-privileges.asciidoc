@@ -1,5 +1,5 @@
 [role="xpack"]
-[[security-api-get-privilege]]
+[[security-api-get-privileges]]
 === Get application privileges API
 
 Retrieves application privileges.

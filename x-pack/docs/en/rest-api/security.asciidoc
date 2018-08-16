@@ -7,8 +7,6 @@ You can use the following APIs to perform {security} activities.
 * <<security-api-app-privileges>>
 * <<security-api-authenticate>>
 * <<security-api-clear-cache>>
-* <<security-api-delete-privilege>>
-* <<security-api-get-privilege>>
 * <<security-api-has-privileges>>
 * <<security-api-privileges>>
 * <<security-api-ssl>>
@@ -54,6 +52,8 @@ native realm:
 * <<security-api-get-user,Get users>>
 
 include::security/app-privileges.asciidoc[]
+
+include::security/put-app-privileges.asciidoc[]
 include::security/authenticate.asciidoc[]
 include::security/change-password.asciidoc[]
 include::security/clear-cache.asciidoc[]

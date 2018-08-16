@@ -126,6 +126,9 @@ import org.elasticsearch.index.rankeval.RankEvalSpec;
 import org.elasticsearch.index.rankeval.RatedRequest;
 import org.elasticsearch.index.rankeval.RestRankEvalAction;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
+import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoRequest;
+import org.elasticsearch.protocol.xpack.ml.DeleteJobRequest;
+import org.elasticsearch.protocol.xpack.ml.OpenJobRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -2552,6 +2555,23 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(expectedParams, request.getParameters());
     }
 
+    public void testGetMigrationAssistance() {
+        IndexUpgradeInfoRequest upgradeInfoRequest = new IndexUpgradeInfoRequest();
+        String expectedEndpoint = "/_xpack/migration/assistance";
+        if (randomBoolean()) {
+            String[] indices = randomIndicesNames(1, 5);
+            upgradeInfoRequest.indices(indices);
+            expectedEndpoint += "/" + String.join(",", indices);
+        }
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomIndicesOptions(upgradeInfoRequest::indicesOptions, upgradeInfoRequest::indicesOptions, expectedParams);
+        Request request = RequestConverters.getMigrationAssistance(upgradeInfoRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals(expectedEndpoint, request.getEndpoint());
+        assertNull(request.getEntity());
+        assertEquals(expectedParams, request.getParameters());
+    }
+
     public void testXPackPutWatch() throws Exception {
         PutWatchRequest putWatchRequest = new PutWatchRequest();
         String watchId = randomAlphaOfLength(10);
@@ -2590,6 +2610,33 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertEquals("/_xpack/watcher/watch/" + watchId, request.getEndpoint());
         assertThat(request.getEntity(), nullValue());
+    }
+
+    public void testDeleteMachineLearningJob() {
+        String jobId = randomAlphaOfLength(10);
+        DeleteJobRequest deleteJobRequest = new DeleteJobRequest(jobId);
+
+        Request request = RequestConverters.deleteMachineLearningJob(deleteJobRequest);
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/anomaly_detectors/" + jobId, request.getEndpoint());
+        assertEquals(Boolean.toString(false), request.getParameters().get("force"));
+
+        deleteJobRequest.setForce(true);
+        request = RequestConverters.deleteMachineLearningJob(deleteJobRequest);
+        assertEquals(Boolean.toString(true), request.getParameters().get("force"));
+    }
+
+    public void testPostMachineLearningOpenJob() throws Exception {
+        String jobId = "some-job-id";
+        OpenJobRequest openJobRequest = new OpenJobRequest(jobId);
+        openJobRequest.setTimeout(TimeValue.timeValueMinutes(10));
+
+        Request request = RequestConverters.machineLearningOpenJob(openJobRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + "/_open", request.getEndpoint());
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        request.getEntity().writeTo(bos);
+        assertEquals(bos.toString("UTF-8"), "{\"job_id\":\""+ jobId +"\",\"timeout\":\"10m\"}");
     }
 
     /**

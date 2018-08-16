@@ -21,6 +21,7 @@ package org.elasticsearch.client;
 
 import org.apache.http.HttpEntity;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.GetLicenseResponse;
 import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
@@ -48,7 +50,7 @@ import static java.util.Collections.emptySet;
  * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/licensing-apis.html">
  * X-Pack Licensing APIs on elastic.co</a> for more information.
  */
-public class LicenseClient {
+public final class LicenseClient {
 
     private final RestHighLevelClient restHighLevelClient;
 
@@ -98,9 +100,29 @@ public class LicenseClient {
             response -> new GetLicenseResponse(convertResponseToJson(response)), listener, emptySet());
     }
 
+    /**
+     * Deletes license from the cluster.
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public AcknowledgedResponse deleteLicense(DeleteLicenseRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::deleteLicense, options,
+            AcknowledgedResponse::fromXContent, emptySet());
+    }
 
     /**
-     * Converts an entire response into a json sting
+     * Asynchronously deletes license from the cluster.
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void deleteLicenseAsync(DeleteLicenseRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::deleteLicense, options,
+            AcknowledgedResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Converts an entire response into a json string
      *
      * This is useful for responses that we don't parse on the client side, but instead work as string
      * such as in case of the license JSON

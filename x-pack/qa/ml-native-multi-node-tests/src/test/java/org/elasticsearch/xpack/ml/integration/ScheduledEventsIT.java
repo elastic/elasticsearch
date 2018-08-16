@@ -195,9 +195,9 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
     /**
      * Test an open job picks up changes to scheduled events/calendars
      */
-    public void testOnlineUpdate() throws Exception {
+    public void testAddEventsToOpenJob() throws Exception {
         TimeValue bucketSpan = TimeValue.timeValueMinutes(30);
-        Job.Builder job = createJob("scheduled-events-online-update", bucketSpan);
+        Job.Builder job = createJob("scheduled-events-add-events-to-open-job", bucketSpan);
 
         long startTime = 1514764800000L;
         final int bucketCount = 5;
@@ -211,7 +211,7 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
 
         // Now create a calendar and events for the job while it is open
         String calendarId = "test-calendar-online-update";
-        putCalendar(calendarId, Collections.singletonList(job.getId()), "testOnlineUpdate calendar");
+        putCalendar(calendarId, Collections.singletonList(job.getId()), "testAddEventsToOpenJob calendar");
 
         List<ScheduledEvent> events = new ArrayList<>();
         long eventStartTime = startTime + (bucketCount + 1) * bucketSpan.millis();
@@ -262,10 +262,10 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
     /**
      * An open job that later gets added to a calendar, should take the scheduled events into account
      */
-    public void testUpdatingOpenedJob() throws Exception {
+    public void testAddOpenedJobToGroupWithCalendar() throws Exception {
         TimeValue bucketSpan = TimeValue.timeValueMinutes(30);
         String groupName = "opened-calendar-job-group";
-        Job.Builder job = createJob("scheduled-events-open-update", bucketSpan);
+        Job.Builder job = createJob("scheduled-events-add-opened-job-to-group-with-calendar", bucketSpan);
 
         long startTime = 1514764800000L;
         final int bucketCount = 5;
@@ -280,7 +280,7 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
         String calendarId = "test-calendar-open-job-update";
 
         // Create a new calendar referencing groupName
-        putCalendar(calendarId, Collections.singletonList(groupName), "testUpdatingOpenedJob calendar");
+        putCalendar(calendarId, Collections.singletonList(groupName), "testAddOpenedJobToGroupWithCalendar calendar");
 
         // Put events in the calendar
         List<ScheduledEvent> events = new ArrayList<>();

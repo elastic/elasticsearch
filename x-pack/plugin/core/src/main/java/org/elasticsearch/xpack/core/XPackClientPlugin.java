@@ -456,8 +456,23 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 // ILM - Client - Lifecycle Actions
                 new NamedXContentRegistry.Entry(org.elasticsearch.protocol.xpack.indexlifecycle.LifecycleAction.class,
                     new ParseField(org.elasticsearch.protocol.xpack.indexlifecycle.AllocateAction.NAME),
-                        org.elasticsearch.protocol.xpack.indexlifecycle.AllocateAction::parse)
-        );
+                    org.elasticsearch.protocol.xpack.indexlifecycle.AllocateAction::parse),
+                new NamedXContentRegistry.Entry(org.elasticsearch.protocol.xpack.indexlifecycle.LifecycleAction.class,
+                    new ParseField(org.elasticsearch.protocol.xpack.indexlifecycle.DeleteAction.NAME),
+                    org.elasticsearch.protocol.xpack.indexlifecycle.DeleteAction::parse),
+                new NamedXContentRegistry.Entry(org.elasticsearch.protocol.xpack.indexlifecycle.LifecycleAction.class,
+                    new ParseField(org.elasticsearch.protocol.xpack.indexlifecycle.ForceMergeAction.NAME),
+                    org.elasticsearch.protocol.xpack.indexlifecycle.ForceMergeAction::parse),
+                new NamedXContentRegistry.Entry(org.elasticsearch.protocol.xpack.indexlifecycle.LifecycleAction.class,
+                    new ParseField(org.elasticsearch.protocol.xpack.indexlifecycle.ReadOnlyAction.NAME),
+                    org.elasticsearch.protocol.xpack.indexlifecycle.ReadOnlyAction::parse),
+                new NamedXContentRegistry.Entry(org.elasticsearch.protocol.xpack.indexlifecycle.LifecycleAction.class,
+                    new ParseField(org.elasticsearch.protocol.xpack.indexlifecycle.RolloverAction.NAME),
+                    org.elasticsearch.protocol.xpack.indexlifecycle.RolloverAction::parse),
+                new NamedXContentRegistry.Entry(org.elasticsearch.protocol.xpack.indexlifecycle.LifecycleAction.class,
+                    new ParseField(org.elasticsearch.protocol.xpack.indexlifecycle.ShrinkAction.NAME),
+                    org.elasticsearch.protocol.xpack.indexlifecycle.ShrinkAction::parse)
+            );
     }
 
     @Override

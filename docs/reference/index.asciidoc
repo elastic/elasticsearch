@@ -55,6 +55,8 @@ include::modules.asciidoc[]
 
 include::index-modules.asciidoc[]
 
+include::{xes-repo-dir}/ccr/index.asciidoc[]
+
 include::ingest.asciidoc[]
 
 include::sql/index.asciidoc[]

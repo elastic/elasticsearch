@@ -80,8 +80,6 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         }
         InternalAggregations subAggregations = new InternalAggregations(Collections.emptyList());
         BucketInfo bucketInfo = new BucketInfo(roundingInfos, randomIntBetween(0, roundingInfos.length - 1), subAggregations);
-
-
         return new InternalAutoDateHistogram(name, buckets, targetBuckets, bucketInfo, format, pipelineAggregators, metaData);
     }
 

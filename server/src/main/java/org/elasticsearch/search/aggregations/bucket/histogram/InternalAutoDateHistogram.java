@@ -480,7 +480,7 @@ public final class InternalAutoDateHistogram extends
                 currentKey = currentRounding.nextRoundingValue(currentKey);
             }
             currentRoundingIdx++;
-            } while (requiredBuckets > (targetBuckets * roundings[currentRoundingIdx-1].getMaximumInnerInterval())
+        } while (requiredBuckets > (targetBuckets * roundings[currentRoundingIdx - 1].getMaximumInnerInterval())
                 && currentRoundingIdx < roundings.length);
         // The loop will increase past the correct rounding index here so we
         // need to subtract one to get the rounding index we need

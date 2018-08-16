@@ -167,7 +167,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         DelegatingMapParams extendedParams =
-                new DelegatingMapParams(Collections.singletonMap(ToXContentParams.FOR_CLUSTER_STATE, "true"), params);
+                new DelegatingMapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"), params);
         mapValuesToXContent(JOBS_FIELD, jobs, builder, extendedParams);
         mapValuesToXContent(DATAFEEDS_FIELD, datafeeds, builder, extendedParams);
         return builder;

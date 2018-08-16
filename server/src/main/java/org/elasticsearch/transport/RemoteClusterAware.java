@@ -56,7 +56,7 @@ public abstract class RemoteClusterAware extends AbstractComponent {
             key, Collections.emptyList(),
             s -> {
                 // validate seed address
-                RemoteClusterAware.parseSeedAddress(s);
+                parsePort(s);
                 return s;
             },
             Setting.Property.NodeScope, Setting.Property.Dynamic
@@ -151,26 +151,34 @@ public abstract class RemoteClusterAware extends AbstractComponent {
     }
 
     protected static InetSocketAddress parseSeedAddress(String remoteHost) {
-        int portSeparator = remoteHost.lastIndexOf(':'); // in case we have a IPv6 address ie. [::1]:9300
-        if (portSeparator == -1 || portSeparator == remoteHost.length()) {
-            throw new IllegalArgumentException("remote hosts need to be configured as [host:port], found [" + remoteHost + "] instead");
-        }
-        String host = remoteHost.substring(0, portSeparator);
+        String host = remoteHost.substring(0, indexOfPortSeparator(remoteHost));
         InetAddress hostAddress;
         try {
             hostAddress = InetAddress.getByName(host);
         } catch (UnknownHostException e) {
             throw new IllegalArgumentException("unknown host [" + host + "]", e);
         }
+        return new InetSocketAddress(hostAddress, parsePort(remoteHost));
+    }
+
+    private static int parsePort(String remoteHost) {
         try {
-            int port = Integer.valueOf(remoteHost.substring(portSeparator + 1));
+            int port = Integer.valueOf(remoteHost.substring(indexOfPortSeparator(remoteHost) + 1));
             if (port <= 0) {
                 throw new IllegalArgumentException("port number must be > 0 but was: [" + port + "]");
             }
-            return new InetSocketAddress(hostAddress, port);
+            return port;
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("port must be a number", e);
         }
+    }
+
+    private static int indexOfPortSeparator(String remoteHost) {
+        int portSeparator = remoteHost.lastIndexOf(':'); // in case we have a IPv6 address ie. [::1]:9300
+        if (portSeparator == -1 || portSeparator == remoteHost.length()) {
+            throw new IllegalArgumentException("remote hosts need to be configured as [host:port], found [" + remoteHost + "] instead");
+        }
+        return portSeparator;
     }
 
     public static String buildRemoteIndexName(String clusterAlias, String indexName) {

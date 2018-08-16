@@ -19,22 +19,19 @@
 package org.elasticsearch.gradle.plugin
 
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
-import groovy.xml.XmlUtil
 import nebula.plugin.publishing.maven.MavenScmPlugin
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.NoticeTask
 import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.test.RunTask
 import org.gradle.api.Project
-import org.gradle.api.Task
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
+import org.gradle.api.publish.maven.tasks.GenerateMavenPom
 import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.bundling.Zip
+import org.gradle.jvm.tasks.Jar
 
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.StandardCopyOption
 import java.util.regex.Matcher
 import java.util.regex.Pattern
 /**
@@ -56,15 +53,8 @@ public class PluginBuildPlugin extends BuildPlugin {
 
             // set teh project description so it will be picked up by publishing
             project.description = project.pluginProperties.extension.description
-            if (project.pluginProperties.extension.hasClientJar) {
-                // for plugins which work with the transport client, we copy the jar
-                // file to a new name, enable and copy the nebula generated pom with a  +"-client" artifactId
-                project.plugins.apply(MavenScmPlugin.class)
-                addClientJarTask(project)
-            }
-            // while the jar isn't normally published, we still at least build a pom of deps
-            // in case it is published, for instance when other plugins extend this plugin
-            configureJarPom(project)
+
+            configurePublishing(project)
 
             project.integTestCluster.dependsOn(project.bundlePlugin)
             project.tasks.run.dependsOn(project.bundlePlugin)
@@ -92,6 +82,32 @@ public class PluginBuildPlugin extends BuildPlugin {
         createBundleTask(project)
         project.configurations.getByName('default').extendsFrom(project.configurations.getByName('runtime'))
         project.tasks.create('run', RunTask) // allow running ES with this plugin in the foreground of a build
+    }
+
+    private void configurePublishing(Project project) {
+        // Only configure publishing if applied externally
+        if (project.pluginProperties.extension.hasClientJar) {
+            project.plugins.apply(MavenScmPlugin.class)
+            // Only change Jar tasks, we don't want a -client zip so we can't change archivesBaseName
+            project.tasks.withType(Jar) {
+                baseName = baseName + "-client"
+            }
+            // always configure publishing for client jars
+            project.plugins.apply(MavenScmPlugin.class)
+            project.publishing.publications.nebula(MavenPublication).artifactId(
+                    project.pluginProperties.extension.name + "-client"
+            )
+            project.tasks.withType(GenerateMavenPom.class) { GenerateMavenPom generatePOMTask ->
+                generatePOMTask.ext.pomFileName = "${project.archivesBaseName}-client-${project.version}.pom"
+            }
+        } else {
+            project.plugins.withType(MavenPublishPlugin).whenPluginAdded {
+                project.publishing.publications.nebula(MavenPublication).artifactId(
+                        project.pluginProperties.extension.name
+                )
+            }
+
+        }
     }
 
     private static void configureDependencies(Project project) {
@@ -161,35 +177,6 @@ public class PluginBuildPlugin extends BuildPlugin {
     }
 
     /** Adds a task to move jar and associated files to a "-client" name. */
-    protected static void addClientJarTask(Project project) {
-        Task clientJar = project.tasks.create('clientJar')
-        clientJar.dependsOn(project.jar, project.tasks.generatePomFileForNebulaPublication, project.javadocJar, project.sourcesJar)
-        clientJar.doFirst {
-            Path jarFile = project.jar.outputs.files.singleFile.toPath()
-            String clientFileName = jarFile.fileName.toString().replace(project.version, "client-${project.version}")
-            Files.copy(jarFile, jarFile.resolveSibling(clientFileName), StandardCopyOption.REPLACE_EXISTING)
-
-            String clientPomFileName = clientFileName.replace('.jar', '.pom')
-            Node pom = new XmlParser()
-                    .parse(project.tasks.generatePomFileForNebulaPublication.outputs.files.singleFile)
-            pom.artifactId[0].value = project.name + "-client"
-            jarFile.resolveSibling(clientPomFileName).toFile().text = XmlUtil.serialize(pom)
-                    // Groovy has an odd way of formatting the XML, fix it up
-                    .replaceAll(/\n\s*\n/, "\n")
-                    .replace("\"UTF-8\"?><project", "\"UTF-8\"?>\n<project");
-
-            String sourcesFileName = jarFile.fileName.toString().replace('.jar', '-sources.jar')
-            String clientSourcesFileName = clientFileName.replace('.jar', '-sources.jar')
-            Files.copy(jarFile.resolveSibling(sourcesFileName), jarFile.resolveSibling(clientSourcesFileName),
-                    StandardCopyOption.REPLACE_EXISTING)
-
-            String javadocFileName = jarFile.fileName.toString().replace('.jar', '-javadoc.jar')
-            String clientJavadocFileName = clientFileName.replace('.jar', '-javadoc.jar')
-            Files.copy(jarFile.resolveSibling(javadocFileName), jarFile.resolveSibling(clientJavadocFileName),
-                    StandardCopyOption.REPLACE_EXISTING)
-        }
-        project.assemble.dependsOn(clientJar)
-    }
 
     static final Pattern GIT_PATTERN = Pattern.compile(/git@([^:]+):([^\.]+)\.git/)
 
@@ -216,17 +203,6 @@ public class PluginBuildPlugin extends BuildPlugin {
     }
 
     /** Configure the pom for the main jar of this plugin */
-    protected static void configureJarPom(Project project) {
-        project.plugins.withType(MavenPublishPlugin).whenPluginAdded {
-            project.publishing {
-                publications {
-                    nebula(MavenPublication) {
-                        artifactId project.pluginProperties.extension.name
-                    }
-                }
-            }
-        }
-    }
 
     protected void addNoticeGeneration(Project project) {
         File licenseFile = project.pluginProperties.extension.licenseFile

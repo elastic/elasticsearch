@@ -21,6 +21,7 @@ package org.elasticsearch.gradle.precommit
 import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
 import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
 import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
+import org.gradle.api.JavaVersion
 import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.file.FileCollection
@@ -101,6 +102,9 @@ class PrecommitTasks {
                 signaturesURLs = project.forbiddenApis.signaturesURLs +
                     [ getClass().getResource('/forbidden/es-server-signatures.txt') ]
             }
+            targetCompatibility = project.runtimeJavaVersion.compareTo(JavaVersion.VERSION_1_9) >= 0 ?
+                    project.runtimeJavaVersion.getMajorVersion() :
+                    "1.${project.runtimeJavaVersion.getMajorVersion()}"
         }
         Task forbiddenApis = project.tasks.findByName('forbiddenApis')
         forbiddenApis.group = "" // clear group, so this does not show up under verification tasks

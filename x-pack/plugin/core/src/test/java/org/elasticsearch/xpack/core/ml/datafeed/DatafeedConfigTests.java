@@ -100,7 +100,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
             if (aggHistogramInterval == null) {
                 builder.setFrequency(TimeValue.timeValueSeconds(randomIntBetween(1, 1_000_000)));
             } else {
-                builder.setFrequency(TimeValue.timeValueMillis(randomIntBetween(1, 5) * aggHistogramInterval));
+                builder.setFrequency(TimeValue.timeValueSeconds(randomIntBetween(1, 5) * aggHistogramInterval));
             }
         }
         if (randomBoolean()) {

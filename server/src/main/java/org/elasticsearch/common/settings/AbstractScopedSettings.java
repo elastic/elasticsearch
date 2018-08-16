@@ -20,7 +20,7 @@
 package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.search.spell.LevensteinDistance;
+import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.collect.Tuple;
@@ -368,7 +368,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     void validate(final String key, final Settings settings, final boolean validateDependencies, final boolean validateInternalIndex) {
         Setting<?> setting = getRaw(key);
         if (setting == null) {
-            LevensteinDistance ld = new LevensteinDistance();
+            LevenshteinDistance ld = new LevenshteinDistance();
             List<Tuple<Float, String>> scoredKeys = new ArrayList<>();
             for (String k : this.keySettings.keySet()) {
                 float distance = ld.getDistance(key, k);

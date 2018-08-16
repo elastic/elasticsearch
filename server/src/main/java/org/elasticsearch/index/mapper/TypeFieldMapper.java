@@ -25,7 +25,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.index.TermContext;
+import org.apache.lucene.index.TermStates;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -216,7 +216,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
                 for (BytesRef type : types) {
                     if (uniqueTypes.add(type)) {
                         Term term = new Term(CONTENT_TYPE, type);
-                        TermContext context = TermContext.build(reader.getContext(), term);
+                        TermStates context = TermStates.build(reader.getContext(), term, true);
                         if (context.docFreq() == 0) {
                             // this _type is not present in the reader
                             continue;

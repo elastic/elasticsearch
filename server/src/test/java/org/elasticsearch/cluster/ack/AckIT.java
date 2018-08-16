@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.ack;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -50,6 +51,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ClusterScope(minNumDataNodes = 2)
+@AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/32767")
 public class AckIT extends ESIntegTestCase {
 
     @Override

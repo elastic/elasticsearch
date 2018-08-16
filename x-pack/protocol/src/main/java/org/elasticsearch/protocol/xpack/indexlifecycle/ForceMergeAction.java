@@ -28,7 +28,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Objects;
 
-public class ForceMergeAction extends LifecycleAction implements ToXContentObject {
+public class ForceMergeAction implements LifecycleAction, ToXContentObject {
     public static final String NAME = "forcemerge";
     private static final ParseField MAX_NUM_SEGMENTS_FIELD = new ParseField("max_num_segments");
 
@@ -58,6 +58,11 @@ public class ForceMergeAction extends LifecycleAction implements ToXContentObjec
 
     public int getMaxNumSegments() {
         return maxNumSegments;
+    }
+
+    @Override
+    public String getName() {
+        return NAME;
     }
 
     @Override

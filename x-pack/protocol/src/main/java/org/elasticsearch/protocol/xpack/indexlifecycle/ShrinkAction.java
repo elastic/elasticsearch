@@ -28,7 +28,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Objects;
 
-public class ShrinkAction extends LifecycleAction implements ToXContentObject {
+public class ShrinkAction implements LifecycleAction, ToXContentObject {
     public static final String NAME = "shrink";
     private static final ParseField NUMBER_OF_SHARDS_FIELD = new ParseField("number_of_shards");
 
@@ -54,6 +54,11 @@ public class ShrinkAction extends LifecycleAction implements ToXContentObject {
 
     int getNumberOfShards() {
         return numberOfShards;
+    }
+
+    @Override
+    public String getName() {
+        return NAME;
     }
 
     @Override

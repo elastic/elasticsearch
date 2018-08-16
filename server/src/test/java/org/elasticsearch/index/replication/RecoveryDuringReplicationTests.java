@@ -661,6 +661,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                     shards.flush();
                 }
             }
+            shards.refresh("test");
             AtomicBoolean isDone = new AtomicBoolean();
             Thread[] threads = new Thread[numberOfReplicas];
             for (int i = 0; i < threads.length; i++) {
@@ -670,7 +671,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                     long hitClosedExceptions = 0;
                     while (isDone.get() == false) {
                         try {
-                            Set<String> docIds = getShardDocUIDs(replica, true);
+                            Set<String> docIds = getShardDocUIDs(replica, false);
                             assertThat(ackedDocIds, everyItem(isIn(docIds)));
                             assertThat(replica.getLocalCheckpoint(), greaterThanOrEqualTo(initDocs - 1L));
                         } catch (AlreadyClosedException e) {

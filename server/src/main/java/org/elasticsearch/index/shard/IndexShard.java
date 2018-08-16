@@ -196,11 +196,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     protected volatile IndexShardState state;
     protected volatile long pendingPrimaryTerm; // see JavaDocs for getPendingPrimaryTerm
     protected volatile long operationPrimaryTerm;
-    protected final AtomicReference<Engine> currentEngineReference = new AtomicReference<>();
-
-    private final AtomicReference<Engine> resettingEngineReference = new AtomicReference<>();
-    // avoid losing acknowledged writes, only activate the resetting engine when its local_checkpoint at least this guard.
-    private final AtomicLong minRequiredCheckpointForResettingEngine = new AtomicLong(-1);
+    private final EngineHolder engineHolder = new EngineHolder();
 
     final EngineFactory engineFactory;
 
@@ -439,7 +435,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 // active primaries.
                 throw new IndexShardRelocatedException(shardId(), "Shard is marked as relocated, cannot safely move to state " + newRouting.state());
             }
-            assert newRouting.active() == false || state == IndexShardState.STARTED || state == IndexShardState.CLOSED || isResetting() :
+            assert newRouting.active() == false || state == IndexShardState.STARTED || state == IndexShardState.CLOSED :
                 "routing is active, but local shard state isn't. routing: " + newRouting + ", local state: " + state;
             persistMetadata(path, indexSettings, newRouting, currentRouting, logger);
             final CountDownLatch shardStateUpdated = new CountDownLatch(1);
@@ -501,8 +497,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                  * numbers. To ensure that this is not the case, we restore the state of the local checkpoint tracker by
                                  * replaying the translog and marking any operations there are completed.
                                  */
-                                if (isResetting()) {
-                                    completeResettingEngineWithLocalHistory();
+                                if (isEngineResetting()) {
+                                    completePendingEngineWithLocalHistory();
                                 }
                                 final Engine engine = getEngine();
                                 engine.restoreLocalCheckpointFromTranslog();
@@ -1192,15 +1188,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             try {
                 changeState(IndexShardState.CLOSED, reason);
             } finally {
-                final Engine engine = this.currentEngineReference.getAndSet(null);
+                final Engine engine = getEngineOrNull();
                 try {
-                    if (engine != null && flushEngine && isResetting() == false) {
+                    if (engine != null && flushEngine && isEngineResetting() == false) {
                         engine.flushAndClose();
                     }
                 } finally {
                     // playing safe here and close the engine even if the above succeeds - close can be called multiple times
                     // Also closing refreshListeners to prevent us from accumulating any more listeners
-                    IOUtils.close(engine, resettingEngineReference.getAndSet(null), refreshListeners);
+                    IOUtils.close(engine, engineHolder, refreshListeners);
                     indexShardOperationPermits.close();
                 }
             }
@@ -1233,7 +1229,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             throw new IndexShardNotRecoveringException(shardId, state);
         }
         recoveryState.setStage(RecoveryState.Stage.INDEX);
-        assert currentEngineReference.get() == null;
+        assert getEngineOrNull() == null : "engine is open already";
     }
 
     public Engine.Result applyTranslogOperation(Translog.Operation operation, Engine.Operation.Origin origin) throws IOException {
@@ -1269,7 +1265,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     // package-private for testing
     int runTranslogRecovery(Engine engine, Translog.Snapshot snapshot) throws IOException {
-        if (isResetting() == false) {
+        if (isEngineResetting() == false) {
             recoveryState.getTranslog().totalOperations(snapshot.totalOperations());
             recoveryState.getTranslog().totalOperationsOnStart(snapshot.totalOperations());
         }
@@ -1291,7 +1287,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
 
                 opsRecovered++;
-                if (isResetting() == false) {
+                if (isEngineResetting() == false) {
                     recoveryState.getTranslog().incrementRecoveredOperations();
                 }
             } catch (Exception e) {
@@ -1350,13 +1346,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
         final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
         replicationTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "read from translog checkpoint");
-
-        assertMaxUnsafeAutoIdInCommit();
-
-        final long minRetainedTranslogGen = Translog.readMinTranslogGeneration(translogConfig.getTranslogPath(), translogUUID);
-        store.trimUnsafeCommits(globalCheckpoint, minRetainedTranslogGen, config.getIndexSettings().getIndexVersionCreated());
-
-        createNewEngine(config);
+        synchronized (mutex) {
+            engineHolder.activateNewEngine(createNewEngine(config));
+        }
         verifyNotClosed();
         // We set active because we are now writing operations to the engine; this way, if we go idle after some time and become inactive,
         // we still give sync'd flush a chance to run:
@@ -1396,8 +1388,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 throw new IndexShardNotRecoveringException(shardId, state);
             }
             assert refreshListeners.pendingCount() == 0 : "we can't restart with pending listeners";
-            final Engine engine = this.currentEngineReference.getAndSet(null);
-            IOUtils.close(engine);
+            IOUtils.close(engineHolder);
             recoveryState().setStage(RecoveryState.Stage.INIT);
         }
     }
@@ -1440,9 +1431,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public void readAllowed() throws IllegalIndexShardStateException {
         IndexShardState state = this.state; // one time volatile read
-        if (state == IndexShardState.RECOVERING && resettingEngineReference.get() != null) {
-            return;
-        }
         if (readAllowedStates.contains(state) == false) {
             throw new IllegalIndexShardStateException(shardId, state, "operations only allowed when shard state is one of " + readAllowedStates.toString());
         }
@@ -1457,7 +1445,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         IndexShardState state = this.state; // one time volatile read
 
         if (origin.isRecovery()) {
-            if (state != IndexShardState.RECOVERING) {
+            if (state != IndexShardState.RECOVERING && isEngineResetting() == false) {
                 throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when recovering, origin [" + origin + "]");
             }
         } else {
@@ -1471,15 +1459,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when shard state is one of " + writeAllowedStates + ", origin [" + origin + "]");
             }
         }
-    }
-
-    private boolean isResetting() {
-        return state == IndexShardState.RECOVERING && resettingEngineReference.get() != null;
-    }
-
-    // for testing
-    final Engine getResettingEngine() {
-        return resettingEngineReference.get();
     }
 
     private boolean assertPrimaryMode() {
@@ -2007,7 +1986,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * closed.
      */
     protected Engine getEngineOrNull() {
-        return this.currentEngineReference.get();
+        return engineHolder.getActiveEngineOrNull();
     }
 
     public void startRecovery(RecoveryState recoveryState, PeerRecoveryTargetService recoveryTargetService,
@@ -2146,31 +2125,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    private Engine createNewEngine(EngineConfig config) {
-        synchronized (mutex) {
-            if (state == IndexShardState.CLOSED) {
-                throw new AlreadyClosedException(shardId + " can't create engine - shard is closed");
-            }
-            assert this.currentEngineReference.get() == null;
-            Engine engine = newEngine(config);
-            onNewEngine(engine); // call this before we pass the memory barrier otherwise actions that happen
-            // inside the callback are not visible. This one enforces happens-before
-            this.currentEngineReference.set(engine);
+    private Engine createNewEngine(EngineConfig config) throws IOException {
+        assert Thread.holdsLock(mutex);
+        if (state == IndexShardState.CLOSED) {
+            throw new AlreadyClosedException(shardId + " can't create engine - shard is closed");
         }
-
-        // time elapses after the engine is created above (pulling the config settings) until we set the engine reference, during which
-        // settings changes could possibly have happened, so here we forcefully push any config changes to the new engine:
-        Engine engine = getEngineOrNull();
-
-        // engine could perhaps be null if we were e.g. concurrently closed:
-        if (engine != null) {
-            engine.onSettingsChanged();
-        }
+        final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
+        final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
+        final long minRetainedTranslogGen = Translog.readMinTranslogGeneration(translogConfig.getTranslogPath(), translogUUID);
+        store.trimUnsafeCommits(globalCheckpoint, minRetainedTranslogGen, config.getIndexSettings().getIndexVersionCreated());
+        assertMaxUnsafeAutoIdInCommit();
+        final Engine engine = engineFactory.newReadWriteEngine(config);
+        onNewEngine(engine);
+        engine.onSettingsChanged();
         return engine;
-    }
-
-    protected Engine newEngine(EngineConfig config) {
-        return engineFactory.newReadWriteEngine(config);
     }
 
     private static void persistMetadata(
@@ -2302,20 +2270,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                 } else {
                                     localCheckpoint = currentGlobalCheckpoint;
                                 }
-                                final Engine resettingEngine = resettingEngineReference.getAndSet(null);
-                                if (resettingEngine != null) {
-                                    IOUtils.close(resettingEngine);
+                                if (isEngineResetting()) {
+                                    engineHolder.closePendingEngine();
                                 } else {
-                                    getEngine().resetLocalCheckpoint(globalCheckpoint);
+                                    getEngine().resetLocalCheckpoint(localCheckpoint);
                                     getEngine().rollTranslogGeneration();
                                     sync();
                                 }
-                                logger.info(
-                                    "detected new primary with primary term [{}], resetting local checkpoint from [{}] to [{}]",
-                                    opPrimaryTerm,
-                                    getLocalCheckpoint(),
-                                    localCheckpoint);
-                                resetEngineUpToLocalCheckpoint(currentGlobalCheckpoint);
+                                logger.info("detected new primary with primary term [{}], resetting local checkpoint from [{}] to [{}]",
+                                    opPrimaryTerm, getLocalCheckpoint(), localCheckpoint);
+                                final Engine pendingEngine = maybeResetEngineToSafeCommit();
+                                if (pendingEngine != null) {
+                                    pendingEngine.recoverFromTranslog(localCheckpoint);
+                                }
                         });
                     }
                 }
@@ -2662,58 +2629,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    final boolean canResetEngine() {
-        // TODO: do not reset the following shard
-        return indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_4_0);
-    }
-
-    private void resetEngineUpToLocalCheckpoint(long recoverUpToSeqNo) throws IOException {
-        synchronized (mutex) {
-            assert resettingEngineReference.get() == null : "shard is being reset already";
-            final Engine currentEngine = getEngine();
-            final long globalCheckpoint = getLastSyncedGlobalCheckpoint();
-            final long currentMaxSeqNo = currentEngine.getSeqNoStats(globalCheckpoint).getMaxSeqNo();
-            // Do not reset the current engine if it does not have any stale operations
-            // or the primary is on an old version which does not send the max_seqno from the primary during resync.
-            // we need max_seqno from the primary to activate the resetting engine when its history aligned with primary's.
-            if (currentMaxSeqNo == globalCheckpoint || canResetEngine() == false) {
-                return;
-            }
-            final String translogUUID = currentEngine.commitStats().getUserData().get(Translog.TRANSLOG_UUID_KEY);
-            IOUtils.close(currentEngineReference.getAndSet(new SearchOnlyEngine(currentEngine)));
-            final long minRetainedTranslogGen = Translog.readMinTranslogGeneration(translogConfig.getTranslogPath(), translogUUID);
-            store.trimUnsafeCommits(globalCheckpoint, minRetainedTranslogGen, indexSettings.getIndexVersionCreated());
-            final EngineConfig config = newEngineConfig();
-            config.setEnableGcDeletes(true);
-            final Engine resettingEngine = newEngine(config);
-            onNewEngine(resettingEngine);
-            verifyNotClosed();
-            // the resetting engine will be activated only if its local_checkpoint at least this guard.
-            minRequiredCheckpointForResettingEngine.set(currentMaxSeqNo);
-            resettingEngineReference.set(resettingEngine);
-            changeState(IndexShardState.RECOVERING, "reset engine from=" + currentMaxSeqNo + " to=" + globalCheckpoint);
-            // TODO: We can transfer docs from the last commit to the safe commit or use multiple threads here.
-            resettingEngine.recoverFromTranslog(recoverUpToSeqNo);
-            active.set(true);
-        }
-    }
-
-    private void maybeActivateResettingEngine() throws IOException {
-        synchronized (mutex) {
-            final Engine resettingEngine = resettingEngineReference.get();
-            if (resettingEngine != null && resettingEngine.getLocalCheckpoint() >= minRequiredCheckpointForResettingEngine.get()) {
-                final Engine newEngine = resettingEngineReference.getAndSet(null);
-                final Engine currentEngine = currentEngineReference.getAndSet(newEngine);
-                IOUtils.close(currentEngine);
-                changeState(IndexShardState.STARTED, "engine was reset");
-            }
-        }
-    }
-
     public Engine.Result applyResyncOperation(Translog.Operation operation) throws IOException {
-        final Engine resettingEngine = resettingEngineReference.get();
-        final Engine targetEngine = resettingEngine != null ? resettingEngine : getEngine();
-        return applyTranslogOperation(targetEngine, operation, Engine.Operation.Origin.PEER_RECOVERY);
+        return applyTranslogOperation(engineHolder.getEngineForResync(), operation, Engine.Operation.Origin.PEER_RECOVERY);
     }
 
     /**
@@ -2723,24 +2640,136 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param maxSeqNoFromPrimary the maximum sequence number from the newly promoted primary
      */
     public void afterApplyResyncOperationsBulk(long maxSeqNoFromPrimary) throws IOException {
-        final Engine resettingEngine = resettingEngineReference.get();
-        final Engine targetEngine = resettingEngine != null ? resettingEngine : getEngine();
         if (maxSeqNoFromPrimary != SequenceNumbers.UNASSIGNED_SEQ_NO) {
-            targetEngine.trimOperationsFromTranslog(operationPrimaryTerm, maxSeqNoFromPrimary);
-            // adjust the requirement for the resetting engine, so that we can activate when its history aligned with the primary.
-            minRequiredCheckpointForResettingEngine.set(Math.min(minRequiredCheckpointForResettingEngine.get(), maxSeqNoFromPrimary));
+            engineHolder.getEngineForResync().trimOperationsFromTranslog(operationPrimaryTerm, maxSeqNoFromPrimary);
+            engineHolder.adjustMinRequiredCheckpoint(maxSeqNoFromPrimary);
         }
-        maybeActivateResettingEngine();
+        engineHolder.maybeActivatePendingEngine();
     }
 
-    private void completeResettingEngineWithLocalHistory() throws IOException {
+    final boolean isEngineResetting() {
+        return engineHolder.hasPendingEngine();
+    }
+
+    final boolean canResetEngine() {
+        // TODO: do not reset the following shard
+        // other options to enable rollback on older indices:
+        // 1. send max_seq_no from the primary via replication requests
+        // 2. pass channel version when acquiring an index shard permit
+        return indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_4_0);
+    }
+
+    private Engine maybeResetEngineToSafeCommit() throws IOException {
         synchronized (mutex) {
-            assert isResetting() : "engine is not being reset";
-            IOUtils.close(resettingEngineReference.getAndSet(null));
-            resetEngineUpToLocalCheckpoint(Long.MAX_VALUE);
-            minRequiredCheckpointForResettingEngine.set(getGlobalCheckpoint());
-            maybeActivateResettingEngine();
-            assert isResetting() == false : "engine was not reset with local history";
+            assert isEngineResetting() == false : "engine is being reset already";
+            final long lastSyncedGlobalCheckpoint = getLastSyncedGlobalCheckpoint();
+            final long currentMaxSeqNo = getEngine().getSeqNoStats(lastSyncedGlobalCheckpoint).getMaxSeqNo();
+            // Do not reset the current engine if it does not have any stale operations
+            // or the primary is on an old version which does not send the max_seq_no from the primary during resync.
+            // we need max_seq_no from the primary to activate the resetting engine when its history aligned with primary's.
+            if (currentMaxSeqNo == lastSyncedGlobalCheckpoint || canResetEngine() == false) {
+                return null;
+            } else {
+                engineHolder.makeActiveEngineSearchOnly();
+                final Engine pendingEngine = createNewEngine(newEngineConfig());
+                engineHolder.setPendingEngine(pendingEngine, currentMaxSeqNo);
+                active.set(true);
+                return pendingEngine;
+            }
+        }
+    }
+
+    private void completePendingEngineWithLocalHistory() throws IOException {
+        final Engine pendingEngine;
+        synchronized (mutex) {
+            assert isEngineResetting() : "engine is not being reset";
+            engineHolder.closePendingEngine();
+            pendingEngine = maybeResetEngineToSafeCommit();
+        }
+        if (pendingEngine != null) {
+            pendingEngine.recoverFromTranslog(Long.MAX_VALUE);
+            engineHolder.adjustMinRequiredCheckpoint(-1);
+            engineHolder.maybeActivatePendingEngine();
+        }
+        assert isEngineResetting() == false : "engine was reset with local history";
+    }
+
+    /**
+     * An {@link EngineHolder} manages one or two engine references and its transition during primary-replica resync.
+     */
+    static final class EngineHolder implements Closeable {
+        private volatile Engine activeEngine; // allow to read without synchronization
+        private Engine pendingEngine;
+        // avoid losing acknowledged writes, only activate the pending engine when its local_checkpoint at least this guard.
+        private long minRequiredCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
+
+        synchronized void activateNewEngine(Engine newEngine) {
+            assert activeEngine == null : "engine is activated already";
+            assert pendingEngine == null : "engine is being reset";
+            this.activeEngine = newEngine;
+        }
+
+        Engine getActiveEngineOrNull() {
+            return activeEngine;
+        }
+
+        synchronized void makeActiveEngineSearchOnly() throws IOException {
+            assert activeEngine != null : "engine is not activated yet";
+            if ((this.activeEngine instanceof SearchOnlyEngine) == false) {
+                final Engine current = this.activeEngine;
+                this.activeEngine = new SearchOnlyEngine(this.activeEngine);
+                IOUtils.close(current);
+            }
+        }
+
+        synchronized Engine getEngineForResync() {
+            final Engine target = pendingEngine != null ? pendingEngine : activeEngine;
+            if (target == null) {
+                throw new AlreadyClosedException("engine is closed");
+            }
+            return target;
+        }
+
+        synchronized boolean hasPendingEngine() {
+            return pendingEngine != null;
+        }
+
+        synchronized void setPendingEngine(Engine pendingEngine, long minRequiredCheckpoint) {
+            assert this.activeEngine != null : "engine is not activated";
+            assert this.pendingEngine == null : "engine is being reset already";
+            this.pendingEngine = pendingEngine;
+            this.minRequiredCheckpoint = minRequiredCheckpoint;
+        }
+
+        synchronized void adjustMinRequiredCheckpoint(long newMinRequiredCheckpoint) {
+            this.minRequiredCheckpoint = Math.min(minRequiredCheckpoint, newMinRequiredCheckpoint);
+        }
+
+        synchronized void closePendingEngine() throws IOException {
+            final Engine closing = this.pendingEngine;
+            this.pendingEngine = null;
+            IOUtils.close(closing);
+        }
+
+        synchronized void maybeActivatePendingEngine() throws IOException {
+            if (pendingEngine != null && pendingEngine.getLocalCheckpoint() >= minRequiredCheckpoint) {
+                // make sure that all acknowledged writes are visible
+                pendingEngine.refresh("rollback");
+                final Engine closing = this.activeEngine;
+                this.activeEngine = this.pendingEngine;
+                this.pendingEngine = null;
+                IOUtils.close(closing);
+            }
+        }
+
+        @Override
+        public void close() throws IOException {
+            try {
+                IOUtils.close(activeEngine, pendingEngine);
+            } finally {
+                activeEngine = null;
+                pendingEngine = null;
+            }
         }
     }
 }

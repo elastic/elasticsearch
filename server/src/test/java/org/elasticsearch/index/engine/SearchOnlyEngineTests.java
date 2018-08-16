@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class SearchOnlyEngineTests extends EngineTestCase {
     
-    public void testReadOnlyEngine() throws Exception {
+    public void testSearchOnlyEngine() throws Exception {
         IOUtils.close(engine, store);
         Engine lockedDownEngine = null;
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
@@ -75,7 +75,7 @@ public class SearchOnlyEngineTests extends EngineTestCase {
                 // the locked down engine should still point to the previous commit
                 assertThat(lockedDownEngine.getLocalCheckpoint(), equalTo(lastSeqNoStats.getLocalCheckpoint()));
                 assertThat(lockedDownEngine.getSeqNoStats(globalCheckpoint.get()).getMaxSeqNo(), equalTo(lastSeqNoStats.getMaxSeqNo()));
-                assertThat(getDocIds(lockedDownEngine, randomBoolean()), equalTo(lastDocIds));
+                assertThat(getDocIds(lockedDownEngine, false), equalTo(lastDocIds));
             }
             // Close and reopen the main engine
             trimUnsafeCommits(config);
@@ -84,7 +84,7 @@ public class SearchOnlyEngineTests extends EngineTestCase {
                 // the locked down engine should still point to the previous commit
                 assertThat(lockedDownEngine.getLocalCheckpoint(), equalTo(lastSeqNoStats.getLocalCheckpoint()));
                 assertThat(lockedDownEngine.getSeqNoStats(globalCheckpoint.get()).getMaxSeqNo(), equalTo(lastSeqNoStats.getMaxSeqNo()));
-                assertThat(getDocIds(lockedDownEngine, randomBoolean()), equalTo(lastDocIds));
+                assertThat(getDocIds(lockedDownEngine, false), equalTo(lastDocIds));
             }
         } finally {
             IOUtils.close(lockedDownEngine);

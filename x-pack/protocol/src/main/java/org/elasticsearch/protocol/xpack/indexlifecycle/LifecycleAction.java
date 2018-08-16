@@ -21,8 +21,7 @@ package org.elasticsearch.protocol.xpack.indexlifecycle;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 
 /**
- * empty interface to categorize client-side lifecycle actions
- * for the {@link NamedXContentRegistry}
+ * Parent class for the client-side ilm actions for the {@link NamedXContentRegistry}
  */
-public interface LifecycleAction {
+public class LifecycleAction {
 }

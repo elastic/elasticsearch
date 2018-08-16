@@ -211,9 +211,6 @@ public final class PainlessLookupBuilder {
     public PainlessLookupBuilder() {
         canonicalClassNamesToClasses = new HashMap<>();
         classesToPainlessClassBuilders = new HashMap<>();
-
-        canonicalClassNamesToClasses.put(DEF_CLASS_NAME, def.class);
-        classesToPainlessClassBuilders.put(def.class, new PainlessClassBuilder());
     }
 
     private Class<?> canonicalTypeNameToType(String canonicalTypeName) {
@@ -225,7 +222,7 @@ public final class PainlessLookupBuilder {
             type = type.getComponentType();
         }
 
-        return classesToPainlessClassBuilders.containsKey(type);
+        return type == def.class || classesToPainlessClassBuilders.containsKey(type);
     }
 
     public void addPainlessClass(ClassLoader classLoader, String javaClassName, boolean importClassName) {

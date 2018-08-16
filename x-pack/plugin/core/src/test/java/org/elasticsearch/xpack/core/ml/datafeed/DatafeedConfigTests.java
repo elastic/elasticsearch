@@ -8,13 +8,17 @@ package org.elasticsearch.xpack.core.ml.datafeed;
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -36,17 +40,22 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig.Mode;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.TimeZone;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
@@ -63,6 +72,10 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
     }
 
     public static DatafeedConfig createRandomizedDatafeedConfig(String jobId, long bucketSpanMillis) {
+        return createRandomizedDatafeedConfigBuilder(jobId, bucketSpanMillis).build();
+    }
+
+    private static DatafeedConfig.Builder createRandomizedDatafeedConfigBuilder(String jobId, long bucketSpanMillis) {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(randomValidDatafeedId(), jobId);
         builder.setIndices(randomStringList(1, 10));
         builder.setTypes(randomStringList(0, 10));
@@ -100,7 +113,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
             if (aggHistogramInterval == null) {
                 builder.setFrequency(TimeValue.timeValueSeconds(randomIntBetween(1, 1_000_000)));
             } else {
-                builder.setFrequency(TimeValue.timeValueMillis(randomIntBetween(1, 5) * aggHistogramInterval));
+                builder.setFrequency(TimeValue.timeValueSeconds(randomIntBetween(1, 5) * aggHistogramInterval));
             }
         }
         if (randomBoolean()) {
@@ -109,7 +122,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         if (randomBoolean()) {
             builder.setChunkingConfig(ChunkingConfigTests.createRandomizedChunk());
         }
-        return builder.build();
+        return builder;
     }
 
     @Override
@@ -165,6 +178,33 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, FUTURE_DATAFEED);
         // Unlike the config version of this test, the metadata parser should tolerate the unknown future field
         assertNotNull(DatafeedConfig.LENIENT_PARSER.apply(parser, null).build());
+    }
+
+    public void testToXContentForInternalStorage() throws IOException {
+        DatafeedConfig.Builder builder = createRandomizedDatafeedConfigBuilder("foo", 300);
+
+        // headers are only persisted to cluster state
+        Map<String, String> headers = new HashMap<>();
+        headers.put("header-name", "header-value");
+        builder.setHeaders(headers);
+        DatafeedConfig config = builder.build();
+
+        ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"));
+
+        BytesReference forClusterstateXContent = XContentHelper.toXContent(config, XContentType.JSON, params, false);
+        XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, forClusterstateXContent.streamInput());
+
+        DatafeedConfig parsedConfig = DatafeedConfig.LENIENT_PARSER.apply(parser, null).build();
+        assertThat(parsedConfig.getHeaders(), hasEntry("header-name", "header-value"));
+
+        // headers are not written without the FOR_INTERNAL_STORAGE param
+        BytesReference nonClusterstateXContent = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
+        parser = XContentFactory.xContent(XContentType.JSON)
+                .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, nonClusterstateXContent.streamInput());
+
+        parsedConfig = DatafeedConfig.LENIENT_PARSER.apply(parser, null).build();
+        assertThat(parsedConfig.getHeaders().entrySet(), hasSize(0));
     }
 
     public void testCopyConstructor() {

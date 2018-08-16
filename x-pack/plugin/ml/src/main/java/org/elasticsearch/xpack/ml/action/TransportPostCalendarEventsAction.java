@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.ml.action.PostCalendarEventsAction;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 
@@ -69,7 +70,7 @@ public class TransportPostCalendarEventsAction extends HandledTransportAction<Po
                         IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE);
                         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                             indexRequest.source(event.toXContent(builder,
-                                    new ToXContent.MapParams(Collections.singletonMap(MlMetaIndex.INCLUDE_TYPE_KEY,
+                                    new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.INCLUDE_TYPE,
                                             "true"))));
                         } catch (IOException e) {
                             throw new IllegalStateException("Failed to serialise event", e);

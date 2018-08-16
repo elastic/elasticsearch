@@ -138,7 +138,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                 MockAction action = new MockAction();
                 actions.put(action.getWriteableName(), action);
             }
-            String phaseName = randomFrom(TimeseriesLifecycleType.VALID_PHASES);
+            String phaseName = randomAlphaOfLength(10);
             phases.put(phaseName, new Phase(phaseName, after, actions));
         }
         return new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases);

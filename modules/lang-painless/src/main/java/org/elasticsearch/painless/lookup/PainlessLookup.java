@@ -50,10 +50,10 @@ public final class PainlessLookup {
         return canonicalClassNamesToClasses.containsKey(canonicalClassName);
     }
 
-    public Class<?> canonicalTypeNameToType(String painlessType) {
-        Objects.requireNonNull(painlessType);
+    public Class<?> canonicalTypeNameToType(String canonicalTypeName) {
+        Objects.requireNonNull(canonicalTypeName);
 
-        return PainlessLookupUtility.canonicalTypeNameToType(painlessType, canonicalClassNamesToClasses);
+        return PainlessLookupUtility.canonicalTypeNameToType(canonicalTypeName, canonicalClassNamesToClasses);
     }
 
     public Set<Class<?>> getClasses() {
@@ -64,10 +64,10 @@ public final class PainlessLookup {
         return classesToPainlessClasses.get(targetClass);
     }
 
-    public PainlessConstructor lookupPainlessConstructor(String targetClassName, int constructorArity) {
-        Objects.requireNonNull(targetClassName);
+    public PainlessConstructor lookupPainlessConstructor(String targetCanonicalClassName, int constructorArity) {
+        Objects.requireNonNull(targetCanonicalClassName);
 
-        Class<?> targetClass = canonicalTypeNameToType(targetClassName);
+        Class<?> targetClass = canonicalTypeNameToType(targetCanonicalClassName);
 
         if (targetClass == null) {
             return null;
@@ -95,10 +95,10 @@ public final class PainlessLookup {
         return painlessConstructor;
     }
 
-    public PainlessMethod lookupPainlessMethod(String targetClassName, boolean isStatic, String methodName, int methodArity) {
-        Objects.requireNonNull(targetClassName);
+    public PainlessMethod lookupPainlessMethod(String targetCanonicalClassName, boolean isStatic, String methodName, int methodArity) {
+        Objects.requireNonNull(targetCanonicalClassName);
 
-        Class<?> targetClass = canonicalTypeNameToType(targetClassName);
+        Class<?> targetClass = canonicalTypeNameToType(targetCanonicalClassName);
 
         if (targetClass == null) {
             return null;
@@ -127,10 +127,10 @@ public final class PainlessLookup {
                 targetPainlessClass.methods.get(painlessMethodKey);
     }
 
-    public PainlessField lookupPainlessField(String targetClassName, boolean isStatic, String fieldName) {
-        Objects.requireNonNull(targetClassName);
+    public PainlessField lookupPainlessField(String targetCanonicalClassName, boolean isStatic, String fieldName) {
+        Objects.requireNonNull(targetCanonicalClassName);
 
-        Class<?> targetClass = canonicalTypeNameToType(targetClassName);
+        Class<?> targetClass = canonicalTypeNameToType(targetCanonicalClassName);
 
         if (targetClass == null) {
             return null;
@@ -199,9 +199,7 @@ public final class PainlessLookup {
         return lookupRuntimePainlessObject(originalTargetClass, objectLookup);
     }
 
-    private <T> T lookupRuntimePainlessObject(
-            Class<?> originalTargetClass, Function<PainlessClass, T> objectLookup) {
-
+    private <T> T lookupRuntimePainlessObject(Class<?> originalTargetClass, Function<PainlessClass, T> objectLookup) {
         Class<?> currentTargetClass = originalTargetClass;
 
         while (currentTargetClass != null) {

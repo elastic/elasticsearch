@@ -35,8 +35,8 @@ public class AnalyzerCasterTests extends ESTestCase {
         }
 
         PainlessCast cast = AnalyzerCaster.getLegalCast(location, actual, expected, true, false);
-        assertEquals(actual, cast.from);
-        assertEquals(expected, cast.to);
+        assertEquals(actual, cast.originalType);
+        assertEquals(expected, cast.targetType);
 
         if (mustBeExplicit) {
             ClassCastException error = expectThrows(ClassCastException.class,
@@ -44,8 +44,8 @@ public class AnalyzerCasterTests extends ESTestCase {
             assertTrue(error.getMessage().startsWith("Cannot cast"));
         } else {
             cast = AnalyzerCaster.getLegalCast(location, actual, expected, false, false);
-            assertEquals(actual, cast.from);
-            assertEquals(expected, cast.to);
+            assertEquals(actual, cast.originalType);
+            assertEquals(expected, cast.targetType);
         }
     }
 

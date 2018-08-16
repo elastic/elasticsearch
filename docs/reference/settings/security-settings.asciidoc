@@ -1065,8 +1065,8 @@ For a Kerberos realm, the `type` must be set to `kerberos`. In addition to the
 the following settings:
 
 `keytab.path`:: Specifies the path to the Kerberos keytab file that contains the 
-service principal used by this {es} node. It expects the keytab file to be present in `ES_PATH_CONF`
-and have read permissions. Required.
+service principal used by this {es} node. This must be a location within the
+{es} configuration directory and the file must have read permissions. Required.
 
 `remove_realm_name`:: Set to `true` to remove the realm part of principal names. 
 Principal names in Kerberos have the form `user/instance@REALM`. If this option 

@@ -55,19 +55,6 @@ https://docs.oracle.com/javase/10/security/kerberos-requirements1.htm[Java GSS K
 
 To configure a Kerberos realm in {es}:
 
-. Enable SSL/TLS for HTTP. 
-+
---
-
-If your {es} cluster is operating in production mode, then you must
-configure the HTTP interface to use SSL/TLS before you can enable
-Kerberos authentication.
-
-For more information, see
-{ref}/configuring-tls.html#tls-http[Encrypting HTTP Client Communications].
-
---
-
 . Configure the JVM to find the Kerberos configuration file. 
 +
 --
@@ -100,7 +87,7 @@ implementation. For example, some tools that create keytabs are `ktpass.exe` on
 Windows and `kadmin` for MIT Kerberos. 
 --
 
-. Put the keytab file in the `ES_PATH_CONF`.
+. Put the keytab file in the {es} configuration directory.
 +
 --
 Make sure that this keytab file has read permissions. This file contains

@@ -9,8 +9,8 @@ import org.apache.http.HttpStatus;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest.OpType;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -51,7 +51,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.joda.time.DateTimeZone.UTC;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -70,7 +69,9 @@ public class HistoryStoreTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
         when(client.settings()).thenReturn(settings);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(settings));
-        historyStore = new HistoryStore(settings, client);
+        BulkProcessor.Listener listener = mock(BulkProcessor.Listener.class);
+        BulkProcessor bulkProcessor = BulkProcessor.builder(client, listener).setConcurrentRequests(0).setBulkActions(1).build();
+        historyStore = new HistoryStore(settings, bulkProcessor);
     }
 
     public void testPut() throws Exception {
@@ -94,10 +95,10 @@ public class HistoryStoreTests extends ESTestCase {
                 listener.onFailure(new ElasticsearchException("test issue"));
             }
             return null;
-        }).when(client).execute(eq(BulkAction.INSTANCE), any(), any());
+        }).when(client).bulk(any(), any());
 
         historyStore.put(watchRecord);
-        verify(client).execute(eq(BulkAction.INSTANCE), any(), any());
+        verify(client).bulk(any(), any());
     }
 
     public void testIndexNameGeneration() {
@@ -156,7 +157,7 @@ public class HistoryStoreTests extends ESTestCase {
             IndexResponse indexResponse = mock(IndexResponse.class);
             listener.onResponse(new BulkResponse(new BulkItemResponse[]{ new BulkItemResponse(1, OpType.CREATE, indexResponse) }, 1));
             return null;
-        }).when(client).execute(eq(BulkAction.INSTANCE), requestCaptor.capture(), any());
+        }).when(client).bulk(requestCaptor.capture(), any());
 
         if (randomBoolean()) {
             historyStore.put(watchRecord);

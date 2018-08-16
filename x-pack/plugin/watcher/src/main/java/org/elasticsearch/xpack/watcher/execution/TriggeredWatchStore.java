@@ -23,10 +23,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -41,31 +38,17 @@ import org.elasticsearch.xpack.core.watcher.execution.Wid;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.watch.WatchStoreUtils;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 
-public class TriggeredWatchStore extends AbstractComponent implements Closeable {
-
-    private static final Setting<Integer> SETTING_BULK_ACTIONS =
-        Setting.intSetting("xpack.watcher.triggered_watch_store.bulk.actions", 1, 1, 10000, NodeScope);
-    private static final Setting<Integer> SETTING_BULK_CONCURRENT_REQUESTS =
-        Setting.intSetting("xpack.watcher.triggered_watch_store.bulk.concurrent_requests", 0, 0, 20, NodeScope);
-    private static final Setting<TimeValue> SETTING_BULK_FLUSH_INTERVAL =
-        Setting.timeSetting("xpack.watcher.triggered_watch_store.bulk.flush_interval", TimeValue.timeValueSeconds(1), NodeScope);
-    private static final Setting<ByteSizeValue> SETTING_BULK_SIZE =
-        Setting.byteSizeSetting("xpack.watcher.triggered_watch_store.bulk.size", new ByteSizeValue(1, ByteSizeUnit.MB),
-            new ByteSizeValue(1, ByteSizeUnit.MB), new ByteSizeValue(10, ByteSizeUnit.MB), NodeScope);
+public class TriggeredWatchStore extends AbstractComponent {
 
     private final int scrollSize;
     private final Client client;
@@ -76,7 +59,7 @@ public class TriggeredWatchStore extends AbstractComponent implements Closeable 
     private final TimeValue defaultSearchTimeout;
     private final BulkProcessor bulkProcessor;
 
-    public TriggeredWatchStore(Settings settings, Client client, TriggeredWatch.Parser triggeredWatchParser) {
+    public TriggeredWatchStore(Settings settings, Client client, TriggeredWatch.Parser triggeredWatchParser, BulkProcessor bulkProcessor) {
         super(settings);
         this.scrollSize = settings.getAsInt("xpack.watcher.execution.scroll.size", 1000);
         this.client = ClientHelper.clientWithOrigin(client, WATCHER_ORIGIN);
@@ -84,40 +67,7 @@ public class TriggeredWatchStore extends AbstractComponent implements Closeable 
         this.defaultBulkTimeout = settings.getAsTime("xpack.watcher.internal.ops.bulk.default_timeout", TimeValue.timeValueSeconds(120));
         this.defaultSearchTimeout = settings.getAsTime("xpack.watcher.internal.ops.search.default_timeout", TimeValue.timeValueSeconds(30));
         this.triggeredWatchParser = triggeredWatchParser;
-        this.bulkProcessor = BulkProcessor.builder(this.client, new BulkProcessor.Listener() {
-            @Override
-            public void beforeBulk(long executionId, BulkRequest request) {
-            }
-
-            @Override
-            public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
-                if (response.hasFailures()) {
-                    logger.error("triggered watches could not be deleted [{}]", response.buildFailureMessage());
-                }
-            }
-
-            @Override
-            public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
-                logger.error("error deleting triggered watches", failure);
-            }
-        })
-            .setFlushInterval(SETTING_BULK_FLUSH_INTERVAL.get(settings))
-            .setBulkActions(SETTING_BULK_ACTIONS.get(settings))
-            .setBulkSize(SETTING_BULK_SIZE.get(settings))
-            .setConcurrentRequests(SETTING_BULK_CONCURRENT_REQUESTS.get(settings))
-            .build();
-    }
-
-    @Override
-    public void close() throws IOException {
-        bulkProcessor.flush();
-        try {
-            if (bulkProcessor.awaitClose(10, TimeUnit.SECONDS) == false) {
-                logger.warn("triggered watch store failed to delete triggered watches after waiting for 10s");
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
+        this.bulkProcessor = bulkProcessor;
     }
 
     public void putAll(final List<TriggeredWatch> triggeredWatches, final ActionListener<BulkResponse> listener) throws IOException {
@@ -236,9 +186,5 @@ public class TriggeredWatchStore extends AbstractComponent implements Closeable 
         IndexMetaData indexMetaData = WatchStoreUtils.getConcreteIndex(TriggeredWatchStoreField.INDEX_NAME, state.metaData());
         return indexMetaData == null || (indexMetaData.getState() == IndexMetaData.State.OPEN &&
             state.routingTable().index(indexMetaData.getIndex()).allPrimaryShardsActive());
-    }
-
-    public static List<Setting<?>> getSettings() {
-        return Arrays.asList(SETTING_BULK_ACTIONS, SETTING_BULK_CONCURRENT_REQUESTS, SETTING_BULK_FLUSH_INTERVAL, SETTING_BULK_SIZE);
     }
 }

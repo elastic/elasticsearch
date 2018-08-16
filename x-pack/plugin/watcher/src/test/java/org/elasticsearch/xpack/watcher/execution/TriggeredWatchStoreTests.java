@@ -10,6 +10,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchAction;
@@ -102,7 +103,9 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         when(client.settings()).thenReturn(settings);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         parser = mock(TriggeredWatch.Parser.class);
-        triggeredWatchStore = new TriggeredWatchStore(settings, client, parser);
+        BulkProcessor.Listener listener = mock(BulkProcessor.Listener.class);
+        BulkProcessor bulkProcessor = BulkProcessor.builder(client, listener).setConcurrentRequests(0).setBulkActions(1).build();
+        triggeredWatchStore = new TriggeredWatchStore(settings, client, parser, bulkProcessor);
     }
 
     public void testFindTriggeredWatchesEmptyCollection() {

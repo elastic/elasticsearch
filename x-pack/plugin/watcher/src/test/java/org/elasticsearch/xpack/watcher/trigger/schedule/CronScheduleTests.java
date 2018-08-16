@@ -59,7 +59,7 @@ public class CronScheduleTests extends ScheduleTestCase {
     }
 
     public void testMultipleCronsNextScheduledAfter() {
-        CronSchedule schedule = new CronSchedule("0 5 9 1 1 ? 2019", "0 5 9 1 1 ? 2020");
+        CronSchedule schedule = new CronSchedule("0 5 9 1 1 ? 2019", "0 5 9 1 1 ? 2020", "0 5 9 1 1 ? 2017");
         ZonedDateTime start2019 = ZonedDateTime.of(2019, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
         ZonedDateTime start2020 = ZonedDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
         long firstSchedule = schedule.nextScheduledTimeAfter(0, start2019.toInstant().toEpochMilli());

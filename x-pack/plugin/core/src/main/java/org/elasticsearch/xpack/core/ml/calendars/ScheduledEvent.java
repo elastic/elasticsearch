@@ -15,7 +15,6 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.Operator;
 import org.elasticsearch.xpack.core.ml.job.config.RuleAction;
@@ -23,6 +22,7 @@ import org.elasticsearch.xpack.core.ml.job.config.RuleCondition;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.core.ml.utils.time.TimeUtils;
 
 import java.io.IOException;
@@ -170,7 +170,7 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
         if (eventId != null) {
             builder.field(EVENT_ID.getPreferredName(), eventId);
         }
-        if (params.paramAsBoolean(MlMetaIndex.INCLUDE_TYPE_KEY, false)) {
+        if (params.paramAsBoolean(ToXContentParams.INCLUDE_TYPE, false)) {
             builder.field(TYPE.getPreferredName(), SCHEDULED_EVENT_TYPE);
         }
         builder.endObject();

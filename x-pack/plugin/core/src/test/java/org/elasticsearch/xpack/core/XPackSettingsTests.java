@@ -6,8 +6,6 @@
 package org.elasticsearch.xpack.core;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.XPackSettings;
-
 import javax.crypto.Cipher;
 
 import static org.hamcrest.Matchers.hasItem;

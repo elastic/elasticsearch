@@ -105,12 +105,13 @@
   you index a document, it is indexed first on the primary shard, then
   on all <<glossary-replica-shard,replicas>> of the primary shard.
   +
-  By default, an <<glossary-index,index>> has 5 primary shards. You can
-  specify fewer or more primary shards to scale the number of
-  <<glossary-document,documents>> that your index can handle.
+  By default, an <<glossary-index,index>> has one primary shard. You can specify
+  more primary shards to scale the number of <<glossary-document,documents>>
+  that your index can handle.
   +
-  You cannot change the number of primary shards in an index, once the
-  index is created.
+  You cannot change the number of primary shards in an index, once the index is
+  index is created. However, an index can be split into a new index using the
+  <<indices-split-index, split API>>.
   +
   See also <<glossary-routing,routing>>
 

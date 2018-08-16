@@ -206,8 +206,15 @@ public class Querier {
         protected void handleResponse(SearchResponse response, ActionListener<SchemaRowSet> listener) {
             // there are some results
             if (response.getAggregations().asList().size() > 0) {
-                CompositeAggregationCursor.updateCompositeAfterKey(response, request.source());
 
+                // retry
+                if (CompositeAggregationCursor.shouldRetryDueToEmptyPage(response)) {
+                    CompositeAggregationCursor.updateCompositeAfterKey(response, request.source());
+                    client.search(request, this);
+                    return;
+                }
+
+                CompositeAggregationCursor.updateCompositeAfterKey(response, request.source());
                 byte[] nextSearch = null;
                 try {
                     nextSearch = CompositeAggregationCursor.serializeQuery(request.source());
@@ -334,12 +341,12 @@ public class Querier {
         private HitExtractor createExtractor(FieldExtraction ref) {
             if (ref instanceof SearchHitFieldRef) {
                 SearchHitFieldRef f = (SearchHitFieldRef) ref;
-                return new FieldHitExtractor(f.name(), f.useDocValue(), f.hitName());
+                return new FieldHitExtractor(f.name(), f.getDataType(), f.useDocValue(), f.hitName());
             }
 
             if (ref instanceof ScriptFieldRef) {
                 ScriptFieldRef f = (ScriptFieldRef) ref;
-                return new FieldHitExtractor(f.name(), true);
+                return new FieldHitExtractor(f.name(), null, true);
             }
 
             if (ref instanceof ComputedRef) {

@@ -42,7 +42,7 @@ import org.elasticsearch.search.suggest.SuggestBuilder;
 import java.util.Arrays;
 import java.util.List;
 
-public class NoopSearchRequestBuilder extends ActionRequestBuilder<SearchRequest, SearchResponse, NoopSearchRequestBuilder> {
+public class NoopSearchRequestBuilder extends ActionRequestBuilder<SearchRequest, SearchResponse> {
 
     public NoopSearchRequestBuilder(ElasticsearchClient client, NoopSearchAction action) {
         super(client, action, new SearchRequest());
@@ -329,7 +329,7 @@ public class NoopSearchRequestBuilder extends ActionRequestBuilder<SearchRequest
      *
      * @see org.elasticsearch.search.sort.SortBuilders
      */
-    public NoopSearchRequestBuilder addSort(SortBuilder sort) {
+    public NoopSearchRequestBuilder addSort(SortBuilder<?> sort) {
         sourceBuilder().sort(sort);
         return this;
     }
@@ -415,7 +415,7 @@ public class NoopSearchRequestBuilder extends ActionRequestBuilder<SearchRequest
      * @param window   rescore window
      * @return this for chaining
      */
-    public NoopSearchRequestBuilder setRescorer(RescorerBuilder rescorer, int window) {
+    public NoopSearchRequestBuilder setRescorer(RescorerBuilder<?> rescorer, int window) {
         sourceBuilder().clearRescorers();
         return addRescorer(rescorer.windowSize(window));
     }

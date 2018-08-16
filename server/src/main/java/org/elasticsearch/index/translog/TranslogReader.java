@@ -21,6 +21,8 @@ package org.elasticsearch.index.translog;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.common.io.Channels;
+import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 
 import java.io.Closeable;
 import java.io.EOFException;
@@ -28,7 +30,10 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.elasticsearch.index.translog.Translog.getCommitCheckpointFileName;
 
 /**
  * an immutable translog filereader
@@ -68,6 +73,39 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
             final FileChannel channel, final Path path, final Checkpoint checkpoint, final String translogUUID) throws IOException {
         final TranslogHeader header = TranslogHeader.read(translogUUID, path, channel);
         return new TranslogReader(checkpoint, channel, path, header);
+    }
+
+    /**
+     * Closes current reader and creates new one with new checkoint and same file channel
+     */
+    TranslogReader closeIntoTrimmedReader(long aboveSeqNo, ChannelFactory channelFactory) throws IOException {
+        if (closed.compareAndSet(false, true)) {
+            Closeable toCloseOnFailure = channel;
+            final TranslogReader newReader;
+            try {
+                if (aboveSeqNo < checkpoint.trimmedAboveSeqNo
+                    || aboveSeqNo < checkpoint.maxSeqNo && checkpoint.trimmedAboveSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                    final Path checkpointFile = path.getParent().resolve(getCommitCheckpointFileName(checkpoint.generation));
+                    final Checkpoint newCheckpoint = new Checkpoint(checkpoint.offset, checkpoint.numOps,
+                        checkpoint.generation, checkpoint.minSeqNo, checkpoint.maxSeqNo,
+                        checkpoint.globalCheckpoint, checkpoint.minTranslogGeneration, aboveSeqNo);
+                    Checkpoint.write(channelFactory, checkpointFile, newCheckpoint, StandardOpenOption.WRITE);
+
+                    IOUtils.fsync(checkpointFile, false);
+                    IOUtils.fsync(checkpointFile.getParent(), true);
+
+                    newReader = new TranslogReader(newCheckpoint, channel, path, header);
+                } else {
+                    newReader = new TranslogReader(checkpoint, channel, path, header);
+                }
+                toCloseOnFailure = null;
+                return newReader;
+            } finally {
+                IOUtils.close(toCloseOnFailure);
+            }
+        } else {
+            throw new AlreadyClosedException(toString() + " is already closed");
+        }
     }
 
     public long sizeInBytes() {

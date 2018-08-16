@@ -76,15 +76,15 @@ public class TransportFieldCapabilitiesIndexAction extends TransportSingleShardA
         MapperService mapperService = indicesService.indexServiceSafe(shardId.getIndex()).mapperService();
         Set<String> fieldNames = new HashSet<>();
         for (String field : request.fields()) {
-            fieldNames.addAll(mapperService.simpleMatchToIndexNames(field));
+            fieldNames.addAll(mapperService.simpleMatchToFullName(field));
         }
         Predicate<String> fieldPredicate = indicesService.getFieldFilter().apply(shardId.getIndexName());
         Map<String, FieldCapabilities> responseMap = new HashMap<>();
         for (String field : fieldNames) {
             MappedFieldType ft = mapperService.fullName(field);
             if (ft != null) {
-                FieldCapabilities fieldCap = new FieldCapabilities(field, ft.typeName(), ft.isSearchable(), ft.isAggregatable());
-                if (indicesService.isMetaDataField(field) || fieldPredicate.test(field)) {
+                if (indicesService.isMetaDataField(field) || fieldPredicate.test(ft.name())) {
+                    FieldCapabilities fieldCap = new FieldCapabilities(field, ft.typeName(), ft.isSearchable(), ft.isAggregatable());
                     responseMap.put(field, fieldCap);
                 }
             }

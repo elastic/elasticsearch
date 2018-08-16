@@ -50,7 +50,6 @@ import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.elasticsearch.xpack.sql.type.UnsupportedEsField;
-import org.joda.time.DateTimeZone;
 
 import java.util.ArrayList;
 import java.util.Arrays;

@@ -95,12 +95,13 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
         Set<String> aliases = new HashSet<>();
         for (AliasActions action : actions) {
             String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request.indicesOptions(), action.indices());
-            Collections.addAll(aliases, action.aliases());
+            Collections.addAll(aliases, action.getOriginalAliases());
             for (String index : concreteIndices) {
                 switch (action.actionType()) {
                 case ADD:
                     for (String alias : concreteAliases(action, state.metaData(), index)) {
-                        finalActions.add(new AliasAction.Add(index, alias, action.filter(), action.indexRouting(), action.searchRouting()));
+                        finalActions.add(new AliasAction.Add(index, alias, action.filter(), action.indexRouting(),
+                            action.searchRouting(), action.writeIndex()));
                     }
                     break;
                 case REMOVE:
@@ -141,7 +142,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
         if (action.expandAliasesWildcards()) {
             //for DELETE we expand the aliases
             String[] indexAsArray = {concreteIndex};
-            ImmutableOpenMap<String, List<AliasMetaData>> aliasMetaData = metaData.findAliases(action.aliases(), indexAsArray);
+            ImmutableOpenMap<String, List<AliasMetaData>> aliasMetaData = metaData.findAliases(action, indexAsArray);
             List<String> finalAliases = new ArrayList<>();
             for (ObjectCursor<List<AliasMetaData>> curAliases : aliasMetaData.values()) {
                 for (AliasMetaData aliasMeta: curAliases.value) {

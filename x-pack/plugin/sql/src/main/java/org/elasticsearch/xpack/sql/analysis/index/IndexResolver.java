@@ -253,7 +253,7 @@ public class IndexResolver {
             // need the same mapping across all resolutions
             if (!merged.get().mapping().equals(resolution.get().mapping())) {
                 return IndexResolution.invalid(
-                        "[" + indexWildcard + "] points to indices [" + resolution.get().name() + "] "
+                        "[" + indexWildcard + "] points to indices [" + merged.get().name() + "] "
                                 + "and [" + resolution.get().name() + "] which have different mappings. "
                                 + "When using multiple indices, the mappings must be identical.");
             }

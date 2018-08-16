@@ -11,11 +11,10 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -23,7 +22,7 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.JobDataDeleter;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.JobManager;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 
 import java.util.Collections;
@@ -33,26 +32,27 @@ public class TransportDeleteModelSnapshotAction extends HandledTransportAction<D
         DeleteModelSnapshotAction.Response> {
 
     private final Client client;
-    private final JobProvider jobProvider;
+    private final JobResultsProvider jobResultsProvider;
     private final ClusterService clusterService;
     private final Auditor auditor;
 
     @Inject
-    public TransportDeleteModelSnapshotAction(Settings settings, TransportService transportService, ThreadPool threadPool,
-                                              ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                              JobProvider jobProvider, ClusterService clusterService, Client client, Auditor auditor) {
-        super(settings, DeleteModelSnapshotAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                DeleteModelSnapshotAction.Request::new);
+    public TransportDeleteModelSnapshotAction(Settings settings, TransportService transportService, ActionFilters actionFilters,
+                                              JobResultsProvider jobResultsProvider, ClusterService clusterService, Client client,
+                                              Auditor auditor) {
+        super(settings, DeleteModelSnapshotAction.NAME, transportService, actionFilters,
+              DeleteModelSnapshotAction.Request::new);
         this.client = client;
-        this.jobProvider = jobProvider;
+        this.jobResultsProvider = jobResultsProvider;
         this.clusterService = clusterService;
         this.auditor = auditor;
     }
 
     @Override
-    protected void doExecute(DeleteModelSnapshotAction.Request request, ActionListener<DeleteModelSnapshotAction.Response> listener) {
+    protected void doExecute(Task task, DeleteModelSnapshotAction.Request request,
+                             ActionListener<DeleteModelSnapshotAction.Response> listener) {
         // Verify the snapshot exists
-        jobProvider.modelSnapshots(
+        jobResultsProvider.modelSnapshots(
                 request.getJobId(), 0, 1, null, null, null, true, request.getSnapshotId(),
                 page -> {
                     List<ModelSnapshot> deleteCandidates = page.results();

@@ -20,7 +20,6 @@
 package org.elasticsearch.index.translog;
 
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.store.OutputStreamDataOutput;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -92,6 +91,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         this.minSeqNo = initialCheckpoint.minSeqNo;
         assert initialCheckpoint.maxSeqNo == SequenceNumbers.NO_OPS_PERFORMED : initialCheckpoint.maxSeqNo;
         this.maxSeqNo = initialCheckpoint.maxSeqNo;
+        assert initialCheckpoint.trimmedAboveSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO : initialCheckpoint.trimmedAboveSeqNo;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.seenSequenceNumbers = Assertions.ENABLED ? new HashMap<>() : null;
     }
@@ -200,16 +200,40 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         } else if (seenSequenceNumbers.containsKey(seqNo)) {
             final Tuple<BytesReference, Exception> previous = seenSequenceNumbers.get(seqNo);
             if (previous.v1().equals(data) == false) {
-                Translog.Operation newOp = Translog.readOperation(new BufferedChecksumStreamInput(data.streamInput()));
-                Translog.Operation prvOp = Translog.readOperation(new BufferedChecksumStreamInput(previous.v1().streamInput()));
-                throw new AssertionError(
-                    "seqNo [" + seqNo + "] was processed twice in generation [" + generation + "], with different data. " +
-                        "prvOp [" + prvOp + "], newOp [" + newOp + "]", previous.v2());
+                Translog.Operation newOp = Translog.readOperation(
+                        new BufferedChecksumStreamInput(data.streamInput(), "assertion"));
+                Translog.Operation prvOp = Translog.readOperation(
+                        new BufferedChecksumStreamInput(previous.v1().streamInput(), "assertion"));
+                if (newOp.equals(prvOp) == false) {
+                    throw new AssertionError(
+                        "seqNo [" + seqNo + "] was processed twice in generation [" + generation + "], with different data. " +
+                            "prvOp [" + prvOp + "], newOp [" + newOp + "]", previous.v2());
+                }
             }
         } else {
             seenSequenceNumbers.put(seqNo,
                 new Tuple<>(new BytesArray(data.toBytesRef(), true), new RuntimeException("stack capture previous op")));
         }
+        return true;
+    }
+
+    synchronized boolean assertNoSeqAbove(long belowTerm, long aboveSeqNo) {
+        seenSequenceNumbers.entrySet().stream().filter(e -> e.getKey().longValue() > aboveSeqNo)
+            .forEach(e -> {
+                final Translog.Operation op;
+                try {
+                    op = Translog.readOperation(
+                            new BufferedChecksumStreamInput(e.getValue().v1().streamInput(), "assertion"));
+                } catch (IOException ex) {
+                    throw new RuntimeException(ex);
+                }
+                long seqNo = op.seqNo();
+                long primaryTerm = op.primaryTerm();
+                if (primaryTerm < belowTerm) {
+                    throw new AssertionError("current should not have any operations with seq#:primaryTerm ["
+                        + seqNo + ":" + primaryTerm + "] > " + aboveSeqNo + ":" + belowTerm);
+                }
+            });
         return true;
     }
 
@@ -241,7 +265,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     @Override
     synchronized Checkpoint getCheckpoint() {
         return new Checkpoint(totalOffset, operationCounter, generation, minSeqNo, maxSeqNo,
-            globalCheckpointSupplier.getAsLong(), minTranslogGenerationSupplier.getAsLong());
+            globalCheckpointSupplier.getAsLong(), minTranslogGenerationSupplier.getAsLong(),
+            SequenceNumbers.UNASSIGNED_SEQ_NO);
     }
 
     @Override

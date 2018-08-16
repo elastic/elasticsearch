@@ -40,6 +40,7 @@ index:
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 You can use the full Elasticsearch {ref}/query-dsl.html[Query DSL] to perform
 more sophisticated searches. For example, the following `http` input retrieves 
@@ -58,6 +59,7 @@ all documents that contain `event` in the `category` field:
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 ==== Calling Elasticsearch APIs
 
@@ -82,6 +84,7 @@ Stats] API and enables the `human` attribute:
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 <1> Enabling this attribute returns the `bytes` values in the response in human
     readable format.
 
@@ -110,6 +113,7 @@ a username and password to access `myservice`:
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 You can also pass in service-specific API keys and other information
 through the `params` attribute. For example, the following `http` 
@@ -131,6 +135,7 @@ http://openweathermap.org/appid[OpenWeatherMap] service:
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 ==== Using Templates
 
@@ -153,6 +158,7 @@ and restrict the results to documents added within the last five minutes:
     }
   }
 --------------------------------------------------
+// NOTCONSOLE
 
 ==== Accessing the HTTP Response
 

@@ -173,7 +173,7 @@ public class QueryContainer {
     // reference methods
     //
     private FieldExtraction topHitFieldRef(FieldAttribute fieldAttr) {
-        return new SearchHitFieldRef(aliasName(fieldAttr), fieldAttr.field().hasDocValues());
+        return new SearchHitFieldRef(aliasName(fieldAttr), fieldAttr.field().getDataType(), fieldAttr.field().hasDocValues());
     }
 
     private Tuple<QueryContainer, FieldExtraction> nestedHitFieldRef(FieldAttribute attr) {
@@ -184,7 +184,8 @@ public class QueryContainer {
         Query q = rewriteToContainNestedField(query, attr.location(),
                 attr.nestedParent().name(), name, attr.field().hasDocValues());
 
-        SearchHitFieldRef nestedFieldRef = new SearchHitFieldRef(name, attr.field().hasDocValues(), attr.parent().name());
+        SearchHitFieldRef nestedFieldRef = new SearchHitFieldRef(name, attr.field().getDataType(),
+                attr.field().hasDocValues(), attr.parent().name());
         nestedRefs.add(nestedFieldRef);
 
         return new Tuple<>(new QueryContainer(q, aggs, columns, aliases, pseudoFunctions, scalarFunctions, sort, limit), nestedFieldRef);

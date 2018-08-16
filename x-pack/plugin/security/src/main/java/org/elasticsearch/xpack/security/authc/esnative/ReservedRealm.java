@@ -14,8 +14,8 @@ import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
@@ -29,10 +29,10 @@ import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.LogstashSystemUser;
-import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.SecurityLifecycleService;
+import org.elasticsearch.protocol.xpack.security.User;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore.ReservedUserInfo;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -49,10 +49,6 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
     public static final String TYPE = "reserved";
 
     private final ReservedUserInfo bootstrapUserInfo;
-    static final char[] EMPTY_PASSWORD_HASH = Hasher.BCRYPT.hash(new SecureString("".toCharArray()));
-    static final ReservedUserInfo DISABLED_DEFAULT_USER_INFO = new ReservedUserInfo(EMPTY_PASSWORD_HASH, false, true);
-    static final ReservedUserInfo ENABLED_DEFAULT_USER_INFO = new ReservedUserInfo(EMPTY_PASSWORD_HASH, true, true);
-
     public static final Setting<Boolean> ACCEPT_DEFAULT_PASSWORD_SETTING = Setting.boolSetting(
             SecurityField.setting("authc.accept_default_password"), true, Setting.Property.NodeScope, Setting.Property.Filtered,
             Setting.Property.Deprecated);
@@ -63,19 +59,26 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
     private final AnonymousUser anonymousUser;
     private final boolean realmEnabled;
     private final boolean anonymousEnabled;
-    private final SecurityLifecycleService securityLifecycleService;
+    private final SecurityIndexManager securityIndex;
+    private final Hasher reservedRealmHasher;
+    private final ReservedUserInfo disabledDefaultUserInfo;
+    private final ReservedUserInfo enabledDefaultUserInfo;
 
     public ReservedRealm(Environment env, Settings settings, NativeUsersStore nativeUsersStore, AnonymousUser anonymousUser,
-                         SecurityLifecycleService securityLifecycleService, ThreadContext threadContext) {
-        super(TYPE, new RealmConfig(TYPE, Settings.EMPTY, settings, env, threadContext));
+                         SecurityIndexManager securityIndex, ThreadPool threadPool) {
+        super(TYPE, new RealmConfig(TYPE, Settings.EMPTY, settings, env, threadPool.getThreadContext()), threadPool);
         this.nativeUsersStore = nativeUsersStore;
         this.realmEnabled = XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(settings);
         this.anonymousUser = anonymousUser;
         this.anonymousEnabled = AnonymousUser.isAnonymousEnabled(settings);
-        this.securityLifecycleService = securityLifecycleService;
-        final char[] hash = BOOTSTRAP_ELASTIC_PASSWORD.get(settings).length() == 0 ? EMPTY_PASSWORD_HASH :
-                Hasher.BCRYPT.hash(BOOTSTRAP_ELASTIC_PASSWORD.get(settings));
-        bootstrapUserInfo = new ReservedUserInfo(hash, true, hash == EMPTY_PASSWORD_HASH);
+        this.securityIndex = securityIndex;
+        this.reservedRealmHasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings));
+        final char[] emptyPasswordHash = reservedRealmHasher.hash(new SecureString("".toCharArray()));
+        disabledDefaultUserInfo = new ReservedUserInfo(emptyPasswordHash, false, true);
+        enabledDefaultUserInfo = new ReservedUserInfo(emptyPasswordHash, true, true);
+        final char[] hash = BOOTSTRAP_ELASTIC_PASSWORD.get(settings).length() == 0 ? emptyPasswordHash :
+            reservedRealmHasher.hash(BOOTSTRAP_ELASTIC_PASSWORD.get(settings));
+        bootstrapUserInfo = new ReservedUserInfo(hash, true, hash == emptyPasswordHash);
     }
 
     @Override
@@ -91,15 +94,15 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                     try {
                         if (userInfo.hasEmptyPassword) {
                             result = AuthenticationResult.terminate("failed to authenticate user [" + token.principal() + "]", null);
-                        } else if (Hasher.BCRYPT.verify(token.credentials(), userInfo.passwordHash)) {
+                        } else if (userInfo.verifyPassword(token.credentials())) {
                             final User user = getUser(token.principal(), userInfo);
                             result = AuthenticationResult.success(user);
                         } else {
                             result = AuthenticationResult.terminate("failed to authenticate user [" + token.principal() + "]", null);
                         }
                     } finally {
-                        assert userInfo.passwordHash != DISABLED_DEFAULT_USER_INFO.passwordHash : "default user info must be cloned";
-                        assert userInfo.passwordHash != ENABLED_DEFAULT_USER_INFO.passwordHash : "default user info must be cloned";
+                        assert userInfo.passwordHash != disabledDefaultUserInfo.passwordHash : "default user info must be cloned";
+                        assert userInfo.passwordHash != enabledDefaultUserInfo.passwordHash : "default user info must be cloned";
                         assert userInfo.passwordHash != bootstrapUserInfo.passwordHash : "bootstrap user info must be cloned";
                         Arrays.fill(userInfo.passwordHash, (char) 0);
                     }
@@ -190,8 +193,8 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
     private void getUserInfo(final String username, ActionListener<ReservedUserInfo> listener) {
         if (userIsDefinedForCurrentSecurityMapping(username) == false) {
             logger.debug("Marking user [{}] as disabled because the security mapping is not at the required version", username);
-            listener.onResponse(DISABLED_DEFAULT_USER_INFO.deepClone());
-        } else if (securityLifecycleService.isSecurityIndexExisting() == false) {
+            listener.onResponse(disabledDefaultUserInfo.deepClone());
+        } else if (securityIndex.indexExists() == false) {
             listener.onResponse(getDefaultUserInfo(username));
         } else {
             nativeUsersStore.getReservedUserInfo(username, ActionListener.wrap((userInfo) -> {
@@ -212,13 +215,13 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         if (ElasticUser.NAME.equals(username)) {
             return bootstrapUserInfo.deepClone();
         } else {
-            return ENABLED_DEFAULT_USER_INFO.deepClone();
+            return enabledDefaultUserInfo.deepClone();
         }
     }
 
     private boolean userIsDefinedForCurrentSecurityMapping(String username) {
         final Version requiredVersion = getDefinedVersion(username);
-        return securityLifecycleService.checkSecurityMappingVersion(requiredVersion::onOrBefore);
+        return securityIndex.checkMappingVersion(requiredVersion::onOrBefore);
     }
 
     private Version getDefinedVersion(String username) {

@@ -45,8 +45,8 @@ returns a response, as an `ActiveShardCount`
 --------------------------------------------------
 include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[shrink-index-request-settings]
 --------------------------------------------------
-<1> The settings to apply to the target index, which include the number of
-shards to create for it
+<1> The number of shards on the target of the shrink index request
+<2> Remove the allocation requirement copied from the source index
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

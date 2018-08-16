@@ -35,7 +35,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -186,7 +185,6 @@ public class ObjectParserTests extends ESTestCase {
     }
 
     public void testExceptions() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"test\" : \"foo\"}");
         class TestStruct {
             public void setTest(int test) {
             }
@@ -195,20 +193,16 @@ public class ObjectParserTests extends ESTestCase {
         TestStruct s = new TestStruct();
         objectParser.declareInt(TestStruct::setTest, new ParseField("test"));
 
-        try {
-            objectParser.parse(parser, s, null);
-            fail("numeric value expected");
-        } catch (XContentParseException ex) {
+        {
+            XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"test\" : \"foo\"}");
+            XContentParseException ex = expectThrows(XContentParseException.class, () -> objectParser.parse(parser, s, null));
             assertThat(ex.getMessage(), containsString("[the_parser] failed to parse field [test]"));
             assertTrue(ex.getCause() instanceof NumberFormatException);
         }
-
-        parser = createParser(JsonXContent.jsonXContent, "{\"not_supported_field\" : \"foo\"}");
-        try {
-            objectParser.parse(parser, s, null);
-            fail("field not supported");
-        } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "[the_parser] unknown field [not_supported_field], parser not found");
+        {
+            XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"not_supported_field\" : \"foo\"}");
+            XContentParseException ex = expectThrows(XContentParseException.class, () -> objectParser.parse(parser, s, null));
+            assertEquals(ex.getMessage(), "[1:2] [the_parser] unknown field [not_supported_field], parser not found");
         }
     }
 

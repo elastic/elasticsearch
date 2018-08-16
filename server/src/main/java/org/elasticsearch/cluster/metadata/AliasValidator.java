@@ -57,7 +57,7 @@ public class AliasValidator extends AbstractComponent {
      * @throws IllegalArgumentException if the alias is not valid
      */
     public void validateAlias(Alias alias, String index, MetaData metaData) {
-        validateAlias(alias.name(), index, alias.indexRouting(), name -> metaData.index(name));
+        validateAlias(alias.name(), index, alias.indexRouting(), metaData::index);
     }
 
     /**
@@ -66,7 +66,7 @@ public class AliasValidator extends AbstractComponent {
      * @throws IllegalArgumentException if the alias is not valid
      */
     public void validateAliasMetaData(AliasMetaData aliasMetaData, String index, MetaData metaData) {
-        validateAlias(aliasMetaData.alias(), index, aliasMetaData.indexRouting(), name -> metaData.index(name));
+        validateAlias(aliasMetaData.alias(), index, aliasMetaData.indexRouting(), metaData::index);
     }
 
     /**

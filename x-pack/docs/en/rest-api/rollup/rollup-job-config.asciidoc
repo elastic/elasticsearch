@@ -2,6 +2,8 @@
 [[rollup-job-config]]
 === Rollup Job Configuration
 
+experimental[]
+
 The Rollup Job Configuration contains all the details about how the rollup job should run, when it indexes documents,
 and what future queries will be able to execute against the rollup index.
 

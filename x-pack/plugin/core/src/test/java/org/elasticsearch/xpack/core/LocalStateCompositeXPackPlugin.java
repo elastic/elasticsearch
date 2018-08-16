@@ -28,6 +28,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.http.HttpServerTransport;
@@ -38,6 +39,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
@@ -57,9 +59,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -284,14 +286,14 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
 
     @Override
     public Map<String, Supplier<HttpServerTransport>> getHttpTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+                                                                        PageCacheRecycler pageCacheRecycler,
                                                                         CircuitBreakerService circuitBreakerService,
-                                                                        NamedWriteableRegistry namedWriteableRegistry,
                                                                         NamedXContentRegistry xContentRegistry,
                                                                         NetworkService networkService,
                                                                         HttpServerTransport.Dispatcher dispatcher) {
         Map<String, Supplier<HttpServerTransport>> transports = new HashMap<>();
         filterPlugins(NetworkPlugin.class).stream().forEach(p -> transports.putAll(p.getHttpTransports(settings, threadPool, bigArrays,
-                circuitBreakerService, namedWriteableRegistry, xContentRegistry, networkService, dispatcher)));
+            pageCacheRecycler, circuitBreakerService, xContentRegistry, networkService, dispatcher)));
         return transports;
     }
 
@@ -348,13 +350,6 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     }
 
     @Override
-    public Map<String, Supplier<ClusterState.Custom>> getInitialClusterStateCustomSupplier() {
-        Map<String, Supplier<ClusterState.Custom>> suppliers = new HashMap<>();
-        filterPlugins(ClusterPlugin.class).stream().forEach(p -> suppliers.putAll(p.getInitialClusterStateCustomSupplier()));
-        return suppliers;
-    }
-
-    @Override
     public Function<String, Predicate<String>> getFieldFilter() {
         List<Function<String, Predicate<String>>> items = filterPlugins(MapperPlugin.class).stream().map(p ->
                 p.getFieldFilter()).collect(Collectors.toList());
@@ -389,6 +384,11 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
                 .map(p -> p.getPersistentTasksExecutor(clusterService, threadPool, client))
                 .flatMap(List::stream)
                 .collect(toList());
+    }
+
+    @Override
+    public void close() throws IOException {
+        IOUtils.close(plugins);
     }
 
     private <T> List<T> filterPlugins(Class<T> type) {

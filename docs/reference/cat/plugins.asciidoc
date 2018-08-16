@@ -16,10 +16,11 @@ Might look like:
 name    component               version   description
 U7321H6 analysis-icu            {version} The ICU Analysis plugin integrates Lucene ICU module into elasticsearch, adding ICU relates analysis components.
 U7321H6 analysis-kuromoji       {version} The Japanese (kuromoji) Analysis plugin integrates Lucene kuromoji analysis module into elasticsearch.
+U7321H6 analysis-nori           {version} The Korean (nori) Analysis plugin integrates Lucene nori analysis module into elasticsearch.
 U7321H6 analysis-phonetic       {version} The Phonetic Analysis plugin integrates phonetic token filter analysis with elasticsearch.
 U7321H6 analysis-smartcn        {version} Smart Chinese Analysis plugin integrates Lucene Smart Chinese analysis module into elasticsearch.
 U7321H6 analysis-stempel        {version} The Stempel (Polish) Analysis plugin integrates Lucene stempel (polish) analysis module into elasticsearch.
-U7321H6 analysis-ukrainian        {version} The Ukrainian Analysis plugin integrates the Lucene UkrainianMorfologikAnalyzer into elasticsearch.
+U7321H6 analysis-ukrainian      {version} The Ukrainian Analysis plugin integrates the Lucene UkrainianMorfologikAnalyzer into elasticsearch.
 U7321H6 discovery-azure-classic {version} The Azure Classic Discovery plugin allows to use Azure Classic API for the unicast discovery mechanism
 U7321H6 discovery-ec2           {version} The EC2 discovery plugin allows to use AWS API for the unicast discovery mechanism.
 U7321H6 discovery-file          {version} Discovery file plugin enables unicast discovery from hosts stored in a file.

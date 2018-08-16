@@ -214,21 +214,22 @@ public class IncludeExcludeTests extends ESTestCase {
         incExc.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
 
-        XContentParser parser = createParser(builder);
-        XContentParser.Token token = parser.nextToken();
-        assertEquals(token, XContentParser.Token.START_OBJECT);
-        token = parser.nextToken();
-        assertEquals(token, XContentParser.Token.FIELD_NAME);
-        assertEquals(field.getPreferredName(), parser.currentName());
-        token = parser.nextToken();
+        try (XContentParser parser = createParser(builder)) {
+            XContentParser.Token token = parser.nextToken();
+            assertEquals(token, XContentParser.Token.START_OBJECT);
+            token = parser.nextToken();
+            assertEquals(token, XContentParser.Token.FIELD_NAME);
+            assertEquals(field.getPreferredName(), parser.currentName());
+            token = parser.nextToken();
 
-        if (field.getPreferredName().equalsIgnoreCase("include")) {
-            return IncludeExclude.parseInclude(parser);
-        } else if (field.getPreferredName().equalsIgnoreCase("exclude")) {
-            return IncludeExclude.parseExclude(parser);
-        } else {
-            throw new IllegalArgumentException(
+            if (field.getPreferredName().equalsIgnoreCase("include")) {
+                return IncludeExclude.parseInclude(parser);
+            } else if (field.getPreferredName().equalsIgnoreCase("exclude")) {
+                return IncludeExclude.parseExclude(parser);
+            } else {
+                throw new IllegalArgumentException(
                     "Unexpected field name serialized in test: " + field.getPreferredName());
+            }
         }
     }
 
@@ -260,28 +261,29 @@ public class IncludeExcludeTests extends ESTestCase {
         incExc.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
 
-        XContentParser parser = createParser(builder);
-        XContentParser.Token token = parser.nextToken();
-        assertEquals(token, XContentParser.Token.START_OBJECT);
+        try (XContentParser parser = createParser(builder)) {
+            XContentParser.Token token = parser.nextToken();
+            assertEquals(token, XContentParser.Token.START_OBJECT);
 
-        IncludeExclude inc = null;
-        IncludeExclude exc = null;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            assertEquals(XContentParser.Token.FIELD_NAME, token);
-            if (IncludeExclude.INCLUDE_FIELD.match(parser.currentName(), parser.getDeprecationHandler())) {
-                token = parser.nextToken();
-                inc = IncludeExclude.parseInclude(parser);
-            } else if (IncludeExclude.EXCLUDE_FIELD.match(parser.currentName(), parser.getDeprecationHandler())) {
-                token = parser.nextToken();
-                exc = IncludeExclude.parseExclude(parser);
-            } else {
-                throw new IllegalArgumentException("Unexpected field name serialized in test: " + parser.currentName());
+            IncludeExclude inc = null;
+            IncludeExclude exc = null;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                assertEquals(XContentParser.Token.FIELD_NAME, token);
+                if (IncludeExclude.INCLUDE_FIELD.match(parser.currentName(), parser.getDeprecationHandler())) {
+                    token = parser.nextToken();
+                    inc = IncludeExclude.parseInclude(parser);
+                } else if (IncludeExclude.EXCLUDE_FIELD.match(parser.currentName(), parser.getDeprecationHandler())) {
+                    token = parser.nextToken();
+                    exc = IncludeExclude.parseExclude(parser);
+                } else {
+                    throw new IllegalArgumentException("Unexpected field name serialized in test: " + parser.currentName());
+                }
             }
+            assertNotNull(inc);
+            assertNotNull(exc);
+            // Include and Exclude clauses are parsed independently and then merged
+            return IncludeExclude.merge(inc, exc);
         }
-        assertNotNull(inc);
-        assertNotNull(exc);
-        // Include and Exclude clauses are parsed independently and then merged
-        return IncludeExclude.merge(inc, exc);
     }
 
 }

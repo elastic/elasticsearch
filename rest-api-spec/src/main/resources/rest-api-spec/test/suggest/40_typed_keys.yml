@@ -19,7 +19,7 @@ setup:
                           "type" : "category"
 
   - do:
-     bulk:
+      bulk:
         refresh: true
         index: test
         type: test
@@ -27,7 +27,7 @@ setup:
           - '{"index": {}}'
           - '{"title": "Elasticsearch in Action", "suggestions": {"input": "ELK in Action", "contexts": {"format": "ebook"}}}'
           - '{"index": {}}'
-          - '{"title": "Elasticsearch - The Definitive Guide", "suggestions": {"input": ["Elasticsearch in Action"]}}'
+          - '{"title": "Elasticsearch - The Definitive Guide", "suggestions": {"input": ["Elasticsearch in Action"], "contexts": {"format": "ebook"}}}'
 
 ---
 "Test typed keys parameter for suggesters":
@@ -43,10 +43,6 @@ setup:
             term_suggester:
               term:
                 field: title
-            completion_suggester:
-              prefix: "Elastic"
-              completion:
-                field: suggestions
             context_suggester:
               prefix: "Elastic"
               completion:
@@ -58,6 +54,5 @@ setup:
                 field: title
 
   - is_true: suggest.term#term_suggester
-  - is_true: suggest.completion#completion_suggester
   - is_true: suggest.completion#context_suggester
   - is_true: suggest.phrase#phrase_suggester

@@ -19,8 +19,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 
@@ -56,8 +56,9 @@ public class TransportFinalizeJobExecutionAction extends TransportMasterNodeActi
         logger.debug("finalizing jobs [{}]", jobIdString);
         clusterService.submitStateUpdateTask(source, new ClusterStateUpdateTask() {
             @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                MlMetadata mlMetadata = currentState.metaData().custom(MLMetadataField.TYPE);
+            public ClusterState execute(ClusterState currentState) {
+                XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
+                MlMetadata mlMetadata = MlMetadata.getMlMetadata(currentState);
                 MlMetadata.Builder mlMetadataBuilder = new MlMetadata.Builder(mlMetadata);
                 Date finishedTime = new Date();
 
@@ -68,7 +69,7 @@ public class TransportFinalizeJobExecutionAction extends TransportMasterNodeActi
                 }
                 ClusterState.Builder builder = ClusterState.builder(currentState);
                 return builder.metaData(new MetaData.Builder(currentState.metaData())
-                        .putCustom(MLMetadataField.TYPE, mlMetadataBuilder.build()))
+                        .putCustom(MlMetadata.TYPE, mlMetadataBuilder.build()))
                         .build();
             }
 

@@ -23,7 +23,6 @@ import java.util.Map;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.search.lookup.LeafDocLookup;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 

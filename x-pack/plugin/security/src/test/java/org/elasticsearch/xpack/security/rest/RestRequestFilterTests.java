@@ -88,6 +88,6 @@ public class RestRequestFilterTests extends ESTestCase {
                 new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(content, XContentType.JSON)
                         .withRemoteAddress(address).build();
         RestRequest filtered = filter.getFilteredRequest(restRequest);
-        assertEquals(address, filtered.getRemoteAddress());
+        assertEquals(address, filtered.getHttpChannel().getRemoteAddress());
     }
 }

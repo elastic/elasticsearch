@@ -120,7 +120,13 @@ public class Setting<T> implements ToXContentObject {
          * Mark this setting as not copyable during an index resize (shrink or split). This property can only be applied to settings that
          * also have {@link Property#IndexScope}.
          */
-        NotCopyableOnResize
+        NotCopyableOnResize,
+
+        /**
+         * Indicates an index-level setting that is managed internally. Such a setting can only be added to an index on index creation but
+         * can not be updated via the update API.
+         */
+        InternalIndex
     }
 
     private final Key key;
@@ -152,11 +158,15 @@ public class Setting<T> implements ToXContentObject {
             if (propertiesAsSet.contains(Property.Dynamic) && propertiesAsSet.contains(Property.Final)) {
                 throw new IllegalArgumentException("final setting [" + key + "] cannot be dynamic");
             }
-            if (propertiesAsSet.contains(Property.NotCopyableOnResize) && propertiesAsSet.contains(Property.IndexScope) == false) {
-                throw new IllegalArgumentException(
-                        "non-index-scoped setting [" + key + "] can not have property [" + Property.NotCopyableOnResize + "]");
-            }
+            checkPropertyRequiresIndexScope(propertiesAsSet, Property.NotCopyableOnResize);
+            checkPropertyRequiresIndexScope(propertiesAsSet, Property.InternalIndex);
             this.properties = propertiesAsSet;
+        }
+    }
+
+    private void checkPropertyRequiresIndexScope(final EnumSet<Property> properties, final Property property) {
+        if (properties.contains(property) && properties.contains(Property.IndexScope) == false) {
+            throw new IllegalArgumentException("non-index-scoped setting [" + key + "] can not have property [" + property + "]");
         }
     }
 
@@ -1005,6 +1015,18 @@ public class Setting<T> implements ToXContentObject {
 
     public static Setting<String> simpleString(String key, Validator<String> validator, Property... properties) {
         return new Setting<>(new SimpleKey(key), null, s -> "", Function.identity(), validator, properties);
+    }
+
+    /**
+     * Creates a new Setting instance with a String value
+     *
+     * @param key          the settings key for this setting.
+     * @param defaultValue the default String value.
+     * @param properties   properties for this setting like scope, filtering...
+     * @return the Setting Object
+     */
+    public static Setting<String> simpleString(String key, String defaultValue, Property... properties) {
+        return new Setting<>(key, s -> defaultValue, Function.identity(), properties);
     }
 
     public static int parseInt(String s, int minValue, String key) {

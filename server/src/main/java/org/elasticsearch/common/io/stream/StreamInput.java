@@ -59,13 +59,17 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
+import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
@@ -515,7 +519,6 @@ public abstract class StreamInput extends InputStream {
         return (Map<String, Object>) readGenericValue();
     }
 
-    @SuppressWarnings({"unchecked"})
     @Nullable
     public Object readGenericValue() throws IOException {
         byte type = readByte();
@@ -929,8 +932,23 @@ public abstract class StreamInput extends InputStream {
      * Reads a list of objects
      */
     public <T> List<T> readList(Writeable.Reader<T> reader) throws IOException {
+        return readCollection(reader, ArrayList::new);
+    }
+
+    /**
+     * Reads a set of objects
+     */
+    public <T> Set<T> readSet(Writeable.Reader<T> reader) throws IOException {
+        return readCollection(reader, HashSet::new);
+    }
+
+    /**
+     * Reads a collection of objects
+     */
+    private <T, C extends Collection<? super T>> C readCollection(Writeable.Reader<T> reader,
+                                                                  IntFunction<C> constructor) throws IOException {
         int count = readArraySize();
-        List<T> builder = new ArrayList<>(count);
+        C builder = constructor.apply(count);
         for (int i=0; i<count; i++) {
             builder.add(reader.read(this));
         }
@@ -959,6 +977,21 @@ public abstract class StreamInput extends InputStream {
             throw new IOException("Unknown " + enumClass.getSimpleName() + " ordinal [" + ordinal + "]");
         }
         return values[ordinal];
+    }
+
+    /**
+     * Reads an enum with type E that was serialized based on the value of it's ordinal
+     */
+    public <E extends Enum<E>> EnumSet<E> readEnumSet(Class<E> enumClass) throws IOException {
+        int size = readVInt();
+        if (size == 0) {
+             return EnumSet.noneOf(enumClass);
+        }
+        Set<E> enums = new HashSet<>(size);
+        for (int i = 0; i < size; i++) {
+            enums.add(readEnum(enumClass));
+        }
+        return EnumSet.copyOf(enums);
     }
 
     public static StreamInput wrap(byte[] bytes) {

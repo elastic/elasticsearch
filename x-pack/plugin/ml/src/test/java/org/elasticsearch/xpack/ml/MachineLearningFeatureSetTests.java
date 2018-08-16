@@ -24,7 +24,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackFeatureSet.Usage;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MachineLearningFeatureSetUsage;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
@@ -39,6 +38,8 @@ import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
+import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
+import org.elasticsearch.xpack.core.ml.stats.ForecastStatsTests;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.junit.Before;
 
@@ -65,7 +66,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
     private XPackLicenseState licenseState;
 
     @Before
-    public void init() throws Exception {
+    public void init() {
         commonSettings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
                 .put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false)
@@ -138,11 +139,11 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         settings.put("xpack.ml.enabled", true);
 
         Job opened1 = buildJob("opened1", Arrays.asList(buildMinDetector("foo")));
-        GetJobsStatsAction.Response.JobStats opened1JobStats = buildJobStats("opened1", JobState.OPENED, 100L);
+        GetJobsStatsAction.Response.JobStats opened1JobStats = buildJobStats("opened1", JobState.OPENED, 100L, 3L);
         Job opened2 = buildJob("opened2", Arrays.asList(buildMinDetector("foo"), buildMinDetector("bar")));
-        GetJobsStatsAction.Response.JobStats opened2JobStats = buildJobStats("opened2", JobState.OPENED, 200L);
+        GetJobsStatsAction.Response.JobStats opened2JobStats = buildJobStats("opened2", JobState.OPENED, 200L, 8L);
         Job closed1 = buildJob("closed1", Arrays.asList(buildMinDetector("foo"), buildMinDetector("bar"), buildMinDetector("foobar")));
-        GetJobsStatsAction.Response.JobStats closed1JobStats = buildJobStats("closed1", JobState.CLOSED, 300L);
+        GetJobsStatsAction.Response.JobStats closed1JobStats = buildJobStats("closed1", JobState.CLOSED, 300L, 0);
         givenJobs(Arrays.asList(opened1, opened2, closed1),
                 Arrays.asList(opened1JobStats, opened2JobStats, closed1JobStats));
 
@@ -210,6 +211,15 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
             assertThat(source.getValue("datafeeds._all.count"), equalTo(3));
             assertThat(source.getValue("datafeeds.started.count"), equalTo(2));
             assertThat(source.getValue("datafeeds.stopped.count"), equalTo(1));
+
+            assertThat(source.getValue("jobs._all.forecasts.total"), equalTo(11));
+            assertThat(source.getValue("jobs._all.forecasts.forecasted_jobs"), equalTo(2));
+
+            assertThat(source.getValue("jobs.closed.forecasts.total"), equalTo(0));
+            assertThat(source.getValue("jobs.closed.forecasts.forecasted_jobs"), equalTo(0));
+
+            assertThat(source.getValue("jobs.opened.forecasts.total"), equalTo(11));
+            assertThat(source.getValue("jobs.opened.forecasts.forecasted_jobs"), equalTo(2));
         }
     }
 
@@ -232,9 +242,28 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             usage.toXContent(builder, ToXContent.EMPTY_PARAMS);
             source = new XContentSource(builder);
-            assertThat(source.getValue("jobs"), equalTo(Collections.emptyMap()));
-            assertThat(source.getValue("datafeeds"), equalTo(Collections.emptyMap()));
         }
+
+        assertThat(source.getValue("jobs._all.count"), equalTo(0));
+        assertThat(source.getValue("jobs._all.detectors.min"), equalTo(0.0));
+        assertThat(source.getValue("jobs._all.detectors.max"), equalTo(0.0));
+        assertThat(source.getValue("jobs._all.detectors.total"), equalTo(0.0));
+        assertThat(source.getValue("jobs._all.detectors.avg"), equalTo(0.0));
+        assertThat(source.getValue("jobs._all.model_size.min"), equalTo(0.0));
+        assertThat(source.getValue("jobs._all.model_size.max"), equalTo(0.0));
+        assertThat(source.getValue("jobs._all.model_size.total"), equalTo(0.0));
+        assertThat(source.getValue("jobs._all.model_size.avg"), equalTo(0.0));
+
+        assertThat(source.getValue("jobs.opening"), is(nullValue()));
+        assertThat(source.getValue("jobs.opened"), is(nullValue()));
+        assertThat(source.getValue("jobs.closing"), is(nullValue()));
+        assertThat(source.getValue("jobs.closed"), is(nullValue()));
+        assertThat(source.getValue("jobs.failed"), is(nullValue()));
+
+        assertThat(source.getValue("datafeeds._all.count"), equalTo(0));
+
+        assertThat(source.getValue("datafeeds.started"), is(nullValue()));
+        assertThat(source.getValue("datafeeds.stopped"), is(nullValue()));
     }
 
     private void givenJobs(List<Job> jobs, List<GetJobsStatsAction.Response.JobStats> jobsStats) {
@@ -244,7 +273,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         }
         ClusterState clusterState = new ClusterState.Builder(ClusterState.EMPTY_STATE)
                 .metaData(new MetaData.Builder()
-                        .putCustom(MLMetadataField.TYPE, mlMetadataBuilder.build()))
+                        .putCustom(MlMetadata.TYPE, mlMetadataBuilder.build()))
                 .build();
         when(clusterService.state()).thenReturn(clusterState);
 
@@ -282,12 +311,16 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
                 .build(new Date(randomNonNegativeLong()));
     }
 
-    private static GetJobsStatsAction.Response.JobStats buildJobStats(String jobId, JobState state, long modelBytes) {
+    private static GetJobsStatsAction.Response.JobStats buildJobStats(String jobId, JobState state, long modelBytes,
+            long numberOfForecasts) {
         ModelSizeStats.Builder modelSizeStats = new ModelSizeStats.Builder(jobId);
         modelSizeStats.setModelBytes(modelBytes);
         GetJobsStatsAction.Response.JobStats jobStats = mock(GetJobsStatsAction.Response.JobStats.class);
+        ForecastStats forecastStats = buildForecastStats(numberOfForecasts);
+
         when(jobStats.getJobId()).thenReturn(jobId);
         when(jobStats.getModelSizeStats()).thenReturn(modelSizeStats.build());
+        when(jobStats.getForecastStats()).thenReturn(forecastStats);
         when(jobStats.getState()).thenReturn(state);
         return jobStats;
     }
@@ -296,5 +329,9 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         GetDatafeedsStatsAction.Response.DatafeedStats stats = mock(GetDatafeedsStatsAction.Response.DatafeedStats.class);
         when(stats.getDatafeedState()).thenReturn(state);
         return stats;
+    }
+
+    private static ForecastStats buildForecastStats(long numberOfForecasts) {
+        return new ForecastStatsTests().createForecastStats(numberOfForecasts, numberOfForecasts);
     }
 }

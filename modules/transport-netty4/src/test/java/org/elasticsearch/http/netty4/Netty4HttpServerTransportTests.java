@@ -207,14 +207,23 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
                 HttpUtil.setContentLength(request, contentLength);
 
                 final FullHttpResponse response = client.post(remoteAddress.address(), request);
-                assertThat(response.status(), equalTo(expectedStatus));
-                if (expectedStatus.equals(HttpResponseStatus.CONTINUE)) {
-                    final FullHttpRequest continuationRequest =
-                        new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/", Unpooled.EMPTY_BUFFER);
-                    final FullHttpResponse continuationResponse = client.post(remoteAddress.address(), continuationRequest);
-
-                    assertThat(continuationResponse.status(), is(HttpResponseStatus.OK));
-                    assertThat(new String(ByteBufUtil.getBytes(continuationResponse.content()), StandardCharsets.UTF_8), is("done"));
+                try {
+                    assertThat(response.status(), equalTo(expectedStatus));
+                    if (expectedStatus.equals(HttpResponseStatus.CONTINUE)) {
+                        final FullHttpRequest continuationRequest =
+                            new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/", Unpooled.EMPTY_BUFFER);
+                        final FullHttpResponse continuationResponse = client.post(remoteAddress.address(), continuationRequest);
+                        try {
+                            assertThat(continuationResponse.status(), is(HttpResponseStatus.OK));
+                            assertThat(
+                                new String(ByteBufUtil.getBytes(continuationResponse.content()), StandardCharsets.UTF_8), is("done")
+                            );
+                        } finally {
+                            continuationResponse.release();
+                        }
+                    }
+                } finally {
+                    response.release();
                 }
             }
         }
@@ -273,56 +282,26 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
         try (Netty4HttpServerTransport transport =
                      new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry(), dispatcher)) {
             transport.start();
-            final TransportAddress remoteAddress = randomFrom(transport.boundAddress.boundAddresses());
+            final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
             try (Netty4HttpClient client = new Netty4HttpClient()) {
                 final String url = "/" + new String(new byte[maxInitialLineLength], Charset.forName("UTF-8"));
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, url);
 
                 final FullHttpResponse response = client.post(remoteAddress.address(), request);
-                assertThat(response.status(), equalTo(HttpResponseStatus.BAD_REQUEST));
-                assertThat(
+                try {
+                    assertThat(response.status(), equalTo(HttpResponseStatus.BAD_REQUEST));
+                    assertThat(
                         new String(response.content().array(), Charset.forName("UTF-8")),
                         containsString("you sent a bad request and you should feel bad"));
+                } finally {
+                    response.release();
+                }
             }
         }
 
         assertNotNull(causeReference.get());
         assertThat(causeReference.get(), instanceOf(TooLongFrameException.class));
-    }
-
-    public void testDispatchDoesNotModifyThreadContext() throws InterruptedException {
-        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
-
-            @Override
-            public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
-                threadContext.putHeader("foo", "bar");
-                threadContext.putTransient("bar", "baz");
-            }
-
-            @Override
-            public void dispatchBadRequest(final RestRequest request,
-                                           final RestChannel channel,
-                                           final ThreadContext threadContext,
-                                           final Throwable cause) {
-                threadContext.putHeader("foo_bad", "bar");
-                threadContext.putTransient("bar_bad", "baz");
-            }
-
-        };
-
-        try (Netty4HttpServerTransport transport =
-                 new Netty4HttpServerTransport(Settings.EMPTY, networkService, bigArrays, threadPool, xContentRegistry(), dispatcher)) {
-            transport.start();
-
-            transport.dispatchRequest(null, null);
-            assertNull(threadPool.getThreadContext().getHeader("foo"));
-            assertNull(threadPool.getThreadContext().getTransient("bar"));
-
-            transport.dispatchBadRequest(null, null, null);
-            assertNull(threadPool.getThreadContext().getHeader("foo_bad"));
-            assertNull(threadPool.getThreadContext().getTransient("bar_bad"));
-        }
     }
 
     public void testReadTimeout() throws Exception {
@@ -352,7 +331,7 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
         try (Netty4HttpServerTransport transport =
                  new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry(), dispatcher)) {
             transport.start();
-            final TransportAddress remoteAddress = randomFrom(transport.boundAddress.boundAddresses());
+            final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
             AtomicBoolean channelClosed = new AtomicBoolean(false);
 

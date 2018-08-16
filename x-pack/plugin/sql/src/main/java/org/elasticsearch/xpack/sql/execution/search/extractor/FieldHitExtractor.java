@@ -5,12 +5,16 @@
  */
 package org.elasticsearch.xpack.sql.execution.search.extractor;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.type.DataType;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableDateTime;
 
 import java.io.IOException;
@@ -41,15 +45,17 @@ public class FieldHitExtractor implements HitExtractor {
     }
 
     private final String fieldName, hitName;
+    private final DataType dataType;
     private final boolean useDocValue;
     private final String[] path;
 
-    public FieldHitExtractor(String name, boolean useDocValue) {
-        this(name, useDocValue, null);
+    public FieldHitExtractor(String name, DataType dataType, boolean useDocValue) {
+        this(name, dataType, useDocValue, null);
     }
 
-    public FieldHitExtractor(String name, boolean useDocValue, String hitName) {
+    public FieldHitExtractor(String name, DataType dataType, boolean useDocValue, String hitName) {
         this.fieldName = name;
+        this.dataType = dataType;
         this.useDocValue = useDocValue;
         this.hitName = hitName;
 
@@ -64,6 +70,16 @@ public class FieldHitExtractor implements HitExtractor {
 
     FieldHitExtractor(StreamInput in) throws IOException {
         fieldName = in.readString();
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
+            String esType = in.readOptionalString();
+            if (esType != null) {
+                dataType = DataType.fromEsType(esType);
+            } else {
+                dataType = null;
+            }
+        } else {
+            dataType = null;
+        }
         useDocValue = in.readBoolean();
         hitName = in.readOptionalString();
         path = sourcePath(fieldName, useDocValue, hitName);
@@ -77,6 +93,9 @@ public class FieldHitExtractor implements HitExtractor {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
+        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
+            out.writeOptionalString(dataType == null ? null : dataType.esType);
+        }
         out.writeBoolean(useDocValue);
         out.writeOptionalString(hitName);
     }
@@ -116,6 +135,9 @@ public class FieldHitExtractor implements HitExtractor {
         }
         if (values instanceof Map) {
             throw new SqlIllegalArgumentException("Objects (returned by [{}]) are not supported", fieldName);
+        }
+        if (values instanceof String && dataType == DataType.DATE) {
+            return new DateTime(Long.parseLong(values.toString()), DateTimeZone.UTC);
         }
         if (values instanceof Long || values instanceof Double || values instanceof String || values instanceof Boolean
                 || values instanceof ReadableDateTime) {

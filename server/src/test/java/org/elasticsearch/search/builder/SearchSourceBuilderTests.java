@@ -20,7 +20,6 @@
 package org.elasticsearch.search.builder;
 
 import com.fasterxml.jackson.core.JsonParseException;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -65,7 +64,9 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
             builder.prettyPrint();
         }
         testSearchSourceBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertParseSearchSource(testSearchSourceBuilder, createParser(builder));
+        try (XContentParser xParser = createParser(builder)) {
+            assertParseSearchSource(testSearchSourceBuilder, xParser);
+        }
     }
 
     public void testFromXContentInvalid() throws IOException {

@@ -18,7 +18,7 @@ Full example:
 GET /twitter/_search_shards
 --------------------------------------------------
 // CONSOLE
-// TEST[s/^/PUT twitter\n/]
+// TEST[s/^/PUT twitter\n{"settings":{"index.number_of_shards":5}}\n/]
 
 This will yield the following result:
 
@@ -103,7 +103,7 @@ And specifying the same request, this time with a routing value:
 GET /twitter/_search_shards?routing=foo,bar
 --------------------------------------------------
 // CONSOLE
-// TEST[s/^/PUT twitter\n/]
+// TEST[s/^/PUT twitter\n{"settings":{"index.number_of_shards":5}}\n/]
 
 This will yield the following result:
 

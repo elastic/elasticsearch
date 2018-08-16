@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -21,7 +20,7 @@ import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.xpack.core.ml.MlClientHelper;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -69,7 +68,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             return parsedScriptFields;
         }, DatafeedConfig.SCRIPT_FIELDS);
         PARSER.declareInt(Builder::setScrollSize, DatafeedConfig.SCROLL_SIZE);
-        PARSER.declareObject(Builder::setChunkingConfig, ChunkingConfig.CONFIG_PARSER, DatafeedConfig.CHUNKING_CONFIG);
+        PARSER.declareObject(Builder::setChunkingConfig, ChunkingConfig.STRICT_PARSER, DatafeedConfig.CHUNKING_CONFIG);
     }
 
     private final String id;
@@ -264,7 +263,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
      * Applies the update to the given {@link DatafeedConfig}
      * @return a new {@link DatafeedConfig} that contains the update
      */
-    public DatafeedConfig apply(DatafeedConfig datafeedConfig, ThreadContext threadContext) {
+    public DatafeedConfig apply(DatafeedConfig datafeedConfig, Map<String, String> headers) {
         if (id.equals(datafeedConfig.getId()) == false) {
             throw new IllegalArgumentException("Cannot apply update to datafeedConfig with different id");
         }
@@ -301,12 +300,12 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             builder.setChunkingConfig(chunkingConfig);
         }
 
-        if (threadContext != null) {
+        if (headers.isEmpty() == false) {
             // Adjust the request, adding security headers from the current thread context
-            Map<String, String> headers = threadContext.getHeaders().entrySet().stream()
-                    .filter(e -> MlClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
+            Map<String, String> securityHeaders = headers.entrySet().stream()
+                    .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-            builder.setHeaders(headers);
+            builder.setHeaders(securityHeaders);
         }
 
         return builder.build();
@@ -351,6 +350,18 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
     @Override
     public String toString() {
         return Strings.toString(this);
+    }
+
+    boolean isNoop(DatafeedConfig datafeed) {
+        return (frequency == null || Objects.equals(frequency, datafeed.getFrequency()))
+                && (queryDelay == null || Objects.equals(queryDelay, datafeed.getQueryDelay()))
+                && (indices == null || Objects.equals(indices, datafeed.getIndices()))
+                && (types == null || Objects.equals(types, datafeed.getTypes()))
+                && (query == null || Objects.equals(query, datafeed.getQuery()))
+                && (scrollSize == null || Objects.equals(scrollSize, datafeed.getQueryDelay()))
+                && (aggregations == null || Objects.equals(aggregations, datafeed.getAggregations()))
+                && (scriptFields == null || Objects.equals(scriptFields, datafeed.getScriptFields()))
+                && (chunkingConfig == null || Objects.equals(chunkingConfig, datafeed.getChunkingConfig()));
     }
 
     public static class Builder {

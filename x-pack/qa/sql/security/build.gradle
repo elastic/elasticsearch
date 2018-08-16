@@ -1,8 +1,10 @@
 dependencies {
-  testCompile "org.elasticsearch.plugin:x-pack-core:${version}"
+  testCompile project(path: xpackModule('core'), configuration: 'shadow')
 }
 
 Project mainProject = project
+
+group = "${group}.x-pack.qa.sql.security"
 
 subprojects {
   // Use resources from the parent project in subprojects
@@ -18,7 +20,7 @@ subprojects {
   }
 
   dependencies {
-    testCompile "org.elasticsearch.plugin:x-pack-core:${version}"
+    testCompile project(path: xpackModule('core'), configuration: 'shadow')
   }
 
   integTestCluster {
@@ -26,6 +28,7 @@ subprojects {
     setting 'xpack.security.audit.enabled', 'true'
     setting 'xpack.security.audit.outputs', 'logfile'
     setting 'xpack.security.enabled', 'true'
+    setting 'xpack.license.self_generated.type', 'trial'
     // Setup roles used by tests
     extraConfigFile 'roles.yml', '../roles.yml'
     /* Setup the one admin user that we run the tests as.
@@ -45,6 +48,7 @@ subprojects {
     setting 'xpack.security.audit.enabled', 'true'
     setting 'xpack.security.audit.outputs', 'logfile'
     setting 'xpack.security.enabled', 'true'
+    setting 'xpack.license.self_generated.type', 'trial'
     // Setup roles used by tests
     extraConfigFile 'roles.yml', '../roles.yml'
     /* Setup the one admin user that we run the tests as.

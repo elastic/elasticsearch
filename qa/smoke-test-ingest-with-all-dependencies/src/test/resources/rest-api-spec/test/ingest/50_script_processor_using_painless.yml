@@ -89,7 +89,7 @@
 ---
 "Test script processor with syntax error in inline script":
   - do:
-      catch: request
+      catch: bad_request
       ingest.put_pipeline:
         id: "my_pipeline"
         body:  >

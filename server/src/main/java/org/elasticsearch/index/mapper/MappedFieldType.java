@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
@@ -163,7 +164,7 @@ public abstract class MappedFieldType extends FieldType {
         boolean indexed =  indexOptions() != IndexOptions.NONE;
         boolean mergeWithIndexed = other.indexOptions() != IndexOptions.NONE;
         // TODO: should be validating if index options go "up" (but "down" is ok)
-        if (indexed != mergeWithIndexed || tokenized() != other.tokenized()) {
+        if (indexed != mergeWithIndexed) {
             conflicts.add("mapper [" + name() + "] has different [index] values");
         }
         if (stored() != other.stored()) {
@@ -351,14 +352,15 @@ public abstract class MappedFieldType extends FieldType {
         throw new QueryShardException(context, "Can only use regexp queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]");
     }
 
-    public Query nullValueQuery() {
-        if (nullValue == null) {
-            return null;
-        }
-        return new ConstantScoreQuery(termQuery(nullValue, null));
+    public abstract Query existsQuery(QueryShardContext context);
+
+    public Query phraseQuery(String field, TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
+        throw new IllegalArgumentException("Can only use phrase queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]");
     }
 
-    public abstract Query existsQuery(QueryShardContext context);
+    public Query multiPhraseQuery(String field, TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
+        throw new IllegalArgumentException("Can only use phrase queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]");
+    }
 
     /**
      * An enum used to describe the relation between the range of terms in a
@@ -380,12 +382,6 @@ public abstract class MappedFieldType extends FieldType {
         boolean includeLower, boolean includeUpper,
         DateTimeZone timeZone, DateMathParser dateMathParser, QueryRewriteContext context) throws IOException {
         return Relation.INTERSECTS;
-    }
-
-    /** A term query to use when parsing a query string. Can return {@code null}. */
-    @Nullable
-    public Query queryStringTermQuery(Term term) {
-        return null;
     }
 
     /** @throws IllegalArgumentException if the fielddata is not supported on this type.

@@ -1,14 +1,6 @@
 ---
 "Verify user and role in mixed cluster":
   - do:
-      headers:
-        Authorization: "Basic bmF0aXZlX3VzZXI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ="
-      cluster.health:
-        wait_for_status: yellow
-        wait_for_nodes: 2
-  - match: { timed_out: false }
-
-  - do:
       xpack.security.get_user:
         username: "native_user"
   - match: { native_user.username:  "native_user" }
@@ -36,6 +28,3 @@
         username: "kibana,logstash_system"
   - match: { kibana.enabled: false }
   - match: { logstash_system.enabled: true }
-
- 
-

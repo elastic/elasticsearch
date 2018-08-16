@@ -29,6 +29,14 @@
 [[remove-http-enabled]]
 ==== Http enabled setting removed
 
-The setting `http.enabled` previously allowed disabling binding to HTTP, only allowing
+* The setting `http.enabled` previously allowed disabling binding to HTTP, only allowing
 use of the transport client. This setting has been removed, as the transport client
 will be removed in the future, thus requiring HTTP to always be enabled.
+
+[[remove-http-pipelining-setting]]
+==== Http pipelining setting removed
+
+* The setting `http.pipelining` previously allowed disabling HTTP pipelining support.
+This setting has been removed, as disabling http pipelining support on the server
+provided little value. The setting `http.pipelining.max_events` can still be used to
+limit the number of pipelined requests in-flight.

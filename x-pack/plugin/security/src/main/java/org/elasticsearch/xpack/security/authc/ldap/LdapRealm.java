@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapSessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.protocol.xpack.security.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapLoadBalancing;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
@@ -67,7 +67,7 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
     // pkg private for testing
     LdapRealm(String type, RealmConfig config, SessionFactory sessionFactory,
               UserRoleMapper roleMapper, ThreadPool threadPool) {
-        super(type, config);
+        super(type, config, threadPool);
         this.sessionFactory = sessionFactory;
         this.roleMapper = roleMapper;
         this.threadPool = threadPool;
@@ -160,12 +160,14 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
     }
 
     @Override
-    public Map<String, Object> usageStats() {
-        Map<String, Object> usage = super.usageStats();
-        usage.put("load_balance_type", LdapLoadBalancing.resolve(config.settings()).toString());
-        usage.put("ssl", sessionFactory.isSslUsed());
-        usage.put("user_search", LdapUserSearchSessionFactory.hasUserSearchSettings(config));
-        return usage;
+    public void usageStats(ActionListener<Map<String, Object>> listener) {
+        super.usageStats(ActionListener.wrap(usage -> {
+            usage.put("size", getCacheSize());
+            usage.put("load_balance_type", LdapLoadBalancing.resolve(config.settings()).toString());
+            usage.put("ssl", sessionFactory.isSslUsed());
+            usage.put("user_search", LdapUserSearchSessionFactory.hasUserSearchSettings(config));
+            listener.onResponse(usage);
+        }, listener::onFailure));
     }
 
     private static void buildUser(LdapSession session, String username, ActionListener<AuthenticationResult> listener,

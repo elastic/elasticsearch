@@ -10,4 +10,4 @@
     - do:
         nodes.info: {}
 
-    - match:  { nodes.$master.plugins.0.name: repository-s3  }
+    - contains:  { nodes.$master.plugins: { name: repository-s3 } }

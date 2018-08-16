@@ -34,7 +34,7 @@ class DefaultJDKTrustConfig extends TrustConfig {
     @Override
     X509ExtendedTrustManager createTrustManager(@Nullable Environment environment) {
         try {
-            return CertUtils.trustManager(null, TrustManagerFactory.getDefaultAlgorithm());
+            return CertParsingUtils.trustManager(null, TrustManagerFactory.getDefaultAlgorithm());
         } catch (Exception e) {
             throw new ElasticsearchException("failed to initialize a TrustManagerFactory", e);
         }

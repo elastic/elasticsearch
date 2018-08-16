@@ -75,7 +75,7 @@ public class CollapsingTopDocsCollectorTests extends ESTestCase {
         }
     }
 
-    interface CollapsingDocValuesProducer<T extends Comparable> {
+    interface CollapsingDocValuesProducer<T extends Comparable<?>> {
         T randomGroup(int maxGroup);
 
         void add(Document doc, T value, boolean multivalued);
@@ -83,14 +83,14 @@ public class CollapsingTopDocsCollectorTests extends ESTestCase {
         SortField sortField(boolean multivalued);
     }
 
-    <T extends Comparable> void assertSearchCollapse(CollapsingDocValuesProducer<T> dvProducers, boolean numeric) throws IOException {
+    <T extends Comparable<T>> void assertSearchCollapse(CollapsingDocValuesProducer<T> dvProducers, boolean numeric) throws IOException {
         assertSearchCollapse(dvProducers, numeric, true, true);
         assertSearchCollapse(dvProducers, numeric, true, false);
         assertSearchCollapse(dvProducers, numeric, false, true);
         assertSearchCollapse(dvProducers, numeric, false, false);
     }
 
-    private <T extends Comparable> void assertSearchCollapse(CollapsingDocValuesProducer<T> dvProducers,
+    private <T extends Comparable<T>> void assertSearchCollapse(CollapsingDocValuesProducer<T> dvProducers,
                                                              boolean numeric, boolean multivalued,
                                                              boolean trackMaxScores) throws IOException {
         final int numDocs = randomIntBetween(1000, 2000);
@@ -120,7 +120,7 @@ public class CollapsingTopDocsCollectorTests extends ESTestCase {
 
         int expectedNumGroups = values.size();
 
-        final CollapsingTopDocsCollector collapsingCollector;
+        final CollapsingTopDocsCollector<?> collapsingCollector;
         if (numeric) {
             collapsingCollector =
                 CollapsingTopDocsCollector.createNumeric(collapseField.getField(), sort, expectedNumGroups, trackMaxScores);
@@ -199,7 +199,7 @@ public class CollapsingTopDocsCollectorTests extends ESTestCase {
         final Weight weight = searcher.createNormalizedWeight(new MatchAllDocsQuery(), true);
         for (int shardIDX = 0; shardIDX < subSearchers.length; shardIDX++) {
             final SegmentSearcher subSearcher = subSearchers[shardIDX];
-            final CollapsingTopDocsCollector c;
+            final CollapsingTopDocsCollector<?> c;
             if (numeric) {
                 c = CollapsingTopDocsCollector.createNumeric(collapseField.getField(), sort, expectedNumGroups, trackMaxScores);
             } else {
@@ -221,7 +221,7 @@ public class CollapsingTopDocsCollectorTests extends ESTestCase {
     }
 
     public void testCollapseLong() throws Exception {
-        CollapsingDocValuesProducer producer = new CollapsingDocValuesProducer<Long>() {
+        CollapsingDocValuesProducer<Long> producer = new CollapsingDocValuesProducer<Long>() {
             @Override
             public Long randomGroup(int maxGroup) {
                 return randomNonNegativeLong() % maxGroup;
@@ -249,7 +249,7 @@ public class CollapsingTopDocsCollectorTests extends ESTestCase {
     }
 
     public void testCollapseInt() throws Exception {
-        CollapsingDocValuesProducer producer = new CollapsingDocValuesProducer<Integer>() {
+        CollapsingDocValuesProducer<Integer> producer = new CollapsingDocValuesProducer<Integer>() {
             @Override
             public Integer randomGroup(int maxGroup) {
                 return randomIntBetween(0, maxGroup - 1);
@@ -277,10 +277,10 @@ public class CollapsingTopDocsCollectorTests extends ESTestCase {
     }
 
     public void testCollapseFloat() throws Exception {
-        CollapsingDocValuesProducer producer = new CollapsingDocValuesProducer<Float>() {
+        CollapsingDocValuesProducer<Float> producer = new CollapsingDocValuesProducer<Float>() {
             @Override
             public Float randomGroup(int maxGroup) {
-                return new Float(randomIntBetween(0, maxGroup - 1));
+                return Float.valueOf(randomIntBetween(0, maxGroup - 1));
             }
 
             @Override
@@ -305,10 +305,10 @@ public class CollapsingTopDocsCollectorTests extends ESTestCase {
     }
 
     public void testCollapseDouble() throws Exception {
-        CollapsingDocValuesProducer producer = new CollapsingDocValuesProducer<Double>() {
+        CollapsingDocValuesProducer<Double> producer = new CollapsingDocValuesProducer<Double>() {
             @Override
             public Double randomGroup(int maxGroup) {
-                return new Double(randomIntBetween(0, maxGroup - 1));
+                return Double.valueOf(randomIntBetween(0, maxGroup - 1));
             }
 
             @Override
@@ -333,7 +333,7 @@ public class CollapsingTopDocsCollectorTests extends ESTestCase {
     }
 
     public void testCollapseString() throws Exception {
-        CollapsingDocValuesProducer producer = new CollapsingDocValuesProducer<BytesRef>() {
+        CollapsingDocValuesProducer<BytesRef> producer = new CollapsingDocValuesProducer<BytesRef>() {
             @Override
             public BytesRef randomGroup(int maxGroup) {
                 return new BytesRef(Integer.toString(randomIntBetween(0, maxGroup - 1)));
@@ -383,7 +383,7 @@ public class CollapsingTopDocsCollectorTests extends ESTestCase {
         SortField sortField = new SortField("group", SortField.Type.LONG);
         sortField.setMissingValue(Long.MAX_VALUE);
         Sort sort = new Sort(sortField);
-        final CollapsingTopDocsCollector collapsingCollector =
+        final CollapsingTopDocsCollector<?> collapsingCollector =
                 CollapsingTopDocsCollector.createNumeric("group", sort, 10, false);
         searcher.search(new MatchAllDocsQuery(), collapsingCollector);
         CollapseTopFieldDocs collapseTopFieldDocs = collapsingCollector.getTopDocs();
@@ -419,7 +419,7 @@ public class CollapsingTopDocsCollectorTests extends ESTestCase {
         final IndexReader reader = w.getReader();
         final IndexSearcher searcher = newSearcher(reader);
         Sort sort = new Sort(new SortField("group", SortField.Type.STRING_VAL));
-        final CollapsingTopDocsCollector collapsingCollector =
+        final CollapsingTopDocsCollector<?> collapsingCollector =
             CollapsingTopDocsCollector.createKeyword("group", sort, 10, false);
         searcher.search(new MatchAllDocsQuery(), collapsingCollector);
         CollapseTopFieldDocs collapseTopFieldDocs = collapsingCollector.getTopDocs();

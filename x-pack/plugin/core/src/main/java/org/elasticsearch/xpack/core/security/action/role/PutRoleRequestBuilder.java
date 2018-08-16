@@ -19,7 +19,7 @@ import java.util.Map;
 /**
  * Builder for requests to add a role to the administrative index
  */
-public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, PutRoleResponse, PutRoleRequestBuilder>
+public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, PutRoleResponse>
         implements WriteRequestBuilder<PutRoleRequestBuilder> {
 
     public PutRoleRequestBuilder(ElasticsearchClient client) {
@@ -40,7 +40,9 @@ public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, 
         assert name.equals(descriptor.getName());
         request.name(name);
         request.cluster(descriptor.getClusterPrivileges());
+        request.conditionalCluster(descriptor.getConditionalClusterPrivileges());
         request.addIndex(descriptor.getIndicesPrivileges());
+        request.addApplicationPrivileges(descriptor.getApplicationPrivileges());
         request.runAs(descriptor.getRunAs());
         request.metadata(descriptor.getMetadata());
         return this;

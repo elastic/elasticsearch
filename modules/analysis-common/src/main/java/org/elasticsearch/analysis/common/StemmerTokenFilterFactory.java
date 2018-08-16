@@ -76,7 +76,6 @@ import org.tartarus.snowball.ext.KpStemmer;
 import org.tartarus.snowball.ext.LithuanianStemmer;
 import org.tartarus.snowball.ext.LovinsStemmer;
 import org.tartarus.snowball.ext.NorwegianStemmer;
-import org.tartarus.snowball.ext.PorterStemmer;
 import org.tartarus.snowball.ext.PortugueseStemmer;
 import org.tartarus.snowball.ext.RomanianStemmer;
 import org.tartarus.snowball.ext.RussianStemmer;

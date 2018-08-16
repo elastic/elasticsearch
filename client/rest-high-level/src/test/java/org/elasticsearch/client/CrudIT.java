@@ -19,9 +19,6 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.client.methods.HttpPut;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.DocWriteRequest;
@@ -39,6 +36,7 @@ import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.Strings;
@@ -70,7 +68,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         {
             // Testing deletion
             String docId = "id";
-            highLevelClient().index(new IndexRequest("index", "type", docId).source(Collections.singletonMap("foo", "bar")));
+            highLevelClient().index(
+                    new IndexRequest("index", "type", docId).source(Collections.singletonMap("foo", "bar")), RequestOptions.DEFAULT);
             DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId);
             if (randomBoolean()) {
                 deleteRequest.version(1L);
@@ -94,7 +93,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         {
             // Testing version conflict
             String docId = "version_conflict";
-            highLevelClient().index(new IndexRequest("index", "type", docId).source(Collections.singletonMap("foo", "bar")));
+            highLevelClient().index(
+                    new IndexRequest("index", "type", docId).source(Collections.singletonMap("foo", "bar")), RequestOptions.DEFAULT);
             DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId).version(2);
             ElasticsearchException exception = expectThrows(ElasticsearchException.class,
                 () -> execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync));
@@ -106,8 +106,9 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         {
             // Testing version type
             String docId = "version_type";
-            highLevelClient().index(new IndexRequest("index", "type", docId).source(Collections.singletonMap("foo", "bar"))
-                .versionType(VersionType.EXTERNAL).version(12));
+            highLevelClient().index(
+                    new IndexRequest("index", "type", docId).source(Collections.singletonMap("foo", "bar"))
+                .versionType(VersionType.EXTERNAL).version(12), RequestOptions.DEFAULT);
             DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId).versionType(VersionType.EXTERNAL).version(13);
             DeleteResponse deleteResponse = execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync);
             assertEquals("index", deleteResponse.getIndex());
@@ -118,8 +119,9 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         {
             // Testing version type with a wrong version
             String docId = "wrong_version";
-            highLevelClient().index(new IndexRequest("index", "type", docId).source(Collections.singletonMap("foo", "bar"))
-                .versionType(VersionType.EXTERNAL).version(12));
+            highLevelClient().index(
+                    new IndexRequest("index", "type", docId).source(Collections.singletonMap("foo", "bar"))
+                .versionType(VersionType.EXTERNAL).version(12), RequestOptions.DEFAULT);
             ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () -> {
                 DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId).versionType(VersionType.EXTERNAL).version(10);
                 execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync);
@@ -132,7 +134,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         {
             // Testing routing
             String docId = "routing";
-            highLevelClient().index(new IndexRequest("index", "type", docId).source(Collections.singletonMap("foo", "bar")).routing("foo"));
+            highLevelClient().index(new IndexRequest("index", "type", docId).source(Collections.singletonMap("foo", "bar")).routing("foo"),
+                    RequestOptions.DEFAULT);
             DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId).routing("foo");
             DeleteResponse deleteResponse = execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync);
             assertEquals("index", deleteResponse.getIndex());
@@ -147,11 +150,10 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             GetRequest getRequest = new GetRequest("index", "type", "id");
             assertFalse(execute(getRequest, highLevelClient()::exists, highLevelClient()::existsAsync));
         }
-        String document = "{\"field1\":\"value1\",\"field2\":\"value2\"}";
-        StringEntity stringEntity = new StringEntity(document, ContentType.APPLICATION_JSON);
-        Response response = client().performRequest(HttpPut.METHOD_NAME, "/index/type/id", Collections.singletonMap("refresh", "wait_for"),
-                stringEntity);
-        assertEquals(201, response.getStatusLine().getStatusCode());
+        IndexRequest index = new IndexRequest("index", "type", "id");
+        index.source("{\"field1\":\"value1\",\"field2\":\"value2\"}", XContentType.JSON);
+        index.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+        highLevelClient().index(index, RequestOptions.DEFAULT);
         {
             GetRequest getRequest = new GetRequest("index", "type", "id");
             assertTrue(execute(getRequest, highLevelClient()::exists, highLevelClient()::existsAsync));
@@ -175,12 +177,11 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals("Elasticsearch exception [type=index_not_found_exception, reason=no such index]", exception.getMessage());
             assertEquals("index", exception.getMetadata("es.index").get(0));
         }
-
+        IndexRequest index = new IndexRequest("index", "type", "id");
         String document = "{\"field1\":\"value1\",\"field2\":\"value2\"}";
-        StringEntity stringEntity = new StringEntity(document, ContentType.APPLICATION_JSON);
-        Response response = client().performRequest(HttpPut.METHOD_NAME, "/index/type/id", Collections.singletonMap("refresh", "wait_for"),
-                stringEntity);
-        assertEquals(201, response.getStatusLine().getStatusCode());
+        index.source(document, XContentType.JSON);
+        index.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+        highLevelClient().index(index, RequestOptions.DEFAULT);
         {
             GetRequest getRequest = new GetRequest("index", "type", "id").version(2);
             ElasticsearchException exception = expectThrows(ElasticsearchException.class,
@@ -252,7 +253,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             MultiGetRequest multiGetRequest = new MultiGetRequest();
             multiGetRequest.add("index", "type", "id1");
             multiGetRequest.add("index", "type", "id2");
-            MultiGetResponse response = execute(multiGetRequest, highLevelClient()::multiGet, highLevelClient()::multiGetAsync);
+            MultiGetResponse response = execute(multiGetRequest, highLevelClient()::mget, highLevelClient()::mgetAsync);
             assertEquals(2, response.getResponses().length);
 
             assertTrue(response.getResponses()[0].isFailed());
@@ -271,23 +272,20 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals("Elasticsearch exception [type=index_not_found_exception, reason=no such index]",
                     response.getResponses()[1].getFailure().getFailure().getMessage());
         }
-
-        String document = "{\"field\":\"value1\"}";
-        StringEntity stringEntity = new StringEntity(document, ContentType.APPLICATION_JSON);
-        Response r = client().performRequest(HttpPut.METHOD_NAME, "/index/type/id1", Collections.singletonMap("refresh", "true"),
-                stringEntity);
-        assertEquals(201, r.getStatusLine().getStatusCode());
-
-        document = "{\"field\":\"value2\"}";
-        stringEntity = new StringEntity(document, ContentType.APPLICATION_JSON);
-        r = client().performRequest(HttpPut.METHOD_NAME, "/index/type/id2", Collections.singletonMap("refresh", "true"), stringEntity);
-        assertEquals(201, r.getStatusLine().getStatusCode());
-
+        BulkRequest bulk = new BulkRequest();
+        bulk.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+        IndexRequest index = new IndexRequest("index", "type", "id1");
+        index.source("{\"field\":\"value1\"}", XContentType.JSON);
+        bulk.add(index);
+        index = new IndexRequest("index", "type", "id2");
+        index.source("{\"field\":\"value2\"}", XContentType.JSON);
+        bulk.add(index);
+        highLevelClient().bulk(bulk, RequestOptions.DEFAULT);
         {
             MultiGetRequest multiGetRequest = new MultiGetRequest();
             multiGetRequest.add("index", "type", "id1");
             multiGetRequest.add("index", "type", "id2");
-            MultiGetResponse response = execute(multiGetRequest, highLevelClient()::multiGet, highLevelClient()::multiGetAsync);
+            MultiGetResponse response = execute(multiGetRequest, highLevelClient()::mget, highLevelClient()::mgetAsync);
             assertEquals(2, response.getResponses().length);
 
             assertFalse(response.getResponses()[0].isFailed());
@@ -423,7 +421,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         {
             IndexRequest indexRequest = new IndexRequest("index", "type", "id");
             indexRequest.source(singletonMap("field", "value"));
-            IndexResponse indexResponse = highLevelClient().index(indexRequest);
+            IndexResponse indexResponse = highLevelClient().index(indexRequest, RequestOptions.DEFAULT);
             assertEquals(RestStatus.CREATED, indexResponse.status());
 
             UpdateRequest updateRequest = new UpdateRequest("index", "type", "id");
@@ -446,7 +444,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         {
             IndexRequest indexRequest = new IndexRequest("index", "type", "with_script");
             indexRequest.source(singletonMap("counter", 12));
-            IndexResponse indexResponse = highLevelClient().index(indexRequest);
+            IndexResponse indexResponse = highLevelClient().index(indexRequest, RequestOptions.DEFAULT);
             assertEquals(RestStatus.CREATED, indexResponse.status());
 
             UpdateRequest updateRequest = new UpdateRequest("index", "type", "with_script");
@@ -466,7 +464,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             indexRequest.source("field_1", "one", "field_3", "three");
             indexRequest.version(12L);
             indexRequest.versionType(VersionType.EXTERNAL);
-            IndexResponse indexResponse = highLevelClient().index(indexRequest);
+            IndexResponse indexResponse = highLevelClient().index(indexRequest, RequestOptions.DEFAULT);
             assertEquals(RestStatus.CREATED, indexResponse.status());
             assertEquals(12L, indexResponse.getVersion());
 
@@ -488,7 +486,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         {
             IndexRequest indexRequest = new IndexRequest("index", "type", "noop");
             indexRequest.source("field", "value");
-            IndexResponse indexResponse = highLevelClient().index(indexRequest);
+            IndexResponse indexResponse = highLevelClient().index(indexRequest, RequestOptions.DEFAULT);
             assertEquals(RestStatus.CREATED, indexResponse.status());
             assertEquals(1L, indexResponse.getVersion());
 
@@ -582,7 +580,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             if (opType == DocWriteRequest.OpType.DELETE) {
                 if (erroneous == false) {
                     assertEquals(RestStatus.CREATED,
-                            highLevelClient().index(new IndexRequest("index", "test", id).source("field", -1)).status());
+                            highLevelClient().index(
+                                    new IndexRequest("index", "test", id).source("field", -1), RequestOptions.DEFAULT).status());
                 }
                 DeleteRequest deleteRequest = new DeleteRequest("index", "test", id);
                 bulkRequest.add(deleteRequest);
@@ -600,7 +599,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                 } else if (opType == DocWriteRequest.OpType.CREATE) {
                     IndexRequest createRequest = new IndexRequest("index", "test", id).source(source, xContentType).create(true);
                     if (erroneous) {
-                        assertEquals(RestStatus.CREATED, highLevelClient().index(createRequest).status());
+                        assertEquals(RestStatus.CREATED, highLevelClient().index(createRequest, RequestOptions.DEFAULT).status());
                     }
                     bulkRequest.add(createRequest);
 
@@ -609,7 +608,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                             .doc(new IndexRequest().source(source, xContentType));
                     if (erroneous == false) {
                         assertEquals(RestStatus.CREATED,
-                                highLevelClient().index(new IndexRequest("index", "test", id).source("field", -1)).status());
+                                highLevelClient().index(
+                                        new IndexRequest("index", "test", id).source("field", -1), RequestOptions.DEFAULT).status());
                     }
                     bulkRequest.add(updateRequest);
                 }
@@ -652,10 +652,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             }
         };
 
-        // Pull the client to a variable to work around https://bugs.eclipse.org/bugs/show_bug.cgi?id=514884
-        RestHighLevelClient hlClient = highLevelClient();
-
-        try (BulkProcessor processor = BulkProcessor.builder(hlClient::bulkAsync, listener)
+        try (BulkProcessor processor = BulkProcessor.builder(
+                (request, bulkListener) -> highLevelClient().bulkAsync(request, RequestOptions.DEFAULT, bulkListener), listener)
                 .setConcurrentRequests(0)
                 .setBulkSize(new ByteSizeValue(5, ByteSizeUnit.GB))
                 .setBulkActions(nbItems + 1)
@@ -669,7 +667,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                 if (opType == DocWriteRequest.OpType.DELETE) {
                     if (erroneous == false) {
                         assertEquals(RestStatus.CREATED,
-                                highLevelClient().index(new IndexRequest("index", "test", id).source("field", -1)).status());
+                                highLevelClient().index(
+                                        new IndexRequest("index", "test", id).source("field", -1), RequestOptions.DEFAULT).status());
                     }
                     DeleteRequest deleteRequest = new DeleteRequest("index", "test", id);
                     processor.add(deleteRequest);
@@ -685,7 +684,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                     } else if (opType == DocWriteRequest.OpType.CREATE) {
                         IndexRequest createRequest = new IndexRequest("index", "test", id).source(xContentType, "id", i).create(true);
                         if (erroneous) {
-                            assertEquals(RestStatus.CREATED, highLevelClient().index(createRequest).status());
+                            assertEquals(RestStatus.CREATED, highLevelClient().index(createRequest, RequestOptions.DEFAULT).status());
                         }
                         processor.add(createRequest);
 
@@ -694,7 +693,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                                 .doc(new IndexRequest().source(xContentType, "id", i));
                         if (erroneous == false) {
                             assertEquals(RestStatus.CREATED,
-                                    highLevelClient().index(new IndexRequest("index", "test", id).source("field", -1)).status());
+                                    highLevelClient().index(
+                                            new IndexRequest("index", "test", id).source("field", -1), RequestOptions.DEFAULT).status());
                         }
                         processor.add(updateRequest);
                     }
@@ -746,14 +746,14 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         {
             IndexRequest indexRequest = new IndexRequest(indexPattern, "type", "id#1");
             indexRequest.source("field", "value");
-            IndexResponse indexResponse = highLevelClient().index(indexRequest);
+            IndexResponse indexResponse = highLevelClient().index(indexRequest, RequestOptions.DEFAULT);
             assertEquals(expectedIndex, indexResponse.getIndex());
             assertEquals("type", indexResponse.getType());
             assertEquals("id#1", indexResponse.getId());
         }
         {
             GetRequest getRequest = new GetRequest(indexPattern, "type", "id#1");
-            GetResponse getResponse = highLevelClient().get(getRequest);
+            GetResponse getResponse = highLevelClient().get(getRequest, RequestOptions.DEFAULT);
             assertTrue(getResponse.isExists());
             assertEquals(expectedIndex, getResponse.getIndex());
             assertEquals("type", getResponse.getType());
@@ -764,21 +764,21 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         {
             IndexRequest indexRequest = new IndexRequest("index", "type", docId);
             indexRequest.source("field", "value");
-            IndexResponse indexResponse = highLevelClient().index(indexRequest);
+            IndexResponse indexResponse = highLevelClient().index(indexRequest, RequestOptions.DEFAULT);
             assertEquals("index", indexResponse.getIndex());
             assertEquals("type", indexResponse.getType());
             assertEquals(docId, indexResponse.getId());
         }
         {
             GetRequest getRequest = new GetRequest("index", "type", docId);
-            GetResponse getResponse = highLevelClient().get(getRequest);
+            GetResponse getResponse = highLevelClient().get(getRequest, RequestOptions.DEFAULT);
             assertTrue(getResponse.isExists());
             assertEquals("index", getResponse.getIndex());
             assertEquals("type", getResponse.getType());
             assertEquals(docId, getResponse.getId());
         }
 
-        assertTrue(highLevelClient().indices().exists(new GetIndexRequest().indices(indexPattern, "index")));
+        assertTrue(highLevelClient().indices().exists(new GetIndexRequest().indices(indexPattern, "index"), RequestOptions.DEFAULT));
     }
 
     public void testParamsEncode() throws IOException {
@@ -788,14 +788,14 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             IndexRequest indexRequest = new IndexRequest("index", "type", "id");
             indexRequest.source("field", "value");
             indexRequest.routing(routing);
-            IndexResponse indexResponse = highLevelClient().index(indexRequest);
+            IndexResponse indexResponse = highLevelClient().index(indexRequest, RequestOptions.DEFAULT);
             assertEquals("index", indexResponse.getIndex());
             assertEquals("type", indexResponse.getType());
             assertEquals("id", indexResponse.getId());
         }
         {
             GetRequest getRequest = new GetRequest("index", "type", "id").routing(routing);
-            GetResponse getResponse = highLevelClient().get(getRequest);
+            GetResponse getResponse = highLevelClient().get(getRequest, RequestOptions.DEFAULT);
             assertTrue(getResponse.isExists());
             assertEquals("index", getResponse.getIndex());
             assertEquals("type", getResponse.getType());

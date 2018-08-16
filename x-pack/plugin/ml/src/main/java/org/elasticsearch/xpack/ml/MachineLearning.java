@@ -97,6 +97,7 @@ import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateCalendarJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateFilterAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateProcessAction;
@@ -148,6 +149,7 @@ import org.elasticsearch.xpack.ml.action.TransportStartDatafeedAction;
 import org.elasticsearch.xpack.ml.action.TransportStopDatafeedAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateCalendarJobAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateDatafeedAction;
+import org.elasticsearch.xpack.ml.action.TransportUpdateFilterAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateJobAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateProcessAction;
@@ -160,12 +162,12 @@ import org.elasticsearch.xpack.ml.job.UpdateJobProcessNotifier;
 import org.elasticsearch.xpack.ml.job.categorization.MlClassicTokenizer;
 import org.elasticsearch.xpack.ml.job.categorization.MlClassicTokenizerFactory;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.NativeController;
 import org.elasticsearch.xpack.ml.job.process.NativeControllerHolder;
-import org.elasticsearch.xpack.ml.job.process.ProcessCtrl;
+import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectBuilder;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessFactory;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.job.process.autodetect.BlackHoleAutodetectProcess;
@@ -196,6 +198,7 @@ import org.elasticsearch.xpack.ml.rest.datafeeds.RestUpdateDatafeedAction;
 import org.elasticsearch.xpack.ml.rest.filter.RestDeleteFilterAction;
 import org.elasticsearch.xpack.ml.rest.filter.RestGetFiltersAction;
 import org.elasticsearch.xpack.ml.rest.filter.RestPutFilterAction;
+import org.elasticsearch.xpack.ml.rest.filter.RestUpdateFilterAction;
 import org.elasticsearch.xpack.ml.rest.job.RestCloseJobAction;
 import org.elasticsearch.xpack.ml.rest.job.RestDeleteJobAction;
 import org.elasticsearch.xpack.ml.rest.job.RestFlushJobAction;
@@ -281,12 +284,13 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                         CONCURRENT_JOB_ALLOCATIONS,
                         MachineLearningField.MAX_MODEL_MEMORY_LIMIT,
                         MAX_MACHINE_MEMORY_PERCENT,
-                        ProcessCtrl.DONT_PERSIST_MODEL_STATE_SETTING,
-                        ProcessCtrl.MAX_ANOMALY_RECORDS_SETTING,
+                        AutodetectBuilder.DONT_PERSIST_MODEL_STATE_SETTING,
+                        AutodetectBuilder.MAX_ANOMALY_RECORDS_SETTING,
                         DataCountsReporter.ACCEPTABLE_PERCENTAGE_DATE_PARSE_ERRORS_SETTING,
                         DataCountsReporter.ACCEPTABLE_PERCENTAGE_OUT_OF_ORDER_ERRORS_SETTING,
                         AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE,
-                        AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE));
+                        AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE,
+                        AutodetectProcessManager.MIN_DISK_SPACE_OFF_HEAP));
     }
 
     public Settings additionalSettings() {
@@ -315,12 +319,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
     }
 
     private void addMlNodeAttribute(Settings.Builder additionalSettings, String attrName, String value) {
-        // Unfortunately we cannot simply disallow any value, because the internal cluster integration
-        // test framework will restart nodes with settings copied from the node immediately before it
-        // was stopped.  The best we can do is reject inconsistencies, and report this in a way that
-        // makes clear that setting the node attribute directly is not allowed.
         String oldValue = settings.get(attrName);
-        if (oldValue == null || oldValue.equals(value)) {
+        if (oldValue == null) {
             additionalSettings.put(attrName, value);
         } else {
             reportClashingNodeAttribute(attrName);
@@ -357,9 +357,9 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         }
 
         Auditor auditor = new Auditor(client, clusterService.nodeName());
-        JobProvider jobProvider = new JobProvider(client, settings);
+        JobResultsProvider jobResultsProvider = new JobResultsProvider(client, settings);
         UpdateJobProcessNotifier notifier = new UpdateJobProcessNotifier(settings, client, clusterService, threadPool);
-        JobManager jobManager = new JobManager(env, settings, jobProvider, clusterService, auditor, client, notifier);
+        JobManager jobManager = new JobManager(env, settings, jobResultsProvider, clusterService, auditor, client, notifier);
 
         JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(settings, client);
         JobResultsPersister jobResultsPersister = new JobResultsPersister(settings, client);
@@ -390,10 +390,10 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         NormalizerFactory normalizerFactory = new NormalizerFactory(normalizerProcessFactory,
                 threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME));
         AutodetectProcessManager autodetectProcessManager = new AutodetectProcessManager(env, settings, client, threadPool,
-                jobManager, jobProvider, jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory,
+                jobManager, jobResultsProvider, jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory,
                 normalizerFactory, xContentRegistry, auditor);
         this.autodetectProcessManager.set(autodetectProcessManager);
-        DatafeedJobBuilder datafeedJobBuilder = new DatafeedJobBuilder(client, jobProvider, auditor, System::currentTimeMillis);
+        DatafeedJobBuilder datafeedJobBuilder = new DatafeedJobBuilder(client, jobResultsProvider, auditor, System::currentTimeMillis);
         DatafeedManager datafeedManager = new DatafeedManager(threadPool, client, clusterService, datafeedJobBuilder,
                 System::currentTimeMillis, auditor);
         this.datafeedManager.set(datafeedManager);
@@ -403,9 +403,12 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         // This object's constructor attaches to the license state, so there's no need to retain another reference to it
         new InvalidLicenseEnforcer(settings, getLicenseState(), threadPool, datafeedManager, autodetectProcessManager);
 
+        // run node startup tasks
+        autodetectProcessManager.onNodeStartup();
+
         return Arrays.asList(
                 mlLifeCycleService,
-                jobProvider,
+                jobResultsProvider,
                 jobManager,
                 autodetectProcessManager,
                 new MlInitializationService(settings, threadPool, clusterService, client),
@@ -460,6 +463,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             new RestOpenJobAction(settings, restController),
             new RestGetFiltersAction(settings, restController),
             new RestPutFilterAction(settings, restController),
+            new RestUpdateFilterAction(settings, restController),
             new RestDeleteFilterAction(settings, restController),
             new RestGetInfluencersAction(settings, restController),
             new RestGetRecordsAction(settings, restController),
@@ -483,7 +487,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             new RestStartDatafeedAction(settings, restController),
             new RestStopDatafeedAction(settings, restController),
             new RestDeleteModelSnapshotAction(settings, restController),
-            new RestDeleteExpiredDataAction(settings, restController), 
+            new RestDeleteExpiredDataAction(settings, restController),
             new RestForecastJobAction(settings, restController),
             new RestGetCalendarsAction(settings, restController),
             new RestPutCalendarAction(settings, restController),
@@ -511,6 +515,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 new ActionHandler<>(OpenJobAction.INSTANCE, TransportOpenJobAction.class),
                 new ActionHandler<>(GetFiltersAction.INSTANCE, TransportGetFiltersAction.class),
                 new ActionHandler<>(PutFilterAction.INSTANCE, TransportPutFilterAction.class),
+                new ActionHandler<>(UpdateFilterAction.INSTANCE, TransportUpdateFilterAction.class),
                 new ActionHandler<>(DeleteFilterAction.INSTANCE, TransportDeleteFilterAction.class),
                 new ActionHandler<>(KillProcessAction.INSTANCE, TransportKillProcessAction.class),
                 new ActionHandler<>(GetBucketsAction.INSTANCE, TransportGetBucketsAction.class),
@@ -630,11 +635,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                         // TODO review these settings
                         .settings(Settings.builder()
                                 .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-                                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting)
-                                // Sacrifice durability for performance: in the event of power
-                                // failure we can lose the last 5 seconds of changes, but it's
-                                // much faster
-                                .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), "async"))
+                                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting))
                         .putMapping(ElasticsearchMappings.DOC_TYPE, Strings.toString(stateMapping))
                         .version(Version.CURRENT.id)
                         .build();

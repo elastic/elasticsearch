@@ -8,12 +8,12 @@ package org.elasticsearch.xpack.watcher.test.integration;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.ObjectPath;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchResponse;
-import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.xpack.watcher.condition.ScriptCondition;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.hamcrest.Matcher;
@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
@@ -35,6 +36,8 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTestCase {
+
+    private String watchId = randomAlphaOfLength(20);
 
     @Override
     protected List<Class<? extends Plugin>> pluginTypes() {
@@ -107,7 +110,7 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
     public void testVars() throws Exception {
         WatcherClient watcherClient = watcherClient();
 
-        PutWatchResponse putWatchResponse = watcherClient.preparePutWatch("_id").setSource(watchBuilder()
+        PutWatchResponse putWatchResponse = watcherClient.preparePutWatch(watchId).setSource(watchBuilder()
                 .trigger(schedule(cron("0/1 * * * * ?")))
                 .input(simpleInput("value", 5))
                 .condition(new ScriptCondition(
@@ -126,7 +129,7 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
 
         assertThat(putWatchResponse.isCreated(), is(true));
 
-        timeWarp().trigger("_id");
+        timeWarp().trigger(watchId);
 
         flush();
         refresh();
@@ -135,11 +138,11 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
             // defaults to match all;
         });
 
-        assertThat(searchResponse.getHits().getTotalHits(), is(1L));
+        assertHitCount(searchResponse, 1L);
 
         Map<String, Object> source = searchResponse.getHits().getAt(0).getSourceAsMap();
 
-        assertValue(source, "watch_id", is("_id"));
+        assertValue(source, "watch_id", is(watchId));
         assertValue(source, "state", is("executed"));
 
         // we don't store the computed vars in history
@@ -171,7 +174,7 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
     public void testVarsManual() throws Exception {
         WatcherClient watcherClient = watcherClient();
 
-        PutWatchResponse putWatchResponse = watcherClient.preparePutWatch("_id").setSource(watchBuilder()
+        PutWatchResponse putWatchResponse = watcherClient.preparePutWatch(watchId).setSource(watchBuilder()
                 .trigger(schedule(cron("0/1 * * * * ? 2020")))
                 .input(simpleInput("value", 5))
                 .condition(new ScriptCondition(
@@ -193,13 +196,13 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
         boolean debug = randomBoolean();
 
         ExecuteWatchResponse executeWatchResponse = watcherClient
-                .prepareExecuteWatch("_id")
+                .prepareExecuteWatch(watchId)
                 .setDebug(debug)
                 .get();
         assertThat(executeWatchResponse.getRecordId(), notNullValue());
         XContentSource source = executeWatchResponse.getRecordSource();
 
-        assertValue(source, "watch_id", is("_id"));
+        assertValue(source, "watch_id", is(watchId));
         assertValue(source, "state", is("executed"));
 
         if (debug) {

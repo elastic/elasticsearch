@@ -100,7 +100,7 @@ final class RestClientTestUtil {
             if (random.nextBoolean()) {
                 headerName = headerName + i;
             }
-            headers[i] = new BasicHeader(headerName, RandomStrings.randomAsciiOfLengthBetween(random, 3, 10));
+            headers[i] = new BasicHeader(headerName, RandomStrings.randomAsciiLettersOfLengthBetween(random, 3, 10));
         }
         return headers;
     }

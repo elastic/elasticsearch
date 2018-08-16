@@ -270,7 +270,8 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
 
     public static class Builder {
 
-        private static final Set<String> VALID_FIELDS = Sets.newHashSet("template", "order", "mappings", "settings", "index_patterns");
+        private static final Set<String> VALID_FIELDS = Sets.newHashSet(
+            "template", "order", "mappings", "settings", "index_patterns", "aliases", "version");
         static {
             VALID_FIELDS.addAll(IndexMetaData.customPrototypes.keySet());
         }
@@ -380,7 +381,6 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                 aliases.build(), customs.build());
         }
 
-        @SuppressWarnings("unchecked")
         public static void toXContent(IndexTemplateMetaData indexTemplateMetaData, XContentBuilder builder, ToXContent.Params params)
                 throws IOException {
             builder.startObject(indexTemplateMetaData.name());

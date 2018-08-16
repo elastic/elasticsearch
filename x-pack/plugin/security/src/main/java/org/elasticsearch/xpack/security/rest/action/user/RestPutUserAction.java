@@ -16,8 +16,10 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
+import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.core.security.rest.RestRequestFilter;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
@@ -34,6 +36,8 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  */
 public class RestPutUserAction extends SecurityBaseRestHandler implements RestRequestFilter {
 
+    private final Hasher passwordHasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings));
+
     public RestPutUserAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
         super(settings, licenseState);
         controller.registerHandler(POST, "/_xpack/security/user/{username}", this);
@@ -48,7 +52,7 @@ public class RestPutUserAction extends SecurityBaseRestHandler implements RestRe
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         PutUserRequestBuilder requestBuilder = new SecurityClient(client)
-                .preparePutUser(request.param("username"), request.requiredContent(), request.getXContentType())
+            .preparePutUser(request.param("username"), request.requiredContent(), request.getXContentType(), passwordHasher)
                 .setRefreshPolicy(request.param("refresh"));
 
         return channel -> requestBuilder.execute(new RestBuilderListener<PutUserResponse>(channel) {

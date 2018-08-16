@@ -115,6 +115,7 @@ authenticated. For example:
 --------------------------------------------------
 curl -u jacknich:j@rV1s http://localhost:9200/_cluster/health
 --------------------------------------------------
+// NOTCONSOLE
 
 [[security-api-get-user]]
 To retrieve a native user, submit a GET request to the `/_xpack/security/user/<username>`

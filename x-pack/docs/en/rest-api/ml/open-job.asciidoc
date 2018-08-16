@@ -5,7 +5,7 @@
 <titleabbrev>Open Jobs</titleabbrev>
 ++++
 
-This API enables you to open one or more jobs.
+Opens one or more jobs.
 A job must be opened in order for it to be ready to receive and analyze data.
 A job can be opened and closed multiple times throughout its lifecycle.
 

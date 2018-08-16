@@ -5,7 +5,7 @@
 <titleabbrev>Delete Calendar</titleabbrev>
 ++++
 
-This API enables you to delete a calendar.
+Deletes a calendar.
 
 
 ==== Request

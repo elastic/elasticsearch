@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.security.authc.ldap.support;
 
 import com.unboundid.ldap.listener.InMemoryDirectoryServer;
 import com.unboundid.ldap.sdk.Attribute;
-import com.unboundid.ldap.sdk.BindRequest;
 import com.unboundid.ldap.sdk.LDAPConnection;
 import com.unboundid.ldap.sdk.LDAPConnectionPool;
 import com.unboundid.ldap.sdk.LDAPException;

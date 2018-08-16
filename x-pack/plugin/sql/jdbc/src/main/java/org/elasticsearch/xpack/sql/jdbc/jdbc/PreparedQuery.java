@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.sql.jdbc.jdbc;
 
 import org.elasticsearch.xpack.sql.jdbc.JdbcSQLException;
-import org.elasticsearch.xpack.sql.plugin.SqlTypedParamValue;
+import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.sql.JDBCType;
@@ -73,7 +73,7 @@ class PreparedQuery {
      */
     List<SqlTypedParamValue> params() {
         return Arrays.stream(this.params).map(
-                paramInfo -> new SqlTypedParamValue(paramInfo.value, DataType.fromJdbcType(paramInfo.type))
+                paramInfo -> new SqlTypedParamValue(DataType.fromJdbcType(paramInfo.type), paramInfo.value)
         ).collect(Collectors.toList());
     }
 

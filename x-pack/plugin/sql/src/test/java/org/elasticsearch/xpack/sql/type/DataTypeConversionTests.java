@@ -45,8 +45,8 @@ public class DataTypeConversionTests extends ESTestCase {
         {
             Conversion conversion = DataTypeConversion.conversionFor(DataType.BOOLEAN, to);
             assertNull(conversion.convert(null));
-            assertEquals(1, conversion.convert(true));
-            assertEquals(0, conversion.convert(false));
+            assertEquals(1L, conversion.convert(true));
+            assertEquals(0L, conversion.convert(false));
         }
         Conversion conversion = DataTypeConversion.conversionFor(DataType.KEYWORD, to);
         assertNull(conversion.convert(null));
@@ -82,10 +82,15 @@ public class DataTypeConversionTests extends ESTestCase {
         Conversion conversion = DataTypeConversion.conversionFor(DataType.KEYWORD, to);
         assertNull(conversion.convert(null));
 
-        // TODO we'd like to be able to optionally parse millis here I think....
         assertEquals(new DateTime(1000L, DateTimeZone.UTC), conversion.convert("1970-01-01T00:00:01Z"));
         assertEquals(new DateTime(1483228800000L, DateTimeZone.UTC), conversion.convert("2017-01-01T00:00:00Z"));
         assertEquals(new DateTime(18000000L, DateTimeZone.UTC), conversion.convert("1970-01-01T00:00:00-05:00"));
+        
+        // double check back and forth conversion
+        DateTime dt = DateTime.now(DateTimeZone.UTC);
+        Conversion forward = DataTypeConversion.conversionFor(DataType.DATE, DataType.KEYWORD);
+        Conversion back = DataTypeConversion.conversionFor(DataType.KEYWORD, DataType.DATE);
+        assertEquals(dt, back.convert(forward.convert(dt)));
         Exception e = expectThrows(SqlIllegalArgumentException.class, () -> conversion.convert("0xff"));
         assertEquals("cannot cast [0xff] to [Date]:Invalid format: \"0xff\" is malformed at \"xff\"", e.getMessage());
     }
@@ -137,11 +142,18 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals(false, conversion.convert(0));
         }
         {
+            Conversion conversion = DataTypeConversion.conversionFor(DataType.LONG, DataType.BOOLEAN);
+            assertNull(conversion.convert(null));
+            assertEquals(true, conversion.convert(10L));
+            assertEquals(true, conversion.convert(-10L));
+            assertEquals(false, conversion.convert(0L));
+        }
+        {
             Conversion conversion = DataTypeConversion.conversionFor(DataType.DOUBLE, DataType.BOOLEAN);
             assertNull(conversion.convert(null));
-            assertEquals(true, conversion.convert(10.0));
-            assertEquals(true, conversion.convert(-10.0));
-            assertEquals(false, conversion.convert(0.0));
+            assertEquals(true, conversion.convert(10.0d));
+            assertEquals(true, conversion.convert(-10.0d));
+            assertEquals(false, conversion.convert(0.0d));
         }
         {
             Conversion conversion = DataTypeConversion.conversionFor(DataType.KEYWORD, DataType.BOOLEAN);

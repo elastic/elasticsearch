@@ -5,7 +5,7 @@
 <titleabbrev>Get Buckets</titleabbrev>
 ++++
 
-This API enables you to retrieve job results for one or more buckets.
+Retrieves job results for one or more buckets.
 
 
 ==== Request

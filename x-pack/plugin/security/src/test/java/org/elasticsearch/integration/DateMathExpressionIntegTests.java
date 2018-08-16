@@ -21,7 +21,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 
 import java.util.Collections;
 
@@ -34,12 +33,13 @@ import static org.hamcrest.Matchers.is;
 public class DateMathExpressionIntegTests extends SecurityIntegTestCase {
 
     protected static final SecureString USERS_PASSWD = new SecureString("change_me".toCharArray());
-    protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(USERS_PASSWD));
 
     @Override
     protected String configUsers() {
+        final String usersPasswdHashed = new String(getFastStoredHashAlgoForTests().hash(USERS_PASSWD));
+
         return super.configUsers() +
-                "user1:" + USERS_PASSWD_HASHED + "\n";
+            "user1:" + usersPasswdHashed + "\n";
     }
 
     @Override

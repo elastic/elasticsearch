@@ -14,7 +14,7 @@ import java.util.Arrays;
  * Simple wrapper around bytes so that it can be used as a cache key. The hashCode is computed
  * once upon creation and cached.
  */
-public class BytesKey {
+public final class BytesKey {
 
     final byte[] bytes;
     private final int hashCode;

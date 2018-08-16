@@ -31,6 +31,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -118,6 +119,43 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
         indexRandom(true, client().prepareIndex("test", "geometry", "0").setSource("shape",
             polygonGeoJson));
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(matchAllQuery()).get();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
+    }
+
+    /**
+     * Test that the indexed shape routing can be provided if it is required
+     */
+    public void testIndexShapeRouting() throws Exception {
+        String mapping = "{\n" +
+            "    \"_routing\": {\n" +
+            "      \"required\": true\n" +
+            "    },\n" +
+            "    \"properties\": {\n" +
+            "      \"shape\": {\n" +
+            "        \"type\": \"geo_shape\"\n" +
+            "      }\n" +
+            "    }\n" +
+            "  }";
+
+
+        // create index
+        assertAcked(client().admin().indices().prepareCreate("test").addMapping("doc", mapping, XContentType.JSON).get());
+        ensureGreen();
+
+        String source = "{\n" +
+            "    \"shape\" : {\n" +
+            "        \"type\" : \"circle\",\n" +
+            "        \"coordinates\" : [-45.0, 45.0],\n" +
+            "        \"radius\" : \"100m\"\n" +
+            "    }\n" +
+            "}";
+
+        indexRandom(true, client().prepareIndex("test", "doc", "0").setSource(source, XContentType.JSON).setRouting("ABC"));
+
+        SearchResponse searchResponse = client().prepareSearch("test").setQuery(
+            geoShapeQuery("shape", "0", "doc").indexedShapeIndex("test").indexedShapeRouting("ABC")
+        ).get();
+
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
     }
 

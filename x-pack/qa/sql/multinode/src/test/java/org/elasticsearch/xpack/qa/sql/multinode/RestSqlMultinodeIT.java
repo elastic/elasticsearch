@@ -6,8 +6,7 @@
 package org.elasticsearch.xpack.qa.sql.multinode;
 
 import org.apache.http.HttpHost;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
@@ -24,11 +23,8 @@ import java.sql.JDBCType;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.qa.sql.rest.RestSqlTestCase.columnInfo;
 import static org.elasticsearch.xpack.qa.sql.rest.RestSqlTestCase.randomMode;
 
@@ -53,7 +49,7 @@ public class RestSqlMultinodeIT extends ESRestTestCase {
         String firstHostName = null;
 
         String match = firstHost.getHostName() + ":" + firstHost.getPort();
-        Map<String, Object> nodesInfo = responseToMap(client().performRequest("GET", "/_nodes"));
+        Map<String, Object> nodesInfo = responseToMap(client().performRequest(new Request("GET", "/_nodes")));
         @SuppressWarnings("unchecked")
         Map<String, Object> nodes = (Map<String, Object>) nodesInfo.get("nodes");
         for (Map.Entry<String, Object> node : nodes.entrySet()) {
@@ -74,7 +70,9 @@ public class RestSqlMultinodeIT extends ESRestTestCase {
         }
         index.endObject();
         index.endObject();
-        client().performRequest("PUT", "/test", emptyMap(), new StringEntity(Strings.toString(index), ContentType.APPLICATION_JSON));
+        Request request = new Request("PUT", "/test");
+        request.setJsonEntity(Strings.toString(index));
+        client().performRequest(request);
         int documents = between(10, 100);
         createTestData(documents);
 
@@ -84,6 +82,9 @@ public class RestSqlMultinodeIT extends ESRestTestCase {
     }
 
     private void createTestData(int documents) throws UnsupportedCharsetException, IOException {
+        Request request = new Request("PUT", "/test/test/_bulk");
+        request.addParameter("refresh", "true");
+
         StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < documents; i++) {
             int a = 3 * i;
@@ -92,8 +93,9 @@ public class RestSqlMultinodeIT extends ESRestTestCase {
             bulk.append("{\"index\":{\"_id\":\"" + i + "\"}\n");
             bulk.append("{\"a\": " + a + ", \"b\": " + b + ", \"c\": " + c + "}\n");
         }
-        client().performRequest("PUT", "/test/test/_bulk", singletonMap("refresh", "true"),
-                new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
+        request.setJsonEntity(bulk.toString());
+
+        client().performRequest(request);
     }
 
     private Map<String, Object> responseToMap(Response response) throws IOException {
@@ -108,14 +110,12 @@ public class RestSqlMultinodeIT extends ESRestTestCase {
         expected.put("columns", singletonList(columnInfo(mode, "COUNT(1)", "long", JDBCType.BIGINT, 20)));
         expected.put("rows", singletonList(singletonList(count)));
 
-        Map<String, String> params = new TreeMap<>();
-        params.put("format", "json");        // JSON is easier to parse then a table
-        if (Strings.hasText(mode)) {
-            params.put("mode", mode);        // JDBC or PLAIN mode
+        Request request = new Request("POST", "/_xpack/sql");
+        if (false == mode.isEmpty()) {
+            request.addParameter("mode", mode);
         }
-
-        Map<String, Object> actual = responseToMap(client.performRequest("POST", "/_xpack/sql", params,
-                new StringEntity("{\"query\": \"SELECT COUNT(*) FROM test\"}", ContentType.APPLICATION_JSON)));
+        request.setJsonEntity("{\"query\": \"SELECT COUNT(*) FROM test\"}");
+        Map<String, Object> actual = responseToMap(client.performRequest(request));
 
         if (false == expected.equals(actual)) {
             NotEqualMessageBuilder message = new NotEqualMessageBuilder();

@@ -1,0 +1,86 @@
+[[java-rest-high-snapshot-get-repository]]
+=== Snapshot Get Repository API
+
+The Snapshot Get Repository API allows to retrieve information about a registered repository.
+
+[[java-rest-high-snapshot-get-repository-request]]
+==== Snapshot Get Repository Request
+
+A `GetRepositoriesRequest`:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[get-repository-request]
+--------------------------------------------------
+
+==== Optional Arguments
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[get-repository-request-repositories]
+--------------------------------------------------
+<1> Sets the repositories to retrieve
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[get-repository-request-local]
+--------------------------------------------------
+<1> The `local` flag (defaults to `false`) controls whether the repositories need
+to be looked up in the local cluster state or in the cluster state held by
+the elected master node
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[get-repository-request-masterTimeout]
+--------------------------------------------------
+<1> Timeout to connect to the master node as a `TimeValue`
+<2> Timeout to connect to the master node as a `String`
+
+[[java-rest-high-snapshot-get-repository-sync]]
+==== Synchronous Execution
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[get-repository-execute]
+--------------------------------------------------
+
+[[java-rest-high-snapshot-get-repository-async]]
+==== Asynchronous Execution
+
+The asynchronous execution of a snapshot get repository requires both the
+`GetRepositoriesRequest` instance and an `ActionListener` instance to be
+passed to the asynchronous method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[get-repository-execute-async]
+--------------------------------------------------
+<1> The `GetRepositoriesRequest` to execute and the `ActionListener`
+to use when the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `GetRepositoriesResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[get-repository-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument
+<2> Called in case of a failure. The raised exception is provided as an argument
+
+[[java-rest-high-cluster-get-repository-response]]
+==== Snapshot Get Repository Response
+
+The returned `GetRepositoriesResponse` allows to retrieve information about the
+executed operation as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[get-repository-response]
+--------------------------------------------------

@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.job.process.logging;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -30,10 +30,15 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Deque;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Handle a stream of C++ log messages that arrive via a named pipe in JSON format.
@@ -182,6 +187,26 @@ public class CppLogMessageHandler implements Closeable {
     }
 
     /**
+     * Extracts version information from the copyright string which assumes a certain format.
+     */
+    public Map<String, Object> getNativeCodeInfo(Duration timeout) throws TimeoutException {
+        String copyrightMessage = getCppCopyright(timeout);
+        Matcher matcher = Pattern.compile("Version (.+) \\(Build ([^)]+)\\) Copyright ").matcher(copyrightMessage);
+        if (matcher.find()) {
+            Map<String, Object> info = new HashMap<>(2);
+            info.put("version", matcher.group(1));
+            info.put("build_hash", matcher.group(2));
+            return info;
+        } else {
+            // If this happens it probably means someone has changed the format in lib/ver/CBuildInfo.cc
+            // in the ml-cpp repo without changing the pattern above to match
+            String msg = "Unexpected native process copyright format: " + copyrightMessage;
+            LOGGER.error(msg);
+            throw new ElasticsearchException(msg);
+        }
+    }
+
+    /**
      * Expected to be called very infrequently.
      */
     public String getErrors() {
@@ -281,8 +306,18 @@ public class CppLogMessageHandler implements Closeable {
         } catch (XContentParseException e) {
             String upstreamMessage = "Fatal error: '" + bytesRef.utf8ToString() + "'";
             if (upstreamMessage.contains("bad_alloc")) {
-                upstreamMessage += ", process ran out of memory.";
+                upstreamMessage += ", process ran out of memory";
             }
+
+            // add version information, so it's conveniently next to the crash log
+            upstreamMessage += ", version: ";
+            try {
+                Map<String, Object> versionInfo = getNativeCodeInfo(Duration.ofMillis(10));
+                upstreamMessage += String.format(Locale.ROOT, "%s (build %s)", versionInfo.get("version"), versionInfo.get("build_hash"));
+            } catch (TimeoutException timeoutException) {
+                upstreamMessage += "failed to retrieve";
+            }
+
             storeError(upstreamMessage);
             seenFatalError = true;
         } catch (IOException e) {

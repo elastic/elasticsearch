@@ -52,8 +52,15 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
     public void setupProperties() {
         addModifier(new Modifier("normalizer", false) {
             @Override
-            public void modify(MappedFieldType ft) {
-                ((KeywordFieldType) ft).setNormalizer(Lucene.KEYWORD_ANALYZER);
+            public void modify(MappedFieldType type) {
+                ((KeywordFieldType) type).setNormalizer(Lucene.KEYWORD_ANALYZER);
+            }
+        });
+        addModifier(new Modifier("split_queries_on_whitespace", true) {
+            @Override
+            public void modify(MappedFieldType type) {
+                KeywordFieldType keywordType = (KeywordFieldType) type;
+                keywordType.setSplitQueriesOnWhitespace(!keywordType.splitQueriesOnWhitespace());
             }
         });
     }

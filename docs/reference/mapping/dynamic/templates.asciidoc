@@ -46,11 +46,22 @@ name as an existing template, it will replace the old version.
 [[match-mapping-type]]
 ==== `match_mapping_type`
 
-The `match_mapping_type` matches on the datatype detected by
-<<dynamic-field-mapping,dynamic field mapping>>, in other words, the datatype
-that Elasticsearch thinks the field should have.  Only the following datatypes
-can be automatically detected: `boolean`, `date`, `double`, `long`, `object`,
-`string`.  It also accepts `*` to match all datatypes.
+The `match_mapping_type` is the datatype detected by the json parser. Since
+JSON doesn't allow to distinguish a `long` from an `integer` or a `double` from
+a `float`, it will always choose the wider datatype, ie. `long` for integers
+and `double` for floating-point numbers.
+
+The following datatypes may be automatically detected:
+
+ - `boolean` when `true` or `false` are encountered.
+ - `date` when <<date-detection,date detection>> is enabled and a string is
+   found that matches any of the configured date formats.
+ - `double` for numbers with a decimal part.
+ - `long` for numbers without a decimal part.
+ - `object` for objects, also called hashes.
+ - `string` for character strings.
+
+`*` may also be used in order to match all datatypes.
 
 For example, if we wanted to map all integer fields as `integer` instead of
 `long`, and all `string` fields as both `text` and `keyword`, we
@@ -104,7 +115,7 @@ PUT my_index/_doc/1
 [[match-unmatch]]
 ==== `match` and `unmatch`
 
-The `match` parameter uses a pattern to match on the fieldname, while
+The `match` parameter uses a pattern to match on the field name, while
 `unmatch` uses a pattern to exclude fields matched by `match`.
 
 The following example matches all `string` fields whose name starts with
@@ -248,7 +259,7 @@ PUT my_index/_doc/1
 --------------------------------------------------
 // CONSOLE
 <1> The `english` field is mapped as a `string` field with the `english` analyzer.
-<2> The `count` field is mapped as a `long` field with `doc_values` disabled
+<2> The `count` field is mapped as a `long` field with `doc_values` disabled.
 
 [[template-examples]]
 ==== Template examples

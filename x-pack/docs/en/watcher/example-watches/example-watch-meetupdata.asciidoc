@@ -13,6 +13,7 @@ To ingest this data with Logstash:
 
 . Create a Logstash configuration file that uses the {logstash-ref}/plugins-inputs-stdin.html[Logstash standard input] and the {logstash-ref}/plugins-outputs-stdout.html[Logstash standard output] and save it in `logstash-{version}` directory as `livestream.conf`:
 +
+--
 [source,ruby]
 ----------------------------------------------------------
 input {
@@ -38,16 +39,20 @@ output { <2>
 }
 
 ----------------------------------------------------------
+// NOTCONSOLE
 <1> The meetup data stream is formatted in JSON.
 <2> Index the meetup data into Elasticsearch.
+--
 
 . To start indexing the meetup data, pipe the RSVP stream into Logstash and specify your `livestream.conf` configuration file.
 +
-[source,she]
+--
+[source,shell]
 ----------------------------------------------------------
-
 curl http://stream.meetup.com/2/rsvps | bin/logstash -f livestream.conf
 ---------------------------------------------------------
+// NOTCONSOLE
+-- 
 
 Now that you're indexing the meetup RSVPs, you can set up a watch that lets you know about events you might be interested in. For example, let's create a watch that runs every hour, looks for events that talk about about _Open Source_, and sends an email with information about the events.
 
@@ -56,6 +61,7 @@ To set up the watch:
 
 . Specify how often you want to run the watch by adding a schedule trigger to the watch:
 +
+--
 [source,js]
 --------------------------------------------------
 {
@@ -65,8 +71,11 @@ To set up the watch:
     }
   },
 --------------------------------------------------
+// NOTCONSOLE
+--
 . Load data into the watch payload by creating an input that searches the meetup data for events that have _Open Source_ as a topic. You can use aggregations to group the data by city, consolidate references to the same events, and sort the events by date.
 +
+--
 [source,js]
 -------------------------------------------------
 "input": {
@@ -135,19 +144,28 @@ To set up the watch:
     }
   },
 --------------------------------------------------
+// NOTCONSOLE
 <1> Elasticsearch Date math is used to select the Logstash indices that contain the meetup data. The second pattern is needed in case the previous hour crosses days.
 <2> Find all of the RSVPs with `Open Source` as a topic.
 <3> Group the RSVPs by city.
 <4> Consolidate multiple RSVPs for the same event.
 <5> Sort the events so the latest events are listed first.
 <6> Group the events by name.
+--
 
 . To determine whether or not there are any Open Source events, add a compare condition that checks the watch payload to see if there were any search hits.
++
+--
 [source,js]
 --------------------------------------------------
 "compare" : { "ctx.payload.hits.total" : { "gt" : 0 }}
 --------------------------------------------------
+// NOTCONSOLE
+--
+
 . To send an email when _Open Source_ events are found, add an email action:
++
+--
 [source,js]
 --------------------------------------------------
 "actions": {
@@ -167,6 +185,8 @@ To set up the watch:
     }
   }
 ---------------------------------------------------
+// NOTCONSOLE
+--
 
 NOTE: To enable Watcher to send emails, you must configure an email account in `elasticsearch.yml`. For more information, see <<configuring-email, Working with Various Email Services>>.
 

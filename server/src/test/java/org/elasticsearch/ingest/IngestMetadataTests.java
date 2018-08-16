@@ -57,15 +57,16 @@ public class IngestMetadataTests extends ESTestCase {
         ingestMetadata.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         XContentBuilder shuffled = shuffleXContent(builder);
-        final XContentParser parser = createParser(shuffled);
-        MetaData.Custom custom = IngestMetadata.fromXContent(parser);
-        assertTrue(custom instanceof IngestMetadata);
-        IngestMetadata m = (IngestMetadata) custom;
-        assertEquals(2, m.getPipelines().size());
-        assertEquals("1", m.getPipelines().get("1").getId());
-        assertEquals("2", m.getPipelines().get("2").getId());
-        assertEquals(pipeline.getConfigAsMap(), m.getPipelines().get("1").getConfigAsMap());
-        assertEquals(pipeline2.getConfigAsMap(), m.getPipelines().get("2").getConfigAsMap());
+        try (XContentParser parser = createParser(shuffled)) {
+            MetaData.Custom custom = IngestMetadata.fromXContent(parser);
+            assertTrue(custom instanceof IngestMetadata);
+            IngestMetadata m = (IngestMetadata) custom;
+            assertEquals(2, m.getPipelines().size());
+            assertEquals("1", m.getPipelines().get("1").getId());
+            assertEquals("2", m.getPipelines().get("2").getId());
+            assertEquals(pipeline.getConfigAsMap(), m.getPipelines().get("1").getConfigAsMap());
+            assertEquals(pipeline2.getConfigAsMap(), m.getPipelines().get("2").getConfigAsMap());
+        }
     }
 
     public void testDiff() throws Exception {

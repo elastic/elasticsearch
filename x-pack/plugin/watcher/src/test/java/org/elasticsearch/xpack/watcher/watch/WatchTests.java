@@ -672,11 +672,6 @@ public class WatchTests extends ESTestCase {
         }
 
         @Override
-        public int getJobCount() {
-            return 0;
-        }
-
-        @Override
         public boolean remove(String jobId) {
             return false;
         }

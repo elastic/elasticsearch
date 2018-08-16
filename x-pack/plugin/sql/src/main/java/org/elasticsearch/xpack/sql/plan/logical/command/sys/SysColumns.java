@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.elasticsearch.xpack.sql.type.EsField;
 
 import java.sql.DatabaseMetaData;
@@ -29,7 +30,6 @@ import java.util.regex.Pattern;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.sql.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.sql.type.DataType.NULL;
 import static org.elasticsearch.xpack.sql.type.DataType.SHORT;
 
 /**
@@ -133,11 +133,7 @@ public class SysColumns extends Command {
                         type.size,
                         // no DECIMAL support
                         null,
-                        // RADIX  - Determines how numbers returned by COLUMN_SIZE and DECIMAL_DIGITS should be interpreted.
-                        // 10 means they represent the number of decimal digits allowed for the column.
-                        // 2 means they represent the number of bits allowed for the column.
-                        // null means radix is not applicable for the given type.
-                        type.isInteger ? Integer.valueOf(10) : type.isRational ? Integer.valueOf(2) : null,
+                        DataTypes.metaSqlRadix(type),
                         // everything is nullable
                         DatabaseMetaData.columnNullable,
                         // no remarks
@@ -145,9 +141,9 @@ public class SysColumns extends Command {
                         // no column def
                         null,
                         // SQL_DATA_TYPE apparently needs to be same as DATA_TYPE except for datetime and interval data types
-                        type.jdbcType.getVendorTypeNumber(),
+                        DataTypes.metaSqlDataType(type),
                         // SQL_DATETIME_SUB ?
-                        null,
+                        DataTypes.metaSqlDateTimeSub(type),
                         // char octet length
                         type.isString() || type == DataType.BINARY ? type.size : null,
                         // position

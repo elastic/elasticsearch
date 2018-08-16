@@ -73,6 +73,7 @@ import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -84,6 +85,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -404,6 +406,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         }
     }
 
+    @TestLogging("_root:DEBUG,org.elasticsearch.index.shard:TRACE,org.elasticsearch.index.engine:TRACE")
     public void testStressMaybeFlushOrRollTranslogGeneration() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -446,13 +449,14 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         barrier.await();
         final CheckedRunnable<Exception> check;
         if (flush) {
-            final FlushStats flushStats = shard.flushStats();
-            final long total = flushStats.getTotal();
-            final long periodic = flushStats.getPeriodic();
+            final FlushStats initialStats = shard.flushStats();
             client().prepareIndex("test", "test", "1").setSource("{}", XContentType.JSON).get();
             check = () -> {
-                assertThat(shard.flushStats().getTotal(), equalTo(total + 1));
-                assertThat(shard.flushStats().getPeriodic(), equalTo(periodic + 1));
+                final FlushStats currentStats = shard.flushStats();
+                String msg = String.format(Locale.ROOT, "flush stats: total=[%d vs %d], periodic=[%d vs %d]",
+                    initialStats.getTotal(), currentStats.getTotal(), initialStats.getPeriodic(), currentStats.getPeriodic());
+                assertThat(msg, currentStats.getPeriodic(), equalTo(initialStats.getPeriodic() + 1));
+                assertThat(msg, currentStats.getTotal(), equalTo(initialStats.getTotal() + 1));
             };
         } else {
             final long generation = getTranslog(shard).currentFileGeneration();

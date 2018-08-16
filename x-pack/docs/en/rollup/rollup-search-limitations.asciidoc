@@ -1,6 +1,8 @@
 [[rollup-search-limitations]]
 == Rollup Search Limitations
 
+experimental[]
+
 While we feel the Rollup function is extremely flexible, the nature of summarizing data means there will be some limitations.  Once
 live data is thrown away, you will always lose some flexibility.
 
@@ -100,8 +102,8 @@ The Rollup functionality allows `query`'s in the search request, but with a limi
 - MatchAll Query
 - Any compound query (Boolean, Boosting, ConstantScore, etc)
 
-Furthermore, these queries can only use fields that were also saved in the rollup job.  If you wish to filter on a keyword `hostname` field,
-that field must have been configured in the rollup job under a `terms` grouping.
+Furthermore, these queries can only use fields that were also saved in the rollup job as a `group`.
+If you wish to filter on a keyword `hostname` field, that field must have been configured in the rollup job under a `terms` grouping.
 
 If you attempt to use an unsupported query, or the query references a field that wasn't configured in the rollup job, an exception will be
 thrown.  We expect the list of support queries to grow over time as more are implemented.

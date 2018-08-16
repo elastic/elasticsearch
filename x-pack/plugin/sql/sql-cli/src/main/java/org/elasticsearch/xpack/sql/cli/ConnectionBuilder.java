@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.cli;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.SuppressForbidden;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.xpack.sql.client.shared.ConnectionConfiguration;
+import org.elasticsearch.xpack.sql.client.ConnectionConfiguration;
 
 import java.net.URI;
 import java.nio.file.Files;
@@ -16,8 +16,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Properties;
 
-import static org.elasticsearch.xpack.sql.client.shared.UriUtils.parseURI;
-import static org.elasticsearch.xpack.sql.client.shared.UriUtils.removeQuery;
+import static org.elasticsearch.xpack.sql.client.UriUtils.parseURI;
+import static org.elasticsearch.xpack.sql.client.UriUtils.removeQuery;
 
 /**
  * Connection Builder. Can interactively ask users for the password if it is not provided

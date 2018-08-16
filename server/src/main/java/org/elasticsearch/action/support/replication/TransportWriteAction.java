@@ -76,18 +76,14 @@ public abstract class TransportWriteAction<
             // check if any transient write operation failures should be bubbled up
             Exception failure = operationResult.getFailure();
             assert failure instanceof MapperParsingException : "expected mapper parsing failures. got " + failure;
-            if (!TransportActions.isShardNotAvailableException(failure)) {
-                throw failure;
-            } else {
-                location = currentLocation;
-            }
+            throw failure;
         } else {
             location = locationToSync(currentLocation, operationResult.getTranslogLocation());
         }
         return location;
     }
 
-    protected static Location locationToSync(Location current, Location next) {
+    public static Location locationToSync(Location current, Location next) {
         /* here we are moving forward in the translog with each operation. Under the hood this might
          * cross translog files which is ok since from the user perspective the translog is like a
          * tape where only the highest location needs to be fsynced in order to sync all previous

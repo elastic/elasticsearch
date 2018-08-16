@@ -68,20 +68,18 @@ public abstract class MovAvgModel implements NamedWriteable, ToXContentFragment 
      * Returns the next value in the series, according to the underlying smoothing model
      *
      * @param values    Collection of numerics to movingAvg, usually windowed
-     * @param <T>       Type of numeric
      * @return          Returns a double, since most smoothing methods operate on floating points
      */
-    public abstract <T extends Number> double next(Collection<T> values);
+    public abstract double next(Collection<Double> values);
 
     /**
      * Predicts the next `n` values in the series.
      *
      * @param values            Collection of numerics to movingAvg, usually windowed
      * @param numPredictions    Number of newly generated predictions to return
-     * @param <T>               Type of numeric
      * @return                  Returns an array of doubles, since most smoothing methods operate on floating points
      */
-    public <T extends Number> double[] predict(Collection<T> values, int numPredictions) {
+    public double[] predict(Collection<Double> values, int numPredictions) {
         assert(numPredictions >= 1);
 
         // If there are no values, we can't do anything.  Return an array of NaNs.
@@ -97,10 +95,9 @@ public abstract class MovAvgModel implements NamedWriteable, ToXContentFragment 
      *
      * @param values            Collection of numerics to movingAvg, usually windowed
      * @param numPredictions    Number of newly generated predictions to return
-     * @param <T>               Type of numeric
      * @return                  Returns an array of doubles, since most smoothing methods operate on floating points
      */
-    protected abstract <T extends Number> double[] doPredict(Collection<T> values, int numPredictions);
+    protected abstract double[] doPredict(Collection<Double> values, int numPredictions);
 
     /**
      * Returns an empty set of predictions, filled with NaNs

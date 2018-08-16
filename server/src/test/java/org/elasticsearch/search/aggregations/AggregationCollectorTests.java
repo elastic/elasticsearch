@@ -56,13 +56,14 @@ public class AggregationCollectorTests extends ESSingleNodeTestCase {
     }
 
     private boolean needsScores(IndexService index, String agg) throws IOException {
-        XContentParser aggParser = createParser(JsonXContent.jsonXContent, agg);
-        aggParser.nextToken();
-        SearchContext context = createSearchContext(index);
-        final AggregatorFactories factories = AggregatorFactories.parseAggregators(aggParser).build(context, null);
-        final Aggregator[] aggregators = factories.createTopLevelAggregators();
-        assertEquals(1, aggregators.length);
-        return aggregators[0].needsScores();
+        try (XContentParser aggParser = createParser(JsonXContent.jsonXContent, agg)) {
+            aggParser.nextToken();
+            SearchContext context = createSearchContext(index);
+            final AggregatorFactories factories = AggregatorFactories.parseAggregators(aggParser).build(context, null);
+            final Aggregator[] aggregators = factories.createTopLevelAggregators();
+            assertEquals(1, aggregators.length);
+            return aggregators[0].needsScores();
+        }
     }
 
 }

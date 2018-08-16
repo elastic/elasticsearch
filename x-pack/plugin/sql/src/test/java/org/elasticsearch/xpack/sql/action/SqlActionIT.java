@@ -7,10 +7,8 @@ package org.elasticsearch.xpack.sql.action;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.xpack.sql.plugin.AbstractSqlRequest.Mode;
-import org.elasticsearch.xpack.sql.plugin.ColumnInfo;
-import org.elasticsearch.xpack.sql.plugin.SqlQueryAction;
-import org.elasticsearch.xpack.sql.plugin.SqlQueryResponse;
+import org.elasticsearch.xpack.sql.proto.ColumnInfo;
+import org.elasticsearch.xpack.sql.proto.Mode;
 
 import java.sql.JDBCType;
 
@@ -31,7 +29,7 @@ public class SqlActionIT extends AbstractSqlIntegTestCase {
 
         boolean dataBeforeCount = randomBoolean();
         String columns = dataBeforeCount ? "data, count" : "count, data";
-        SqlQueryResponse response = client().prepareExecute(SqlQueryAction.INSTANCE)
+        SqlQueryResponse response = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE)
                 .query("SELECT " + columns + " FROM test ORDER BY count").mode(Mode.JDBC).get();
         assertThat(response.size(), equalTo(2L));
         assertThat(response.columns(), hasSize(2));

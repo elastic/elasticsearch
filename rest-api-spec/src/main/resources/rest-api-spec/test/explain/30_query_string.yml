@@ -55,16 +55,6 @@
         index:  test
         type:   test
         id:     1
-        q: field:bars
-        analyzer: snowball
-
-  - is_true: matched
-
-  - do:
-      explain:
-        index:  test
-        type:   test
-        id:     1
         q: field:BA*
 
   - is_true: matched

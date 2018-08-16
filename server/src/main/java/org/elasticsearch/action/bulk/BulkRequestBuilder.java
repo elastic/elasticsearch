@@ -38,7 +38,7 @@ import org.elasticsearch.common.xcontent.XContentType;
  * A bulk request holds an ordered {@link IndexRequest}s and {@link DeleteRequest}s and allows to executes
  * it in a single batch.
  */
-public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkResponse, BulkRequestBuilder>
+public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkResponse>
         implements WriteRequestBuilder<BulkRequestBuilder> {
 
     public BulkRequestBuilder(ElasticsearchClient client, BulkAction action) {

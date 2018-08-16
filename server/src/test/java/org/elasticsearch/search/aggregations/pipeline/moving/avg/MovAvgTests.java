@@ -31,6 +31,8 @@ import org.elasticsearch.search.aggregations.pipeline.movavg.models.HoltWintersM
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.LinearModel;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.SimpleModel;
 
+import java.io.IOException;
+
 public class MovAvgTests extends BasePipelineAggregationTestCase<MovAvgPipelineAggregationBuilder> {
 
     @Override
@@ -94,6 +96,12 @@ public class MovAvgTests extends BasePipelineAggregationTestCase<MovAvgPipelineA
         return factory;
     }
 
+    @Override
+    public void testFromXContent() throws IOException {
+        super.testFromXContent();
+        assertWarnings("The moving_avg aggregation has been deprecated in favor of the moving_fn aggregation.");
+    }
+
     public void testDefaultParsing() throws Exception {
         MovAvgPipelineAggregationBuilder expected = new MovAvgPipelineAggregationBuilder("commits_moving_avg", "commits");
         String json = "{" +
@@ -104,6 +112,7 @@ public class MovAvgTests extends BasePipelineAggregationTestCase<MovAvgPipelineA
             "    }" +
             "}";
         PipelineAggregationBuilder newAgg = parse(createParser(JsonXContent.jsonXContent, json));
+        assertWarnings("The moving_avg aggregation has been deprecated in favor of the moving_fn aggregation.");
         assertNotSame(newAgg, expected);
         assertEquals(expected, newAgg);
         assertEquals(expected.hashCode(), newAgg.hashCode());

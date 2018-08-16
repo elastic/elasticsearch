@@ -26,13 +26,9 @@
     </module>
 
     <module name="AvoidStarImport" />
-    <!-- Doesn't pass but we could make it pass pretty quick.
-    <module name="UnusedImports">
-      The next property is optional. If we remove it then imports that are
-      only referenced by Javadoc cause the check to fail.
-      <property name="processJavadoc" value="true" />
-    </module>
-    -->
+
+    <!-- Unused imports are forbidden -->
+    <module name="UnusedImports" />
 
     <!-- Non-inner classes must be in files that match their names. -->
     <module name="OuterTypeFilename" />

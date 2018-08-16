@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.expression.predicate;
 
-import org.elasticsearch.xpack.sql.expression.BinaryOperator;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
@@ -28,6 +27,7 @@ public class Equals extends BinaryComparison {
         return new Equals(location(), newLeft, newRight);
     }
 
+    @Override
     public Object fold() {
         return Objects.equals(left().fold(), right().fold());
     }
@@ -39,6 +39,6 @@ public class Equals extends BinaryComparison {
 
     @Override
     public String symbol() {
-        return "=";
+        return "==";
     }
 }

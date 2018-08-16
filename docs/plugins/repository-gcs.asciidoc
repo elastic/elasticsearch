@@ -27,9 +27,9 @@ To create a new bucket:
 
 1. Connect to the https://console.cloud.google.com/[Google Cloud Platform Console]
 2. Select your project
-3. Got to the https://console.cloud.google.com/storage/browser[Storage Browser]
+3. Go to the https://console.cloud.google.com/storage/browser[Storage Browser]
 4. Click the "Create Bucket" button
-5. Enter a the name of the new bucket
+5. Enter the name of the new bucket
 6. Select a storage class
 7. Select a location
 8. Click the "Create" button
@@ -84,11 +84,7 @@ A service account file looks like this:
   "private_key_id": "...",
   "private_key": "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n",
   "client_email": "service-account-for-your-repository@your-project-id.iam.gserviceaccount.com",
-  "client_id": "...",
-  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-  "token_uri": "https://accounts.google.com/o/oauth2/token",
-  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-  "client_x509_cert_url": "..."
+  "client_id": "..."
 }
 ----
 // NOTCONSOLE
@@ -115,6 +111,15 @@ PUT _snapshot/my_gcs_repository
 ----
 // CONSOLE
 // TEST[skip:we don't have gcs setup while testing this]
+
+The `credentials_file` settings are {ref}/secure-settings.html#reloadable-secure-settings[reloadable].
+After you reload the settings, the internal `gcs` clients, used to transfer the
+snapshot contents, will utilize the latest settings from the keystore.
+
+
+NOTE: In progress snapshot/restore jobs will not be preempted by a *reload*
+of the client's `credentials_file` settings. They will complete using the client
+as it was built when the operation started.
 
 [[repository-gcs-client]]
 ==== Client Settings
@@ -177,6 +182,12 @@ are marked as `Secure`.
     Name used by the client when it uses the Google Cloud Storage service. Setting
     a custom name can be useful to authenticate your cluster when requests
     statistics are logged in the Google Cloud Platform. Default to `repository-gcs`
+
+`project_id`::
+
+    The Google Cloud project id. This will be automatically infered from the credentials file but
+    can be specified explicitly. For example, it can be used to switch between projects when the
+    same credentials are usable for both the production and the development projects.
 
 [[repository-gcs-repository]]
 ==== Repository Settings

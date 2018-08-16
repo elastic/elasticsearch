@@ -458,7 +458,7 @@ public abstract class ValuesSource {
                         final BytesRef value = bytesValues.nextValue();
                         script.setNextAggregationValue(value.utf8ToString());
                         Object run = script.run();
-                        CollectionUtils.ensureNoSelfReferences(run);
+                        CollectionUtils.ensureNoSelfReferences(run, "ValuesSource.BytesValues script");
                         values[i].copyChars(run.toString());
                     }
                     sort();

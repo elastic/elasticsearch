@@ -22,7 +22,7 @@ package org.elasticsearch.search.suggest.completion.context;
 /**
  * Builder for {@link ContextMapping}
  */
-public abstract class ContextBuilder<E extends ContextMapping> {
+public abstract class ContextBuilder<E extends ContextMapping<?>> {
 
     protected String name;
 

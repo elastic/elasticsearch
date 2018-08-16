@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.sql.expression;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
-import org.elasticsearch.xpack.sql.type.DataTypes;
 
 import java.util.ArrayList;
 import java.util.List;

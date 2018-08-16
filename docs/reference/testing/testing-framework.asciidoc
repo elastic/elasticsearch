@@ -54,7 +54,7 @@ If your test is a well isolated unit test which doesn't need a running Elasticse
 
 
 [[integration-tests]]
-=== integration tests
+=== Integration tests
 
 These kind of tests require firing up a whole cluster of nodes, before the tests can actually be run. Compared to unit tests they are obviously way more time consuming, but the test infrastructure tries to minimize the time cost by only restarting the whole cluster, if this is configured explicitly.
 
@@ -62,14 +62,14 @@ The class your tests have to inherit from is `ESIntegTestCase`. By inheriting fr
 
 
 [[number-of-shards]]
-==== number of shards
+==== Number of shards
 
 The number of shards used for indices created during integration tests is randomized between `1` and `10` unless overwritten upon index creation via index settings.
 The rule of thumb is not to specify the number of shards unless needed, so that each test will use a different one all the time. Alternatively you can override the `numberOfShards()` method. The same applies to the `numberOfReplicas()` method.
 
 
 [[helper-methods]]
-==== generic helper methods
+==== Generic helper methods
 
 There are a couple of helper methods in `ESIntegTestCase`, which will make your tests shorter and more concise.
 
@@ -88,7 +88,7 @@ There are a couple of helper methods in `ESIntegTestCase`, which will make your 
 
 
 [[test-cluster-methods]]
-==== test cluster methods
+==== Test cluster methods
 
 The `InternalTestCluster` class is the heart of the cluster functionality in a randomized test and allows you to configure a specific setting or replay certain types of outages to check, how your custom code reacts.
 

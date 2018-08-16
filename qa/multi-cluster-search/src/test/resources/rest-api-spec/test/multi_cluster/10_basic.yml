@@ -161,7 +161,7 @@
       search:
         index: my_remote_cluster:aliased_test_index,my_remote_cluster:field_caps_index_1
 
-  - match: { _shards.total: 8 }
+  - match: { _shards.total: 4 }
   - match: { hits.total: 2 }
   - match: { hits.hits.0._source.filter_field: 1 }
   - match: { hits.hits.0._index: "my_remote_cluster:test_index" }

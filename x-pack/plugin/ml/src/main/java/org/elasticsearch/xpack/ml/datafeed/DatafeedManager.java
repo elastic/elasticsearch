@@ -20,8 +20,8 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -50,7 +50,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.persistent.PersistentTasksService.WaitForPersistentTaskStatusListener;
+import static org.elasticsearch.persistent.PersistentTasksService.WaitForPersistentTaskListener;
 
 public class DatafeedManager extends AbstractComponent {
 
@@ -80,10 +80,7 @@ public class DatafeedManager extends AbstractComponent {
     public void run(TransportStartDatafeedAction.DatafeedTask task, Consumer<Exception> taskHandler) {
         String datafeedId = task.getDatafeedId();
         ClusterState state = clusterService.state();
-        MlMetadata mlMetadata = state.metaData().custom(MLMetadataField.TYPE);
-        if (mlMetadata == null) {
-            mlMetadata = MlMetadata.EMPTY_METADATA;
-        }
+        MlMetadata mlMetadata = MlMetadata.getMlMetadata(state);
 
         DatafeedConfig datafeed = mlMetadata.getDatafeed(datafeedId);
         Job job = mlMetadata.getJobs().get(datafeed.getJobId());
@@ -92,7 +89,7 @@ public class DatafeedManager extends AbstractComponent {
                 datafeedJob -> {
                     Holder holder = new Holder(task, datafeed, datafeedJob, new ProblemTracker(auditor, job.getId()), taskHandler);
                     runningDatafeedsOnThisNode.put(task.getAllocationId(), holder);
-                    task.updatePersistentStatus(DatafeedState.STARTED, new ActionListener<PersistentTask<?>>() {
+                    task.updatePersistentTaskState(DatafeedState.STARTED, new ActionListener<PersistentTask<?>>() {
                         @Override
                         public void onResponse(PersistentTask<?> persistentTask) {
                             taskRunner.runWhenJobIsOpened(task);
@@ -261,7 +258,7 @@ public class DatafeedManager extends AbstractComponent {
     }
 
     private JobState getJobState(PersistentTasksCustomMetaData tasks, TransportStartDatafeedAction.DatafeedTask datafeedTask) {
-        return MlMetadata.getJobState(getJobId(datafeedTask), tasks);
+        return MlTasks.getJobState(getJobId(datafeedTask), tasks);
     }
 
     private TimeValue computeNextDelay(long next) {
@@ -389,14 +386,14 @@ public class DatafeedManager extends AbstractComponent {
         private void closeJob() {
             ClusterState clusterState = clusterService.state();
             PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-            JobState jobState = MlMetadata.getJobState(getJobId(), tasks);
+            JobState jobState = MlTasks.getJobState(getJobId(), tasks);
             if (jobState != JobState.OPENED) {
                 logger.debug("[{}] No need to auto-close job as job state is [{}]", getJobId(), jobState);
                 return;
             }
 
-            task.waitForPersistentTaskStatus(Objects::isNull, TimeValue.timeValueSeconds(20),
-                            new WaitForPersistentTaskStatusListener<StartDatafeedAction.DatafeedParams>() {
+            task.waitForPersistentTask(Objects::isNull, TimeValue.timeValueSeconds(20),
+                            new WaitForPersistentTaskListener<StartDatafeedAction.DatafeedParams>() {
                 @Override
                 public void onResponse(PersistentTask<StartDatafeedAction.DatafeedParams> persistentTask) {
                     CloseJobAction.Request closeJobRequest = new CloseJobAction.Request(getJobId());

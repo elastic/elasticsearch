@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.test.ESTestCase;
@@ -37,13 +36,11 @@ public class MachineLearningTests extends ESTestCase {
     public void testNoAttributes_givenSameAndMlEnabled() {
         Settings.Builder builder = Settings.builder();
         if (randomBoolean()) {
-            builder.put("xpack.ml.enabled", true);
-            builder.put("node.attr.ml.enabled", true);
+            builder.put("xpack.ml.enabled", randomBoolean());
         }
         if (randomBoolean()) {
             int maxOpenJobs = randomIntBetween(5, 15);
             builder.put("xpack.ml.max_open_jobs", maxOpenJobs);
-            builder.put("node.attr.ml.max_open_jobs", maxOpenJobs);
         }
         MachineLearning machineLearning = createMachineLearning(builder.put("path.home", createTempDir()).build());
         assertNotNull(machineLearning.additionalSettings());
@@ -51,16 +48,8 @@ public class MachineLearningTests extends ESTestCase {
 
     public void testNoAttributes_givenClash() {
         Settings.Builder builder = Settings.builder();
-        boolean enabled = true;
         if (randomBoolean()) {
-            enabled = randomBoolean();
-            builder.put("xpack.ml.enabled", enabled);
-        }
-        if (randomBoolean()) {
-            builder.put("xpack.ml.max_open_jobs", randomIntBetween(9, 12));
-        }
-        if (randomBoolean()) {
-            builder.put("node.attr.ml.enabled", !enabled);
+            builder.put("node.attr.ml.enabled", randomBoolean());
         } else {
             builder.put("node.attr.ml.max_open_jobs", randomIntBetween(13, 15));
         }

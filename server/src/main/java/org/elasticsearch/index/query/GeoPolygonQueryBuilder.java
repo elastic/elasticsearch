@@ -177,7 +177,7 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
                     throw new QueryShardException(context, "illegal latitude value [{}] for [{}]", point.lat(),
                             GeoPolygonQueryBuilder.NAME);
                 }
-                if (!GeoUtils.isValidLongitude(point.lat())) {
+                if (!GeoUtils.isValidLongitude(point.lon())) {
                     throw new QueryShardException(context, "illegal longitude value [{}] for [{}]", point.lon(),
                             GeoPolygonQueryBuilder.NAME);
                 }

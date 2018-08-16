@@ -155,7 +155,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-                fieldParser = getParser(currentFieldName);
+                fieldParser = getParser(currentFieldName, parser);
             } else {
                 if (currentFieldName == null) {
                     throw new XContentParseException(parser.getTokenLocation(), "[" + name  + "] no field found");
@@ -341,10 +341,11 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         }
     }
 
-    private FieldParser getParser(String fieldName) {
+    private FieldParser getParser(String fieldName, XContentParser xContentParser) {
         FieldParser parser = fieldParserMap.get(fieldName);
         if (parser == null && false == ignoreUnknownFields) {
-            throw new IllegalArgumentException("[" + name  + "] unknown field [" + fieldName + "], parser not found");
+            throw new XContentParseException(xContentParser.getTokenLocation(),
+                    "[" + name + "] unknown field [" + fieldName + "], parser not found");
         }
         return parser;
     }
@@ -410,6 +411,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         INT_ARRAY(START_ARRAY, VALUE_NUMBER, VALUE_STRING),
         BOOLEAN_ARRAY(START_ARRAY, VALUE_BOOLEAN),
         OBJECT(START_OBJECT),
+        OBJECT_OR_NULL(START_OBJECT, VALUE_NULL),
         OBJECT_ARRAY(START_OBJECT, START_ARRAY),
         OBJECT_OR_BOOLEAN(START_OBJECT, VALUE_BOOLEAN),
         OBJECT_OR_STRING(START_OBJECT, VALUE_STRING),

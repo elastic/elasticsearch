@@ -27,7 +27,6 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -214,7 +213,7 @@ public class RestSearchAction extends BaseRestHandler {
             if (Strings.hasText(sDocValueFields)) {
                 String[] sFields = Strings.splitStringByCommaToArray(sDocValueFields);
                 for (String field : sFields) {
-                    searchSourceBuilder.docValueField(field);
+                    searchSourceBuilder.docValueField(field, null);
                 }
             }
         }

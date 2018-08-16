@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.security.action.user;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
-public class GetUsersRequestBuilder extends ActionRequestBuilder<GetUsersRequest, GetUsersResponse, GetUsersRequestBuilder> {
+public class GetUsersRequestBuilder extends ActionRequestBuilder<GetUsersRequest, GetUsersResponse> {
 
     public GetUsersRequestBuilder(ElasticsearchClient client) {
         this(client, GetUsersAction.INSTANCE);

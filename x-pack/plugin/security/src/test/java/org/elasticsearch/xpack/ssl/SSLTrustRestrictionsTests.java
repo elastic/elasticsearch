@@ -6,9 +6,9 @@
 package org.elasticsearch.xpack.ssl;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.bouncycastle.asn1.x509.GeneralNames;
-import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
@@ -17,8 +17,10 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.xpack.core.ssl.CertUtils;
+import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
+import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.elasticsearch.xpack.core.ssl.RestrictedTrustManager;
+import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -26,19 +28,18 @@ import org.junit.BeforeClass;
 import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
-import javax.security.auth.x500.X500Principal;
-import java.io.BufferedWriter;
 import java.io.IOException;
 import java.net.SocketException;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.KeyPair;
 import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.core.ssl.CertUtils.generateSignedCertificate;
+import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
+import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -50,12 +51,6 @@ import static org.hamcrest.Matchers.is;
 @TestLogging("org.elasticsearch.xpack.ssl.RestrictedTrustManager:DEBUG")
 public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
 
-    /**
-     * Use a small keysize for performance, since the keys are only used in this test, but a large enough keysize
-     * to get past the SSL algorithm checker
-     */
-    private static final int KEYSIZE = 1024;
-
     private static final int RESOURCE_RELOAD_MILLIS = 3;
     private static final TimeValue MAX_WAIT_RELOAD = TimeValue.timeValueSeconds(1);
 
@@ -66,6 +61,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
     private static CertificateInfo trustedCert;
     private static CertificateInfo untrustedCert;
     private static Path restrictionsPath;
+    private static Path restrictionsTmpPath;
 
     @Override
     protected int maxNumberOfNodes() {
@@ -77,14 +73,31 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
 
     @BeforeClass
     public static void setupCertificates() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, custom TrustManager implementations cannot be used.", inFipsJvm());
         configPath = createTempDir();
+        Path caCertPath = PathUtils.get(SSLTrustRestrictionsTests.class.getResource
+                ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/ca.crt").toURI());
+        X509Certificate caCert = CertParsingUtils.readX509Certificates(Collections.singletonList(caCertPath))[0];
+        Path caKeyPath = PathUtils.get(SSLTrustRestrictionsTests.class.getResource
+                ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/ca.key").toURI());
+        PrivateKey caKey = PemUtils.readPrivateKey(caKeyPath, ""::toCharArray);
+        ca = new CertificateInfo(caKey, caKeyPath, caCert, caCertPath);
 
-        final KeyPair caPair = CertUtils.generateKeyPair(KEYSIZE);
-        final X509Certificate caCert = CertUtils.generateCACertificate(new X500Principal("cn=CertAuth"), caPair, 30);
-        ca = writeCertificates("ca", caPair.getPrivate(), caCert);
+        Path trustedCertPath = PathUtils.get(SSLTrustRestrictionsTests.class.getResource
+                ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/trusted.crt").toURI());
+        X509Certificate trustedX509Certificate = CertParsingUtils.readX509Certificates(Collections.singletonList(trustedCertPath))[0];
+        Path trustedKeyPath = PathUtils.get(SSLTrustRestrictionsTests.class.getResource
+                ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/trusted.key").toURI());
+        PrivateKey trustedKey = PemUtils.readPrivateKey(trustedKeyPath, ""::toCharArray);
+        trustedCert = new CertificateInfo(trustedKey, trustedKeyPath, trustedX509Certificate, trustedCertPath);
 
-        trustedCert = generateCertificate("trusted", "node.trusted");
-        untrustedCert = generateCertificate("untrusted", "someone.else");
+        Path untrustedCertPath = PathUtils.get(SSLTrustRestrictionsTests.class.getResource
+                ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/untrusted.crt").toURI());
+        X509Certificate untrustedX509Certificate = CertParsingUtils.readX509Certificates(Collections.singletonList(untrustedCertPath))[0];
+        Path untrustedKeyPath = PathUtils.get(SSLTrustRestrictionsTests.class.getResource
+                ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/untrusted.key").toURI());
+        PrivateKey untrustedKey = PemUtils.readPrivateKey(untrustedKeyPath, ""::toCharArray);
+        untrustedCert = new CertificateInfo(untrustedKey, untrustedKeyPath, untrustedX509Certificate, untrustedCertPath);
 
         nodeSSL = Settings.builder()
                 .put("xpack.security.transport.ssl.enabled", true)
@@ -113,6 +126,8 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
                 .put(nodeSSL);
 
         restrictionsPath = configPath.resolve("trust_restrictions.yml");
+        restrictionsTmpPath = configPath.resolve("trust_restrictions.tmp");
+
         writeRestrictions("*.trusted");
         builder.put("xpack.ssl.trust_restrictions.path", restrictionsPath);
         builder.put("resource.reload.interval.high", RESOURCE_RELOAD_MILLIS + "ms");
@@ -122,7 +137,12 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
 
     private void writeRestrictions(String trustedPattern) {
         try {
-            Files.write(restrictionsPath, Collections.singleton("trust.subject_name: \"" + trustedPattern + "\""));
+            Files.write(restrictionsTmpPath, Collections.singleton("trust.subject_name: \"" + trustedPattern + "\""));
+            try {
+                Files.move(restrictionsTmpPath, restrictionsPath, REPLACE_EXISTING, ATOMIC_MOVE);
+            } catch (final AtomicMoveNotSupportedException e) {
+                Files.move(restrictionsTmpPath, restrictionsPath, REPLACE_EXISTING);
+            }
         } catch (IOException e) {
             throw new ElasticsearchException("failed to write restrictions", e);
         }
@@ -154,6 +174,8 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
     }
 
     public void testCertificateWithUntrustedNameFails() throws Exception {
+        // see https://github.com/elastic/elasticsearch/issues/29989
+        assumeTrue("test fails on JDK 11 currently", JavaVersion.current().compareTo(JavaVersion.parse("11")) < 0);
         writeRestrictions("*.trusted");
         try {
             tryConnect(untrustedCert);
@@ -164,6 +186,8 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
     }
 
     public void testRestrictionsAreReloaded() throws Exception {
+        // see https://github.com/elastic/elasticsearch/issues/29989
+        assumeTrue("test fails on JDK 11 currently", JavaVersion.current().compareTo(JavaVersion.parse("11")) < 0);
         writeRestrictions("*");
         assertBusy(() -> {
             try {
@@ -195,38 +219,14 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
 
         String node = randomFrom(internalCluster().getNodeNames());
         SSLService sslService = new SSLService(settings, TestEnvironment.newEnvironment(settings));
-        SSLSocketFactory sslSocketFactory = sslService.sslSocketFactory(settings);
+        SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.ssl");
+        SSLSocketFactory sslSocketFactory = sslService.sslSocketFactory(sslConfiguration);
         TransportAddress address = internalCluster().getInstance(Transport.class, node).boundAddress().publishAddress();
         try (SSLSocket socket = (SSLSocket) sslSocketFactory.createSocket(address.getAddress(), address.getPort())) {
             assertThat(socket.isConnected(), is(true));
             // The test simply relies on this (synchronously) connecting (or not), so we don't need a handshake handler
             socket.startHandshake();
         }
-    }
-
-
-    private static CertificateInfo generateCertificate(String name, String san) throws Exception {
-        final KeyPair keyPair = CertUtils.generateKeyPair(KEYSIZE);
-        final X500Principal principal = new X500Principal("cn=" + name);
-        final GeneralNames altNames = new GeneralNames(CertUtils.createCommonName(san));
-        final X509Certificate cert = generateSignedCertificate(principal, altNames, keyPair, ca.getCertificate(), ca.getKey(), 30);
-        return writeCertificates(name, keyPair.getPrivate(), cert);
-    }
-
-    private static CertificateInfo writeCertificates(String name, PrivateKey key, X509Certificate cert) throws IOException {
-        final Path keyPath = writePem(key, name + ".key");
-        final Path certPath = writePem(cert, name + ".crt");
-        return new CertificateInfo(key, keyPath, cert, certPath);
-    }
-
-    private static Path writePem(Object obj, String filename) throws IOException {
-        Path path = configPath.resolve(filename);
-        Files.deleteIfExists(path);
-        try (BufferedWriter out = Files.newBufferedWriter(path);
-             JcaPEMWriter pemWriter = new JcaPEMWriter(out)) {
-            pemWriter.writeObject(obj);
-        }
-        return path;
     }
 
     private static class CertificateInfo {

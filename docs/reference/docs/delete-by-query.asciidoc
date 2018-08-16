@@ -357,9 +357,10 @@ With the task id you can look up the task directly:
 
 [source,js]
 --------------------------------------------------
-GET /_tasks/taskId:1
+GET /_tasks/task_id
 --------------------------------------------------
 // CONSOLE
+// TEST[s/task_id/node_id:1/]
 // TEST[catch:missing]
 
 The advantage of this API is that it integrates with `wait_for_completion=false`
@@ -378,8 +379,9 @@ Any Delete By Query can be canceled using the <<tasks,Task Cancel API>>:
 
 [source,js]
 --------------------------------------------------
-POST _tasks/task_id:1/_cancel
+POST _tasks/task_id/_cancel
 --------------------------------------------------
+// TEST[s/task_id/node_id:1/]
 // CONSOLE
 
 The `task_id` can be found using the tasks API above.
@@ -397,8 +399,9 @@ using the `_rethrottle` API:
 
 [source,js]
 --------------------------------------------------
-POST _delete_by_query/task_id:1/_rethrottle?requests_per_second=-1
+POST _delete_by_query/task_id/_rethrottle?requests_per_second=-1
 --------------------------------------------------
+// TEST[s/task_id/node_id:1/]
 // CONSOLE
 
 The `task_id` can be found using the tasks API above.

@@ -26,7 +26,6 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
@@ -41,6 +40,7 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestResponseListener;
 
+import java.time.Instant;
 import java.util.Locale;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -231,7 +231,8 @@ public class RestShardsAction extends AbstractCatAction {
 
             if (shard.unassignedInfo() != null) {
                 table.addCell(shard.unassignedInfo().getReason());
-                table.addCell(UnassignedInfo.DATE_TIME_FORMATTER.printer().print(shard.unassignedInfo().getUnassignedTimeInMillis()));
+                Instant unassignedTime = Instant.ofEpochMilli(shard.unassignedInfo().getUnassignedTimeInMillis());
+                table.addCell(UnassignedInfo.DATE_TIME_FORMATTER.format(unassignedTime));
                 table.addCell(TimeValue.timeValueMillis(System.currentTimeMillis() - shard.unassignedInfo().getUnassignedTimeInMillis()));
                 table.addCell(shard.unassignedInfo().getDetails());
             } else {

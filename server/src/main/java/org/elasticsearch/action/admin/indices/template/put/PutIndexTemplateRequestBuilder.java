@@ -140,7 +140,7 @@ public class PutIndexTemplateRequestBuilder
     /**
      * Sets the aliases that will be associated with the index when it gets created
      */
-    public PutIndexTemplateRequestBuilder setAliases(Map source) {
+    public PutIndexTemplateRequestBuilder setAliases(Map<String, Object> source) {
         request.aliases(source);
         return this;
     }
@@ -221,7 +221,7 @@ public class PutIndexTemplateRequestBuilder
     /**
      * The template source definition.
      */
-    public PutIndexTemplateRequestBuilder setSource(Map templateSource) {
+    public PutIndexTemplateRequestBuilder setSource(Map<String, Object> templateSource) {
         request.source(templateSource);
         return this;
     }

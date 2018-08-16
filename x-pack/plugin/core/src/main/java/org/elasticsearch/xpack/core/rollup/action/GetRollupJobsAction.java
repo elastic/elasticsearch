@@ -35,8 +35,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-public class GetRollupJobsAction extends Action<GetRollupJobsAction.Request, GetRollupJobsAction.Response,
-        GetRollupJobsAction.RequestBuilder> {
+public class GetRollupJobsAction extends Action<GetRollupJobsAction.Response> {
 
     public static final GetRollupJobsAction INSTANCE = new GetRollupJobsAction();
     public static final String NAME = "cluster:monitor/xpack/rollup/get";
@@ -47,11 +46,6 @@ public class GetRollupJobsAction extends Action<GetRollupJobsAction.Request, Get
 
     private GetRollupJobsAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, INSTANCE);
     }
 
     @Override
@@ -131,7 +125,7 @@ public class GetRollupJobsAction extends Action<GetRollupJobsAction.Request, Get
         }
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
         protected RequestBuilder(ElasticsearchClient client, GetRollupJobsAction action) {
             super(client, action, new Request());
@@ -218,7 +212,7 @@ public class GetRollupJobsAction extends Action<GetRollupJobsAction.Request, Get
                 (RollupJobStats) a[1], (RollupJobStatus)a[2]));
 
         static {
-            PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> RollupJobConfig.PARSER.apply(p,c).build(), CONFIG);
+            PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> RollupJobConfig.fromXContent(p, null), CONFIG);
             PARSER.declareObject(ConstructingObjectParser.constructorArg(), RollupJobStats.PARSER::apply, STATS);
             PARSER.declareObject(ConstructingObjectParser.constructorArg(), RollupJobStatus.PARSER::apply, STATUS);
         }

@@ -1,0 +1,52 @@
+[role="xpack"]
+[testenv="gold+"]
+[[syskeygen]]
+== elasticsearch-syskeygen
+
+The `elasticsearch-syskeygen` command creates a system key file in the
+elasticsearch config directory.
+
+[float]
+=== Synopsis
+
+[source,shell]
+--------------------------------------------------
+bin/elasticsearch-syskeygen
+[-E <KeyValuePair>] [-h, --help]
+([-s, --silent] | [-v, --verbose])
+--------------------------------------------------
+
+[float]
+=== Description
+
+The command generates a `system_key` file, which you can use to symmetrically
+encrypt sensitive data. For example, you can use this key to prevent {watcher}
+from returning and storing information that contains clear text credentials. See  {xpack-ref}/encrypting-data.html[Encrypting sensitive data in {watcher}]. 
+
+IMPORTANT: The system key is a symmetric key, so the same key must be used on
+every node in the cluster.
+
+[float]
+=== Parameters
+
+`-E <KeyValuePair>`:: Configures a setting. For example, if you have a custom
+installation of {es}, you can use this parameter to specify the `ES_PATH_CONF`
+environment variable.
+
+`-h, --help`:: Returns all of the command parameters.
+
+`-s, --silent`:: Shows minimal output.
+
+`-v, --verbose`:: Shows verbose output.
+
+
+[float]
+=== Examples
+
+The following command generates a `system_key` file in the
+default `$ES_HOME/config` directory:
+
+[source, sh]
+--------------------------------------------------
+bin/elasticsearch-syskeygen
+--------------------------------------------------

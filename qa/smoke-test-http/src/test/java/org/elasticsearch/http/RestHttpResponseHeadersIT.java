@@ -18,6 +18,7 @@
 package org.elasticsearch.http;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -46,7 +47,7 @@ public class RestHttpResponseHeadersIT extends ESRestTestCase {
      * - Options</a>).
      */
     public void testValidEndpointOptionsResponseHttpHeader() throws Exception {
-        Response response = client().performRequest("OPTIONS", "/_tasks");
+        Response response = client().performRequest(new Request("OPTIONS", "/_tasks"));
         assertThat(response.getStatusLine().getStatusCode(), is(200));
         assertThat(response.getHeader("Allow"), notNullValue());
         List<String> responseAllowHeaderStringArray =
@@ -64,7 +65,7 @@ public class RestHttpResponseHeadersIT extends ESRestTestCase {
      */
     public void testUnsupportedMethodResponseHttpHeader() throws Exception {
         try {
-            client().performRequest("DELETE", "/_tasks");
+            client().performRequest(new Request("DELETE", "/_tasks"));
             fail("Request should have failed with 405 error");
         } catch (ResponseException e) {
             Response response = e.getResponse();
@@ -85,9 +86,9 @@ public class RestHttpResponseHeadersIT extends ESRestTestCase {
      * 17853</a> for more information).
      */
     public void testIndexSettingsPostRequest() throws Exception {
-        client().performRequest("PUT", "/testindex");
+        client().performRequest(new Request("PUT", "/testindex"));
         try {
-            client().performRequest("POST", "/testindex/_settings");
+            client().performRequest(new Request("POST", "/testindex/_settings"));
             fail("Request should have failed with 405 error");
         } catch (ResponseException e) {
             Response response = e.getResponse();

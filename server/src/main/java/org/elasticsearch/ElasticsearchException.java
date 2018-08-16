@@ -269,7 +269,6 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         }
     }
 
-
     /**
      * Retrieve the innermost cause of this exception, if none, returns the current exception.
      */
@@ -292,7 +291,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             out.writeMapOfLists(headers, StreamOutput::writeString, StreamOutput::writeString);
             out.writeMapOfLists(metadata, StreamOutput::writeString, StreamOutput::writeString);
         } else {
-            HashMap<String, List<String>> finalHeaders = new HashMap<>(headers.size() + metadata.size());
+            Map<String, List<String>> finalHeaders = new HashMap<>(headers.size() + metadata.size());
             finalHeaders.putAll(headers);
             finalHeaders.putAll(metadata);
             out.writeMapOfLists(finalHeaders, StreamOutput::writeString, StreamOutput::writeString);
@@ -421,7 +420,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         return innerFromXContent(parser, false);
     }
 
-    private static ElasticsearchException innerFromXContent(XContentParser parser, boolean parseRootCauses) throws IOException {
+    public static ElasticsearchException innerFromXContent(XContentParser parser, boolean parseRootCauses) throws IOException {
         XContentParser.Token token = parser.currentToken();
         ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
 

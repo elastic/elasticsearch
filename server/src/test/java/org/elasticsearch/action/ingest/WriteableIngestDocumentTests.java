@@ -25,14 +25,19 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.test.RandomObjects;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.StringJoiner;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
@@ -40,7 +45,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
-public class WriteableIngestDocumentTests extends ESTestCase {
+public class WriteableIngestDocumentTests extends AbstractXContentTestCase<WriteableIngestDocument> {
 
     public void testEqualsAndHashcode() throws Exception {
         Map<String, Object> sourceAndMetadata = RandomDocumentPicks.randomSource(random());
@@ -146,5 +151,43 @@ public class WriteableIngestDocumentTests extends ESTestCase {
 
         IngestDocument serializedIngestDocument = new IngestDocument(toXContentSource, toXContentIngestMetadata);
         assertThat(serializedIngestDocument, equalTo(serializedIngestDocument));
+    }
+
+    static IngestDocument createRandomIngestDoc() {
+        XContentType xContentType = randomFrom(XContentType.values());
+        BytesReference sourceBytes = RandomObjects.randomSource(random(), xContentType);
+        Map<String, Object> randomSource = XContentHelper.convertToMap(sourceBytes, false, xContentType).v2();
+        return RandomDocumentPicks.randomIngestDocument(random(), randomSource);
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return true;
+    }
+
+    @Override
+    protected WriteableIngestDocument createTestInstance() {
+        return new WriteableIngestDocument(createRandomIngestDoc());
+    }
+
+    @Override
+    protected WriteableIngestDocument doParseInstance(XContentParser parser) {
+        return WriteableIngestDocument.fromXContent(parser);
+    }
+
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        // We cannot have random fields in the _source field and _ingest field
+        return field ->
+            field.startsWith(
+                new StringJoiner(".")
+                    .add(WriteableIngestDocument.DOC_FIELD)
+                    .add(WriteableIngestDocument.SOURCE_FIELD).toString()
+            ) ||
+            field.startsWith(
+                new StringJoiner(".")
+                    .add(WriteableIngestDocument.DOC_FIELD)
+                    .add(WriteableIngestDocument.INGEST_FIELD).toString()
+            );
     }
 }

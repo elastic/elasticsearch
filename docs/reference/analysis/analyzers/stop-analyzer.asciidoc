@@ -6,17 +6,6 @@ but adds support for removing stop words.  It defaults to using the
 `_english_` stop words.
 
 [float]
-=== Definition
-
-It consists of:
-
-Tokenizer::
-* <<analysis-lowercase-tokenizer,Lower Case Tokenizer>>
-
-Token filters::
-* <<analysis-stop-tokenfilter,Stop Token Filter>>
-
-[float]
 === Example output
 
 [source,js]
@@ -239,3 +228,50 @@ The above example produces the following terms:
 ---------------------------
 [ quick, brown, foxes, jumped, lazy, dog, s, bone ]
 ---------------------------
+
+[float]
+=== Definition
+
+It consists of:
+
+Tokenizer::
+* <<analysis-lowercase-tokenizer,Lower Case Tokenizer>>
+
+Token filters::
+* <<analysis-stop-tokenfilter,Stop Token Filter>>
+
+If you need to customize the `stop` analyzer beyond the configuration
+parameters then you need to recreate it as a `custom` analyzer and modify
+it, usually by adding token filters. This would recreate the built-in
+`stop` analyzer and you can use it as a starting point for further
+customization:
+
+[source,js]
+----------------------------------------------------
+PUT /stop_example
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "english_stop": {
+          "type":       "stop",
+          "stopwords":  "_english_" <1>
+        }
+      },
+      "analyzer": {
+        "rebuilt_stop": {
+          "tokenizer": "lowercase",
+          "filter": [
+            "english_stop"          <2>
+          ]
+        }
+      }
+    }
+  }
+}
+----------------------------------------------------
+// CONSOLE
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: stop_example, first: stop, second: rebuilt_stop}\nendyaml\n/]
+<1> The default stopwords can be overridden with the `stopwords`
+    or `stopwords_path` parameters.
+<2> You'd add any token filters after `english_stop`.

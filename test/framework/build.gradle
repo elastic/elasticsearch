@@ -21,6 +21,7 @@ import org.elasticsearch.gradle.precommit.PrecommitTasks;
 
 dependencies {
   compile "org.elasticsearch.client:elasticsearch-rest-client:${version}"
+  compile "org.elasticsearch.client:elasticsearch-rest-client-sniffer:${version}"
   compile "org.elasticsearch:elasticsearch-nio:${version}"
   compile "org.elasticsearch:elasticsearch:${version}"
   compile "org.elasticsearch:elasticsearch-cli:${version}"

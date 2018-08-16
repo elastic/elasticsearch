@@ -22,11 +22,15 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequestBuilder;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.MockKeywordPlugin;
 import org.hamcrest.core.IsNull;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -35,11 +39,15 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-
 public class AnalyzeActionIT extends ESIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Collections.singleton(MockKeywordPlugin.class);
+    }
+
     public void testSimpleAnalyzerTests() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
         ensureGreen();
@@ -333,14 +341,14 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         AnalyzeResponse analyzeResponse = client().admin().indices()
             .prepareAnalyze()
             .setText("Foo buzz test")
-            .setTokenizer("whitespace")
+            .setTokenizer("standard")
             .addTokenFilter("lowercase")
             .addTokenFilter(stopFilterSettings)
             .setExplain(true)
             .get();
 
         //tokenizer
-        assertThat(analyzeResponse.detail().tokenizer().getName(), equalTo("whitespace"));
+        assertThat(analyzeResponse.detail().tokenizer().getName(), equalTo("standard"));
         assertThat(analyzeResponse.detail().tokenizer().getTokens().length, equalTo(3));
         assertThat(analyzeResponse.detail().tokenizer().getTokens()[0].getTerm(), equalTo("Foo"));
         assertThat(analyzeResponse.detail().tokenizer().getTokens()[0].getStartOffset(), equalTo(0));
@@ -391,41 +399,6 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertThat(analyzeResponse.detail().tokenfilters()[1].getTokens()[0].getEndOffset(), equalTo(13));
         assertThat(analyzeResponse.detail().tokenfilters()[1].getTokens()[0].getPosition(), equalTo(2));
         assertThat(analyzeResponse.detail().tokenfilters()[1].getTokens()[0].getPositionLength(), equalTo(1));
-    }
-
-    public void testCustomTokenizerInRequest() throws Exception {
-        Map<String, Object> tokenizerSettings = new HashMap<>();
-        tokenizerSettings.put("type", "nGram");
-        tokenizerSettings.put("min_gram", 2);
-        tokenizerSettings.put("max_gram", 2);
-
-        AnalyzeResponse analyzeResponse = client().admin().indices()
-            .prepareAnalyze()
-            .setText("good")
-            .setTokenizer(tokenizerSettings)
-            .setExplain(true)
-            .get();
-
-        //tokenizer
-        assertThat(analyzeResponse.detail().tokenizer().getName(), equalTo("_anonymous_tokenizer"));
-        assertThat(analyzeResponse.detail().tokenizer().getTokens().length, equalTo(3));
-        assertThat(analyzeResponse.detail().tokenizer().getTokens()[0].getTerm(), equalTo("go"));
-        assertThat(analyzeResponse.detail().tokenizer().getTokens()[0].getStartOffset(), equalTo(0));
-        assertThat(analyzeResponse.detail().tokenizer().getTokens()[0].getEndOffset(), equalTo(2));
-        assertThat(analyzeResponse.detail().tokenizer().getTokens()[0].getPosition(), equalTo(0));
-        assertThat(analyzeResponse.detail().tokenizer().getTokens()[0].getPositionLength(), equalTo(1));
-
-        assertThat(analyzeResponse.detail().tokenizer().getTokens()[1].getTerm(), equalTo("oo"));
-        assertThat(analyzeResponse.detail().tokenizer().getTokens()[1].getStartOffset(), equalTo(1));
-        assertThat(analyzeResponse.detail().tokenizer().getTokens()[1].getEndOffset(), equalTo(3));
-        assertThat(analyzeResponse.detail().tokenizer().getTokens()[1].getPosition(), equalTo(1));
-        assertThat(analyzeResponse.detail().tokenizer().getTokens()[1].getPositionLength(), equalTo(1));
-
-        assertThat(analyzeResponse.detail().tokenizer().getTokens()[2].getTerm(), equalTo("od"));
-        assertThat(analyzeResponse.detail().tokenizer().getTokens()[2].getStartOffset(), equalTo(2));
-        assertThat(analyzeResponse.detail().tokenizer().getTokens()[2].getEndOffset(), equalTo(4));
-        assertThat(analyzeResponse.detail().tokenizer().getTokens()[2].getPosition(), equalTo(2));
-        assertThat(analyzeResponse.detail().tokenizer().getTokens()[2].getPositionLength(), equalTo(1));
     }
 
     public void testAnalyzeKeywordField() throws IOException {

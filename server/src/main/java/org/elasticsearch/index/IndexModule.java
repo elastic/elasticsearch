@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index;
 
-import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.similarities.BM25Similarity;
+import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
@@ -49,6 +49,7 @@ import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
+import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -60,6 +61,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
@@ -73,7 +75,7 @@ import java.util.function.Function;
  *     {@link #addSimilarity(String, TriFunction)} while existing Providers can be referenced through Settings under the
  *     {@link IndexModule#SIMILARITY_SETTINGS_PREFIX} prefix along with the "type" value.  For example, to reference the
  *     {@link BM25Similarity}, the configuration {@code "index.similarity.my_similarity.type : "BM25"} can be used.</li>
- *      <li>{@link IndexStore} - Custom {@link IndexStore} instances can be registered via {@link #addIndexStore(String, Function)}</li>
+ *      <li>{@link IndexStore} - Custom {@link IndexStore} instances can be registered via {@link IndexStorePlugin}</li>
  *      <li>{@link IndexEventListener} - Custom {@link IndexEventListener} instances can be registered via
  *      {@link #addIndexEventListener(IndexEventListener)}</li>
  *      <li>Settings update listener - Custom settings update listener can be registered via
@@ -104,22 +106,36 @@ public final class IndexModule {
 
     private final IndexSettings indexSettings;
     private final AnalysisRegistry analysisRegistry;
-    // pkg private so tests can mock
-    final SetOnce<EngineFactory> engineFactory = new SetOnce<>();
+    private final EngineFactory engineFactory;
     private SetOnce<IndexSearcherWrapperFactory> indexSearcherWrapper = new SetOnce<>();
     private final Set<IndexEventListener> indexEventListeners = new HashSet<>();
     private final Map<String, TriFunction<Settings, Version, ScriptService, Similarity>> similarities = new HashMap<>();
-    private final Map<String, Function<IndexSettings, IndexStore>> storeTypes = new HashMap<>();
+    private final Map<String, Function<IndexSettings, IndexStore>> indexStoreFactories;
     private final SetOnce<BiFunction<IndexSettings, IndicesQueryCache, QueryCache>> forceQueryCacheProvider = new SetOnce<>();
     private final List<SearchOperationListener> searchOperationListeners = new ArrayList<>();
     private final List<IndexingOperationListener> indexOperationListeners = new ArrayList<>();
     private final AtomicBoolean frozen = new AtomicBoolean(false);
 
-    public IndexModule(IndexSettings indexSettings, AnalysisRegistry analysisRegistry) {
+    /**
+     * Construct the index module for the index with the specified index settings. The index module contains extension points for plugins
+     * via {@link org.elasticsearch.plugins.PluginsService#onIndexModule(IndexModule)}.
+     *
+     * @param indexSettings       the index settings
+     * @param analysisRegistry    the analysis registry
+     * @param engineFactory       the engine factory
+     * @param indexStoreFactories the available store types
+     */
+    public IndexModule(
+            final IndexSettings indexSettings,
+            final AnalysisRegistry analysisRegistry,
+            final EngineFactory engineFactory,
+            final Map<String, Function<IndexSettings, IndexStore>> indexStoreFactories) {
         this.indexSettings = indexSettings;
         this.analysisRegistry = analysisRegistry;
+        this.engineFactory = Objects.requireNonNull(engineFactory);
         this.searchOperationListeners.add(new SearchSlowLog(indexSettings));
         this.indexOperationListeners.add(new IndexingSlowLog(indexSettings));
+        this.indexStoreFactories = Collections.unmodifiableMap(indexStoreFactories);
     }
 
     /**
@@ -156,6 +172,15 @@ public final class IndexModule {
      */
     public Index getIndex() {
         return indexSettings.getIndex();
+    }
+
+    /**
+     * The engine factory provided during construction of this index module.
+     *
+     * @return the engine factory
+     */
+    EngineFactory getEngineFactory() {
+        return engineFactory;
     }
 
     /**
@@ -226,25 +251,6 @@ public final class IndexModule {
 
         this.indexOperationListeners.add(listener);
     }
-
-    /**
-     * Adds an {@link IndexStore} type to this index module. Typically stores are registered with a reference to
-     * it's constructor:
-     * <pre>
-     *     indexModule.addIndexStore("my_store_type", MyStore::new);
-     * </pre>
-     *
-     * @param type the type to register
-     * @param provider the instance provider / factory method
-     */
-    public void addIndexStore(String type, Function<IndexSettings, IndexStore> provider) {
-        ensureNotFrozen();
-        if (storeTypes.containsKey(type)) {
-            throw new IllegalArgumentException("key [" + type +"] already registered");
-        }
-        storeTypes.put(type, provider);
-    }
-
 
     /**
      * Registers the given {@link Similarity} with the given name.
@@ -342,7 +348,7 @@ public final class IndexModule {
         if (Strings.isEmpty(storeType) || isBuiltinType(storeType)) {
             store = new IndexStore(indexSettings);
         } else {
-            Function<IndexSettings, IndexStore> factory = storeTypes.get(storeType);
+            Function<IndexSettings, IndexStore> factory = indexStoreFactories.get(storeType);
             if (factory == null) {
                 throw new IllegalArgumentException("Unknown store type [" + storeType + "]");
             }
@@ -364,7 +370,7 @@ public final class IndexModule {
         }
         return new IndexService(indexSettings, environment, xContentRegistry,
                 new SimilarityService(indexSettings, scriptService, similarities),
-                shardStoreDeleter, analysisRegistry, engineFactory.get(), circuitBreakerService, bigArrays, threadPool, scriptService,
+                shardStoreDeleter, analysisRegistry, engineFactory, circuitBreakerService, bigArrays, threadPool, scriptService,
                 client, queryCache, store, eventListener, searcherWrapperFactory, mapperRegistry,
                 indicesFieldDataCache, searchOperationListeners, indexOperationListeners, namedWriteableRegistry);
     }

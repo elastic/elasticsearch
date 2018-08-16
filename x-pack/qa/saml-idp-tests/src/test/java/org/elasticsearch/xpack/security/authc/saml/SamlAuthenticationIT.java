@@ -54,7 +54,7 @@ import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.xpack.core.ssl.CertUtils;
+import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -553,8 +553,8 @@ public class SamlAuthenticationIT extends ESRestTestCase {
 
     private SSLContext getClientSslContext() throws Exception {
         final Path pem = getDataPath("/ca.crt");
-        final Certificate[] certificates = CertUtils.readCertificates(Collections.singletonList(pem));
-        final X509ExtendedTrustManager trustManager = CertUtils.trustManager(certificates);
+        final Certificate[] certificates = CertParsingUtils.readCertificates(Collections.singletonList(pem));
+        final X509ExtendedTrustManager trustManager = CertParsingUtils.trustManager(certificates);
         SSLContext context = SSLContext.getInstance("TLS");
         context.init(new KeyManager[0], new TrustManager[] { trustManager }, new SecureRandom());
         return context;

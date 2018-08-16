@@ -6,18 +6,21 @@
 package org.elasticsearch.xpack.sql.querydsl.container;
 
 import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
+import org.elasticsearch.xpack.sql.type.DataType;
 
 public class SearchHitFieldRef extends FieldReference {
     private final String name;
+    private final DataType dataType;
     private final boolean docValue;
     private final String hitName;
 
-    public SearchHitFieldRef(String name, boolean useDocValueInsteadOfSource) {
-        this(name, useDocValueInsteadOfSource, null);
+    public SearchHitFieldRef(String name, DataType dataType, boolean useDocValueInsteadOfSource) {
+        this(name, dataType, useDocValueInsteadOfSource, null);
     }
 
-    public SearchHitFieldRef(String name, boolean useDocValueInsteadOfSource, String hitName) {
+    public SearchHitFieldRef(String name, DataType dataType, boolean useDocValueInsteadOfSource, String hitName) {
         this.name = name;
+        this.dataType = dataType;
         this.docValue = useDocValueInsteadOfSource;
         this.hitName = hitName;
     }
@@ -31,6 +34,10 @@ public class SearchHitFieldRef extends FieldReference {
         return name;
     }
 
+    public DataType getDataType() {
+        return dataType;
+    }
+
     public boolean useDocValue() {
         return docValue;
     }
@@ -42,7 +49,8 @@ public class SearchHitFieldRef extends FieldReference {
             return;
         }
         if (docValue) {
-            sourceBuilder.addDocField(name);
+            String format = dataType == DataType.DATE ? "epoch_millis" : null;
+            sourceBuilder.addDocField(name, format);
         } else {
             sourceBuilder.addSourceField(name);
         }

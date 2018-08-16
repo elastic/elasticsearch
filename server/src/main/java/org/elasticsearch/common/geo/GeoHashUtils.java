@@ -171,11 +171,17 @@ public class GeoHashUtils {
      * Encode to a morton long value from a given geohash string
      */
     public static final long mortonEncode(final String hash) {
+        if (hash.isEmpty()) {
+            throw new IllegalArgumentException("empty geohash");
+        }
         int level = 11;
         long b;
         long l = 0L;
         for(char c : hash.toCharArray()) {
             b = (long)(BASE_32_STRING.indexOf(c));
+            if (b < 0) {
+                throw new IllegalArgumentException("unsupported symbol [" + c + "] in geohash [" + hash + "]");
+            }
             l |= (b<<((level--*5) + MORTON_OFFSET));
             if (level < 0) {
                 // We cannot handle more than 12 levels

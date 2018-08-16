@@ -250,7 +250,7 @@ public class RecoverySourceHandler {
             try (Releasable ignored = FutureUtils.get(permit)) {
                 // check that the IndexShard still has the primary authority. This needs to be checked under operation permit to prevent
                 // races, as IndexShard will switch its authority only when it holds all operation permits, see IndexShard.relocated()
-                if (primary.isPrimaryMode() == false) {
+                if (primary.isRelocatedPrimary()) {
                     throw new IndexShardRelocatedException(primary.shardId());
                 }
                 runnable.run();
@@ -449,13 +449,13 @@ public class RecoverySourceHandler {
         }
     }
 
-    void prepareTargetForTranslog(final boolean createNewTranslog, final int totalTranslogOps) throws IOException {
+    void prepareTargetForTranslog(final boolean fileBasedRecovery, final int totalTranslogOps) throws IOException {
         StopWatch stopWatch = new StopWatch().start();
         logger.trace("recovery [phase1]: prepare remote engine for translog");
         final long startEngineStart = stopWatch.totalTime().millis();
         // Send a request preparing the new shard's translog to receive operations. This ensures the shard engine is started and disables
         // garbage collection (not the JVM's GC!) of tombstone deletes.
-        cancellableThreads.executeIO(() -> recoveryTarget.prepareForTranslogOperations(createNewTranslog, totalTranslogOps));
+        cancellableThreads.executeIO(() -> recoveryTarget.prepareForTranslogOperations(fileBasedRecovery, totalTranslogOps));
         stopWatch.stop();
 
         response.startTime = stopWatch.totalTime().millis() - startEngineStart;
@@ -615,9 +615,9 @@ public class RecoverySourceHandler {
             cancellableThreads.executeIO(sendBatch);
         }
 
-        assert expectedTotalOps == snapshot.overriddenOperations() + skippedOps + totalSentOps
+        assert expectedTotalOps == snapshot.skippedOperations() + skippedOps + totalSentOps
             : String.format(Locale.ROOT, "expected total [%d], overridden [%d], skipped [%d], total sent [%d]",
-            expectedTotalOps, snapshot.overriddenOperations(), skippedOps, totalSentOps);
+            expectedTotalOps, snapshot.skippedOperations(), skippedOps, totalSentOps);
 
         if (requiredOpsTracker.getCheckpoint() < endingSeqNo) {
             throw new IllegalStateException("translog replay failed to cover required sequence numbers" +

@@ -22,10 +22,12 @@ import static org.hamcrest.Matchers.notNullValue;
 public class StoreKeyConfigTests extends ESTestCase {
 
     public void testCreateKeyManagerUsingJKS() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM", inFipsJvm());
         tryReadPrivateKeyFromKeyStore("jks", ".jks");
     }
 
     public void testCreateKeyManagerUsingPKCS12() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM", inFipsJvm());
         tryReadPrivateKeyFromKeyStore("PKCS12", ".p12");
     }
 
@@ -36,7 +38,7 @@ public class StoreKeyConfigTests extends ESTestCase {
         final StoreKeyConfig keyConfig = new StoreKeyConfig(path, type, keyStorePassword, keyStorePassword,
                 KeyManagerFactory.getDefaultAlgorithm(), TrustManagerFactory.getDefaultAlgorithm());
         final X509ExtendedKeyManager keyManager = keyConfig.createKeyManager(TestEnvironment.newEnvironment(settings));
-        final PrivateKey key = keyManager.getPrivateKey("testnode");
+        final PrivateKey key = keyManager.getPrivateKey("testnode_rsa");
         assertThat(key, notNullValue());
         assertThat(key.getAlgorithm(), equalTo("RSA"));
         assertThat(key.getFormat(), equalTo("PKCS#8"));

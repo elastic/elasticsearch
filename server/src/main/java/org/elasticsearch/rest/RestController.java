@@ -272,8 +272,9 @@ public class RestController extends AbstractComponent implements HttpServerTrans
      */
     private static boolean hasContentType(final RestRequest restRequest, final RestHandler restHandler) {
         if (restRequest.getXContentType() == null) {
-            if (restHandler.supportsContentStream() && restRequest.header("Content-Type") != null) {
-                final String lowercaseMediaType = restRequest.header("Content-Type").toLowerCase(Locale.ROOT);
+            String contentTypeHeader = restRequest.header("Content-Type");
+            if (restHandler.supportsContentStream() && contentTypeHeader != null) {
+                final String lowercaseMediaType = contentTypeHeader.toLowerCase(Locale.ROOT);
                 // we also support newline delimited JSON: http://specs.okfnlabs.org/ndjson/
                 if (lowercaseMediaType.equals("application/x-ndjson")) {
                     restRequest.setXContentType(XContentType.JSON);
@@ -401,9 +402,15 @@ public class RestController extends AbstractComponent implements HttpServerTrans
      * Handle a requests with no candidate handlers (return a 400 Bad Request
      * error).
      */
-    private void handleBadRequest(RestRequest request, RestChannel channel) {
-        channel.sendResponse(new BytesRestResponse(BAD_REQUEST,
-            "No handler found for uri [" + request.uri() + "] and method [" + request.method() + "]"));
+    private void handleBadRequest(RestRequest request, RestChannel channel) throws IOException {
+        try (XContentBuilder builder = channel.newErrorBuilder()) {
+            builder.startObject();
+            {
+                builder.field("error", "no handler found for uri [" + request.uri() + "] and method [" + request.method() + "]");
+            }
+            builder.endObject();
+            channel.sendResponse(new BytesRestResponse(BAD_REQUEST, builder));
+        }
     }
 
     /**

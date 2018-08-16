@@ -8,4 +8,4 @@
     - do:
         nodes.info: {}
 
-    - match:  { nodes.$master.modules.0.name: analysis-common }
+    - contains:  { nodes.$master.modules: { name: analysis-common } }

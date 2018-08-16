@@ -21,8 +21,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.IsolateDatafeedAction;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
@@ -85,11 +86,11 @@ public class TransportDeleteDatafeedAction extends TransportMasterNodeAction<Del
 
     private void removeDatafeedTask(DeleteDatafeedAction.Request request, ClusterState state, ActionListener<Boolean> listener) {
         PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-        PersistentTasksCustomMetaData.PersistentTask<?> datafeedTask = MlMetadata.getDatafeedTask(request.getDatafeedId(), tasks);
+        PersistentTasksCustomMetaData.PersistentTask<?> datafeedTask = MlTasks.getDatafeedTask(request.getDatafeedId(), tasks);
         if (datafeedTask == null) {
             listener.onResponse(true);
         } else {
-            persistentTasksService.cancelPersistentTask(datafeedTask.getId(),
+            persistentTasksService.sendRemoveRequest(datafeedTask.getId(),
                     new ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>>() {
                         @Override
                         public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
@@ -119,14 +120,15 @@ public class TransportDeleteDatafeedAction extends TransportMasterNodeAction<Del
                     }
 
                     @Override
-                    public ClusterState execute(ClusterState currentState) throws Exception {
-                        MlMetadata currentMetadata = currentState.getMetaData().custom(MLMetadataField.TYPE);
+                    public ClusterState execute(ClusterState currentState) {
+                        XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
+                        MlMetadata currentMetadata = MlMetadata.getMlMetadata(currentState);
                         PersistentTasksCustomMetaData persistentTasks =
                                 currentState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
                         MlMetadata newMetadata = new MlMetadata.Builder(currentMetadata)
                                 .removeDatafeed(request.getDatafeedId(), persistentTasks).build();
                         return ClusterState.builder(currentState).metaData(
-                                MetaData.builder(currentState.getMetaData()).putCustom(MLMetadataField.TYPE, newMetadata).build())
+                                MetaData.builder(currentState.getMetaData()).putCustom(MlMetadata.TYPE, newMetadata).build())
                                 .build();
                     }
                 });

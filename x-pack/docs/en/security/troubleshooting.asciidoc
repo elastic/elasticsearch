@@ -1,3 +1,4 @@
+[role="xpack"]
 [[security-troubleshooting]]
 == {security} Troubleshooting
 ++++
@@ -18,7 +19,7 @@ answers for frequently asked questions.
 * <<trb-security-setup>>
 
 
-To get help, see <<xpack-help>>.
+To get help, see <<help>>.
 
 [[security-trb-settings]]
 === Some settings are not returned via the nodes settings API
@@ -100,7 +101,7 @@ The role definition might be missing or invalid.
 |======================
 
 To help track down these possibilities, add the following lines to the end of
-the `log4j2.properties` configuration file in the `CONFIG_DIR`:
+the `log4j2.properties` configuration file in the `ES_PATH_CONF`:
 
 [source,properties]
 ----------------

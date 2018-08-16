@@ -28,6 +28,7 @@ import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -62,8 +63,8 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_FORMAT_SETTING;
-import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
-import static org.elasticsearch.xpack.security.support.IndexLifecycleManager.INTERNAL_INDEX_FORMAT;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_INDEX_FORMAT;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -278,6 +279,39 @@ public class SecurityTests extends ESTestCase {
         }
     }
 
+    public void testJoinValidatorForLicenseDeserialization() throws Exception {
+        DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(),
+            VersionUtils.randomVersionBetween(random(), null, Version.V_6_3_0));
+        MetaData.Builder builder = MetaData.builder();
+        License license = TestUtils.generateSignedLicense(null,
+            randomIntBetween(License.VERSION_CRYPTO_ALGORITHMS, License.VERSION_CURRENT), -1, TimeValue.timeValueHours(24));
+        TestUtils.putLicense(builder, license);
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metaData(builder.build()).build();
+        IllegalStateException e = expectThrows(IllegalStateException.class,
+            () -> new Security.ValidateLicenseCanBeDeserialized().accept(node, state));
+        assertThat(e.getMessage(), containsString("cannot deserialize the license format"));
+    }
+
+    public void testJoinValidatorForFIPSLicense() throws Exception {
+        DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(),
+            VersionUtils.randomVersionBetween(random(), null, Version.CURRENT));
+        MetaData.Builder builder = MetaData.builder();
+        License license = TestUtils.generateSignedLicense(TimeValue.timeValueHours(24));
+        TestUtils.putLicense(builder, license);
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metaData(builder.build()).build();
+        new Security.ValidateLicenseForFIPS(false).accept(node, state);
+
+        final boolean isLicenseValidForFips =
+            FIPS140LicenseBootstrapCheck.ALLOWED_LICENSE_OPERATION_MODES.contains(license.operationMode());
+        if (isLicenseValidForFips) {
+            new Security.ValidateLicenseForFIPS(true).accept(node, state);
+        } else {
+            IllegalStateException e = expectThrows(IllegalStateException.class,
+                () -> new Security.ValidateLicenseForFIPS(true).accept(node, state));
+            assertThat(e.getMessage(), containsString("FIPS mode cannot be used"));
+        }
+    }
+
     public void testIndexJoinValidator_Old_And_Rolling() throws Exception {
         createComponents(Settings.EMPTY);
         BiConsumer<DiscoveryNode, ClusterState> joinValidator = security.getJoinValidator();
@@ -345,7 +379,7 @@ public class SecurityTests extends ESTestCase {
             .nodes(discoveryNodes).build();
         joinValidator.accept(node, clusterState);
     }
-    
+
     public void testGetFieldFilterSecurityEnabled() throws Exception {
         createComponents(Settings.EMPTY);
         Function<String, Predicate<String>> fieldFilter = security.getFieldFilter();
@@ -385,7 +419,8 @@ public class SecurityTests extends ESTestCase {
         createComponents(Settings.EMPTY);
         Function<String, Predicate<String>> fieldFilter = security.getFieldFilter();
         assertNotSame(MapperPlugin.NOOP_FIELD_FILTER, fieldFilter);
-        licenseState.update(randomFrom(License.OperationMode.BASIC, License.OperationMode.STANDARD, License.OperationMode.GOLD), true);
+        licenseState.update(
+            randomFrom(License.OperationMode.BASIC, License.OperationMode.STANDARD, License.OperationMode.GOLD), true, null);
         assertNotSame(MapperPlugin.NOOP_FIELD_FILTER, fieldFilter);
         assertSame(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply(randomAlphaOfLengthBetween(3, 6)));
     }

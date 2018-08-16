@@ -56,6 +56,7 @@ import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.FaultDetection;
+import org.elasticsearch.discovery.zen.SettingsBasedHostsProvider;
 import org.elasticsearch.discovery.zen.UnicastZenPing;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.env.Environment;
@@ -227,7 +228,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     HttpTransportSettings.SETTING_CORS_ENABLED,
                     HttpTransportSettings.SETTING_CORS_MAX_AGE,
                     HttpTransportSettings.SETTING_HTTP_DETAILED_ERRORS_ENABLED,
-                    HttpTransportSettings.SETTING_PIPELINING,
                     HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN,
                     HttpTransportSettings.SETTING_HTTP_HOST,
                     HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST,
@@ -254,6 +254,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     HttpTransportSettings.SETTING_HTTP_TCP_REUSE_ADDRESS,
                     HttpTransportSettings.SETTING_HTTP_TCP_SEND_BUFFER_SIZE,
                     HttpTransportSettings.SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE,
+                    HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING,
                     HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING,
                     HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING,
                     HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING,
@@ -358,7 +359,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ZenDiscovery.MASTER_ELECTION_WAIT_FOR_JOINS_TIMEOUT_SETTING,
                     ZenDiscovery.MASTER_ELECTION_IGNORE_NON_MASTER_PINGS_SETTING,
                     ZenDiscovery.MAX_PENDING_CLUSTER_STATES_SETTING,
-                    UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING,
+                    SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING,
                     UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING,
                     UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT,
                     SearchService.DEFAULT_KEEPALIVE_SETTING,
@@ -380,6 +381,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING,
                     EsExecutors.PROCESSORS_SETTING,
                     ThreadContext.DEFAULT_HEADERS_SETTING,
+                    TcpTransport.DEFAULT_FEATURES_SETTING,
                     Loggers.LOG_DEFAULT_LEVEL_SETTING,
                     Loggers.LOG_LEVEL_SETTING,
                     NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING,

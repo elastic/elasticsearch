@@ -234,8 +234,8 @@ public class Analysis {
 
         final Path path = env.configFile().resolve(wordListPath);
 
-        try (BufferedReader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
-            return loadWordList(reader, "#");
+        try {
+            return loadWordList(path, "#");
         } catch (CharacterCodingException ex) {
             String message = String.format(Locale.ROOT,
                 "Unsupported character encoding detected while reading %s_path: %s - files must be UTF-8 encoded",
@@ -247,15 +247,9 @@ public class Analysis {
         }
     }
 
-    public static List<String> loadWordList(Reader reader, String comment) throws IOException {
+    private static List<String> loadWordList(Path path, String comment) throws IOException {
         final List<String> result = new ArrayList<>();
-        BufferedReader br = null;
-        try {
-            if (reader instanceof BufferedReader) {
-                br = (BufferedReader) reader;
-            } else {
-                br = new BufferedReader(reader);
-            }
+        try (BufferedReader br = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
             String word;
             while ((word = br.readLine()) != null) {
                 if (!Strings.hasText(word)) {
@@ -265,9 +259,6 @@ public class Analysis {
                     result.add(word.trim());
                 }
             }
-        } finally {
-            if (br != null)
-                br.close();
         }
         return result;
     }

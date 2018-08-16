@@ -323,3 +323,32 @@ setup:
   - length: { aggregations.test.buckets: 2 }
   - length: { aggregations.test.after_key: 1 }
   - match: { aggregations.test.after_key.keyword:  "foo" }
+
+---
+"Composite aggregation and array size":
+  - skip:
+      version: " - 6.3.99"
+      reason:  starting in 6.4 the composite sources do not allocate arrays eagerly.
+
+  - do:
+        search:
+          index: test
+          body:
+            aggregations:
+              test:
+                composite:
+                  size: 1000000000
+                  sources: [
+                    {
+                      "keyword": {
+                        "terms": {
+                          "field": "keyword",
+                        }
+                      }
+                    }
+                  ]
+
+  - match: {hits.total: 6}
+  - length: { aggregations.test.buckets: 2 }
+  - length: { aggregations.test.after_key: 1 }
+  - match: { aggregations.test.after_key.keyword:  "foo" }

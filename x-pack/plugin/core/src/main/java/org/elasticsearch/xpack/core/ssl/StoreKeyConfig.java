@@ -73,7 +73,7 @@ class StoreKeyConfig extends KeyConfig {
         try {
             KeyStore ks = getKeyStore(environment);
             checkKeyStore(ks);
-            return CertUtils.keyManager(ks, keyPassword.getChars(), keyStoreAlgorithm);
+            return CertParsingUtils.keyManager(ks, keyPassword.getChars(), keyStoreAlgorithm);
         } catch (IOException | CertificateException | NoSuchAlgorithmException | UnrecoverableKeyException | KeyStoreException e) {
             throw new ElasticsearchException("failed to initialize a KeyManagerFactory", e);
         }
@@ -82,7 +82,7 @@ class StoreKeyConfig extends KeyConfig {
     @Override
     X509ExtendedTrustManager createTrustManager(@Nullable Environment environment) {
         try {
-            return CertUtils.trustManager(keyStorePath, keyStoreType, keyStorePassword.getChars(), trustStoreAlgorithm, environment);
+            return CertParsingUtils.trustManager(keyStorePath, keyStoreType, keyStorePassword.getChars(), trustStoreAlgorithm, environment);
         } catch (Exception e) {
             throw new ElasticsearchException("failed to initialize a TrustManagerFactory", e);
         }
@@ -90,8 +90,8 @@ class StoreKeyConfig extends KeyConfig {
 
     @Override
     Collection<CertificateInfo> certificates(Environment environment) throws GeneralSecurityException, IOException {
-        final Path path = CertUtils.resolvePath(keyStorePath, environment);
-        final KeyStore trustStore = CertUtils.readKeyStore(path, keyStoreType, keyStorePassword.getChars());
+        final Path path = CertParsingUtils.resolvePath(keyStorePath, environment);
+        final KeyStore trustStore = CertParsingUtils.readKeyStore(path, keyStoreType, keyStorePassword.getChars());
         final List<CertificateInfo> certificates = new ArrayList<>();
         final Enumeration<String> aliases = trustStore.aliases();
         while (aliases.hasMoreElements()) {
@@ -112,7 +112,7 @@ class StoreKeyConfig extends KeyConfig {
 
     @Override
     List<Path> filesToMonitor(@Nullable Environment environment) {
-        return Collections.singletonList(CertUtils.resolvePath(keyStorePath, environment));
+        return Collections.singletonList(CertParsingUtils.resolvePath(keyStorePath, environment));
     }
 
     @Override
@@ -137,7 +137,7 @@ class StoreKeyConfig extends KeyConfig {
 
     private KeyStore getKeyStore(@Nullable Environment environment)
                                 throws KeyStoreException, CertificateException, NoSuchAlgorithmException, IOException {
-        try (InputStream in = Files.newInputStream(CertUtils.resolvePath(keyStorePath, environment))) {
+        try (InputStream in = Files.newInputStream(CertParsingUtils.resolvePath(keyStorePath, environment))) {
             KeyStore ks = KeyStore.getInstance(keyStoreType);
             ks.load(in, keyStorePassword.getChars());
             return ks;

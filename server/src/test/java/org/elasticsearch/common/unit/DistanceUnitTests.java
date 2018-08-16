@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.unit;
 
-import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;

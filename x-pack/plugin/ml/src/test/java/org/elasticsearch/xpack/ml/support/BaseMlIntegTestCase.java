@@ -27,11 +27,13 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction;
+import org.elasticsearch.xpack.core.ml.action.GetJobsAction;
+import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.core.ml.client.MachineLearningClient;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
@@ -54,7 +56,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -272,8 +273,9 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     }
 
     public static void deleteAllDatafeeds(Logger logger, Client client) throws Exception {
-        MetaData metaData = client.admin().cluster().prepareState().get().getState().getMetaData();
-        MlMetadata mlMetadata = metaData.custom(MLMetadataField.TYPE);
+        final MachineLearningClient mlClient = new MachineLearningClient(client);
+        final QueryPage<DatafeedConfig> datafeeds =
+                mlClient.getDatafeeds(new GetDatafeedsAction.Request(GetDatafeedsAction.ALL)).actionGet().getResponse();
         try {
             logger.info("Closing all datafeeds (using _all)");
             StopDatafeedAction.Response stopResponse = client
@@ -294,11 +296,10 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
                     "Had to resort to force-stopping datafeed, something went wrong?", e1);
         }
 
-        for (DatafeedConfig datafeed : mlMetadata.getDatafeeds().values()) {
-            String datafeedId = datafeed.getId();
+        for (final DatafeedConfig datafeed : datafeeds.results()) {
             assertBusy(() -> {
                 try {
-                    GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedId);
+                    GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeed.getId());
                     GetDatafeedsStatsAction.Response r = client.execute(GetDatafeedsStatsAction.INSTANCE, request).get();
                     assertThat(r.getResponse().results().get(0).getDatafeedState(), equalTo(DatafeedState.STOPPED));
                 } catch (InterruptedException | ExecutionException e) {
@@ -306,14 +307,14 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
                 }
             });
             DeleteDatafeedAction.Response deleteResponse =
-                    client.execute(DeleteDatafeedAction.INSTANCE, new DeleteDatafeedAction.Request(datafeedId)).get();
+                    client.execute(DeleteDatafeedAction.INSTANCE, new DeleteDatafeedAction.Request(datafeed.getId())).get();
             assertTrue(deleteResponse.isAcknowledged());
         }
     }
 
     public static void deleteAllJobs(Logger logger, Client client) throws Exception {
-        MetaData metaData = client.admin().cluster().prepareState().get().getState().getMetaData();
-        MlMetadata mlMetadata = metaData.custom(MLMetadataField.TYPE);
+        final MachineLearningClient mlClient = new MachineLearningClient(client);
+        final QueryPage<Job> jobs = mlClient.getJobs(new GetJobsAction.Request(MetaData.ALL)).actionGet().getResponse();
 
         try {
             CloseJobAction.Request closeRequest = new CloseJobAction.Request(MetaData.ALL);
@@ -337,15 +338,14 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
                     e1);
         }
 
-        for (Map.Entry<String, Job> entry : mlMetadata.getJobs().entrySet()) {
-            String jobId = entry.getKey();
+        for (final Job job : jobs.results()) {
             assertBusy(() -> {
                 GetJobsStatsAction.Response statsResponse =
-                        client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(jobId)).actionGet();
+                        client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(job.getId())).actionGet();
                 assertEquals(JobState.CLOSED, statsResponse.getResponse().results().get(0).getState());
             });
             DeleteJobAction.Response response =
-                    client.execute(DeleteJobAction.INSTANCE, new DeleteJobAction.Request(jobId)).get();
+                    client.execute(DeleteJobAction.INSTANCE, new DeleteJobAction.Request(job.getId())).get();
             assertTrue(response.isAcknowledged());
         }
     }

@@ -50,7 +50,49 @@ PUT /test_index
 The above configures a `search_synonyms` filter, with a path of
 `analysis/synonym.txt` (relative to the `config` location). The
 `search_synonyms` analyzer is then configured with the filter.
-Additional settings are: `expand` (defaults to `true`).
+
+Additional settings are:
+
+* `expand` (defaults to `true`).
+* `lenient` (defaults to `false`). If `true` ignores exceptions while parsing the synonym configuration. It is important
+to note that only those synonym rules which cannot get parsed are ignored. For instance consider the following request:
+
+[source,js]
+--------------------------------------------------
+PUT /test_index
+{
+    "settings": {
+        "index" : {
+            "analysis" : {
+                "analyzer" : {
+                    "synonym" : {
+                        "tokenizer" : "standard",
+                        "filter" : ["my_stop", "synonym_graph"]
+                    }
+                },
+                "filter" : {
+                	"my_stop": {
+                		"type" : "stop",
+                		"stopwords": ["bar"]
+                	},
+                    "synonym_graph" : {
+                        "type" : "synonym_graph",
+                        "lenient": true,
+                        "synonyms" : ["foo, bar => baz"]
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+With the above request the word `bar` gets skipped but a mapping `foo => baz` is still added. However, if the mapping
+being added was "foo, baz => bar" nothing would get added to the synonym list. This is because the target word for the
+mapping is itself eliminated because it was a stop word. Similarly, if the mapping was "bar, foo, baz" and `expand` was
+set to `false` no mapping would get added as when `expand=false` the target mapping is the first word. However, if
+`expand=true` then the mappings added would be equivalent to `foo, baz => foo, baz` i.e, all mappings other than the
+stop word.
 
 [float]
 ==== `tokenizer` and `ignore_case` are deprecated

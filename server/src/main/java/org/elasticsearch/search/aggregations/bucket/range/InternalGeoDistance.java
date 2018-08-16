@@ -35,10 +35,6 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
 
     static class Bucket extends InternalRange.Bucket {
 
-        Bucket(boolean keyed) {
-            super(keyed, DocValueFormat.RAW);
-        }
-
         Bucket(String key, double from, double to, long docCount, List<InternalAggregation> aggregations, boolean keyed) {
             this(key, from, to, docCount, new InternalAggregations(aggregations), keyed);
         }

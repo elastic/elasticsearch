@@ -8,9 +8,7 @@ package org.elasticsearch.xpack.security.authc.esnative.tool;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
-import org.bouncycastle.util.io.Streams;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.LoggingAwareMultiCommand;
@@ -37,6 +35,7 @@ import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.esnative.tool.HttpResponse.HttpResponseBuilder;
 
 import javax.net.ssl.SSLException;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
@@ -45,7 +44,6 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -531,7 +529,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
         private HttpResponseBuilder responseBuilder(InputStream is, Terminal terminal) throws IOException {
             HttpResponseBuilder httpResponseBuilder = new HttpResponseBuilder();
             if (is != null) {
-                byte[] bytes = Streams.readAll(is);
+                byte[] bytes = toByteArray(is);
                 String responseBody = new String(bytes, StandardCharsets.UTF_8);
                 terminal.println(Verbosity.VERBOSE, responseBody);
                 httpResponseBuilder.withResponseBody(responseBody);
@@ -545,7 +543,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
             return new URL(url, (url.toURI().getPath() + path).replaceAll("/+", "/") + query);
         }
     }
- 
+
     private String getErrorCause(HttpResponse httpResponse) {
         final Object error = httpResponse.getResponseBody().get("error");
         if (error == null) {
@@ -570,6 +568,17 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
             return String.valueOf(((Map) error).get("type"));
         }
         return error.toString();
+    }
+
+    private byte[] toByteArray(InputStream is) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        byte[] internalBuffer = new byte[1024];
+        int read = is.read(internalBuffer);
+        while (read != -1) {
+            baos.write(internalBuffer, 0, read);
+            read = is.read(internalBuffer);
+        }
+        return baos.toByteArray();
     }
 
     /**

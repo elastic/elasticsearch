@@ -26,7 +26,7 @@ import org.elasticsearch.common.Nullable;
 /**
  * A multi get document action request builder.
  */
-public class MultiGetRequestBuilder extends ActionRequestBuilder<MultiGetRequest, MultiGetResponse, MultiGetRequestBuilder> {
+public class MultiGetRequestBuilder extends ActionRequestBuilder<MultiGetRequest, MultiGetResponse> {
 
     public MultiGetRequestBuilder(ElasticsearchClient client, MultiGetAction action) {
         super(client, action, new MultiGetRequest());

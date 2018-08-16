@@ -25,19 +25,13 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class PutRollupJobAction extends Action<PutRollupJobAction.Request, PutRollupJobAction.Response,
-        PutRollupJobAction.RequestBuilder> {
+public class PutRollupJobAction extends Action<PutRollupJobAction.Response> {
 
     public static final PutRollupJobAction INSTANCE = new PutRollupJobAction();
     public static final String NAME = "cluster:admin/xpack/rollup/put";
 
     private PutRollupJobAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, INSTANCE);
     }
 
     @Override
@@ -58,9 +52,8 @@ public class PutRollupJobAction extends Action<PutRollupJobAction.Request, PutRo
 
         }
 
-        public static Request parseRequest(String id, XContentParser parser) {
-            RollupJobConfig.Builder config = RollupJobConfig.Builder.fromXContent(id, parser);
-            return new Request(config.build());
+        public static Request fromXContent(final XContentParser parser, final String id) throws IOException {
+            return new Request(RollupJobConfig.fromXContent(parser, id));
         }
 
         public RollupJobConfig getConfig() {
@@ -88,8 +81,8 @@ public class PutRollupJobAction extends Action<PutRollupJobAction.Request, PutRo
             return null;
         }
 
-        public ActionRequestValidationException validateMappings(Map<String, Map<String, FieldCapabilities>> fieldCapsResponse) {
-            ActionRequestValidationException validationException = new ActionRequestValidationException();
+        public RollupActionRequestValidationException validateMappings(Map<String, Map<String, FieldCapabilities>> fieldCapsResponse) {
+            RollupActionRequestValidationException validationException = new RollupActionRequestValidationException();
             if (fieldCapsResponse.size() == 0) {
                 validationException.addValidationError("Could not find any fields in the index/index-pattern that were configured in job");
                 return validationException;
@@ -149,18 +142,6 @@ public class PutRollupJobAction extends Action<PutRollupJobAction.Request, PutRo
 
         public Response(boolean acknowledged) {
             super(acknowledged);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            readAcknowledged(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            writeAcknowledged(out);
         }
     }
 }

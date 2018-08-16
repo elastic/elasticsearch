@@ -79,9 +79,9 @@ public class TokenCountFieldMapperTests extends ESSingleNodeTestCase {
                 new CompressedXContent(stage2Mapping), MapperService.MergeReason.MAPPING_UPDATE);
 
         // previous mapper has not been modified
-        assertThat(((TokenCountFieldMapper) stage1.mappers().smartNameFieldMapper("tc")).analyzer(), equalTo("keyword"));
+        assertThat(((TokenCountFieldMapper) stage1.mappers().getMapper("tc")).analyzer(), equalTo("keyword"));
         // but the new one has the change
-        assertThat(((TokenCountFieldMapper) stage2.mappers().smartNameFieldMapper("tc")).analyzer(), equalTo("standard"));
+        assertThat(((TokenCountFieldMapper) stage2.mappers().getMapper("tc")).analyzer(), equalTo("standard"));
     }
 
     /**

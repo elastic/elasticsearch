@@ -175,8 +175,8 @@
         },
         "max_concurrent_shard_requests" : {
           "type" : "number",
-          "description" : "The number of concurrent shard requests this search executes concurrently. This value should be used to limit the impact of the search on the cluster in order to limit the number of concurrent shard requests",
-          "default" : "The default grows with the number of nodes in the cluster but is at most 256."
+          "description" : "The number of concurrent shard requests per node this search executes concurrently. This value should be used to limit the impact of the search on the cluster in order to limit the number of concurrent shard requests",
+          "default" : "The default is 5."
         },
         "pre_filter_shard_size" : {
           "type" : "number",

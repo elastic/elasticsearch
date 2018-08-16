@@ -96,7 +96,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
 
         logger.info("--> creating an index with no replicas");
         client().admin().indices().prepareCreate("test")
-                .setSettings(Settings.builder().put("index.number_of_replicas", 0))
+                .setSettings(Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0))
                 .execute().actionGet();
 
         ensureGreen();

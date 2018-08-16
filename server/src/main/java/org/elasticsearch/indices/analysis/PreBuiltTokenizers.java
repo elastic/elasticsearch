@@ -19,18 +19,8 @@
 package org.elasticsearch.indices.analysis;
 
 import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.core.LetterTokenizer;
-import org.apache.lucene.analysis.core.WhitespaceTokenizer;
-import org.apache.lucene.analysis.ngram.EdgeNGramTokenizer;
-import org.apache.lucene.analysis.ngram.NGramTokenizer;
-import org.apache.lucene.analysis.path.PathHierarchyTokenizer;
-import org.apache.lucene.analysis.pattern.PatternTokenizer;
-import org.apache.lucene.analysis.standard.ClassicTokenizer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
-import org.apache.lucene.analysis.standard.UAX29URLEmailTokenizer;
-import org.apache.lucene.analysis.th.ThaiTokenizer;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 
@@ -40,69 +30,6 @@ public enum PreBuiltTokenizers {
         @Override
         protected Tokenizer create(Version version) {
             return new StandardTokenizer();
-        }
-    },
-
-    CLASSIC(CachingStrategy.ONE) {
-        @Override
-        protected Tokenizer create(Version version) {
-            return new ClassicTokenizer();
-        }
-    },
-
-    UAX_URL_EMAIL(CachingStrategy.ONE) {
-        @Override
-        protected Tokenizer create(Version version) {
-            return new UAX29URLEmailTokenizer();
-        }
-    },
-
-    PATH_HIERARCHY(CachingStrategy.ONE) {
-        @Override
-        protected Tokenizer create(Version version) {
-            return new PathHierarchyTokenizer();
-        }
-    },
-
-    LETTER(CachingStrategy.ONE) {
-        @Override
-        protected Tokenizer create(Version version) {
-            return new LetterTokenizer();
-        }
-    },
-
-    WHITESPACE(CachingStrategy.ONE) {
-        @Override
-        protected Tokenizer create(Version version) {
-            return new WhitespaceTokenizer();
-        }
-    },
-
-    NGRAM(CachingStrategy.ONE) {
-        @Override
-        protected Tokenizer create(Version version) {
-            return new NGramTokenizer();
-        }
-    },
-
-    EDGE_NGRAM(CachingStrategy.ONE) {
-        @Override
-        protected Tokenizer create(Version version) {
-            return new EdgeNGramTokenizer(EdgeNGramTokenizer.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenizer.DEFAULT_MAX_GRAM_SIZE);
-        }
-    },
-
-    PATTERN(CachingStrategy.ONE) {
-        @Override
-        protected Tokenizer create(Version version) {
-            return new PatternTokenizer(Regex.compile("\\W+", null), -1);
-        }
-    },
-
-    THAI(CachingStrategy.ONE) {
-        @Override
-        protected Tokenizer create(Version version) {
-            return new ThaiTokenizer();
         }
     }
 

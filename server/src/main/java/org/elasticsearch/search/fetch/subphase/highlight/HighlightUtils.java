@@ -22,7 +22,7 @@ import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.highlight.SimpleHTMLEncoder;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
-import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceLookup;
@@ -46,15 +46,17 @@ public final class HighlightUtils {
     /**
      * Load field values for highlighting.
      */
-    public static List<Object> loadFieldValues(SearchContextHighlight.Field field, FieldMapper mapper, SearchContext searchContext,
-            FetchSubPhase.HitContext hitContext) throws IOException {
+    public static List<Object> loadFieldValues(SearchContextHighlight.Field field,
+                                               MappedFieldType fieldType,
+                                               SearchContext searchContext,
+                                               FetchSubPhase.HitContext hitContext) throws IOException {
         //percolator needs to always load from source, thus it sets the global force source to true
         boolean forceSource = searchContext.highlight().forceSource(field);
         List<Object> textsToHighlight;
-        if (!forceSource && mapper.fieldType().stored()) {
-            CustomFieldsVisitor fieldVisitor = new CustomFieldsVisitor(singleton(mapper.fieldType().name()), false);
+        if (!forceSource && fieldType.stored()) {
+            CustomFieldsVisitor fieldVisitor = new CustomFieldsVisitor(singleton(fieldType.name()), false);
             hitContext.reader().document(hitContext.docId(), fieldVisitor);
-            textsToHighlight = fieldVisitor.fields().get(mapper.fieldType().name());
+            textsToHighlight = fieldVisitor.fields().get(fieldType.name());
             if (textsToHighlight == null) {
                 // Can happen if the document doesn't have the field to highlight
                 textsToHighlight = Collections.emptyList();
@@ -62,7 +64,7 @@ public final class HighlightUtils {
         } else {
             SourceLookup sourceLookup = searchContext.lookup().source();
             sourceLookup.setSegmentAndDocument(hitContext.readerContext(), hitContext.docId());
-            textsToHighlight = sourceLookup.extractRawValues(mapper.fieldType().name());
+            textsToHighlight = sourceLookup.extractRawValues(fieldType.name());
         }
         assert textsToHighlight != null;
         return textsToHighlight;

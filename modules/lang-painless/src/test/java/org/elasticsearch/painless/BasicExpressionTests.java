@@ -264,6 +264,11 @@ public class BasicExpressionTests extends ScriptTestCase {
 //        assertEquals(null, exec("def a = ['thing': 'bar']; a.other?.cat?.dog = 'wombat'; return a.other?.cat?.dog"));
     }
 
+    // test to ensure static interface methods are called correctly
+    public void testStaticInterfaceMethod() {
+        assertEquals(4, exec("def values = [1, 4, 3, 2]; values.sort(Comparator.comparing(p -> p)); return values[3]"));
+    }
+
     private void assertMustBeNullable(String script) {
         Exception e = expectScriptThrows(IllegalArgumentException.class, false, () -> exec(script));
         assertEquals("Result of null safe operator must be nullable", e.getMessage());

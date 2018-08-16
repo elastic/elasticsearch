@@ -75,9 +75,9 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
         RepositoriesMetaData repositories = metaData.custom(RepositoriesMetaData.TYPE);
         if (request.repositories().length == 0 || (request.repositories().length == 1 && "_all".equals(request.repositories()[0]))) {
             if (repositories != null) {
-                listener.onResponse(new GetRepositoriesResponse(repositories.repositories()));
+                listener.onResponse(new GetRepositoriesResponse(repositories));
             } else {
-                listener.onResponse(new GetRepositoriesResponse(Collections.<RepositoryMetaData>emptyList()));
+                listener.onResponse(new GetRepositoriesResponse(new RepositoriesMetaData(Collections.emptyList())));
             }
         } else {
             if (repositories != null) {
@@ -102,7 +102,7 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
                     }
                     repositoryListBuilder.add(repositoryMetaData);
                 }
-                listener.onResponse(new GetRepositoriesResponse(Collections.unmodifiableList(repositoryListBuilder)));
+                listener.onResponse(new GetRepositoriesResponse(new RepositoriesMetaData(repositoryListBuilder)));
             } else {
                 listener.onFailure(new RepositoryMissingException(request.repositories()[0]));
             }

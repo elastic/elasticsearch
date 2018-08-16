@@ -23,19 +23,13 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class DeleteDatafeedAction extends Action<DeleteDatafeedAction.Request, DeleteDatafeedAction.Response,
-        DeleteDatafeedAction.RequestBuilder> {
+public class DeleteDatafeedAction extends Action<DeleteDatafeedAction.Response> {
 
     public static final DeleteDatafeedAction INSTANCE = new DeleteDatafeedAction();
     public static final String NAME = "cluster:admin/xpack/ml/datafeeds/delete";
 
     private DeleteDatafeedAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, this);
     }
 
     @Override
@@ -126,18 +120,6 @@ public class DeleteDatafeedAction extends Action<DeleteDatafeedAction.Request, D
 
         public Response(boolean acknowledged) {
             super(acknowledged);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            readAcknowledged(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            writeAcknowledged(out);
         }
     }
 

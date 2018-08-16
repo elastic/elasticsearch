@@ -28,7 +28,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -40,10 +39,11 @@ public class MultiGetResponseTests extends ESTestCase {
             MultiGetResponse expected = createTestInstance();
             XContentType xContentType = randomFrom(XContentType.values());
             BytesReference shuffled = toShuffledXContent(expected, xContentType, ToXContent.EMPTY_PARAMS, false);
-
-            XContentParser parser = createParser(XContentFactory.xContent(xContentType), shuffled);
-            MultiGetResponse parsed = MultiGetResponse.fromXContent(parser);
-            assertNull(parser.nextToken());
+            MultiGetResponse parsed;
+            try (XContentParser parser = createParser(XContentFactory.xContent(xContentType), shuffled)) {
+                parsed = MultiGetResponse.fromXContent(parser);
+                assertNull(parser.nextToken());
+            }
             assertNotSame(expected, parsed);
 
             assertThat(parsed.getResponses().length, equalTo(expected.getResponses().length));
@@ -61,6 +61,7 @@ public class MultiGetResponseTests extends ESTestCase {
                     assertThat(actualItem.getResponse(), equalTo(expectedItem.getResponse()));
                 }
             }
+
         }
     }
 

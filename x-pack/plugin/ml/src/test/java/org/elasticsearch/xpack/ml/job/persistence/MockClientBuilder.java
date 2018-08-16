@@ -197,6 +197,7 @@ public class MockClientBuilder {
         when(builder.setFetchSource(anyBoolean())).thenReturn(builder);
         when(builder.setScroll(anyString())).thenReturn(builder);
         when(builder.addDocValueField(any(String.class))).thenReturn(builder);
+        when(builder.addDocValueField(any(String.class), any(String.class))).thenReturn(builder);
         when(builder.addSort(any(String.class), any(SortOrder.class))).thenReturn(builder);
         when(builder.setQuery(any())).thenReturn(builder);
         when(builder.setSize(anyInt())).thenReturn(builder);
@@ -246,6 +247,7 @@ public class MockClientBuilder {
         when(builder.setSize(eq(size))).thenReturn(builder);
         when(builder.setFetchSource(eq(true))).thenReturn(builder);
         when(builder.addDocValueField(any(String.class))).thenReturn(builder);
+        when(builder.addDocValueField(any(String.class), any(String.class))).thenReturn(builder);
         when(builder.addSort(any(String.class), any(SortOrder.class))).thenReturn(builder);
         when(builder.get()).thenReturn(response);
         when(client.prepareSearch(eq(index))).thenReturn(builder);
@@ -262,6 +264,7 @@ public class MockClientBuilder {
         when(builder.setSize(any(Integer.class))).thenReturn(builder);
         when(builder.setFetchSource(eq(true))).thenReturn(builder);
         when(builder.addDocValueField(any(String.class))).thenReturn(builder);
+        when(builder.addDocValueField(any(String.class), any(String.class))).thenReturn(builder);
         when(builder.addSort(any(String.class), any(SortOrder.class))).thenReturn(builder);
         when(builder.get()).thenReturn(response);
         when(client.prepareSearch(eq(index))).thenReturn(builder);

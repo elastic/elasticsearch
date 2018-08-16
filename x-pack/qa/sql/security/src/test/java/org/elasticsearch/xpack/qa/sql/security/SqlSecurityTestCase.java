@@ -5,12 +5,11 @@
  */
 package org.elasticsearch.xpack.qa.sql.security;
 
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.apache.lucene.util.SuppressForbidden;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -41,7 +40,6 @@ import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
@@ -135,6 +133,9 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
              * write the test data once. */
             return;
         }
+        Request request = new Request("PUT", "/_bulk");
+        request.addParameter("refresh", "true");
+
         StringBuilder bulk = new StringBuilder();
         bulk.append("{\"index\":{\"_index\": \"test\", \"_type\": \"doc\", \"_id\":\"1\"}\n");
         bulk.append("{\"a\": 1, \"b\": 2, \"c\": 3}\n");
@@ -142,8 +143,8 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
         bulk.append("{\"a\": 4, \"b\": 5, \"c\": 6}\n");
         bulk.append("{\"index\":{\"_index\": \"bort\", \"_type\": \"doc\", \"_id\":\"1\"}\n");
         bulk.append("{\"a\": \"test\"}\n");
-        client().performRequest("PUT", "/_bulk", singletonMap("refresh", "true"),
-                new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
+        request.setJsonEntity(bulk.toString());
+        client().performRequest(request);
         oneTimeSetup = true;
     }
 
@@ -173,7 +174,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
     @AfterClass
     public static void wipeIndicesAfterTests() throws IOException {
         try {
-            adminClient().performRequest("DELETE", "*");
+            adminClient().performRequest(new Request("DELETE", "*"));
         } catch (ResponseException e) {
             // 404 here just means we had no indexes
             if (e.getResponse().getStatusLine().getStatusCode() != 404) {
@@ -472,13 +473,15 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
     }
 
     protected static void createUser(String name, String role) throws IOException {
-        XContentBuilder user = JsonXContent.contentBuilder().prettyPrint().startObject(); {
+        Request request = new Request("PUT", "/_xpack/security/user/" + name);
+        XContentBuilder user = JsonXContent.contentBuilder().prettyPrint();
+        user.startObject(); {
             user.field("password", "testpass");
             user.field("roles", role);
         }
         user.endObject();
-        client().performRequest("PUT", "/_xpack/security/user/" + name, emptyMap(),
-                new StringEntity(Strings.toString(user), ContentType.APPLICATION_JSON));
+        request.setJsonEntity(Strings.toString(user));
+        client().performRequest(request);
     }
 
     protected AuditLogAsserter createAuditLogAsserter() {

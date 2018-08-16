@@ -21,6 +21,7 @@ package org.elasticsearch.qa.die_with_dignity;
 
 import org.apache.http.ConnectionClosedException;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.hamcrest.Matcher;
@@ -51,7 +52,8 @@ public class DieWithDignityIT extends ESRestTestCase {
         assertThat(pidFileLines, hasSize(1));
         final int pid = Integer.parseInt(pidFileLines.get(0));
         Files.delete(pidFile);
-        IOException e = expectThrows(IOException.class, () -> client().performRequest("GET", "/_die_with_dignity"));
+        IOException e = expectThrows(IOException.class,
+                () -> client().performRequest(new Request("GET", "/_die_with_dignity")));
         Matcher<IOException> failureMatcher = instanceOf(ConnectionClosedException.class);
         if (Constants.WINDOWS) {
             /*

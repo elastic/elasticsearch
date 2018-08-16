@@ -22,19 +22,13 @@ import org.elasticsearch.xpack.core.rollup.RollupField;
 import java.io.IOException;
 import java.util.Objects;
 
-public class DeleteRollupJobAction extends Action<DeleteRollupJobAction.Request, DeleteRollupJobAction.Response,
-        DeleteRollupJobAction.RequestBuilder> {
+public class DeleteRollupJobAction extends Action<DeleteRollupJobAction.Response> {
 
     public static final DeleteRollupJobAction INSTANCE = new DeleteRollupJobAction();
     public static final String NAME = "cluster:admin/xpack/rollup/delete";
 
     private DeleteRollupJobAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, INSTANCE);
     }
 
     @Override
@@ -111,18 +105,6 @@ public class DeleteRollupJobAction extends Action<DeleteRollupJobAction.Request,
 
         public Response(boolean acknowledged) {
             super(acknowledged);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            readAcknowledged(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            writeAcknowledged(out);
         }
     }
 }

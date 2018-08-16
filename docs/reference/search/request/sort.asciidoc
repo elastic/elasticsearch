@@ -288,8 +288,9 @@ GET /_search
                 "pin.location" : [-70, 40],
                 "order" : "asc",
                 "unit" : "km",
-		"mode" : "min",
-		"distance_type" : "arc"
+                "mode" : "min",
+                "distance_type" : "arc",
+                "ignore_unmapped": true
             }
         }
     ],
@@ -316,6 +317,12 @@ GET /_search
 `unit`::
 
     The unit to use when computing sort values. The default is `m` (meters).
+
+
+`ignore_unmapped`::
+
+    Indicates if the unmapped field should be treated as a missing value. Setting it to `true` is equivalent to specifying
+    an `unmapped_type` in the field sort. The default is `false` (unmapped field are causing the search to fail).
 
 NOTE: geo distance sorting does not support configurable missing values: the
 distance will always be considered equal to +Infinity+ when a document does not

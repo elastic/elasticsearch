@@ -16,8 +16,8 @@ description = 'Command line interface to Elasticsearch that speaks SQL'
 
 dependencies {
     compile "org.jline:jline:3.6.0"
-    compile xpackProject('plugin:sql:sql-shared-client')
-    compile xpackProject('plugin:sql:sql-proto')
+    compile xpackProject('plugin:sql:sql-client')
+    compile xpackProject('plugin:sql:sql-action')
     compile "org.elasticsearch:elasticsearch-cli:${version}"
 
     runtime "org.fusesource.jansi:jansi:1.16"
@@ -31,13 +31,13 @@ dependencyLicenses {
     mapping from: /elasticsearch-core.*/, to: 'elasticsearch'
     mapping from: /jackson-.*/, to: 'jackson'
     mapping from: /lucene-.*/, to: 'lucene'
-    mapping from: /sql-proto.*/, to: 'elasticsearch'
-    mapping from: /sql-shared-client.*/, to: 'elasticsearch'
+    mapping from: /sql-action.*/, to: 'elasticsearch'
+    mapping from: /sql-client.*/, to: 'elasticsearch'
     ignoreSha 'elasticsearch-cli'
     ignoreSha 'elasticsearch-core'
     ignoreSha 'elasticsearch'
-    ignoreSha 'sql-proto'
-    ignoreSha 'sql-shared-client'
+    ignoreSha 'sql-action'
+    ignoreSha 'sql-client'
 }
 
 /*

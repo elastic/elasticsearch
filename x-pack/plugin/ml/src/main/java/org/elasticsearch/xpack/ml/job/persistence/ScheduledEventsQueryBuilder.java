@@ -93,6 +93,7 @@ public class ScheduledEventsQueryBuilder {
 
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         searchSourceBuilder.sort(ScheduledEvent.START_TIME.getPreferredName());
+        searchSourceBuilder.sort(ScheduledEvent.DESCRIPTION.getPreferredName());
         if (from != null) {
             searchSourceBuilder.from(from);
         }

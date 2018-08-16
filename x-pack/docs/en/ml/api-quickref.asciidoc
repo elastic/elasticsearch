@@ -1,5 +1,6 @@
+[role="xpack"]
 [[ml-api-quickref]]
-== API Quick Reference
+== API quick reference
 
 All {ml} endpoints have the following base:
 
@@ -7,6 +8,7 @@ All {ml} endpoints have the following base:
 ----
 /_xpack/ml/
 ----
+// NOTCONSOLE
 
 The main {ml} resources can be accessed with a variety of endpoints:
 
@@ -44,6 +46,15 @@ The main {ml} resources can be accessed with a variety of endpoints:
 * {ref}/ml-delete-calendar-event.html[DELETE /calendars/<calendar_id+++>+++/events/<event_id+++>+++]: Remove a scheduled event from a calendar
 * {ref}/ml-delete-calendar-job.html[DELETE /calendars/<calendar_id+++>+++/jobs/<job_id+++>+++]: Disassociate a job from a calendar
 * {ref}/ml-delete-calendar.html[DELETE /calendars/<calendar_id+++>+++]: Delete a calendar
+
+[float]
+[[ml-api-filters]]
+=== /filters/
+
+* {ref}/ml-put-filter.html[PUT /filters/<filter_id+++>+++]: Create a filter
+* {ref}/ml-update-filter.html[POST /filters/<filter_id+++>+++/_update]: Update a filter
+* {ref}/ml-get-filter.html[GET /filters/<filter_id+++>+++]: List filters
+* {ref}/ml-delete-filter.html[DELETE /filter/<filter_id+++>+++]: Delete a filter
 
 [float]
 [[ml-api-datafeeds]]

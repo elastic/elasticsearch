@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.Loggers;
@@ -18,11 +19,13 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshotField;
+import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -34,6 +37,10 @@ import java.util.Objects;
  * of their respective job with the exception of the currently used snapshot.
  * A snapshot is deleted if its timestamp is earlier than the start of the
  * current day (local time-zone) minus the retention period.
+ *
+ * This is expected to be used by actions requiring admin rights. Thus,
+ * it is also expected that the provided client will be a client with the
+ * ML origin so that permissions to manage ML indices are met.
  */
 public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover {
 
@@ -47,10 +54,12 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
     private static final int MODEL_SNAPSHOT_SEARCH_SIZE = 10000;
 
     private final Client client;
+    private final ThreadPool threadPool;
 
-    public ExpiredModelSnapshotsRemover(Client client, ClusterService clusterService) {
+    public ExpiredModelSnapshotsRemover(Client client, ThreadPool threadPool, ClusterService clusterService) {
         super(clusterService);
         this.client = Objects.requireNonNull(client);
+        this.threadPool = Objects.requireNonNull(threadPool);
     }
 
     @Override
@@ -80,7 +89,12 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
 
         searchRequest.source(new SearchSourceBuilder().query(query).size(MODEL_SNAPSHOT_SEARCH_SIZE));
 
-        client.execute(SearchAction.INSTANCE, searchRequest, new ActionListener<SearchResponse>() {
+        client.execute(SearchAction.INSTANCE, searchRequest, new ThreadedActionListener<>(LOGGER, threadPool,
+                MachineLearning.UTILITY_THREAD_POOL_NAME, expiredSnapshotsListener(job.getId(), listener), false));
+    }
+
+    private ActionListener<SearchResponse> expiredSnapshotsListener(String jobId, ActionListener<Boolean> listener) {
+        return new ActionListener<SearchResponse>() {
             @Override
             public void onResponse(SearchResponse searchResponse) {
                 try {
@@ -96,9 +110,9 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
 
             @Override
             public void onFailure(Exception e) {
-                listener.onFailure(new ElasticsearchException("[" + job.getId() +  "] Search for expired snapshots failed", e));
+                listener.onFailure(new ElasticsearchException("[" + jobId +  "] Search for expired snapshots failed", e));
             }
-        });
+        };
     }
 
     private void deleteModelSnapshots(Iterator<ModelSnapshot> modelSnapshotIterator, ActionListener<Boolean> listener) {

@@ -85,7 +85,7 @@ public class InternalMin extends InternalNumericMetricsAggregation.SingleValue i
         boolean hasValue = !Double.isInfinite(min);
         builder.field(CommonFields.VALUE.getPreferredName(), hasValue ? min : null);
         if (hasValue && format != DocValueFormat.RAW) {
-            builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), format.format(min));
+            builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), format.format(min).toString());
         }
         return builder;
     }

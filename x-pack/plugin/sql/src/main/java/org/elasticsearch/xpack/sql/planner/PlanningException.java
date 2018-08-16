@@ -9,7 +9,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.sql.ClientSqlException;
 import org.elasticsearch.xpack.sql.planner.Verifier.Failure;
 import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.Collection;
 import java.util.stream.Collectors;

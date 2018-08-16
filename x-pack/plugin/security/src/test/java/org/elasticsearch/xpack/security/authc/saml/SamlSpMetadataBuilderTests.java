@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
-import org.elasticsearch.xpack.core.ssl.CertUtils;
+import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.opensaml.saml.saml2.core.NameID;
@@ -35,7 +35,7 @@ public class SamlSpMetadataBuilderTests extends SamlTestCase {
     public void setup() throws Exception {
         SamlUtils.initialize(logger);
         final Path certPath = getDataPath("saml.crt");
-        final Certificate[] certs = CertUtils.readCertificates(Collections.singletonList(certPath));
+        final Certificate[] certs = CertParsingUtils.readCertificates(Collections.singletonList(certPath));
         if (certs.length != 1) {
             fail("Expected exactly 1 certificate in " + certPath);
         }
@@ -46,7 +46,7 @@ public class SamlSpMetadataBuilderTests extends SamlTestCase {
         }
 
         final Path threeCertsPath = getDataPath("saml-three-certs.crt");
-        final Certificate[] threeCerts = CertUtils.readCertificates(Collections.singletonList(threeCertsPath));
+        final Certificate[] threeCerts = CertParsingUtils.readCertificates(Collections.singletonList(threeCertsPath));
         if (threeCerts.length != 3) {
             fail("Expected exactly 3 certificate in " + certPath);
         }

@@ -14,10 +14,15 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -34,19 +39,27 @@ import static org.mockito.Mockito.verifyZeroInteractions;
 public class InternalRealmsTests extends ESTestCase {
 
     public void testNativeRealmRegistersIndexHealthChangeListener() throws Exception {
-        SecurityLifecycleService lifecycleService = mock(SecurityLifecycleService.class);
+        SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
         Map<String, Realm.Factory> factories = InternalRealms.getFactories(mock(ThreadPool.class), mock(ResourceWatcherService.class),
-                mock(SSLService.class), mock(NativeUsersStore.class), mock(NativeRoleMappingStore.class), lifecycleService);
+                mock(SSLService.class), mock(NativeUsersStore.class), mock(NativeRoleMappingStore.class), securityIndex);
         assertThat(factories, hasEntry(is(NativeRealmSettings.TYPE), any(Realm.Factory.class)));
-        verifyZeroInteractions(lifecycleService);
+        verifyZeroInteractions(securityIndex);
 
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
         factories.get(NativeRealmSettings.TYPE).create(new RealmConfig("test", Settings.EMPTY, settings,
             TestEnvironment.newEnvironment(settings), new ThreadContext(settings)));
-        verify(lifecycleService).addSecurityIndexHealthChangeListener(isA(BiConsumer.class));
+        verify(securityIndex).addIndexStateListener(isA(BiConsumer.class));
 
         factories.get(NativeRealmSettings.TYPE).create(new RealmConfig("test", Settings.EMPTY, settings,
             TestEnvironment.newEnvironment(settings), new ThreadContext(settings)));
-        verify(lifecycleService, times(2)).addSecurityIndexHealthChangeListener(isA(BiConsumer.class));
+        verify(securityIndex, times(2)).addIndexStateListener(isA(BiConsumer.class));
+    }
+
+    public void testIsStandardType() {
+        String type = randomFrom(NativeRealmSettings.TYPE, FileRealmSettings.TYPE, LdapRealmSettings.AD_TYPE, LdapRealmSettings.LDAP_TYPE,
+                PkiRealmSettings.TYPE);
+        assertThat(InternalRealms.isStandardRealm(type), is(true));
+        type = randomFrom(SamlRealmSettings.TYPE, KerberosRealmSettings.TYPE);
+        assertThat(InternalRealms.isStandardRealm(type), is(false));
     }
 }

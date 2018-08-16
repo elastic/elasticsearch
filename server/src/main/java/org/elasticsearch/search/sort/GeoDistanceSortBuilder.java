@@ -41,6 +41,7 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
@@ -80,6 +81,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     private static final ParseField DISTANCE_TYPE_FIELD = new ParseField("distance_type");
     private static final ParseField VALIDATION_METHOD_FIELD = new ParseField("validation_method");
     private static final ParseField SORTMODE_FIELD = new ParseField("mode", "sort_mode");
+    private static final ParseField IGNORE_UNMAPPED = new ParseField("ignore_unmapped");
 
     private final String fieldName;
     private final List<GeoPoint> points = new ArrayList<>();
@@ -88,13 +90,14 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     private DistanceUnit unit = DistanceUnit.DEFAULT;
 
     private SortMode sortMode = null;
-    @SuppressWarnings("rawtypes")
     private QueryBuilder nestedFilter;
     private String nestedPath;
 
     private NestedSortBuilder nestedSort;
 
     private GeoValidationMethod validation = DEFAULT_VALIDATION;
+
+    private boolean ignoreUnmapped = false;
 
     /**
      * Constructs a new distance based sort on a geo point like field.
@@ -151,6 +154,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         this.nestedPath = original.nestedPath;
         this.validation = original.validation;
         this.nestedSort = original.nestedSort;
+        this.ignoreUnmapped = original.ignoreUnmapped;
     }
 
     /**
@@ -170,6 +174,9 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
             nestedSort = in.readOptionalWriteable(NestedSortBuilder::new);
         }
         validation = GeoValidationMethod.readFromStream(in);
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
+            ignoreUnmapped = in.readBoolean();
+        }
     }
 
     @Override
@@ -186,6 +193,9 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
             out.writeOptionalWriteable(nestedSort);
         }
         validation.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
+            out.writeBoolean(ignoreUnmapped);
+        }
     }
 
     /**
@@ -373,6 +383,18 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         return this;
     }
 
+    /**
+     * Returns true if unmapped geo fields should be treated as located at an infinite distance
+     */
+    public boolean ignoreUnmapped() {
+        return ignoreUnmapped;
+    }
+
+    public GeoDistanceSortBuilder ignoreUnmapped(boolean ignoreUnmapped) {
+        this.ignoreUnmapped = ignoreUnmapped;
+        return this;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -402,6 +424,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
             builder.field(NESTED_FIELD.getPreferredName(), nestedSort);
         }
         builder.field(VALIDATION_METHOD_FIELD.getPreferredName(), validation);
+        builder.field(IGNORE_UNMAPPED.getPreferredName(), ignoreUnmapped);
 
         builder.endObject();
         builder.endObject();
@@ -433,14 +456,15 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                 Objects.equals(nestedFilter, other.nestedFilter) &&
                 Objects.equals(nestedPath, other.nestedPath) &&
                 Objects.equals(validation, other.validation) &&
-                Objects.equals(nestedSort, other.nestedSort);
+                Objects.equals(nestedSort, other.nestedSort) &&
+                ignoreUnmapped == other.ignoreUnmapped;
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(this.fieldName, this.points, this.geoDistance,
                 this.unit, this.sortMode, this.order, this.nestedFilter,
-                this.nestedPath, this.validation, this.nestedSort);
+                this.nestedPath, this.validation, this.nestedSort, this.ignoreUnmapped);
     }
 
     /**
@@ -464,6 +488,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         String nestedPath = null;
         NestedSortBuilder nestedSort = null;
         GeoValidationMethod validation = null;
+        boolean ignoreUnmapped = false;
 
         XContentParser.Token token;
         String currentName = parser.currentName();
@@ -508,6 +533,8 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                 } else if (NESTED_PATH_FIELD.match(currentName, parser.getDeprecationHandler())) {
                     DEPRECATION_LOGGER.deprecated("[nested_path] has been deprecated in favour of the [nested] parameter");
                     nestedPath = parser.text();
+                } else if (IGNORE_UNMAPPED.match(currentName, parser.getDeprecationHandler())) {
+                    ignoreUnmapped = parser.booleanValue();
                 } else if (token == Token.VALUE_STRING){
                     if (fieldName != null && fieldName.equals(currentName) == false) {
                         throw new ParsingException(
@@ -553,6 +580,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         if (validation != null) {
             result.validation(validation);
         }
+        result.ignoreUnmapped(ignoreUnmapped);
         return result;
     }
 
@@ -595,8 +623,11 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
 
         MappedFieldType fieldType = context.fieldMapper(fieldName);
         if (fieldType == null) {
-            throw new IllegalArgumentException("failed to find mapper for [" + fieldName
-                + "] for geo distance based sort");
+            if (ignoreUnmapped) {
+                fieldType = context.getMapperService().unmappedFieldType("geo_point");
+            } else {
+                throw new IllegalArgumentException("failed to find mapper for [" + fieldName + "] for geo distance based sort");
+            }
         }
         final IndexGeoPointFieldData geoIndexFieldData = context.getForField(fieldType);
 
@@ -637,7 +668,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                                 localPoints);
                         final NumericDoubleValues selectedValues;
                         if (nested == null) {
-                            selectedValues = finalSortMode.select(distanceValues, Double.POSITIVE_INFINITY);
+                            selectedValues = FieldData.replaceMissing(finalSortMode.select(distanceValues), Double.POSITIVE_INFINITY);
                         } else {
                             final BitSet rootDocs = nested.rootDocs(context);
                             final DocIdSetIterator innerDocs = nested.innerDocs(context);

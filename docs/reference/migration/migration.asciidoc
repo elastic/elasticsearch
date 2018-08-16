@@ -1,0 +1,14 @@
+[role="xpack"]
+[testenv="basic"]
+[[migration-api]]
+== Migration APIs
+
+The migration APIs simplify upgrading {xpack} indices from one version to another.
+
+* <<migration-api-assistance>>
+* <<migration-api-upgrade>>
+* <<migration-api-deprecation>>
+
+include::apis/assistance.asciidoc[]
+include::apis/upgrade.asciidoc[]
+include::apis/deprecation.asciidoc[]

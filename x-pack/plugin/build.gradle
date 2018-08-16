@@ -1,26 +1,60 @@
 import org.elasticsearch.gradle.LoggedExec
-import org.elasticsearch.gradle.MavenFilteringHack
+import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.elasticsearch.gradle.test.NodeInfo
 
 import java.nio.charset.StandardCharsets
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.StandardCopyOption
-import org.elasticsearch.gradle.test.RunTask;
 
-apply plugin: 'elasticsearch.es-meta-plugin'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
 
 archivesBaseName = 'x-pack'
 
-es_meta_plugin {
-  name = 'x-pack'
-  description = 'Elasticsearch Expanded Pack Plugin'
-  plugins = ['core', 'deprecation', 'graph', 'logstash',
-             'ml', 'monitoring', 'security', 'upgrade', 'watcher', 'sql', 'rollup']
-}
-
 dependencies {
   testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+}
+
+subprojects {
+  afterEvaluate {
+    if (project.plugins.hasPlugin(PluginBuildPlugin)) {
+      // see the root Gradle file for additional logic regarding this configuration
+      project.configurations.create('featureAwarePlugin')
+      project.dependencies.add('featureAwarePlugin', project.configurations.compileClasspath)
+      project.dependencies.add(
+              'featureAwarePlugin',
+              "org.elasticsearch.xpack.test:feature-aware:${org.elasticsearch.gradle.VersionProperties.elasticsearch}")
+      project.dependencies.add('featureAwarePlugin', project.sourceSets.main.output.getClassesDirs())
+
+      final Task featureAwareTask = project.tasks.create("featureAwareCheck", LoggedExec) {
+        description = "Runs FeatureAwareCheck on main classes."
+        dependsOn project.configurations.featureAwarePlugin
+
+        final File successMarker = new File(project.buildDir, 'markers/featureAware')
+        outputs.file(successMarker)
+
+        executable = new File(project.runtimeJavaHome, 'bin/java')
+
+        // default to main class files if such a source set exists
+        final List files = []
+        if (project.sourceSets.findByName("main")) {
+          files.add(project.sourceSets.main.output.classesDirs)
+          dependsOn project.tasks.classes
+        }
+        // filter out non-existent classes directories from empty source sets
+        final FileCollection classDirectories = project.files(files).filter { it.exists() }
+
+        doFirst {
+          args('-cp', project.configurations.featureAwarePlugin.asPath, 'org.elasticsearch.xpack.test.feature_aware.FeatureAwareCheck')
+          classDirectories.each { args it.getAbsolutePath() }
+        }
+        doLast {
+          successMarker.parentFile.mkdirs()
+          successMarker.setText("", 'UTF-8')
+        }
+      }
+
+      project.precommit.dependsOn featureAwareTask
+    }
+  }
 }
 
 // https://github.com/elastic/x-plugins/issues/724
@@ -70,39 +104,28 @@ integTestRunner {
   systemProperty 'tests.rest.blacklist', blacklist.join(',')
 }
 
-// location of generated keystores and certificates
+// location for keys and certificates
 File keystoreDir = new File(project.buildDir, 'keystore')
+File nodeKey = file("$keystoreDir/testnode.pem")
+File nodeCert = file("$keystoreDir/testnode.crt")
 
-// Generate the node's keystore
-File nodeKeystore = new File(keystoreDir, 'test-node.jks')
-task createNodeKeyStore(type: LoggedExec) {
-  doFirst {
-    if (nodeKeystore.parentFile.exists() == false) {
-      nodeKeystore.parentFile.mkdirs()
+// Add key and certs to test classpath: it expects them there
+// User cert and key PEM files instead of a JKS Keystore for the cluster's trust material so that
+// it can run in a FIPS 140 JVM
+// TODO: Remove all existing uses of cross project file references when the new approach for referencing static files is available
+// https://github.com/elastic/elasticsearch/pull/32201
+task copyKeyCerts(type: Copy) {
+  from(project(':x-pack:plugin:core').file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/')) {
+    include 'testnode.crt', 'testnode.pem'
     }
-    if (nodeKeystore.exists()) {
-      delete nodeKeystore
-    }
-  }
-  executable = new File(project.runtimeJavaHome, 'bin/keytool')
-  standardInput = new ByteArrayInputStream('FirstName LastName\nUnit\nOrganization\nCity\nState\nNL\nyes\n\n'.getBytes('UTF-8'))
-  args '-genkey',
-          '-alias', 'test-node',
-          '-keystore', nodeKeystore,
-          '-keyalg', 'RSA',
-          '-keysize', '2048',
-          '-validity', '712',
-          '-dname', 'CN=smoke-test-plugins-ssl',
-          '-keypass', 'keypass',
-          '-storepass', 'keypass'
+  into keystoreDir
 }
-
 // Add keystores to test classpath: it expects it there
 sourceSets.test.resources.srcDir(keystoreDir)
-processTestResources.dependsOn(createNodeKeyStore)
+processTestResources.dependsOn(copyKeyCerts)
 
 integTestCluster {
-  dependsOn createNodeKeyStore
+  dependsOn copyKeyCerts
   setting 'xpack.ml.enabled', 'true'
   setting 'xpack.security.enabled', 'true'
   setting 'logger.org.elasticsearch.xpack.ml.datafeed', 'TRACE'
@@ -111,17 +134,19 @@ integTestCluster {
   setting 'xpack.monitoring.exporters._local.enabled', 'false'
   setting 'xpack.security.authc.token.enabled', 'true'
   setting 'xpack.security.transport.ssl.enabled', 'true'
-  setting 'xpack.security.transport.ssl.keystore.path', nodeKeystore.name
+  setting 'xpack.security.transport.ssl.key', nodeKey.name
+  setting 'xpack.security.transport.ssl.certificate', nodeCert.name
   setting 'xpack.security.transport.ssl.verification_mode', 'certificate'
   setting 'xpack.security.audit.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
   keystoreSetting 'bootstrap.password', 'x-pack-test-password'
-  keystoreSetting 'xpack.security.transport.ssl.keystore.secure_password', 'keypass'
+  keystoreSetting 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
   distribution = 'zip' // this is important since we use the reindex module in ML
 
   setupCommand 'setupTestUser', 'bin/elasticsearch-users', 'useradd', 'x_pack_rest_user', '-p', 'x-pack-test-password', '-r', 'superuser'
 
-  extraConfigFile nodeKeystore.name, nodeKeystore
+  extraConfigFile nodeKey.name, nodeKey
+  extraConfigFile nodeCert.name, nodeCert
 
   waitCondition = { NodeInfo node, AntBuilder ant ->
       File tmpFile = new File(node.cwd, 'wait.success')
@@ -158,21 +183,7 @@ integTestCluster {
       return tmpFile.exists()
   }
 }
-
-run {
-  def licenseType = System.getProperty("license_type", "basic")
-  if (licenseType == 'trial') {
-    setting 'xpack.ml.enabled', 'true'
-    setting 'xpack.graph.enabled', 'true'
-    setting 'xpack.watcher.enabled', 'true'
-    setting 'xpack.license.self_generated.type', 'trial'
-  } else if (licenseType != 'basic') {
-    throw new IllegalArgumentException("Unsupported self-generated license type: [" + licenseType + "]. Must be " +
-    "[basic] or [trial].")
-  }
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.monitoring.enabled', 'true'
-  setting 'xpack.sql.enabled', 'true'
-  setting 'xpack.rollup.enabled', 'true'
-  keystoreSetting 'bootstrap.password', 'password'
+if (integTestCluster.distribution.startsWith("oss-")) {
+  integTest.enabled = false
 }
+

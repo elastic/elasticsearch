@@ -5,7 +5,7 @@
 <titleabbrev>Flush Jobs</titleabbrev>
 ++++
 
-This API forces any buffered data to be processed by the job.
+Forces any buffered data to be processed by the job.
 
 
 ==== Request

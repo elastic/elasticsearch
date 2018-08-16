@@ -6,12 +6,13 @@
 package org.elasticsearch.xpack.core.ml.integration;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -19,45 +20,35 @@ public class MlRestTestStateCleaner {
 
     private final Logger logger;
     private final RestClient adminClient;
-    private final ESRestTestCase testCase;
 
-    public MlRestTestStateCleaner(Logger logger, RestClient adminClient, ESRestTestCase testCase) {
+    public MlRestTestStateCleaner(Logger logger, RestClient adminClient) {
         this.logger = logger;
         this.adminClient = adminClient;
-        this.testCase = testCase;
     }
 
     public void clearMlMetadata() throws IOException {
         deleteAllDatafeeds();
         deleteAllJobs();
-        // indices will be deleted by the ESIntegTestCase class
+        // indices will be deleted by the ESRestTestCase class
     }
 
     @SuppressWarnings("unchecked")
     private void deleteAllDatafeeds() throws IOException {
-        Map<String, Object> clusterStateAsMap = testCase.entityAsMap(adminClient.performRequest("GET", "/_cluster/state",
-                Collections.singletonMap("filter_path", "metadata.ml.datafeeds")));
-        List<Map<String, Object>> datafeeds =
-                (List<Map<String, Object>>) XContentMapValues.extractValue("metadata.ml.datafeeds", clusterStateAsMap);
+        final Request datafeedsRequest = new Request("GET", "/_xpack/ml/datafeeds");
+        datafeedsRequest.addParameter("filter_path", "datafeeds");
+        final Response datafeedsResponse = adminClient.performRequest(datafeedsRequest);
+        final List<Map<String, Object>> datafeeds =
+                (List<Map<String, Object>>) XContentMapValues.extractValue("datafeeds", ESRestTestCase.entityAsMap(datafeedsResponse));
         if (datafeeds == null) {
             return;
         }
 
         try {
-            int statusCode = adminClient.performRequest("POST", "/_xpack/ml/datafeeds/_all/_stop")
-                    .getStatusLine().getStatusCode();
-            if (statusCode != 200) {
-                logger.error("Got status code " + statusCode + " when stopping datafeeds");
-            }
+            adminClient.performRequest(new Request("POST", "/_xpack/ml/datafeeds/_all/_stop"));
         } catch (Exception e1) {
             logger.warn("failed to stop all datafeeds. Forcing stop", e1);
             try {
-                int statusCode = adminClient
-                        .performRequest("POST", "/_xpack/ml/datafeeds/_all/_stop?force=true")
-                        .getStatusLine().getStatusCode();
-                if (statusCode != 200) {
-                    logger.error("Got status code " + statusCode + " when stopping datafeeds");
-                }
+                adminClient.performRequest(new Request("POST", "/_xpack/ml/datafeeds/_all/_stop?force=true"));
             } catch (Exception e2) {
                 logger.warn("Force-closing all data feeds failed", e2);
             }
@@ -67,35 +58,27 @@ public class MlRestTestStateCleaner {
 
         for (Map<String, Object> datafeed : datafeeds) {
             String datafeedId = (String) datafeed.get("datafeed_id");
-            int statusCode = adminClient.performRequest("DELETE", "/_xpack/ml/datafeeds/" + datafeedId).getStatusLine().getStatusCode();
-            if (statusCode != 200) {
-                logger.error("Got status code " + statusCode + " when deleting datafeed " + datafeedId);
-            }
+            adminClient.performRequest(new Request("DELETE", "/_xpack/ml/datafeeds/" + datafeedId));
         }
     }
 
     private void deleteAllJobs() throws IOException {
-        Map<String, Object> clusterStateAsMap = testCase.entityAsMap(adminClient.performRequest("GET", "/_cluster/state",
-                Collections.singletonMap("filter_path", "metadata.ml.jobs")));
+        final Request jobsRequest = new Request("GET", "/_xpack/ml/anomaly_detectors");
+        jobsRequest.addParameter("filter_path", "jobs");
+        final Response response = adminClient.performRequest(jobsRequest);
         @SuppressWarnings("unchecked")
-        List<Map<String, Object>> jobConfigs =
-                (List<Map<String, Object>>) XContentMapValues.extractValue("metadata.ml.jobs", clusterStateAsMap);
+        final List<Map<String, Object>> jobConfigs =
+                (List<Map<String, Object>>) XContentMapValues.extractValue("jobs", ESRestTestCase.entityAsMap(response));
         if (jobConfigs == null) {
             return;
         }
 
         try {
-            int statusCode = adminClient
-                    .performRequest("POST", "/_xpack/ml/anomaly_detectors/_all/_close")
-                    .getStatusLine().getStatusCode();
-            if (statusCode != 200) {
-                logger.error("Got status code " + statusCode + " when closing all jobs");
-            }
+            adminClient.performRequest(new Request("POST", "/_xpack/ml/anomaly_detectors/_all/_close"));
         } catch (Exception e1) {
             logger.warn("failed to close all jobs. Forcing closed", e1);
             try {
-                adminClient.performRequest("POST",
-                        "/_xpack/ml/anomaly_detectors/_all/_close?force=true");
+                adminClient.performRequest(new Request("POST", "/_xpack/ml/anomaly_detectors/_all/_close?force=true"));
             } catch (Exception e2) {
                 logger.warn("Force-closing all jobs failed", e2);
             }
@@ -105,10 +88,7 @@ public class MlRestTestStateCleaner {
 
         for (Map<String, Object> jobConfig : jobConfigs) {
             String jobId = (String) jobConfig.get("job_id");
-            int statusCode = adminClient.performRequest("DELETE", "/_xpack/ml/anomaly_detectors/" + jobId).getStatusLine().getStatusCode();
-            if (statusCode != 200) {
-                logger.error("Got status code " + statusCode + " when deleting job " + jobId);
-            }
+            adminClient.performRequest(new Request("DELETE", "/_xpack/ml/anomaly_detectors/" + jobId));
         }
     }
 }

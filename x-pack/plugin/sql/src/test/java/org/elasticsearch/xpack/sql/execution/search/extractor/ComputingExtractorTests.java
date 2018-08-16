@@ -70,7 +70,7 @@ public class ComputingExtractorTests extends AbstractWireSerializingTestCase<Com
     public void testGet() {
         String fieldName = randomAlphaOfLength(5);
         ChainingProcessor extractor = new ChainingProcessor(
-            new HitExtractorProcessor(new FieldHitExtractor(fieldName, true)),
+            new HitExtractorProcessor(new FieldHitExtractor(fieldName, null, true)),
             new MathProcessor(MathOperation.LOG));
 
         int times = between(1, 1000);

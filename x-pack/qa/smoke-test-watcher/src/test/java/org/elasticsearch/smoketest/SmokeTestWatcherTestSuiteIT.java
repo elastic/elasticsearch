@@ -20,10 +20,10 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -38,28 +38,61 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
 
     @Before
     public void startWatcher() throws Exception {
+        // delete the watcher history to not clutter with entries from other test
+        assertOK(adminClient().performRequest("DELETE", ".watcher-history-*"));
+
         assertBusy(() -> {
-            adminClient().performRequest("POST", "_xpack/watcher/_start");
+            Response response = adminClient().performRequest("GET", "_xpack/watcher/stats");
+            String state = ObjectPath.createFromResponse(response).evaluate("stats.0.watcher_state");
 
-            for (String template : WatcherIndexTemplateRegistryField.TEMPLATE_NAMES) {
-                assertOK(adminClient().performRequest("HEAD", "_template/" + template));
+            switch (state) {
+                case "stopped":
+                    Response startResponse = adminClient().performRequest("POST", "/_xpack/watcher/_start");
+                    boolean isAcknowledged = ObjectPath.createFromResponse(startResponse).evaluate("acknowledged");
+                    assertThat(isAcknowledged, is(true));
+                    break;
+                case "stopping":
+                    throw new AssertionError("waiting until stopping state reached stopped state to start again");
+                case "starting":
+                    throw new AssertionError("waiting until starting state reached started state");
+                case "started":
+                    // all good here, we are done
+                    break;
+                default:
+                    throw new AssertionError("unknown state[" + state + "]");
             }
+        });
 
-            Response statsResponse = adminClient().performRequest("GET", "_xpack/watcher/stats");
-            ObjectPath objectPath = ObjectPath.createFromResponse(statsResponse);
-            String state = objectPath.evaluate("stats.0.watcher_state");
-            assertThat(state, is("started"));
+        assertBusy(() -> {
+            for (String template : WatcherIndexTemplateRegistryField.TEMPLATE_NAMES) {
+                Response templateExistsResponse = adminClient().performRequest("HEAD", "_template/" + template, emptyMap());
+                assertThat(templateExistsResponse.getStatusLine().getStatusCode(), is(200));
+            }
         });
     }
 
     @After
     public void stopWatcher() throws Exception {
         assertBusy(() -> {
-            adminClient().performRequest("POST", "_xpack/watcher/_stop", Collections.emptyMap());
-            Response statsResponse = adminClient().performRequest("GET", "_xpack/watcher/stats");
-            ObjectPath objectPath = ObjectPath.createFromResponse(statsResponse);
-            String state = objectPath.evaluate("stats.0.watcher_state");
-            assertThat(state, is("stopped"));
+            Response response = adminClient().performRequest("GET", "_xpack/watcher/stats", emptyMap());
+            String state = ObjectPath.createFromResponse(response).evaluate("stats.0.watcher_state");
+
+            switch (state) {
+                case "stopped":
+                    // all good here, we are done
+                    break;
+                case "stopping":
+                    throw new AssertionError("waiting until stopping state reached stopped state");
+                case "starting":
+                    throw new AssertionError("waiting until starting state reached started state to stop");
+                case "started":
+                    Response stopResponse = adminClient().performRequest("POST", "/_xpack/watcher/_stop", emptyMap());
+                    boolean isAcknowledged = ObjectPath.createFromResponse(stopResponse).evaluate("acknowledged");
+                    assertThat(isAcknowledged, is(true));
+                    break;
+                default:
+                    throw new AssertionError("unknown state[" + state + "]");
+            }
         });
     }
 
@@ -99,18 +132,18 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
             builder.startObject("trigger").startObject("schedule").field("interval", "1s").endObject().endObject();
             // input
             builder.startObject("input").startObject("http").startObject("request").field("host", host).field("port", port)
-                    .field("path", "/_cluster/health")
-                    .field("scheme", "http")
-                    .startObject("auth").startObject("basic")
-                    .field("username", TEST_ADMIN_USERNAME).field("password", TEST_ADMIN_PASSWORD)
-                    .endObject().endObject()
-                    .endObject().endObject().endObject();
+                .field("path", "/_cluster/health")
+                .field("scheme", "http")
+                .startObject("auth").startObject("basic")
+                .field("username", TEST_ADMIN_USERNAME).field("password", TEST_ADMIN_PASSWORD)
+                .endObject().endObject()
+                .endObject().endObject().endObject();
             // condition
             builder.startObject("condition").startObject("compare").startObject("ctx.payload.number_of_data_nodes").field("lt", 10)
-                    .endObject().endObject().endObject();
+                .endObject().endObject().endObject();
             // actions
             builder.startObject("actions").startObject("log").startObject("logging").field("text", "executed").endObject().endObject()
-                    .endObject();
+                .endObject();
 
             builder.endObject();
 
@@ -132,7 +165,7 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
     private void indexWatch(String watchId, XContentBuilder builder) throws Exception {
         StringEntity entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
 
-        Response response = client().performRequest("PUT", "_xpack/watcher/watch/" + watchId, Collections.emptyMap(), entity);
+        Response response = client().performRequest("PUT", "_xpack/watcher/watch/" + watchId, emptyMap(), entity);
         assertOK(response);
         Map<String, Object> responseMap = entityAsMap(response);
         assertThat(responseMap, hasEntry("_id", watchId));
@@ -155,14 +188,14 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
                 builder.startObject();
                 builder.startObject("query").startObject("bool").startArray("must");
                 builder.startObject().startObject("term").startObject("watch_id").field("value", watchId).endObject().endObject()
-                        .endObject();
+                    .endObject();
                 builder.endArray().endObject().endObject();
                 builder.startArray("sort").startObject().startObject("trigger_event.triggered_time").field("order", "desc").endObject()
-                        .endObject().endArray();
+                    .endObject().endArray();
                 builder.endObject();
 
                 StringEntity entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
-                Response response = client().performRequest("POST", ".watcher-history-*/_search", Collections.emptyMap(), entity);
+                Response response = client().performRequest("POST", ".watcher-history-*/_search", emptyMap(), entity);
                 ObjectPath objectPath = ObjectPath.createFromResponse(response);
                 int totalHits = objectPath.evaluate("hits.total");
                 assertThat(totalHits, is(greaterThanOrEqualTo(1)));

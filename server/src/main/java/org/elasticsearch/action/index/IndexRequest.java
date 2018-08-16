@@ -38,7 +38,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -186,6 +185,10 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             validationException = addValidationError("an id must be provided if version type or value are set", validationException);
         }
 
+        if (pipeline != null && pipeline.isEmpty()) {
+            validationException = addValidationError("pipeline cannot be an empty string", validationException);
+        }
+
         return validationException;
     }
 
@@ -283,7 +286,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      *
      * @param source The map to index
      */
-    public IndexRequest source(Map source) throws ElasticsearchGenerationException {
+    public IndexRequest source(Map<String, ?> source) throws ElasticsearchGenerationException {
         return source(source, Requests.INDEX_CONTENT_TYPE);
     }
 
@@ -292,7 +295,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      *
      * @param source The map to index
      */
-    public IndexRequest source(Map source, XContentType contentType) throws ElasticsearchGenerationException {
+    public IndexRequest source(Map<String, ?> source, XContentType contentType) throws ElasticsearchGenerationException {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             builder.map(source);
@@ -497,7 +500,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     /* resolve the routing if needed */
     public void resolveRouting(MetaData metaData) {
-        routing(metaData.resolveIndexRouting(routing, index));
+        routing(metaData.resolveWriteIndexRouting(routing, index));
     }
 
     @Override

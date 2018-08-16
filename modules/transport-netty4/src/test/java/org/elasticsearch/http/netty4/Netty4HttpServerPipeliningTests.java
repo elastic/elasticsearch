@@ -33,6 +33,7 @@ import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.util.ReferenceCounted;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -121,6 +122,7 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
         assertSettingDeprecationsAndWarnings(new Setting<?>[] {HttpTransportSettings.SETTING_PIPELINING});
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/32900")
     public void testThatHttpPipeliningCanBeDisabled() throws Exception {
         final Settings settings = Settings.builder()
             .put("http.pipelining", false)

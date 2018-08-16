@@ -28,11 +28,16 @@ import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 public class ClusterformationPlugin implements Plugin<Project> {
 
     public static final String LIST_TASK_NAME = "listElasticSearchClusters";
     public static final String EXTENSION_NAME = "elasticSearchClusters";
-    public static final String TASK_EXTENSION_NAME = "useClusterExt";
 
     private final Logger logger =  Logging.getLogger(ClusterformationPlugin.class);
 
@@ -53,37 +58,33 @@ public class ClusterformationPlugin implements Plugin<Project> {
             )
         );
 
+        Map<Task, List<ElasticsearchConfiguration>> taskToCluster = new HashMap<>();
+
         // register an extension for all current and future tasks, so that any task can declare that it wants to use a
         // specific cluster.
-        project.getTasks().all((Task task) -> {
-                ClusterFormationTaskExtension taskExtension = task.getExtensions().create(
-                    TASK_EXTENSION_NAME, ClusterFormationTaskExtension.class, task
-                );
-                // Gradle doesn't look for extensions that might implement `call` and instead only looks for task methods
-                // work around by creating a closure in the extra properties extensions which does work
-                task.getExtensions().findByType(ExtraPropertiesExtension.class)
-                    .set(
-                        "useCluster",
-                        new Closure<Void>(this, this) {
-                            public void doCall(ElasticsearchConfiguration conf) {
-                                taskExtension.call(conf);
-                            }
-                        }
-                    );
-        });
+        project.getTasks().all((Task task) ->
+            task.getExtensions().findByType(ExtraPropertiesExtension.class)
+            .set(
+                "useCluster",
+                new Closure<Void>(this, this) {
+                    public void doCall(ElasticsearchConfiguration conf) {
+                        taskToCluster.computeIfAbsent(task, k -> new ArrayList<>()).add(conf);
+                    }
+                })
+        );
 
-        // Make sure we only claim the clusters for the tasks that will actually execute
+        // we need to claim all the clusters before starting executing
         project.getGradle().getTaskGraph().whenReady(taskExecutionGraph ->
-            taskExecutionGraph.getAllTasks().forEach(
-                task -> ClusterFormationTaskExtension.getForTask(task).getClaimedClusters().forEach(
-                    ElasticsearchConfiguration::claim
+            taskExecutionGraph.getAllTasks()
+                .forEach(task ->
+                    taskToCluster.getOrDefault(task, new ArrayList<>()).forEach(ElasticsearchConfiguration::claim)
                 )
-            )
         );
 
         // create the listener to start the clusters on-demand and terminate when no longer claimed.
-        // we need to use a task execution listener, as tasl
-        project.getGradle().addListener(new ClusterFormationTaskExecutionListener());
+        project.getGradle().addListener(
+            new ClusterFormationTaskExecutionListener(Collections.unmodifiableMap(taskToCluster))
+        );
     }
 
 }

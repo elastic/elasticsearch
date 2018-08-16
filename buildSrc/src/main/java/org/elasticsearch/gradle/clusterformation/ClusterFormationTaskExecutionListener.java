@@ -23,18 +23,28 @@ import org.gradle.api.execution.TaskActionListener;
 import org.gradle.api.execution.TaskExecutionListener;
 import org.gradle.api.tasks.TaskState;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
 public class ClusterFormationTaskExecutionListener implements TaskExecutionListener, TaskActionListener {
+    private final Map<Task, List<ElasticsearchConfiguration>> taskToCluster;
+
+    public ClusterFormationTaskExecutionListener(Map<Task, List<ElasticsearchConfiguration>> taskToCluster) {
+        this.taskToCluster = taskToCluster;
+    }
+
     @Override
     public void afterExecute(Task task, TaskState state) {
-        // always unclaim the cluster, even if _this_ task is up-to-date, as others might not have been and caused the
+        // always un-claim the cluster, even if _this_ task is up-to-date, as others might not have been and caused the
         // cluster to start.
-        ClusterFormationTaskExtension.getForTask(task).getClaimedClusters().forEach(ElasticsearchConfiguration::unClaimAndStop);
+        clustersForTask(task).forEach(ElasticsearchConfiguration::unClaimAndStop);
     }
 
     @Override
     public void beforeActions(Task task) {
         // we only start the cluster before the actions, so we'll not start it if the task is up-to-date
-        ClusterFormationTaskExtension.getForTask(task).getClaimedClusters().forEach(ElasticsearchConfiguration::start);
+        clustersForTask(task).forEach(ElasticsearchConfiguration::start);
     }
 
     @Override
@@ -43,5 +53,9 @@ public class ClusterFormationTaskExecutionListener implements TaskExecutionListe
 
     @Override
     public void afterActions(Task task) {
+    }
+
+    private List<ElasticsearchConfiguration> clustersForTask(Task task) {
+        return taskToCluster.getOrDefault(task, new ArrayList<>());
     }
 }

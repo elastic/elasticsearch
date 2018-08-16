@@ -2,7 +2,8 @@
 [[security-api-put-privileges]]
 === Add application privileges API
 
-Creates or updates application privileges. 
+Creates or updates 
+{stack-ov}/security-privileges.html#application-privileges[application privileges].
 
 ==== Request
 
@@ -14,12 +15,6 @@ Creates or updates application privileges.
 
 
 ==== Description
-
-Application privileges enable security decisions to take place outside of {es}. 
-These privileges do not have any affect on the internal security model for {es}. 
-They exist so that applications that run externally to {es} are able to
-make use of and build their own access controls on top of the {es} security 
-infrastructure (Rest API, realms) and security model (users, roles).
 
 This API creates or updates privileges. To remove privileges, use the 
 <<security-api-delete-privilege,delete application privilege API>>. 

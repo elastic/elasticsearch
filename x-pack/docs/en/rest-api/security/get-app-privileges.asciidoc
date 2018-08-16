@@ -2,7 +2,8 @@
 [[security-api-get-privileges]]
 === Get application privileges API
 
-Retrieves application privileges.
+Retrieves 
+{stack-ov}/security-privileges.html#application-privileges[application privileges].
 
 ==== Request
 
@@ -14,9 +15,6 @@ Retrieves application privileges.
 
 
 ==== Description
-
-For more information about application privileges, see 
-{stack-ov}/defining-roles.html#roles-application-priv[Application Privileges].
 
 To check a user's application privileges, use the
 <<security-api-has-privileges,has privileges API>>.

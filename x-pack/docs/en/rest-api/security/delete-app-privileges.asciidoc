@@ -2,20 +2,14 @@
 [[security-api-delete-privilege]]
 === Delete application privileges API
 
-Removes application privileges. 
+Removes 
+{stack-ov}/security-privileges.html#application-privileges[application privileges].
 
 ==== Request
 
 `DELETE /_xpack/security/privilege/<application>/<privilege>` 
 
-==== Description
-
-For more information about application privileges, see 
-{stack-ov}/defining-roles.html#roles-application-priv[Application Privileges].
-
-To check a user's application privileges, use the
-<<security-api-has-privileges,has privileges API>>.
-
+//==== Description
 
 ==== Path Parameters
 
@@ -25,7 +19,6 @@ To check a user's application privileges, use the
 
 `privilege` (required)::
   (string) The name of the privilege.
-
 
 // ==== Request Body
 

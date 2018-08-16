@@ -15,7 +15,7 @@ a specified list of privileges.
 ==== Description
 
 For a list of the privileges that you can specify in this API,
-see {xpack-ref}/security-privileges.html[Security Privileges].
+see {stack-ov}/security-privileges.html[Security privileges].
 
 A successful call returns a JSON structure that shows whether each specified
 privilege is assigned to the user.

@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.protocol.xpack.security.UserRequest;
 
-
 import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;

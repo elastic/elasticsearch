@@ -65,7 +65,11 @@ POST test/_doc/1/_update
 // CONSOLE
 // TEST[continued]
 
-We can remove a tag from the list of tags. Note that the Painless function to `remove` a tag takes as its parameter the array index of the element you wish to remove, so you need a bit more logic to locate it while avoiding a runtime error. Note that if the tag was present more than once in the list, this will remove only one occurrence of it:
+We can remove a tag from the list of tags. Note that the Painless function to
+`remove` a tag takes as its parameter the array index of the element you wish
+to remove, so you need a bit more logic to locate it while avoiding a runtime
+error. Note that if the tag was present more than once in the list, this will
+remove only one occurrence of it:
 
 [source,js]
 --------------------------------------------------
@@ -190,7 +194,7 @@ the request was ignored.
    "_index": "test",
    "_type": "_doc",
    "_id": "1",
-   "_version": 6,
+   "_version": 7,
    "result": "noop"
 }
 --------------------------------------------------

@@ -23,7 +23,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
@@ -57,10 +56,8 @@ final class DocumentParser {
         this.docMapper = docMapper;
     }
 
-    private static final BytesArray EMPTY_SOURCE = new BytesArray("{}");
     ParsedDocument parseDocument(SourceToParse source) throws MapperParsingException {
         validateType(source);
-
         final Mapping mapping = docMapper.mapping();
         final ParseContext.InternalParseContext context;
         final boolean skipParserValidation = source.mustValidateSource() == false && mapping.root.isEnabled() == false;

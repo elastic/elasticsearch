@@ -18,6 +18,8 @@ public class FIPS140LicenseBootstrapCheckTests extends ESTestCase {
 
     public void testBootstrapCheck() throws Exception {
         MetaData.Builder builder = MetaData.builder();
+        License license = TestUtils.generateSignedLicense(TimeValue.timeValueHours(24));
+        TestUtils.putLicense(builder, license);
         MetaData metaData = builder.build();
         assertTrue(new FIPS140LicenseBootstrapCheck()
             .check(new BootstrapContext(Settings.builder().put("xpack.security.fips_mode.enabled", false).build(), metaData))
@@ -25,10 +27,6 @@ public class FIPS140LicenseBootstrapCheckTests extends ESTestCase {
         assertTrue(new FIPS140LicenseBootstrapCheck()
             .check(new BootstrapContext(Settings.builder().put("xpack.security.fips_mode.enabled", randomBoolean()).build(), metaData))
             .isSuccess());
-
-        License license = TestUtils.generateSignedLicense(TimeValue.timeValueHours(24));
-
-        TestUtils.putLicense(builder, license);
 
         if (FIPS140LicenseBootstrapCheck.ALLOWED_LICENSE_OPERATION_MODES.contains(license.operationMode())) {
             assertTrue(new FIPS140LicenseBootstrapCheck().check(new BootstrapContext(

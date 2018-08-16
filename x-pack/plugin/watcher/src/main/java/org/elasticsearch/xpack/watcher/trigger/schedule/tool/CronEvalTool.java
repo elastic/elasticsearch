@@ -5,21 +5,20 @@
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule.tool;
 
+import java.util.Arrays;
+import java.util.List;
+
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
-
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.LoggingAwareCommand;
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.xpack.core.scheduler.Cron;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
-
-import java.util.Arrays;
-import java.util.List;
 
 public class CronEvalTool extends LoggingAwareCommand {
 

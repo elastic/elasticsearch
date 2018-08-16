@@ -29,22 +29,20 @@ public class CronEvalToolTests extends CommandTestCase {
     }
 
     public void testGetNextValidTimes() throws Exception {
+        final int year = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT).get(Calendar.YEAR) + 1;
         {
-            final int nextYear = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT).get(Calendar.YEAR) + 1;
-            String output = execute("0 3 23 8 9 ? " + nextYear);
+            String output = execute("0 3 23 8 9 ? " + year);
             assertThat(output, containsString("Here are the next 10 times this cron expression will trigger:"));
             assertThat(output, not(containsString("ERROR")));
             assertThat(output, not(containsString("2.\t")));
         }
         {
-            final int nextYear = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT).get(Calendar.YEAR) + 1;
-            String output = execute("0 3 23 */4 9 ? " + nextYear);
+            String output = execute("0 3 23 */4 9 ? " + year);
             assertThat(output, containsString("Here are the next 10 times this cron expression will trigger:"));
             assertThat(output, not(containsString("ERROR")));
         }
         {
-            final int previousYear = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT).get(Calendar.YEAR) - 1;
-            Exception expectThrows = expectThrows(Exception.class, () -> execute("0 3 23 */4 9 ? " + previousYear));
+            Exception expectThrows = expectThrows(Exception.class, () -> execute("0 3 23 */4 9 ? 2017"));
             String message = expectThrows.getMessage();
             assertThat(message, containsString("Could not compute future times since"));
             assertThat(message, containsString("(perhaps the cron expression only points to times in the past?)"));

@@ -750,3 +750,22 @@ setups['jacknich_user'] = '''
             "metadata" : { "intelligence" : 7 }
           }
 '''
+setups['app0102_privileges'] = '''
+  - do:
+        xpack.security.post_privileges:
+          body: >
+            { "app01": {
+              "read": {
+                "actions": [ "action:login", "data:read/*" ]
+              },
+              "write": {
+                "actions": [ "action:login", "data:write/*" ]
+              }
+            },
+            "app02": {
+              "all": {
+                "actions": [ "*" ]
+              }
+            }
+          }
+'''

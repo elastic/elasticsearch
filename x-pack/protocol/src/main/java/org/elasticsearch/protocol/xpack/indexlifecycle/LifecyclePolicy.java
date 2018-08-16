@@ -51,10 +51,17 @@ public class LifecyclePolicy implements ToXContentObject {
             Map<String, Phase> phaseMap = phases.stream().collect(Collectors.toMap(Phase::getName, Function.identity()));
             return new LifecyclePolicy(name, phaseMap);
         });
+    private static Map<String, Set<String>> ALLOWED_ACTIONS = new HashMap<>();
+
     static {
         PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, n) -> Phase.parse(p, n), v -> {
             throw new IllegalArgumentException("ordered " + PHASES_FIELD.getPreferredName() + " are not supported");
         }, PHASES_FIELD);
+
+        ALLOWED_ACTIONS.put("hot", Sets.newHashSet(RolloverAction.NAME));
+        ALLOWED_ACTIONS.put("warm", Sets.newHashSet(AllocateAction.NAME, ForceMergeAction.NAME, ReadOnlyAction.NAME, ShrinkAction.NAME));
+        ALLOWED_ACTIONS.put("cold", Sets.newHashSet(AllocateAction.NAME));
+        ALLOWED_ACTIONS.put("delete", Sets.newHashSet(DeleteAction.NAME));
     }
 
     private final String name;
@@ -128,18 +135,12 @@ public class LifecyclePolicy implements ToXContentObject {
     }
 
     static void validate(Collection<Phase> phases) {
-        Set<String> allowedPhases = Sets.newHashSet("hot", "warm", "cold", "delete");
-        Map<String, Set<String>> allowedActions = new HashMap<>(allowedPhases.size());
-        allowedActions.put("hot", Sets.newHashSet(RolloverAction.NAME));
-        allowedActions.put("warm", Sets.newHashSet(AllocateAction.NAME, ForceMergeAction.NAME, ReadOnlyAction.NAME, ShrinkAction.NAME));
-        allowedActions.put("cold", Sets.newHashSet(AllocateAction.NAME));
-        allowedActions.put("delete", Sets.newHashSet(DeleteAction.NAME));
         phases.forEach(phase -> {
-            if (allowedPhases.contains(phase.getName()) == false) {
+            if (ALLOWED_ACTIONS.containsKey(phase.getName()) == false) {
                 throw new IllegalArgumentException("Lifecycle does not support phase [" + phase.getName() + "]");
             }
             phase.getActions().forEach((actionName, action) -> {
-                if (allowedActions.get(phase.getName()).contains(actionName) == false) {
+                if (ALLOWED_ACTIONS.get(phase.getName()).contains(actionName) == false) {
                     throw new IllegalArgumentException("invalid action [" + actionName + "] " +
                         "defined in phase [" + phase.getName() +"]");
                 }

@@ -60,9 +60,9 @@ public class Phase implements ToXContentObject {
         return PARSER.apply(parser, name);
     }
 
-    private String name;
-    private Map<String, LifecycleAction> actions;
-    private TimeValue after;
+    private final String name;
+    private final Map<String, LifecycleAction> actions;
+    private final TimeValue after;
 
     /**
      * @param name
@@ -72,7 +72,7 @@ public class Phase implements ToXContentObject {
      *            {@link Phase}.
      * @param actions
      *            a {@link Map} of the {@link LifecycleAction}s to run when
-     *            during his {@link Phase}. The keys in this map are the associated
+     *            during this {@link Phase}. The keys in this map are the associated
      *            action names.
      */
     public Phase(String name, TimeValue after, Map<String, LifecycleAction> actions) {
@@ -102,7 +102,7 @@ public class Phase implements ToXContentObject {
 
     /**
      * @return a {@link Map} of the {@link LifecycleAction}s to run when during
-     *         his {@link Phase}.
+     *         this {@link Phase}.
      */
     public Map<String, LifecycleAction> getActions() {
         return actions;

@@ -51,9 +51,9 @@ public class Phase implements ToXContentObject, Writeable {
         return PARSER.apply(parser, name);
     }
 
-    private String name;
-    private Map<String, LifecycleAction> actions;
-    private TimeValue after;
+    private final String name;
+    private final Map<String, LifecycleAction> actions;
+    private final TimeValue after;
 
     /**
      * @param name
@@ -133,12 +133,12 @@ public class Phase implements ToXContentObject, Writeable {
         builder.endObject();
         return builder;
     }
-    
+
     @Override
     public int hashCode() {
         return Objects.hash(name, after, actions);
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (obj == null) {

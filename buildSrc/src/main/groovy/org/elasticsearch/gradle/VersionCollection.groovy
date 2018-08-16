@@ -182,10 +182,15 @@ class VersionCollection {
      *
      * @return All earlier versions that should be tested for index BWC with the current version.
      */
-    List<Version> getIndexCompatible() {
+    List<Version> getIndexCompatible(boolean inFipsJvm = false) {
         int actualMajor = (currentVersion.major == 5 ? 2 : currentVersion.major - 1)
+        Version fromVersion = Version.fromString("${actualMajor}.0.0")
+        // Versions before 6.4.0 cannot be run in a FIPS 140 JVM, so exclude them
+        if (inFipsJvm && fromVersion.before("6.4.0")){
+            fromVersion = Version.fromString("6.4.0")
+        }
         return versionSet
-            .tailSet(Version.fromString("${actualMajor}.0.0"))
+            .tailSet(fromVersion)
             .headSet(currentVersion)
             .asList()
     }
@@ -217,9 +222,13 @@ class VersionCollection {
      *
      * @return All earlier versions that should be tested for wire BWC with the current version.
      */
-    List<Version> getWireCompatible() {
+    List<Version> getWireCompatible(boolean inFipsJvm = false) {
         // Get the last minor of the previous major
         Version lowerBound = getHighestPreviousMinor(currentVersion.major)
+        // Versions before 6.4.0 cannot be run in a FIPS 140 JVM, so exclude them
+        if (inFipsJvm && Version.fromString("${lowerBound.major}.${lowerBound.minor}.0").before("6.4.0")){
+            lowerBound = Version.fromString("6.4.0")
+        }
         return versionSet
             .tailSet(Version.fromString("${lowerBound.major}.${lowerBound.minor}.0"))
             .headSet(currentVersion)
@@ -229,9 +238,9 @@ class VersionCollection {
     /**
      * Ensures the types of snapshot are not null and are also in the wire compat list
      */
-    List<Version> getSnapshotsWireCompatible() {
+    List<Version> getSnapshotsWireCompatible(boolean inFipsJvm = false) {
         List<Version> compatSnapshots = []
-        List<Version> allCompatVersions = getWireCompatible()
+        List<Version> allCompatVersions = getWireCompatible(inFipsJvm)
         if (allCompatVersions.contains(nextMinorSnapshot)) {
             compatSnapshots.add(nextMinorSnapshot)
         }

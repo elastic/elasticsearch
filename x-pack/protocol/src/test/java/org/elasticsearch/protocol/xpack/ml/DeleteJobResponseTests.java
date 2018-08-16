@@ -16,20 +16,27 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.protocol.xpack.ml;
 
-package org.elasticsearch.action.admin.cluster.node.reload;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractXContentTestCase;
 
-import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import java.io.IOException;
 
-/**
- * Builder for the reload secure settings nodes request
- */
-public class NodesReloadSecureSettingsRequestBuilder extends NodesOperationRequestBuilder<NodesReloadSecureSettingsRequest,
-        NodesReloadSecureSettingsResponse, NodesReloadSecureSettingsRequestBuilder> {
+public class DeleteJobResponseTests extends AbstractXContentTestCase<DeleteJobResponse> {
 
-    public NodesReloadSecureSettingsRequestBuilder(ElasticsearchClient client, NodesReloadSecureSettingsAction action) {
-        super(client, action, new NodesReloadSecureSettingsRequest());
+    @Override
+    protected DeleteJobResponse createTestInstance() {
+        return new DeleteJobResponse();
     }
 
+    @Override
+    protected DeleteJobResponse doParseInstance(XContentParser parser) throws IOException {
+        return DeleteJobResponse.fromXContent(parser);
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return false;
+    }
 }

@@ -131,6 +131,7 @@ import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyRe
 import org.elasticsearch.protocol.xpack.indexlifecycle.StartILMRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.StopILMRequest;
 import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoRequest;
+import org.elasticsearch.protocol.xpack.ml.DeleteJobRequest;
 import org.elasticsearch.protocol.xpack.ml.OpenJobRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
@@ -2671,6 +2672,20 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertEquals("/_xpack/watcher/watch/" + watchId, request.getEndpoint());
         assertThat(request.getEntity(), nullValue());
+    }
+
+    public void testDeleteMachineLearningJob() {
+        String jobId = randomAlphaOfLength(10);
+        DeleteJobRequest deleteJobRequest = new DeleteJobRequest(jobId);
+
+        Request request = RequestConverters.deleteMachineLearningJob(deleteJobRequest);
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/anomaly_detectors/" + jobId, request.getEndpoint());
+        assertEquals(Boolean.toString(false), request.getParameters().get("force"));
+
+        deleteJobRequest.setForce(true);
+        request = RequestConverters.deleteMachineLearningJob(deleteJobRequest);
+        assertEquals(Boolean.toString(true), request.getParameters().get("force"));
     }
 
     public void testPostMachineLearningOpenJob() throws Exception {

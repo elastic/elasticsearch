@@ -108,8 +108,8 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
         this.nodePredicate = nodePredicate;
         this.clusterAlias = clusterAlias;
         ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
-        builder.setConnectTimeout(TcpTransport.TCP_CONNECT_TIMEOUT.get(settings));
-        builder.setHandshakeTimeout(TcpTransport.TCP_CONNECT_TIMEOUT.get(settings));
+        builder.setConnectTimeout(TransportService.TCP_CONNECT_TIMEOUT.get(settings));
+        builder.setHandshakeTimeout(TransportService.TCP_CONNECT_TIMEOUT.get(settings));
         builder.addConnections(6, TransportRequestOptions.Type.REG, TransportRequestOptions.Type.PING); // TODO make this configurable?
         builder.addConnections(0, // we don't want this to be used for anything else but search
             TransportRequestOptions.Type.BULK,
@@ -290,8 +290,23 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
         }
 
         @Override
+        public boolean sendPing() {
+            return proxyConnection.sendPing();
+        }
+
+        @Override
         public void close() {
             assert false: "proxy connections must not be closed";
+        }
+
+        @Override
+        public void addCloseListener(ActionListener<Void> listener) {
+            proxyConnection.addCloseListener(listener);
+        }
+
+        @Override
+        public boolean isClosed() {
+            return proxyConnection.isClosed();
         }
 
         @Override

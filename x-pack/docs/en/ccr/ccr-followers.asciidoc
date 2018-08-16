@@ -1,0 +1,7 @@
+[role="xpack"]
+[[ccr-followers]]
+== Managing following indices
+
+* Create a following index
+* Designate an existing index as a follower
+* Detach a following index

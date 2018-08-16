@@ -1,0 +1,5 @@
+[role="xpack"]
+[[ccr-monitoring]]
+== Monitoring {ccr}
+
+* Get {ccr} stats

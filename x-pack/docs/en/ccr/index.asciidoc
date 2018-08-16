@@ -1,0 +1,28 @@
+[role="xpack"]
+[[cross-cluster-replication]]
+= Replicating indices across clusters
+
+:ccr:             cross cluster replication
+:CCR:             Cross cluster replication
+[partintro]
+--
+{CCR} (CCR) synchronizes indices in two or more clusters using active-passive
+replication. Replicating indices across clusters can increase resiliency,
+facilitate disaster recovery and data migration, and enable queries to be
+processed in closer geographic proximity to your users.
+
+Introduce leader/follower architecture
+
+--
+
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ccr/ccr-getting-started.asciidoc
+include::ccr-getting-started.asciidoc[]
+
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ccr/ccr-follower.asciidoc
+include::ccr-followers[]
+
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ccr/ccr-monitoring.asciidoc
+include::ccr-monitoring.asciidoc[]
+
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ccr/ccr-api.asciidoc
+include::ccr-api.asciidoc[]

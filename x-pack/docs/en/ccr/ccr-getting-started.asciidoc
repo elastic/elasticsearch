@@ -1,0 +1,5 @@
+[role="xpack"]
+[[ccr-getting-started]]
+== Getting started with {ccr}
+
+Create an index to follow a leader in another cluster

@@ -31,11 +31,9 @@ import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
@@ -81,10 +79,21 @@ public class GetFieldTests extends ESTestCase {
     }
 
     private static GetField mutateGetField(GetField getField) {
-        List<Supplier<GetField>> mutations = new ArrayList<>();
-        mutations.add(() -> new GetField(randomUnicodeOfCodepointLength(15), getField.getValues()));
-        mutations.add(() -> new GetField(getField.getName(), randomGetField(XContentType.JSON).v1().getValues()));
-        return randomFrom(mutations).get();
+        if (randomBoolean()) {
+            // change field name
+            String newName;
+            do {
+                newName = randomUnicodeOfCodepointLength(15);
+            } while (getField.getName().equals(newName));
+            return new GetField(newName, getField.getValues());
+        } else {
+            // change values
+            List<Object> newValues;
+            do {
+                newValues = randomGetField(XContentType.JSON).v1().getValues();
+            } while (getField.getValues().equals(newValues));
+            return new GetField(getField.getName(), newValues);
+        }
     }
 
     public static Tuple<GetField, GetField> randomGetField(XContentType xContentType) {

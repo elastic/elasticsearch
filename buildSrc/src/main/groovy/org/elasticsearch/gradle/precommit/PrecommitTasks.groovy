@@ -20,10 +20,14 @@ package org.elasticsearch.gradle.precommit
 
 import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
 import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
+import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
 import org.gradle.api.Project
 import org.gradle.api.Task
+import org.gradle.api.file.FileCollection
 import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.plugins.quality.Checkstyle
+import org.gradle.api.tasks.JavaExec
+import org.gradle.api.tasks.StopExecutionException
 
 /**
  * Validation tasks which should be run before committing. These run before tests.
@@ -40,7 +44,11 @@ class PrecommitTasks {
             project.tasks.create('licenseHeaders', LicenseHeadersTask.class),
             project.tasks.create('filepermissions', FilePermissionsTask.class),
             project.tasks.create('jarHell', JarHellTask.class),
-            project.tasks.create('thirdPartyAudit', ThirdPartyAuditTask.class)]
+            project.tasks.create('thirdPartyAudit', ThirdPartyAuditTask.class)
+        ]
+
+        // Configure it but don't add it as a dependency yet
+        configureForbiddenApisCli(project)
 
         // tasks with just tests don't need dependency licenses, so this flag makes adding
         // the task optional
@@ -96,7 +104,56 @@ class PrecommitTasks {
         }
         Task forbiddenApis = project.tasks.findByName('forbiddenApis')
         forbiddenApis.group = "" // clear group, so this does not show up under verification tasks
+
         return forbiddenApis
+    }
+
+    private static Task configureForbiddenApisCli(Project project) {
+        project.configurations.create("forbiddenApisCliJar")
+        project.dependencies {
+            forbiddenApisCliJar 'de.thetaphi:forbiddenapis:2.5'
+        }
+        Task forbiddenApisCli = project.tasks.create('forbiddenApisCli')
+
+        project.sourceSets.forEach { sourceSet ->
+            forbiddenApisCli.dependsOn(
+                project.tasks.create(sourceSet.getTaskName('forbiddenApisCli', null), JavaExec) {
+                    ExportElasticsearchBuildResourcesTask buildResources = project.tasks.getByName('buildResources')
+                    dependsOn(buildResources)
+                    classpath = project.files(
+                            project.configurations.forbiddenApisCliJar,
+                            sourceSet.compileClasspath,
+                            sourceSet.runtimeClasspath
+                    )
+                    main = 'de.thetaphi.forbiddenapis.cli.CliMain'
+                    executable = "${project.runtimeJavaHome}/bin/java"
+                    args "-b", 'jdk-unsafe-1.8'
+                    args "-b", 'jdk-deprecated-1.8'
+                    args "-b", 'jdk-non-portable'
+                    args "-b", 'jdk-system-out'
+                    args "-f", buildResources.copy("forbidden/jdk-signatures.txt")
+                    args "-f", buildResources.copy("forbidden/es-all-signatures.txt")
+                    args "--suppressannotation", '**.SuppressForbidden'
+                    if (sourceSet.name == 'test') {
+                        args "-f", buildResources.copy("forbidden/es-test-signatures.txt")
+                        args "-f", buildResources.copy("forbidden/http-signatures.txt")
+                    } else {
+                        args "-f", buildResources.copy("forbidden/es-server-signatures.txt")
+                    }
+                    dependsOn sourceSet.classesTaskName
+                    doFirst {
+                        // Forbidden APIs expects only existing dirs, and requires at least one
+                        FileCollection existingOutputs = sourceSet.output.classesDirs
+                                .filter { it.exists() }
+                        if (existingOutputs.isEmpty()) {
+                            throw new StopExecutionException("${sourceSet.name} has no outputs")
+                        }
+                        existingOutputs.forEach { args "-d", it }
+                    }
+                }
+            )
+        }
+        return forbiddenApisCli
     }
 
     private static Task configureCheckstyle(Project project) {

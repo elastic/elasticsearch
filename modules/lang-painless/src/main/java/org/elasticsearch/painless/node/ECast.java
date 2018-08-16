@@ -63,6 +63,6 @@ final class ECast extends AExpression {
 
     @Override
     public String toString() {
-        return singleLineToString(PainlessLookupUtility.typeToCanonicalTypeName(cast.to), child);
+        return singleLineToString(PainlessLookupUtility.typeToCanonicalTypeName(cast.targetType), child);
     }
 }

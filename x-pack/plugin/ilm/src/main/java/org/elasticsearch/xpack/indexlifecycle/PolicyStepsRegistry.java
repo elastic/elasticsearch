@@ -134,7 +134,6 @@ public class PolicyStepsRegistry {
                     "_none_" : currentSteps.get(0).getKey().getPhase();
                 // Retrieve the current phase, defaulting to "new" if no phase is set
                 final String currentPhase = imd.value.getSettings().get(LifecycleSettings.LIFECYCLE_PHASE, "new");
-                assert currentPhase != null : "expected a current phase but it was null";
 
                 if (existingPhase.equals(currentPhase) == false) {
                     // Only rebuild the index's steps if the phase of the existing steps does not match our index's current phase

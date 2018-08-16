@@ -286,7 +286,8 @@ public class RestController extends AbstractComponent implements HttpServerTrans
                     }
                 }
             } else if (restHandler != null && restHandler.supportsContentStream() && restRequest.header("Content-Type") != null) {
-                final String lowercaseMediaType = restRequest.header("Content-Type").toLowerCase(Locale.ROOT);
+                final String lowercaseMediaType = parseMediaType(restRequest.header("Content-Type"));
+
                 // we also support newline delimited JSON: http://specs.okfnlabs.org/ndjson/
                 if (lowercaseMediaType.equals("application/x-ndjson")) {
                     restRequest.setXContentType(XContentType.JSON);
@@ -306,6 +307,23 @@ public class RestController extends AbstractComponent implements HttpServerTrans
             }
         }
         return true;
+    }
+
+    private String parseMediaType(String rawContentType) {
+        final String contentType = rawContentType.toLowerCase(Locale.ROOT);
+        final int firstSemiColonIndex = contentType.indexOf(';');
+        if (firstSemiColonIndex == -1) {
+            return contentType;
+        }
+        final String mediaType = contentType.substring(0, firstSemiColonIndex).trim();
+        final String charsetCandidate = contentType.substring(firstSemiColonIndex + 1);
+
+        final String[] keyValue = charsetCandidate.split("=", 2);
+        if (keyValue.length != 2 || keyValue[0].trim().equalsIgnoreCase("charset") == false
+            || keyValue[1].trim().equalsIgnoreCase("utf-8") == false) {
+            deprecationLogger.deprecated("Content-Type [" + rawContentType + "] contains unrecognized [" + charsetCandidate + "]");
+        }
+        return mediaType;
     }
 
     private boolean autoDetectXContentType(RestRequest restRequest) {

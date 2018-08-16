@@ -418,6 +418,50 @@ public class RestControllerTests extends ESTestCase {
         assertTrue(channel.getSendResponseCalled());
     }
 
+    public void testContentTypeNotOnlyMediaType() {
+        restController.registerHandler(RestRequest.Method.GET, "/foo", new RestHandler() {
+            @Override
+            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+                channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+            }
+
+            @Override
+            public boolean supportsContentStream() {
+                return true;
+            }
+        });
+
+        String goodMimeType = randomFrom("application/x-ndjson",
+            "application/x-ndjson; charset=UTF-8",
+            "application/x-ndjson; charset=utf-8",
+            "application/x-ndjson;charset=UTF-8");
+        String content = randomAlphaOfLengthBetween(1, BREAKER_LIMIT.bytesAsInt());
+        FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
+            .withContent(new BytesArray(content), null).withPath("/foo")
+            .withHeaders(Collections.singletonMap("Content-Type", Collections.singletonList(goodMimeType))).build();
+        AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.OK);
+
+        assertFalse(channel.getSendResponseCalled());
+        restController.dispatchRequest(fakeRestRequest, channel, new ThreadContext(Settings.EMPTY));
+        assertTrue(channel.getSendResponseCalled());
+
+        String badMimeType = randomFrom("application/x-ndjson; charset=utf-8; unknown",
+            "application/x-ndjson; charset=unknown",
+            "application/x-ndjson;charset=UTF-16",
+            "application/x-ndjson; unknown");
+        content = randomAlphaOfLengthBetween(1, BREAKER_LIMIT.bytesAsInt());
+        fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
+            .withContent(new BytesArray(content), null).withPath("/foo")
+            .withHeaders(Collections.singletonMap("Content-Type", Collections.singletonList(badMimeType))).build();
+        channel = new AssertingChannel(fakeRestRequest, true, RestStatus.OK);
+
+        assertFalse(channel.getSendResponseCalled());
+        restController.dispatchRequest(fakeRestRequest, channel, new ThreadContext(Settings.EMPTY));
+        assertTrue(channel.getSendResponseCalled());
+        assertWarnings("Content-Type [" + badMimeType + "] contains unrecognized ["
+            + badMimeType.substring(badMimeType.indexOf(";") + 1).toLowerCase(Locale.ROOT) + "]");
+    }
+
     public void testDispatchWithContentStreamAutoDetect() {
         FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
             .withContent(new BytesArray("{}"), null).withPath("/foo").build();

@@ -29,19 +29,41 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.DiscoverySettings;
 
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
-public class JoinTaskExecutor implements ClusterStateTaskExecutor<DiscoveryNode> {
+public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecutor.Task> {
 
     private final AllocationService allocationService;
 
     private final Logger logger;
+
+    public static class Task {
+
+        private final DiscoveryNode node;
+        private final String reason;
+
+        public Task(DiscoveryNode node, String reason) {
+            this.node = node;
+            this.reason = reason;
+        }
+
+        public DiscoveryNode node() {
+            return node;
+        }
+
+        public String reason() {
+            return reason;
+        }
+
+        @Override
+        public String toString() {
+            return node != null ? node + " " + reason : reason;
+        }
+    }
 
     public JoinTaskExecutor(AllocationService allocationService, Logger logger) {
         this.allocationService = allocationService;
@@ -49,14 +71,14 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<DiscoveryNode>
     }
 
     @Override
-    public ClusterTasksResult<DiscoveryNode> execute(ClusterState currentState, List<DiscoveryNode> joiningNodes) throws Exception {
-        final ClusterTasksResult.Builder<DiscoveryNode> results = ClusterTasksResult.builder();
+    public ClusterTasksResult<Task> execute(ClusterState currentState, List<Task> joiningNodes) throws Exception {
+        final ClusterTasksResult.Builder<Task> results = ClusterTasksResult.builder();
 
         final DiscoveryNodes currentNodes = currentState.nodes();
         boolean nodesChanged = false;
         ClusterState.Builder newState;
 
-        if (joiningNodes.size() == 1  && joiningNodes.get(0).equals(FINISH_ELECTION_TASK)) {
+        if (joiningNodes.size() == 1 && joiningNodes.get(0).equals(FINISH_ELECTION_TASK)) {
             return results.successes(joiningNodes).build(currentState);
         } else if (currentNodes.getMasterNode() == null && joiningNodes.contains(BECOME_MASTER_TASK)) {
             assert joiningNodes.contains(FINISH_ELECTION_TASK) : "becoming a master but election is not finished " + joiningNodes;
@@ -81,12 +103,13 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<DiscoveryNode>
         // we only enforce major version transitions on a fully formed clusters
         final boolean enforceMajorVersion = currentState.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false;
         // processing any joins
-        for (final DiscoveryNode node : joiningNodes) {
-            if (node.equals(BECOME_MASTER_TASK) || node.equals(FINISH_ELECTION_TASK)) {
+        for (final Task joinTask : joiningNodes) {
+            if (joinTask.equals(BECOME_MASTER_TASK) || joinTask.equals(FINISH_ELECTION_TASK)) {
                 // noop
-            } else if (currentNodes.nodeExists(node)) {
-                logger.debug("received a join request for an existing node [{}]", node);
+            } else if (currentNodes.nodeExists(joinTask.node())) {
+                logger.debug("received a join request for an existing node [{}]", joinTask.node());
             } else {
+                final DiscoveryNode node = joinTask.node();
                 try {
                     if (enforceMajorVersion) {
                         ensureMajorVersionBarrier(node.getVersion(), minClusterNodeVersion);
@@ -100,11 +123,11 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<DiscoveryNode>
                     minClusterNodeVersion = Version.min(minClusterNodeVersion, node.getVersion());
                     maxClusterNodeVersion = Version.max(maxClusterNodeVersion, node.getVersion());
                 } catch (IllegalArgumentException | IllegalStateException e) {
-                    results.failure(node, e);
+                    results.failure(joinTask, e);
                     continue;
                 }
             }
-            results.success(node);
+            results.success(joinTask);
         }
         if (nodesChanged) {
             newState.nodes(nodesBuilder);
@@ -116,23 +139,28 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<DiscoveryNode>
         }
     }
 
-    private ClusterState.Builder becomeMasterAndTrimConflictingNodes(ClusterState currentState, List<DiscoveryNode> joiningNodes) {
+    private ClusterState.Builder becomeMasterAndTrimConflictingNodes(ClusterState currentState, List<Task> joiningNodes) {
         assert currentState.nodes().getMasterNodeId() == null : currentState;
         DiscoveryNodes currentNodes = currentState.nodes();
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(currentNodes);
         nodesBuilder.masterNodeId(currentState.nodes().getLocalNodeId());
 
-        for (final DiscoveryNode joiningNode : joiningNodes) {
-            final DiscoveryNode nodeWithSameId = nodesBuilder.get(joiningNode.getId());
-            if (nodeWithSameId != null && nodeWithSameId.equals(joiningNode) == false) {
-                logger.debug("removing existing node [{}], which conflicts with incoming join from [{}]", nodeWithSameId, joiningNode);
-                nodesBuilder.remove(nodeWithSameId.getId());
-            }
-            final DiscoveryNode nodeWithSameAddress = currentNodes.findByAddress(joiningNode.getAddress());
-            if (nodeWithSameAddress != null && nodeWithSameAddress.equals(joiningNode) == false) {
-                logger.debug("removing existing node [{}], which conflicts with incoming join from [{}]", nodeWithSameAddress,
-                    joiningNode);
-                nodesBuilder.remove(nodeWithSameAddress.getId());
+        for (final Task joinTask : joiningNodes) {
+            if (joinTask.equals(BECOME_MASTER_TASK) || joinTask.equals(FINISH_ELECTION_TASK)) {
+                // noop
+            } else {
+                final DiscoveryNode joiningNode = joinTask.node();
+                final DiscoveryNode nodeWithSameId = nodesBuilder.get(joiningNode.getId());
+                if (nodeWithSameId != null && nodeWithSameId.equals(joiningNode) == false) {
+                    logger.debug("removing existing node [{}], which conflicts with incoming join from [{}]", nodeWithSameId, joiningNode);
+                    nodesBuilder.remove(nodeWithSameId.getId());
+                }
+                final DiscoveryNode nodeWithSameAddress = currentNodes.findByAddress(joiningNode.getAddress());
+                if (nodeWithSameAddress != null && nodeWithSameAddress.equals(joiningNode) == false) {
+                    logger.debug("removing existing node [{}], which conflicts with incoming join from [{}]", nodeWithSameAddress,
+                        joiningNode);
+                    nodesBuilder.remove(nodeWithSameAddress.getId());
+                }
             }
         }
 
@@ -155,26 +183,13 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<DiscoveryNode>
     /**
      * a task indicated that the current node should become master, if no current master is known
      */
-    public static final DiscoveryNode BECOME_MASTER_TASK = new DiscoveryNode("_BECOME_MASTER_TASK_",
-        new TransportAddress(TransportAddress.META_ADDRESS, 0),
-        Collections.emptyMap(), Collections.emptySet(), Version.CURRENT) {
-        @Override
-        public String toString() {
-            return ""; // this is not really task , so don't log anything about it...
-        }
-    };
+    public static final Task BECOME_MASTER_TASK = new Task(null, "_BECOME_MASTER_TASK_");
 
     /**
      * a task that is used to signal the election is stopped and we should process pending joins.
      * it may be use in combination with {@link JoinTaskExecutor#BECOME_MASTER_TASK}
      */
-    public static final DiscoveryNode FINISH_ELECTION_TASK = new DiscoveryNode("_FINISH_ELECTION_",
-        new TransportAddress(TransportAddress.META_ADDRESS, 0), Collections.emptyMap(), Collections.emptySet(), Version.CURRENT) {
-        @Override
-        public String toString() {
-            return ""; // this is not really task , so don't log anything about it...
-        }
-    };
+    public static final Task FINISH_ELECTION_TASK = new Task(null, "_FINISH_ELECTION_");
 
     /**
      * Ensures that all indices are compatible with the given node version. This will ensure that all indices in the given metadata

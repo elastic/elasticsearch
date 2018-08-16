@@ -174,7 +174,7 @@ public class NodeJoinController extends AbstractComponent {
             checkPendingJoinsAndElectIfNeeded();
         } else {
             masterService.submitStateUpdateTask("zen-disco-node-join",
-                node, ClusterStateTaskConfig.build(Priority.URGENT),
+                new JoinTaskExecutor.Task(node, "no election context"), ClusterStateTaskConfig.build(Priority.URGENT),
                 joinTaskExecutor, new JoinTaskListener(callback, logger));
         }
     }
@@ -248,9 +248,10 @@ public class NodeJoinController extends AbstractComponent {
             return hasEnough;
         }
 
-        private Map<DiscoveryNode, ClusterStateTaskListener> getPendingAsTasks() {
-            Map<DiscoveryNode, ClusterStateTaskListener> tasks = new HashMap<>();
-            joinRequestAccumulator.entrySet().stream().forEach(e -> tasks.put(e.getKey(), new JoinTaskListener(e.getValue(), logger)));
+        private Map<JoinTaskExecutor.Task, ClusterStateTaskListener> getPendingAsTasks(String reason) {
+            Map<JoinTaskExecutor.Task, ClusterStateTaskListener> tasks = new HashMap<>();
+            joinRequestAccumulator.entrySet().stream().forEach(e -> tasks.put(
+                new JoinTaskExecutor.Task(e.getKey(), reason), new JoinTaskListener(e.getValue(), logger)));
             return tasks;
         }
 
@@ -271,7 +272,7 @@ public class NodeJoinController extends AbstractComponent {
 
             innerClose();
 
-            Map<DiscoveryNode, ClusterStateTaskListener> tasks = getPendingAsTasks();
+            Map<JoinTaskExecutor.Task, ClusterStateTaskListener> tasks = getPendingAsTasks("become master");
             final String source = "zen-disco-elected-as-master ([" + tasks.size() + "] nodes joined)";
 
             tasks.put(JoinTaskExecutor.BECOME_MASTER_TASK, (source1, e) -> {}); // noop listener, the election finished listener determines result
@@ -281,7 +282,7 @@ public class NodeJoinController extends AbstractComponent {
 
         public synchronized void closeAndProcessPending(String reason) {
             innerClose();
-            Map<DiscoveryNode, ClusterStateTaskListener> tasks = getPendingAsTasks();
+            Map<JoinTaskExecutor.Task, ClusterStateTaskListener> tasks = getPendingAsTasks(reason);
             final String source = "zen-disco-election-stop [" + reason + "]";
             tasks.put(JoinTaskExecutor.FINISH_ELECTION_TASK, electionFinishedListener);
             masterService.submitStateUpdateTasks(source, tasks, ClusterStateTaskConfig.build(Priority.URGENT), joinTaskExecutor);

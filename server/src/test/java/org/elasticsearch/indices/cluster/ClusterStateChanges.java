@@ -229,14 +229,16 @@ public class ClusterStateChanges extends AbstractComponent {
     }
 
     public ClusterState addNodes(ClusterState clusterState, List<DiscoveryNode> nodes) {
-        return runTasks(joinTaskExecutor, clusterState, nodes);
+        return runTasks(joinTaskExecutor, clusterState, nodes.stream().map(node -> new JoinTaskExecutor.Task(node, "dummy reason"))
+            .collect(Collectors.toList()));
     }
 
     public ClusterState joinNodesAndBecomeMaster(ClusterState clusterState, List<DiscoveryNode> nodes) {
-        List<DiscoveryNode> joinNodes = new ArrayList<>();
+        List<JoinTaskExecutor.Task> joinNodes = new ArrayList<>();
         joinNodes.add(JoinTaskExecutor.BECOME_MASTER_TASK);
         joinNodes.add(JoinTaskExecutor.FINISH_ELECTION_TASK);
-        joinNodes.addAll(nodes);
+        joinNodes.addAll(nodes.stream().map(node -> new JoinTaskExecutor.Task(node, "dummy reason"))
+            .collect(Collectors.toList()));
 
         return runTasks(joinTaskExecutor, clusterState, joinNodes);
     }

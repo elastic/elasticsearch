@@ -32,7 +32,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 
-public class RolloverAction implements ToXContentObject {
+public class RolloverAction extends LifecycleAction implements ToXContentObject {
     public static final String NAME = "rollover";
     private static final ParseField MAX_SIZE_FIELD = new ParseField("max_size");
     private static final ParseField MAX_DOCS_FIELD = new ParseField("max_docs");

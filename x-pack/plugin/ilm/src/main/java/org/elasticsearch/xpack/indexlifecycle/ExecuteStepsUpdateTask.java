@@ -50,6 +50,16 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
     }
 
 
+    /**
+     * {@link Step}s for the current index and policy are executed in succession until the next step to be
+     * executed is not a {@link ClusterStateActionStep}, or not a {@link ClusterStateWaitStep}, or does not
+     * belong to the same phase as the executed step. All other types of steps are executed outside of this
+     * {@link ClusterStateUpdateTask}, so they are of no concern here.
+     *
+     * @param currentState The current state to execute the <code>startStep</code> with
+     * @return the new cluster state after cluster-state operations and step transitions are applied
+     * @throws IOException if any exceptions occur
+     */
     @Override
     public ClusterState execute(ClusterState currentState) throws IOException {
         Step currentStep = startStep;
@@ -93,6 +103,9 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
                             return IndexLifecycleRunner.addStepInfoToClusterState(index, currentState, stepInfo);
                         }
                     }
+                }
+                if (currentStep.getKey().getPhase().equals(currentStep.getNextStepKey().getPhase()) == false) {
+                    return currentState;
                 }
                 currentStep = policyStepsRegistry.getStep(policy, currentStep.getNextStepKey());
             }

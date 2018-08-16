@@ -16,10 +16,27 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.protocol.xpack.indexlifecycle;
+package org.elasticsearch.protocol.xpack.ml;
 
-/**
- * Marker interface for index lifecycle management actions
- */
-public class LifecycleAction {
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractXContentTestCase;
+
+import java.io.IOException;
+
+public class DeleteJobResponseTests extends AbstractXContentTestCase<DeleteJobResponse> {
+
+    @Override
+    protected DeleteJobResponse createTestInstance() {
+        return new DeleteJobResponse();
+    }
+
+    @Override
+    protected DeleteJobResponse doParseInstance(XContentParser parser) throws IOException {
+        return DeleteJobResponse.fromXContent(parser);
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return false;
+    }
 }

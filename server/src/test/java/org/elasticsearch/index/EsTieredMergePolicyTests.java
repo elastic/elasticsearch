@@ -69,4 +69,10 @@ public class EsTieredMergePolicyTests extends ESTestCase {
         policy.setSegmentsPerTier(42);
         assertEquals(42, policy.regularMergePolicy.getSegmentsPerTier(), 0);
     }
+
+    public void testSetDeletesPctAllowed() {
+        EsTieredMergePolicy policy = new EsTieredMergePolicy();
+        policy.setDeletesPctAllowed(42);
+        assertEquals(42, policy.regularMergePolicy.getDeletesPctAllowed(), 0);
+    }
 }

@@ -454,7 +454,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ShrinkAction.NAME), ShrinkAction::parse),
                 new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse),
                 // ILM - Client - Lifecycle Actions
-                new NamedXContentRegistry.Entry(org.elasticsearch.protocol.xpack.indexlifecycle.AllocateAction.class,
+                new NamedXContentRegistry.Entry(org.elasticsearch.protocol.xpack.indexlifecycle.LifecycleAction.class,
                     new ParseField(org.elasticsearch.protocol.xpack.indexlifecycle.AllocateAction.NAME),
                         org.elasticsearch.protocol.xpack.indexlifecycle.AllocateAction::parse)
         );

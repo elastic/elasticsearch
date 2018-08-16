@@ -29,7 +29,12 @@ public class SourceToParse {
 
     public static SourceToParse source(String index, String type, String id, BytesReference source,
                                        XContentType contentType) {
-        return new SourceToParse(index, type, id, source, contentType);
+        return new SourceToParse(index, type, id, source, contentType, true);
+    }
+
+    public static SourceToParse source(String index, String type, String id, BytesReference source,
+                                       XContentType contentType, boolean mustValidateSource) {
+        return new SourceToParse(index, type, id, source, contentType, mustValidateSource);
     }
 
     private final BytesReference source;
@@ -42,9 +47,12 @@ public class SourceToParse {
 
     private String routing;
 
+    private final boolean mustValidateSource;
+
     private XContentType xContentType;
 
-    private SourceToParse(String index, String type, String id, BytesReference source, XContentType xContentType) {
+    private SourceToParse(String index, String type, String id, BytesReference source, XContentType xContentType,
+                          boolean mustValidateSource) {
         this.index = Objects.requireNonNull(index);
         this.type = Objects.requireNonNull(type);
         this.id = Objects.requireNonNull(id);
@@ -52,6 +60,7 @@ public class SourceToParse {
         // so, we might as well do it here, and improve the performance of working with direct byte arrays
         this.source = new BytesArray(Objects.requireNonNull(source).toBytesRef());
         this.xContentType = Objects.requireNonNull(xContentType);
+        this.mustValidateSource = mustValidateSource;
     }
 
     public BytesReference source() {
@@ -60,6 +69,10 @@ public class SourceToParse {
 
     public String index() {
         return this.index;
+    }
+
+    public boolean mustValidateSource() {
+        return mustValidateSource;
     }
 
     public String type() {
@@ -81,10 +94,5 @@ public class SourceToParse {
     public SourceToParse routing(String routing) {
         this.routing = routing;
         return this;
-    }
-
-    public enum Origin {
-        PRIMARY,
-        REPLICA
     }
 }

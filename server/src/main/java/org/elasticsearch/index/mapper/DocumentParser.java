@@ -23,6 +23,8 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -55,19 +57,27 @@ final class DocumentParser {
         this.docMapper = docMapper;
     }
 
+    private static final BytesArray EMPTY_SOURCE = new BytesArray("{}");
     ParsedDocument parseDocument(SourceToParse source) throws MapperParsingException {
         validateType(source);
 
         final Mapping mapping = docMapper.mapping();
         final ParseContext.InternalParseContext context;
+        final boolean skipParserValidation = source.mustValidateSource() == false && mapping.root.isEnabled() == false;
         final XContentType xContentType = source.getXContentType();
-
+        final BytesReference sourceRef = source.source();
         try (XContentParser parser = XContentHelper.createParser(docMapperParser.getXContentRegistry(),
-            LoggingDeprecationHandler.INSTANCE, source.source(), xContentType)) {
+            LoggingDeprecationHandler.INSTANCE, sourceRef , xContentType)) {
             context = new ParseContext.InternalParseContext(indexSettings.getSettings(), docMapperParser, docMapper, source, parser);
-            validateStart(parser);
-            internalParseDocument(mapping, context, parser);
-            validateEnd(parser);
+            if (skipParserValidation) {
+                // no need to parse the source here root mapping is disabled and source has been validated before ie.
+                // comes from a translog or a local reindex. This prevent calling parser.skipChildren which essentially parses the source
+                internalParseDocument(mapping, context, parser, false);
+            } else {
+                validateStart(parser);
+                internalParseDocument(mapping, context, parser, true);
+                validateEnd(parser);
+            }
         } catch (Exception e) {
             throw wrapInMapperParsingException(source, e);
         }
@@ -81,7 +91,8 @@ final class DocumentParser {
         return parsedDocument(source, context, createDynamicUpdate(mapping, docMapper, context.getDynamicMappers()));
     }
 
-    private static void internalParseDocument(Mapping mapping, ParseContext.InternalParseContext context, XContentParser parser) throws IOException {
+    private static void internalParseDocument(Mapping mapping, ParseContext.InternalParseContext context, XContentParser parser,
+                                              boolean skipChildren) throws IOException {
         final boolean emptyDoc = isEmptyDoc(mapping, parser);
 
         for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {
@@ -90,7 +101,9 @@ final class DocumentParser {
 
         if (mapping.root.isEnabled() == false) {
             // entire type is disabled
-            parser.skipChildren();
+            if (skipChildren) {
+                parser.skipChildren();
+            }
         } else if (emptyDoc == false) {
             parseObjectOrNested(context, mapping.root);
         }

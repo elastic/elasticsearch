@@ -21,17 +21,20 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.env.ShardLock;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.FilterRepository;
 import org.elasticsearch.repositories.IndexId;
@@ -42,6 +45,8 @@ import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.function.Function;
+
+import static org.elasticsearch.index.mapper.SourceToParse.source;
 
 /**
  * <p>
@@ -177,7 +182,8 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
     }
 
     @Override
-    public void restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState) {
+    public void restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId,
+                             RecoveryState recoveryState) {
         super.restoreShard(shard, snapshotId, version, indexId, snapshotShardId, recoveryState);
         ShardPath shardPath = shard.shardPath();
         try {
@@ -204,7 +210,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
         RecoveryState.Translog state = shard.recoveryState().getTranslog();
         assert state.totalOperations() == 0 : "translog state should have 0 total ops but got: " + state.totalOperations();
         state.reset();
-        long sequenceNumber = 0;
+        String index = shard.shardId().getIndexName();
         try (FSDirectory dir = FSDirectory.open(restoreSourceCopy)) {
             try (IndexReader reader = DirectoryReader.open(dir)) {
                 state.totalOperationsOnStart(reader.numDocs());
@@ -224,14 +230,16 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                             Uid uid = rootFieldsVisitor.uid();
                             BytesReference source = rootFieldsVisitor.source();
                             if (source != null) { // nested fields don't have source. in this case we should be fine.
-                                // TODO we should have a dedicated origin for this LOCAL_TRANSLOG_RECOVERY is misleading.
-                                Engine.Result result = shard.applyTranslogOperation(new Translog.Index(uid.type(), uid.id(),
-                                    sequenceNumber++, primaryTerm, 1, source.toBytesRef().bytes,
-                                    rootFieldsVisitor.routing(), -1), Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY);
+                                // we can use append-only optimization here since we know there won't be any duplicates!
+                                Engine.Result result = shard.applyIndexOperation(SequenceNumbers.UNASSIGNED_SEQ_NO, primaryTerm,
+                                    Versions.MATCH_ANY, VersionType.INTERNAL, 1, false, Engine.Operation.Origin.LOCAL_REINDEX,
+                                    source(index, uid.type(), uid.id(), source,
+                                        XContentHelper.xContentType(source), false).routing(rootFieldsVisitor.routing()));
                                 if (result.getResultType() != Engine.Result.Type.SUCCESS) {
                                     throw new IllegalStateException("failed applying post restore operation result: " + result
                                         .getResultType(), result.getFailure());
                                 }
+
                                 state.incrementRecoveredOperations();
                             } else {
                                 assert restoreMinimal // in this case we don't have nested in the mapping.

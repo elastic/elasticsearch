@@ -37,9 +37,7 @@ public class UpdateParamsTests extends ESTestCase {
         assertEquals(params.getDetectorUpdates(), updateBuilder.build().getDetectorUpdates());
         assertEquals(params.getModelPlotConfig(), updateBuilder.build().getModelPlotConfig());
 
-        updateBuilder.setGroups(Arrays.asList("bar"));
-
-        params = UpdateParams.fromJobUpdate(updateBuilder.build());
+        params = UpdateParams.fromJobUpdate(updateBuilder.setGroups(Arrays.asList("bar")).build());
 
         assertTrue(params.isUpdateScheduledEvents());
     }

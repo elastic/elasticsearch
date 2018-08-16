@@ -55,7 +55,10 @@ public class CharArraysTests extends ESTestCase {
         assertTrue(CharArrays.charsBeginsWith(prefix, prefixedValue));
 
         final String modifiedPrefix = randomBoolean() ? prefix.substring(1) : prefix.substring(0, prefix.length() - 1);
-        final char[] nonMatchingValue = modifiedPrefix.concat(randomAlphaOfLengthBetween(0, 12)).toCharArray();
+        char[] nonMatchingValue;
+        do {
+            nonMatchingValue = modifiedPrefix.concat(randomAlphaOfLengthBetween(0, 12)).toCharArray();
+        } while (new String(nonMatchingValue).startsWith(prefix));
         assertFalse(CharArrays.charsBeginsWith(prefix, nonMatchingValue));
         assertTrue(CharArrays.charsBeginsWith(modifiedPrefix, nonMatchingValue));
     }

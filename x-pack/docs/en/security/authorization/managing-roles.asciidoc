@@ -133,7 +133,7 @@ The following describes the structure of an application privileges entry:
     have any special meaning to {security}.
 
 For details about the validation rules for these fields, see the
-{ref}/security-api-app-privileges.html#security-api-app-privileges-validation[Application Privileges API].
+{ref}/security-api-put-privileges.html[add application privileges API].
 
 ==== Example
 

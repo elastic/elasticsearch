@@ -18,26 +18,28 @@
  */
 package org.elasticsearch.protocol.xpack.ml;
 
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.protocol.xpack.ml.job.config.Job;
 import org.elasticsearch.protocol.xpack.ml.job.config.JobTests;
-import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.test.ESTestCase;
 
+public class DeleteJobRequestTests extends ESTestCase {
 
-public class PutJobRequestTests extends AbstractXContentTestCase<PutJobRequest> {
-
-    @Override
-    protected PutJobRequest createTestInstance() {
-        return new PutJobRequest(JobTests.createRandomizedJob());
+    private DeleteJobRequest createTestInstance() {
+        return new DeleteJobRequest(JobTests.randomValidJobId());
     }
 
-    @Override
-    protected PutJobRequest doParseInstance(XContentParser parser) {
-        return new PutJobRequest(Job.PARSER.apply(parser, null).build());
+    public void test_WithNullJobId() {
+        NullPointerException ex = expectThrows(NullPointerException.class, () -> new DeleteJobRequest(null));
+        assertEquals("[job_id] must not be null", ex.getMessage());
+
+        ex = expectThrows(NullPointerException.class, () -> createTestInstance().setJobId(null));
+        assertEquals("[job_id] must not be null", ex.getMessage());
     }
 
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
+    public void test_WithForce() {
+        DeleteJobRequest deleteJobRequest = createTestInstance();
+        assertFalse(deleteJobRequest.isForce());
+
+        deleteJobRequest.setForce(true);
+        assertTrue(deleteJobRequest.isForce());
     }
 }

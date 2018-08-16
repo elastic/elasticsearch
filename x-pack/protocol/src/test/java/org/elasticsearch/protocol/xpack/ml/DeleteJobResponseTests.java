@@ -19,21 +19,20 @@
 package org.elasticsearch.protocol.xpack.ml;
 
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.protocol.xpack.ml.job.config.Job;
-import org.elasticsearch.protocol.xpack.ml.job.config.JobTests;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
+import java.io.IOException;
 
-public class PutJobRequestTests extends AbstractXContentTestCase<PutJobRequest> {
+public class DeleteJobResponseTests extends AbstractXContentTestCase<DeleteJobResponse> {
 
     @Override
-    protected PutJobRequest createTestInstance() {
-        return new PutJobRequest(JobTests.createRandomizedJob());
+    protected DeleteJobResponse createTestInstance() {
+        return new DeleteJobResponse();
     }
 
     @Override
-    protected PutJobRequest doParseInstance(XContentParser parser) {
-        return new PutJobRequest(Job.PARSER.apply(parser, null).build());
+    protected DeleteJobResponse doParseInstance(XContentParser parser) throws IOException {
+        return DeleteJobResponse.fromXContent(parser);
     }
 
     @Override

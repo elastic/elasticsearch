@@ -26,6 +26,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -61,12 +62,33 @@ public final class ConnectionProfile {
     private final TimeValue connectTimeout;
     private final TimeValue handshakeTimeout;
 
-    private ConnectionProfile(List<ConnectionTypeHandle> handles, int numConnections, TimeValue connectTimeout, TimeValue handshakeTimeout)
-    {
+    private ConnectionProfile(List<ConnectionTypeHandle> handles, int numConnections, TimeValue connectTimeout,
+                              TimeValue handshakeTimeout) {
         this.handles = handles;
         this.numConnections = numConnections;
         this.connectTimeout = connectTimeout;
         this.handshakeTimeout = handshakeTimeout;
+    }
+
+    /**
+     * takes a {@link ConnectionProfile} resolves it to a fully specified (i.e., no nulls) profile
+     */
+    public static ConnectionProfile resolveConnectionProfile(@Nullable ConnectionProfile profile, ConnectionProfile fallbackProfile) {
+        Objects.requireNonNull(fallbackProfile);
+        if (profile == null) {
+            return fallbackProfile;
+        } else if (profile.getConnectTimeout() != null && profile.getHandshakeTimeout() != null) {
+            return profile;
+        } else {
+            ConnectionProfile.Builder builder = new ConnectionProfile.Builder(profile);
+            if (profile.getConnectTimeout() == null) {
+                builder.setConnectTimeout(fallbackProfile.getConnectTimeout());
+            }
+            if (profile.getHandshakeTimeout() == null) {
+                builder.setHandshakeTimeout(fallbackProfile.getHandshakeTimeout());
+            }
+            return builder.build();
+        }
     }
 
     /**

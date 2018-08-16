@@ -9,7 +9,7 @@
 password-protect your data as well as implement more advanced security measures
 such as encrypting communications, role-based access control, IP filtering, and
 auditing. For more information, see
-{xpack-ref}/xpack-security.html[Securing the Elastic Stack].
+{xpack-ref}/elasticsearch-security.html[Securing the Elastic Stack].
 
 To use {security} in {es}:
 

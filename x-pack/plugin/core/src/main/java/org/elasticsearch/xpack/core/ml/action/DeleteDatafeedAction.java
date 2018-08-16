@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class DeleteDatafeedAction extends Action<DeleteDatafeedAction.Response> {
+public class DeleteDatafeedAction extends Action<AcknowledgedResponse> {
 
     public static final DeleteDatafeedAction INSTANCE = new DeleteDatafeedAction();
     public static final String NAME = "cluster:admin/xpack/ml/datafeeds/delete";
@@ -33,8 +33,8 @@ public class DeleteDatafeedAction extends Action<DeleteDatafeedAction.Response> 
     }
 
     @Override
-    public Response newResponse() {
-        return new Response();
+    public AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentFragment {
@@ -106,21 +106,10 @@ public class DeleteDatafeedAction extends Action<DeleteDatafeedAction.Response> 
         }
     }
 
-    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
+    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, AcknowledgedResponse, RequestBuilder> {
 
         public RequestBuilder(ElasticsearchClient client, DeleteDatafeedAction action) {
             super(client, action, new Request());
         }
     }
-
-    public static class Response extends AcknowledgedResponse {
-
-        public Response() {
-        }
-
-        public Response(boolean acknowledged) {
-            super(acknowledged);
-        }
-    }
-
 }

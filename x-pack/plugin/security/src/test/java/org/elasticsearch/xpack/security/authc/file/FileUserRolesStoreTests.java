@@ -178,7 +178,7 @@ public class FileUserRolesStoreTests extends ESTestCase {
         Logger log = CapturingLogger.newCapturingLogger(Level.DEBUG);
         FileUserRolesStore.parseFile(empty, log);
         List<String> events = CapturingLogger.output(log.getName(), Level.DEBUG);
-        assertThat(events.size(), is(1));
+        assertThat(events.toString(), events.size(), is(1));
         assertThat(events.get(0), containsString("parsed [0] user to role mappings"));
     }
 

@@ -234,7 +234,7 @@ public class DnRoleMapperTests extends ESTestCase {
         assertThat(mappings, notNullValue());
         assertThat(mappings.isEmpty(), is(true));
         List<String> events = CapturingLogger.output(logger.getName(), Level.DEBUG);
-        assertThat(events.size(), is(1));
+        assertThat(events.toString(), events.size(), is(1));
         assertThat(events.get(0), containsString("[0] role mappings found"));
     }
 
@@ -275,7 +275,7 @@ public class DnRoleMapperTests extends ESTestCase {
         assertThat(mappings, notNullValue());
         assertThat(mappings.isEmpty(), is(true));
         List<String> events = CapturingLogger.output(logger.getName(), Level.ERROR);
-        assertThat(events.size(), is(1));
+        assertThat(events.toString(), events.size(), is(1));
         assertThat(events.get(0), containsString("failed to parse role mappings file"));
     }
 

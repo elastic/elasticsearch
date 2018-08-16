@@ -61,6 +61,12 @@ ifeval::["{release-state}"!="unreleased"]
 docker run -p 9200:9200 -p 9300:9300 -e "discovery.type=single-node" {docker-image}
 --------------------------------------------
 
+If you want to use the java client to access your node, add the cluster name in the settings: 
+
+--------------------------------------------
+Settings.builder().put("cluster.name", "docker-cluster")
+--------------------------------------------
+
 endif::[]
 
 [[docker-cli-run-prod-mode]]

@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
@@ -32,9 +31,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -313,34 +310,6 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
             builder.setGroups(groups);
         }
         return builder;
-    }
-
-    private <T> void blockingCall(Consumer<ActionListener<T>> function, AtomicReference<T> response,
-                                  AtomicReference<Exception> error) throws InterruptedException {
-        CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<T> listener = ActionListener.wrap(
-                r -> {
-                    response.set(r);
-                    latch.countDown();
-                },
-                e -> {
-                    error.set(e);
-                    latch.countDown();
-                }
-        );
-
-        function.accept(listener);
-        latch.await();
-    }
-
-    private <T> T blockingCall(Consumer<ActionListener<T>> function) throws Exception {
-        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
-        AtomicReference<T> responseHolder = new AtomicReference<>();
-        blockingCall(function, responseHolder, exceptionHolder);
-        if (exceptionHolder.get() != null) {
-            assertNotNull(exceptionHolder.get().getMessage(), exceptionHolder.get());
-        }
-        return responseHolder.get();
     }
 
     private Job putJob(Job.Builder job) throws Exception {

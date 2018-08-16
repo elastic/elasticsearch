@@ -341,7 +341,7 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
             globalCheckpointListeners.add(NO_OPS_PERFORMED, (g, e) -> {});
         }
         globalCheckpointListeners.globalCheckpointUpdated(randomLongBetween(NO_OPS_PERFORMED, Long.MAX_VALUE));
-        assertThat(count.get(), equalTo(1));
+        assertThat(count.get(), equalTo(numberOfListeners == 0 ? 0 : 1));
     }
 
     public void testConcurrency() throws BrokenBarrierException, InterruptedException {

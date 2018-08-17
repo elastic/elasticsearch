@@ -249,6 +249,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
     @Override
     protected void doStart() {
         transport.addMessageListener(this);
+        connectionManager.addListener(this);
         transport.start();
         if (transport.boundAddress() != null && logger.isInfoEnabled()) {
             logger.info("{}", transport.boundAddress());

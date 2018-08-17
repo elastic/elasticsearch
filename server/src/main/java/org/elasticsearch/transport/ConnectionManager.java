@@ -235,6 +235,9 @@ public class ConnectionManager implements Closeable {
         } finally {
             connection.addCloseListener(ActionListener.wrap(() -> connectionListener.onConnectionClosed(connection)));
         }
+        if (connection.isClosed()) {
+            throw new ConnectTransportException(node, "a channel closed while connecting");
+        }
         return connection;
     }
 

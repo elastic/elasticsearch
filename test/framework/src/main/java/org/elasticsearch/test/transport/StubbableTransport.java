@@ -179,7 +179,7 @@ public class StubbableTransport implements Transport {
         return delegate.profileBoundAddresses();
     }
 
-    private class WrappedConnection implements Transport.Connection {
+    public class WrappedConnection implements Transport.Connection {
 
         private final Transport.Connection connection;
 
@@ -233,6 +233,10 @@ public class StubbableTransport implements Transport {
         @Override
         public void close() {
             connection.close();
+        }
+
+        public Transport.Connection getConnection() {
+            return connection;
         }
     }
 

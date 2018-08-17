@@ -342,10 +342,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             return connectionTypeHandle.getChannel(channels);
         }
 
-        boolean allChannelsOpen() {
-            return channels.stream().allMatch(TcpChannel::isOpen);
-        }
-
         @Override
         public boolean sendPing() {
             for (TcpChannel channel : channels) {
@@ -486,10 +482,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 };
 
                 nodeChannels.channels.forEach(ch -> ch.addCloseListener(ActionListener.wrap(() -> onClose.accept(ch))));
-
-                if (nodeChannels.allChannelsOpen() == false) {
-                    throw new ConnectTransportException(node, "a channel closed while connecting");
-                }
                 success = true;
                 return nodeChannels;
             } catch (ConnectTransportException e) {

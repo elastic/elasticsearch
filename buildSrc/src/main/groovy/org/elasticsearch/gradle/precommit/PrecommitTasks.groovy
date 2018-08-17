@@ -103,12 +103,10 @@ class PrecommitTasks {
                     [ getClass().getResource('/forbidden/es-server-signatures.txt') ]
             }
             // forbidden apis doesn't support Java 11, so stop at 10
-            JavaVersion javaVersion = project.runtimeJavaVersion.compareTo(JavaVersion.VERSION_1_10) > 0 ?
+            String targetMajorVersion = (project.compilerJavaVersion.compareTo(JavaVersion.VERSION_1_10) > 0 ?
                     JavaVersion.VERSION_1_10 :
-                    project.runtimeJavaVersion
-            targetCompatibility = project.runtimeJavaVersion.compareTo(JavaVersion.VERSION_1_9) >= 0 ?
-                    project.runtimeJavaVersion.getMajorVersion() :
-                    "1.${project.runtimeJavaVersion.getMajorVersion()}"
+                    project.compilerJavaVersion).getMajorVersion()
+            targetCompatibility = Integer.parseInt(targetMajorVersion) >= 9 ?targetMajorVersion : "1.${targetMajorVersion}"
         }
         Task forbiddenApis = project.tasks.findByName('forbiddenApis')
         forbiddenApis.group = "" // clear group, so this does not show up under verification tasks

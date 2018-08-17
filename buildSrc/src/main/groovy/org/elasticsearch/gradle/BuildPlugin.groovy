@@ -554,7 +554,7 @@ class BuildPlugin implements Plugin<Project> {
                 project.publishing {
                     publications {
                         nebula(MavenPublication) {
-                            artifact project.tasks.shadowJar
+                            artifacts = [ project.tasks.shadowJar ]
                             artifactId = project.archivesBaseName
                             /*
                             * Configure the pom to include the "shadow" as compile dependencies
@@ -584,7 +584,6 @@ class BuildPlugin implements Plugin<Project> {
                 }
             }
         }
-
     }
 
     /** Adds compiler settings to the project */

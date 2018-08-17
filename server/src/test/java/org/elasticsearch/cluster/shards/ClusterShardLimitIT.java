@@ -25,8 +25,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
-import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -37,7 +36,6 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
-
 import java.util.List;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -116,7 +114,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
             .put(SETTING_NUMBER_OF_REPLICAS, 0)).get();
 
         try {
-            UpdateSettingsResponse response = client().admin().indices().prepareUpdateSettings("growing-should-fail")
+            client().admin().indices().prepareUpdateSettings("growing-should-fail")
                 .setSettings(Settings.builder().put("number_of_replicas", dataNodes)).get();
             fail("shouldn't be able to increase the number of replicas");
         } catch (IllegalArgumentException e) {
@@ -272,7 +270,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
         ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
         assertFalse(healthResponse.isTimedOut());
 
-        CloseIndexResponse closeIndexResponse = client.admin().indices().prepareClose("test-index-1").execute().actionGet();
+        AcknowledgedResponse closeIndexResponse = client.admin().indices().prepareClose("test-index-1").execute().actionGet();
         assertTrue(closeIndexResponse.isAcknowledged());
 
         // Fill up the cluster

@@ -19,6 +19,10 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.protocol.xpack.ml.DeleteJobRequest;
+import org.elasticsearch.protocol.xpack.ml.DeleteJobResponse;
+import org.elasticsearch.protocol.xpack.ml.OpenJobRequest;
+import org.elasticsearch.protocol.xpack.ml.OpenJobResponse;
 import org.elasticsearch.protocol.xpack.ml.PutJobRequest;
 import org.elasticsearch.protocol.xpack.ml.PutJobResponse;
 
@@ -53,7 +57,7 @@ public final class MachineLearningClient {
      */
     public PutJobResponse putJob(PutJobRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(request,
-            RequestConverters::putMachineLearningJob,
+            MLRequestConverters::putJob,
             options,
             PutJobResponse::fromXContent,
             Collections.emptySet());
@@ -71,9 +75,94 @@ public final class MachineLearningClient {
      */
     public void putJobAsync(PutJobRequest request, RequestOptions options, ActionListener<PutJobResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request,
-            RequestConverters::putMachineLearningJob,
+            MLRequestConverters::putJob,
             options,
             PutJobResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Deletes the given Machine Learning Job
+     * <p>
+     *     For additional info
+     *     see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-job.html">ML Delete Job documentation</a>
+     * </p>
+     * @param request the request to delete the job
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return action acknowledgement
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public DeleteJobResponse deleteJob(DeleteJobRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::deleteJob,
+            options,
+            DeleteJobResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Deletes the given Machine Learning Job asynchronously and notifies the listener on completion
+     * <p>
+     *     For additional info
+     *     see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-job.html">ML Delete Job documentation</a>
+     * </p>
+     * @param request the request to delete the job
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void deleteJobAsync(DeleteJobRequest request, RequestOptions options, ActionListener<DeleteJobResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::deleteJob,
+            options,
+            DeleteJobResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Opens a Machine Learning Job.
+     * When you open a new job, it starts with an empty model.
+     *
+     * When you open an existing job, the most recent model state is automatically loaded.
+     * The job is ready to resume its analysis from where it left off, once new data is received.
+     *
+     * <p>
+     *     For additional info
+     *     see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-open-job.html"></a>
+     * </p>
+     * @param request request containing job_id and additional optional options
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return response containing if the job was successfully opened or not.
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public OpenJobResponse openJob(OpenJobRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::openJob,
+            options,
+            OpenJobResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Opens a Machine Learning Job asynchronously, notifies listener on completion.
+     * When you open a new job, it starts with an empty model.
+     *
+     * When you open an existing job, the most recent model state is automatically loaded.
+     * The job is ready to resume its analysis from where it left off, once new data is received.
+     * <p>
+     *     For additional info
+     *     see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-open-job.html"></a>
+     * </p>
+     * @param request request containing job_id and additional optional options
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void openJobAsync(OpenJobRequest request, RequestOptions options, ActionListener<OpenJobResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::openJob,
+            options,
+            OpenJobResponse::fromXContent,
             listener,
             Collections.emptySet());
     }

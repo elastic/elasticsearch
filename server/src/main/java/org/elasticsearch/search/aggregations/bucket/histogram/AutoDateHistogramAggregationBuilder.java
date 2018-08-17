@@ -156,7 +156,7 @@ public class AutoDateHistogramAggregationBuilder
         return new AutoDateHistogramAggregatorFactory(name, config, numBuckets, roundings, context, parent, subFactoriesBuilder, metaData);
     }
 
-    private static Rounding createRounding(DateTimeUnit interval, DateTimeZone timeZone) {
+    static Rounding createRounding(DateTimeUnit interval, DateTimeZone timeZone) {
         Rounding.Builder tzRoundingBuilder = Rounding.builder(interval);
         if (timeZone != null) {
             tzRoundingBuilder.timeZone(timeZone);

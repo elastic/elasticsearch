@@ -92,6 +92,9 @@ deprecated in 6.x, has been removed. Context enabled suggestion queries
 without contexts have to visit every suggestion, which degrades the search performance
 considerably.
 
+For geo context the value of the `path` parameter is now validated against the mapping,
+and the context is only accepted if `path` points to a field with `geo_point` type.
+
 ==== Semantics changed for `max_concurrent_shard_requests`
 
 `max_concurrent_shard_requests` used to limit the total number of concurrent shard

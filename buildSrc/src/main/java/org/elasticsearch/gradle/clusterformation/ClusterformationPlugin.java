@@ -77,7 +77,7 @@ public class ClusterformationPlugin implements Plugin<Project> {
         project.getGradle().getTaskGraph().whenReady(taskExecutionGraph ->
             taskExecutionGraph.getAllTasks()
                 .forEach(task ->
-                    taskToCluster.getOrDefault(task, new ArrayList<>()).forEach(ElasticsearchConfiguration::claim)
+                    taskToCluster.getOrDefault(task, Collections.emptyList()).forEach(ElasticsearchConfiguration::claim)
                 )
         );
 

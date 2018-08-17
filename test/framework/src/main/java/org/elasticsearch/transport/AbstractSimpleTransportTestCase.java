@@ -1997,11 +1997,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertEquals("handshake failed", exception.getCause().getMessage());
         }
 
+        ConnectionProfile connectionProfile = ConnectionManager.buildDefaultConnectionProfile(Settings.EMPTY);
         try (TransportService service = buildService("TS_TPC", Version.CURRENT, null);
              TcpTransport.NodeChannels connection = originalTransport.openConnection(
                  new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0),
-                 null
-             )) {
+                 connectionProfile)) {
             Version version = originalTransport.executeHandshake(connection.getNode(),
                 connection.channel(TransportRequestOptions.Type.PING), TimeValue.timeValueSeconds(10));
             assertEquals(version, Version.CURRENT);

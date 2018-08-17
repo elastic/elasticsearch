@@ -23,9 +23,7 @@ import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStats;
@@ -33,6 +31,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
@@ -180,7 +179,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
                 .getMetaData().persistentSettings().getAsInt(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), -1), equalTo(2));
 
         logger.info("--> create repository");
-        PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
+        AcknowledgedResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(Settings.builder().put("location", randomRepoPath())).execute().actionGet();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
@@ -235,7 +234,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         });
 
         logger.info("--> create repository");
-        PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
+        AcknowledgedResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(Settings.builder().put("location", tempDir)).execute().actionGet();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
@@ -351,7 +350,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         logger.info("--> create repository");
         logger.info("--> creating repository");
-        PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
+        AcknowledgedResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType("mock").setSettings(
                         Settings.builder()
                                 .put("location", randomRepoPath())
@@ -399,7 +398,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         logger.info("--> creating repository");
         Path repo = randomRepoPath();
-        PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
+        AcknowledgedResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType("mock").setSettings(
                         Settings.builder()
                                 .put("location", repo)
@@ -422,14 +421,14 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         logger.info("--> execution was blocked on node [{}], aborting snapshot", blockedNode);
 
-        ActionFuture<DeleteSnapshotResponse> deleteSnapshotResponseFuture = internalCluster().client(nodes.get(0)).admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap").execute();
+        ActionFuture<AcknowledgedResponse> deleteSnapshotResponseFuture = internalCluster().client(nodes.get(0)).admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap").execute();
         // Make sure that abort makes some progress
         Thread.sleep(100);
         unblockNode("test-repo", blockedNode);
         logger.info("--> stopping node [{}]", blockedNode);
         stopNode(blockedNode);
         try {
-            DeleteSnapshotResponse deleteSnapshotResponse = deleteSnapshotResponseFuture.actionGet();
+            AcknowledgedResponse deleteSnapshotResponse = deleteSnapshotResponseFuture.actionGet();
             assertThat(deleteSnapshotResponse.isAcknowledged(), equalTo(true));
         } catch (SnapshotMissingException ex) {
             // When master node is closed during this test, it sometime manages to delete the snapshot files before
@@ -496,7 +495,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertTrue(client().admin().indices().prepareExists("test-idx-none").get().isExists());
 
         logger.info("--> creating repository");
-        PutRepositoryResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo")
+        AcknowledgedResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(Settings.builder().put("location", randomRepoPath())).execute().actionGet();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
@@ -603,7 +602,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         cluster().wipeIndices("_all");
 
         logger.info("--> create repository");
-        PutRepositoryResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo")
+        AcknowledgedResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(Settings.builder().put("location", randomRepoPath())).execute().actionGet();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
         int numberOfShards = 6;

@@ -79,6 +79,11 @@ public class StubbableConnectionManager extends ConnectionManager {
     }
 
     @Override
+    public Transport.Connection openConnection(DiscoveryNode node, ConnectionProfile connectionProfile) {
+        return delegate.openConnection(node, connectionProfile);
+    }
+
+    @Override
     public Transport.Connection getConnection(DiscoveryNode node) {
         TransportAddress address = node.getAddress();
         GetConnectionBehavior behavior = getConnectionBehaviors.getOrDefault(address, defaultGetConnectionBehavior);

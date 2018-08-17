@@ -67,11 +67,11 @@ public class Loggers {
     }
 
     public static Logger getLogger(Class<?> clazz, Settings settings, String... prefixes) {
-        return Loggers.getLogger(clazz, prefixes);
+        return ESLoggerFactory.getLogger(formatPrefix(prefixes), clazz);
     }
 
     public static Logger getLogger(String loggerName, Settings settings, String... prefixes) {
-        return Loggers.getLogger(loggerName, prefixes);
+        return ESLoggerFactory.getLogger(formatPrefix(prefixes), loggerName);
     }
 
     public static Logger getLogger(Logger parentLogger, String s) {
@@ -82,20 +82,22 @@ public class Loggers {
         return ESLoggerFactory.getLogger(prefix, parentLogger.getName() + s);
     }
 
+    /**
+     * Get or build a logger.
+     * @deprecated Prefer {@link LogManager#getLogger}
+     */
+    @Deprecated
     public static Logger getLogger(String s) {
         return ESLoggerFactory.getLogger(s);
     }
 
+    /**
+     * Get or build a logger.
+     * @deprecated Prefer {@link LogManager#getLogger}
+     */
+    @Deprecated
     public static Logger getLogger(Class<?> clazz) {
         return ESLoggerFactory.getLogger(clazz);
-    }
-
-    public static Logger getLogger(Class<?> clazz, String... prefixes) {
-        return ESLoggerFactory.getLogger(formatPrefix(prefixes), clazz);
-    }
-
-    public static Logger getLogger(String name, String... prefixes) {
-        return ESLoggerFactory.getLogger(formatPrefix(prefixes), name);
     }
 
     private static String formatPrefix(String... prefixes) {

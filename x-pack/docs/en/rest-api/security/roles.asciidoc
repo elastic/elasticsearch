@@ -1,6 +1,6 @@
-[float]
+[role="xpack"]
 [[security-api-roles]]
-=== Roles
+=== Role management APIs
 
 You can use the following APIs to add, remove, and retrieve roles in the native realm:
 

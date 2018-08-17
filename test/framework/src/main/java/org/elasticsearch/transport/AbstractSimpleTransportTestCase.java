@@ -2648,11 +2648,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             service.addConnectionListener(new TransportConnectionListener() {
                 @Override
                 public void onConnectionOpened(final Transport.Connection connection) {
-                    try {
-                        closeConnectionChannel(service.getOriginalTransport(), connection);
-                    } catch (final IOException e) {
-                        throw new AssertionError(e);
-                    }
+                    closeConnectionChannel(service.getOriginalTransport(), connection);
                 }
 
                 @Override

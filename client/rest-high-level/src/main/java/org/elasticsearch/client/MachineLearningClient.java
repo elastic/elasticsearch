@@ -59,7 +59,7 @@ public final class MachineLearningClient {
      */
     public PutJobResponse putJob(PutJobRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(request,
-            RequestConverters::putMachineLearningJob,
+            MLRequestConverters::putJob,
             options,
             PutJobResponse::fromXContent,
             Collections.emptySet());
@@ -77,7 +77,7 @@ public final class MachineLearningClient {
      */
     public void putJobAsync(PutJobRequest request, RequestOptions options, ActionListener<PutJobResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request,
-            RequestConverters::putMachineLearningJob,
+            MLRequestConverters::putJob,
             options,
             PutJobResponse::fromXContent,
             listener,
@@ -97,7 +97,7 @@ public final class MachineLearningClient {
      */
     public DeleteJobResponse deleteJob(DeleteJobRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(request,
-            RequestConverters::deleteMachineLearningJob,
+            MLRequestConverters::deleteJob,
             options,
             DeleteJobResponse::fromXContent,
             Collections.emptySet());
@@ -115,7 +115,7 @@ public final class MachineLearningClient {
      */
     public void deleteJobAsync(DeleteJobRequest request, RequestOptions options, ActionListener<DeleteJobResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request,
-            RequestConverters::deleteMachineLearningJob,
+            MLRequestConverters::deleteJob,
             options,
             DeleteJobResponse::fromXContent,
             listener,
@@ -140,7 +140,7 @@ public final class MachineLearningClient {
      */
     public OpenJobResponse openJob(OpenJobRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(request,
-            RequestConverters::machineLearningOpenJob,
+            MLRequestConverters::openJob,
             options,
             OpenJobResponse::fromXContent,
             Collections.emptySet());
@@ -162,7 +162,7 @@ public final class MachineLearningClient {
      */
     public void openJobAsync(OpenJobRequest request, RequestOptions options, ActionListener<OpenJobResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request,
-            RequestConverters::machineLearningOpenJob,
+            MLRequestConverters::openJob,
             options,
             OpenJobResponse::fromXContent,
             listener,

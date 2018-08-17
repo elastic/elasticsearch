@@ -540,6 +540,15 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         doSection.execute(context);
         verify(context).callApi("indices.get_field_mapping", singletonMap("index", "test_index"),
                 emptyList(), emptyMap(), doSection.getApiCallSection().getNodeSelector());
+
+        {
+            List<Node> badNodes = new ArrayList<>();
+            badNodes.add(new Node(new HttpHost("dummy")));
+            Exception e = expectThrows(IllegalStateException.class, () ->
+                    doSection.getApiCallSection().getNodeSelector().select(badNodes));
+            assertEquals("expected [version] metadata to be set but got [host=http://dummy]",
+                    e.getMessage());
+        }
     }
 
     private static Node nodeWithVersion(String version) {
@@ -567,6 +576,14 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
             nodes.add(notHasAttr);
             doSection.getApiCallSection().getNodeSelector().select(nodes);
             assertEquals(Arrays.asList(hasAttr), nodes);
+        }
+        {
+            List<Node> badNodes = new ArrayList<>();
+            badNodes.add(new Node(new HttpHost("dummy")));
+            Exception e = expectThrows(IllegalStateException.class, () ->
+                    doSection.getApiCallSection().getNodeSelector().select(badNodes));
+            assertEquals("expected [attributes] metadata to be set but got [host=http://dummy]",
+                    e.getMessage());
         }
 
         parser = createParser(YamlXContent.yamlXContent,

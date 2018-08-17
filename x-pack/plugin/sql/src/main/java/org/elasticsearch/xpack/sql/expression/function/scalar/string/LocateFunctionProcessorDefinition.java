@@ -21,18 +21,10 @@ public class LocateFunctionProcessorDefinition extends ProcessorDefinition {
 
     public LocateFunctionProcessorDefinition(Location location, Expression expression, ProcessorDefinition pattern,
             ProcessorDefinition source, ProcessorDefinition start) {
-        super(location, expression, Arrays.asList(pattern, source, start));
+        super(location, expression, start == null ? Arrays.asList(pattern, source) : Arrays.asList(pattern, source, start));
         this.pattern = pattern;
         this.source = source;
         this.start = start;
-    }
-
-    public LocateFunctionProcessorDefinition(Location location, Expression expression, ProcessorDefinition pattern,
-            ProcessorDefinition source) {
-        super(location, expression, Arrays.asList(pattern, source));
-        this.pattern = pattern;
-        this.source = source;
-        this.start = null;
     }
 
     @Override
@@ -68,9 +60,6 @@ public class LocateFunctionProcessorDefinition extends ProcessorDefinition {
 
     protected ProcessorDefinition replaceChildren(ProcessorDefinition newPattern, ProcessorDefinition newSource,
             ProcessorDefinition newStart) {
-        if (newStart == null) {
-            return new LocateFunctionProcessorDefinition(location(), expression(), newPattern, newSource);
-        }
         return new LocateFunctionProcessorDefinition(location(), expression(), newPattern, newSource, newStart);
     }
 

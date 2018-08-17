@@ -12,10 +12,9 @@ Disables users in the native realm.
 
 ==== Description
 
-By default, when you create users, they are enabled. 
-//TBD: What is disallowed when a user is disabled? Is it just intended for 
-// temporarily revoking access?
-You can use this disable users API and the <<security-api-enable-user,enable users API>> to change that attribute. 
+By default, when you create users, they are enabled. You can use this API to 
+revoke a user's access to {es}. To re-enable a user, there is an 
+<<security-api-enable-user,enable users API>>. 
 
 For more information about the native realm, see 
 {stack-ov}/realms.html[Realms] and <<configuring-native-realm>>. 

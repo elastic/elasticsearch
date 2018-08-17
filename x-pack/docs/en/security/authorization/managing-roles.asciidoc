@@ -130,7 +130,7 @@ manage roles, log in to {kib} and go to *Management / Elasticsearch / Roles*.
 The _Role Management APIs_ enable you to add, update, remove and retrieve roles
 dynamically. When you use the APIs to manage roles in the `native` realm, the
 roles are stored in an internal {es} index. For more information and examples, 
-see {ref}/security-api-roles.html[Role Management APIs]. 
+see {ref}/security-api.html#security-api-roles[role management APIs]. 
 
 [float]
 [[roles-management-file]]

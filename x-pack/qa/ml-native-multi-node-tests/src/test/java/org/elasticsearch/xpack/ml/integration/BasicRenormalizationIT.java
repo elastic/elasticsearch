@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
@@ -36,7 +37,11 @@ public class BasicRenormalizationIT extends MlNativeAutodetectIntegTestCase {
         String jobId = "basic-renormalization-it-test-default-renormalization-job";
         createAndRunJob(jobId, null);
 
-        List<AnomalyRecord> records = getRecords(jobId);
+        GetRecordsAction.Request getRecordsRequest = new GetRecordsAction.Request(jobId);
+        // Setting the record score to 10.0, to avoid the low score records due to multibucket trailing effect
+        getRecordsRequest.setRecordScore(10.0);
+
+        List<AnomalyRecord> records = getRecords(getRecordsRequest);
         assertThat(records.size(), equalTo(2));
         AnomalyRecord laterRecord = records.get(0);
         assertThat(laterRecord.getActual().get(0), equalTo(100.0));

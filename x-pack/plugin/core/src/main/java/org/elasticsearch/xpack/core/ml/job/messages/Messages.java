@@ -130,10 +130,6 @@ public final class Messages {
             "over_field_name cannot be used with function ''{0}''";
     public static final String JOB_CONFIG_OVERLAPPING_BUCKETS_INCOMPATIBLE_FUNCTION =
             "Overlapping buckets cannot be used with function ''{0}''";
-    public static final String JOB_CONFIG_PER_PARTITION_NORMALIZATION_CANNOT_USE_INFLUENCERS =
-            "A job configured with Per-Partition Normalization cannot use influencers";
-    public static final String JOB_CONFIG_PER_PARTITION_NORMALIZATION_REQUIRES_PARTITION_FIELD =
-            "If the job is configured with Per-Partition Normalization enabled a detector must have a partition field";
     public static final String JOB_CONFIG_UNKNOWN_FUNCTION = "Unknown function ''{0}''";
     public static final String JOB_CONFIG_UPDATE_ANALYSIS_LIMITS_MODEL_MEMORY_LIMIT_CANNOT_BE_DECREASED =
             "Invalid update value for analysis_limits: model_memory_limit cannot be decreased below current usage; " +

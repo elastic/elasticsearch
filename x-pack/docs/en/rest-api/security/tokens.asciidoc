@@ -1,9 +1,0 @@
-[float]
-[[security-api-tokens]]
-=== Tokens
-
-You can use the following APIs to create and invalidate bearer tokens for access
-without requiring basic authentication:
-
-* <<security-api-get-token,Get token>>, <<security-api-invalidate-token,Invalidate token>>
-

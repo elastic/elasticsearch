@@ -21,7 +21,14 @@ You can use the following APIs to add, remove, and retrieve roles in the native 
 * <<security-api-clear-role-cache,Clear roles cache>>
 * <<security-api-get-role,Get roles>>
 
-include::security/tokens.asciidoc[]
+[float]
+[[security-token-apis]]
+=== Tokens
+
+You can use the following APIs to create and invalidate bearer tokens for access
+without requiring basic authentication:
+
+* <<security-api-get-token,Get token>>, <<security-api-invalidate-token,Invalidate token>>
 
 include::security/authenticate.asciidoc[]
 include::security/change-password.asciidoc[]

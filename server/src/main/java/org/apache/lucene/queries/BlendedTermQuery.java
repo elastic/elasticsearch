@@ -22,7 +22,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.index.TermContext;
+import org.apache.lucene.index.TermStates;
 import org.apache.lucene.index.TermState;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
@@ -84,10 +84,10 @@ public abstract class BlendedTermQuery extends Query {
             return rewritten;
         }
         IndexReaderContext context = reader.getContext();
-        TermContext[] ctx = new TermContext[terms.length];
+        TermStates[] ctx = new TermStates[terms.length];
         int[] docFreqs = new int[ctx.length];
         for (int i = 0; i < terms.length; i++) {
-            ctx[i] = TermContext.build(context, terms[i]);
+            ctx[i] = TermStates.build(context, terms[i], true);
             docFreqs[i] = ctx[i].docFreq();
         }
 
@@ -96,16 +96,16 @@ public abstract class BlendedTermQuery extends Query {
         return topLevelQuery(terms, ctx, docFreqs, maxDoc);
     }
 
-    protected abstract Query topLevelQuery(Term[] terms, TermContext[] ctx, int[] docFreqs, int maxDoc);
+    protected abstract Query topLevelQuery(Term[] terms, TermStates[] ctx, int[] docFreqs, int maxDoc);
 
-    protected void blend(final TermContext[] contexts, int maxDoc, IndexReader reader) throws IOException {
+    protected void blend(final TermStates[] contexts, int maxDoc, IndexReader reader) throws IOException {
         if (contexts.length <= 1) {
             return;
         }
         int max = 0;
         long minSumTTF = Long.MAX_VALUE;
         for (int i = 0; i < contexts.length; i++) {
-            TermContext ctx = contexts[i];
+            TermStates ctx = contexts[i];
             int df = ctx.docFreq();
             // we use the max here since it's the only "true" estimation we can make here
             // at least max(df) documents have that term. Sum or Averages don't seem
@@ -155,7 +155,7 @@ public abstract class BlendedTermQuery extends Query {
         // the more popular (more frequent) fields
         // that acts as a tie breaker
         for (int i : tieBreak) {
-            TermContext ctx = contexts[i];
+            TermStates ctx = contexts[i];
             if (ctx.docFreq() == 0) {
                 break;
             }
@@ -183,12 +183,12 @@ public abstract class BlendedTermQuery extends Query {
         }
     }
 
-    private TermContext adjustTTF(IndexReaderContext readerContext, TermContext termContext, long sumTTF) {
+    private TermStates adjustTTF(IndexReaderContext readerContext, TermStates termContext, long sumTTF) throws IOException {
         assert termContext.wasBuiltFor(readerContext);
         if (sumTTF == -1 && termContext.totalTermFreq() == -1) {
             return termContext;
         }
-        TermContext newTermContext = new TermContext(readerContext);
+        TermStates newTermContext = new TermStates(readerContext);
         List<LeafReaderContext> leaves = readerContext.leaves();
         final int len;
         if (leaves == null) {
@@ -199,7 +199,7 @@ public abstract class BlendedTermQuery extends Query {
         int df = termContext.docFreq();
         long ttf = sumTTF;
         for (int i = 0; i < len; i++) {
-            TermState termState = termContext.get(i);
+            TermState termState = termContext.get(leaves.get(i));
             if (termState == null) {
                 continue;
             }
@@ -210,7 +210,7 @@ public abstract class BlendedTermQuery extends Query {
         return newTermContext;
     }
 
-    private static TermContext adjustDF(IndexReaderContext readerContext, TermContext ctx, int newDocFreq) {
+    private static TermStates adjustDF(IndexReaderContext readerContext, TermStates ctx, int newDocFreq) throws IOException {
         assert ctx.wasBuiltFor(readerContext);
         // Use a value of ttf that is consistent with the doc freq (ie. gte)
         long newTTF;
@@ -226,9 +226,9 @@ public abstract class BlendedTermQuery extends Query {
         } else {
             len = leaves.size();
         }
-        TermContext newCtx = new TermContext(readerContext);
+        TermStates newCtx = new TermStates(readerContext);
         for (int i = 0; i < len; ++i) {
-            TermState termState = ctx.get(i);
+            TermState termState = ctx.get(leaves.get(i));
             if (termState == null) {
                 continue;
             }
@@ -299,7 +299,7 @@ public abstract class BlendedTermQuery extends Query {
     public static BlendedTermQuery commonTermsBlendedQuery(Term[] terms, final float[] boosts, final float maxTermFrequency) {
         return new BlendedTermQuery(terms, boosts) {
             @Override
-            protected Query topLevelQuery(Term[] terms, TermContext[] ctx, int[] docFreqs, int maxDoc) {
+            protected Query topLevelQuery(Term[] terms, TermStates[] ctx, int[] docFreqs, int maxDoc) {
                 BooleanQuery.Builder highBuilder = new BooleanQuery.Builder();
                 BooleanQuery.Builder lowBuilder = new BooleanQuery.Builder();
                 for (int i = 0; i < terms.length; i++) {
@@ -342,7 +342,7 @@ public abstract class BlendedTermQuery extends Query {
     public static BlendedTermQuery dismaxBlendedQuery(Term[] terms, final float[] boosts, final float tieBreakerMultiplier) {
         return new BlendedTermQuery(terms, boosts) {
             @Override
-            protected Query topLevelQuery(Term[] terms, TermContext[] ctx, int[] docFreqs, int maxDoc) {
+            protected Query topLevelQuery(Term[] terms, TermStates[] ctx, int[] docFreqs, int maxDoc) {
                 List<Query> queries = new ArrayList<>(ctx.length);
                 for (int i = 0; i < terms.length; i++) {
                     Query query = new TermQuery(terms[i], ctx[i]);

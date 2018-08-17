@@ -446,7 +446,6 @@ PUT my_queries1
           "type": "custom",
           "tokenizer": "standard",
           "filter": [
-            "standard",
             "lowercase",
             "wildcard_edge_ngram"
           ]
@@ -597,7 +596,6 @@ PUT my_queries2
           "type": "custom",
           "tokenizer": "standard",
           "filter": [
-            "standard",
             "lowercase",
             "reverse",
             "wildcard_edge_ngram"
@@ -607,7 +605,6 @@ PUT my_queries2
           "type": "custom",
           "tokenizer": "standard",
           "filter": [
-            "standard",
             "lowercase",
             "reverse"
           ]

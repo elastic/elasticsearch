@@ -27,11 +27,10 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.en.EnglishPossessiveFilter;
 import org.apache.lucene.analysis.snowball.SnowballFilter;
-import org.apache.lucene.analysis.standard.StandardFilter;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.analysis.tr.TurkishLowerCaseFilter;
 
-/** Filters {@link StandardTokenizer} with {@link StandardFilter}, {@link
+/** Filters {@link StandardTokenizer} with {@link
  * LowerCaseFilter}, {@link StopFilter} and {@link SnowballFilter}.
  *
  * Available stemmers are listed in org.tartarus.snowball.ext.  The name of a
@@ -57,8 +56,7 @@ public final class SnowballAnalyzer extends Analyzer {
     stopSet = CharArraySet.unmodifiableSet(CharArraySet.copy(stopWords));
   }
 
-  /** Constructs a {@link StandardTokenizer} filtered by a {@link
-      StandardFilter}, a {@link LowerCaseFilter}, a {@link StopFilter},
+  /** Constructs a {@link StandardTokenizer} filtered by a {@link LowerCaseFilter}, a {@link StopFilter},
       and a {@link SnowballFilter} */
   @Override
   public TokenStreamComponents createComponents(String fieldName) {

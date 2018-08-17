@@ -20,7 +20,6 @@
 package org.elasticsearch.indices.analysis;
 
 import org.apache.lucene.analysis.LowerCaseFilter;
-import org.apache.lucene.analysis.standard.StandardFilter;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.NamedRegistry;
@@ -39,7 +38,6 @@ import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.analysis.SimpleAnalyzerProvider;
 import org.elasticsearch.index.analysis.StandardAnalyzerProvider;
-import org.elasticsearch.index.analysis.StandardTokenFilterFactory;
 import org.elasticsearch.index.analysis.StandardTokenizerFactory;
 import org.elasticsearch.index.analysis.StopAnalyzerProvider;
 import org.elasticsearch.index.analysis.StopTokenFilterFactory;
@@ -116,7 +114,6 @@ public final class AnalysisModule {
         hunspellService) {
         NamedRegistry<AnalysisProvider<TokenFilterFactory>> tokenFilters = new NamedRegistry<>("token_filter");
         tokenFilters.register("stop", StopTokenFilterFactory::new);
-        tokenFilters.register("standard", StandardTokenFilterFactory::new);
         tokenFilters.register("shingle", ShingleTokenFilterFactory::new);
         tokenFilters.register("hunspell", requiresAnalysisSettings((indexSettings, env, name, settings) -> new HunspellTokenFilterFactory
             (indexSettings, name, settings, hunspellService)));
@@ -153,7 +150,6 @@ public final class AnalysisModule {
 
         // Add filters available in lucene-core
         preConfiguredTokenFilters.register("lowercase", PreConfiguredTokenFilter.singleton("lowercase", true, LowerCaseFilter::new));
-        preConfiguredTokenFilters.register("standard", PreConfiguredTokenFilter.singleton("standard", false, StandardFilter::new));
         /* Note that "stop" is available in lucene-core but it's pre-built
          * version uses a set of English stop words that are in
          * lucene-analyzers-common so "stop" is defined in the analysis-common

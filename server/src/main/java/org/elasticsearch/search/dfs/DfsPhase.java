@@ -25,7 +25,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.index.TermContext;
+import org.apache.lucene.index.TermStates;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.TermStatistics;
 import org.elasticsearch.common.collect.HppcMaps;
@@ -69,8 +69,8 @@ public class DfsPhase implements SearchPhase {
                 if(context.isCancelled()) {
                     throw new TaskCancelledException("cancelled");
                 }
-                // LUCENE 4 UPGRADE: cache TermContext?
-                TermContext termContext = TermContext.build(indexReaderContext, terms[i]);
+                // LUCENE 4 UPGRADE: cache TermStates?
+                TermStates termContext = TermStates.build(indexReaderContext, terms[i], true);
                 termStatistics[i] = context.searcher().termStatistics(terms[i], termContext);
             }
 

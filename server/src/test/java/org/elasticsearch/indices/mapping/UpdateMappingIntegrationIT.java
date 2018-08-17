@@ -21,10 +21,10 @@ package org.elasticsearch.indices.mapping;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -115,7 +115,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                 .execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("_doc")
+        AcknowledgedResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("_doc")
                 .setSource("{\"properties\":{\"date\":{\"type\":\"integer\"}}}", XContentType.JSON)
                 .execute().actionGet();
 
@@ -135,7 +135,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                 ).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("_doc")
+        AcknowledgedResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("_doc")
                 .setSource("{\"properties\":{\"date\":{\"type\":\"integer\"}}}", XContentType.JSON)
                 .execute().actionGet();
 
@@ -192,7 +192,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                 .execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("type")
+        AcknowledgedResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("type")
                 .setSource("{\"type\":{\"properties\":{\"body\":{\"type\":\"text\"}}}}", XContentType.JSON)
                 .execute().actionGet();
 
@@ -218,7 +218,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
 
         logger.info("Emptying _default_ mappings");
         // now remove it
-        PutMappingResponse putResponse = client().admin().indices().preparePutMapping("test").setType(MapperService.DEFAULT_MAPPING).setSource(
+        AcknowledgedResponse putResponse = client().admin().indices().preparePutMapping("test").setType(MapperService.DEFAULT_MAPPING).setSource(
                 JsonXContent.contentBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
                         .endObject().endObject()
         ).get();
@@ -291,7 +291,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                         String typeName = "type";
                         String fieldName = Thread.currentThread().getName() + "_" + i;
 
-                        PutMappingResponse response = client1.admin().indices().preparePutMapping(indexName).setType(typeName).setSource(
+                        AcknowledgedResponse response = client1.admin().indices().preparePutMapping(indexName).setType(typeName).setSource(
                                 JsonXContent.contentBuilder().startObject().startObject(typeName)
                                         .startObject("properties").startObject(fieldName).field("type", "text").endObject().endObject()
                                         .endObject().endObject()

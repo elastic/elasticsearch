@@ -29,7 +29,17 @@ without requiring basic authentication:
 
 * <<security-api-get-token,Get token>>, <<security-api-invalidate-token,Invalidate token>>
 
-include::security/users.asciidoc[]
+[float]
+[[security-user-apis]]
+=== Users
+
+You can use the following APIs to create, read, update, and delete users from the
+native realm:
+
+* <<security-api-put-user,Create users>>, <<security-api-delete-user,Delete users>>
+* <<security-api-enable-user,Enable users>>, <<security-api-disable-user,Disable users>>
+* <<security-api-change-password,Change passwords>>
+* <<security-api-get-user,Get users>>
 
 include::security/authenticate.asciidoc[]
 include::security/change-password.asciidoc[]

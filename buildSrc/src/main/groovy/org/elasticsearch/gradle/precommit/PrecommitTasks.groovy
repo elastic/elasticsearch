@@ -102,6 +102,10 @@ class PrecommitTasks {
                 signaturesURLs = project.forbiddenApis.signaturesURLs +
                     [ getClass().getResource('/forbidden/es-server-signatures.txt') ]
             }
+            // forbidden apis doesn't support Java 11, so stop at 10
+            JavaVersion javaVersion = project.runtimeJavaVersion.compareTo(JavaVersion.VERSION_1_10) > 0 ?
+                    JavaVersion.VERSION_1_10 :
+                    project.runtimeJavaVersion
             targetCompatibility = project.runtimeJavaVersion.compareTo(JavaVersion.VERSION_1_9) >= 0 ?
                     project.runtimeJavaVersion.getMajorVersion() :
                     "1.${project.runtimeJavaVersion.getMajorVersion()}"

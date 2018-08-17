@@ -300,6 +300,10 @@ public class AnalysisConfig implements ToXContentObject {
             multivariateByFields);
     }
 
+    public static Builder builder(List<Detector> detectors) {
+        return new Builder(detectors);
+    }
+
     public static class Builder {
 
         private List<Detector> detectors;

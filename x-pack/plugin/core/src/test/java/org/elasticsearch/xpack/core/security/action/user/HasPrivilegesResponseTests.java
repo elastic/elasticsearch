@@ -7,12 +7,10 @@
 package org.elasticsearch.xpack.core.security.action.user;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -23,9 +21,8 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 
-public class HasPrivilegesResponseTest extends ESTestCase {
+public class HasPrivilegesResponseTests extends ESTestCase {
 
     public void testSerializationV64OrLater() throws IOException {
         final HasPrivilegesResponse original = randomResponse();

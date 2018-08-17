@@ -25,6 +25,7 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInvertState;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.Term;
@@ -65,7 +66,10 @@ public class ScriptedSimilarityTests extends ESTestCase {
             final int length = TestUtil.nextInt(random(), 1, 100);
             final int position = random().nextInt(length);
             final int numOverlaps = random().nextInt(length);
-            FieldInvertState state = new FieldInvertState(Version.LATEST.major, "foo", position, length, numOverlaps, 100);
+            int maxTermFrequency = TestUtil.nextInt(random(), 1, 10);
+            int uniqueTermCount = TestUtil.nextInt(random(), 1, 10);
+            FieldInvertState state = new FieldInvertState(Version.LATEST.major, "foo", IndexOptions.DOCS_AND_FREQS, position, length,
+                    numOverlaps, 100, maxTermFrequency, uniqueTermCount);
             assertEquals(
                     sim2.computeNorm(state),
                     sim1.computeNorm(state),
@@ -81,7 +85,7 @@ public class ScriptedSimilarityTests extends ESTestCase {
                 @Override
                 public double execute(double weight, ScriptedSimilarity.Query query,
                         ScriptedSimilarity.Field field, ScriptedSimilarity.Term term,
-                        ScriptedSimilarity.Doc doc) throws IOException {
+                        ScriptedSimilarity.Doc doc) {
                     assertEquals(1, weight, 0);
                     assertNotNull(doc);
                     assertEquals(2f, doc.getFreq(), 0);
@@ -143,7 +147,7 @@ public class ScriptedSimilarityTests extends ESTestCase {
 
                 @Override
                 public double execute(ScriptedSimilarity.Query query, ScriptedSimilarity.Field field,
-                        ScriptedSimilarity.Term term) throws IOException {
+                        ScriptedSimilarity.Term term) {
                     assertNotNull(field);
                     assertEquals(3, field.getDocCount());
                     assertEquals(5, field.getSumDocFreq());
@@ -166,7 +170,7 @@ public class ScriptedSimilarityTests extends ESTestCase {
                 @Override
                 public double execute(double weight, ScriptedSimilarity.Query query,
                         ScriptedSimilarity.Field field, ScriptedSimilarity.Term term,
-                        ScriptedSimilarity.Doc doc) throws IOException {
+                        ScriptedSimilarity.Doc doc) {
                     assertEquals(28, weight, 0d);
                     assertNotNull(doc);
                     assertEquals(2f, doc.getFreq(), 0);

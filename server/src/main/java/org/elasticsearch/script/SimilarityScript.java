@@ -34,7 +34,7 @@ public abstract class SimilarityScript  {
      * @param doc    per-document statistics
      */
     public abstract double execute(double weight, ScriptedSimilarity.Query query,
-            ScriptedSimilarity.Field field, ScriptedSimilarity.Term term, ScriptedSimilarity.Doc doc) throws IOException;
+            ScriptedSimilarity.Field field, ScriptedSimilarity.Term term, ScriptedSimilarity.Doc doc);
 
     public interface Factory {
         SimilarityScript newInstance();

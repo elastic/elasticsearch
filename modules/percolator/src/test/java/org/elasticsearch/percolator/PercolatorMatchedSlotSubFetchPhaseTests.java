@@ -30,6 +30,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.search.SearchHit;
@@ -100,7 +101,7 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
             scoreDocs[i] = new ScoreDoc(i, 1f);
         }
 
-        TopDocs topDocs = new TopDocs(scoreDocs.length, scoreDocs, 1f);
+        TopDocs topDocs = new TopDocs(new TotalHits(scoreDocs.length, TotalHits.Relation.EQUAL_TO), scoreDocs);
         IntStream stream = PercolatorMatchedSlotSubFetchPhase.convertTopDocsToSlots(topDocs, null);
 
         int[] result = stream.toArray();
@@ -117,7 +118,7 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
         scoreDocs[2] = new ScoreDoc(8, 1f);
         scoreDocs[3] = new ScoreDoc(11, 1f);
         scoreDocs[4] = new ScoreDoc(14, 1f);
-        TopDocs topDocs = new TopDocs(scoreDocs.length, scoreDocs, 1f);
+        TopDocs topDocs = new TopDocs(new TotalHits(scoreDocs.length, TotalHits.Relation.EQUAL_TO), scoreDocs);
 
         FixedBitSet bitSet = new FixedBitSet(15);
         bitSet.set(2);

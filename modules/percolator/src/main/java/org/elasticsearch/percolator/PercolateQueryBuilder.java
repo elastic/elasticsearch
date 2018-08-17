@@ -661,11 +661,11 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             final IndexSearcher slowSearcher = new IndexSearcher(directoryReader) {
 
                 @Override
-                public Weight createNormalizedWeight(Query query, ScoreMode scoreMode) throws IOException {
+                public Weight createWeight(Query query, ScoreMode scoreMode, float boost) throws IOException {
                     BooleanQuery.Builder bq = new BooleanQuery.Builder();
                     bq.add(query, BooleanClause.Occur.MUST);
                     bq.add(Queries.newNestedFilter(), BooleanClause.Occur.MUST_NOT);
-                    return super.createNormalizedWeight(bq.build(), scoreMode);
+                    return super.createWeight(bq.build(), scoreMode, boost);
                 }
 
             };
@@ -743,7 +743,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                     final IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(context);
                     final IndexSearcher searcher = new IndexSearcher(topLevelContext);
                     searcher.setQueryCache(null);
-                    final Weight weight = searcher.createNormalizedWeight(query, ScoreMode.COMPLETE_NO_SCORES);
+                    final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
                     final Scorer s = weight.scorer(context);
 
                     if (s != null) {

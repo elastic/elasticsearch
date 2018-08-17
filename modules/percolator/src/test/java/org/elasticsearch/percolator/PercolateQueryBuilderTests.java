@@ -26,6 +26,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -267,7 +268,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
 
         // ensure that any query get modified so that the nested docs are never included as hits:
         Query query = new MatchAllDocsQuery();
-        BooleanQuery result = (BooleanQuery) indexSearcher.createNormalizedWeight(query, true).getQuery();
+        BooleanQuery result = (BooleanQuery) indexSearcher.createWeight(indexSearcher.rewrite(query), ScoreMode.COMPLETE, 1f).getQuery();
         assertThat(result.clauses().size(), equalTo(2));
         assertThat(result.clauses().get(0).getQuery(), sameInstance(query));
         assertThat(result.clauses().get(0).getOccur(), equalTo(BooleanClause.Occur.MUST));
@@ -287,7 +288,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
 
         // ensure that any query get modified so that the nested docs are never included as hits:
         Query query = new MatchAllDocsQuery();
-        BooleanQuery result = (BooleanQuery) indexSearcher.createNormalizedWeight(query, true).getQuery();
+        BooleanQuery result = (BooleanQuery) indexSearcher.createWeight(indexSearcher.rewrite(query), ScoreMode.COMPLETE, 1f).getQuery();
         assertThat(result.clauses().size(), equalTo(2));
         assertThat(result.clauses().get(0).getQuery(), sameInstance(query));
         assertThat(result.clauses().get(0).getOccur(), equalTo(BooleanClause.Occur.MUST));

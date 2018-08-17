@@ -114,7 +114,7 @@ final class PercolateQuery extends Query implements Accountable {
                 }
 
                 final CheckedFunction<Integer, Query, IOException> queries = queryStore.getQueries(leafReaderContext);
-                if (needsScores) {
+                if (scoreMode.needsScores()) {
                     return new BaseScorer(this, approximation, queries, percolatorIndexSearcher) {
 
                         float score;
@@ -124,7 +124,7 @@ final class PercolateQuery extends Query implements Accountable {
                             Query query = percolatorQueries.apply(docId);
                             if (query != null) {
                                 TopDocs topDocs = percolatorIndexSearcher.search(query, 1);
-                                if (topDocs.totalHits > 0) {
+                                if (topDocs.totalHits.value > 0) {
                                     score = topDocs.scoreDocs[0].score;
                                     return true;
                                 } else {
@@ -280,6 +280,10 @@ final class PercolateQuery extends Query implements Accountable {
 
         abstract boolean matchDocId(int docId) throws IOException;
 
+        @Override
+        public float getMaxScore(int upTo) throws IOException {
+            return Float.MAX_VALUE;
+        }
     }
 
 }

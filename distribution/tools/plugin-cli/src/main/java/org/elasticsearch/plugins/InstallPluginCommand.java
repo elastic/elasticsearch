@@ -21,7 +21,7 @@ package org.elasticsearch.plugins;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
-import org.apache.lucene.search.spell.LevensteinDistance;
+import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.bouncycastle.bcpg.ArmoredInputStream;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
@@ -355,7 +355,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
     /** Returns all the official plugin names that look similar to pluginId. **/
     private List<String> checkMisspelledPlugin(String pluginId) {
-        LevensteinDistance ld = new LevensteinDistance();
+        LevenshteinDistance ld = new LevenshteinDistance();
         List<Tuple<Float, String>> scoredKeys = new ArrayList<>();
         for (String officialPlugin : OFFICIAL_PLUGINS) {
             float distance = ld.getDistance(pluginId, officialPlugin);

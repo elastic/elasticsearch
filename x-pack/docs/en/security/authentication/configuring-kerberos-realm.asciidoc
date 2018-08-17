@@ -146,8 +146,8 @@ see {ref}/security-settings.html#ref-kerberos-settings[Kerberos realm settings].
 
 The `kerberos` realm enables you to map Kerberos users to roles. You can 
 configure these role mappings by using the 
-{ref}/security-api-role-mapping.html[role-mapping API] or a file stored on each 
-node. You identify users by their `username` field.
+{ref}/security-api-role-mapping.html[role-mapping API]. You identify 
+users by their `username` field.
 
 The following example uses the role mapping API to map `user@REALM` to the roles 
 `monitoring` and `user`:

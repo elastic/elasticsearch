@@ -350,7 +350,7 @@ in your Kerberos environment.
 
 Kerberos depends on proper hostname resolution, so please check your DNS infrastructure.
 Incorrect DNS setup, DNS SRV records or configuration for KDC servers in `krb5.conf` 
-+can cause problems with hostname resolution.
+can cause problems with hostname resolution.
 
 --
 
@@ -368,7 +368,7 @@ the time on the machines within the domain is in sync.
 
 As Kerberos logs are often cryptic in nature and many things can go wrong 
 as it depends on external services like DNS, time synchronization. You might 
-have to enable additional debug logs to root cause the issue.
+have to enable additional debug logs to determine the root cause of the issue.
 
 {es} uses JAAS (Java Authentication and Authorization Service) Kerberos login 
 module to provide Kerberos support. To enable debug logs on {es} for the login 

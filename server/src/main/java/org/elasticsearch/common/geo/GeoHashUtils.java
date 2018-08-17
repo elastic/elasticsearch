@@ -25,6 +25,8 @@ import org.apache.lucene.util.BitUtil;
 import java.util.ArrayList;
 import java.util.Collection;
 
+import static org.apache.lucene.geo.GeoUtils.MAX_LAT_INCL;
+
 /**
  * Utilities for converting to/from the GeoHash standard
  *
@@ -220,16 +222,19 @@ public class GeoHashUtils {
         long ghLong = longEncode(geohash, len);
         // shift away the level
         ghLong >>>= 4;
-        // deinterleave and add 1 to lat and lon to get topRight
-        long lon = BitUtil.deinterleave(ghLong >>> 1) + 1;
+        // deinterleave
+        long lon = BitUtil.deinterleave(ghLong >>> 1);
         long lat = BitUtil.deinterleave(ghLong);
         if (lat < MAX_LAT_BITS) {
-            // We cannot go north of north pole
-            lat = lat + 1;
+            // add 1 to lat and lon to get topRight
+            GeoPoint topRight = GeoPoint.fromGeohash(BitUtil.interleave((int)(lat + 1), (int)(lon + 1)) << 4 | len);
+            return new Rectangle(bottomLeft.lat(), topRight.lat(), bottomLeft.lon(), topRight.lon());
+        } else {
+            // We cannot go north of north pole, so just using 90 degrees instead of calculating it using
+            // add 1 to lon to get lon of topRight, we are going to use 90 for lat
+            GeoPoint topRight = GeoPoint.fromGeohash(BitUtil.interleave((int)lat, (int)(lon + 1)) << 4 | len);
+            return new Rectangle(bottomLeft.lat(), MAX_LAT_INCL, bottomLeft.lon(), topRight.lon());
         }
-        GeoPoint topRight = GeoPoint.fromGeohash(BitUtil.interleave((int)lat, (int)lon) << 4 | len);
-
-        return new Rectangle(bottomLeft.lat(), topRight.lat(), bottomLeft.lon(), topRight.lon());
     }
 
     /**

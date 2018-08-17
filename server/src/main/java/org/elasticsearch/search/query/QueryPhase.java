@@ -27,7 +27,6 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.EarlyTerminatingSortingCollector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -327,7 +326,7 @@ public class QueryPhase implements SearchPhase {
         final Sort sort = sortAndFormats.sort;
         for (LeafReaderContext ctx : reader.leaves()) {
             Sort indexSort = ctx.reader().getMetaData().getSort();
-            if (indexSort == null || EarlyTerminatingSortingCollector.canEarlyTerminate(sort, indexSort) == false) {
+            if (indexSort == null || Lucene.canEarlyTerminate(sort, indexSort) == false) {
                 return false;
             }
         }

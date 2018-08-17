@@ -50,6 +50,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
@@ -79,6 +80,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import java.io.IOException;
 import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -828,5 +830,18 @@ public class Lucene {
                 return maxDoc;
             }
         };
+    }
+
+    /**
+     * Whether a query sorted by {@code searchSort} can be early-terminated if the index is sorted by {@code indexSort}.
+     */
+    public static boolean canEarlyTerminate(Sort searchSort, Sort indexSort) {
+        final SortField[] fields1 = searchSort.getSort();
+        final SortField[] fields2 = indexSort.getSort();
+        // early termination is possible if fields1 is a prefix of fields2
+        if (fields1.length > fields2.length) {
+          return false;
+        }
+        return Arrays.asList(fields1).equals(Arrays.asList(fields2).subList(0, fields1.length));
     }
 }

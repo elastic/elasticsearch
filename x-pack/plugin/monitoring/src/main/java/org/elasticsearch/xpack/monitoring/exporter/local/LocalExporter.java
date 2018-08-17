@@ -11,9 +11,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
@@ -402,7 +400,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     }
 
     // FIXME this should use the IndexTemplateMetaDataUpgrader
-    private void putTemplate(String template, String source, ActionListener<PutIndexTemplateResponse> listener) {
+    private void putTemplate(String template, String source, ActionListener<AcknowledgedResponse> listener) {
         logger.debug("installing template [{}]", template);
 
         PutIndexTemplateRequest request = new PutIndexTemplateRequest(template).source(source, XContentType.JSON);
@@ -547,9 +545,9 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         logger.trace("deleting {} indices: [{}]", indices.size(), collectionToCommaDelimitedString(indices));
         final DeleteIndexRequest request = new DeleteIndexRequest(indices.toArray(new String[indices.size()]));
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), MONITORING_ORIGIN, request,
-                new ActionListener<DeleteIndexResponse>() {
+                new ActionListener<AcknowledgedResponse>() {
                     @Override
-                    public void onResponse(DeleteIndexResponse response) {
+                    public void onResponse(AcknowledgedResponse response) {
                         if (response.isAcknowledged()) {
                             logger.debug("{} indices deleted", indices.size());
                         } else {

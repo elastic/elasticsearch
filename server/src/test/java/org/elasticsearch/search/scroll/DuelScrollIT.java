@@ -21,6 +21,7 @@ package org.elasticsearch.search.scroll;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -198,6 +199,8 @@ public class DuelScrollIT extends ESIntegTestCase {
         }
         // no replicas, as they might be ordered differently
         settings.put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0);
+        // we need to control refreshes as they might take different merges into account
+        settings.put("index.refresh_interval", -1);
 
         assertAcked(prepareCreate("test").setSettings(settings.build()).get());
         final int numDocs = randomIntBetween(10, 200);

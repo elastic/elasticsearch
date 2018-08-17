@@ -9,7 +9,6 @@ You can use the following APIs to perform {security} activities.
 * <<security-api-privileges>>
 * <<security-api-role-mapping>>
 * <<security-api-ssl>>
-* <<security-api-tokens>>
 * <<security-api-users>>
 
 [float]

@@ -47,7 +47,6 @@ import java.util.stream.Collectors;
 public class ForbiddenApisCliTask extends DefaultTask {
 
     private FileCollection signaturesFiles;
-    // TODO support this
     private List<String> signatures = new ArrayList<>();
     private Set<String> bundledSignatures = new LinkedHashSet<>();
     private Set<String> suppressAnnotations = new LinkedHashSet<>();

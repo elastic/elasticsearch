@@ -59,7 +59,8 @@ public abstract class RemoteClusterAware extends AbstractComponent {
                 parsePort(s);
                 return s;
             },
-            Setting.Property.NodeScope, Setting.Property.Dynamic
+            Setting.Property.NodeScope,
+            Setting.Property.Dynamic
         )
     );
     public static final char REMOTE_CLUSTER_INDEX_SEPARATOR = ':';
@@ -81,8 +82,9 @@ public abstract class RemoteClusterAware extends AbstractComponent {
         return allConcreteSettings.collect(
             Collectors.toMap(REMOTE_CLUSTERS_SEEDS::getNamespace, concreteSetting -> {
                 String clusterName = REMOTE_CLUSTERS_SEEDS.getNamespace(concreteSetting);
-                List<Supplier<DiscoveryNode>> nodes = new ArrayList<>();
-                for (String address : concreteSetting.get(settings)) {
+                List<String> addresses = concreteSetting.get(settings);
+                List<Supplier<DiscoveryNode>> nodes = new ArrayList<>(addresses.size());
+                for (String address : addresses) {
                     nodes.add(() -> {
                         TransportAddress transportAddress = new TransportAddress(RemoteClusterAware.parseSeedAddress(address));
                         return new DiscoveryNode(clusterName + "#" + transportAddress.toString(),
@@ -169,7 +171,7 @@ public abstract class RemoteClusterAware extends AbstractComponent {
             }
             return port;
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("port must be a number", e);
+            throw new IllegalArgumentException("failed to parse port", e);
         }
     }
 

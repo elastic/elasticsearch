@@ -104,6 +104,15 @@ public class RemoteClusterServiceTests extends ESTestCase {
             .put("search.remote.foo.seeds", "192.168.0.1").build();
         expectThrows(IllegalArgumentException.class, () ->
         RemoteClusterAware.REMOTE_CLUSTERS_SEEDS.getAllConcreteSettings(brokenSettings).forEach(setting -> setting.get(brokenSettings)));
+
+        Settings brokenPortSettings = Settings.builder()
+            .put("search.remote.foo.seeds", "192.168.0.1:123456789123456789").build();
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> RemoteClusterAware.REMOTE_CLUSTERS_SEEDS.getAllConcreteSettings(brokenSettings)
+                .forEach(setting -> setting.get(brokenPortSettings))
+        );
+        assertEquals("failed to parse port", e.getMessage());
     }
 
     public void testBuiltRemoteClustersSeeds() throws Exception {

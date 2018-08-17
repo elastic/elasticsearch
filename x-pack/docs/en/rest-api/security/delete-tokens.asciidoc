@@ -1,8 +1,8 @@
 [role="xpack"]
 [[security-api-invalidate-token]]
-=== Delete tokens API
+=== Delete token API
 
-Invalidates bearer tokens for access without requiring basic authentication.
+Invalidates a bearer token for access without requiring basic authentication.
 
 ==== Request
 
@@ -10,13 +10,13 @@ Invalidates bearer tokens for access without requiring basic authentication.
 
 ==== Description
 
-The tokens returned by the <<security-api-get-token,get tokens API>> have a 
+The tokens returned by the <<security-api-get-token,get token API>> have a 
 finite period of time for which they are valid and after that time period, they 
 can no longer be used. That time period is defined by the 
 `xpack.security.authc.token.timeout` setting. For more information, see 
 <<token-service-settings>>.
 
-If you want to invalidate a token immediately, use this delete tokens API.
+If you want to invalidate a token immediately, use this delete token API.
 
 
 ==== Request Body

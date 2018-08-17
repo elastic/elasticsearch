@@ -21,9 +21,14 @@ package org.elasticsearch.client.documentation;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
+import org.elasticsearch.client.MachineLearningIT;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.protocol.xpack.ml.DeleteJobRequest;
+import org.elasticsearch.protocol.xpack.ml.DeleteJobResponse;
+import org.elasticsearch.protocol.xpack.ml.OpenJobRequest;
+import org.elasticsearch.protocol.xpack.ml.OpenJobResponse;
 import org.elasticsearch.protocol.xpack.ml.PutJobRequest;
 import org.elasticsearch.protocol.xpack.ml.PutJobResponse;
 import org.elasticsearch.protocol.xpack.ml.job.config.AnalysisConfig;
@@ -114,6 +119,104 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::x-pack-ml-put-job-execute-async
             client.machineLearning().putJobAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::x-pack-ml-put-job-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testDeleteJob() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        String jobId = "my-first-machine-learning-job";
+
+        Job job = MachineLearningIT.buildJob(jobId);
+        client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+
+        Job secondJob = MachineLearningIT.buildJob("my-second-machine-learning-job");
+        client.machineLearning().putJob(new PutJobRequest(secondJob), RequestOptions.DEFAULT);
+
+        {
+            //tag::x-pack-delete-ml-job-request
+            DeleteJobRequest deleteJobRequest = new DeleteJobRequest("my-first-machine-learning-job");
+            deleteJobRequest.setForce(false); //<1>
+            DeleteJobResponse deleteJobResponse = client.machineLearning().deleteJob(deleteJobRequest, RequestOptions.DEFAULT);
+            //end::x-pack-delete-ml-job-request
+
+            //tag::x-pack-delete-ml-job-response
+            boolean isAcknowledged = deleteJobResponse.isAcknowledged(); //<1>
+            //end::x-pack-delete-ml-job-response
+        }
+        {
+            //tag::x-pack-delete-ml-job-request-listener
+            ActionListener<DeleteJobResponse> listener = new ActionListener<DeleteJobResponse>() {
+                @Override
+                public void onResponse(DeleteJobResponse deleteJobResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            //end::x-pack-delete-ml-job-request-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            //tag::x-pack-delete-ml-job-request-async
+            DeleteJobRequest deleteJobRequest = new DeleteJobRequest("my-second-machine-learning-job");
+            client.machineLearning().deleteJobAsync(deleteJobRequest, RequestOptions.DEFAULT, listener); // <1>
+            //end::x-pack-delete-ml-job-request-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testOpenJob() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        Job job = MachineLearningIT.buildJob("opening-my-first-machine-learning-job");
+        client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+
+        Job secondJob = MachineLearningIT.buildJob("opening-my-second-machine-learning-job");
+        client.machineLearning().putJob(new PutJobRequest(secondJob), RequestOptions.DEFAULT);
+
+        {
+            //tag::x-pack-ml-open-job-request
+            OpenJobRequest openJobRequest = new OpenJobRequest("opening-my-first-machine-learning-job"); //<1>
+            openJobRequest.setTimeout(TimeValue.timeValueMinutes(10)); //<2>
+            //end::x-pack-ml-open-job-request
+
+            //tag::x-pack-ml-open-job-execute
+            OpenJobResponse openJobResponse = client.machineLearning().openJob(openJobRequest, RequestOptions.DEFAULT);
+            boolean isOpened = openJobResponse.isOpened(); //<1>
+            //end::x-pack-ml-open-job-execute
+
+        }
+        {
+            //tag::x-pack-ml-open-job-listener
+            ActionListener<OpenJobResponse> listener = new ActionListener<OpenJobResponse>() {
+                @Override
+                public void onResponse(OpenJobResponse openJobResponse) {
+                    //<1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            //end::x-pack-ml-open-job-listener
+            OpenJobRequest openJobRequest = new OpenJobRequest("opening-my-second-machine-learning-job");
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::x-pack-ml-open-job-execute-async
+            client.machineLearning().openJobAsync(openJobRequest, RequestOptions.DEFAULT, listener); //<1>
+            // end::x-pack-ml-open-job-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

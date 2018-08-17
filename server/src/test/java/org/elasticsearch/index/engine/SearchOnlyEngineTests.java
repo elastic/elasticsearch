@@ -62,7 +62,7 @@ public class SearchOnlyEngineTests extends EngineTestCase {
                 lastDocIds = getDocIds(engine, true);
                 assertThat(lockedDownEngine.getLocalCheckpoint(), equalTo(lastSeqNoStats.getLocalCheckpoint()));
                 assertThat(lockedDownEngine.getSeqNoStats(globalCheckpoint.get()).getMaxSeqNo(), equalTo(lastSeqNoStats.getMaxSeqNo()));
-                assertThat(getDocIds(lockedDownEngine, randomBoolean()), equalTo(lastDocIds));
+                assertThat(getDocIds(lockedDownEngine, false), equalTo(lastDocIds));
                 for (int i = 0; i < numDocs; i++) {
                     if (randomBoolean()) {
                         String delId = Integer.toString(i);

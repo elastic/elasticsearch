@@ -25,7 +25,6 @@ import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
@@ -33,11 +32,9 @@ import org.elasticsearch.action.admin.indices.analyze.DetailAnalyzeResponse;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
-import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
@@ -50,7 +47,6 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRespon
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -60,20 +56,19 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.action.admin.indices.validate.query.QueryExplanation;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.GetAliasesResponse;
 import org.elasticsearch.client.RequestOptions;
@@ -220,7 +215,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::delete-index-request-indicesOptions
 
             // tag::delete-index-execute
-            DeleteIndexResponse deleteIndexResponse = client.indices().delete(request, RequestOptions.DEFAULT);
+            AcknowledgedResponse deleteIndexResponse = client.indices().delete(request, RequestOptions.DEFAULT);
             // end::delete-index-execute
 
             // tag::delete-index-response
@@ -255,10 +250,10 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             DeleteIndexRequest request = new DeleteIndexRequest("posts");
 
             // tag::delete-index-execute-listener
-            ActionListener<DeleteIndexResponse> listener =
-                    new ActionListener<DeleteIndexResponse>() {
+            ActionListener<AcknowledgedResponse> listener =
+                    new ActionListener<AcknowledgedResponse>() {
                 @Override
-                public void onResponse(DeleteIndexResponse deleteIndexResponse) {
+                public void onResponse(AcknowledgedResponse deleteIndexResponse) {
                     // <1>
                 }
 
@@ -480,7 +475,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                     "}", // <1>
                     XContentType.JSON);
                 // end::put-mapping-request-source
-                PutMappingResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
+                AcknowledgedResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
                 assertTrue(putMappingResponse.isAcknowledged());
             }
 
@@ -494,7 +489,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 jsonMap.put("properties", properties);
                 request.source(jsonMap); // <1>
                 //end::put-mapping-map
-                PutMappingResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
+                AcknowledgedResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
                 assertTrue(putMappingResponse.isAcknowledged());
             }
             {
@@ -515,14 +510,14 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 builder.endObject();
                 request.source(builder); // <1>
                 //end::put-mapping-xcontent
-                PutMappingResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
+                AcknowledgedResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
                 assertTrue(putMappingResponse.isAcknowledged());
             }
             {
                 //tag::put-mapping-shortcut
                 request.source("message", "type=text"); // <1>
                 //end::put-mapping-shortcut
-                PutMappingResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
+                AcknowledgedResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
                 assertTrue(putMappingResponse.isAcknowledged());
             }
 
@@ -536,7 +531,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::put-mapping-request-masterTimeout
 
             // tag::put-mapping-execute
-            PutMappingResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
+            AcknowledgedResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
             // end::put-mapping-execute
 
             // tag::put-mapping-response
@@ -558,10 +553,10 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             PutMappingRequest request = new PutMappingRequest("twitter").type("tweet");
 
             // tag::put-mapping-execute-listener
-            ActionListener<PutMappingResponse> listener =
-                new ActionListener<PutMappingResponse>() {
+            ActionListener<AcknowledgedResponse> listener =
+                new ActionListener<AcknowledgedResponse>() {
                     @Override
-                    public void onResponse(PutMappingResponse putMappingResponse) {
+                    public void onResponse(AcknowledgedResponse putMappingResponse) {
                         // <1>
                     }
 
@@ -601,7 +596,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                     "  }\n" +
                     "}", // <1>
                 XContentType.JSON);
-            PutMappingResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
+            AcknowledgedResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
             assertTrue(putMappingResponse.isAcknowledged());
         }
 
@@ -658,7 +653,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                     "  }\n" +
                     "}", // <1>
                 XContentType.JSON);
-            PutMappingResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
+            AcknowledgedResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
             assertTrue(putMappingResponse.isAcknowledged());
         }
 
@@ -731,7 +726,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                     "  }\n" +
                     "}", // <1>
                 XContentType.JSON);
-            PutMappingResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
+            AcknowledgedResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
             assertTrue(putMappingResponse.isAcknowledged());
         }
 
@@ -1497,7 +1492,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::close-index-request-indicesOptions
 
             // tag::close-index-execute
-            CloseIndexResponse closeIndexResponse = client.indices().close(request, RequestOptions.DEFAULT);
+            AcknowledgedResponse closeIndexResponse = client.indices().close(request, RequestOptions.DEFAULT);
             // end::close-index-execute
 
             // tag::close-index-response
@@ -1506,10 +1501,10 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             assertTrue(acknowledged);
 
             // tag::close-index-execute-listener
-            ActionListener<CloseIndexResponse> listener =
-                    new ActionListener<CloseIndexResponse>() {
+            ActionListener<AcknowledgedResponse> listener =
+                    new ActionListener<AcknowledgedResponse>() {
                 @Override
-                public void onResponse(CloseIndexResponse closeIndexResponse) {
+                public void onResponse(AcknowledgedResponse closeIndexResponse) {
                     // <1>
                 }
 
@@ -1649,7 +1644,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::update-aliases-request-masterTimeout
 
             // tag::update-aliases-execute
-            IndicesAliasesResponse indicesAliasesResponse =
+            AcknowledgedResponse indicesAliasesResponse =
                     client.indices().updateAliases(request, RequestOptions.DEFAULT);
             // end::update-aliases-execute
 
@@ -1665,10 +1660,10 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             request.addAliasAction(aliasAction);
 
             // tag::update-aliases-execute-listener
-            ActionListener<IndicesAliasesResponse> listener =
-                    new ActionListener<IndicesAliasesResponse>() {
+            ActionListener<AcknowledgedResponse> listener =
+                    new ActionListener<AcknowledgedResponse>() {
                 @Override
-                public void onResponse(IndicesAliasesResponse indicesAliasesResponse) {
+                public void onResponse(AcknowledgedResponse indicesAliasesResponse) {
                     // <1>
                 }
 
@@ -2056,7 +2051,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::put-settings-request-indicesOptions
 
         // tag::put-settings-execute
-        UpdateSettingsResponse updateSettingsResponse =
+        AcknowledgedResponse updateSettingsResponse =
                 client.indices().putSettings(request, RequestOptions.DEFAULT);
         // end::put-settings-execute
 
@@ -2066,11 +2061,11 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         assertTrue(acknowledged);
 
         // tag::put-settings-execute-listener
-        ActionListener<UpdateSettingsResponse> listener =
-                new ActionListener<UpdateSettingsResponse>() {
+        ActionListener<AcknowledgedResponse> listener =
+                new ActionListener<AcknowledgedResponse>() {
 
             @Override
-            public void onResponse(UpdateSettingsResponse updateSettingsResponse) {
+            public void onResponse(AcknowledgedResponse updateSettingsResponse) {
                 // <1>
             }
 
@@ -2219,7 +2214,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         request.create(false); // make test happy
 
         // tag::put-template-execute
-        PutIndexTemplateResponse putTemplateResponse = client.indices().putTemplate(request, RequestOptions.DEFAULT);
+        AcknowledgedResponse putTemplateResponse = client.indices().putTemplate(request, RequestOptions.DEFAULT);
         // end::put-template-execute
 
         // tag::put-template-response
@@ -2228,10 +2223,10 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         assertTrue(acknowledged);
 
         // tag::put-template-execute-listener
-        ActionListener<PutIndexTemplateResponse> listener =
-            new ActionListener<PutIndexTemplateResponse>() {
+        ActionListener<AcknowledgedResponse> listener =
+            new ActionListener<AcknowledgedResponse>() {
                 @Override
-                public void onResponse(PutIndexTemplateResponse putTemplateResponse) {
+                public void onResponse(AcknowledgedResponse putTemplateResponse) {
                     // <1>
                 }
 
@@ -2461,7 +2456,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             .indices("my_index")
             .type("_doc")
             .source("my_field", "type=text,analyzer=english");
-        PutMappingResponse pmResp = client.indices().putMapping(pmReq, RequestOptions.DEFAULT);
+        AcknowledgedResponse pmResp = client.indices().putMapping(pmReq, RequestOptions.DEFAULT);
         assertTrue(pmResp.isAcknowledged());
 
         {

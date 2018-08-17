@@ -131,7 +131,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         assertThat(matchAssertion.getExpectedValue().toString(), equalTo("whitespace"));
 
         assertThat(restTestSuite.getTestSections().get(1).getName(),
-                equalTo("Get type mapping - pre 5.0"));
+                equalTo("Get type mapping - pre 6.0"));
         assertThat(restTestSuite.getTestSections().get(1).getSkipSection().isEmpty(), equalTo(false));
         assertThat(restTestSuite.getTestSections().get(1).getSkipSection().getReason(),
                 equalTo("for newer versions the index name is always returned"));

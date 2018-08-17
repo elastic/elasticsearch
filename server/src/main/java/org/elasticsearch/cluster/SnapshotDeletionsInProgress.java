@@ -133,7 +133,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_6_0_0_alpha1;
+        return Version.CURRENT.minimumCompatibilityVersion();
     }
 
     @Override

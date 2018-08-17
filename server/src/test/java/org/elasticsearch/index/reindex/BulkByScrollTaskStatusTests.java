@@ -24,7 +24,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.List;
@@ -63,7 +65,20 @@ public class BulkByScrollTaskStatusTests extends ESTestCase {
         assertEquals(expected.getRequestsPerSecond(), actual.getRequestsPerSecond(), 0f);
         assertEquals(expected.getReasonCancelled(), actual.getReasonCancelled());
         assertEquals(expected.getThrottledUntil(), actual.getThrottledUntil());
-        assertEquals(emptyList(), actual.getSliceStatuses());
+        assertThat(actual.getSliceStatuses(), Matchers.hasSize(expected.getSliceStatuses().size()));
+        for (int i = 0; i < expected.getSliceStatuses().size(); i++) {
+            BulkByScrollTask.StatusOrException sliceStatus = expected.getSliceStatuses().get(i);
+            if (sliceStatus == null) {
+                assertNull(actual.getSliceStatuses().get(i));
+            } else if (sliceStatus.getException() == null) {
+                assertNull(actual.getSliceStatuses().get(i).getException());
+                assertTaskStatusEquals(version, sliceStatus.getStatus(), actual.getSliceStatuses().get(i).getStatus());
+            } else {
+                assertNull(actual.getSliceStatuses().get(i).getStatus());
+                // Just check the message because we're not testing exception serialization in general here.
+                assertEquals(sliceStatus.getException().getMessage(), actual.getSliceStatuses().get(i).getException().getMessage());
+            }
+        }
     }
 
     public static BulkByScrollTask.Status randomStatus() {

@@ -55,21 +55,24 @@ public class VersionTests extends ESTestCase {
         assertThat(V_6_3_0.before(V_6_3_0), is(false));
         assertThat(V_7_0_0_alpha1.before(V_6_3_0), is(false));
 
+        assertThat(V_6_3_0.onOrBefore(V_7_0_0_alpha1), is(true));
         assertThat(V_6_3_0.onOrBefore(V_6_3_0), is(true));
+        assertThat(V_7_0_0_alpha1.onOrBefore(V_6_3_0), is(false));
 
-        assertThat(V_6_3_0.after(V_6_0_0_beta1), is(false));
+        assertThat(V_6_3_0.after(V_7_0_0_alpha1), is(false));
         assertThat(V_6_3_0.after(V_6_3_0), is(false));
+        assertThat(V_7_0_0_alpha1.after(V_6_3_0), is(true));
 
-        assertThat(V_6_3_0.onOrAfter(V_6_0_0_beta1), is(false));
+        assertThat(V_6_3_0.onOrAfter(V_7_0_0_alpha1), is(false));
         assertThat(V_6_3_0.onOrAfter(V_6_3_0), is(true));
-        assertThat(V_6_0_0_beta1.onOrAfter(V_6_3_0), is(true));
+        assertThat(V_7_0_0_alpha1.onOrAfter(V_6_3_0), is(true));
 
         assertTrue(Version.fromString("5.0.0-alpha2").onOrAfter(Version.fromString("5.0.0-alpha1")));
         assertTrue(Version.fromString("5.0.0").onOrAfter(Version.fromString("5.0.0-beta2")));
         assertTrue(Version.fromString("5.0.0-rc1").onOrAfter(Version.fromString("5.0.0-beta24")));
         assertTrue(Version.fromString("5.0.0-alpha24").before(Version.fromString("5.0.0-beta0")));
 
-        assertThat(V_6_3_0, is(lessThan(V_6_0_0_beta1)));
+        assertThat(V_6_3_0, is(lessThan(V_7_0_0_alpha1)));
         assertThat(V_6_3_0.compareTo(V_6_3_0), is(0));
         assertThat(V_7_0_0_alpha1, is(greaterThan(V_6_3_0)));
     }
@@ -169,13 +172,18 @@ public class VersionTests extends ESTestCase {
         assertThat(Version.fromString("2.0.0").minimumCompatibilityVersion(), equalTo(major));
         assertThat(Version.fromString("2.2.0").minimumCompatibilityVersion(), equalTo(major));
         assertThat(Version.fromString("2.3.0").minimumCompatibilityVersion(), equalTo(major));
-        // from 6.0 on we are supporting the latest minor of the previous major... this might fail once we add a new version ie. 5.x is
+        Version major5x = Version.fromString("5.0.0");
+        assertThat(Version.fromString("5.0.0").minimumCompatibilityVersion(), equalTo(major5x));
+        assertThat(Version.fromString("5.2.0").minimumCompatibilityVersion(), equalTo(major5x));
+        assertThat(Version.fromString("5.3.0").minimumCompatibilityVersion(), equalTo(major5x));
+
+        // from 7.0 on we are supporting the latest minor of the previous major... this might fail once we add a new version ie. 5.x is
         // released since we need to bump the supported minor in Version#minimumCompatibilityVersion()
-        Version lastVersion = Version.fromId(5060099); // TODO: remove this once min compat version is a constant instead of method
-        assertEquals(lastVersion.major, Version.V_6_0_0_beta1.minimumCompatibilityVersion().major);
+        Version lastVersion = Version.V_6_5_0; // TODO: remove this once min compat version is a constant instead of method
+        assertEquals(lastVersion.major, Version.V_7_0_0_alpha1.minimumCompatibilityVersion().major);
         assertEquals("did you miss to bump the minor in Version#minimumCompatibilityVersion()",
-                lastVersion.minor, Version.V_6_0_0_beta1.minimumCompatibilityVersion().minor);
-        assertEquals(0, Version.V_6_0_0_beta1.minimumCompatibilityVersion().revision);
+                lastVersion.minor, Version.V_7_0_0_alpha1.minimumCompatibilityVersion().minor);
+        assertEquals(0, Version.V_7_0_0_alpha1.minimumCompatibilityVersion().revision);
     }
 
     public void testToString() {
@@ -331,11 +339,11 @@ public class VersionTests extends ESTestCase {
 
     public void testIsCompatible() {
         assertTrue(isCompatible(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()));
-        assertTrue(isCompatible(Version.fromId(5060099), Version.V_6_0_0_alpha2));
-        assertFalse(isCompatible(Version.fromId(2000099), Version.V_6_0_0_alpha2));
-        assertFalse(isCompatible(Version.fromId(2000099), Version.fromId(5000099)));
-        assertFalse(isCompatible(Version.fromString("6.0.0"), Version.fromString("7.0.0")));
-        assertFalse(isCompatible(Version.fromString("6.0.0-alpha1"), Version.fromString("7.0.0")));
+        assertTrue(isCompatible(Version.V_6_5_0, Version.V_7_0_0_alpha1));
+        assertFalse(isCompatible(Version.fromId(2000099), Version.V_7_0_0_alpha1));
+        assertFalse(isCompatible(Version.fromId(2000099), Version.V_6_5_0));
+        assertFalse(isCompatible(Version.fromString("7.0.0"), Version.fromString("8.0.0")));
+        assertFalse(isCompatible(Version.fromString("7.0.0-alpha1"), Version.fromString("8.0.0")));
 
         final Version currentMajorVersion = Version.fromId(Version.CURRENT.major * 1000000 + 99);
         final Version currentOrNextMajorVersion;

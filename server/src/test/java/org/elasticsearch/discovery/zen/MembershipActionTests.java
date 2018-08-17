@@ -32,6 +32,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.VersionUtils.allVersions;
 import static org.elasticsearch.test.VersionUtils.getPreviousVersion;
+import static org.elasticsearch.test.VersionUtils.incompatibleFutureVersion;
 import static org.elasticsearch.test.VersionUtils.maxCompatibleVersion;
 import static org.elasticsearch.test.VersionUtils.randomCompatibleVersion;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
@@ -79,7 +80,7 @@ public class MembershipActionTests extends ESTestCase {
 
         final Version maxNodeVersion = nodes.getMaxNodeVersion();
         final Version minNodeVersion = nodes.getMinNodeVersion();
-        if (maxNodeVersion.onOrAfter(Version.V_6_0_0_alpha1)) {
+        if (maxNodeVersion.onOrAfter(Version.V_7_0_0_alpha1)) {
             final Version tooLow = getPreviousVersion(maxNodeVersion.minimumCompatibilityVersion());
             expectThrows(IllegalStateException.class, () -> {
                 if (randomBoolean()) {
@@ -90,7 +91,18 @@ public class MembershipActionTests extends ESTestCase {
             });
         }
 
-        if (minNodeVersion.onOrAfter(Version.V_6_0_0_alpha1)) {
+        if (minNodeVersion.before(Version.V_6_0_0)) {
+            Version tooHigh = incompatibleFutureVersion(minNodeVersion);
+            expectThrows(IllegalStateException.class, () -> {
+                if (randomBoolean()) {
+                    MembershipAction.ensureNodesCompatibility(tooHigh, nodes);
+                } else {
+                    MembershipAction.ensureNodesCompatibility(tooHigh, minNodeVersion, maxNodeVersion);
+                }
+            });
+        }
+
+        if (minNodeVersion.onOrAfter(Version.V_7_0_0_alpha1)) {
             Version oldMajor = randomFrom(allVersions().stream().filter(v -> v.major < 6).collect(Collectors.toList()));
             expectThrows(IllegalStateException.class, () -> MembershipAction.ensureMajorVersionBarrier(oldMajor, minNodeVersion));
         }

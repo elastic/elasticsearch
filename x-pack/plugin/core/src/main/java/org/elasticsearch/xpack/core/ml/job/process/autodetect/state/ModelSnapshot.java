@@ -143,7 +143,7 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
         if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             minVersion = Version.readVersion(in);
         } else {
-            minVersion = Version.V_6_0_0_alpha1;
+            minVersion = Version.CURRENT.minimumCompatibilityVersion();
         }
         timestamp = in.readBoolean() ? new Date(in.readVLong()) : null;
         description = in.readOptionalString();

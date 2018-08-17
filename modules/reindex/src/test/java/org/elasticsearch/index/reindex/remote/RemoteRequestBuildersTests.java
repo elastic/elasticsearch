@@ -43,6 +43,7 @@ import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.scrol
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
@@ -135,12 +136,14 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         // Test stored_fields for versions that support it
         searchRequest = new SearchRequest().source(new SearchSourceBuilder());
         searchRequest.source().storedField("_source").storedField("_id");
+        // V_5_0_0_alpha4 => current
         remoteVersion = Version.fromId(between(5000004, Version.CURRENT.id));
         assertThat(initialSearch(searchRequest, query, remoteVersion).getParameters(), hasEntry("stored_fields", "_source,_id"));
 
         // Test fields for versions that support it
         searchRequest = new SearchRequest().source(new SearchSourceBuilder());
         searchRequest.source().storedField("_source").storedField("_id");
+        // V_2_0_0 => V_5_0_0_alpha3
         remoteVersion = Version.fromId(between(2000099, 5000003));
         assertThat(initialSearch(searchRequest, query, remoteVersion).getParameters(), hasEntry("fields", "_source,_id"));
 
@@ -189,6 +192,16 @@ public class RemoteRequestBuildersTests extends ESTestCase {
     }
 
     private void assertScroll(Version remoteVersion, Map<String, String> params, TimeValue requested) {
+        // V_5_0_0
+        if (remoteVersion.before(Version.fromId(5000099))) {
+            // Versions of Elasticsearch prior to 5.0 can't parse nanos or micros in TimeValue.
+            assertThat(params.get("scroll"), not(either(endsWith("nanos")).or(endsWith("micros"))));
+            if (requested.getStringRep().endsWith("nanos") || requested.getStringRep().endsWith("micros")) {
+                long millis = (long) Math.ceil(requested.millisFrac());
+                assertEquals(TimeValue.parseTimeValue(params.get("scroll"), "scroll"), timeValueMillis(millis));
+                return;
+            }
+        }
         assertEquals(requested, TimeValue.parseTimeValue(params.get("scroll"), "scroll"));
     }
 

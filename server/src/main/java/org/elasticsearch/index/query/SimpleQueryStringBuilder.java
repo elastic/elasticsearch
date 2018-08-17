@@ -169,6 +169,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         analyzer = in.readOptionalString();
         defaultOperator = Operator.readFromStream(in);
         settings.lenient(in.readBoolean());
+        this.lenientSet = in.readBoolean();
         settings.analyzeWildcard(in.readBoolean());
         minimumShouldMatch = in.readOptionalString();
         settings.quoteFieldSuffix(in.readOptionalString());
@@ -198,6 +199,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         out.writeOptionalString(analyzer);
         defaultOperator.writeTo(out);
         out.writeBoolean(settings.lenient());
+        out.writeBoolean(lenientSet);
         out.writeBoolean(settings.analyzeWildcard());
         out.writeOptionalString(minimumShouldMatch);
         out.writeOptionalString(settings.quoteFieldSuffix());

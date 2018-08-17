@@ -25,6 +25,7 @@ import com.ibm.icu.text.RuleBasedCollator;
 import com.ibm.icu.util.ULocale;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -569,7 +570,6 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
     private final String variableTop;
     private final boolean hiraganaQuaternaryMode;
     private final Collator collator;
-    private final BiFunction<String, BytesRef, Field> getDVField;
 
     protected ICUCollationKeywordFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
                                              Settings indexSettings, MultiFields multiFields, CopyTo copyTo, String rules, String language,
@@ -591,7 +591,6 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         this.variableTop = variableTop;
         this.hiraganaQuaternaryMode = hiraganaQuaternaryMode;
         this.collator = collator;
-        getDVField = SortedSetDocValuesField::new;
     }
 
     @Override
@@ -748,7 +747,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
 
         if (fieldType().hasDocValues()) {
-            fields.add(getDVField.apply(fieldType().name(), binaryValue));
+            fields.add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
         } else if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
             createFieldNamesField(context, fields);
         }

@@ -48,10 +48,6 @@ import java.util.Map;
 public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implements Custom {
     public static final String TYPE = "snapshots";
 
-    // denotes an undefined repository state id, which will happen when receiving a cluster state with
-    // a snapshot in progress from a pre 5.2.x node
-    public static final long UNDEFINED_REPOSITORY_STATE_ID = -2L;
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

@@ -719,7 +719,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     protected void writeIndexGen(final RepositoryData repositoryData, final long repositoryStateId) throws IOException {
         assert isReadOnly() == false; // can not write to a read only repository
         final long currentGen = latestIndexBlobId();
-        if (repositoryStateId != SnapshotsInProgress.UNDEFINED_REPOSITORY_STATE_ID && currentGen != repositoryStateId) {
+        if (currentGen != repositoryStateId) {
             // the index file was updated by a concurrent operation, so we were operating on stale
             // repository data
             throw new RepositoryException(metadata.name(), "concurrent modification of the index-N file, expected current generation [" +

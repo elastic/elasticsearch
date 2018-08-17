@@ -20,6 +20,7 @@ package org.elasticsearch.analysis.common;
  */
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 
@@ -33,7 +34,7 @@ public class SnowballAnalyzerTests extends ESTokenStreamTestCase {
 
   public void testStopwords() throws Exception {
     Analyzer a = new SnowballAnalyzer("English",
-        StandardAnalyzer.STOP_WORDS_SET);
+            EnglishAnalyzer.ENGLISH_STOP_WORDS_SET);
     assertAnalyzesTo(a, "the quick brown fox jumped",
         new String[]{"quick", "brown", "fox", "jump"});
   }

@@ -23,7 +23,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
@@ -45,14 +45,13 @@ public class PreVoteCollector extends AbstractComponent {
     private final TransportService transportService;
     private final Runnable startElection;
 
-    @Nullable
-    private volatile DiscoveryNode currentLeader; // null if there is currently no known leader
-    private volatile PreVoteResponse preVoteResponse;
+    // Tuple for simple atomic updates
+    private volatile Tuple<DiscoveryNode, PreVoteResponse> state; // DiscoveryNode component is null if there is currently no known leader
 
     PreVoteCollector(final Settings settings, final PreVoteResponse preVoteResponse,
                      final TransportService transportService, final Runnable startElection) {
         super(settings);
-        this.preVoteResponse = preVoteResponse;
+        state = new Tuple<>(null, preVoteResponse);
         this.transportService = transportService;
         this.startElection = startElection;
 
@@ -64,38 +63,48 @@ public class PreVoteCollector extends AbstractComponent {
 
     /**
      * Start a new pre-voting round.
-     * @param clusterState the last-accepted cluster state
+     *
+     * @param clusterState   the last-accepted cluster state
      * @param broadcastNodes the nodes from whom to request pre-votes
      * @return the pre-voting round, which can be closed to end the round early.
      */
     public Releasable start(final ClusterState clusterState, final Iterable<DiscoveryNode> broadcastNodes) {
-        PreVotingRound currentRound = new PreVotingRound(clusterState, preVoteResponse.getCurrentTerm());
+        PreVotingRound currentRound = new PreVotingRound(clusterState, state.v2().getCurrentTerm());
         currentRound.start(broadcastNodes);
         return currentRound;
     }
 
-    public void update(final PreVoteResponse preVoteResponse, final DiscoveryNode currentLeader) {
-        logger.trace("updating with preVoteResponse={}, currentLeader={}", preVoteResponse, currentLeader);
-        this.preVoteResponse = preVoteResponse;
-        this.currentLeader = currentLeader;
+    public void update(final PreVoteResponse preVoteResponse, final DiscoveryNode leader) {
+        logger.trace("updating with preVoteResponse={}, leader={}", preVoteResponse, leader);
+        state = new Tuple<>(leader, preVoteResponse);
     }
 
     private PreVoteResponse handlePreVoteRequest(final PreVoteRequest request) {
         // TODO if we are a leader and the max term seen exceeds our term then we need to bump our term
 
-        final DiscoveryNode currentLeader = this.currentLeader;
-        if (currentLeader == null || currentLeader.equals(request.getSourceNode())) {
-            return preVoteResponse;
-        } else {
-            throw new CoordinationStateRejectedException("rejecting " + request + " as there is already a leader");
+        Tuple<DiscoveryNode, PreVoteResponse> state = this.state;
+        final DiscoveryNode leader = state.v1();
+
+        if (leader == null) {
+            return state.v2();
         }
+
+        if (leader.equals(request.getSourceNode())) {
+            // This is a _rare_ case where our leader has detected a failure and stepped down, but we are still a follower. It's possible
+            // that the leader lost its quorum, but while we're still a follower we will not offer joins to any other node so there is no
+            // major drawback in offering a join to our old leader. The advantage of this is that it makes it slightly more likely that the
+            // leader won't change, and also that its re-election will happen more quickly than if it had to wait for a quorum of followers
+            // to also detect its failure.
+            return state.v2();
+        }
+
+        throw new CoordinationStateRejectedException("rejecting " + request + " as there is already a leader");
     }
 
     @Override
     public String toString() {
         return "PreVoteCollector{" +
-            "currentLeader=" + currentLeader +
-            ", preVoteResponse=" + preVoteResponse +
+            "state=" + state +
             '}';
     }
 

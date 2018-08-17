@@ -26,6 +26,7 @@ import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.RoaringDocIdSet;
@@ -203,11 +204,11 @@ final class CompositeAggregator extends BucketsAggregator {
      * the {@link #deferredCollectors}.
      */
     private void runDeferredCollections() throws IOException {
-        final boolean needsScores = needsScores();
+        final boolean needsScores = scoreMode().needsScores();
         Weight weight = null;
         if (needsScores) {
             Query query = context.query();
-            weight = context.searcher().createNormalizedWeight(query, true);
+            weight = context.searcher().createNormalizedWeight(query, ScoreMode.COMPLETE);
         }
         deferredCollectors.preCollection();
         for (Entry entry : entries) {

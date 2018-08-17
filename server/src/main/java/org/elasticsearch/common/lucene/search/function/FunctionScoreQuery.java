@@ -26,6 +26,7 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FilterScorer;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
@@ -212,22 +213,26 @@ public class FunctionScoreQuery extends Query {
     }
 
     @Override
-    public Weight createWeight(IndexSearcher searcher, boolean needsScores, float boost) throws IOException {
-        if (needsScores == false && minScore == null) {
-            return subQuery.createWeight(searcher, needsScores, boost);
+    public Weight createWeight(IndexSearcher searcher, org.apache.lucene.search.ScoreMode scoreMode, float boost) throws IOException {
+        if (scoreMode == org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES && minScore == null) {
+            return subQuery.createWeight(searcher, scoreMode, boost);
         }
 
-        boolean subQueryNeedsScores = combineFunction != CombineFunction.REPLACE;
+        org.apache.lucene.search.ScoreMode subQueryScoreMode = combineFunction != CombineFunction.REPLACE
+                ? org.apache.lucene.search.ScoreMode.COMPLETE
+                : org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES;
         Weight[] filterWeights = new Weight[functions.length];
         for (int i = 0; i < functions.length; ++i) {
-            subQueryNeedsScores |= functions[i].needsScores();
+            if (functions[i].needsScores()) {
+                subQueryScoreMode = org.apache.lucene.search.ScoreMode.COMPLETE;
+            }
             if (functions[i] instanceof FilterScoreFunction) {
                 Query filter = ((FilterScoreFunction) functions[i]).filter;
-                filterWeights[i] = searcher.createNormalizedWeight(filter, false);
+                filterWeights[i] = searcher.createNormalizedWeight(filter, org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES);
             }
         }
-        Weight subQueryWeight = subQuery.createWeight(searcher, subQueryNeedsScores, boost);
-        return new CustomBoostFactorWeight(this, subQueryWeight, filterWeights, subQueryNeedsScores);
+        Weight subQueryWeight = subQuery.createWeight(searcher, subQueryScoreMode, boost);
+        return new CustomBoostFactorWeight(this, subQueryWeight, filterWeights, subQueryScoreMode.needsScores());
     }
 
     class CustomBoostFactorWeight extends Weight {

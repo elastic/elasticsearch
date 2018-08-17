@@ -320,7 +320,7 @@ public class FunctionScoreTests extends ESTestCase {
 
     public Explanation getFunctionScoreExplanation(IndexSearcher searcher, ScoreFunction scoreFunction) throws IOException {
         FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(new TermQuery(TERM), scoreFunction, CombineFunction.AVG,0.0f, 100);
-        Weight weight = searcher.createNormalizedWeight(functionScoreQuery, true);
+        Weight weight = searcher.createNormalizedWeight(functionScoreQuery, org.apache.lucene.search.ScoreMode.COMPLETE);
         Explanation explanation = weight.explain(searcher.getIndexReader().leaves().get(0), 0);
         return explanation.getDetails()[1];
     }
@@ -397,7 +397,7 @@ public class FunctionScoreTests extends ESTestCase {
     }
 
     protected Explanation getExplanation(IndexSearcher searcher, FunctionScoreQuery functionScoreQuery) throws IOException {
-        Weight weight = searcher.createNormalizedWeight(functionScoreQuery, true);
+        Weight weight = searcher.createNormalizedWeight(functionScoreQuery, org.apache.lucene.search.ScoreMode.COMPLETE);
         return weight.explain(searcher.getIndexReader().leaves().get(0), 0);
     }
 
@@ -613,8 +613,8 @@ public class FunctionScoreTests extends ESTestCase {
         searcher.setQueryCache(null); // otherwise we could get a cached entry that does not have approximations
 
         FunctionScoreQuery fsq = new FunctionScoreQuery(query, null, Float.POSITIVE_INFINITY);
-        for (boolean needsScores : new boolean[] {true, false}) {
-            Weight weight = searcher.createWeight(fsq, needsScores, 1f);
+        for (org.apache.lucene.search.ScoreMode scoreMode : org.apache.lucene.search.ScoreMode.values()) {
+            Weight weight = searcher.createWeight(fsq, scoreMode, 1f);
             Scorer scorer = weight.scorer(reader.leaves().get(0));
             assertNotNull(scorer.twoPhaseIterator());
         }

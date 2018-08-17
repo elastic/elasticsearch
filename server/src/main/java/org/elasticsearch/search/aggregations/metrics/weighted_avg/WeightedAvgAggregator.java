@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.metrics.weighted_avg;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
@@ -67,8 +68,8 @@ public class WeightedAvgAggregator extends NumericMetricsAggregator.SingleValue 
     }
 
     @Override
-    public boolean needsScores() {
-        return valuesSources != null && valuesSources.needsScores();
+    public ScoreMode scoreMode() {
+        return valuesSources != null && valuesSources.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
     }
 
     @Override

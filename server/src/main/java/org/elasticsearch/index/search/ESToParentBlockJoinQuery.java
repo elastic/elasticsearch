@@ -75,8 +75,8 @@ public final class ESToParentBlockJoinQuery extends Query {
     }
 
     @Override
-    public Weight createWeight(IndexSearcher searcher, boolean needsScores, float boost) throws IOException {
-        return query.createWeight(searcher, needsScores, boost);
+    public Weight createWeight(IndexSearcher searcher, org.apache.lucene.search.ScoreMode scoreMode, float boost) throws IOException {
+        return query.createWeight(searcher, scoreMode, boost);
     }
 
     @Override

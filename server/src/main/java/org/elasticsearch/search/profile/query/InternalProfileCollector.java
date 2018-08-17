@@ -22,6 +22,7 @@ package org.elasticsearch.search.profile.query;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.ScoreMode;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -116,8 +117,8 @@ public class InternalProfileCollector implements Collector {
     }
 
     @Override
-    public boolean needsScores() {
-        return collector.needsScores();
+    public ScoreMode scoreMode() {
+        return collector.scoreMode();
     }
 
     public CollectorResult getCollectorTree() {

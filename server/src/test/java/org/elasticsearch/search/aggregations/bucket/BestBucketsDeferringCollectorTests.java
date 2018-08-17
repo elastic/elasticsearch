@@ -30,6 +30,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
@@ -70,8 +71,8 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
         when(searchContext.query()).thenReturn(rewrittenQuery);
         BestBucketsDeferringCollector collector = new BestBucketsDeferringCollector(searchContext, false) {
             @Override
-            public boolean needsScores() {
-                return true;
+            public ScoreMode scoreMode() {
+                return ScoreMode.COMPLETE;
             }
         };
         Set<Integer> deferredCollectedDocIds = new HashSet<>();
@@ -126,8 +127,8 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
             }
 
             @Override
-            public boolean needsScores() {
-                return false;
+            public ScoreMode scoreMode() {
+                return ScoreMode.COMPLETE_NO_SCORES;
             }
         };
     }

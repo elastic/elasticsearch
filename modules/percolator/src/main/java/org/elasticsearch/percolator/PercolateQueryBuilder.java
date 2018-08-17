@@ -33,6 +33,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
@@ -660,11 +661,11 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             final IndexSearcher slowSearcher = new IndexSearcher(directoryReader) {
 
                 @Override
-                public Weight createNormalizedWeight(Query query, boolean needsScores) throws IOException {
+                public Weight createNormalizedWeight(Query query, ScoreMode scoreMode) throws IOException {
                     BooleanQuery.Builder bq = new BooleanQuery.Builder();
                     bq.add(query, BooleanClause.Occur.MUST);
                     bq.add(Queries.newNestedFilter(), BooleanClause.Occur.MUST_NOT);
-                    return super.createNormalizedWeight(bq.build(), needsScores);
+                    return super.createNormalizedWeight(bq.build(), scoreMode);
                 }
 
             };
@@ -742,7 +743,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                     final IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(context);
                     final IndexSearcher searcher = new IndexSearcher(topLevelContext);
                     searcher.setQueryCache(null);
-                    final Weight weight = searcher.createNormalizedWeight(query, false);
+                    final Weight weight = searcher.createNormalizedWeight(query, ScoreMode.COMPLETE_NO_SCORES);
                     final Scorer s = weight.scorer(context);
 
                     if (s != null) {

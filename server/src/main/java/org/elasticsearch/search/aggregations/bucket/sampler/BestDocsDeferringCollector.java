@@ -22,6 +22,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
@@ -69,8 +70,8 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
     }
 
     @Override
-    public boolean needsScores() {
-        return true;
+    public ScoreMode scoreMode() {
+        return ScoreMode.COMPLETE;
     }
 
     /** Set the deferred collectors. */
@@ -278,6 +279,11 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
             }
             sampler.collect(docId);
             maxDocId = Math.max(maxDocId, docId);
+        }
+
+        @Override
+        public float getMaxScore(int upTo) throws IOException {
+            return Float.MAX_VALUE;
         }
     }
 

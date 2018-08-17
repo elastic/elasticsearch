@@ -26,6 +26,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TopDocs;
@@ -75,9 +76,9 @@ final class PercolateQuery extends Query implements Accountable {
     }
 
     @Override
-    public Weight createWeight(IndexSearcher searcher, boolean needsScores, float boost) throws IOException {
-        final Weight verifiedMatchesWeight = verifiedMatchesQuery.createWeight(searcher, false, boost);
-        final Weight candidateMatchesWeight = candidateMatchesQuery.createWeight(searcher, false, boost);
+    public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+        final Weight verifiedMatchesWeight = verifiedMatchesQuery.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, boost);
+        final Weight candidateMatchesWeight = candidateMatchesQuery.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, boost);
         return new Weight(this) {
             @Override
             public void extractTerms(Set<Term> set) {
@@ -91,7 +92,7 @@ final class PercolateQuery extends Query implements Accountable {
                     int result = twoPhaseIterator.approximation().advance(docId);
                     if (result == docId) {
                         if (twoPhaseIterator.matches()) {
-                            if (needsScores) {
+                            if (scoreMode.needsScores()) {
                                 CheckedFunction<Integer, Query, IOException> percolatorQueries = queryStore.getQueries(leafReaderContext);
                                 Query query = percolatorQueries.apply(docId);
                                 Explanation detail = percolatorIndexSearcher.explain(query, 0);

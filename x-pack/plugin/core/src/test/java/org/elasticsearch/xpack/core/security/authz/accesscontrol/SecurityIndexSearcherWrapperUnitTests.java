@@ -270,7 +270,8 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         iw.close();
         DirectoryReader directoryReader = DirectoryReader.open(directory);
         IndexSearcher searcher = new IndexSearcher(directoryReader);
-        Weight weight = searcher.createNormalizedWeight(new TermQuery(new Term("field2", "value1")), false);
+        Weight weight = searcher.createNormalizedWeight(new TermQuery(new Term("field2", "value1")),
+                org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES);
 
         LeafReaderContext leaf = directoryReader.leaves().get(0);
 
@@ -545,8 +546,8 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         }
 
         @Override
-        public Weight createWeight(IndexSearcher searcher, boolean needsScores, float boost) throws IOException {
-            return new CreateScorerOnceWeight(query.createWeight(searcher, needsScores, boost));
+        public Weight createWeight(IndexSearcher searcher, org.apache.lucene.search.ScoreMode scoreMode, float boost) throws IOException {
+            return new CreateScorerOnceWeight(query.createWeight(searcher, scoreMode, boost));
         }
 
         @Override

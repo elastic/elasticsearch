@@ -225,7 +225,7 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
 
     private boolean subAggsNeedScore() {
         for (Aggregator subAgg : subAggregators) {
-            if (subAgg.needsScores()) {
+            if (subAgg.scoreMode().needsScores()) {
                 return true;
             }
         }

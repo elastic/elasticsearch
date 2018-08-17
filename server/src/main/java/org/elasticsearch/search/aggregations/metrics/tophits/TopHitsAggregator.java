@@ -26,6 +26,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
@@ -70,13 +71,13 @@ public class TopHitsAggregator extends MetricsAggregator {
     }
 
     @Override
-    public boolean needsScores() {
+    public ScoreMode scoreMode() {
         SortAndFormats sort = subSearchContext.sort();
         if (sort != null) {
-            return sort.sort.needsScores() || subSearchContext.trackScores();
+            return sort.sort.needsScores() || subSearchContext.trackScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
         } else {
             // sort by score
-            return true;
+            return ScoreMode.COMPLETE;
         }
     }
 

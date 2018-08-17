@@ -20,6 +20,7 @@ package org.apache.lucene.search.grouping;
 
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
@@ -97,11 +98,12 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
     }
 
     @Override
-    public boolean needsScores() {
-        if (super.needsScores() == false) {
-            return trackMaxScore;
+    public ScoreMode scoreMode() {
+        if (trackMaxScore || super.scoreMode().needsScores()) {
+            return ScoreMode.COMPLETE;
+        } else {
+            return ScoreMode.COMPLETE_NO_SCORES;
         }
-        return true;
     }
 
     @Override

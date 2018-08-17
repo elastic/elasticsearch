@@ -31,6 +31,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.Weight;
@@ -112,22 +113,22 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     @Override
-    public Weight createNormalizedWeight(Query query, boolean needsScores) throws IOException {
+    public Weight createNormalizedWeight(Query query, ScoreMode scoreMode) throws IOException {
         // During tests we prefer to use the wrapped IndexSearcher, because then we use the AssertingIndexSearcher
         // it is hacky, because if we perform a dfs search, we don't use the wrapped IndexSearcher...
-        if (aggregatedDfs != null && needsScores) {
+        if (aggregatedDfs != null && scoreMode.needsScores()) {
             // if scores are needed and we have dfs data then use it
-            return super.createNormalizedWeight(query, needsScores);
+            return super.createNormalizedWeight(query, scoreMode);
         } else if (profiler != null) {
             // we need to use the createWeight method to insert the wrappers
-            return super.createNormalizedWeight(query, needsScores);
+            return super.createNormalizedWeight(query, scoreMode);
         } else {
-            return in.createNormalizedWeight(query, needsScores);
+            return in.createNormalizedWeight(query, scoreMode);
         }
     }
 
     @Override
-    public Weight createWeight(Query query, boolean needsScores, float boost) throws IOException {
+    public Weight createWeight(Query query, ScoreMode scoreMode, float boost) throws IOException {
         if (profiler != null) {
             // createWeight() is called for each query in the tree, so we tell the queryProfiler
             // each invocation so that it can build an internal representation of the query
@@ -137,7 +138,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             timer.start();
             final Weight weight;
             try {
-                weight = super.createWeight(query, needsScores, boost);
+                weight = super.createWeight(query, scoreMode, boost);
             } finally {
                 timer.stop();
                 profiler.pollLastElement();
@@ -145,7 +146,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             return new ProfileWeight(query, weight, profile);
         } else {
             // needs to be 'super', not 'in' in order to use aggregated DFS
-            return super.createWeight(query, needsScores, boost);
+            return super.createWeight(query, scoreMode, boost);
         }
     }
 
@@ -195,7 +196,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     public Explanation explain(Query query, int doc) throws IOException {
         if (aggregatedDfs != null) {
             // dfs data is needed to explain the score
-            return super.explain(createNormalizedWeight(query, true), doc);
+            return super.explain(createNormalizedWeight(query, ScoreMode.COMPLETE), doc);
         }
         return in.explain(query, doc);
     }

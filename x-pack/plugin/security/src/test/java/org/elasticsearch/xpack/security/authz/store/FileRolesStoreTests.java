@@ -244,7 +244,7 @@ public class FileRolesStoreTests extends ESTestCase {
                 .put(XPackSettings.DLS_FLS_ENABLED.getKey(), false)
                 .build(), new XPackLicenseState(Settings.EMPTY));
         assertThat(roles, notNullValue());
-        assertThat(roles.toString(), roles.size(), is(6));
+        assertThat(roles.size(), is(6));
         assertThat(roles.get("role_fields"), nullValue());
         assertThat(roles.get("role_query"), nullValue());
         assertThat(roles.get("role_query_fields"), nullValue());
@@ -271,7 +271,7 @@ public class FileRolesStoreTests extends ESTestCase {
         when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(false);
         Map<String, RoleDescriptor> roles = FileRolesStore.parseFile(path, logger, Settings.EMPTY, licenseState);
         assertThat(roles, notNullValue());
-        assertThat(roles.toString(), roles.size(), is(9));
+        assertThat(roles.size(), is(9));
         assertNotNull(roles.get("role_fields"));
         assertNotNull(roles.get("role_query"));
         assertNotNull(roles.get("role_query_fields"));
@@ -383,7 +383,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(role, notNullValue());
         assertThat(role.names(), equalTo(new String[] { "valid_role" }));
 
-        assertThat(entries.toString(), entries, hasSize(6));
+        assertThat(entries, hasSize(6));
         assertThat(
                 entries.get(0),
                 startsWith("invalid role definition [fóóbár] in roles file [" + path.toAbsolutePath() + "]. invalid role name"));
@@ -405,7 +405,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(roleNames.size(), is(6));
         assertThat(roleNames, containsInAnyOrder("valid_role", "role1", "role2", "role3", "role4", "role5"));
 
-        assertThat(events.toString(), events, hasSize(1));
+        assertThat(events, hasSize(1));
         assertThat(
                 events.get(0),
                 startsWith("invalid role definition [fóóbár] in roles file [" + path.toAbsolutePath() + "]. invalid role name"));

@@ -48,9 +48,9 @@ public class TransportUpgradeStatusAction extends TransportBroadcastByNodeAction
     private final IndicesService indicesService;
 
     @Inject
-    public TransportUpgradeStatusAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
+    public TransportUpgradeStatusAction(Settings settings, ClusterService clusterService, TransportService transportService,
                                         IndicesService indicesService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, UpgradeStatusAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
+        super(settings, UpgradeStatusAction.NAME, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 UpgradeStatusRequest::new, ThreadPool.Names.MANAGEMENT);
         this.indicesService = indicesService;
     }

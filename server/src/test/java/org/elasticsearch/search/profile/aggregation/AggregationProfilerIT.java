@@ -22,6 +22,7 @@ package org.elasticsearch.search.profile.aggregation;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedOrdinalsSamplerAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.GlobalOrdinalsStringTermsAggregator;
 import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregator;
@@ -120,9 +121,17 @@ public class AggregationProfilerIT extends ESIntegTestCase {
 
     public void testMultiLevelProfile() {
         SearchResponse response = client().prepareSearch("idx").setProfile(true)
-                .addAggregation(histogram("histo").field(NUMBER_FIELD).interval(1L)
-                        .subAggregation(terms("terms").field(TAG_FIELD)
-                                .subAggregation(avg("avg").field(NUMBER_FIELD)))).get();
+                .addAggregation(
+                    histogram("histo")
+                        .field(NUMBER_FIELD)
+                        .interval(1L)
+                        .subAggregation(
+                            terms("terms")
+                                .field(TAG_FIELD)
+                                .order(BucketOrder.aggregation("avg", false))
+                                .subAggregation(avg("avg").field(NUMBER_FIELD))
+                        )
+                ).get();
         assertSearchResponse(response);
         Map<String, ProfileShardResult> profileResults = response.getProfileResults();
         assertThat(profileResults, notNullValue());

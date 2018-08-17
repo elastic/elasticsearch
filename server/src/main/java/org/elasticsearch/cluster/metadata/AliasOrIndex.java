@@ -157,9 +157,13 @@ public interface AliasOrIndex {
             List<IndexMetaData> writeIndices = referenceIndexMetaDatas.stream()
                 .filter(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).writeIndex()))
                 .collect(Collectors.toList());
-            if (referenceIndexMetaDatas.size() == 1) {
-                writeIndex.set(referenceIndexMetaDatas.get(0));
-            } else if (writeIndices.size() == 1) {
+
+            if (writeIndices.isEmpty() && referenceIndexMetaDatas.size() == 1
+                    && referenceIndexMetaDatas.get(0).getAliases().get(aliasName).writeIndex() == null) {
+                writeIndices.add(referenceIndexMetaDatas.get(0));
+            }
+
+            if (writeIndices.size() == 1) {
                 writeIndex.set(writeIndices.get(0));
             } else if (writeIndices.size() > 1) {
                 List<String> writeIndicesStrings = writeIndices.stream()

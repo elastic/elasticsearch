@@ -43,9 +43,9 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.VersionUtils;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -562,27 +562,27 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
     }
 
     public void testDateWithoutOrigin() throws Exception {
-        DateTime dt = new DateTime(DateTimeZone.UTC);
+        ZonedDateTime dt = ZonedDateTime.now(ZoneOffset.UTC);
 
         assertAcked(prepareCreate("test").addMapping(
                 "type1",
                 jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "text")
                         .endObject().startObject("num1").field("type", "date").endObject().endObject().endObject().endObject()));
 
-        DateTime docDate = dt.minusDays(1);
-        String docDateString = docDate.getYear() + "-" + String.format(Locale.ROOT, "%02d", docDate.getMonthOfYear()) + "-"
+        ZonedDateTime docDate = dt.minusDays(1);
+        String docDateString = docDate.getYear() + "-" + String.format(Locale.ROOT, "%02d", docDate.getMonthValue()) + "-"
                 + String.format(Locale.ROOT, "%02d", docDate.getDayOfMonth());
         client().index(
                 indexRequest("test").type("type1").id("1")
                         .source(jsonBuilder().startObject().field("test", "value").field("num1", docDateString).endObject())).actionGet();
         docDate = dt.minusDays(2);
-        docDateString = docDate.getYear() + "-" + String.format(Locale.ROOT, "%02d", docDate.getMonthOfYear()) + "-"
+        docDateString = docDate.getYear() + "-" + String.format(Locale.ROOT, "%02d", docDate.getMonthValue()) + "-"
                 + String.format(Locale.ROOT, "%02d", docDate.getDayOfMonth());
         client().index(
                 indexRequest("test").type("type1").id("2")
                         .source(jsonBuilder().startObject().field("test", "value").field("num1", docDateString).endObject())).actionGet();
         docDate = dt.minusDays(3);
-        docDateString = docDate.getYear() + "-" + String.format(Locale.ROOT, "%02d", docDate.getMonthOfYear()) + "-"
+        docDateString = docDate.getYear() + "-" + String.format(Locale.ROOT, "%02d", docDate.getMonthValue()) + "-"
                 + String.format(Locale.ROOT, "%02d", docDate.getDayOfMonth());
         client().index(
                 indexRequest("test").type("type1").id("3")

@@ -62,11 +62,12 @@ public class RepositoryDataTests extends ESTestCase {
         RepositoryData repositoryData = generateRandomRepoData();
         XContentBuilder builder = JsonXContent.contentBuilder();
         repositoryData.snapshotsToXContent(builder, ToXContent.EMPTY_PARAMS);
-        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
-        long gen = (long) randomIntBetween(0, 500);
-        RepositoryData fromXContent = RepositoryData.snapshotsFromXContent(parser, gen);
-        assertEquals(repositoryData, fromXContent);
-        assertEquals(gen, fromXContent.getGenId());
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+            long gen = (long) randomIntBetween(0, 500);
+            RepositoryData fromXContent = RepositoryData.snapshotsFromXContent(parser, gen);
+            assertEquals(repositoryData, fromXContent);
+            assertEquals(gen, fromXContent.getGenId());
+        }
     }
 
     public void testAddSnapshots() {
@@ -166,7 +167,10 @@ public class RepositoryDataTests extends ESTestCase {
 
         XContentBuilder builder = XContentBuilder.builder(xContent);
         repositoryData.snapshotsToXContent(builder, ToXContent.EMPTY_PARAMS);
-        RepositoryData parsedRepositoryData = RepositoryData.snapshotsFromXContent(createParser(builder), repositoryData.getGenId());
+        RepositoryData parsedRepositoryData;
+        try (XContentParser xParser = createParser(builder)) {
+            parsedRepositoryData = RepositoryData.snapshotsFromXContent(xParser, repositoryData.getGenId());
+        }
         assertEquals(repositoryData, parsedRepositoryData);
 
         Map<String, SnapshotId> snapshotIds = new HashMap<>();
@@ -195,10 +199,12 @@ public class RepositoryDataTests extends ESTestCase {
         final XContentBuilder corruptedBuilder = XContentBuilder.builder(xContent);
         corruptedRepositoryData.snapshotsToXContent(corruptedBuilder, ToXContent.EMPTY_PARAMS);
 
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () ->
-            RepositoryData.snapshotsFromXContent(createParser(corruptedBuilder), corruptedRepositoryData.getGenId()));
-        assertThat(e.getMessage(), equalTo("Detected a corrupted repository, index " + corruptedIndexId + " references an unknown " +
-            "snapshot uuid [_does_not_exist]"));
+        try (XContentParser xParser = createParser(corruptedBuilder)) {
+            ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () ->
+                RepositoryData.snapshotsFromXContent(xParser, corruptedRepositoryData.getGenId()));
+            assertThat(e.getMessage(), equalTo("Detected a corrupted repository, index " + corruptedIndexId + " references an unknown " +
+                "snapshot uuid [_does_not_exist]"));
+        }
     }
 
     public void testIndexThatReferenceANullSnapshot() throws IOException {
@@ -230,9 +236,12 @@ public class RepositoryDataTests extends ESTestCase {
         }
         builder.endObject();
 
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () ->
-            RepositoryData.snapshotsFromXContent(createParser(builder), randomNonNegativeLong()));
-        assertThat(e.getMessage(), equalTo("Detected a corrupted repository, index [docs/_id] references an unknown snapshot uuid [null]"));
+        try (XContentParser xParser = createParser(builder)) {
+            ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () ->
+                RepositoryData.snapshotsFromXContent(xParser, randomNonNegativeLong()));
+            assertThat(e.getMessage(), equalTo("Detected a corrupted repository, " +
+                "index [docs/_id] references an unknown snapshot uuid [null]"));
+        }
     }
 
     public static RepositoryData generateRandomRepoData() {

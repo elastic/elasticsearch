@@ -10,7 +10,6 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheAction;
@@ -32,10 +31,9 @@ public class TransportClearRealmCacheAction extends TransportNodesAction<ClearRe
     @Inject
     public TransportClearRealmCacheAction(Settings settings, ThreadPool threadPool,
                                           ClusterService clusterService, TransportService transportService,
-                                          ActionFilters actionFilters, Realms realms,
-                                          IndexNameExpressionResolver indexNameExpressionResolver) {
+                                          ActionFilters actionFilters, Realms realms) {
         super(settings, ClearRealmCacheAction.NAME, threadPool, clusterService, transportService, actionFilters,
-              indexNameExpressionResolver, ClearRealmCacheRequest::new, ClearRealmCacheRequest.Node::new, ThreadPool.Names.MANAGEMENT,
+            ClearRealmCacheRequest::new, ClearRealmCacheRequest.Node::new, ThreadPool.Names.MANAGEMENT,
               ClearRealmCacheResponse.Node.class);
         this.realms = realms;
     }

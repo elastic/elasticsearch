@@ -35,6 +35,7 @@ the watch payload in the email body:
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 <1> The id of the action.
 <2> The action type is set to `email`.
 <3> One or more addresses to send the email to. Must be specified in the
@@ -92,6 +93,7 @@ killed by firewalls or load balancers inbetween.
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 <1> The ID of the attachment, which is used as the file name in the email
     attachment.
 <2> The type of the attachment and its specific configuration.
@@ -158,9 +160,8 @@ include::{kib-repo-dir}/reporting/watch-example.asciidoc[]
 
 include::{kib-repo-dir}/reporting/report-intervals.asciidoc[]
 
-//TODO: RE-ADD LINK:
-//For more information, see
-//{kibana-ref}/automating-report-generation.html[Automating Report Generation].
+For more information, see
+{kibana-ref}/automating-report-generation.html[Automating Report Generation].
 
 [[email-action-attributes]]
 ==== Email Action Attributes

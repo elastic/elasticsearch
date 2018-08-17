@@ -5,7 +5,7 @@
 <titleabbrev>Forecast Jobs</titleabbrev>
 ++++
 
-Predict the future behavior of a time series by using historical behavior. 
+Predicts the future behavior of a time series by using its historical behavior. 
 
 ==== Request
 
@@ -62,7 +62,7 @@ POST _xpack/ml/anomaly_detectors/total-requests/_forecast
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:todo]
+// TEST[skip:requires delay]
 
 When the forecast is created, you receive the following results:
 [source,js]
@@ -72,7 +72,7 @@ When the forecast is created, you receive the following results:
   "forecast_id": "wkCWa2IB2lF8nSE_TzZo"
 }
 ----
+// NOTCONSOLE
 
 You can subsequently see the forecast in the *Single Metric Viewer* in {kib}.
-//and in the results that you retrieve by using {ml} APIs such as the
-//<<ml-get-bucket,get bucket API>> and <<ml-get-record,get records API>>.
+

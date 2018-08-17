@@ -32,16 +32,26 @@ public class DataLoader {
 
     public static void main(String[] args) throws Exception {
         try (RestClient client = RestClient.builder(new HttpHost("localhost", 9200)).build()) {
-            loadDatasetIntoEs(client);
+            loadEmpDatasetIntoEs(client);
             Loggers.getLogger(DataLoader.class).info("Data loaded");
         }
     }
 
     protected static void loadDatasetIntoEs(RestClient client) throws Exception {
-        loadDatasetIntoEs(client, "test_emp");
-        loadDatasetIntoEs(client, "test_emp_copy");
+        loadEmpDatasetIntoEs(client);
+    }
+
+    protected static void loadEmpDatasetIntoEs(RestClient client) throws Exception {
+        loadEmpDatasetIntoEs(client, "test_emp");
+        loadEmpDatasetIntoEs(client, "test_emp_copy");
         makeAlias(client, "test_alias", "test_emp", "test_emp_copy");
         makeAlias(client, "test_alias_emp", "test_emp", "test_emp_copy");
+    }
+
+    public static void loadDocsDatasetIntoEs(RestClient client) throws Exception {
+        loadEmpDatasetIntoEs(client, "emp");
+        loadLibDatasetIntoEs(client, "library");
+        makeAlias(client, "employees", "emp");
     }
 
     private static void createString(String name, XContentBuilder builder) throws Exception {
@@ -51,7 +61,8 @@ public class DataLoader {
             .endObject()
        .endObject();
     }
-    protected static void loadDatasetIntoEs(RestClient client, String index) throws Exception {
+
+    protected static void loadEmpDatasetIntoEs(RestClient client, String index) throws Exception {
         Request request = new Request("PUT", "/" + index);
         XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
         createIndex.startObject("settings");
@@ -145,6 +156,52 @@ public class DataLoader {
                 bulk.append("]");
             }
 
+            bulk.append("}\n");
+        });
+        request.setJsonEntity(bulk.toString());
+        client.performRequest(request);
+    }
+
+    protected static void loadLibDatasetIntoEs(RestClient client, String index) throws Exception {
+        Request request = new Request("PUT", "/" + index);
+        XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
+        createIndex.startObject("settings");
+        {
+            createIndex.field("number_of_shards", 1);
+            createIndex.field("number_of_replicas", 1);
+        }
+        createIndex.endObject();
+        createIndex.startObject("mappings");
+        {
+            createIndex.startObject("book");
+            {
+                createIndex.startObject("properties");
+                {
+                    createString("name", createIndex);
+                    createString("author", createIndex);
+                    createIndex.startObject("release_date").field("type", "date").endObject();
+                    createIndex.startObject("page_count").field("type", "short").endObject();
+                }
+                createIndex.endObject();
+            }
+            createIndex.endObject();
+        }
+        createIndex.endObject().endObject();
+        request.setJsonEntity(Strings.toString(createIndex));
+        client.performRequest(request);
+
+        request = new Request("POST", "/" + index + "/book/_bulk");
+        request.addParameter("refresh", "true");
+        StringBuilder bulk = new StringBuilder();
+        csvToLines("library", (titles, fields) -> {
+            bulk.append("{\"index\":{\"_id\":\"" + fields.get(0) + "\"}}\n");
+            bulk.append("{");
+            for (int f = 0; f < titles.size(); f++) {
+                if (f > 0) {
+                    bulk.append(",");
+                }
+                bulk.append('"').append(titles.get(f)).append("\":\"").append(fields.get(f)).append('"');
+            }
             bulk.append("}\n");
         });
         request.setJsonEntity(bulk.toString());

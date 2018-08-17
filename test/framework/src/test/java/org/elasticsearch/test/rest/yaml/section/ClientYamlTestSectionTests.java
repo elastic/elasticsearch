@@ -73,7 +73,7 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
         section.setSkipSection(new SkipSection(null, singletonList("node_selector"), null));
         DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
         ApiCallSection apiCall = new ApiCallSection("test");
-        apiCall.setNodeSelector(NodeSelector.NOT_MASTER_ONLY);
+        apiCall.setNodeSelector(NodeSelector.SKIP_DEDICATED_MASTERS);
         doSection.setApiCallSection(apiCall);
         section.addExecutableSection(doSection);
     }
@@ -84,7 +84,7 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
         section.setSkipSection(new SkipSection(null, singletonList("yaml"), null));
         DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
         ApiCallSection apiCall = new ApiCallSection("test");
-        apiCall.setNodeSelector(NodeSelector.NOT_MASTER_ONLY);
+        apiCall.setNodeSelector(NodeSelector.SKIP_DEDICATED_MASTERS);
         doSection.setApiCallSection(apiCall);
         Exception e = expectThrows(IllegalArgumentException.class, () -> section.addExecutableSection(doSection));
         assertEquals("Attempted to add a [do] with a [node_selector] section without a corresponding"

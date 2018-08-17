@@ -117,7 +117,7 @@ public class S3BlobStoreTests extends ESBlobStoreTestCase {
 
         final String theClientName = randomAlphaOfLength(4);
         final AmazonS3 client = new MockAmazonS3(new ConcurrentHashMap<>(), bucket, serverSideEncryption, cannedACL, storageClass);
-        final AwsS3Service service = new InternalAwsS3Service(Settings.EMPTY) {
+        final S3Service service = new S3Service(Settings.EMPTY) {
             @Override
             public synchronized AmazonS3Reference client(String clientName) {
                 assert theClientName.equals(clientName);

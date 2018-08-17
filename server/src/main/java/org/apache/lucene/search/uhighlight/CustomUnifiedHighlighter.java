@@ -173,7 +173,7 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
                 SpanQuery[] innerQueries = new SpanQuery[terms[i].length];
                 for (int j = 0; j < terms[i].length; j++) {
                     if (i == sizeMinus1) {
-                        innerQueries[j] = new SpanMultiTermQueryWrapper(new PrefixQuery(terms[i][j]));
+                        innerQueries[j] = new SpanMultiTermQueryWrapper<PrefixQuery>(new PrefixQuery(terms[i][j]));
                     } else {
                         innerQueries[j] = new SpanTermQuery(terms[i][j]);
                     }

@@ -35,8 +35,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.IOException;
-import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -128,8 +127,9 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
         try (AbstractHttpServerTransport transport =
                  new AbstractHttpServerTransport(Settings.EMPTY, networkService, bigArrays, threadPool, xContentRegistry(), dispatcher) {
+
                      @Override
-                     protected TransportAddress bindAddress(InetAddress hostAddress) {
+                     protected HttpServerChannel bind(InetSocketAddress hostAddress) {
                          return null;
                      }
 
@@ -139,12 +139,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                      }
 
                      @Override
-                     protected void doStop() {
-
-                     }
-
-                     @Override
-                     protected void doClose() throws IOException {
+                     protected void stopInternal() {
 
                      }
 

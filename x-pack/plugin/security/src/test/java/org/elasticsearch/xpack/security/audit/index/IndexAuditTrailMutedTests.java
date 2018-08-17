@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.audit.index;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.FilterClient;
@@ -27,7 +26,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
-import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.protocol.xpack.security.User;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail.State;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 import org.junit.After;
@@ -70,9 +69,8 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
             }
 
             @Override
-            protected <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends
-                    ActionRequestBuilder<Request, Response>> void doExecute(
-                Action<Response> action, Request request, ActionListener<Response> listener) {
+            protected <Request extends ActionRequest, Response extends ActionResponse>
+            void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
                 clientCalled.set(true);
             }
         }

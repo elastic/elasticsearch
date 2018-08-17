@@ -21,12 +21,10 @@ package org.elasticsearch.client;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
-
 
 /**
  * A {@link Client} that contains another {@link Client} which it
@@ -62,8 +60,8 @@ public abstract class FilterClient extends AbstractClient {
     }
 
     @Override
-    protected <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response>> void doExecute(
-        Action<Response> action, Request request, ActionListener<Response> listener) {
+    protected <Request extends ActionRequest, Response extends ActionResponse>
+    void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
         in().execute(action, request, listener);
     }
 

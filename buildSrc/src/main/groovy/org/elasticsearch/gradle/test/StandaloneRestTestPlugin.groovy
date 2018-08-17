@@ -22,14 +22,14 @@ package org.elasticsearch.gradle.test
 
 import com.carrotsearch.gradle.junit4.RandomizedTestingPlugin
 import org.elasticsearch.gradle.BuildPlugin
+import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.Plugin
 import org.gradle.api.Project
-import org.gradle.api.Task
 import org.gradle.api.plugins.JavaBasePlugin
-
+import org.gradle.api.tasks.compile.JavaCompile
 /**
  * Configures the build to compile tests against Elasticsearch's test framework
  * and run REST tests. Use BuildPlugin if you want to build main code as well
@@ -47,6 +47,7 @@ public class StandaloneRestTestPlugin implements Plugin<Project> {
         project.pluginManager.apply(JavaBasePlugin)
         project.pluginManager.apply(RandomizedTestingPlugin)
 
+        project.getTasks().create("buildResources", ExportElasticsearchBuildResourcesTask)
         BuildPlugin.globalBuildInfo(project)
         BuildPlugin.configureRepositories(project)
 
@@ -61,5 +62,12 @@ public class StandaloneRestTestPlugin implements Plugin<Project> {
 
         PrecommitTasks.create(project, false)
         project.check.dependsOn(project.precommit)
+
+        project.tasks.withType(JavaCompile) {
+            // This will be the default in Gradle 5.0
+            if (options.compilerArgs.contains("-processor") == false) {
+                options.compilerArgs << '-proc:none'
+            }
+        }
     }
 }

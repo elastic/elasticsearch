@@ -20,6 +20,7 @@ an object (`obj`):
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 For example, the following watch uses the `simple` input to set the recipient
 name for a daily reminder email:
@@ -48,3 +49,4 @@ name for a daily reminder email:
   }
 }
 --------------------------------------------------
+// NOTCONSOLE

@@ -22,6 +22,7 @@ package org.elasticsearch.http.netty4;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelPromise;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.concurrent.CompletableContext;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.transport.netty4.Netty4Utils;
@@ -31,9 +32,23 @@ import java.net.InetSocketAddress;
 public class Netty4HttpChannel implements HttpChannel {
 
     private final Channel channel;
+    private final CompletableContext<Void> closeContext = new CompletableContext<>();
 
     Netty4HttpChannel(Channel channel) {
         this.channel = channel;
+        this.channel.closeFuture().addListener(f -> {
+            if (f.isSuccess()) {
+                closeContext.complete(null);
+            } else {
+                Throwable cause = f.cause();
+                if (cause instanceof Error) {
+                    Netty4Utils.maybeDie(cause);
+                    closeContext.completeExceptionally(new Exception(cause));
+                } else {
+                    closeContext.completeExceptionally((Exception) cause);
+                }
+            }
+        });
     }
 
     @Override
@@ -66,11 +81,29 @@ public class Netty4HttpChannel implements HttpChannel {
     }
 
     @Override
+    public void addCloseListener(ActionListener<Void> listener) {
+        closeContext.addListener(ActionListener.toBiConsumer(listener));
+    }
+
+    @Override
+    public boolean isOpen() {
+        return channel.isOpen();
+    }
+
+    @Override
     public void close() {
         channel.close();
     }
 
     public Channel getNettyChannel() {
         return channel;
+    }
+
+    @Override
+    public String toString() {
+        return "Netty4HttpChannel{" +
+            "localAddress=" + getLocalAddress() +
+            ", remoteAddress=" + getRemoteAddress() +
+            '}';
     }
 }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
@@ -33,6 +34,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.engine.CommitStats;
+import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndicesService;
@@ -47,10 +50,10 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
     private final IndicesService indicesService;
 
     @Inject
-    public TransportIndicesStatsAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+    public TransportIndicesStatsAction(Settings settings, ClusterService clusterService,
                                        TransportService transportService, IndicesService indicesService,
                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, IndicesStatsAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
+        super(settings, IndicesStatsAction.NAME, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 IndicesStatsRequest::new, ThreadPool.Names.MANAGEMENT);
         this.indicesService = indicesService;
     }
@@ -100,7 +103,17 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
         }
 
         CommonStats commonStats = new CommonStats(indicesService.getIndicesQueryCache(), indexShard, request.flags());
+        CommitStats commitStats;
+        SeqNoStats seqNoStats;
+        try {
+            commitStats = indexShard.commitStats();
+            seqNoStats = indexShard.seqNoStats();
+        } catch (AlreadyClosedException e) {
+            // shard is closed - no stats is fine
+            commitStats = null;
+            seqNoStats = null;
+        }
         return new ShardStats(indexShard.routingEntry(), indexShard.shardPath(), commonStats,
-            indexShard.commitStats(), indexShard.seqNoStats());
+            commitStats, seqNoStats);
     }
 }

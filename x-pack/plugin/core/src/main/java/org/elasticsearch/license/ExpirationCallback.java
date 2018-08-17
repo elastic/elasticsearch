@@ -134,8 +134,8 @@ abstract class ExpirationCallback {
     }
 
     /**
-     * {@link SchedulerEngine.Schedule#nextScheduledTimeAfter(long, long)} with respect to
-     * license expiry date
+     * {@link org.elasticsearch.xpack.core.scheduler.SchedulerEngine.Schedule#nextScheduledTimeAfter(long, long)}
+     * with respect to license expiry date
      */
     public final long nextScheduledTimeForExpiry(long expiryDate, long startTime, long time) {
         TimeValue delay = delay(expiryDate, time);

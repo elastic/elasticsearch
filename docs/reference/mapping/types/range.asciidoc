@@ -18,6 +18,9 @@ Below is an example of configuring a mapping with various range fields followed 
 --------------------------------------------------
 PUT range_index
 {
+  "settings": {
+    "number_of_shards": 2
+  },
   "mappings": {
     "_doc": {
       "properties": {
@@ -33,7 +36,7 @@ PUT range_index
   }
 }
 
-PUT range_index/_doc/1
+PUT range_index/_doc/1?refresh
 {
   "expected_attendees" : { <2>
     "gte" : 10,
@@ -46,6 +49,7 @@ PUT range_index/_doc/1
 }
 --------------------------------------------------
 //CONSOLE
+// TESTSETUP
 
 <1> `date_range` types accept the same field parameters defined by the <<date, `date`>> type.
 <2> Example indexing a meeting with 10 to 20 attendees.
@@ -68,7 +72,6 @@ GET range_index/_search
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:range_index]
 
 The result produced by the above query.
 
@@ -125,7 +128,6 @@ GET range_index/_search
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:range_index]
 
 <1> Range queries work the same as described in <<query-dsl-range-query, range query>>.
 <2> Range queries over range <<mapping-types, fields>> support a `relation` parameter which can be one of `WITHIN`, `CONTAINS`,
@@ -191,7 +193,6 @@ PUT range_index/_doc/2
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:range_index]
 
 [[range-params]]
 ==== Parameters for range fields

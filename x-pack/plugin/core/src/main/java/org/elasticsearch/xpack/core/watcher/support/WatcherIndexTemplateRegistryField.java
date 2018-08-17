@@ -13,8 +13,9 @@ public final class WatcherIndexTemplateRegistryField {
     // version 6: upgrade to ES 6, removal of _status field
     // version 7: add full exception stack traces for better debugging
     // version 8: fix slack attachment property not to be dynamic, causing field type issues
+    // version 9: add a user field defining which user executed the watch
     // Note: if you change this, also inform the kibana team around the watcher-ui
-    public static final String INDEX_TEMPLATE_VERSION = "8";
+    public static final String INDEX_TEMPLATE_VERSION = "9";
     public static final String HISTORY_TEMPLATE_NAME = ".watch-history-" + INDEX_TEMPLATE_VERSION;
     public static final String TRIGGERED_TEMPLATE_NAME = ".triggered_watches";
     public static final String WATCHES_TEMPLATE_NAME = ".watches";

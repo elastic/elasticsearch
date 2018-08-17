@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequestTests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.test.ESTestCase;
@@ -93,7 +94,9 @@ public class ResizeRequestTests extends ESTestCase {
 
         ResizeRequest parsedResizeRequest = new ResizeRequest(resizeRequest.getTargetIndexRequest().index(),
                 resizeRequest.getSourceIndex());
-        parsedResizeRequest.fromXContent(createParser(xContentType.xContent(), originalBytes));
+        try (XContentParser xParser = createParser(xContentType.xContent(), originalBytes)) {
+            parsedResizeRequest.fromXContent(xParser);
+        }
 
         assertEquals(resizeRequest.getSourceIndex(), parsedResizeRequest.getSourceIndex());
         assertEquals(resizeRequest.getTargetIndexRequest().index(), parsedResizeRequest.getTargetIndexRequest().index());

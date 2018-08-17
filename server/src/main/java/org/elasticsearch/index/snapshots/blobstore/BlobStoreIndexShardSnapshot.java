@@ -390,19 +390,6 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
     }
 
     /**
-     * Special constructor for the prototype
-     */
-    private BlobStoreIndexShardSnapshot() {
-        this.snapshot = "";
-        this.indexVersion = 0;
-        this.indexFiles = Collections.emptyList();
-        this.startTime = 0;
-        this.time = 0;
-        this.incrementalFileCount = 0;
-        this.incrementalSize = 0;
-    }
-
-    /**
      * Returns index version
      *
      * @return index version

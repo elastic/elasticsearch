@@ -20,7 +20,7 @@ public class FilterRefTests extends AbstractSerializingTestCase<FilterRef> {
 
     @Override
     protected FilterRef doParseInstance(XContentParser parser) throws IOException {
-        return FilterRef.CONFIG_PARSER.parse(parser, null);
+        return FilterRef.STRICT_PARSER.parse(parser, null);
     }
 
     @Override

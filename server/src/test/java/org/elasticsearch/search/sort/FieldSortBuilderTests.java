@@ -304,14 +304,15 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
     public void testUnknownOptionFails() throws IOException {
         String json = "{ \"post_date\" : {\"reverse\" : true} },\n";
 
-        XContentParser parser = createParser(JsonXContent.jsonXContent, json);
-        // need to skip until parser is located on second START_OBJECT
-        parser.nextToken();
-        parser.nextToken();
-        parser.nextToken();
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            // need to skip until parser is located on second START_OBJECT
+            parser.nextToken();
+            parser.nextToken();
+            parser.nextToken();
 
-        XContentParseException e = expectThrows(XContentParseException.class, () -> FieldSortBuilder.fromXContent(parser, ""));
-        assertEquals("[1:18] [field_sort] unknown field [reverse], parser not found", e.getMessage());
+            XContentParseException e = expectThrows(XContentParseException.class, () -> FieldSortBuilder.fromXContent(parser, ""));
+            assertEquals("[1:18] [field_sort] unknown field [reverse], parser not found", e.getMessage());
+        }
     }
 
     @Override

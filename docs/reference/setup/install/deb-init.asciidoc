@@ -1,0 +1,20 @@
+==== Running Elasticsearch with SysV `init`
+
+Use the `update-rc.d` command to configure Elasticsearch to start automatically
+when the system boots up:
+
+[source,sh]
+--------------------------------------------------
+sudo update-rc.d elasticsearch defaults 95 10
+--------------------------------------------------
+
+Elasticsearch can be started and stopped using the `service` command:
+
+[source,sh]
+--------------------------------------------
+sudo -i service elasticsearch start
+sudo -i service elasticsearch stop
+--------------------------------------------
+
+If Elasticsearch fails to start for any reason, it will print the reason for
+failure to STDOUT. Log files can be found in `/var/log/elasticsearch/`.

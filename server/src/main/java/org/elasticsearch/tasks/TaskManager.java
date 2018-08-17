@@ -45,6 +45,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -91,8 +92,6 @@ public class TaskManager extends AbstractComponent implements ClusterStateApplie
 
     /**
      * Registers a task without parent task
-     * <p>
-     * Returns the task manager tracked task or null if the task doesn't support the task manager
      */
     public Task register(String type, String action, TaskAwareRequest request) {
         Map<String, String> headers = new HashMap<>();
@@ -110,9 +109,7 @@ public class TaskManager extends AbstractComponent implements ClusterStateApplie
             }
         }
         Task task = request.createTask(taskIdGenerator.incrementAndGet(), type, action, request.getParentTask(), headers);
-        if (task == null) {
-            return null;
-        }
+        Objects.requireNonNull(task);
         assert task.getParentTaskId().equals(request.getParentTask()) : "Request [ " + request + "] didn't preserve it parentTaskId";
         if (logger.isTraceEnabled()) {
             logger.trace("register {} [{}] [{}] [{}]", task.getId(), type, action, task.getDescription());

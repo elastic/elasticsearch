@@ -18,12 +18,13 @@
  */
 package org.elasticsearch.gradle.plugin
 
+import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
 import nebula.plugin.info.scm.ScmInfoPlugin
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.NoticeTask
 import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.test.RunTask
-import org.gradle.api.JavaVersion
+import org.gradle.api.InvalidUserDataException
 import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.XmlProvider
@@ -37,7 +38,6 @@ import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import java.util.regex.Matcher
 import java.util.regex.Pattern
-
 /**
  * Encapsulates build configuration for an Elasticsearch plugin.
  */
@@ -61,24 +61,25 @@ public class PluginBuildPlugin extends BuildPlugin {
                 // and generate a different pom for the zip
                 addClientJarPomGeneration(project)
                 addClientJarTask(project)
-            } else {
-                // no client plugin, so use the pom file from nebula, without jar, for the zip
-                project.ext.set("nebulaPublish.maven.jar", false)
             }
+            // while the jar isn't normally published, we still at least build a pom of deps
+            // in case it is published, for instance when other plugins extend this plugin
+            configureJarPom(project)
 
             project.integTestCluster.dependsOn(project.bundlePlugin)
             project.tasks.run.dependsOn(project.bundlePlugin)
             if (isModule) {
                 project.integTestCluster.module(project)
                 project.tasks.run.clusterConfig.module(project)
-                project.tasks.run.clusterConfig.distribution = 'integ-test-zip'
+                project.tasks.run.clusterConfig.distribution = System.getProperty(
+                        'run.distribution', 'integ-test-zip'
+                )
             } else {
                 project.integTestCluster.plugin(project.path)
                 project.tasks.run.clusterConfig.plugin(project.path)
             }
 
             if (isModule == false || isXPackModule) {
-                addZipPomGeneration(project)
                 addNoticeGeneration(project)
             }
 
@@ -111,7 +112,7 @@ public class PluginBuildPlugin extends BuildPlugin {
     private static void createIntegTestTask(Project project) {
         RestIntegTestTask integTest = project.tasks.create('integTest', RestIntegTestTask.class)
         integTest.mustRunAfter(project.precommit, project.test)
-        project.integTestCluster.distribution = 'integ-test-zip'
+        project.integTestCluster.distribution = System.getProperty('tests.distribution', 'integ-test-zip')
         project.check.dependsOn(integTest)
     }
 
@@ -138,8 +139,13 @@ public class PluginBuildPlugin extends BuildPlugin {
                 include(buildProperties.descriptorOutput.name)
             }
             from pluginMetadata // metadata (eg custom security policy)
-            from project.jar // this plugin's jar
-            from project.configurations.runtime - project.configurations.compileOnly // the dep jars
+            /*
+             * If the plugin is using the shadow plugin then we need to bundle
+             * "shadow" things rather than the default jar and dependencies so
+             * we don't hit jar hell.
+             */
+            from { project.plugins.hasPlugin(ShadowPlugin) ? project.shadowJar : project.jar }
+            from { project.plugins.hasPlugin(ShadowPlugin) ? project.configurations.shadow : project.configurations.runtime - project.configurations.compileOnly }
             // extra files for the plugin to go into the zip
             from('src/main/packaging') // TODO: move all config/bin/_size/etc into packaging
             from('src/main') {
@@ -157,16 +163,18 @@ public class PluginBuildPlugin extends BuildPlugin {
     /** Adds a task to move jar and associated files to a "-client" name. */
     protected static void addClientJarTask(Project project) {
         Task clientJar = project.tasks.create('clientJar')
-        clientJar.dependsOn(project.jar, 'generatePomFileForClientJarPublication', project.javadocJar, project.sourcesJar)
+        clientJar.dependsOn(project.jar, project.tasks.generatePomFileForClientJarPublication, project.javadocJar, project.sourcesJar)
         clientJar.doFirst {
             Path jarFile = project.jar.outputs.files.singleFile.toPath()
             String clientFileName = jarFile.fileName.toString().replace(project.version, "client-${project.version}")
             Files.copy(jarFile, jarFile.resolveSibling(clientFileName), StandardCopyOption.REPLACE_EXISTING)
 
-            String pomFileName = jarFile.fileName.toString().replace('.jar', '.pom')
             String clientPomFileName = clientFileName.replace('.jar', '.pom')
-            Files.copy(jarFile.resolveSibling(pomFileName), jarFile.resolveSibling(clientPomFileName),
-                    StandardCopyOption.REPLACE_EXISTING)
+            Files.copy(
+                    project.tasks.generatePomFileForClientJarPublication.outputs.files.singleFile.toPath(),
+                    jarFile.resolveSibling(clientPomFileName),
+                    StandardCopyOption.REPLACE_EXISTING
+            )
 
             String sourcesFileName = jarFile.fileName.toString().replace('.jar', '-sources.jar')
             String clientSourcesFileName = clientFileName.replace('.jar', '-sources.jar')
@@ -221,36 +229,15 @@ public class PluginBuildPlugin extends BuildPlugin {
         }
     }
 
-    /** Adds a task to generate a pom file for the zip distribution. */
-    public static void addZipPomGeneration(Project project) {
+    /** Configure the pom for the main jar of this plugin */
+    protected static void configureJarPom(Project project) {
         project.plugins.apply(ScmInfoPlugin.class)
         project.plugins.apply(MavenPublishPlugin.class)
 
         project.publishing {
             publications {
-                zip(MavenPublication) {
-                    artifact project.bundlePlugin
-                }
-                /* HUGE HACK: the underlying maven publication library refuses to deploy any attached artifacts
-                 * when the packaging type is set to 'pom'. But Sonatype's OSS repositories require source files
-                 * for artifacts that are of type 'zip'. We already publish the source and javadoc for Elasticsearch
-                 * under the various other subprojects. So here we create another publication using the same
-                 * name that has the "real" pom, and rely on the fact that gradle will execute the publish tasks
-                 * in alphabetical order. This lets us publish the zip file and even though the pom says the
-                 * type is 'pom' instead of 'zip'. We cannot setup a dependency between the tasks because the
-                 * publishing tasks are created *extremely* late in the configuration phase, so that we cannot get
-                 * ahold of the actual task. Furthermore, this entire hack only exists so we can make publishing to
-                 * maven local work, since we publish to maven central externally. */
-                zipReal(MavenPublication) {
-                    artifactId = project.pluginProperties.extension.name
-                    pom.withXml { XmlProvider xml ->
-                        Node root = xml.asNode()
-                        root.appendNode('name', project.pluginProperties.extension.name)
-                        root.appendNode('description', project.pluginProperties.extension.description)
-                        root.appendNode('url', urlFromOrigin(project.scminfo.origin))
-                        Node scmNode = root.appendNode('scm')
-                        scmNode.appendNode('url', project.scminfo.origin)
-                    }
+                nebula(MavenPublication) {
+                    artifactId project.pluginProperties.extension.name
                 }
             }
         }

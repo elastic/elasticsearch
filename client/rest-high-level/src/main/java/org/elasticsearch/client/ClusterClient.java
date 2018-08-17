@@ -22,6 +22,8 @@ package org.elasticsearch.client;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsRequest;
+import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -70,6 +72,35 @@ public final class ClusterClient {
                                  ActionListener<ClusterUpdateSettingsResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(clusterUpdateSettingsRequest, RequestConverters::clusterPutSettings,
                 options, ClusterUpdateSettingsResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Get the cluster wide settings using the Cluster Get Settings API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-get-settings.html"> Cluster Get Settings
+     * API on elastic.co</a>
+     * @param clusterGetSettingsRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public ClusterGetSettingsResponse getSettings(ClusterGetSettingsRequest clusterGetSettingsRequest, RequestOptions options)
+        throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(clusterGetSettingsRequest, RequestConverters::clusterGetSettings,
+            options, ClusterGetSettingsResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously get the cluster wide settings using the Cluster Get Settings API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-get-settings.html"> Cluster Get Settings
+     * API on elastic.co</a>
+     * @param clusterGetSettingsRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void getSettingsAsync(ClusterGetSettingsRequest clusterGetSettingsRequest, RequestOptions options,
+                                 ActionListener<ClusterGetSettingsResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(clusterGetSettingsRequest, RequestConverters::clusterGetSettings,
+            options, ClusterGetSettingsResponse::fromXContent, listener, emptySet());
     }
 
     /**

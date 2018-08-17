@@ -1,5 +1,6 @@
+[role="xpack"]
 [[stopping-ml]]
-== Stopping Machine Learning
+== Stopping machine learning
 
 An orderly shutdown of {ml} ensures that:
 
@@ -24,10 +25,10 @@ request stops the `feed1` {dfeed}:
 
 [source,js]
 --------------------------------------------------
-POST _xpack/ml/datafeeds/feed1/_stop
+POST _xpack/ml/datafeeds/datafeed-total-requests/_stop
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:todo]
+// TEST[setup:server_metrics_startdf]
 
 NOTE: You must have `manage_ml`, or `manage` cluster privileges to stop {dfeeds}.
 For more information, see <<security-privileges>>.
@@ -63,10 +64,10 @@ example, the following request closes the `job1` job:
 
 [source,js]
 --------------------------------------------------
-POST _xpack/ml/anomaly_detectors/job1/_close
+POST _xpack/ml/anomaly_detectors/total-requests/_close
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:todo]
+// TEST[setup:server_metrics_openjob]
 
 NOTE: You must have `manage_ml`, or `manage` cluster privileges to stop {dfeeds}.
 For more information, see <<security-privileges>>.

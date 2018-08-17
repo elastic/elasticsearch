@@ -137,7 +137,7 @@ see {ref}/security-api-roles.html[Role Management APIs].
 === File-based role management
 
 Apart from the _Role Management APIs_, roles can also be defined in local
-`roles.yml` file located in `CONFIG_DIR`. This is a YAML file where each
+`roles.yml` file located in `ES_PATH_CONF`. This is a YAML file where each
 role definition is keyed by its name.
 
 [IMPORTANT]

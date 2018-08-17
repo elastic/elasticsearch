@@ -117,8 +117,8 @@ public class AzureBlobStore extends AbstractComponent implements BlobStore {
         return service.listBlobsByPrefix(clientName, container, keyPath, prefix);
     }
 
-    public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws URISyntaxException, StorageException,
-        FileAlreadyExistsException {
-        service.writeBlob(this.clientName, container, blobName, inputStream, blobSize);
+    public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
+        throws URISyntaxException, StorageException, FileAlreadyExistsException {
+        service.writeBlob(this.clientName, container, blobName, inputStream, blobSize, failIfAlreadyExists);
     }
 }

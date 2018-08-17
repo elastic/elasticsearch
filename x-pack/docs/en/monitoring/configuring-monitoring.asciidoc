@@ -1,4 +1,5 @@
 [role="xpack"]
+[testenv="gold"]
 [[configuring-monitoring]]
 == Configuring Monitoring in {es}
 ++++

@@ -144,6 +144,16 @@ public class FakeRestRequest extends RestRequest {
         }
 
         @Override
+        public void addCloseListener(ActionListener<Void> listener) {
+
+        }
+
+        @Override
+        public boolean isOpen() {
+            return true;
+        }
+
+        @Override
         public void close() {
 
         }

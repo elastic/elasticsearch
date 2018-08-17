@@ -37,6 +37,7 @@ causing the terms for that field to be loaded to memory (cached), which will res
 ==== Custom formats
 
 While most fields do not support custom formats, some of them do:
+
  - <<date,Date>> fields can take any <<mapping-date-format,date format>>.
  - <<number,Numeric>> fields accept a https://docs.oracle.com/javase/8/docs/api/java/text/DecimalFormat.html[DecimalFormat pattern].
 

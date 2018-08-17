@@ -94,34 +94,37 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
         builder.startObject();
         builder.startArray("filters").endArray();
         builder.endObject();
-        XContentParser parser = createParser(shuffleXContent(builder));
-        parser.nextToken();
-        FiltersAggregationBuilder filters = FiltersAggregationBuilder.parse("agg_name", parser);
-        // The other bucket is disabled by default
-        assertFalse(filters.otherBucket());
+        try (XContentParser parser = createParser(shuffleXContent(builder))) {
+            parser.nextToken();
+            FiltersAggregationBuilder filters = FiltersAggregationBuilder.parse("agg_name", parser);
+            // The other bucket is disabled by default
+            assertFalse(filters.otherBucket());
 
-        builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
-        builder.startObject();
-        builder.startArray("filters").endArray();
-        builder.field("other_bucket_key", "some_key");
-        builder.endObject();
-        parser = createParser(shuffleXContent(builder));
-        parser.nextToken();
-        filters = FiltersAggregationBuilder.parse("agg_name", parser);
-        // but setting a key enables it automatically
-        assertTrue(filters.otherBucket());
+            builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+            builder.startObject();
+            builder.startArray("filters").endArray();
+            builder.field("other_bucket_key", "some_key");
+            builder.endObject();
+        }
+        try (XContentParser parser = createParser(shuffleXContent(builder))) {
+            parser.nextToken();
+            FiltersAggregationBuilder filters = FiltersAggregationBuilder.parse("agg_name", parser);
+            // but setting a key enables it automatically
+            assertTrue(filters.otherBucket());
 
-        builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
-        builder.startObject();
-        builder.startArray("filters").endArray();
-        builder.field("other_bucket", false);
-        builder.field("other_bucket_key", "some_key");
-        builder.endObject();
-        parser = createParser(shuffleXContent(builder));
-        parser.nextToken();
-        filters = FiltersAggregationBuilder.parse("agg_name", parser);
-        // unless the other bucket is explicitly disabled
-        assertFalse(filters.otherBucket());
+            builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+            builder.startObject();
+            builder.startArray("filters").endArray();
+            builder.field("other_bucket", false);
+            builder.field("other_bucket_key", "some_key");
+            builder.endObject();
+        }
+        try (XContentParser parser = createParser(shuffleXContent(builder))) {
+            parser.nextToken();
+            FiltersAggregationBuilder filters = FiltersAggregationBuilder.parse("agg_name", parser);
+            // unless the other bucket is explicitly disabled
+            assertFalse(filters.otherBucket());
+        }
     }
 
     public void testRewrite() throws IOException {
@@ -174,5 +177,19 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
         assertEquals("my-agg", subAgg.getName());
         assertSame(rewritten,
             rewritten.rewrite(new QueryRewriteContext(xContentRegistry(), null, null, () -> 0L)));
+    }
+
+    public void testRewritePreservesOtherBucket() throws IOException {
+        FiltersAggregationBuilder originalFilters = new FiltersAggregationBuilder("my-agg", new BoolQueryBuilder());
+        originalFilters.otherBucket(randomBoolean());
+        originalFilters.otherBucketKey(randomAlphaOfLength(10));
+
+        AggregationBuilder rewritten = originalFilters.rewrite(new QueryRewriteContext(xContentRegistry(),
+            null, null, () -> 0L));
+        assertThat(rewritten, instanceOf(FiltersAggregationBuilder.class));
+
+        FiltersAggregationBuilder rewrittenFilters = (FiltersAggregationBuilder) rewritten;
+        assertEquals(originalFilters.otherBucket(), rewrittenFilters.otherBucket());
+        assertEquals(originalFilters.otherBucketKey(), rewrittenFilters.otherBucketKey());
     }
 }

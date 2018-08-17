@@ -114,4 +114,11 @@ public class ProfilingAggregator extends Aggregator {
     public String toString() {
         return delegate.toString();
     }
+
+    public static Aggregator unwrap(Aggregator agg) {
+        if (agg instanceof ProfilingAggregator) {
+            return ((ProfilingAggregator) agg).delegate;
+        }
+        return agg;
+    }
 }

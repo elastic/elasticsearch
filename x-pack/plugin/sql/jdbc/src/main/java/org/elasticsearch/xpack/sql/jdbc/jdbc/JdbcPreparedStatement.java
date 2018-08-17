@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.jdbc;
 
+import org.elasticsearch.xpack.sql.type.DataType;
+
 import java.io.InputStream;
 import java.io.Reader;
 import java.math.BigDecimal;
@@ -21,13 +23,24 @@ import java.sql.Ref;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.RowId;
+import java.sql.SQLDataException;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLXML;
+import java.sql.Struct;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.OffsetTime;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
+import java.util.List;
+import java.util.Locale;
 
 class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
     final PreparedQuery query;
@@ -74,67 +87,67 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
 
     @Override
     public void setBoolean(int parameterIndex, boolean x) throws SQLException {
-        setParam(parameterIndex, x, Types.BOOLEAN);
+        setObject(parameterIndex, x, Types.BOOLEAN);
     }
 
     @Override
     public void setByte(int parameterIndex, byte x) throws SQLException {
-        setParam(parameterIndex, x, Types.TINYINT);
+        setObject(parameterIndex, x, Types.TINYINT);
     }
 
     @Override
     public void setShort(int parameterIndex, short x) throws SQLException {
-        setParam(parameterIndex, x, Types.SMALLINT);
+        setObject(parameterIndex, x, Types.SMALLINT);
     }
 
     @Override
     public void setInt(int parameterIndex, int x) throws SQLException {
-        setParam(parameterIndex, x, Types.INTEGER);
+        setObject(parameterIndex, x, Types.INTEGER);
     }
 
     @Override
     public void setLong(int parameterIndex, long x) throws SQLException {
-        setParam(parameterIndex, x, Types.BIGINT);
+        setObject(parameterIndex, x, Types.BIGINT);
     }
 
     @Override
     public void setFloat(int parameterIndex, float x) throws SQLException {
-        setParam(parameterIndex, x, Types.REAL);
+        setObject(parameterIndex, x, Types.REAL);
     }
 
     @Override
     public void setDouble(int parameterIndex, double x) throws SQLException {
-        setParam(parameterIndex, x, Types.DOUBLE);
+        setObject(parameterIndex, x, Types.DOUBLE);
     }
 
     @Override
     public void setBigDecimal(int parameterIndex, BigDecimal x) throws SQLException {
-        throw new SQLFeatureNotSupportedException("BigDecimal not supported");
+        setObject(parameterIndex, x, Types.BIGINT);
     }
 
     @Override
     public void setString(int parameterIndex, String x) throws SQLException {
-        setParam(parameterIndex, x, Types.VARCHAR);
+        setObject(parameterIndex, x, Types.VARCHAR);
     }
 
     @Override
     public void setBytes(int parameterIndex, byte[] x) throws SQLException {
-        throw new UnsupportedOperationException("Bytes not implemented yet");
+        setObject(parameterIndex, x, Types.VARBINARY);
     }
 
     @Override
     public void setDate(int parameterIndex, Date x) throws SQLException {
-        throw new UnsupportedOperationException("Date/Time not implemented yet");
+        setObject(parameterIndex, x, Types.TIMESTAMP);
     }
 
     @Override
     public void setTime(int parameterIndex, Time x) throws SQLException {
-        throw new UnsupportedOperationException("Date/Time not implemented yet");
+        setObject(parameterIndex, x, Types.TIMESTAMP);
     }
 
     @Override
     public void setTimestamp(int parameterIndex, Timestamp x) throws SQLException {
-        throw new UnsupportedOperationException("Date/Time not implemented yet");
+        setObject(parameterIndex, x, Types.TIMESTAMP);
     }
 
     @Override
@@ -161,12 +174,22 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
 
     @Override
     public void setObject(int parameterIndex, Object x, int targetSqlType) throws SQLException {
-        throw new UnsupportedOperationException("Object not implemented yet");
+        // the value of scaleOrLength parameter doesn't matter, as it's not used in the called method below
+        setObject(parameterIndex, x, targetSqlType, 0);
     }
 
     @Override
     public void setObject(int parameterIndex, Object x) throws SQLException {
-        throw new SQLFeatureNotSupportedException("CharacterStream not supported");
+        if (x == null) {
+            setParam(parameterIndex, null, Types.NULL);
+            return;
+        }
+        
+        // check also here the unsupported types so that any unsupported interfaces ({@code java.sql.Struct},
+        // {@code java.sql.Array} etc) will generate the correct exception message. Otherwise, the method call
+        // {@code TypeConverter.fromJavaToJDBC(x.getClass())} will report the implementing class as not being supported.
+        checkKnownUnsupportedTypes(x);
+        setObject(parameterIndex, x, TypeConverter.fromJavaToJDBC(x.getClass()).getVendorTypeNumber(), 0);
     }
 
     @Override
@@ -181,22 +204,22 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
 
     @Override
     public void setRef(int parameterIndex, Ref x) throws SQLException {
-        throw new SQLFeatureNotSupportedException("Ref not supported");
+        setObject(parameterIndex, x);
     }
 
     @Override
     public void setBlob(int parameterIndex, Blob x) throws SQLException {
-        throw new SQLFeatureNotSupportedException("Blob not supported");
+        setObject(parameterIndex, x);
     }
 
     @Override
     public void setClob(int parameterIndex, Clob x) throws SQLException {
-        throw new SQLFeatureNotSupportedException("Clob not supported");
+        setObject(parameterIndex, x);
     }
 
     @Override
     public void setArray(int parameterIndex, Array x) throws SQLException {
-        throw new SQLFeatureNotSupportedException("Array not supported");
+        setObject(parameterIndex, x);
     }
 
     @Override
@@ -206,17 +229,44 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
 
     @Override
     public void setDate(int parameterIndex, Date x, Calendar cal) throws SQLException {
-        throw new UnsupportedOperationException("Dates not implemented yet");
+        if (cal == null) {
+            setObject(parameterIndex, x, Types.TIMESTAMP);
+            return;
+        }
+        if (x == null) {
+            setNull(parameterIndex, Types.TIMESTAMP);
+            return;
+        }
+        // converting to UTC since this is what ES is storing internally
+        setObject(parameterIndex, new Date(TypeConverter.convertFromCalendarToUTC(x.getTime(), cal)), Types.TIMESTAMP);
     }
 
     @Override
     public void setTime(int parameterIndex, Time x, Calendar cal) throws SQLException {
-        throw new UnsupportedOperationException("Dates not implemented yet");
+        if (cal == null) {
+            setObject(parameterIndex, x, Types.TIMESTAMP);
+            return;
+        }
+        if (x == null) {
+            setNull(parameterIndex, Types.TIMESTAMP);
+            return;
+        }
+        // converting to UTC since this is what ES is storing internally
+        setObject(parameterIndex, new Time(TypeConverter.convertFromCalendarToUTC(x.getTime(), cal)), Types.TIMESTAMP);
     }
 
     @Override
     public void setTimestamp(int parameterIndex, Timestamp x, Calendar cal) throws SQLException {
-        throw new UnsupportedOperationException("Dates not implemented yet");
+        if (cal == null) {
+            setObject(parameterIndex, x, Types.TIMESTAMP);
+            return;
+        }
+        if (x == null) {
+            setNull(parameterIndex, Types.TIMESTAMP);
+            return;
+        }
+        // converting to UTC since this is what ES is storing internally
+        setObject(parameterIndex, new Timestamp(TypeConverter.convertFromCalendarToUTC(x.getTime(), cal)), Types.TIMESTAMP);
     }
 
     @Override
@@ -226,7 +276,7 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
 
     @Override
     public void setURL(int parameterIndex, URL x) throws SQLException {
-        throw new SQLFeatureNotSupportedException("Datalink not supported");
+        setObject(parameterIndex, x);
     }
 
     @Override
@@ -236,7 +286,7 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
 
     @Override
     public void setRowId(int parameterIndex, RowId x) throws SQLException {
-        throw new SQLFeatureNotSupportedException("RowId not supported");
+        setObject(parameterIndex, x);
     }
 
     @Override
@@ -251,7 +301,7 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
 
     @Override
     public void setNClob(int parameterIndex, NClob value) throws SQLException {
-        throw new SQLFeatureNotSupportedException("NClob not supported");
+        setObject(parameterIndex, value);
     }
 
     @Override
@@ -271,12 +321,108 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
 
     @Override
     public void setSQLXML(int parameterIndex, SQLXML xmlObject) throws SQLException {
-        throw new SQLFeatureNotSupportedException("SQLXML not supported");
+        setObject(parameterIndex, xmlObject);
     }
-
+    
     @Override
     public void setObject(int parameterIndex, Object x, int targetSqlType, int scaleOrLength) throws SQLException {
-        throw new UnsupportedOperationException("Object not implemented yet");
+        checkOpen();
+        
+        JDBCType targetJDBCType;
+        try {
+            // this is also a way to check early for the validity of the desired sql type
+            targetJDBCType = JDBCType.valueOf(targetSqlType);
+        } catch (IllegalArgumentException e) {
+            throw new SQLDataException(e.getMessage());
+        }
+        
+        // set the null value on the type and exit
+        if (x == null) {
+            setParam(parameterIndex, null, targetSqlType);
+            return;
+        }
+        
+        checkKnownUnsupportedTypes(x);
+        if (x instanceof byte[]) {
+            if (targetJDBCType != JDBCType.VARBINARY) {
+                throw new SQLFeatureNotSupportedException(
+                        "Conversion from type byte[] to " + targetJDBCType + " not supported");
+            }
+            setParam(parameterIndex, x, Types.VARBINARY);
+            return;
+        }
+        
+        if (x instanceof Timestamp
+                || x instanceof Calendar
+                || x instanceof Date
+                || x instanceof LocalDateTime
+                || x instanceof Time
+                || x instanceof java.util.Date) 
+        {
+            if (targetJDBCType == JDBCType.TIMESTAMP) {
+                // converting to {@code java.util.Date} because this is the type supported by {@code XContentBuilder} for serialization
+                java.util.Date dateToSet;
+                if (x instanceof Timestamp) {
+                    dateToSet = new java.util.Date(((Timestamp) x).getTime());
+                } else if (x instanceof Calendar) {
+                    dateToSet = ((Calendar) x).getTime();
+                } else if (x instanceof Date) {
+                    dateToSet = new java.util.Date(((Date) x).getTime());
+                } else if (x instanceof LocalDateTime){
+                    LocalDateTime ldt = (LocalDateTime) x;
+                    Calendar cal = getDefaultCalendar();
+                    cal.set(ldt.getYear(), ldt.getMonthValue() - 1, ldt.getDayOfMonth(), ldt.getHour(), ldt.getMinute(), ldt.getSecond());
+                    
+                    dateToSet = cal.getTime();
+                } else if (x instanceof Time) {
+                    dateToSet = new java.util.Date(((Time) x).getTime());
+                } else {
+                    dateToSet = (java.util.Date) x;
+                }
+
+                setParam(parameterIndex, dateToSet, Types.TIMESTAMP);
+                return;
+            } else if (targetJDBCType == JDBCType.VARCHAR) {
+                setParam(parameterIndex, String.valueOf(x), Types.VARCHAR);
+                return;
+            }
+            // anything else other than VARCHAR and TIMESTAMP is not supported in this JDBC driver
+            throw new SQLFeatureNotSupportedException(
+                    "Conversion from type " + x.getClass().getName() + " to " + targetJDBCType + " not supported");
+        }
+        
+        if (x instanceof Boolean
+                || x instanceof Byte
+                || x instanceof Short
+                || x instanceof Integer
+                || x instanceof Long
+                || x instanceof Float
+                || x instanceof Double
+                || x instanceof String) {
+            setParam(parameterIndex, 
+                    TypeConverter.convert(x, TypeConverter.fromJavaToJDBC(x.getClass()), DataType.fromJdbcTypeToJava(targetJDBCType)), 
+                    targetSqlType);
+            return;
+        }
+        
+        throw new SQLFeatureNotSupportedException(
+                "Conversion from type " + x.getClass().getName() + " to " + targetJDBCType + " not supported");
+    }
+
+    private void checkKnownUnsupportedTypes(Object x) throws SQLFeatureNotSupportedException {
+        List<Class<?>> unsupportedTypes = new ArrayList<Class<?>>(Arrays.asList(Struct.class, Array.class, SQLXML.class,
+                RowId.class, Ref.class, Blob.class, NClob.class, Clob.class, LocalDate.class, LocalTime.class, 
+                OffsetTime.class, OffsetDateTime.class, URL.class, BigDecimal.class));
+        
+        for (Class<?> clazz:unsupportedTypes) {
+           if (clazz.isAssignableFrom(x.getClass())) {
+                throw new SQLFeatureNotSupportedException("Objects of type " + clazz.getName() + " are not supported");
+           }
+        }
+    }
+    
+    private Calendar getDefaultCalendar() {
+        return Calendar.getInstance(cfg.timeZone(), Locale.ROOT);
     }
 
     @Override

@@ -13,11 +13,18 @@ These settings can be dynamically updated on a live cluster with the
 [float]
 ==== Parent circuit breaker
 
-The parent-level breaker can be configured with the following setting:
+The parent-level breaker can be configured with the following settings:
+
+`indices.breaker.total.use_real_memory`::
+
+    Whether the parent breaker should take real memory usage into account (`true`) or only
+    consider the amount that is reserved by child circuit breakers (`false`). Defaults to `true`.
 
 `indices.breaker.total.limit`::
 
-    Starting limit for overall parent breaker, defaults to 70% of JVM heap.
+    Starting limit for overall parent breaker, defaults to 70% of JVM heap if
+    `indices.breaker.total.use_real_memory` is `false`. If `indices.breaker.total.use_real_memory`
+    is `true`, defaults to 95% of the JVM heap.
 
 [[fielddata-circuit-breaker]]
 [float]
@@ -60,7 +67,9 @@ request) from exceeding a certain amount of memory.
 
 The in flight requests circuit breaker allows Elasticsearch to limit the memory usage of all
 currently active incoming requests on transport or HTTP level from exceeding a certain amount of
-memory on a node. The memory usage is based on the content length of the request itself.
+memory on a node. The memory usage is based on the content length of the request itself. This
+circuit breaker also considers that memory is not only needed for representing the raw request but
+also as a structured object which is reflected by default overhead.
 
 `network.breaker.inflight_requests.limit`::
 
@@ -70,7 +79,7 @@ memory on a node. The memory usage is based on the content length of the request
 `network.breaker.inflight_requests.overhead`::
 
     A constant that all in flight requests estimations are multiplied with to determine a
-    final estimation. Defaults to 1
+    final estimation. Defaults to 2.
 
 [[accounting-circuit-breaker]]
 [float]

@@ -25,7 +25,6 @@ import com.amazonaws.services.s3.model.DeleteObjectsRequest.KeyVersion;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.services.s3.model.StorageClass;
-
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -40,7 +39,7 @@ import java.util.Locale;
 
 class S3BlobStore extends AbstractComponent implements BlobStore {
 
-    private final AwsS3Service service;
+    private final S3Service service;
 
     private final String clientName;
 
@@ -54,7 +53,7 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
 
     private final StorageClass storageClass;
 
-    S3BlobStore(Settings settings, AwsS3Service service, String clientName, String bucket, boolean serverSideEncryption,
+    S3BlobStore(Settings settings, S3Service service, String clientName, String bucket, boolean serverSideEncryption,
                 ByteSizeValue bufferSize, String cannedACL, String storageClass) {
         super(settings);
         this.service = service;

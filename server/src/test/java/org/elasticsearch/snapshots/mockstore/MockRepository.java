@@ -92,8 +92,6 @@ public class MockRepository extends FsRepository {
 
     private final long waitAfterUnblock;
 
-    private final MockBlobStore mockBlobStore;
-
     private final String randomPrefix;
 
     private volatile boolean blockOnInitialization;
@@ -128,7 +126,6 @@ public class MockRepository extends FsRepository {
         waitAfterUnblock = metadata.settings().getAsLong("wait_after_unblock", 0L);
         allowAtomicOperations = metadata.settings().getAsBoolean("allow_atomic_operations", true);
         logger.info("starting mock repository with random prefix {}", randomPrefix);
-        mockBlobStore = new MockBlobStore(super.blobStore());
     }
 
     @Override
@@ -163,8 +160,8 @@ public class MockRepository extends FsRepository {
     }
 
     @Override
-    protected BlobStore blobStore() {
-        return mockBlobStore;
+    protected BlobStore createBlobStore() throws Exception {
+        return new MockBlobStore(super.createBlobStore());
     }
 
     public synchronized void unblock() {
@@ -195,7 +192,7 @@ public class MockRepository extends FsRepository {
     }
 
     private synchronized boolean blockExecution() {
-        logger.debug("Blocking execution");
+        logger.debug("[{}] Blocking execution", metadata.name());
         boolean wasBlocked = false;
         try {
             while (blockOnDataFiles || blockOnControlFiles || blockOnInitialization || blockOnWriteIndexFile ||
@@ -207,7 +204,7 @@ public class MockRepository extends FsRepository {
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
         }
-        logger.debug("Unblocking execution");
+        logger.debug("[{}] Unblocking execution", metadata.name());
         return wasBlocked;
     }
 
@@ -285,7 +282,7 @@ public class MockRepository extends FsRepository {
             }
 
             private void blockExecutionAndMaybeWait(final String blobName) {
-                logger.info("blocking I/O operation for file [{}] at path [{}]", blobName, path());
+                logger.info("[{}] blocking I/O operation for file [{}] at path [{}]", metadata.name(), blobName, path());
                 if (blockExecution() && waitAfterUnblock > 0) {
                     try {
                         // Delay operation after unblocking
@@ -346,9 +343,9 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
-            public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
+            public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
                 maybeIOExceptionOrBlock(blobName);
-                super.writeBlob(blobName, inputStream, blobSize);
+                super.writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
                 if (RandomizedContext.current().getRandom().nextBoolean()) {
                     // for network based repositories, the blob may have been written but we may still
                     // get an error with the client connection, so an IOException here simulates this
@@ -357,27 +354,28 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
-            public void writeBlobAtomic(final String blobName, final InputStream inputStream, final long blobSize) throws IOException {
+            public void writeBlobAtomic(final String blobName, final InputStream inputStream, final long blobSize,
+                                        final boolean failIfAlreadyExists) throws IOException {
                 final Random random = RandomizedContext.current().getRandom();
                 if (allowAtomicOperations && random.nextBoolean()) {
                     if ((delegate() instanceof FsBlobContainer) && (random.nextBoolean())) {
                         // Simulate a failure between the write and move operation in FsBlobContainer
                         final String tempBlobName = FsBlobContainer.tempBlobName(blobName);
-                        super.writeBlob(tempBlobName, inputStream, blobSize);
+                        super.writeBlob(tempBlobName, inputStream, blobSize, failIfAlreadyExists);
                         maybeIOExceptionOrBlock(blobName);
                         final FsBlobContainer fsBlobContainer = (FsBlobContainer) delegate();
-                        fsBlobContainer.moveBlobAtomic(tempBlobName, blobName);
+                        fsBlobContainer.moveBlobAtomic(tempBlobName, blobName, failIfAlreadyExists);
                     } else {
                         // Atomic write since it is potentially supported
                         // by the delegating blob container
                         maybeIOExceptionOrBlock(blobName);
-                        super.writeBlobAtomic(blobName, inputStream, blobSize);
+                        super.writeBlobAtomic(blobName, inputStream, blobSize, failIfAlreadyExists);
                     }
                 } else {
                     // Simulate a non-atomic write since many blob container
                     // implementations does not support atomic write
                     maybeIOExceptionOrBlock(blobName);
-                    super.writeBlob(blobName, inputStream, blobSize);
+                    super.writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
                 }
             }
         }

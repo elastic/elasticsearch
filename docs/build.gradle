@@ -37,8 +37,24 @@ integTestCluster {
   extraConfigFile 'hunspell/en_US/en_US.dic', '../server/src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.dic'
   // Whitelist reindexing from the local node so we can test it.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
+
+  // TODO: remove this for 7.0, this exists to allow the doc examples in 6.x to continue using the defaults
+  systemProperty 'es.scripting.use_java_time', 'false'
+  systemProperty 'es.scripting.update.ctx_in_params', 'false'
+
+  // TODO: remove this deprecation compatibility setting for 7.0
+  systemProperty 'es.aggregations.enable_scripted_metric_agg_param', 'false'
 }
 
+// remove when https://github.com/elastic/elasticsearch/issues/31305 is fixed
+if (rootProject.ext.compilerJavaVersion.isJava11()) {
+  integTestRunner {
+    systemProperty 'tests.rest.blacklist', [
+            'plugins/ingest-attachment/line_164',
+            'plugins/ingest-attachment/line_117'
+    ].join(',')
+  }
+}
 // Build the cluster with all plugins
 
 project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { subproj ->
@@ -62,6 +78,8 @@ buildRestTests.docs = fileTree(projectDir) {
   // Just syntax examples
   exclude 'README.asciidoc'
 }
+
+listSnippets.docs = buildRestTests.docs
 
 Closure setupTwitter = { String name, int count ->
   buildRestTests.setups[name] = '''
@@ -225,31 +243,6 @@ buildRestTests.doFirst {
     buildRestTests.setups['bank'].replace('#bank_data#', accounts)
 }
 
-buildRestTests.setups['range_index'] = '''
-  - do :
-        indices.create:
-          index: range_index
-          body:
-            settings:
-              number_of_shards: 2
-              number_of_replicas: 1
-            mappings:
-              _doc:
-                properties:
-                  expected_attendees:
-                    type: integer_range
-                  time_frame:
-                    type: date_range
-                    format: yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis
-  - do:
-        bulk:
-          index: range_index
-          type: _doc
-          refresh: true
-          body: |
-            {"index":{"_id": 1}}
-            {"expected_attendees": {"gte": 10, "lte": 20}, "time_frame": {"gte": "2015-10-31 12:00:00", "lte": "2015-11-01"}}'''
-
 // Used by index boost doc
 buildRestTests.setups['index_boost'] = '''
   - do:
@@ -393,9 +386,9 @@ buildRestTests.setups['exams'] = '''
           refresh: true
           body: |
             {"index":{}}
-            {"grade": 100}
+            {"grade": 100, "weight": 2}
             {"index":{}}
-            {"grade": 50}'''
+            {"grade": 50, "weight": 3}'''
 
 buildRestTests.setups['stored_example_script'] = '''
   # Simple script to load a field. Not really a good example, but a simple one.
@@ -410,25 +403,25 @@ buildRestTests.setups['stored_scripted_metric_script'] = '''
   - do:
       put_script:
         id: "my_init_script"
-        body: { "script": { "lang": "painless", "source": "params._agg.transactions = []" } }
+        body: { "script": { "lang": "painless", "source": "state.transactions = []" } }
   - match: { acknowledged: true }
 
   - do:
       put_script:
         id: "my_map_script"
-        body: { "script": { "lang": "painless", "source": "params._agg.transactions.add(doc.type.value == 'sale' ? doc.amount.value : -1 * doc.amount.value)" } }
+        body: { "script": { "lang": "painless", "source": "state.transactions.add(doc.type.value == 'sale' ? doc.amount.value : -1 * doc.amount.value)" } }
   - match: { acknowledged: true }
 
   - do:
       put_script:
         id: "my_combine_script"
-        body: { "script": { "lang": "painless", "source": "double profit = 0;for (t in params._agg.transactions) { profit += t; } return profit" } }
+        body: { "script": { "lang": "painless", "source": "double profit = 0;for (t in state.transactions) { profit += t; } return profit" } }
   - match: { acknowledged: true }
 
   - do:
       put_script:
         id: "my_reduce_script"
-        body: { "script": { "lang": "painless", "source": "double profit = 0;for (a in params._aggs) { profit += a; } return profit" } }
+        body: { "script": { "lang": "painless", "source": "double profit = 0;for (a in states) { profit += a; } return profit" } }
   - match: { acknowledged: true }
 '''
 
@@ -522,3 +515,85 @@ for (int i = 0; i < 5; i++) {
             {"index":{}}
             {"ip": "12.0.0.$i"}"""
 }
+// Used by SQL because it looks SQL-ish
+buildRestTests.setups['library'] = '''
+  - do:
+        indices.create:
+          index: library
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              book:
+                properties:
+                  name:
+                    type: text
+                    fields:
+                      keyword:
+                        type: keyword
+                  author:
+                    type: text
+                    fields:
+                      keyword:
+                        type: keyword
+                  release_date:
+                    type: date
+                  page_count:
+                    type: short
+  - do:
+        bulk:
+          index: library
+          type: book
+          refresh: true
+          body: |
+            {"index":{"_id": "Leviathan Wakes"}}
+            {"name": "Leviathan Wakes", "author": "James S.A. Corey", "release_date": "2011-06-02", "page_count": 561}
+            {"index":{"_id": "Hyperion"}}
+            {"name": "Hyperion", "author": "Dan Simmons", "release_date": "1989-05-26", "page_count": 482}
+            {"index":{"_id": "Dune"}}
+            {"name": "Dune", "author": "Frank Herbert", "release_date": "1965-06-01", "page_count": 604}
+            {"index":{"_id": "Dune Messiah"}}
+            {"name": "Dune Messiah", "author": "Frank Herbert", "release_date": "1969-10-15", "page_count": 331}
+            {"index":{"_id": "Children of Dune"}}
+            {"name": "Children of Dune", "author": "Frank Herbert", "release_date": "1976-04-21", "page_count": 408}
+            {"index":{"_id": "God Emperor of Dune"}}
+            {"name": "God Emperor of Dune", "author": "Frank Herbert", "release_date": "1981-05-28", "page_count": 454}
+            {"index":{"_id": "Consider Phlebas"}}
+            {"name": "Consider Phlebas", "author": "Iain M. Banks", "release_date": "1987-04-23", "page_count": 471}
+            {"index":{"_id": "Pandora's Star"}}
+            {"name": "Pandora's Star", "author": "Peter F. Hamilton", "release_date": "2004-03-02", "page_count": 768}
+            {"index":{"_id": "Revelation Space"}}
+            {"name": "Revelation Space", "author": "Alastair Reynolds", "release_date": "2000-03-15", "page_count": 585}
+            {"index":{"_id": "A Fire Upon the Deep"}}
+            {"name": "A Fire Upon the Deep", "author": "Vernor Vinge", "release_date": "1992-06-01", "page_count": 613}
+            {"index":{"_id": "Ender's Game"}}
+            {"name": "Ender's Game", "author": "Orson Scott Card", "release_date": "1985-06-01", "page_count": 324}
+            {"index":{"_id": "1984"}}
+            {"name": "1984", "author": "George Orwell", "release_date": "1985-06-01", "page_count": 328}
+            {"index":{"_id": "Fahrenheit 451"}}
+            {"name": "Fahrenheit 451", "author": "Ray Bradbury", "release_date": "1953-10-15", "page_count": 227}
+            {"index":{"_id": "Brave New World"}}
+            {"name": "Brave New World", "author": "Aldous Huxley", "release_date": "1932-06-01", "page_count": 268}
+            {"index":{"_id": "Foundation"}}
+            {"name": "Foundation", "author": "Isaac Asimov", "release_date": "1951-06-01", "page_count": 224}
+            {"index":{"_id": "The Giver"}}
+            {"name": "The Giver", "author": "Lois Lowry", "release_date": "1993-04-26", "page_count": 208}
+            {"index":{"_id": "Slaughterhouse-Five"}}
+            {"name": "Slaughterhouse-Five", "author": "Kurt Vonnegut", "release_date": "1969-06-01", "page_count": 275}
+            {"index":{"_id": "The Hitchhiker's Guide to the Galaxy"}}
+            {"name": "The Hitchhiker's Guide to the Galaxy", "author": "Douglas Adams", "release_date": "1979-10-12", "page_count": 180}
+            {"index":{"_id": "Snow Crash"}}
+            {"name": "Snow Crash", "author": "Neal Stephenson", "release_date": "1992-06-01", "page_count": 470}
+            {"index":{"_id": "Neuromancer"}}
+            {"name": "Neuromancer", "author": "William Gibson", "release_date": "1984-07-01", "page_count": 271}
+            {"index":{"_id": "The Handmaid's Tale"}}
+            {"name": "The Handmaid's Tale", "author": "Margaret Atwood", "release_date": "1985-06-01", "page_count": 311}
+            {"index":{"_id": "Starship Troopers"}}
+            {"name": "Starship Troopers", "author": "Robert A. Heinlein", "release_date": "1959-12-01", "page_count": 335}
+            {"index":{"_id": "The Left Hand of Darkness"}}
+            {"name": "The Left Hand of Darkness", "author": "Ursula K. Le Guin", "release_date": "1969-06-01", "page_count": 304}
+            {"index":{"_id": "The Moon is a Harsh Mistress"}}
+            {"name": "The Moon is a Harsh Mistress", "author": "Robert A. Heinlein", "release_date": "1966-04-01", "page_count": 288}
+
+'''

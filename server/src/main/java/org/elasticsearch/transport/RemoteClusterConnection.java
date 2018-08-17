@@ -29,6 +29,7 @@ import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -107,8 +108,8 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
         this.nodePredicate = nodePredicate;
         this.clusterAlias = clusterAlias;
         ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
-        builder.setConnectTimeout(TcpTransport.TCP_CONNECT_TIMEOUT.get(settings));
-        builder.setHandshakeTimeout(TcpTransport.TCP_CONNECT_TIMEOUT.get(settings));
+        builder.setConnectTimeout(TransportService.TCP_CONNECT_TIMEOUT.get(settings));
+        builder.setHandshakeTimeout(TransportService.TCP_CONNECT_TIMEOUT.get(settings));
         builder.addConnections(6, TransportRequestOptions.Type.REG, TransportRequestOptions.Type.PING); // TODO make this configurable?
         builder.addConnections(0, // we don't want this to be used for anything else but search
             TransportRequestOptions.Type.BULK,
@@ -289,8 +290,23 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
         }
 
         @Override
+        public boolean sendPing() {
+            return proxyConnection.sendPing();
+        }
+
+        @Override
         public void close() {
             assert false: "proxy connections must not be closed";
+        }
+
+        @Override
+        public void addCloseListener(ActionListener<Void> listener) {
+            proxyConnection.addCloseListener(listener);
+        }
+
+        @Override
+        public boolean isClosed() {
+            return proxyConnection.isClosed();
         }
 
         @Override
@@ -369,9 +385,11 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
         private void connect(ActionListener<Void> connectListener, boolean forceRun) {
             final boolean runConnect;
             final Collection<ActionListener<Void>> toNotify;
+            final ActionListener<Void> listener = connectListener == null ? null :
+                ContextPreservingActionListener.wrapPreservingContext(connectListener, transportService.getThreadPool().getThreadContext());
             synchronized (queue) {
-                if (connectListener != null && queue.offer(connectListener) == false) {
-                    connectListener.onFailure(new RejectedExecutionException("connect queue is full"));
+                if (listener != null && queue.offer(listener) == false) {
+                    listener.onFailure(new RejectedExecutionException("connect queue is full"));
                     return;
                 }
                 if (forceRun == false && queue.isEmpty()) {

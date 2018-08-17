@@ -21,13 +21,15 @@ package org.elasticsearch.monitor.jvm;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
-import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.time.CompoundDateTimeFormatter;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
+import java.time.Clock;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -41,7 +43,7 @@ public class HotThreads {
 
     private static final Object mutex = new Object();
 
-    private static final FormatDateTimeFormatter DATE_TIME_FORMATTER = Joda.forPattern("dateOptionalTime");
+    private static final CompoundDateTimeFormatter DATE_TIME_FORMATTER = DateFormatters.forPattern("dateOptionalTime");
 
     private int busiestThreads = 3;
     private TimeValue interval = new TimeValue(500, TimeUnit.MILLISECONDS);
@@ -136,7 +138,7 @@ public class HotThreads {
 
         StringBuilder sb = new StringBuilder();
         sb.append("Hot threads at ");
-        sb.append(DATE_TIME_FORMATTER.printer().print(System.currentTimeMillis()));
+        sb.append(DATE_TIME_FORMATTER.format(LocalDateTime.now(Clock.systemUTC())));
         sb.append(", interval=");
         sb.append(interval);
         sb.append(", busiestThreads=");

@@ -58,7 +58,6 @@ public final class InboundChannelBuffer implements AutoCloseable {
         this.pageSupplier = pageSupplier;
         this.pages = new ArrayDeque<>();
         this.capacity = PAGE_SIZE * pages.size();
-        ensureCapacity(PAGE_SIZE);
     }
 
     public static InboundChannelBuffer allocatingInstance() {

@@ -5,7 +5,7 @@
 You can manage and authenticate users with the built-in `file` internal realm. 
 All the data about the users for the `file` realm is stored in two files on each 
 node in the cluster: `users` and `users_roles`. Both files are located in 
-`CONFIG_DIR/` and are read on startup.
+`ES_PATH_CONF` and are read on startup.
 
 [IMPORTANT]
 ==============================
@@ -50,7 +50,7 @@ xpack:
 
 . Restart {es}.
 
-. Add user information to the `CONFIG_DIR/users` file on each node in the 
+. Add user information to the `ES_PATH_CONF/users` file on each node in the 
 cluster. 
 +
 --
@@ -76,7 +76,7 @@ IMPORTANT:  As the administrator of the cluster, it is your responsibility to
             
 --
 
-. Add role information to the `CONFIG_DIR/users_roles` file on each node 
+. Add role information to the `ES_PATH_CONF/users_roles` file on each node 
 in the cluster. 
 +
 --

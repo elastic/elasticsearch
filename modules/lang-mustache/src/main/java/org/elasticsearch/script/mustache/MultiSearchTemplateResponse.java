@@ -22,6 +22,7 @@ package org.elasticsearch.script.mustache;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -106,6 +108,13 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
         public Exception getFailure() {
             return exception;
         }
+
+        @Override
+        public String toString() {
+            return "Item [response=" + response + ", exception=" + exception + "]";
+        }
+        
+        
     }
 
     private Item[] items;
@@ -117,7 +126,7 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
     public MultiSearchTemplateResponse(Item[] items, long tookInMillis) {
         this.items = items;
         this.tookInMillis = tookInMillis;
-    }
+    }    
 
     @Override
     public Iterator<Item> iterator() {
@@ -183,6 +192,23 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
 
     static final class Fields {
         static final String RESPONSES = "responses";
+    }
+    
+    public static MultiSearchTemplateResponse fromXContext(XContentParser parser) {
+        //The MultiSearchTemplateResponse is identical to the multi search response so we reuse the parsing logic in multi search response
+        MultiSearchResponse mSearchResponse = MultiSearchResponse.fromXContext(parser);
+        org.elasticsearch.action.search.MultiSearchResponse.Item[] responses = mSearchResponse.getResponses();
+        Item[] templateResponses = new Item[responses.length];
+        int i = 0;
+        for (org.elasticsearch.action.search.MultiSearchResponse.Item item : responses) {
+            SearchTemplateResponse stResponse = null;
+            if(item.getResponse() != null){
+                stResponse = new SearchTemplateResponse();
+                stResponse.setResponse(item.getResponse());
+            }
+            templateResponses[i++] = new Item(stResponse, item.getFailure());
+        }
+        return new MultiSearchTemplateResponse(templateResponses, mSearchResponse.getTook().millis());    
     }
 
     @Override

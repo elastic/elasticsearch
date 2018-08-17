@@ -64,10 +64,10 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
     private final SearchService searchService;
 
     @Inject
-    public TransportValidateQueryAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+    public TransportValidateQueryAction(Settings settings, ClusterService clusterService,
             TransportService transportService, SearchService searchService, ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, ValidateQueryAction.NAME, threadPool, clusterService, transportService, actionFilters,
+        super(settings, ValidateQueryAction.NAME, clusterService, transportService, actionFilters,
                 indexNameExpressionResolver, ValidateQueryRequest::new, ShardValidateQueryRequest::new, ThreadPool.Names.SEARCH);
         this.searchService = searchService;
     }

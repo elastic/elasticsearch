@@ -28,7 +28,6 @@ see <<ml-job-resource,Job Resources>>.
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
 For more information, see
 {xpack-ref}/security-privileges.html[Security Privileges].
-//<<privileges-list-cluster>>.
 
 
 ==== Examples
@@ -56,7 +55,6 @@ POST _xpack/ml/anomaly_detectors/_validate
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:todo]
 
 When the validation is complete, you receive the following results:
 [source,js]
@@ -65,3 +63,4 @@ When the validation is complete, you receive the following results:
   "acknowledged": true
 }
 ----
+// TESTRESPONSE

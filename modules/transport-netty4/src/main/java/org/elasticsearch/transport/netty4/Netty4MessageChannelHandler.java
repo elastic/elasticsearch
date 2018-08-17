@@ -24,6 +24,8 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.util.Attribute;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.transport.TcpHeader;
 import org.elasticsearch.transport.Transports;
@@ -36,11 +38,9 @@ import org.elasticsearch.transport.Transports;
 final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
 
     private final Netty4Transport transport;
-    private final String profileName;
 
-    Netty4MessageChannelHandler(Netty4Transport transport, String profileName) {
+    Netty4MessageChannelHandler(Netty4Transport transport) {
         this.transport = transport;
-        this.profileName = profileName;
     }
 
     @Override
@@ -58,7 +58,7 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
             // netty always copies a buffer, either in NioWorker in its read handler, where it copies to a fresh
             // buffer, or in the cumulative buffer, which is cleaned each time so it could be bigger than the actual size
             BytesReference reference = Netty4Utils.toBytesReference(buffer, remainingMessageSize);
-            Attribute<NettyTcpChannel> channelAttribute = channel.attr(Netty4Transport.CHANNEL_KEY);
+            Attribute<Netty4TcpChannel> channelAttribute = channel.attr(Netty4Transport.CHANNEL_KEY);
             transport.messageReceived(reference, channelAttribute.get());
         } finally {
             // Set the expected position of the buffer, no matter what happened
@@ -69,7 +69,13 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
         Netty4Utils.maybeDie(cause);
-        transport.exceptionCaught(ctx, cause);
+        final Throwable unwrapped = ExceptionsHelper.unwrap(cause, ElasticsearchException.class);
+        final Throwable newCause = unwrapped != null ? unwrapped : cause;
+        Netty4TcpChannel tcpChannel = ctx.channel().attr(Netty4Transport.CHANNEL_KEY).get();
+        if (newCause instanceof Error) {
+            transport.onException(tcpChannel, new Exception(newCause));
+        } else {
+            transport.onException(tcpChannel, (Exception) newCause);
+        }
     }
-
 }

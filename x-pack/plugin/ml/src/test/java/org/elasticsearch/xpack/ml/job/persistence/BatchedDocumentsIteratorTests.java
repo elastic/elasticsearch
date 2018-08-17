@@ -172,7 +172,7 @@ public class BatchedDocumentsIteratorTests extends ESTestCase {
             if (responses.size() > 0) {
                 ActionFuture<SearchResponse> first = wrapResponse(responses.get(0));
                 if (responses.size() > 1) {
-                    List<ActionFuture> rest = new ArrayList<>();
+                    List<ActionFuture<SearchResponse>> rest = new ArrayList<>();
                     for (int i = 1; i < responses.size(); ++i) {
                         rest.add(wrapResponse(responses.get(i)));
                     }

@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.security.action.token;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
@@ -33,21 +33,21 @@ import java.util.Collections;
 public final class TransportCreateTokenAction extends HandledTransportAction<CreateTokenRequest, CreateTokenResponse> {
 
     private static final String DEFAULT_SCOPE = "full";
+    private final ThreadPool threadPool;
     private final TokenService tokenService;
     private final AuthenticationService authenticationService;
 
     @Inject
     public TransportCreateTokenAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                      ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                      TokenService tokenService, AuthenticationService authenticationService) {
-        super(settings, CreateTokenAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                CreateTokenRequest::new);
+                                      ActionFilters actionFilters, TokenService tokenService, AuthenticationService authenticationService) {
+        super(settings, CreateTokenAction.NAME, transportService, actionFilters, CreateTokenRequest::new);
+        this.threadPool = threadPool;
         this.tokenService = tokenService;
         this.authenticationService = authenticationService;
     }
 
     @Override
-    protected void doExecute(CreateTokenRequest request, ActionListener<CreateTokenResponse> listener) {
+    protected void doExecute(Task task, CreateTokenRequest request, ActionListener<CreateTokenResponse> listener) {
         Authentication originatingAuthentication = Authentication.getAuthentication(threadPool.getThreadContext());
         try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
             final UsernamePasswordToken authToken = new UsernamePasswordToken(request.getUsername(), request.getPassword());

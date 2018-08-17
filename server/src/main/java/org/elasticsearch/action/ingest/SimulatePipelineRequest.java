@@ -25,6 +25,8 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
@@ -42,7 +44,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.ingest.IngestDocument.MetaData;
 
-public class SimulatePipelineRequest extends ActionRequest {
+public class SimulatePipelineRequest extends ActionRequest implements ToXContentObject {
 
     private String id;
     private boolean verbose;
@@ -124,6 +126,12 @@ public class SimulatePipelineRequest extends ActionRequest {
         if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
             out.writeEnum(xContentType);
         }
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.rawValue(source.streamInput(), xContentType);
+        return builder;
     }
 
     public static final class Fields {

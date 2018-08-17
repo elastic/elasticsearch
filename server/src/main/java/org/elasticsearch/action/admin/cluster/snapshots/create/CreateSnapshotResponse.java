@@ -21,19 +21,32 @@ package org.elasticsearch.action.admin.cluster.snapshots.create;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotInfo.SnapshotInfoBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Create snapshot response
  */
 public class CreateSnapshotResponse extends ActionResponse implements ToXContentObject {
+
+    private static final ObjectParser<CreateSnapshotResponse, Void> PARSER =
+        new ObjectParser<>(CreateSnapshotResponse.class.getName(), true, CreateSnapshotResponse::new);
+
+    static {
+        PARSER.declareObject(CreateSnapshotResponse::setSnapshotInfoFromBuilder,
+            SnapshotInfo.SNAPSHOT_INFO_PARSER, new ParseField("snapshot"));
+    }
 
     @Nullable
     private SnapshotInfo snapshotInfo;
@@ -43,6 +56,10 @@ public class CreateSnapshotResponse extends ActionResponse implements ToXContent
     }
 
     CreateSnapshotResponse() {
+    }
+
+    private void setSnapshotInfoFromBuilder(SnapshotInfoBuilder snapshotInfoBuilder) {
+        this.snapshotInfo = snapshotInfoBuilder.build();
     }
 
     /**
@@ -92,5 +109,29 @@ public class CreateSnapshotResponse extends ActionResponse implements ToXContent
         }
         builder.endObject();
         return builder;
+    }
+
+    public static CreateSnapshotResponse fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
+    }
+
+    @Override
+    public String toString() {
+        return "CreateSnapshotResponse{" +
+            "snapshotInfo=" + snapshotInfo +
+            '}';
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        CreateSnapshotResponse that = (CreateSnapshotResponse) o;
+        return Objects.equals(snapshotInfo, that.snapshotInfo);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(snapshotInfo);
     }
 }

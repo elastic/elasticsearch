@@ -31,7 +31,6 @@ structure of the data that will be passed to the anomaly detection engine.
 You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
 privileges to use this API. For more information, see
 {xpack-ref}/security-privileges.html[Security Privileges].
-//<<privileges-list-cluster>>.
 
 
 ==== Security Integration
@@ -54,27 +53,30 @@ The following example obtains a preview of the `datafeed-farequote` {dfeed}:
 GET _xpack/ml/datafeeds/datafeed-farequote/_preview
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:todo]
+// TEST[setup:farequote_datafeed]
 
 The data that is returned for this example is as follows:
 [source,js]
 ----
 [
   {
-    "@timestamp": 1454803200000,
-    "airline": "AAL",
-    "responsetime": 132.20460510253906
-  },
-  {
-    "@timestamp": 1454803200000,
+    "time": 1454803200000,
     "airline": "JZA",
+    "doc_count": 5,
     "responsetime": 990.4628295898438
   },
   {
-    "@timestamp": 1454803200000,
+    "time": 1454803200000,
     "airline": "JBU",
+    "doc_count": 23,
     "responsetime": 877.5927124023438
   },
-  ...
+  {
+    "time": 1454803200000,
+    "airline": "KLM",
+    "doc_count": 42,
+    "responsetime": 1355.481201171875
+  }
 ]
 ----
+// TESTRESPONSE

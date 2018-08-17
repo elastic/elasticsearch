@@ -26,7 +26,7 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
-import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.protocol.xpack.security.User;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.security.authc.BytesKey;
@@ -86,6 +86,7 @@ public class PkiRealm extends Realm implements CachingRealm {
         this.trustManager = trustManagers(config);
         this.principalPattern = PkiRealmSettings.USERNAME_PATTERN_SETTING.get(config.settings());
         this.roleMapper = roleMapper;
+        this.roleMapper.refreshRealmOnChange(this);
         this.cache = CacheBuilder.<BytesKey, User>builder()
                 .setExpireAfterWrite(PkiRealmSettings.CACHE_TTL_SETTING.get(config.settings()))
                 .setMaximumWeight(PkiRealmSettings.CACHE_MAX_USERS_SETTING.get(config.settings()))

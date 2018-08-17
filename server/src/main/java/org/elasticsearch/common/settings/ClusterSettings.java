@@ -56,6 +56,7 @@ import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.FaultDetection;
+import org.elasticsearch.discovery.zen.SettingsBasedHostsProvider;
 import org.elasticsearch.discovery.zen.UnicastZenPing;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.env.Environment;
@@ -253,6 +254,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     HttpTransportSettings.SETTING_HTTP_TCP_REUSE_ADDRESS,
                     HttpTransportSettings.SETTING_HTTP_TCP_SEND_BUFFER_SIZE,
                     HttpTransportSettings.SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE,
+                    HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING,
                     HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING,
                     HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING,
                     HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING,
@@ -295,13 +297,13 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     TcpTransport.TCP_REUSE_ADDRESS_PROFILE,
                     TcpTransport.TCP_SEND_BUFFER_SIZE_PROFILE,
                     TcpTransport.TCP_RECEIVE_BUFFER_SIZE_PROFILE,
-                    TcpTransport.CONNECTIONS_PER_NODE_RECOVERY,
-                    TcpTransport.CONNECTIONS_PER_NODE_BULK,
-                    TcpTransport.CONNECTIONS_PER_NODE_REG,
-                    TcpTransport.CONNECTIONS_PER_NODE_STATE,
-                    TcpTransport.CONNECTIONS_PER_NODE_PING,
+                    TransportService.CONNECTIONS_PER_NODE_RECOVERY,
+                    TransportService.CONNECTIONS_PER_NODE_BULK,
+                    TransportService.CONNECTIONS_PER_NODE_REG,
+                    TransportService.CONNECTIONS_PER_NODE_STATE,
+                    TransportService.CONNECTIONS_PER_NODE_PING,
+                    TransportService.TCP_CONNECT_TIMEOUT,
                     TcpTransport.PING_SCHEDULE,
-                    TcpTransport.TCP_CONNECT_TIMEOUT,
                     NetworkService.NETWORK_SERVER,
                     TcpTransport.TCP_NO_DELAY,
                     TcpTransport.TCP_KEEP_ALIVE,
@@ -357,7 +359,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ZenDiscovery.MASTER_ELECTION_WAIT_FOR_JOINS_TIMEOUT_SETTING,
                     ZenDiscovery.MASTER_ELECTION_IGNORE_NON_MASTER_PINGS_SETTING,
                     ZenDiscovery.MAX_PENDING_CLUSTER_STATES_SETTING,
-                    UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING,
+                    SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING,
                     UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING,
                     UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT,
                     SearchService.DEFAULT_KEEPALIVE_SETTING,

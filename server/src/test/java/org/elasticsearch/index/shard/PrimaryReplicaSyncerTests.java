@@ -83,7 +83,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         boolean syncNeeded = numDocs > 0;
 
         String allocationId = shard.routingEntry().allocationId().getId();
-        shard.updateShardState(shard.routingEntry(), shard.getPrimaryTerm(), null, 1000L, Collections.singleton(allocationId),
+        shard.updateShardState(shard.routingEntry(), shard.getPendingPrimaryTerm(), null, 1000L, Collections.singleton(allocationId),
             new IndexShardRoutingTable.Builder(shard.shardId()).addShard(shard.routingEntry()).build(), Collections.emptySet());
         shard.updateLocalCheckpointForShard(allocationId, globalCheckPoint);
         assertEquals(globalCheckPoint, shard.getGlobalCheckpoint());
@@ -123,12 +123,10 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
     public void testSyncerOnClosingShard() throws Exception {
         IndexShard shard = newStartedShard(true);
         AtomicBoolean syncActionCalled = new AtomicBoolean();
-        CountDownLatch syncCalledLatch = new CountDownLatch(1);
         PrimaryReplicaSyncer.SyncAction syncAction =
             (request, parentTask, allocationId, primaryTerm, listener) -> {
                 logger.info("Sending off {} operations", request.getOperations().length);
                 syncActionCalled.set(true);
-                syncCalledLatch.countDown();
                 threadPool.generic().execute(() -> listener.onResponse(new ResyncReplicationResponse()));
             };
         PrimaryReplicaSyncer syncer = new PrimaryReplicaSyncer(Settings.EMPTY,
@@ -144,16 +142,30 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         }
 
         String allocationId = shard.routingEntry().allocationId().getId();
-        shard.updateShardState(shard.routingEntry(), shard.getPrimaryTerm(), null, 1000L, Collections.singleton(allocationId),
+        shard.updateShardState(shard.routingEntry(), shard.getPendingPrimaryTerm(), null, 1000L, Collections.singleton(allocationId),
             new IndexShardRoutingTable.Builder(shard.shardId()).addShard(shard.routingEntry()).build(), Collections.emptySet());
 
-        PlainActionFuture<PrimaryReplicaSyncer.ResyncTask> fut = new PlainActionFuture<>();
-        threadPool.generic().execute(() -> {
-            try {
-                syncer.resync(shard, fut);
-            } catch (AlreadyClosedException ace) {
-                fut.onFailure(ace);
+        CountDownLatch syncCalledLatch = new CountDownLatch(1);
+        PlainActionFuture<PrimaryReplicaSyncer.ResyncTask> fut = new PlainActionFuture<PrimaryReplicaSyncer.ResyncTask>() {
+            @Override
+            public void onFailure(Exception e) {
+                try {
+                    super.onFailure(e);
+                } finally {
+                    syncCalledLatch.countDown();
+                }
             }
+            @Override
+            public void onResponse(PrimaryReplicaSyncer.ResyncTask result) {
+                try {
+                    super.onResponse(result);
+                } finally {
+                    syncCalledLatch.countDown();
+                }
+            }
+        };
+        threadPool.generic().execute(() -> {
+            syncer.resync(shard, fut);
         });
         if (randomBoolean()) {
             syncCalledLatch.await();

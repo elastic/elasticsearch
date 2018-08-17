@@ -45,6 +45,7 @@ import org.elasticsearch.discovery.AckClusterStatePublishResponseHandler;
 import org.elasticsearch.discovery.BlockingClusterStatePublishResponseHandler;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesTransportRequest;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
@@ -447,14 +448,14 @@ public class PublishClusterStateAction extends AbstractComponent {
     private class SendClusterStateRequestHandler implements TransportRequestHandler<BytesTransportRequest> {
 
         @Override
-        public void messageReceived(BytesTransportRequest request, final TransportChannel channel) throws Exception {
+        public void messageReceived(BytesTransportRequest request, final TransportChannel channel, Task task) throws Exception {
             handleIncomingClusterStateRequest(request, channel);
         }
     }
 
     private class CommitClusterStateRequestHandler implements TransportRequestHandler<CommitClusterStateRequest> {
         @Override
-        public void messageReceived(CommitClusterStateRequest request, final TransportChannel channel) throws Exception {
+        public void messageReceived(CommitClusterStateRequest request, final TransportChannel channel, Task task) throws Exception {
             handleCommitRequest(request, channel);
         }
     }

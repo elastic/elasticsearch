@@ -115,7 +115,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     public AbstractHighlighterBuilder() {
     }
 
-    protected AbstractHighlighterBuilder(AbstractHighlighterBuilder template, QueryBuilder queryBuilder) {
+    protected AbstractHighlighterBuilder(AbstractHighlighterBuilder<?> template, QueryBuilder queryBuilder) {
         preTags = template.preTags;
         postTags = template.postTags;
         fragmentSize = template.fragmentSize;

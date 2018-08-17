@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.authc.esnative;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
@@ -31,7 +30,7 @@ import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.LogstashSystemUser;
-import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.protocol.xpack.security.User;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.Before;
 
@@ -72,14 +71,8 @@ public class NativeUsersStoreTests extends ESTestCase {
         client = new FilterClient(mockClient) {
 
             @Override
-            protected <
-                    Request extends ActionRequest,
-                    Response extends ActionResponse,
-                    RequestBuilder extends ActionRequestBuilder<Request, Response>
-                    > void doExecute(
-                    Action<Response> action,
-                    Request request,
-                    ActionListener<Response> listener) {
+            protected <Request extends ActionRequest, Response extends ActionResponse>
+            void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
                 requests.add(new Tuple<>(request, listener));
             }
         };
@@ -128,7 +121,7 @@ public class NativeUsersStoreTests extends ESTestCase {
         final NativeUsersStore.ReservedUserInfo userInfo = future.get();
         assertThat(userInfo.hasEmptyPassword, equalTo(true));
         assertThat(userInfo.enabled, equalTo(true));
-        assertThat(userInfo.passwordHash, equalTo(ReservedRealm.EMPTY_PASSWORD_HASH));
+        assertTrue(Hasher.verifyHash(new SecureString("".toCharArray()), userInfo.passwordHash));
     }
 
     public void testVerifyUserWithCorrectPassword() throws Exception {
@@ -214,6 +207,7 @@ public class NativeUsersStoreTests extends ESTestCase {
     }
 
     private void respondToGetUserRequest(String username, SecureString password, String[] roles) throws IOException {
+        // Native users store is initiated with default hashing algorithm
         final Map<String, Object> values = new HashMap<>();
         values.put(User.Fields.USERNAME.getPreferredName(), username);
         values.put(User.Fields.PASSWORD.getPreferredName(), String.valueOf(Hasher.BCRYPT.hash(password)));

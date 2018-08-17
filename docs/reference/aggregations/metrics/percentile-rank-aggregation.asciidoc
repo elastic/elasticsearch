@@ -18,7 +18,7 @@ value.  For example, if a value is greater than or equal to 95% of the observed 
 it is said to be at the 95th percentile rank.
 
 Assume your data consists of website load times.  You may have a service agreement that
-95% of page loads completely within 15ms and 99% of page loads complete within 30ms.
+95% of page loads completely within 500ms and 99% of page loads complete within 600ms.
 
 Let's look at a range of percentiles representing load time:
 

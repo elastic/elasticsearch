@@ -115,10 +115,6 @@ public class RequestOptionsTests extends RestClientTestCase {
         }
 
         if (randomBoolean()) {
-            builder.setNodeSelector(mock(NodeSelector.class));
-        }
-
-        if (randomBoolean()) {
             builder.setHttpAsyncResponseConsumerFactory(new HeapBufferedResponseConsumerFactory(1));
         }
 
@@ -131,15 +127,12 @@ public class RequestOptionsTests extends RestClientTestCase {
 
     private static RequestOptions mutate(RequestOptions options) {
         RequestOptions.Builder mutant = options.toBuilder();
-        int mutationType = between(0, 2);
+        int mutationType = between(0, 1);
         switch (mutationType) {
         case 0:
             mutant.addHeader("extra", "m");
             return mutant.build();
         case 1:
-            mutant.setNodeSelector(mock(NodeSelector.class));
-            return mutant.build();
-        case 2:
             mutant.setHttpAsyncResponseConsumerFactory(new HeapBufferedResponseConsumerFactory(5));
             return mutant.build();
         default:

@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
+import org.elasticsearch.xpack.sql.action.CliFormatter;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.Cursors;

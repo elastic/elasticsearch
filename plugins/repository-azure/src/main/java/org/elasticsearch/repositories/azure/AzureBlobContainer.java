@@ -86,11 +86,11 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
+    public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
         logger.trace("writeBlob({}, stream, {})", buildKey(blobName), blobSize);
 
         try {
-            blobStore.writeBlob(buildKey(blobName), inputStream, blobSize);
+            blobStore.writeBlob(buildKey(blobName), inputStream, blobSize, failIfAlreadyExists);
         } catch (URISyntaxException|StorageException e) {
             throw new IOException("Can not write blob " + blobName, e);
         }
@@ -100,14 +100,14 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     public void deleteBlob(String blobName) throws IOException {
         logger.trace("deleteBlob({})", blobName);
 
-        if (!blobExists(blobName)) {
-            throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
-        }
-
         try {
             blobStore.deleteBlob(buildKey(blobName));
-        } catch (URISyntaxException | StorageException e) {
-            logger.warn("can not access [{}] in container {{}}: {}", blobName, blobStore, e.getMessage());
+        } catch (StorageException e) {
+            if (e.getHttpStatusCode() == HttpURLConnection.HTTP_NOT_FOUND) {
+                throw new NoSuchFileException(e.getMessage());
+            }
+            throw new IOException(e);
+        } catch (URISyntaxException e) {
             throw new IOException(e);
         }
     }

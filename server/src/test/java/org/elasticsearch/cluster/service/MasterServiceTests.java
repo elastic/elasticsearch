@@ -54,6 +54,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -177,6 +178,8 @@ public class MasterServiceTests extends ESTestCase {
 
         try (ThreadContext.StoredContext ignored = threadPool.getThreadContext().stashContext()) {
             final Map<String, String> expectedHeaders = Collections.singletonMap("test", "test");
+            final Map<String, List<String>> expectedResponseHeaders = Collections.singletonMap("testResponse",
+                Arrays.asList("testResponse"));
             threadPool.getThreadContext().putHeader(expectedHeaders);
 
             final TimeValue ackTimeout = randomBoolean() ? TimeValue.ZERO : TimeValue.timeValueMillis(randomInt(10000));
@@ -187,6 +190,8 @@ public class MasterServiceTests extends ESTestCase {
                 public ClusterState execute(ClusterState currentState) {
                     assertTrue(threadPool.getThreadContext().isSystemContext());
                     assertEquals(Collections.emptyMap(), threadPool.getThreadContext().getHeaders());
+                    threadPool.getThreadContext().addResponseHeader("testResponse", "testResponse");
+                    assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
 
                     if (randomBoolean()) {
                         return ClusterState.builder(currentState).build();
@@ -201,6 +206,7 @@ public class MasterServiceTests extends ESTestCase {
                 public void onFailure(String source, Exception e) {
                     assertFalse(threadPool.getThreadContext().isSystemContext());
                     assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
+                    assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
                     latch.countDown();
                 }
 
@@ -208,6 +214,7 @@ public class MasterServiceTests extends ESTestCase {
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     assertFalse(threadPool.getThreadContext().isSystemContext());
                     assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
+                    assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
                     latch.countDown();
                 }
 
@@ -229,6 +236,7 @@ public class MasterServiceTests extends ESTestCase {
                 public void onAllNodesAcked(@Nullable Exception e) {
                     assertFalse(threadPool.getThreadContext().isSystemContext());
                     assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
+                    assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
                     latch.countDown();
                 }
 
@@ -236,6 +244,7 @@ public class MasterServiceTests extends ESTestCase {
                 public void onAckTimeout() {
                     assertFalse(threadPool.getThreadContext().isSystemContext());
                     assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
+                    assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
                     latch.countDown();
                 }
 
@@ -243,6 +252,7 @@ public class MasterServiceTests extends ESTestCase {
 
             assertFalse(threadPool.getThreadContext().isSystemContext());
             assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
+            assertEquals(Collections.emptyMap(), threadPool.getThreadContext().getResponseHeaders());
         }
 
         latch.await();
@@ -299,19 +309,19 @@ public class MasterServiceTests extends ESTestCase {
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "test1",
-                masterService.getClass().getName(),
+                masterService.getClass().getCanonicalName(),
                 Level.DEBUG,
                 "*processing [test1]: took [1s] no change in cluster state"));
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "test2",
-                masterService.getClass().getName(),
+                masterService.getClass().getCanonicalName(),
                 Level.TRACE,
                 "*failed to execute cluster state update in [2s]*"));
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "test3",
-                masterService.getClass().getName(),
+                masterService.getClass().getCanonicalName(),
                 Level.DEBUG,
                 "*processing [test3]: took [3s] done publishing updated cluster state (version: *, uuid: *)"));
 
@@ -640,25 +650,25 @@ public class MasterServiceTests extends ESTestCase {
         mockAppender.addExpectation(
             new MockLogAppender.UnseenEventExpectation(
                 "test1 shouldn't see because setting is too low",
-                masterService.getClass().getName(),
+                masterService.getClass().getCanonicalName(),
                 Level.WARN,
                 "*cluster state update task [test1] took [*] above the warn threshold of *"));
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "test2",
-                masterService.getClass().getName(),
+                masterService.getClass().getCanonicalName(),
                 Level.WARN,
                 "*cluster state update task [test2] took [32s] above the warn threshold of *"));
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "test3",
-                masterService.getClass().getName(),
+                masterService.getClass().getCanonicalName(),
                 Level.WARN,
                 "*cluster state update task [test3] took [33s] above the warn threshold of *"));
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "test4",
-                masterService.getClass().getName(),
+                masterService.getClass().getCanonicalName(),
                 Level.WARN,
                 "*cluster state update task [test4] took [34s] above the warn threshold of *"));
 

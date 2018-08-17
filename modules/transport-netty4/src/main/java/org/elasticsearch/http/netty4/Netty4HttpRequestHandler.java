@@ -75,7 +75,11 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelined
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
         Netty4Utils.maybeDie(cause);
-        serverTransport.exceptionCaught(ctx, cause);
+        Netty4HttpChannel channel = ctx.channel().attr(Netty4HttpServerTransport.HTTP_CHANNEL_KEY).get();
+        if (cause instanceof Error) {
+            serverTransport.onException(channel, new Exception(cause));
+        } else {
+            serverTransport.onException(channel, (Exception) cause);
+        }
     }
-
 }

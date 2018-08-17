@@ -103,12 +103,12 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
         MockTransportService newService = MockTransportService.createNewService(s, version, threadPool, null);
         try {
             newService.registerRequestHandler(ClusterSearchShardsAction.NAME, ThreadPool.Names.SAME, ClusterSearchShardsRequest::new,
-                    (request, channel) -> {
+                (request, channel, task) -> {
                         channel.sendResponse(new ClusterSearchShardsResponse(new ClusterSearchShardsGroup[0],
                                 knownNodes.toArray(new DiscoveryNode[0]), Collections.emptyMap()));
                     });
             newService.registerRequestHandler(ClusterStateAction.NAME, ThreadPool.Names.SAME, ClusterStateRequest::new,
-                    (request, channel) -> {
+                (request, channel, task) -> {
                         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
                         for (DiscoveryNode node : knownNodes) {
                             builder.add(node);
@@ -171,7 +171,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 assertEquals(10, response.getHits().totalHits);
                 assertEquals(10, response.getHits().getHits().length);
                 String scrollId = response.getScrollId();
-                SearchResponse scrollResponse = restHighLevelClient.searchScroll(new SearchScrollRequest(scrollId), RequestOptions.DEFAULT);
+                SearchResponse scrollResponse = restHighLevelClient.scroll(new SearchScrollRequest(scrollId), RequestOptions.DEFAULT);
                 assertSame(SearchResponse.Clusters.EMPTY, scrollResponse.getClusters());
                 assertEquals(10, scrollResponse.getHits().totalHits);
                 assertEquals(0, scrollResponse.getHits().getHits().length);
@@ -206,7 +206,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 assertEquals(10, response.getHits().totalHits);
                 assertEquals(10, response.getHits().getHits().length);
                 String scrollId = response.getScrollId();
-                SearchResponse scrollResponse = restHighLevelClient.searchScroll(new SearchScrollRequest(scrollId), RequestOptions.DEFAULT);
+                SearchResponse scrollResponse = restHighLevelClient.scroll(new SearchScrollRequest(scrollId), RequestOptions.DEFAULT);
                 assertSame(SearchResponse.Clusters.EMPTY, scrollResponse.getClusters());
                 assertEquals(10, scrollResponse.getHits().totalHits);
                 assertEquals(0, scrollResponse.getHits().getHits().length);

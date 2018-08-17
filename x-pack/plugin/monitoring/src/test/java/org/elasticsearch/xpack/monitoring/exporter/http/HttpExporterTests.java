@@ -468,7 +468,7 @@ public class HttpExporterTests extends ESTestCase {
         final MultiHttpResource resource = mock(MultiHttpResource.class);
 
         if (sniffer != null && rarely()) {
-            doThrow(randomFrom(new IOException("expected"), new RuntimeException("expected"))).when(sniffer).close();
+            doThrow(new RuntimeException("expected")).when(sniffer).close();
         }
 
         if (rarely()) {

@@ -42,6 +42,8 @@ include::cluster/reroute.asciidoc[]
 
 include::cluster/update-settings.asciidoc[]
 
+include::cluster/get-settings.asciidoc[]
+
 include::cluster/nodes-stats.asciidoc[]
 
 include::cluster/nodes-info.asciidoc[]

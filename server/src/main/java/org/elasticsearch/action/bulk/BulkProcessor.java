@@ -248,24 +248,24 @@ public class BulkProcessor implements Closeable {
      * (for example, if no id is provided, one will be generated, or usage of the create flag).
      */
     public BulkProcessor add(IndexRequest request) {
-        return add((DocWriteRequest) request);
+        return add((DocWriteRequest<?>) request);
     }
 
     /**
      * Adds an {@link DeleteRequest} to the list of actions to execute.
      */
     public BulkProcessor add(DeleteRequest request) {
-        return add((DocWriteRequest) request);
+        return add((DocWriteRequest<?>) request);
     }
 
     /**
      * Adds either a delete or an index request.
      */
-    public BulkProcessor add(DocWriteRequest request) {
+    public BulkProcessor add(DocWriteRequest<?> request) {
         return add(request, null);
     }
 
-    public BulkProcessor add(DocWriteRequest request, @Nullable Object payload) {
+    public BulkProcessor add(DocWriteRequest<?> request, @Nullable Object payload) {
         internalAdd(request, payload);
         return this;
     }
@@ -280,7 +280,7 @@ public class BulkProcessor implements Closeable {
         }
     }
 
-    private synchronized void internalAdd(DocWriteRequest request, @Nullable Object payload) {
+    private synchronized void internalAdd(DocWriteRequest<?> request, @Nullable Object payload) {
         ensureOpen();
         bulkRequest.add(request, payload);
         executeIfNeeded();

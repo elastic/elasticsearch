@@ -85,6 +85,12 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                                              AggregatorFactories.Builder subFactoriesBuilder,
                                              Map<String, Object> metaData) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metaData);
+
+        if (!config.unmapped()) {
+            this.fieldType = config.fieldContext().fieldType();
+            this.indexedFieldName = fieldType.name();
+        }
+
         this.includeExclude = includeExclude;
         this.executionHint = executionHint;
         this.filter = filterBuilder == null
@@ -98,15 +104,6 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 : searcher.count(filter);
         this.bucketCountThresholds = bucketCountThresholds;
         this.significanceHeuristic = significanceHeuristic;
-        setFieldInfo(context);
-
-    }
-
-    private void setFieldInfo(SearchContext context) {
-        if (!config.unmapped()) {
-            this.indexedFieldName = config.fieldContext().field();
-            fieldType = context.smartNameFieldType(indexedFieldName);
-        }
     }
 
     /**

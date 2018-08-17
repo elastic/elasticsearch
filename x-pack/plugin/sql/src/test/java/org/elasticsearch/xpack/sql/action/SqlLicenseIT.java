@@ -21,12 +21,6 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.transport.nio.NioTransportPlugin;
-import org.elasticsearch.xpack.sql.plugin.SqlQueryAction;
-import org.elasticsearch.xpack.sql.plugin.SqlQueryRequestBuilder;
-import org.elasticsearch.xpack.sql.plugin.SqlQueryResponse;
-import org.elasticsearch.xpack.sql.plugin.SqlTranslateAction;
-import org.elasticsearch.xpack.sql.plugin.SqlTranslateRequestBuilder;
-import org.elasticsearch.xpack.sql.plugin.SqlTranslateResponse;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 

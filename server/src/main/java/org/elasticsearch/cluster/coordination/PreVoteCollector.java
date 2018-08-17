@@ -56,6 +56,7 @@ public class PreVoteCollector extends AbstractComponent {
         this.transportService = transportService;
         this.startElection = startElection;
 
+        // TODO does this need to be on the generic threadpool or can it use SAME?
         transportService.registerRequestHandler(REQUEST_PRE_VOTE_ACTION_NAME, Names.GENERIC, false, false,
             PreVoteRequest::new,
             (request, channel, task) -> channel.sendResponse(handlePreVoteRequest(request)));

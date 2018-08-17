@@ -2,20 +2,26 @@
 [[security-api]]
 == Security APIs
 
+You can use the following APIs to perform {security} activities.
+
 * <<security-api-authenticate>>
 * <<security-api-clear-cache>>
 * <<security-api-privileges>>
-* <<security-api-roles>>
 * <<security-api-role-mapping>>
 * <<security-api-ssl>>
 * <<security-api-tokens>>
 * <<security-api-users>>
 
+include::security/roles.asciidoc[]
+
 include::security/authenticate.asciidoc[]
 include::security/change-password.asciidoc[]
 include::security/clear-cache.asciidoc[]
+include::security/clear-roles-cache.asciidoc[]
+include::security/create-roles.asciidoc[]
+include::security/delete-roles.asciidoc[]
+include::security/get-roles.asciidoc[]
 include::security/privileges.asciidoc[]
-include::security/roles.asciidoc[]
 include::security/role-mapping.asciidoc[]
 include::security/ssl.asciidoc[]
 include::security/tokens.asciidoc[]

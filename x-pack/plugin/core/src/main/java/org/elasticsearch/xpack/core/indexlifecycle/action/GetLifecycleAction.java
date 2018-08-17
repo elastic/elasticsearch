@@ -10,6 +10,7 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -22,7 +23,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-public class GetLifecycleAction extends Action<GetLifecycleAction.Response> {
+public class GetLifecycleAction extends Action<GetLifecycleAction.Request, GetLifecycleAction.Response, GetLifecycleActionRequestBuilder> {
     public static final GetLifecycleAction INSTANCE = new GetLifecycleAction();
     public static final String NAME = "cluster:admin/ilm/get";
 
@@ -112,6 +113,10 @@ public class GetLifecycleAction extends Action<GetLifecycleAction.Response> {
             return policyNames;
         }
 
+        public void setPolicyNames(final String[] policyNames) {
+            this.policyNames = policyNames;
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             return null;
@@ -146,6 +151,11 @@ public class GetLifecycleAction extends Action<GetLifecycleAction.Response> {
             return Arrays.equals(policyNames, other.policyNames);
         }
 
+    }
+
+    @Override
+    public GetLifecycleActionRequestBuilder newRequestBuilder(final ElasticsearchClient client) {
+        return new GetLifecycleActionRequestBuilder(client, INSTANCE);
     }
 
 }

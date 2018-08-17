@@ -8,8 +8,10 @@ package org.elasticsearch.xpack.core.indexlifecycle.action;
 
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.protocol.xpack.indexlifecycle.StartILMRequest;
 
-public class StartILMAction extends Action<AcknowledgedResponse> {
+public class StartILMAction extends Action<StartILMRequest, AcknowledgedResponse, StartILMActionRequestBuilder> {
     public static final StartILMAction INSTANCE = new StartILMAction();
     public static final String NAME = "cluster:admin/ilm/start";
 
@@ -20,6 +22,11 @@ public class StartILMAction extends Action<AcknowledgedResponse> {
     @Override
     public AcknowledgedResponse newResponse() {
         return new AcknowledgedResponse();
+    }
+
+    @Override
+    public StartILMActionRequestBuilder newRequestBuilder(final ElasticsearchClient client) {
+        return new StartILMActionRequestBuilder(client, INSTANCE);
     }
 
 }

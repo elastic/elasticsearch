@@ -10,6 +10,7 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -23,7 +24,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import java.io.IOException;
 import java.util.Objects;
 
-public class MoveToStepAction extends Action<MoveToStepAction.Response> {
+public class MoveToStepAction extends Action<MoveToStepAction.Request, MoveToStepAction.Response, MoveToStepActionRequestBuilder> {
     public static final MoveToStepAction INSTANCE = new MoveToStepAction();
     public static final String NAME = "cluster:admin/ilm/_move/post";
 
@@ -78,12 +79,24 @@ public class MoveToStepAction extends Action<MoveToStepAction.Response> {
             return index;
         }
 
+        public void setIndex(final String index) {
+            this.index = index;
+        }
+
         public StepKey getCurrentStepKey() {
             return currentStepKey;
         }
 
+        public void setCurrentStepKey(final StepKey currentStepKey) {
+            this.currentStepKey = currentStepKey;
+        }
+
         public StepKey getNextStepKey() {
             return nextStepKey;
+        }
+
+        public void setNextStepKey(final StepKey nextStepKey) {
+            this.nextStepKey = nextStepKey;
         }
 
         @Override
@@ -142,4 +155,10 @@ public class MoveToStepAction extends Action<MoveToStepAction.Response> {
                 .endObject();
         }
     }
+
+    @Override
+    public MoveToStepActionRequestBuilder newRequestBuilder(final ElasticsearchClient client) {
+        return new MoveToStepActionRequestBuilder(client, INSTANCE);
+    }
+
 }

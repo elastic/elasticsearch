@@ -12,6 +12,7 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -21,7 +22,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
-public class RetryAction extends Action<RetryAction.Response> {
+public class RetryAction extends Action<RetryAction.Request, RetryAction.Response, RetryActionRequestBuilder> {
     public static final RetryAction INSTANCE = new RetryAction();
     public static final String NAME = "indices:admin/ilm/retry";
 
@@ -114,4 +115,10 @@ public class RetryAction extends Action<RetryAction.Response> {
         }
 
     }
+
+    @Override
+    public RetryActionRequestBuilder newRequestBuilder(final ElasticsearchClient client) {
+        return new RetryActionRequestBuilder(client, INSTANCE);
+    }
+
 }

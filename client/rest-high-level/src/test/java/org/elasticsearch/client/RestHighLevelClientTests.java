@@ -21,7 +21,6 @@ package org.elasticsearch.client;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.http.Header;
-
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
@@ -36,7 +35,6 @@ import org.apache.http.message.BasicHttpResponse;
 import org.apache.http.message.BasicRequestLine;
 import org.apache.http.message.BasicStatusLine;
 import org.apache.http.nio.entity.NStringEntity;
-
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -778,7 +776,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                             apiName.startsWith("license.") == false &&
                             apiName.startsWith("machine_learning.") == false &&
                             apiName.startsWith("watcher.") == false &&
-                            apiName.startsWith("migration.") == false) {
+                            apiName.startsWith("migration.") == false &&
                             apiName.startsWith("index_lifecycle.") == false) {
                             apiNotFound.add(apiName);
                         }

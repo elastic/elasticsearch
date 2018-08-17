@@ -10,6 +10,7 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,7 +21,7 @@ import org.elasticsearch.protocol.xpack.indexlifecycle.OperationMode;
 import java.io.IOException;
 import java.util.Objects;
 
-public class GetStatusAction extends Action<GetStatusAction.Response> {
+public class GetStatusAction extends Action<GetStatusAction.Request, GetStatusAction.Response, GetStatusActionRequestBuilder> {
     public static final GetStatusAction INSTANCE = new GetStatusAction();
     public static final String NAME = "cluster:admin/ilm/operation_mode/get";
 
@@ -110,4 +111,10 @@ public class GetStatusAction extends Action<GetStatusAction.Response> {
             super.writeTo(out);
         }
     }
+
+    @Override
+    public GetStatusActionRequestBuilder newRequestBuilder(final ElasticsearchClient client) {
+        return new GetStatusActionRequestBuilder(client, INSTANCE);
+    }
+
 }

@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -24,7 +25,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-public class RemovePolicyForIndexAction extends Action<RemovePolicyForIndexAction.Response> {
+public class RemovePolicyForIndexAction
+        extends Action<RemovePolicyForIndexAction.Request, RemovePolicyForIndexAction.Response, RemovePolicyForIndexActionRequestBuilder> {
     public static final RemovePolicyForIndexAction INSTANCE = new RemovePolicyForIndexAction();
     public static final String NAME = "indices:admin/ilm/remove_policy";
 
@@ -182,4 +184,10 @@ public class RemovePolicyForIndexAction extends Action<RemovePolicyForIndexActio
         }
 
     }
+
+    @Override
+    public RemovePolicyForIndexActionRequestBuilder newRequestBuilder(final ElasticsearchClient client) {
+        return new RemovePolicyForIndexActionRequestBuilder(client, INSTANCE);
+    }
+
 }

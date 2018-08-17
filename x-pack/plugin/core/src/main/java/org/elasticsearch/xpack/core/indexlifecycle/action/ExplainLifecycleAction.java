@@ -7,9 +7,12 @@
 package org.elasticsearch.xpack.core.indexlifecycle.action;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleResponse;
 
-public class ExplainLifecycleAction extends Action<ExplainLifecycleResponse> {
+public class ExplainLifecycleAction
+        extends Action<ExplainLifecycleRequest, ExplainLifecycleResponse, ExplainLifecycleActionRequestBuilder> {
     public static final ExplainLifecycleAction INSTANCE = new ExplainLifecycleAction();
     public static final String NAME = "indices:admin/ilm/explain";
 
@@ -20,6 +23,11 @@ public class ExplainLifecycleAction extends Action<ExplainLifecycleResponse> {
     @Override
     public ExplainLifecycleResponse newResponse() {
         return new ExplainLifecycleResponse();
+    }
+
+    @Override
+    public ExplainLifecycleActionRequestBuilder newRequestBuilder(final ElasticsearchClient client) {
+        return new ExplainLifecycleActionRequestBuilder(client, INSTANCE);
     }
 
 }

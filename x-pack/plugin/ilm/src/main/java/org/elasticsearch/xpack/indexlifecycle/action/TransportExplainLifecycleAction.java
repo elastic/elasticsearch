@@ -37,7 +37,7 @@ public class TransportExplainLifecycleAction
     public TransportExplainLifecycleAction(Settings settings, TransportService transportService, ClusterService clusterService,
             ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, ExplainLifecycleAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                ExplainLifecycleRequest::new, indexNameExpressionResolver);
+                indexNameExpressionResolver, ExplainLifecycleRequest::new);
     }
 
     @Override

@@ -107,7 +107,7 @@ public class IndexLifecycleMetadata implements XPackMetaDataCustom {
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_7_0_0_alpha1;
+        return Version.V_6_5_0;
     }
 
     @Override

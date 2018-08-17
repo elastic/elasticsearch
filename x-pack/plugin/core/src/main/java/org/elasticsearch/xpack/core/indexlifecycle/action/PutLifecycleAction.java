@@ -9,6 +9,7 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -22,7 +23,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import java.io.IOException;
 import java.util.Objects;
 
-public class PutLifecycleAction extends Action<PutLifecycleAction.Response> {
+public class PutLifecycleAction extends Action<PutLifecycleAction.Request, PutLifecycleAction.Response, PutLifecycleActionRequestBuilder> {
     public static final PutLifecycleAction INSTANCE = new PutLifecycleAction();
     public static final String NAME = "cluster:admin/ilm/put";
 
@@ -65,6 +66,10 @@ public class PutLifecycleAction extends Action<PutLifecycleAction.Response> {
 
         public LifecyclePolicy getPolicy() {
             return policy;
+        }
+
+        public void setPolicy(final LifecyclePolicy policy) {
+            this.policy = policy;
         }
 
         @Override
@@ -118,6 +123,11 @@ public class PutLifecycleAction extends Action<PutLifecycleAction.Response> {
             return Strings.toString(this, true, true);
         }
 
+    }
+
+    @Override
+    public PutLifecycleActionRequestBuilder newRequestBuilder(final ElasticsearchClient client) {
+        return new PutLifecycleActionRequestBuilder(client, INSTANCE);
     }
 
 }

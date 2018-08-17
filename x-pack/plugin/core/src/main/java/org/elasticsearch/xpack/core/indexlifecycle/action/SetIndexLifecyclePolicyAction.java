@@ -7,9 +7,12 @@
 package org.elasticsearch.xpack.core.indexlifecycle.action;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyResponse;
 
-public class SetIndexLifecyclePolicyAction extends Action<SetIndexLifecyclePolicyResponse> {
+public class SetIndexLifecyclePolicyAction
+        extends Action<SetIndexLifecyclePolicyRequest, SetIndexLifecyclePolicyResponse, SetIndexLifecyclePolicyActionRequestBuilder> {
 
     public static final SetIndexLifecyclePolicyAction INSTANCE = new SetIndexLifecyclePolicyAction();
     public static final String NAME = "indices:admin/ilm/set_index_policy";
@@ -22,4 +25,10 @@ public class SetIndexLifecyclePolicyAction extends Action<SetIndexLifecyclePolic
     public SetIndexLifecyclePolicyResponse newResponse() {
         return new SetIndexLifecyclePolicyResponse();
     }
+
+    @Override
+    public SetIndexLifecyclePolicyActionRequestBuilder newRequestBuilder(final ElasticsearchClient client) {
+        return new SetIndexLifecyclePolicyActionRequestBuilder(client, INSTANCE);
+    }
+
 }

@@ -10,6 +10,7 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,7 +19,8 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import java.io.IOException;
 import java.util.Objects;
 
-public class DeleteLifecycleAction extends Action<DeleteLifecycleAction.Response> {
+public class DeleteLifecycleAction
+        extends Action<DeleteLifecycleAction.Request, DeleteLifecycleAction.Response, DeleteLifecycleActionRequestBuilder> {
     public static final DeleteLifecycleAction INSTANCE = new DeleteLifecycleAction();
     public static final String NAME = "cluster:admin/ilm/delete";
 
@@ -58,6 +60,10 @@ public class DeleteLifecycleAction extends Action<DeleteLifecycleAction.Response
             return policyName;
         }
 
+        public void setPolicyName(final String policyName) {
+            this.policyName = policyName;
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             return null;
@@ -92,6 +98,11 @@ public class DeleteLifecycleAction extends Action<DeleteLifecycleAction.Response
             return Objects.equals(policyName, other.policyName);
         }
 
+    }
+
+    @Override
+    public DeleteLifecycleActionRequestBuilder newRequestBuilder(final ElasticsearchClient client) {
+        return new DeleteLifecycleActionRequestBuilder(client, INSTANCE);
     }
 
 }

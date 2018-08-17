@@ -93,9 +93,9 @@ Windows and `kadmin` for MIT Kerberos.
 Make sure that this keytab file has read permissions. This file contains
 credentials, therefore you must take appropriate measures to protect it.
 
-IMPORTANT: On every {es} node, there must be a keytab file for the HTTP
-service principal. As we are supporting Kerberos on the http network layer,
-service principal name will be of format `HTTP/es.domain.local@ES.DOMAIN.LOCAL`.
+IMPORTANT: {es} uses Kerberos on the HTTP network layer, therefore there must be 
+a keytab file for the HTTP service principal on every {es} node. The service 
+principal name must have the format `HTTP/es.domain.local@ES.DOMAIN.LOCAL`.
 The keytab files are unique for each node since they include the hostname.
 An {es} node can act as any principal a client requests as long as that
 principal and its credentials are found in the configured keytab.
@@ -130,7 +130,7 @@ xpack.security.authc.realms.kerb1:
 The `username` is extracted from the ticket presented by user and usually has 
 the format `username@REALM`. This `username` is used for mapping 
 roles to the user. If realm setting `remove_realm_name` is 
-set to `true` then we remove the realm part (`@REALM`). The resulting `username` 
+set to `true`, the realm part (`@REALM`) is removed. The resulting `username` 
 is used for role mapping.
 
 For detailed information of available realm settings,

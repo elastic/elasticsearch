@@ -84,6 +84,7 @@ public class PeerFinderTests extends ESTestCase {
     private Set<DiscoveryNode> connectedNodes = new HashSet<>();
     private DiscoveryNodes lastAcceptedNodes;
     private TransportService transportService;
+    private Iterable<DiscoveryNode> foundPeersFromNotification;
 
     private static long CONNECTION_TIMEOUT_MILLIS = 30000;
 
@@ -154,6 +155,13 @@ public class PeerFinderTests extends ESTestCase {
             discoveredMasterNode = masterNode;
             discoveredMasterTerm = OptionalLong.of(term);
         }
+
+        @Override
+        protected void onFoundPeersUpdated() {
+            assert holdsLock() == false : "PeerFinder lock held in error";
+            foundPeersFromNotification = getFoundPeers();
+            logger.trace("onFoundPeersUpdated({})", foundPeersFromNotification);
+        }
     }
 
     private void resolveConfiguredHosts(Consumer<List<TransportAddress>> onResult) {
@@ -208,13 +216,13 @@ public class PeerFinderTests extends ESTestCase {
         lastAcceptedNodes = DiscoveryNodes.builder().localNodeId(localNode.getId()).add(localNode).build();
 
         peerFinder = new TestPeerFinder(settings, transportService, transportAddressConnector);
+        foundPeersFromNotification = emptyList();
     }
 
     @After
     public void deactivateAndRunRemainingTasks() {
         peerFinder.deactivate(localNode);
-        deterministicTaskQueue.runAllTasks(); // termination ensures that everything is properly cleaned up
-        peerFinder.assertInactiveWithNoKnownPeers(); // should eventually have no nodes when deactivated
+        deterministicTaskQueue.runAllRunnableTasks(random());
     }
 
     public void testAddsReachableNodesFromUnicastHostsList() {
@@ -687,6 +695,13 @@ public class PeerFinderTests extends ESTestCase {
         final Stream<DiscoveryNode> expectedNodes = Arrays.stream(expectedNodesArray);
         final Stream<DiscoveryNode> actualNodes = StreamSupport.stream(peerFinder.getFoundPeers().spliterator(), false);
         assertThat(actualNodes.collect(Collectors.toSet()), equalTo(expectedNodes.collect(Collectors.toSet())));
+        assertNotifiedOfAllUpdates();
+    }
+
+    private void assertNotifiedOfAllUpdates() {
+        final Stream<DiscoveryNode> actualNodes = StreamSupport.stream(peerFinder.getFoundPeers().spliterator(), false);
+        final Stream<DiscoveryNode> notifiedNodes = StreamSupport.stream(foundPeersFromNotification.spliterator(), false);
+        assertThat(notifiedNodes.collect(Collectors.toSet()), equalTo(actualNodes.collect(Collectors.toSet())));
     }
 
     private DiscoveryNode newDiscoveryNode(String nodeId) {
@@ -694,7 +709,19 @@ public class PeerFinderTests extends ESTestCase {
     }
 
     private void runAllRunnableTasks() {
+        deterministicTaskQueue.scheduleNow(new Runnable() {
+            @Override
+            public void run() {
+                PeerFinderTests.this.assertNotifiedOfAllUpdates();
+            }
+
+            @Override
+            public String toString() {
+                return "assertNotifiedOfAllUpdates";
+            }
+        });
         deterministicTaskQueue.runAllRunnableTasks(random());
+        assertNotifiedOfAllUpdates();
     }
 }
 

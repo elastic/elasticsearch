@@ -76,6 +76,7 @@ public class StringFunctionProcessorTests extends AbstractWireSerializingTestCas
     }
     
     public void testLCaseWithAZTRLocale() {
+        Locale initialLocale = Locale.getDefault();
         Locale.setDefault(Locale.forLanguageTag("tr"));
         StringProcessor proc = new StringProcessor(StringOperation.LCASE);
 
@@ -90,6 +91,9 @@ public class StringFunctionProcessorTests extends AbstractWireSerializingTestCas
         Locale.setDefault(Locale.forLanguageTag("az"));
         assertEquals("\u0069\u0307", proc.process("\u0130"));
         assertEquals("\u0069", proc.process("\u0049"));
+        
+        // restore the original Locale
+        Locale.setDefault(initialLocale);
     }
 
     public void testUCase() {
@@ -107,6 +111,7 @@ public class StringFunctionProcessorTests extends AbstractWireSerializingTestCas
     }
     
     public void testUCaseWithAZTRLocale() {
+        Locale initialLocale = Locale.getDefault();
         Locale.setDefault(Locale.forLanguageTag("tr"));
         StringProcessor proc = new StringProcessor(StringOperation.UCASE);
 
@@ -116,6 +121,9 @@ public class StringFunctionProcessorTests extends AbstractWireSerializingTestCas
         
         Locale.setDefault(Locale.forLanguageTag("az"));
         assertEquals("\u0049", proc.process("\u0069"));
+        
+        // restore the original Locale
+        Locale.setDefault(initialLocale);
     }
 
     public void testLength() {
@@ -186,7 +194,7 @@ public class StringFunctionProcessorTests extends AbstractWireSerializingTestCas
         assertEquals(7, proc.process("foo bar"));
         assertEquals(0, proc.process(""));
         assertEquals(1, proc.process('f'));
-        assertEquals(1, proc.process('â‚¬'));
+        assertEquals(1, proc.process('€'));
 
         stringCharInputValidation(proc);
     }

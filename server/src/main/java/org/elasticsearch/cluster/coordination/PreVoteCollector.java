@@ -69,9 +69,9 @@ public class PreVoteCollector extends AbstractComponent {
      * @return the pre-voting round, which can be closed to end the round early.
      */
     public Releasable start(final ClusterState clusterState, final Iterable<DiscoveryNode> broadcastNodes) {
-        PreVotingRound currentRound = new PreVotingRound(clusterState, state.v2().getCurrentTerm());
-        currentRound.start(broadcastNodes);
-        return currentRound;
+        PreVotingRound preVotingRound = new PreVotingRound(clusterState, state.v2().getCurrentTerm());
+        preVotingRound.start(broadcastNodes);
+        return preVotingRound;
     }
 
     public void update(final PreVoteResponse preVoteResponse, final DiscoveryNode leader) {

@@ -1,6 +1,6 @@
 [role="xpack"]
 [[security-api-put-role-mapping]]
-=== Create role mappings API
+=== Add role mappings API
 
 Adds and updates role mappings.
 

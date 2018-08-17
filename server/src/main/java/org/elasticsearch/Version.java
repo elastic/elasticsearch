@@ -38,13 +38,6 @@ import java.util.List;
 import java.util.Locale;
 
 public class Version implements Comparable<Version>, ToXContentFragment {
-    /**
-     * DO NOT USE: We need to keep this version around until we release the first
-     * version of 7. The list of supported versions is extracted from this file with a regex (see build.gradle)
-     * but v7 is not released yet so we search the latest release before v6.
-     **/
-    public static final Version V_5_6_11 = null;
-
     /*
      * The logic for ID is: XXYYZZAA, where XX is major version, YY is minor version, ZZ is revision, and AA is alpha/beta/rc indicator AA
      * values below 25 are for alpha builder (since 5.0), and above 25 and below 50 are beta builds, and below 99 are RC builds, with 99

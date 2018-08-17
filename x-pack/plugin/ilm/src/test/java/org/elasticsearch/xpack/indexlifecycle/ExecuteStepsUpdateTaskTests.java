@@ -189,13 +189,20 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         assertThat(LifecycleSettings.LIFECYCLE_STEP_INFO_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(""));
     }
 
-    // TODO: I think these tests are invalid now that policy name is not used for retrieving the step
-    @AwaitsFix(bugUrl = "fix me")
     public void testExecuteInvalidStartStep() throws IOException {
-        setStateToKey(firstStepKey);
-        Step startStep = policyStepsRegistry.getStep(index.getName(), firstStepKey);
+        // Unset the index's phase/action/step to simulate starting from scratch
+        clusterState = ClusterState.builder(clusterState)
+            .metaData(MetaData.builder(clusterState.metaData())
+                .put(IndexMetaData.builder(clusterState.metaData().index(indexName))
+                    .settings(Settings.builder().put(clusterState.metaData().index(indexName).getSettings())
+                        .put(LifecycleSettings.LIFECYCLE_PHASE, (String) null)
+                        .put(LifecycleSettings.LIFECYCLE_ACTION, (String) null)
+                        .put(LifecycleSettings.LIFECYCLE_STEP, (String) null).build()))).build();
+        policyStepsRegistry.update(clusterState, client, () -> 0);
+
+        Step invalidStep = new MockClusterStateActionStep(firstStepKey, secondStepKey);
         long now = randomNonNegativeLong();
-        ExecuteStepsUpdateTask task = new ExecuteStepsUpdateTask(invalidPolicyName, index, startStep, policyStepsRegistry, () -> now);
+        ExecuteStepsUpdateTask task = new ExecuteStepsUpdateTask(invalidPolicyName, index, invalidStep, policyStepsRegistry, () -> now);
         ClusterState newState = task.execute(clusterState);
         assertSame(newState, clusterState);
     }

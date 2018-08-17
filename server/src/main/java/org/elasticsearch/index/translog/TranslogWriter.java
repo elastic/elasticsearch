@@ -52,7 +52,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     /* the number of translog operations written to this file */
     private volatile int operationCounter;
     /* if we hit an exception that we can't recover from we assign it to this var and ship it with every AlreadyClosedException we throw */
-    private AtomicReference<Exception> tragedy;
+    private TragicExceptionHolder tragedy;
     /* A buffered outputstream what writes to the writers channel */
     private final OutputStream outputStream;
     /* the total offset of this file including the bytes written to the file as well as into the buffer */
@@ -78,7 +78,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         final Path path,
         final ByteSizeValue bufferSize,
         final LongSupplier globalCheckpointSupplier, LongSupplier minTranslogGenerationSupplier, TranslogHeader header,
-        AtomicReference<Exception> tragedy)
+        TragicExceptionHolder tragedy)
             throws
             IOException {
         super(initialCheckpoint.generation, channel, path, header);
@@ -104,7 +104,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     public static TranslogWriter create(ShardId shardId, String translogUUID, long fileGeneration, Path file, ChannelFactory channelFactory,
                                         ByteSizeValue bufferSize, final long initialMinTranslogGen, long initialGlobalCheckpoint,
                                         final LongSupplier globalCheckpointSupplier, final LongSupplier minTranslogGenerationSupplier,
-                                        final long primaryTerm, AtomicReference<Exception> tragedy)
+                                        final long primaryTerm, TragicExceptionHolder tragedy)
         throws IOException {
         final FileChannel channel = channelFactory.open(file);
         try {
@@ -135,15 +135,12 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     }
 
     private synchronized void closeWithTragicEvent(final Exception ex) {
-        assert ex != null;
-        if (tragedy.compareAndSet(null, ex)) {
+        if (tragedy.setTragicException(ex)) {
             try {
                 close();
             } catch (final IOException | RuntimeException e) {
                 ex.addSuppressed(e);
             }
-        } else {
-            tragedy.get().addSuppressed(ex);
         }
     }
 

@@ -119,7 +119,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     private final Path location;
     private TranslogWriter current;
 
-    private final AtomicReference<Exception> tragedy = new AtomicReference<>();
+    private final TragicExceptionHolder tragedy = new TragicExceptionHolder();
     private final AtomicBoolean closed = new AtomicBoolean();
     private final TranslogConfig config;
     private final LongSupplier globalCheckpointSupplier;
@@ -742,7 +742,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 }
             } catch (IOException e) {
                 IOUtils.closeWhileHandlingException(newReaders);
-                tragedy.compareAndSet(null, e);
+                tragedy.setTragicException(e);
                 closeOnTragicEvent(e);
                 throw e;
             }
@@ -1573,7 +1573,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 current = createWriter(current.getGeneration() + 1);
                 logger.trace("current translog set to [{}]", current.getGeneration());
             } catch (final Exception e) {
-                tragedy.compareAndSet(null, e);
+                tragedy.setTragicException(e);
                 closeOnTragicEvent(e);
                 throw e;
             }
@@ -1785,7 +1785,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         TranslogWriter writer = TranslogWriter.create(shardId, translogUUID, 1, location.resolve(getFilename(1)), channelFactory,
             new ByteSizeValue(10), 1, initialGlobalCheckpoint,
             () -> { throw new UnsupportedOperationException(); }, () -> { throw new UnsupportedOperationException(); }, primaryTerm,
-                new AtomicReference<>());
+                new TragicExceptionHolder());
         writer.close();
         return translogUUID;
     }

@@ -73,7 +73,7 @@ public class HasPrivilegesRequestTests extends ESTestCase {
         final HasPrivilegesRequest request = new HasPrivilegesRequest();
         request.clusterPrivileges(new String[0]);
         request.indexPrivileges(new IndicesPrivileges[0]);
-        request.applicationPrivileges(new ApplicationResourcePrivileges[]{
+        request.applicationPrivileges(new ApplicationResourcePrivileges[] {
             ApplicationResourcePrivileges.builder().privileges("read").application("*").resources("item/1").build()
         });
         final ActionRequestValidationException exception = request.validate();

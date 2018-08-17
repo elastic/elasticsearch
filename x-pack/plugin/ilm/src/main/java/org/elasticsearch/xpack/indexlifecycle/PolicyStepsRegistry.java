@@ -74,7 +74,9 @@ public class PolicyStepsRegistry {
 
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    public void update(ClusterState clusterState, IndexLifecycleMetadata meta, Client client, LongSupplier nowSupplier) {
+    public void update(ClusterState clusterState, Client client, LongSupplier nowSupplier) {
+        final IndexLifecycleMetadata meta = clusterState.metaData().custom(IndexLifecycleMetadata.TYPE);
+
         assert meta != null : "IndexLifecycleMetadata cannot be null when updating the policy steps registry";
 
         Diff<Map<String, LifecyclePolicyMetadata>> diff = DiffableUtils.diff(lifecyclePolicyMap, meta.getPolicyMetadatas(),
@@ -136,6 +138,8 @@ public class PolicyStepsRegistry {
                 final String currentPhase = imd.value.getSettings().get(LifecycleSettings.LIFECYCLE_PHASE, "new");
 
                 if (existingPhase.equals(currentPhase) == false) {
+                    logger.debug("index [{}] has transitioned phases [{} -> {}], rebuilding step list",
+                        indexName, existingPhase, currentPhase);
                     // Only rebuild the index's steps if the phase of the existing steps does not match our index's current phase
                     final Map<Step.StepKey, Step> steps = stepMap.get(policy);
 
@@ -174,6 +178,14 @@ public class PolicyStepsRegistry {
             return null;
         }
 
+        if (logger.isTraceEnabled()) {
+            logger.trace("[{}]: retrieving step [{}], found: [{}]\nall steps for this phase: [{}]", indexName, stepKey,
+                indexPhaseSteps.get(indexName).stream().filter(step -> step.getKey().equals(stepKey)).findFirst().orElse(null),
+                indexPhaseSteps.get(indexName));
+        } else if (logger.isDebugEnabled()) {
+            logger.debug("[{}]: retrieving step [{}], found: [{}]", indexName, stepKey,
+                indexPhaseSteps.get(indexName).stream().filter(step -> step.getKey().equals(stepKey)).findFirst().orElse(null));
+        }
         assert indexPhaseSteps.get(indexName).stream().allMatch(step -> step.getKey().getPhase().equals(stepKey.getPhase())) :
             "expected all steps for [" + indexName + "] to be in phase [" + stepKey.getPhase() +
                 "] but they were not, steps: " + indexPhaseSteps.get(indexName);

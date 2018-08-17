@@ -120,10 +120,9 @@ public class IndexLifecycleService extends AbstractComponent
     public void applyClusterState(ClusterChangedEvent event) {
         if (event.localNodeMaster()) { // only act if we are master, otherwise
                                        // keep idle until elected
-            IndexLifecycleMetadata lifecycleMetadata = event.state().metaData().custom(IndexLifecycleMetadata.TYPE);
-            if (lifecycleMetadata != null) {
+            if (event.state().metaData().custom(IndexLifecycleMetadata.TYPE) != null) {
                 // update policy steps registry
-                policyRegistry.update(event.state(), lifecycleMetadata, client, nowSupplier);
+                policyRegistry.update(event.state(), client, nowSupplier);
             }
         }
     }

@@ -127,10 +127,10 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
         Map<String, Phase> phases = Collections.singletonMap(phaseName,
             new Phase(phaseName, TimeValue.ZERO, Collections.emptyMap()));
         if (invalid) {
-            Exception e = expectThrows(IllegalArgumentException.class, () -> LifecyclePolicy.validate(phases.values()));
+            Exception e = expectThrows(IllegalArgumentException.class, () -> new LifecyclePolicy(lifecycleName, phases));
             assertThat(e.getMessage(), equalTo("Lifecycle does not support phase [" + phaseName + "]"));
         } else {
-            LifecyclePolicy.validate(phases.values());
+            new LifecyclePolicy(lifecycleName, phases);
         }
     }
 
@@ -147,11 +147,11 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
 
         if (invalidAction != null) {
             Exception e = expectThrows(IllegalArgumentException.class,
-                () -> LifecyclePolicy.validate(hotPhase.values()));
+                () -> new LifecyclePolicy(lifecycleName, hotPhase));
             assertThat(e.getMessage(),
                 equalTo("invalid action [" + invalidAction.getName() + "] defined in phase [hot]"));
         } else {
-            LifecyclePolicy.validate(hotPhase.values());
+            new LifecyclePolicy(lifecycleName, hotPhase);
         }
     }
 
@@ -168,11 +168,11 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
 
         if (invalidAction != null) {
             Exception e = expectThrows(IllegalArgumentException.class,
-                () -> LifecyclePolicy.validate(warmPhase.values()));
+                () -> new LifecyclePolicy(lifecycleName, warmPhase));
             assertThat(e.getMessage(),
                 equalTo("invalid action [" + invalidAction.getName() + "] defined in phase [warm]"));
         } else {
-            LifecyclePolicy.validate(warmPhase.values());
+            new LifecyclePolicy(lifecycleName, warmPhase);
         }
     }
 
@@ -189,11 +189,11 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
 
         if (invalidAction != null) {
             Exception e = expectThrows(IllegalArgumentException.class,
-                () -> LifecyclePolicy.validate(coldPhase.values()));
+                () -> new LifecyclePolicy(lifecycleName, coldPhase));
             assertThat(e.getMessage(),
                 equalTo("invalid action [" + invalidAction.getName() + "] defined in phase [cold]"));
         } else {
-            LifecyclePolicy.validate(coldPhase.values());
+            new LifecyclePolicy(lifecycleName, coldPhase);
         }
     }
 
@@ -210,11 +210,11 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
 
         if (invalidAction != null) {
             Exception e = expectThrows(IllegalArgumentException.class,
-                () -> LifecyclePolicy.validate(deletePhase.values()));
+                () -> new LifecyclePolicy(lifecycleName, deletePhase));
             assertThat(e.getMessage(),
                 equalTo("invalid action [" + invalidAction.getName() + "] defined in phase [delete]"));
         } else {
-            LifecyclePolicy.validate(deletePhase.values());
+            new LifecyclePolicy(lifecycleName, deletePhase);
         }
     }
 

@@ -27,7 +27,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -75,9 +74,19 @@ public class LifecyclePolicy implements ToXContentObject {
      *            {@link LifecyclePolicy}.
      */
     public LifecyclePolicy(String name, Map<String, Phase> phases) {
+       phases.values().forEach(phase -> {
+            if (ALLOWED_ACTIONS.containsKey(phase.getName()) == false) {
+                throw new IllegalArgumentException("Lifecycle does not support phase [" + phase.getName() + "]");
+            }
+            phase.getActions().forEach((actionName, action) -> {
+                if (ALLOWED_ACTIONS.get(phase.getName()).contains(actionName) == false) {
+                    throw new IllegalArgumentException("invalid action [" + actionName + "] " +
+                        "defined in phase [" + phase.getName() +"]");
+                }
+            });
+        });
         this.name = name;
         this.phases = phases;
-        validate(phases.values());
     }
 
     public static LifecyclePolicy parse(XContentParser parser, String name) {
@@ -132,19 +141,5 @@ public class LifecyclePolicy implements ToXContentObject {
     @Override
     public String toString() {
         return Strings.toString(this, true, true);
-    }
-
-    static void validate(Collection<Phase> phases) {
-        phases.forEach(phase -> {
-            if (ALLOWED_ACTIONS.containsKey(phase.getName()) == false) {
-                throw new IllegalArgumentException("Lifecycle does not support phase [" + phase.getName() + "]");
-            }
-            phase.getActions().forEach((actionName, action) -> {
-                if (ALLOWED_ACTIONS.get(phase.getName()).contains(actionName) == false) {
-                    throw new IllegalArgumentException("invalid action [" + actionName + "] " +
-                        "defined in phase [" + phase.getName() +"]");
-                }
-            });
-        });
     }
 }

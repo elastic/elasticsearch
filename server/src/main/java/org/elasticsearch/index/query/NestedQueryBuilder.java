@@ -406,7 +406,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                     if (sort() != null) {
                         topDocsCollector = TopFieldCollector.create(sort().sort, topN, true, trackScores(), trackScores(), true);
                     } else {
-                        topDocsCollector = TopScoreDocCollector.create(topN);
+                        topDocsCollector = TopScoreDocCollector.create(topN, Integer.MAX_VALUE);
                     }
                     try {
                         intersect(weight, innerHitQueryWeight, topDocsCollector, ctx);

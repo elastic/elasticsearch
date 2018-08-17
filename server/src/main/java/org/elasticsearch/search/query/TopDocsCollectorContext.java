@@ -187,7 +187,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
             super(REASON_SEARCH_TOP_HITS, numHits);
             this.sortAndFormats = sortAndFormats;
             if (sortAndFormats == null) {
-                final TopDocsCollector<?> topDocsCollector = TopScoreDocCollector.create(numHits, searchAfter);
+                final TopDocsCollector<?> topDocsCollector = TopScoreDocCollector.create(numHits, searchAfter, Integer.MAX_VALUE);
                 this.collector = topDocsCollector;
                 this.topDocsSupplier = topDocsCollector::topDocs;
                 this.totalHitsSupplier = topDocsCollector::getTotalHits;

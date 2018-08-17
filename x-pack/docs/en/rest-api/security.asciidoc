@@ -13,6 +13,7 @@ You can use the following APIs to perform {security} activities.
 * <<security-api-users>>
 
 [float]
+[[security-role-apis]]
 === Roles
 
 You can use the following APIs to add, remove, and retrieve roles in the native realm:

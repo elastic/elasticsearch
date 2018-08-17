@@ -479,7 +479,10 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             }
             assert field.getName().matches("V(_\\d+)+(_(alpha|beta|rc)\\d+)?") : field.getName();
             try {
-                versions.add(((Version) field.get(null)));
+                // special case for V_5_6_11
+                if (field.get(null) != null) {
+                    versions.add(((Version) field.get(null)));
+                }
             } catch (final IllegalAccessException e) {
                 throw new RuntimeException(e);
             }

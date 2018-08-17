@@ -66,8 +66,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.index.rankeval.RankEvalResponse;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
-import org.elasticsearch.protocol.xpack.common.Validatable;
-import org.elasticsearch.protocol.xpack.common.ValidationException;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
@@ -953,8 +951,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * @deprecated If creating a new HLRC ReST API call, consider creating new actions instead of reusing server actions. The Validation
-     * layer has been added to the ReST client, and requests should extend
-     * {@link org.elasticsearch.protocol.xpack.common.ValidationException} instead of `ActionRequest`.
+     * layer has been added to the ReST client, and requests should extend {@link Validatable} instead of `ActionRequest`.
      */
     @Deprecated
     protected final <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(Req request,
@@ -980,8 +977,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * @deprecated If creating a new HLRC ReST API call, consider creating new actions instead of reusing server actions. The Validation
-     * layer has been added to the ReST client, and requests should extend
-     * {@link org.elasticsearch.protocol.xpack.common.ValidationException} instead of `ActionRequest`.
+     * layer has been added to the ReST client, and requests should extend {@link Validatable} instead of `ActionRequest`.
      */
     @Deprecated
     protected final <Req extends ActionRequest, Resp> Resp performRequest(Req request,
@@ -1048,8 +1044,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * @deprecated If creating a new HLRC ReST API call, consider creating new actions instead of reusing server actions. The Validation
-     * layer has been added to the ReST client, and requests should extend
-     * {@link org.elasticsearch.protocol.xpack.common.ValidationException} instead of `ActionRequest`.
+     * layer has been added to the ReST client, and requests should extend {@link Validatable} instead of `ActionRequest`.
      */
     @Deprecated
     protected final <Req extends ActionRequest, Resp> void performRequestAsyncAndParseEntity(Req request,
@@ -1076,8 +1071,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * @deprecated If creating a new HLRC ReST API call, consider creating new actions instead of reusing server actions. The Validation
-     * layer has been added to the ReST client, and requests should extend
-     * {@link org.elasticsearch.protocol.xpack.common.ValidationException} instead of `ActionRequest`.
+     * layer has been added to the ReST client, and requests should extend {@link Validatable} instead of `ActionRequest`.
      */
     @Deprecated
     protected final <Req extends ActionRequest, Resp> void performRequestAsync(Req request,

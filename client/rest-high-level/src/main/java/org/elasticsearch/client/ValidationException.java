@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.protocol.xpack.common;
+package org.elasticsearch.client;
 
 import java.util.ArrayList;
 import java.util.List;

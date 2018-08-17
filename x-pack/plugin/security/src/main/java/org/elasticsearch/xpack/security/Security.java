@@ -301,7 +301,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 new TLSLicenseBootstrapCheck(),
                 new FIPS140SecureSettingsBootstrapCheck(settings, env),
                 new FIPS140JKSKeystoreBootstrapCheck(settings),
-                new FIPS140PasswordHashingAlgorithmBootstrapCheck(settings)));
+                new FIPS140PasswordHashingAlgorithmBootstrapCheck(settings),
+                new FIPS140LicenseBootstrapCheck(XPackSettings.FIPS_MODE_ENABLED.get(settings))));
             checks.addAll(InternalRealms.getBootstrapChecks(settings, env));
             this.bootstrapChecks = Collections.unmodifiableList(checks);
             Automatons.updateMaxDeterminizedStates(settings);

@@ -88,6 +88,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
  *     the index. Lower values make the index more space efficient at the
  *     expense of increased CPU and I/O activity. Values must be between <code>20</code> and
  *     <code>50</code>. Default value is <code>33</code>.
+ * </ul>
  *
  * <p>
  * For normal merging, the policy first computes a "budget" of how many

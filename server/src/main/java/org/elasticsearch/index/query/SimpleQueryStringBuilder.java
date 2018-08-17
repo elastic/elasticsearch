@@ -173,12 +173,6 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         settings.analyzeWildcard(in.readBoolean());
         minimumShouldMatch = in.readOptionalString();
         settings.quoteFieldSuffix(in.readOptionalString());
-        if (in.getVersion().before(Version.V_6_0_0_beta2)) {
-            Boolean useAllFields = in.readOptionalBoolean();
-            if (useAllFields != null && useAllFields) {
-                useAllFields(true);
-            }
-        }
         if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
             settings.autoGenerateSynonymsPhraseQuery(in.readBoolean());
             settings.fuzzyPrefixLength(in.readVInt());
@@ -203,13 +197,6 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         out.writeBoolean(settings.analyzeWildcard());
         out.writeOptionalString(minimumShouldMatch);
         out.writeOptionalString(settings.quoteFieldSuffix());
-        if (out.getVersion().before(Version.V_6_0_0_beta2)) {
-            if (useAllFields()) {
-                out.writeOptionalBoolean(true);
-            } else {
-                out.writeOptionalBoolean(null);
-            }
-        }
         if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
             out.writeBoolean(settings.autoGenerateSynonymsPhraseQuery());
             out.writeVInt(settings.fuzzyPrefixLength());

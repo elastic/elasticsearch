@@ -2,11 +2,12 @@
 [[hashing-settings]]
 ==== User cache and password hash algorithms
 
-Certain realms store user credentials in memory. To limit exposure 
-to credential theft and mitigate credential compromise, cached user credentials 
-are hashed in memory. By default, the user cache is hashed with a salted 
-`sha-256` hash algorithm. You can use a different hashing algorithm by setting 
-the `cache.hash_algo` realm settings to any of the following values:
+Certain realms store user credentials in memory. To limit exposure
+to credential theft and mitigate credential compromise, the cache only stores
+a hashed version of the user credentials in memory. By default, the user cache
+is hashed with a salted `sha-256` hash algorithm. You can use a different
+hashing algorithm by setting the `cache.hash_algo` realm settings to any of the
+following values:
 
 [[cache-hash-algo]]
 .Cache hash algorithms

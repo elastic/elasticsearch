@@ -56,14 +56,9 @@ public interface Transport extends LifecycleComponent {
      */
     RequestHandlerRegistry getRequestHandler(String action);
 
-    default void addMessageListener(TransportMessageListener listener) {
-        // TODO: Not default
-    }
+    void addMessageListener(TransportMessageListener listener);
 
-    default boolean removeMessageListener(TransportMessageListener listener) {
-        // TODO: Not default
-        return false;
-    }
+    boolean removeMessageListener(TransportMessageListener listener);
 
     /**
      * The address the transport is bound on.

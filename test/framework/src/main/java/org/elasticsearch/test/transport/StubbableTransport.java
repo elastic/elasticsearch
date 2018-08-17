@@ -30,6 +30,7 @@ import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportStats;
@@ -82,6 +83,16 @@ public class StubbableTransport implements Transport {
 
     Transport getDelegate() {
         return delegate;
+    }
+
+    @Override
+    public void addMessageListener(TransportMessageListener listener) {
+        delegate.addMessageListener(listener);
+    }
+
+    @Override
+    public boolean removeMessageListener(TransportMessageListener listener) {
+        return delegate.removeMessageListener(listener);
     }
 
     @Override

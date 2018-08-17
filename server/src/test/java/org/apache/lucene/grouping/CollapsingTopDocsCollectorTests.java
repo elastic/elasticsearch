@@ -32,6 +32,7 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
@@ -196,7 +197,7 @@ public class CollapsingTopDocsCollectorTests extends ESTestCase {
         }
 
         final CollapseTopFieldDocs[] shardHits = new CollapseTopFieldDocs[subSearchers.length];
-        final Weight weight = searcher.createNormalizedWeight(new MatchAllDocsQuery(), true);
+        final Weight weight = searcher.createWeight(searcher.rewrite(new MatchAllDocsQuery()), ScoreMode.COMPLETE, 1f);
         for (int shardIDX = 0; shardIDX < subSearchers.length; shardIDX++) {
             final SegmentSearcher subSearcher = subSearchers[shardIDX];
             final CollapsingTopDocsCollector<?> c;

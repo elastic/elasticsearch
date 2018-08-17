@@ -76,7 +76,7 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
         IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(ctx);
         IndexSearcher searcher = new IndexSearcher(topLevelContext);
         searcher.setQueryCache(null);
-        Weight weight = searcher.createNormalizedWeight(childFilter, ScoreMode.COMPLETE_NO_SCORES);
+        Weight weight = searcher.createWeight(searcher.rewrite(childFilter), ScoreMode.COMPLETE_NO_SCORES, 1f);
         Scorer childDocsScorer = weight.scorer(ctx);
 
         final BitSet parentDocs = parentFilter.getBitSet(ctx);

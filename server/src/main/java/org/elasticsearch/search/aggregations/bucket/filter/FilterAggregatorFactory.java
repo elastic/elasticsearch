@@ -59,7 +59,7 @@ public class FilterAggregatorFactory extends AggregatorFactory<FilterAggregatorF
         if (weight == null) {
             IndexSearcher contextSearcher = context.searcher();
             try {
-                weight = contextSearcher.createNormalizedWeight(filter, ScoreMode.COMPLETE_NO_SCORES);
+                weight = contextSearcher.createWeight(contextSearcher.rewrite(filter), ScoreMode.COMPLETE_NO_SCORES, 1f);
             } catch (IOException e) {
                 throw new AggregationInitializationException("Failed to initialse filter", e);
             }

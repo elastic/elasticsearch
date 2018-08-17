@@ -52,7 +52,7 @@ public class AdjacencyMatrixAggregatorFactory extends AggregatorFactory<Adjacenc
             KeyedFilter keyedFilter = filters.get(i);
             this.keys[i] = keyedFilter.key();
             Query filter = keyedFilter.filter().toFilter(context.getQueryShardContext());
-            this.weights[i] = contextSearcher.createNormalizedWeight(filter, ScoreMode.COMPLETE_NO_SCORES);
+            this.weights[i] = contextSearcher.createWeight(contextSearcher.rewrite(filter), ScoreMode.COMPLETE_NO_SCORES, 1f);
         }
     }
 

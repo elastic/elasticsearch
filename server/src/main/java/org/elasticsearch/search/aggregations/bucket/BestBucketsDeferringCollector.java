@@ -157,7 +157,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
         Weight weight = null;
         if (needsScores) {
             Query query = isGlobal ? new MatchAllDocsQuery() : searchContext.query();
-            weight = searchContext.searcher().createNormalizedWeight(query, ScoreMode.COMPLETE);
+            weight = searchContext.searcher().createWeight(searchContext.searcher().rewrite(query), ScoreMode.COMPLETE, 1f);
         }
         for (Entry entry : entries) {
             final LeafBucketCollector leafCollector = collector.getLeafCollector(entry.context);

@@ -261,8 +261,8 @@ public class ShardSplittingQueryTests extends ESTestCase {
         try (IndexReader reader = DirectoryReader.open(dir)) {
             IndexSearcher searcher = new IndexSearcher(reader);
             searcher.setQueryCache(null);
-            final Weight splitWeight = searcher.createNormalizedWeight(new ShardSplittingQuery(metaData, targetShardId, hasNested),
-                ScoreMode.COMPLETE_NO_SCORES);
+            final Weight splitWeight = searcher.createWeight(searcher.rewrite(new ShardSplittingQuery(metaData, targetShardId, hasNested)),
+                ScoreMode.COMPLETE_NO_SCORES, 1f);
             final List<LeafReaderContext> leaves = reader.leaves();
             for (final LeafReaderContext ctx : leaves) {
                 Scorer scorer = splitWeight.scorer(ctx);

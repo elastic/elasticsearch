@@ -415,7 +415,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
         IndicesQueryCache cache = new IndicesQueryCache(settings);
         s.setQueryCache(cache);
         Query query = new MatchAllDocsQuery();
-        final DummyWeight weight = new DummyWeight(s.createNormalizedWeight(query, ScoreMode.COMPLETE_NO_SCORES));
+        final DummyWeight weight = new DummyWeight(s.createWeight(s.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f));
         final Weight cached = cache.doCache(weight, s.getQueryCachingPolicy());
         assertNotSame(weight, cached);
         assertFalse(weight.scorerCalled);

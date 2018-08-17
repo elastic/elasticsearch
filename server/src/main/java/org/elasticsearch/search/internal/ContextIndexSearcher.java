@@ -72,7 +72,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         super(searcher.reader());
         in = searcher.searcher();
         engineSearcher = searcher;
-        setSimilarity(searcher.searcher().getSimilarity(true));
+        setSimilarity(searcher.searcher().getSimilarity());
         setQueryCache(queryCache);
         setQueryCachingPolicy(queryCachingPolicy);
     }
@@ -109,21 +109,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             if (profiler != null) {
                 profiler.stopAndAddRewriteTime();
             }
-        }
-    }
-
-    @Override
-    public Weight createNormalizedWeight(Query query, ScoreMode scoreMode) throws IOException {
-        // During tests we prefer to use the wrapped IndexSearcher, because then we use the AssertingIndexSearcher
-        // it is hacky, because if we perform a dfs search, we don't use the wrapped IndexSearcher...
-        if (aggregatedDfs != null && scoreMode.needsScores()) {
-            // if scores are needed and we have dfs data then use it
-            return super.createNormalizedWeight(query, scoreMode);
-        } else if (profiler != null) {
-            // we need to use the createWeight method to insert the wrappers
-            return super.createNormalizedWeight(query, scoreMode);
-        } else {
-            return in.createNormalizedWeight(query, scoreMode);
         }
     }
 
@@ -196,7 +181,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     public Explanation explain(Query query, int doc) throws IOException {
         if (aggregatedDfs != null) {
             // dfs data is needed to explain the score
-            return super.explain(createNormalizedWeight(query, ScoreMode.COMPLETE), doc);
+            return super.explain(createWeight(rewrite(query), ScoreMode.COMPLETE, 1f), doc);
         }
         return in.explain(query, doc);
     }

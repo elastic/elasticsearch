@@ -349,7 +349,7 @@ final class ShardSplittingQuery extends Query {
                 final IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(context);
                 final IndexSearcher searcher = new IndexSearcher(topLevelContext);
                 searcher.setQueryCache(null);
-                final Weight weight = searcher.createNormalizedWeight(query, ScoreMode.COMPLETE_NO_SCORES);
+                final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
                 Scorer s = weight.scorer(context);
                 return s == null ? null : BitSet.of(s.iterator(), context.reader().maxDoc());
             };

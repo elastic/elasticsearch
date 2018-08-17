@@ -268,7 +268,7 @@ public class QueryProfilerTests extends ESTestCase {
         w.close();
         IndexSearcher s = newSearcher(reader);
         s.setQueryCache(null);
-        Weight weight = s.createNormalizedWeight(new DummyQuery(), randomFrom(ScoreMode.values()));
+        Weight weight = s.createWeight(s.rewrite(new DummyQuery()), randomFrom(ScoreMode.values()), 1f);
         // exception when getting the scorer
         expectThrows(UnsupportedOperationException.class, () ->  weight.scorer(s.getIndexReader().leaves().get(0)));
         // no exception, means scorerSupplier is delegated

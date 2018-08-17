@@ -25,6 +25,7 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.ConjunctionDISI;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TopDocs;
@@ -104,7 +105,8 @@ public final class InnerHitsContext {
 
         protected Weight createInnerHitQueryWeight() throws IOException {
             final boolean needsScores = size() != 0 && (sort() == null || sort().sort.needsScores());
-            return context.searcher().createNormalizedWeight(query(), needsScores);
+            return context.searcher().createWeight(context.searcher().rewrite(query()),
+                    needsScores ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES, 1f);
         }
 
         public SearchContext parentSearchContext() {

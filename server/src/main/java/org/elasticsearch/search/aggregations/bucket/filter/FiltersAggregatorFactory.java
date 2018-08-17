@@ -75,7 +75,7 @@ public class FiltersAggregatorFactory extends AggregatorFactory<FiltersAggregato
                 IndexSearcher contextSearcher = context.searcher();
                 weights = new Weight[filters.length];
                 for (int i = 0; i < filters.length; ++i) {
-                    this.weights[i] = contextSearcher.createNormalizedWeight(filters[i], ScoreMode.COMPLETE_NO_SCORES);
+                    this.weights[i] = contextSearcher.createWeight(contextSearcher.rewrite(filters[i]), ScoreMode.COMPLETE_NO_SCORES, 1);
                 }
             } catch (IOException e) {
                 throw new AggregationInitializationException("Failed to initialse filters for aggregation [" + name() + "]", e);

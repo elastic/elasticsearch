@@ -208,7 +208,7 @@ final class CompositeAggregator extends BucketsAggregator {
         Weight weight = null;
         if (needsScores) {
             Query query = context.query();
-            weight = context.searcher().createNormalizedWeight(query, ScoreMode.COMPLETE);
+            weight = context.searcher().createWeight(context.searcher().rewrite(query), ScoreMode.COMPLETE, 1f);
         }
         deferredCollectors.preCollection();
         for (Entry entry : entries) {

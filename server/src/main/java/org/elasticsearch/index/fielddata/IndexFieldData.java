@@ -28,6 +28,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparatorSource;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.Weight;
@@ -155,7 +156,7 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
             public DocIdSetIterator innerDocs(LeafReaderContext ctx) throws IOException {
                 final IndexReaderContext topLevelCtx = ReaderUtil.getTopLevelContext(ctx);
                 IndexSearcher indexSearcher = new IndexSearcher(topLevelCtx);
-                Weight weight = indexSearcher.createNormalizedWeight(innerQuery, false);
+                Weight weight = indexSearcher.createWeight(indexSearcher.rewrite(innerQuery), ScoreMode.COMPLETE_NO_SCORES, 1f);
                 Scorer s = weight.scorer(ctx);
                 return s == null ? null : s.iterator();
             }

@@ -394,7 +394,8 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                 Query childFilter = childObjectMapper.nestedTypeFilter();
                 BitSetProducer parentFilter = context.bitsetFilterCache().getBitSetProducer(rawParentFilter);
                 Query q = new ParentChildrenBlockJoinQuery(parentFilter, childFilter, parentDocId);
-                Weight weight = context.searcher().createNormalizedWeight(q, false);
+                Weight weight = context.searcher().createWeight(context.searcher().rewrite(q),
+                        org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES, 1f);
                 if (size() == 0) {
                     TotalHitCountCollector totalHitCountCollector = new TotalHitCountCollector();
                     intersect(weight, innerHitQueryWeight, totalHitCountCollector, ctx);

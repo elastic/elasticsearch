@@ -228,7 +228,8 @@ public class FunctionScoreQuery extends Query {
             }
             if (functions[i] instanceof FilterScoreFunction) {
                 Query filter = ((FilterScoreFunction) functions[i]).filter;
-                filterWeights[i] = searcher.createNormalizedWeight(filter, org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES);
+                filterWeights[i] = searcher.createWeight(searcher.rewrite(filter),
+                        org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES, 1f);
             }
         }
         Weight subQueryWeight = subQuery.createWeight(searcher, subQueryScoreMode, boost);

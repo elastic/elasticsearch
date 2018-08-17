@@ -46,21 +46,23 @@ user. Note that user passwords are not included.
 
 [source,js]
 --------------------------------------------------
-{
-  "jacknich": {  <1>
-    "username" : "jacknich",
-    "roles" : [ "admin", "other_role1" ],
-    "full_name" : "Jack Nicholson",
-    "email" : "jacknich@example.com",
-    "enabled": true,
-    "metadata" : {
-      "intelligence" : 7
-    }
+{  
+  "jacknich": {
+    "username": "jacknich",
+    "roles": [
+      "admin", "other_role1"
+    ],
+    "full_name": "Jack Nicholson",
+    "email": "jacknich@example.com",
+    "metadata": { "intelligence" : 7 },
+    "enabled": true
   }
 }
 --------------------------------------------------
+// CONSOLE
 // TESTRESPONSE
-<1> If the user is not defined in the `native` realm, the request 404s.
+
+If the user is not defined in the `native` realm, the request 404s.
 
 Omit the username to retrieve all users:
 

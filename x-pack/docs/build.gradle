@@ -739,15 +739,13 @@ setups['admin_role'] = '''
 setups['jacknich_user'] = '''
   - do:
       xpack.security.put_user:
-       username: "jacknich"
-       body:  >
-       {
-         "password" : "j@rV1s",
-         "roles" : [ "admin", "other_role1" ],
-         "full_name" : "Jack Nicholson",
-         "email" : "jacknich@example.com",
-         "metadata" : {
-           "intelligence" : 7
-         }   
-       }
+        username: "jacknich"
+        body:  >
+          {
+            "password" : "test-password",
+            "roles" : [ "admin", "other_role1" ],
+            "full_name" : "Jack Nicholson",
+            "email" : "jacknich@example.com",
+            "metadata" : { "intelligence" : 7 }
+          }
 '''

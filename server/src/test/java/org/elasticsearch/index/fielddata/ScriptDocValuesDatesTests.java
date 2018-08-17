@@ -20,6 +20,7 @@
 package org.elasticsearch.index.fielddata;
 
 import org.elasticsearch.index.fielddata.ScriptDocValues.Dates;
+import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -32,6 +33,8 @@ import java.security.PermissionCollection;
 import java.security.Permissions;
 import java.security.PrivilegedAction;
 import java.security.ProtectionDomain;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -43,7 +46,28 @@ public class ScriptDocValuesDatesTests extends ESTestCase {
         long[][] values = new long[between(3, 10)][];
         ReadableDateTime[][] expectedDates = new ReadableDateTime[values.length][];
         for (int d = 0; d < values.length; d++) {
-            values[d] = new long[randomBoolean() ? randomBoolean() ? 0 : 1 : between(2, 100)];
+            switch (d) {
+            case 0:
+                // empty
+                values[d] = new long[0];
+                break;
+            case 1:
+                // single value
+                values[d] = new long[1];
+                break;
+            case 2:
+                // multivalued
+                values[d] = new long[between(2, 100)];
+                break;
+            default:
+                // random
+                values[d] = new long[between(0, 5)];
+                break;
+            }
+        }
+        Collections.shuffle(Arrays.asList(values), random());
+
+        for (int d = 0; d < values.length; d++) {
             expectedDates[d] = new ReadableDateTime[values[d].length];
             for (int i = 0; i < values[d].length; i++) {
                 expectedDates[d][i] = new DateTime(randomNonNegativeLong(), DateTimeZone.UTC);
@@ -58,16 +82,17 @@ public class ScriptDocValuesDatesTests extends ESTestCase {
             createTempDir();
         });
 
-        for (int round = 0; round < 10; round++) {
-            int d = between(0, values.length - 1);
+        for (int d = 0; d < values.length; d++) {
             dates.setNextDocId(d);
             if (expectedDates[d].length > 0) {
                 assertEquals(expectedDates[d][0] , dates.getValue());
                 assertEquals(expectedDates[d][0] , dates.getDate());
-            } else {
+            } else if (ScriptModule.EXCEPTION_FOR_MISSING_VALUE) {
                 Exception e = expectThrows(IllegalStateException.class, () -> dates.getValue());
                 assertEquals("A document doesn't have a value for a field! " +
                     "Use doc[<field>].size()==0 to check if a document is missing a field!", e.getMessage());
+            } else {
+                assertEquals(0, dates.getValue().getMillis()); // Epoch
             }
             assertEquals(values[d].length, dates.size());
             for (int i = 0; i < values[d].length; i++) {

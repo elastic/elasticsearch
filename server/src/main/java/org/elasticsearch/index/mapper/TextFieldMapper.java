@@ -296,7 +296,7 @@ public class TextFieldMapper extends FieldMapper {
 
         @Override
         protected TokenStreamComponents wrapComponents(String fieldName, TokenStreamComponents components) {
-            TokenFilter filter = new EdgeNGramTokenFilter(components.getTokenStream(), minChars, maxChars);
+            TokenFilter filter = new EdgeNGramTokenFilter(components.getTokenStream(), minChars, maxChars, false);
             return new TokenStreamComponents(components.getTokenizer(), filter);
         }
     }

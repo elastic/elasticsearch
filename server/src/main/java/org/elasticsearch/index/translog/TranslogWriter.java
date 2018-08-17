@@ -142,6 +142,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             } catch (final IOException | RuntimeException e) {
                 ex.addSuppressed(e);
             }
+        } else {
+            tragedy.get().addSuppressed(ex);
         }
     }
 

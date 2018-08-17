@@ -313,7 +313,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         return closed.get() == false;
     }
 
-    private boolean calledFromOutsideOrViaTragedyClose(){
+    private static boolean calledFromOutsideOrViaTragedyClose(){
        List<StackTraceElement> frames = Stream.of(Thread.currentThread().getStackTrace()).
                skip(3). //skip getStackTrace, current method and close method frames
                limit(10). //limit depth of analysis to 10 frames, it should be enough to catch closing with, e.g. IOUtils

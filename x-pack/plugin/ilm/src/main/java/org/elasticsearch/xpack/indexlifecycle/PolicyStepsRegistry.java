@@ -16,6 +16,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.indexlifecycle.ErrorStep;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
@@ -41,8 +42,8 @@ public class PolicyStepsRegistry {
     private final Map<String, Step> firstStepMap;
     // keeps track of a mapping from policy/step-name to respective Step, the key is policy name
     private final Map<String, Map<Step.StepKey, Step>> stepMap;
-    // A map of index name to a list of compiled steps for the current phase
-    private final Map<String, List<Step>> indexPhaseSteps;
+    // A map of index to a list of compiled steps for the current phase
+    private final Map<Index, List<Step>> indexPhaseSteps;
 
     public PolicyStepsRegistry() {
         this.lifecyclePolicyMap = new TreeMap<>();
@@ -53,7 +54,7 @@ public class PolicyStepsRegistry {
 
     PolicyStepsRegistry(SortedMap<String, LifecyclePolicyMetadata> lifecyclePolicyMap,
                         Map<String, Step> firstStepMap, Map<String, Map<Step.StepKey, Step>> stepMap,
-                        Map<String, List<Step>> indexPhaseSteps) {
+                        Map<Index, List<Step>> indexPhaseSteps) {
         this.lifecyclePolicyMap = lifecyclePolicyMap;
         this.firstStepMap = firstStepMap;
         this.stepMap = stepMap;
@@ -72,6 +73,16 @@ public class PolicyStepsRegistry {
         return stepMap;
     }
 
+    /**
+     * Remove phase step lists for indices that have been deleted
+     * @param indices a list of indices that have been deleted
+     */
+    public void removeIndices(List<Index> indices) {
+        indices.forEach(index -> {
+            logger.trace("removing cached phase steps for deleted index [{}]", index.getName());
+            indexPhaseSteps.remove(index);
+        });
+    }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void update(ClusterState clusterState, Client client, LongSupplier nowSupplier) {
@@ -125,12 +136,12 @@ public class PolicyStepsRegistry {
         }
 
         for (ObjectCursor<IndexMetaData> imd : clusterState.metaData().getIndices().values()) {
-            final String indexName = imd.value.getIndex().getName();
+            final Index index = imd.value.getIndex();
             final String policy = imd.value.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
             if (policy == null) {
-                indexPhaseSteps.remove(indexName);
+                indexPhaseSteps.remove(index);
             } else {
-                final List<Step> currentSteps = indexPhaseSteps.get(indexName);
+                final List<Step> currentSteps = indexPhaseSteps.get(index);
                 // Get the current steps' phase, if there are steps stored
                 final String existingPhase = (currentSteps == null || currentSteps.size() == 0) ?
                     "_none_" : currentSteps.get(0).getKey().getPhase();
@@ -139,7 +150,7 @@ public class PolicyStepsRegistry {
 
                 if (existingPhase.equals(currentPhase) == false) {
                     logger.debug("index [{}] has transitioned phases [{} -> {}], rebuilding step list",
-                        indexName, existingPhase, currentPhase);
+                        index, existingPhase, currentPhase);
                     // Only rebuild the index's steps if the phase of the existing steps does not match our index's current phase
                     final Map<Step.StepKey, Step> steps = stepMap.get(policy);
 
@@ -153,7 +164,7 @@ public class PolicyStepsRegistry {
                             .map(Map.Entry::getValue)
                             .collect(Collectors.toList());
                     }
-                    indexPhaseSteps.put(indexName, phaseSteps);
+                    indexPhaseSteps.put(index, phaseSteps);
                 }
             }
         }
@@ -164,32 +175,32 @@ public class PolicyStepsRegistry {
      * stepkey specified. This is used by {@link ClusterState}
      * readers that know the current policy and step by name
      * as String values in the cluster state.
-     * @param indexName the name of the index to get the step for
+     * @param index the index to get the step for
      * @param stepKey the key to the requested {@link Step}
      * @return the step for the given stepkey or null if the step was not found
      */
     @Nullable
-    public Step getStep(final String indexName, final Step.StepKey stepKey) {
+    public Step getStep(final Index index, final Step.StepKey stepKey) {
         if (ErrorStep.NAME.equals(stepKey.getName())) {
             return new ErrorStep(new Step.StepKey(stepKey.getPhase(), stepKey.getAction(), ErrorStep.NAME));
         }
 
-        if (indexPhaseSteps.get(indexName) == null) {
+        if (indexPhaseSteps.get(index) == null) {
             return null;
         }
 
         if (logger.isTraceEnabled()) {
-            logger.trace("[{}]: retrieving step [{}], found: [{}]\nall steps for this phase: [{}]", indexName, stepKey,
-                indexPhaseSteps.get(indexName).stream().filter(step -> step.getKey().equals(stepKey)).findFirst().orElse(null),
-                indexPhaseSteps.get(indexName));
+            logger.trace("[{}]: retrieving step [{}], found: [{}]\nall steps for this phase: [{}]", index, stepKey,
+                indexPhaseSteps.get(index).stream().filter(step -> step.getKey().equals(stepKey)).findFirst().orElse(null),
+                indexPhaseSteps.get(index));
         } else if (logger.isDebugEnabled()) {
-            logger.debug("[{}]: retrieving step [{}], found: [{}]", indexName, stepKey,
-                indexPhaseSteps.get(indexName).stream().filter(step -> step.getKey().equals(stepKey)).findFirst().orElse(null));
+            logger.debug("[{}]: retrieving step [{}], found: [{}]", index, stepKey,
+                indexPhaseSteps.get(index).stream().filter(step -> step.getKey().equals(stepKey)).findFirst().orElse(null));
         }
-        assert indexPhaseSteps.get(indexName).stream().allMatch(step -> step.getKey().getPhase().equals(stepKey.getPhase())) :
-            "expected all steps for [" + indexName + "] to be in phase [" + stepKey.getPhase() +
-                "] but they were not, steps: " + indexPhaseSteps.get(indexName);
-        return indexPhaseSteps.get(indexName).stream().filter(step -> step.getKey().equals(stepKey)).findFirst().orElse(null);
+        assert indexPhaseSteps.get(index).stream().allMatch(step -> step.getKey().getPhase().equals(stepKey.getPhase())) :
+            "expected all steps for [" + index + "] to be in phase [" + stepKey.getPhase() +
+                "] but they were not, steps: " + indexPhaseSteps.get(index);
+        return indexPhaseSteps.get(index).stream().filter(step -> step.getKey().equals(stepKey)).findFirst().orElse(null);
     }
 
     /**

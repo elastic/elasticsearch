@@ -69,7 +69,7 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
             // This index doesn't exist any more, there's nothing to execute currently
             return currentState;
         }
-        Step registeredCurrentStep = IndexLifecycleRunner.getCurrentStep(policyStepsRegistry, policy, index.getName(),
+        Step registeredCurrentStep = IndexLifecycleRunner.getCurrentStep(policyStepsRegistry, policy, index,
             indexMetaData.getSettings());
         if (currentStep.equals(registeredCurrentStep)) {
             // We can do cluster state steps all together until we
@@ -117,7 +117,7 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
                 if (currentStep.getKey().getPhase().equals(currentStep.getNextStepKey().getPhase()) == false) {
                     return currentState;
                 }
-                currentStep = policyStepsRegistry.getStep(index.getName(), currentStep.getNextStepKey());
+                currentStep = policyStepsRegistry.getStep(index, currentStep.getNextStepKey());
             }
             return currentState;
         } else {

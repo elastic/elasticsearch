@@ -20,6 +20,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.protocol.xpack.indexlifecycle.OperationMode;
 import org.elasticsearch.test.ESTestCase;
@@ -68,36 +69,40 @@ public class PolicyStepsRegistryTests extends ESTestCase {
 
     public void testGetStep() {
         Step expectedStep = new MockStep(MOCK_STEP_KEY, null);
-        Map<String, List<Step>> indexSteps = Collections.singletonMap("test", Collections.singletonList(expectedStep));
+        Index index = new Index("test", "uuid");
+        Map<Index, List<Step>> indexSteps = Collections.singletonMap(index, Collections.singletonList(expectedStep));
         PolicyStepsRegistry registry = new PolicyStepsRegistry(null, null, null, indexSteps);
-        Step actualStep = registry.getStep("test", MOCK_STEP_KEY);
+        Step actualStep = registry.getStep(index, MOCK_STEP_KEY);
         assertThat(actualStep, sameInstance(expectedStep));
     }
 
     public void testGetStepErrorStep() {
         Step.StepKey errorStepKey = new Step.StepKey(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10), ErrorStep.NAME);
         Step expectedStep = new ErrorStep(errorStepKey);
-        Map<String, List<Step>> indexSteps = Collections.singletonMap("test", Collections.singletonList(expectedStep));
+        Index index = new Index("test", "uuid");
+        Map<Index, List<Step>> indexSteps = Collections.singletonMap(index, Collections.singletonList(expectedStep));
         PolicyStepsRegistry registry = new PolicyStepsRegistry(null, null, null, indexSteps);
-        Step actualStep = registry.getStep("test", errorStepKey);
+        Step actualStep = registry.getStep(index, errorStepKey);
         assertThat(actualStep, equalTo(expectedStep));
     }
 
     public void testGetStepUnknownPolicy() {
         PolicyStepsRegistry registry = new PolicyStepsRegistry(null, null, null, Collections.emptyMap());
-        assertNull(registry.getStep("test", MOCK_STEP_KEY));
+        assertNull(registry.getStep(new Index("test", "uuid"), MOCK_STEP_KEY));
     }
 
     public void testGetStepUnknownStepKey() {
         Step expectedStep = new MockStep(MOCK_STEP_KEY, null);
-        Map<String, List<Step>> indexSteps = Collections.singletonMap("test", Collections.singletonList(expectedStep));
+        Index index = new Index("test", "uuid");
+        Map<Index, List<Step>> indexSteps = Collections.singletonMap(index, Collections.singletonList(expectedStep));
         PolicyStepsRegistry registry = new PolicyStepsRegistry(null, null, null, indexSteps);
         Step.StepKey unknownStepKey = new Step.StepKey(MOCK_STEP_KEY.getPhase(),
             MOCK_STEP_KEY.getAction(),MOCK_STEP_KEY.getName() + "not");
-        assertNull(registry.getStep("test", unknownStepKey));
+        assertNull(registry.getStep(index, unknownStepKey));
     }
 
     public void testUpdateFromNothingToSomethingToNothing() throws Exception {
+        Index index = new Index("test", "uuid");
         Client client = Mockito.mock(Client.class);
         Mockito.when(client.settings()).thenReturn(Settings.EMPTY);
         String policyName = randomAlphaOfLength(5);
@@ -117,6 +122,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
             .putCustom(IndexLifecycleMetadata.TYPE, lifecycleMetadata)
             .put(IndexMetaData.builder("test")
                 .settings(Settings.builder()
+                    .put("index.uuid", "uuid")
                     .put("index.number_of_shards", 1)
                     .put("index.number_of_replicas", 0)
                     .put("index.version.created", Version.CURRENT.id)
@@ -162,7 +168,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
                 .build();
             registry.update(currentState, client, () -> 0L);
             assertThat(registeredStepsForPolicy.get(step.getKey()), equalTo(step));
-            assertThat(registry.getStep("test", step.getKey()), equalTo(step));
+            assertThat(registry.getStep(index, step.getKey()), equalTo(step));
         }
 
         Map<String, LifecyclePolicyMetadata> registryPolicyMap = registry.getLifecyclePolicyMap();
@@ -225,6 +231,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
     }
 
     public void testUpdatePolicyButNoPhaseChangeIndexStepsDontChange() throws Exception {
+        Index index = new Index("test", "uuid");
         Client client = Mockito.mock(Client.class);
         Mockito.when(client.settings()).thenReturn(Settings.EMPTY);
         String policyName = randomAlphaOfLength(5);
@@ -255,6 +262,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
             .putCustom(IndexLifecycleMetadata.TYPE, lifecycleMetadata)
             .put(IndexMetaData.builder("test")
                 .settings(Settings.builder()
+                    .put("index.uuid", "uuid")
                     .put("index.number_of_shards", 1)
                     .put("index.number_of_replicas", 0)
                     .put("index.version.created", Version.CURRENT.id)
@@ -286,7 +294,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         Step shrinkStep = registeredStepsForPolicy.entrySet().stream()
             .filter(e -> e.getKey().getPhase().equals("warm") && e.getKey().getName().equals("shrink"))
             .findFirst().get().getValue();
-        Step gotStep = registry.getStep("test", shrinkStep.getKey());
+        Step gotStep = registry.getStep(index, shrinkStep.getKey());
         assertThat(((ShrinkStep) shrinkStep).getNumberOfShards(), equalTo(1));
         assertThat(((ShrinkStep) gotStep).getNumberOfShards(), equalTo(1));
 
@@ -311,7 +319,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         shrinkStep = registeredStepsForPolicy.entrySet().stream()
             .filter(e -> e.getKey().getPhase().equals("warm") && e.getKey().getName().equals("shrink"))
             .findFirst().get().getValue();
-        gotStep = registry.getStep("test", shrinkStep.getKey());
+        gotStep = registry.getStep(index, shrinkStep.getKey());
         assertThat(((ShrinkStep) shrinkStep).getNumberOfShards(), equalTo(2));
         assertThat(((ShrinkStep) gotStep).getNumberOfShards(), equalTo(1));
     }

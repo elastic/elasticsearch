@@ -140,7 +140,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
 
         // Update the registry so the next phase's steps are loaded
         policyStepsRegistry.update(newState, client, () -> now);
-        Step afterStep = policyStepsRegistry.getStep(indexName, startStep.getNextStepKey());
+        Step afterStep = policyStepsRegistry.getStep(index, startStep.getNextStepKey());
 
         StepKey currentStepKey = IndexLifecycleRunner.getCurrentStepKey(newState.metaData().index(index).getSettings());
         assertThat(currentStepKey, equalTo(afterStep.getKey()));
@@ -160,7 +160,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         assertThat(allClusterSecondStep.getExecuteCount(), equalTo(1L));
         currentStepKey = IndexLifecycleRunner.getCurrentStepKey(newState.metaData().index(index).getSettings());
         assertThat(currentStepKey, equalTo(TerminalPolicyStep.KEY));
-        assertNull(policyStepsRegistry.getStep(index.getName(), currentStepKey).getNextStepKey());
+        assertNull(policyStepsRegistry.getStep(index, currentStepKey).getNextStepKey());
         assertThat(LifecycleSettings.LIFECYCLE_PHASE_TIME_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(now));
         assertThat(LifecycleSettings.LIFECYCLE_ACTION_TIME_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(now));
         assertThat(LifecycleSettings.LIFECYCLE_STEP_INFO_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(""));
@@ -168,7 +168,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
 
     public void testNeverExecuteNonClusterStateStep() throws IOException {
         setStateToKey(thirdStepKey);
-        Step startStep = policyStepsRegistry.getStep(index.getName(), thirdStepKey);
+        Step startStep = policyStepsRegistry.getStep(index, thirdStepKey);
         long now = randomNonNegativeLong();
         ExecuteStepsUpdateTask task = new ExecuteStepsUpdateTask(mixedPolicyName, index, startStep, policyStepsRegistry, () -> now);
         assertThat(task.execute(clusterState), sameInstance(clusterState));
@@ -176,7 +176,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
 
     public void testExecuteUntilFirstNonClusterStateStep() throws IOException {
         setStateToKey(secondStepKey);
-        Step startStep = policyStepsRegistry.getStep(index.getName(), secondStepKey);
+        Step startStep = policyStepsRegistry.getStep(index, secondStepKey);
         long now = randomNonNegativeLong();
         ExecuteStepsUpdateTask task = new ExecuteStepsUpdateTask(mixedPolicyName, index, startStep, policyStepsRegistry, () -> now);
         ClusterState newState = task.execute(clusterState);
@@ -210,7 +210,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
     public void testExecuteIncompleteWaitStepNoInfo() throws IOException {
         secondStep.setWillComplete(false);
         setStateToKey(secondStepKey);
-        Step startStep = policyStepsRegistry.getStep(index.getName(), secondStepKey);
+        Step startStep = policyStepsRegistry.getStep(index, secondStepKey);
         long now = randomNonNegativeLong();
         ExecuteStepsUpdateTask task = new ExecuteStepsUpdateTask(mixedPolicyName, index, startStep, policyStepsRegistry, () -> now);
         ClusterState newState = task.execute(clusterState);
@@ -228,7 +228,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         RandomStepInfo stepInfo = new RandomStepInfo(() -> randomAlphaOfLength(10));
         secondStep.expectedInfo(stepInfo);
         setStateToKey(secondStepKey);
-        Step startStep = policyStepsRegistry.getStep(index.getName(), secondStepKey);
+        Step startStep = policyStepsRegistry.getStep(index, secondStepKey);
         long now = randomNonNegativeLong();
         ExecuteStepsUpdateTask task = new ExecuteStepsUpdateTask(mixedPolicyName, index, startStep, policyStepsRegistry, () -> now);
         ClusterState newState = task.execute(clusterState);
@@ -244,7 +244,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
 
     public void testOnFailure() {
         setStateToKey(secondStepKey);
-        Step startStep = policyStepsRegistry.getStep(index.getName(), secondStepKey);
+        Step startStep = policyStepsRegistry.getStep(index, secondStepKey);
         long now = randomNonNegativeLong();
         ExecuteStepsUpdateTask task = new ExecuteStepsUpdateTask(mixedPolicyName, index, startStep, policyStepsRegistry, () -> now);
         Exception expectedException = new RuntimeException();

@@ -79,10 +79,6 @@ Automatic index creation can include a pattern based white/black list,
 for example, set `action.auto_create_index` to `+aaa*,-bbb*,+ccc*,-*` (+
 meaning allowed, and - meaning disallowed).
 
-Note: The behaviour of `action.auto_create_index` is will change in future versions.
-You can switch to the new template based behaviour by setting its value to `_template`.
-(TODO: link to template setting doc)
-
 [float]
 [[index-versioning]]
 === Versioning

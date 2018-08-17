@@ -18,7 +18,7 @@ the API, and other roles that are mapped through files.
 
 When you use role-mappings, you assign existing roles to users.
 The available roles should either be added using the
-{ref}/security-api.html#security-api-roles.html[role management APIs] or defined in the
+{ref}/security-api.html#security-api-roles[role management APIs] or defined in the
 <<roles-management-file, roles file>>. Either role-mapping method can use
 either role management method. For example, when you use the role mapping API,
 you are able to map users to both API-managed roles and file-managed roles

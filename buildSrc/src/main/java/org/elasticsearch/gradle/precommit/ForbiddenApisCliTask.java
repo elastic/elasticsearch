@@ -19,6 +19,7 @@
 package org.elasticsearch.gradle.precommit;
 
 import de.thetaphi.forbiddenapis.cli.CliMain;
+import org.elasticsearch.gradle.ClassPathUtils;
 import org.gradle.api.Action;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.JavaVersion;
@@ -32,12 +33,16 @@ import org.gradle.process.JavaExecSpec;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public class ForbiddenApisCliTask extends DefaultTask {
 
@@ -69,7 +74,7 @@ public class ForbiddenApisCliTask extends DefaultTask {
     @OutputFile
     public File getMarkerFile() {
         return new File(
-            new File(getProject().getBuildDir(), "precommit"),
+            new File(getProject().getBuildDir(), this.getClass().getSimpleName()),
             getName()
         );
     }
@@ -121,12 +126,25 @@ public class ForbiddenApisCliTask extends DefaultTask {
     }
 
     @TaskAction
-    public void writeMarker() throws IOException {
+    public void runCheck() throws IOException {
+        Path inlineSignatures = Paths.get(
+            getProject().getBuildDir().getAbsolutePath(),
+            this.getClass().getSimpleName(),
+            getName() + ".inline.sig"
+        );
+        Files.write(
+            inlineSignatures,
+            signatures.stream().collect(Collectors.joining("\n")).getBytes(StandardCharsets.UTF_8)
+        );
+
         getProject().javaexec((JavaExecSpec spec) -> {
             execAction.execute(spec);
+            // This works because forbidden apis has no transitive dependencies.
+            spec.classpath(ClassPathUtils.getJar(CliMain.class));
             spec.setMain(CliMain.class.getName());
             // build the command line
             getSignaturesFiles().forEach(file -> spec.args("-f", file.getAbsolutePath()));
+            spec.args("-f", inlineSignatures.toAbsolutePath());
             getSuppressAnnotations().forEach(annotation -> spec.args("--suppressannotation", annotation));
             getBundledSignatures().forEach(bundled -> {
                     // there's no option for target compatibility so we have to interpret it

@@ -76,30 +76,18 @@ class PrecommitTasks {
     }
 
     private static Task configureForbiddenApisCli(Project project) {
-        project.configurations.create("forbiddenApisCliJar")
-        project.dependencies {
-            forbiddenApisCliJar ('de.thetaphi:forbiddenapis:2.5') {
-                // FIXME
-                transitive = false
-            }
-        }
         Task forbiddenApisCli = project.tasks.create('forbiddenApis')
-
         project.sourceSets.forEach { sourceSet ->
             forbiddenApisCli.dependsOn(
                 project.tasks.create(sourceSet.getTaskName('forbiddenApis', null), ForbiddenApisCliTask) {
                     ExportElasticsearchBuildResourcesTask buildResources = project.tasks.getByName('buildResources')
                     dependsOn(buildResources)
                     execAction = { spec ->
-                        spec.classpath = project.files(
-                                project.configurations.forbiddenApisCliJar,
-                                sourceSet.compileClasspath,
-                                sourceSet.runtimeClasspath
-                        )
+                        spec.classpath(sourceSet.compileClasspath)
+                        spec.classpath(sourceSet.runtimeClasspath)
                         spec.executable = "${project.runtimeJavaHome}/bin/java"
                     }
-
-                    targetCompatibility = JavaVersion.VERSION_1_8 // FIXME
+                    targetCompatibility = JavaVersion.VERSION_1_8 // FIXME: change to min(compilerVersion, 10)
                     bundledSignatures = [
                        "jdk-unsafe", "jdk-deprecated", "jdk-non-portable", "jdk-system-out"
                     ]

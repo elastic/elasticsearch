@@ -42,10 +42,10 @@ import java.util.Set;
 public class ForbiddenApisCliTask extends DefaultTask {
 
     private FileCollection signaturesFiles;
-    // TODO
-    private List<String> signatures = new ArrayList();
-    private Set<String> bundledSignatures = new LinkedHashSet();
-    private Set<String> suppressAnnotations = new LinkedHashSet();
+    // TODO support this
+    private List<String> signatures = new ArrayList<>();
+    private Set<String> bundledSignatures = new LinkedHashSet<>();
+    private Set<String> suppressAnnotations = new LinkedHashSet<>();
     private JavaVersion targetCompatibility;
     private FileCollection classesDirs;
     private Action<JavaExecSpec> execAction;

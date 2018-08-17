@@ -16,8 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.gradle.api.internal.provider.Providers
 
@@ -75,8 +73,8 @@ dependencyLicenses {
 forbiddenApisMain {
   // core does not depend on the httpclient for compile so we add the signatures here. We don't add them for test as they are already
   // specified
-  signaturesURLs += [PrecommitTasks.getResource('/forbidden/http-signatures.txt')]
-  signaturesURLs += [file('src/main/resources/forbidden/rest-high-level-signatures.txt').toURI().toURL()]
+  addSignatureFiles 'http-signatures'
+  signaturesFiles += files('src/main/resources/forbidden/rest-high-level-signatures.txt')
 }
 
 integTestCluster {

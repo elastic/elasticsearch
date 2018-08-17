@@ -18,12 +18,33 @@ For {es}, FIPS 140-2 compliance is ensured by
 - Allowing the configuration of {es} in a FIPS 140-2 compliant manner, as
   documented below.
 
+IMPORTANT: Only {es} 6.4.0 and later can be run in a FIPS 140-2 enabled JVM
+
+=== Upgrade considerations
+
+If you plan to upgrade your existing Cluster to a version that can be run in
+a FIPS 140-2 enabled JVM, the suggested approach is to first perform a rolling
+upgrade to the new version in your existing JVM and perform all necessary
+configuration changes in preparation for running in fips mode. You can then
+perform a rolling restart of the nodes, this time starting each node in the FIPS
+140-2 JVM. This will allow {es} to take care of a couple of things automatically for you:
+
+- <<secure-settings, Secure Settings>> will be upgraded to the latest format version as
+  previous format versions cannot be loaded in a FIPS 140-2 JVM.
+- Self-generated trial licenses will be upgraded to the latest format that
+  is compliant with FIPS 140-2.
+
+If you are on a appropriate license level (platinum) you can elect to perform
+a rolling upgrade while at the same time running each upgraded node in a
+FIPS 140-2 JVM. In this case, you would need to also regenerate your
+`elasticsearch.keystore` and migrate all secure settings to it, in addition to the
+necessary configuration changes outlined below, before starting each node.
+
 === Configuring {es} for FIPS 140-2
 
 Apart from setting `xpack.security.fips_mode.enabled`, a number of security
-related settings need to be configured accordingly in order to be able to
-run {es} successfully in a FIPS 140-2 enabled JVM.
-
+related settings need to be configured accordingly in order to be compliant
+and able to run {es} successfully in a FIPS 140-2 enabled JVM.
 
 ==== TLS
 
@@ -35,15 +56,18 @@ NOTE: The use of TLS ciphers is mainly governed by the relevant crypto module
 are configured by default in {es} are FIPS-140 compliant and as such can be
 used in a FIPS-140 JVM. (see <<ssl-tls-settings, xpack.ssl.cipher_suites>>)
 
-
 ==== TLS Keystores and keys
 
 Keystores can be used in a number of <<ssl-tls-settings>> in order to
 conveniently store key and trust material. Neither `JKS`, nor `PKCS#12` keystores
 can be used in a FIPS 140-2 enabled JVM however, so you must refrain from using
 keystores in your configuration, and use `PEM` encoded files instead. For key
-material, you can use the relevant `*.key` and `*.certificate` configuration
+material, you can use the relevant `\*.key` and `*.certificate` configuration
 options, and for trust material you can use `*.certificate_authorities`.
+
+NOTE: If your Cryptographic Module offers a keystore type that is FIPS 140-2
+compliant, you can use that instead, ensuring you set the correct value for
+the type identifier in `\*.truststore.type` and `*.keystore.type` settings.
 
 FIPS 140-2 compliance dictates that the length of the public keys used for TLS
 must correspond to the strength of the symmetric key algorithm in use in TLS.
@@ -67,7 +91,19 @@ the following table:
 on disk. However, only the `PBKDF2` family of algorithms is compliant with FIPS
 140-2 for password hashing. You must set the the `cache.hash_algo` realm settings
 and the `xpack.security.authc.password_hashing.algorithm` setting to one of the
-available `pbkdf2` values. See <<hashing-settings>>.
+available `PBKDF2` values. See <<hashing-settings>>.
+
+Password hashing configuration changes are not retroactive so the stored hashed
+credentials of existing users of the file and native realms will not be updated
+on disk.
+Authentication will still work, but in order to ensure FIPS 140-2 compliance,
+you would need to recreate users or change their password using the
+<<users-command, elasticsearch-user>> CLI tool for the file realm and the
+<<security-api-users,User Management APIs>> for the native realm.
+
+The user cache will be emptied upon node restart, so any existing hashes using
+non-compliant algorithms will be discarded and the new ones will be created
+using the compliant `PBKDF2` algorithm you have selected.
 
 === Limitations
 
@@ -81,6 +117,8 @@ features is not available while running in fips mode. The list is as follows:
   enabled JVM (pointing `JAVA_HOME` environment variable to a different java
   installation) in order to generate the keys and certificates that
   can be later used in the FIPS 140-2 enabled JVM.
-* The `elasticsearch-plugin` tool. Accordingly, `elasticseach-plugin` can be
+* The `elasticsearch-plugin` tool. Accordingly, `elasticsearch-plugin` can be
   used with a different (non FIPS 140-2 enabled) Java installation if
   available.
+* The SQL CLI client cannot run in a FIPS 140-2 enabled JVM while using
+  TLS for transport security or PKI for client authentication.

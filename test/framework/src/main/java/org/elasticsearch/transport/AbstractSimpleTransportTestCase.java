@@ -2649,6 +2649,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 @Override
                 public void onConnectionOpened(final Transport.Connection connection) {
                     closeConnectionChannel(connection);
+                    try {
+                        assertBusy(connection::isClosed);
+                    } catch (Exception e) {
+                        throw new AssertionError(e);
+                    }
                 }
 
                 @Override

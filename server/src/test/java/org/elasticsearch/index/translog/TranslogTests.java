@@ -70,7 +70,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog.Location;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.rest.yaml.section.Assertion;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
@@ -2938,7 +2937,7 @@ public class TranslogTests extends ESTestCase {
     public void testTranslogCloseInvariant() throws IOException {
         //close method should never be called directly from Translog (the only exception is closeOnTragicEvent)
         class MisbehavingTranslog extends Translog {
-            public MisbehavingTranslog(TranslogConfig config, String translogUUID, TranslogDeletionPolicy deletionPolicy, LongSupplier globalCheckpointSupplier, LongSupplier primaryTermSupplier) throws IOException {
+            MisbehavingTranslog(TranslogConfig config, String translogUUID, TranslogDeletionPolicy deletionPolicy, LongSupplier globalCheckpointSupplier, LongSupplier primaryTermSupplier) throws IOException {
                 super(config, translogUUID, deletionPolicy, globalCheckpointSupplier, primaryTermSupplier);
             }
 

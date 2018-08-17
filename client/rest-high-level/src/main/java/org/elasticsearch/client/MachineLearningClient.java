@@ -182,7 +182,7 @@ public final class MachineLearningClient {
      */
     public CloseJobResponse closeJob(CloseJobRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(request,
-            RequestConverters::machineLearningCloseJob,
+            MLRequestConverters::closeJob,
             options,
             CloseJobResponse::fromXContent,
             Collections.emptySet());
@@ -200,7 +200,7 @@ public final class MachineLearningClient {
      */
     public void closeJobAsync(CloseJobRequest request, RequestOptions options, ActionListener<CloseJobResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request,
-            RequestConverters::machineLearningCloseJob,
+            MLRequestConverters::closeJob,
             options,
             CloseJobResponse::fromXContent,
             listener,

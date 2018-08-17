@@ -10,7 +10,8 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
-public class GetLifecycleActionRequestBuilder extends ActionRequestBuilder<GetLifecycleAction.Request, GetLifecycleAction.Response, GetLifecycleActionRequestBuilder> {
+public class GetLifecycleActionRequestBuilder
+        extends ActionRequestBuilder<GetLifecycleAction.Request, GetLifecycleAction.Response, GetLifecycleActionRequestBuilder> {
 
     public GetLifecycleActionRequestBuilder(
             final ElasticsearchClient client,

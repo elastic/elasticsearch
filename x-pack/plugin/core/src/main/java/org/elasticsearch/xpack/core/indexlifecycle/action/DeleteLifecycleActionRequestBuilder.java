@@ -10,7 +10,8 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
-public class DeleteLifecycleActionRequestBuilder extends ActionRequestBuilder<DeleteLifecycleAction.Request, DeleteLifecycleAction.Response, DeleteLifecycleActionRequestBuilder> {
+public class DeleteLifecycleActionRequestBuilder
+        extends ActionRequestBuilder<DeleteLifecycleAction.Request, DeleteLifecycleAction.Response, DeleteLifecycleActionRequestBuilder> {
 
     public DeleteLifecycleActionRequestBuilder(
             final ElasticsearchClient client,

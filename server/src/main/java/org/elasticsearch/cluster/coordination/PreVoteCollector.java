@@ -195,8 +195,8 @@ public class PreVoteCollector extends AbstractComponent {
 
         @Override
         public void close() {
-            final boolean isClosedChanged = isClosed.compareAndSet(false, true);
-            assert isClosedChanged;
+            final boolean isNotAlreadyClosed = isClosed.compareAndSet(false, true);
+            assert isNotAlreadyClosed;
         }
     }
 }

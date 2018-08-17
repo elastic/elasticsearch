@@ -82,7 +82,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put("index.version.created", Version.V_5_6_0) // for parent field mapper
+            .put("index.version.created", Version.V_6_0_0) // for parent field mapper
             .build();
         IndexMetaData metaData = IndexMetaData.builder("test")
             .putMapping("test", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")

@@ -166,7 +166,6 @@ class VersionCollection {
                 }
             }
         }
-
         this.versions = Collections.unmodifiableList(versionSet.toList())
     }
 
@@ -293,7 +292,12 @@ class VersionCollection {
      * If you have a list [5.0.2, 5.1.2, 6.0.1, 6.1.1] and pass in 6 for the nextMajorVersion, it will return you 5.1.2
      */
     private Version getHighestPreviousMinor(Integer nextMajorVersion) {
-        return versionSet.headSet(Version.fromString("${nextMajorVersion}.0.0")).last()
+        SortedSet<Version> res = versionSet.headSet(Version.fromString("${nextMajorVersion}.0.0"))
+        if (res.isEmpty() && nextMajorVersion == 6) {
+            // bwc for v5
+            return Version.fromString("5.6.11")
+        }
+        return res.last()
     }
 
     /**

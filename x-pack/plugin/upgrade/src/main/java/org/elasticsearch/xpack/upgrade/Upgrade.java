@@ -44,7 +44,7 @@ import java.util.function.Supplier;
 
 public class Upgrade extends Plugin implements ActionPlugin {
 
-    public static final Version UPGRADE_INTRODUCED = Version.V_5_6_0;
+    public static final Version UPGRADE_INTRODUCED = Version.V_6_0_0;
 
     private final Settings settings;
     private final List<BiFunction<Client, ClusterService, IndexUpgradeCheck>> upgradeCheckFactories;

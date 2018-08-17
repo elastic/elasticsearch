@@ -77,7 +77,7 @@ public class ClusterSearchShardsResponseTests extends ESTestCase {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(searchModule.getNamedWriteables());
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(entries);
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0, Version.CURRENT);
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.CURRENT);
         try(BytesStreamOutput out = new BytesStreamOutput()) {
             out.setVersion(version);
             clusterSearchShardsResponse.writeTo(out);
@@ -93,11 +93,7 @@ public class ClusterSearchShardsResponseTests extends ESTestCase {
                     assertEquals(clusterSearchShardsGroup.getShardId(), deserializedGroup.getShardId());
                     assertArrayEquals(clusterSearchShardsGroup.getShards(), deserializedGroup.getShards());
                 }
-                if (version.onOrAfter(Version.V_5_1_1)) {
-                    assertEquals(clusterSearchShardsResponse.getIndicesAndFilters(), deserialized.getIndicesAndFilters());
-                } else {
-                    assertNull(deserialized.getIndicesAndFilters());
-                }
+                assertEquals(clusterSearchShardsResponse.getIndicesAndFilters(), deserialized.getIndicesAndFilters());
             }
         }
     }

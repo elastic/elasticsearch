@@ -66,10 +66,10 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
                         "  - match: {test_index.test_type.properties.text.analyzer: whitespace}\n" +
                         "\n" +
                         "---\n" +
-                        "\"Get type mapping - pre 5.0\":\n" +
+                        "\"Get type mapping - pre 6.0\":\n" +
                         "\n" +
                         "  - skip:\n" +
-                        "      version:     \"5.0.0 - \"\n" +
+                        "      version:     \"6.0.0 - \"\n" +
                         "      reason:      \"for newer versions the index name is always returned\"\n" +
                         "\n" +
                         "  - do:\n" +
@@ -97,7 +97,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         } else {
             assertThat(restTestSuite.getSetupSection().isEmpty(), equalTo(true));
         }
-        
+
         assertThat(restTestSuite.getTeardownSection(), notNullValue());
         if (includeTeardown) {
             assertThat(restTestSuite.getTeardownSection().isEmpty(), equalTo(false));
@@ -136,7 +136,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         assertThat(restTestSuite.getTestSections().get(1).getSkipSection().getReason(),
                 equalTo("for newer versions the index name is always returned"));
         assertThat(restTestSuite.getTestSections().get(1).getSkipSection().getLowerVersion(),
-                equalTo(Version.V_5_0_0));
+                equalTo(Version.V_6_0_0));
         assertThat(restTestSuite.getTestSections().get(1).getSkipSection().getUpperVersion(), equalTo(Version.CURRENT));
         assertThat(restTestSuite.getTestSections().get(1).getExecutableSections().size(), equalTo(3));
         assertThat(restTestSuite.getTestSections().get(1).getExecutableSections().get(0), instanceOf(DoSection.class));

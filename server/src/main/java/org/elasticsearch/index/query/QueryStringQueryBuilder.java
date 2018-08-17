@@ -200,7 +200,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         timeZone = in.readOptionalTimeZone();
         escape = in.readBoolean();
         maxDeterminizedStates = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_5_1_1) && in.getVersion().before(Version.V_6_0_0_beta1)) {
+        if (in.getVersion().before(Version.V_6_0_0_beta1)) {
             in.readBoolean(); // split_on_whitespace
             Boolean useAllField = in.readOptionalBoolean();
             if (useAllField != null && useAllField) {
@@ -250,7 +250,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         out.writeOptionalTimeZone(timeZone);
         out.writeBoolean(this.escape);
         out.writeVInt(this.maxDeterminizedStates);
-        if (out.getVersion().onOrAfter(Version.V_5_1_1) && out.getVersion().before(Version.V_6_0_0_beta1)) {
+        if (out.getVersion().before(Version.V_6_0_0_beta1)) {
             out.writeBoolean(false); // split_on_whitespace
             Boolean useAllFields = defaultField == null ? null : Regex.isMatchAllPattern(defaultField);
             out.writeOptionalBoolean(useAllFields);
@@ -388,7 +388,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         this.analyzer = analyzer;
         return this;
     }
-    
+
     /**
      * The optional analyzer used to analyze the query string. Note, if a field has search analyzer
      * defined for it, then it will be used automatically. Defaults to the smart search analyzer.
@@ -899,9 +899,9 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                 Objects.equals(tieBreaker, other.tieBreaker) &&
                 Objects.equals(rewrite, other.rewrite) &&
                 Objects.equals(minimumShouldMatch, other.minimumShouldMatch) &&
-                Objects.equals(lenient, other.lenient) && 
+                Objects.equals(lenient, other.lenient) &&
                 Objects.equals(
-                        timeZone == null ? null : timeZone.getID(), 
+                        timeZone == null ? null : timeZone.getID(),
                         other.timeZone == null ? null : other.timeZone.getID()) &&
                 Objects.equals(escape, other.escape) &&
                 Objects.equals(maxDeterminizedStates, other.maxDeterminizedStates) &&

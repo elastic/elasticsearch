@@ -32,7 +32,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.VersionUtils.allVersions;
 import static org.elasticsearch.test.VersionUtils.getPreviousVersion;
-import static org.elasticsearch.test.VersionUtils.incompatibleFutureVersion;
 import static org.elasticsearch.test.VersionUtils.maxCompatibleVersion;
 import static org.elasticsearch.test.VersionUtils.randomCompatibleVersion;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
@@ -87,17 +86,6 @@ public class MembershipActionTests extends ESTestCase {
                     MembershipAction.ensureNodesCompatibility(tooLow, nodes);
                 } else {
                     MembershipAction.ensureNodesCompatibility(tooLow, minNodeVersion, maxNodeVersion);
-                }
-            });
-        }
-
-        if (minNodeVersion.before(Version.V_5_5_0)) {
-            Version tooHigh = incompatibleFutureVersion(minNodeVersion);
-            expectThrows(IllegalStateException.class, () -> {
-                if (randomBoolean()) {
-                    MembershipAction.ensureNodesCompatibility(tooHigh, nodes);
-                } else {
-                    MembershipAction.ensureNodesCompatibility(tooHigh, minNodeVersion, maxNodeVersion);
                 }
             });
         }

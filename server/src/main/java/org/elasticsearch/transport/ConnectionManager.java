@@ -91,7 +91,8 @@ public class ConnectionManager implements Closeable {
     }
 
     public Transport.Connection openConnection(DiscoveryNode node, ConnectionProfile connectionProfile) {
-        return transport.openConnection(node, ConnectionProfile.resolveConnectionProfile(connectionProfile, defaultProfile));
+        ConnectionProfile resolvedProfile = ConnectionProfile.resolveConnectionProfile(connectionProfile, defaultProfile);
+        return internalOpenConnection(node, resolvedProfile);
     }
 
     /**
@@ -115,7 +116,7 @@ public class ConnectionManager implements Closeable {
                 }
                 boolean success = false;
                 try {
-                    connection = transport.openConnection(node, resolvedProfile);
+                    connection = internalOpenConnection(node, resolvedProfile);
                     connectionValidator.accept(connection, resolvedProfile);
                     // we acquire a connection lock, so no way there is an existing connection
                     connectedNodes.put(node, connection);
@@ -228,7 +229,7 @@ public class ConnectionManager implements Closeable {
     }
 
     private Transport.Connection internalOpenConnection(DiscoveryNode node, ConnectionProfile connectionProfile) {
-        Transport.Connection connection = transport.openConnection(node, ConnectionProfile.resolveConnectionProfile(connectionProfile, defaultProfile));
+        Transport.Connection connection = transport.openConnection(node, connectionProfile);
         try {
             connectionListener.onConnectionOpened(connection);
         } finally {

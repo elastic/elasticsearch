@@ -412,6 +412,10 @@ public class Job implements ToXContentObject {
         return Strings.toString(this);
     }
 
+    public static Builder builder(String id) {
+        return new Builder(id);
+    }
+
     public static class Builder {
 
         private String id;
@@ -435,7 +439,7 @@ public class Job implements ToXContentObject {
         private String resultsIndexName;
         private boolean deleted;
 
-        public Builder() {
+        private Builder() {
         }
 
         public Builder(String id) {

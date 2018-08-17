@@ -59,9 +59,6 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
     private Settings settings;
     private DiscoveryNode localNode;
     private ClusterService clusterService;
-    private ThreadContext threadContext;
-    private Logger logger;
-    List<String> logOutput;
 
     @Before
     public void init() throws Exception {
@@ -83,12 +80,11 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
             arg0.updateLocalNodeInfo(localNode);
             return null;
         }).when(clusterService).addListener(Mockito.isA(LoggingAuditTrail.class));
-        threadContext = new ThreadContext(Settings.EMPTY);
-        logger = CapturingLogger.newCapturingLogger(Level.INFO);
-        logOutput = CapturingLogger.output(logger.getName(), Level.INFO);
     }
 
     public void testSingleCompletePolicyPredicate() throws Exception {
+        final Logger logger = CapturingLogger.newCapturingLogger(Level.INFO, null);
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         // create complete filter policy
         final Settings.Builder settingsBuilder = Settings.builder().put(settings);
         // filter by username
@@ -179,6 +175,8 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
     }
 
     public void testSingleCompleteWithEmptyFieldPolicyPredicate() throws Exception {
+        final Logger logger = CapturingLogger.newCapturingLogger(Level.INFO, null);
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         // create complete filter policy
         final Settings.Builder settingsBuilder = Settings.builder().put(settings);
         // filter by username
@@ -275,6 +273,8 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
     }
 
     public void testTwoPolicyPredicatesWithMissingFields() throws Exception {
+        final Logger logger = CapturingLogger.newCapturingLogger(Level.INFO, null);
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final Settings.Builder settingsBuilder = Settings.builder().put(settings);
         // first policy: realms and roles filters
         final List<String> filteredRealms = randomNonEmptyListOfFilteredNames();
@@ -341,6 +341,8 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
     }
 
     public void testUsersFilter() throws Exception {
+        final Logger logger = CapturingLogger.newCapturingLogger(Level.INFO, null);
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final List<String> allFilteredUsers = new ArrayList<>();
         final Settings.Builder settingsBuilder = Settings.builder().put(settings);
         for (int i = 0; i < randomIntBetween(1, 4); i++) {
@@ -387,6 +389,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         final MockToken unfilteredToken = new MockToken(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 4));
 
         final LoggingAuditTrail auditTrail = new LoggingAuditTrail(settingsBuilder.build(), clusterService, logger, threadContext);
+        final List<String> logOutput = CapturingLogger.output(logger.getName(), Level.INFO);
         // anonymous accessDenied
         auditTrail.anonymousAccessDenied("_action", message);
         if (filterMissingUser) {
@@ -623,6 +626,8 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
     }
 
     public void testRealmsFilter() throws Exception {
+        final Logger logger = CapturingLogger.newCapturingLogger(Level.INFO, null);
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final List<String> allFilteredRealms = new ArrayList<>();
         final Settings.Builder settingsBuilder = Settings.builder().put(settings);
         for (int i = 0; i < randomIntBetween(1, 4); i++) {
@@ -659,6 +664,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         final MockToken authToken = new MockToken("token1");
 
         final LoggingAuditTrail auditTrail = new LoggingAuditTrail(settingsBuilder.build(), clusterService, logger, threadContext);
+        final List<String> logOutput = CapturingLogger.output(logger.getName(), Level.INFO);
         // anonymous accessDenied
         auditTrail.anonymousAccessDenied("_action", message);
         if (filterMissingRealm) {
@@ -908,6 +914,8 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
     }
 
     public void testRolesFilter() throws Exception {
+        final Logger logger = CapturingLogger.newCapturingLogger(Level.INFO, null);
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final List<List<String>> allFilteredRoles = new ArrayList<>();
         final Settings.Builder settingsBuilder = Settings.builder().put(settings);
         for (int i = 0; i < randomIntBetween(1, 4); i++) {
@@ -966,6 +974,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         final MockToken authToken = new MockToken("token1");
 
         final LoggingAuditTrail auditTrail = new LoggingAuditTrail(settingsBuilder.build(), clusterService, logger, threadContext);
+        final List<String> logOutput = CapturingLogger.output(logger.getName(), Level.INFO);
         // anonymous accessDenied
         auditTrail.anonymousAccessDenied("_action", message);
         if (filterMissingRoles) {
@@ -1179,6 +1188,8 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
     }
 
     public void testIndicesFilter() throws Exception {
+        final Logger logger = CapturingLogger.newCapturingLogger(Level.INFO, null);
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final List<List<String>> allFilteredIndices = new ArrayList<>();
         final Settings.Builder settingsBuilder = Settings.builder().put(settings);
         for (int i = 0; i < randomIntBetween(1, 3); i++) {
@@ -1236,6 +1247,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         final TransportMessage noIndexMessage = new MockMessage(threadContext);
 
         final LoggingAuditTrail auditTrail = new LoggingAuditTrail(settingsBuilder.build(), clusterService, logger, threadContext);
+        final List<String> logOutput = CapturingLogger.output(logger.getName(), Level.INFO);
         // anonymous accessDenied
         auditTrail.anonymousAccessDenied("_action", noIndexMessage);
         if (filterMissingIndices) {

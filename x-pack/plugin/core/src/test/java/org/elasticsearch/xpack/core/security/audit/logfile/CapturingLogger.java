@@ -15,20 +15,17 @@ import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.apache.logging.log4j.core.filter.RegexFilter;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.Loggers;
 
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
 public class CapturingLogger {
 
-    public static Logger newCapturingLogger(final Level level) throws IllegalAccessException {
-        return newCapturingLogger(level, null);
-    }
-
-    public static Logger newCapturingLogger(final Level level, StringLayout layout) throws IllegalAccessException {
+    public static Logger newCapturingLogger(final Level level, @Nullable StringLayout layout) throws IllegalAccessException {
+        // careful, don't "bury" this on the call stack, unless you know what you're doing
         final StackTraceElement caller = Thread.currentThread().getStackTrace()[2];
         final String name = caller.getClassName() + "." + caller.getMethodName() + "." + level.toString();
         final Logger logger = ESLoggerFactory.getLogger(name);
@@ -64,42 +61,40 @@ public class CapturingLogger {
         public final List<String> debug = new ArrayList<>();
         public final List<String> trace = new ArrayList<>();
 
-        private MockAppender(final String name) throws IllegalAccessException {
-            this(name, null);
-        }
-
         private MockAppender(final String name, StringLayout layout) throws IllegalAccessException {
             super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), layout);
         }
 
         @Override
         public void append(LogEvent event) {
-            final String logLine;
-            if (getLayout() != null) {
-                logLine = new String(getLayout().toByteArray(event), StandardCharsets.UTF_8);
-            } else {
-                logLine = event.getMessage().getFormattedMessage();
-            }
             switch (event.getLevel().toString()) {
                 // we can not keep a reference to the event here because Log4j is using a thread
                 // local instance under the hood
                 case "ERROR":
-                    error.add(logLine);
+                    error.add(formatMessage(event));
                     break;
                 case "WARN":
-                    warn.add(logLine);
+                    warn.add(formatMessage(event));
                     break;
                 case "INFO":
-                    info.add(logLine);
+                    info.add(formatMessage(event));
                     break;
                 case "DEBUG":
-                    debug.add(logLine);
+                    debug.add(formatMessage(event));
                     break;
                 case "TRACE":
-                    trace.add(logLine);
+                    trace.add(formatMessage(event));
                     break;
                 default:
                     throw invalidLevelException(event.getLevel());
+            }
+        }
+
+        private String formatMessage(LogEvent event) {
+            if (getLayout() != null) {
+                return ((StringLayout) getLayout()).toSerializable(event);
+            } else {
+                return event.getMessage().getFormattedMessage();
             }
         }
 

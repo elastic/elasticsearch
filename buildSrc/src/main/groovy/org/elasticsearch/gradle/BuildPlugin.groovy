@@ -554,7 +554,7 @@ class BuildPlugin implements Plugin<Project> {
                 project.publishing {
                     publications {
                         nebula(MavenPublication) {
-                            artifact project.tasks.shadowJar
+                            artifacts = [ project.tasks.shadowJar ]
                             artifactId = project.archivesBaseName
                             /*
                             * Configure the pom to include the "shadow" as compile dependencies
@@ -584,7 +584,6 @@ class BuildPlugin implements Plugin<Project> {
                 }
             }
         }
-
     }
 
     /** Adds compiler settings to the project */
@@ -799,6 +798,8 @@ class BuildPlugin implements Plugin<Project> {
             systemProperty 'tests.task', path
             systemProperty 'tests.security.manager', 'true'
             systemProperty 'jna.nosys', 'true'
+            // TODO: remove this deprecation compatibility setting for 7.0
+            systemProperty 'es.aggregations.enable_scripted_metric_agg_param', 'false'
             systemProperty 'compiler.java', project.ext.compilerJavaVersion.getMajorVersion()
             if (project.ext.inFipsJvm) {
                 systemProperty 'runtime.java', project.ext.runtimeJavaVersion.getMajorVersion() + "FIPS"

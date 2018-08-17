@@ -10,6 +10,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.index.Index;
@@ -63,8 +64,13 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
     @Override
     public ClusterState execute(ClusterState currentState) throws IOException {
         Step currentStep = startStep;
+        IndexMetaData indexMetaData = currentState.metaData().index(index);
+        if (indexMetaData == null) {
+            // This index doesn't exist any more, there's nothing to execute currently
+            return currentState;
+        }
         Step registeredCurrentStep = IndexLifecycleRunner.getCurrentStep(policyStepsRegistry, policy, index.getName(),
-            currentState.metaData().index(index).getSettings());
+            indexMetaData.getSettings());
         if (currentStep.equals(registeredCurrentStep)) {
             // We can do cluster state steps all together until we
             // either get to a step that isn't a cluster state step or a

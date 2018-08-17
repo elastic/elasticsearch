@@ -162,7 +162,6 @@
       },
       "email": {
         "to": "X-Pack Admin <{{ctx.vars.email_recipient}}>",
-        "from": "X-Pack Admin <{{ctx.vars.email_recipient}}>",
         "subject": "[{{#ctx.vars.is_new}}NEW{{/ctx.vars.is_new}}{{#ctx.vars.is_resolved}}RESOLVED{{/ctx.vars.is_resolved}}] {{ctx.metadata.name}} [{{ctx.vars.state}}]",
         "body": {
           "text": "{{#ctx.vars.is_resolved}}This cluster alert has been resolved: {{/ctx.vars.is_resolved}}{{ctx.payload.prefix}} {{ctx.payload.message}}"

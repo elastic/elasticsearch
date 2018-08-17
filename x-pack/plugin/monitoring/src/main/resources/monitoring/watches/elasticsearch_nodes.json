@@ -170,7 +170,6 @@
       },
       "email": {
         "profile": "standard",
-        "from": "X-Pack Admin <{{ctx.vars.email_recipient}}>",
         "to": [
           "X-Pack Admin <{{ctx.vars.email_recipient}}>"
         ],

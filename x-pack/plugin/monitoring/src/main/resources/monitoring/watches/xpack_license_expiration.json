@@ -151,7 +151,6 @@
       },
       "email": {
         "to": "X-Pack Admin <{{ctx.vars.email_recipient}}>",
-        "from": "X-Pack Admin <{{ctx.vars.email_recipient}}>",
         "subject": "[{{#ctx.vars.is_new}}NEW{{/ctx.vars.is_new}}{{#ctx.vars.is_resolved}}RESOLVED{{/ctx.vars.is_resolved}}] {{ctx.metadata.name}}",
         "body": {
           "text": "{{#ctx.vars.is_resolved}}This cluster alert has been resolved: {{/ctx.vars.is_resolved}} This cluster's license {{#ctx.vars.is_new}}is going to expire on {{ctx.payload.metadata.time}}{{/ctx.vars.is_new}}{{#ctx.vars.is_resolved}}was going to expire{{ctx.payload.metadata.time}}{{/ctx.vars.is_resolved}}. {{#ctx.vars.is_new}}{{ctx.payload.message}}{{/ctx.vars.is_new}}"

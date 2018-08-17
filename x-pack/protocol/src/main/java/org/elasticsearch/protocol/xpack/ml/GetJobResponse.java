@@ -32,6 +32,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+/**
+ * Contains a {@link List} of the found {@link Job} objects and the total count found
+ */
 public class GetJobResponse extends ActionResponse implements ToXContentObject {
 
     public static final ParseField RESULTS_FIELD = new ParseField("jobs");
@@ -44,16 +47,12 @@ public class GetJobResponse extends ActionResponse implements ToXContentObject {
 
     private QueryPage<Job> jobs;
 
-    public GetJobResponse(QueryPage<Job> jobs) {
-        this.jobs = jobs;
-    }
-
-    public GetJobResponse() {
+    GetJobResponse() {
         jobs = new QueryPage<>(RESULTS_FIELD);
     }
 
-    public QueryPage<Job> getResponse() {
-        return jobs;
+    public List<Job> getJobs() {
+        return jobs.results();
     }
 
     public static GetJobResponse fromXContent(XContentParser parser) throws IOException {
@@ -66,6 +65,10 @@ public class GetJobResponse extends ActionResponse implements ToXContentObject {
 
     void setCount(long count) {
         this.jobs.setCount(count);
+    }
+
+    public long getCount() {
+        return this.jobs.count();
     }
 
     @Override

@@ -23,13 +23,24 @@ import org.elasticsearch.test.ESTestCase;
 public class GetJobRequestTests extends ESTestCase {
 
     public void test_AllJobsRequest() {
-
+        assertEquals(GetJobRequest.getAllJobsRequest()
+            .getCommaDelimitedJobIdsString(), GetJobRequest.ALL_JOBS);
     }
 
     public void test_AddJobId() {
-
+        expectThrows(NullPointerException.class, () -> new GetJobRequest(null));
+        expectThrows(NullPointerException.class, () -> new GetJobRequest("job").addJobId(null));
     }
 
     public void test_getCommaDelimitedJobIdsString() {
+        GetJobRequest request = new GetJobRequest();
+
+        assertTrue(request.getCommaDelimitedJobIdsString().isEmpty());
+
+        request.addJobId("job1");
+        assertEquals(request.getCommaDelimitedJobIdsString(), "job1");
+
+        request.addJobId("jobs*");
+        assertEquals(request.getCommaDelimitedJobIdsString(), "job1,jobs*");
     }
 }

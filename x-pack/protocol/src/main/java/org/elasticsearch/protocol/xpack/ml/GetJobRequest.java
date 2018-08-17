@@ -26,12 +26,24 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Request object to get {@link org.elasticsearch.protocol.xpack.ml.job.config.Job} objects with the matching `jobId`s or
+ * `groupName`s.
+ *
+ * `_all` (see {@link GetJobRequest#ALL_JOBS}) `jobId` explicitly gets all the jobs in the cluster
+ * An empty request (no `jobId`s) implicitly gets all the jobs in the cluster
+ *
+ */
 public class GetJobRequest extends ActionRequest {
 
-    public final static String ALL_JOBS = "_all";
+    public static final String ALL_JOBS = "_all";
     private List<String> jobIds = new ArrayList<>();
     private boolean allowNoJobs = true;
 
+    /**
+     * Helper method to create a query that will get ALL jobs
+     * @return new {@link GetJobRequest} object searching for the jobId "_all"
+     */
     public static GetJobRequest getAllJobsRequest() {
         return new GetJobRequest(ALL_JOBS);
     }
@@ -43,14 +55,37 @@ public class GetJobRequest extends ActionRequest {
     public GetJobRequest() {
     }
 
+    /**
+     * Is a comma delimited representation of the list of `jobId`/`groupName` to get.
+     *
+     * @return String of jobIds/groupNames. example: "job1,other-jobs*"
+     */
     public String getCommaDelimitedJobIdsString() {
-        return jobIds.isEmpty() ? null : Strings.collectionToCommaDelimitedString(jobIds);
+        return Strings.collectionToCommaDelimitedString(jobIds);
     }
 
+    /**
+     * Adds a new non-null `jobId` or `groupName` to be included in the request.
+     *
+     * Can include wildcards, and can explicitly ask for all jobs by requesting with
+     * the reserved {@link GetJobRequest#ALL_JOBS} name.
+     *
+     * @param jobId non-null jobId or groupName, accepts wildcards
+     */
     public void addJobId(String jobId) {
         jobIds.add(Objects.requireNonNull(jobId, "[jobId] must not be null"));
     }
 
+    /**
+     * Whether to ignore if a wildcard expression matches no jobs.
+     * This includes {@link GetJobRequest#ALL_JOBS} string or when no jobs have been specified.
+     *
+     * If this is `false`, then an error is returned when a wildcard (or `_all`) does not match any jobs
+     *
+     * Default value: `true`
+     *
+     * @param allowNoJobs Ignore finding no jobs or not
+     */
     public void setAllowNoJobs(boolean allowNoJobs) {
         this.allowNoJobs = allowNoJobs;
     }

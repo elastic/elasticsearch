@@ -20,10 +20,12 @@
 package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.RequestConverters.EndpointBuilder;
 import org.elasticsearch.protocol.xpack.ml.DeleteJobRequest;
+import org.elasticsearch.protocol.xpack.ml.GetJobRequest;
 import org.elasticsearch.protocol.xpack.ml.OpenJobRequest;
 import org.elasticsearch.protocol.xpack.ml.PutJobRequest;
 
@@ -45,6 +47,21 @@ final class MLRequestConverters {
                 .build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         request.setEntity(createEntity(putJobRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request getJob(GetJobRequest getJobRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("ml")
+            .addPathPartAsIs("anomaly_detectors")
+            .addPathPart(getJobRequest.getCommaDelimitedJobIdsString())
+            .build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+
+        RequestConverters.Params params = new RequestConverters.Params(request);
+        params.putParam("allow_no_jobs", Boolean.toString(getJobRequest.isAllowNoJobs()));
+
         return request;
     }
 

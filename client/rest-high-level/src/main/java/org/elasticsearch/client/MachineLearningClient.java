@@ -21,6 +21,8 @@ package org.elasticsearch.client;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.protocol.xpack.ml.DeleteJobRequest;
 import org.elasticsearch.protocol.xpack.ml.DeleteJobResponse;
+import org.elasticsearch.protocol.xpack.ml.GetJobRequest;
+import org.elasticsearch.protocol.xpack.ml.GetJobResponse;
 import org.elasticsearch.protocol.xpack.ml.OpenJobRequest;
 import org.elasticsearch.protocol.xpack.ml.OpenJobResponse;
 import org.elasticsearch.protocol.xpack.ml.PutJobRequest;
@@ -78,6 +80,47 @@ public final class MachineLearningClient {
             MLRequestConverters::putJob,
             options,
             PutJobResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Gets Machine Learning job configuration info.
+     *
+     * <p>
+     *     For additional info
+     *     see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-job.html"></a>
+     * </p>
+     * @param request {@link GetJobRequest} request containing a list of jobId(s)
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return {@link GetJobResponse} response object containing
+     * the {@link org.elasticsearch.protocol.xpack.ml.job.config.Job} objects and the number of jobs found
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public GetJobResponse getJob(GetJobRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::getJob,
+            options,
+            GetJobResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+     /**
+     * Gets Machine Learning job configuration info, asynchronously.
+     *
+     * <p>
+     *     For additional info
+     *     see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-job.html"></a>
+     * </p>
+     * @param request {@link GetJobRequest} request containing a list of jobId(s) and optional additional parameters
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified with {@link GetJobResponse} upon request completion
+     */
+    public void getJobAsync(GetJobRequest request, RequestOptions options, ActionListener<GetJobResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::getJob,
+            options,
+            GetJobResponse::fromXContent,
             listener,
             Collections.emptySet());
     }

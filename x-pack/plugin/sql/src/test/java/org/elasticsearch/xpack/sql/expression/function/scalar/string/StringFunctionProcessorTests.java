@@ -194,7 +194,7 @@ public class StringFunctionProcessorTests extends AbstractWireSerializingTestCas
         assertEquals(7, proc.process("foo bar"));
         assertEquals(0, proc.process(""));
         assertEquals(1, proc.process('f'));
-        assertEquals(1, proc.process('€'));
+        assertEquals(1, proc.process('\u20ac')); // euro symbol
 
         stringCharInputValidation(proc);
     }

@@ -243,6 +243,7 @@ setup:
 
   - match: { hits.total: 6 }
   - length: { hits.hits: 0 }
+  - match: { hits.max_score: null }
 
 ---
 "field collapsing and multiple inner_hits":

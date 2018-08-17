@@ -79,6 +79,8 @@ setup:
   - match: { _shards.skipped: 0 }
   - match: { _shards.failed: 0 }
   - match: { hits.total: 2 }
+  - length: { hits.hits: 0 }
+  - match: { hits.max_score: null }
 
   # this is the case where we have an empty body and don't skip anything since it's match_all
   - do:
@@ -102,6 +104,8 @@ setup:
   - match: { _shards.skipped : 1}
   - match: { _shards.failed: 0 }
   - match: { hits.total: 2 }
+  - length: { hits.hits: 0 }
+  - match: { hits.max_score: null }
 
   # this case we skip all except of one since we need a real result
   - do:
@@ -115,6 +119,8 @@ setup:
   - match: { _shards.skipped : 2} 
   - match: { _shards.failed: 0 }
   - match: { hits.total: 0 }
+  - length: { hits.hits: 0 }
+  - match: { hits.max_score: null }
 
   - do:
       search:
@@ -126,8 +132,9 @@ setup:
   - match: { _shards.skipped : 0 }
   - match: { _shards.failed: 0 }
   - match: { hits.total: 2 }
+  - length: { hits.hits: 0 }
+  - match: { hits.max_score: null }
   - match: { aggregations.some_agg.doc_count: 3 }
-
 
   - do:
       search:
@@ -139,6 +146,8 @@ setup:
   - match: { _shards.skipped : 0 }
   - match: { _shards.failed: 0 }
   - match: { hits.total: 2 }
+  - length: { hits.hits: 0 }
+  - match: { hits.max_score: null }
   - length: { aggregations.idx_terms.buckets: 3 }
 
   - do:
@@ -151,6 +160,8 @@ setup:
   - match: { _shards.skipped : 1 }
   - match: { _shards.failed: 0 }
   - match: { hits.total: 2 }
+  - length: { hits.hits: 0 }
+  - match: { hits.max_score: null }
   - length: { aggregations.idx_terms.buckets: 2 }
 
 

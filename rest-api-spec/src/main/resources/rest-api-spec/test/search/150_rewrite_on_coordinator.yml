@@ -69,6 +69,8 @@
   - match: { _shards.skipped: 0 }
   - match: { _shards.failed: 0 }
   - match: { hits.total: 2 }
+  - length: { hits.hits: 0 }
+  - match: { hits.max_score: null }
 
   - do:
       indices.stats: { index: 'lookup_index', "metric": "get"}

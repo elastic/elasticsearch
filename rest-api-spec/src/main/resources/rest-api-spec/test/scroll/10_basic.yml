@@ -33,6 +33,7 @@
   - set: {_scroll_id: scroll_id}
   - match: {hits.total:      2    }
   - length: {hits.hits:      1    }
+  - match: { hits.max_score: null }
   - match: {hits.hits.0._id: "42" }
 
   - do:
@@ -52,6 +53,7 @@
   - match: {hits.total:      2    }
   - length: {hits.hits:      1    }
   - match: {hits.hits.0._id: "43" }
+  - match: { hits.max_score: null }
 
   - do:
       scroll:
@@ -60,6 +62,7 @@
 
   - match: {hits.total:      2    }
   - length: {hits.hits:      0    }
+  - is_false: hits.max_score
 
   - do:
       clear_scroll:
@@ -105,6 +108,7 @@
   - set: {_scroll_id: scroll_id}
   - match: {hits.total:      2    }
   - length: {hits.hits:      1    }
+  - match: { hits.max_score: null }
   - match: {hits.hits.0._id: "42" }
 
   - do:
@@ -123,6 +127,7 @@
 
   - match: {hits.total:      2    }
   - length: {hits.hits:      1    }
+  - match: { hits.max_score: null }
   - match: {hits.hits.0._id: "43" }
 
   - do:
@@ -132,6 +137,7 @@
 
   - match: {hits.total:      2    }
   - length: {hits.hits:      0    }
+  - match: { hits.max_score: null }
 
   - do:
       clear_scroll:

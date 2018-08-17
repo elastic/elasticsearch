@@ -53,6 +53,8 @@ setup:
 
   - match: { num_reduce_phases: 4 }
   - match: { hits.total: 3 }
+  - length: { hits.hits: 0 }
+  - match: { hits.max_score: null }
   - length: { aggregations.str_terms.buckets: 2 }
   - match: { aggregations.str_terms.buckets.0.key: "abc" }
   - is_false: aggregations.str_terms.buckets.0.key_as_string

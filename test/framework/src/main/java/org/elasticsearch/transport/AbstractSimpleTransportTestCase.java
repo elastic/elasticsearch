@@ -2648,7 +2648,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             service.addConnectionListener(new TransportConnectionListener() {
                 @Override
                 public void onConnectionOpened(final Transport.Connection connection) {
-                    closeConnectionChannel(service.getOriginalTransport(), connection);
+                    closeConnectionChannel(connection);
                 }
 
                 @Override
@@ -2670,8 +2670,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
     }
 
-    private void closeConnectionChannel(Transport transport, Transport.Connection connection) {
-        final TcpTransport.NodeChannels channels = (TcpTransport.NodeChannels) ((StubbableTransport.WrappedConnection) connection).getConnection();
+    private void closeConnectionChannel(Transport.Connection connection) {
+        StubbableTransport.WrappedConnection wrappedConnection = (StubbableTransport.WrappedConnection) connection;
+        TcpTransport.NodeChannels channels = (TcpTransport.NodeChannels) wrappedConnection.getConnection();
         CloseableChannel.closeChannels(channels.getChannels().subList(0, randomIntBetween(1, channels.getChannels().size())), true);
     }
 

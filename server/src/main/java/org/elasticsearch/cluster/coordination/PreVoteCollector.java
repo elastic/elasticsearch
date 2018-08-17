@@ -69,7 +69,6 @@ public class PreVoteCollector extends AbstractComponent {
      * @return the pre-voting round, which can be closed to end the round early.
      */
     public Releasable start(final ClusterState clusterState, final Iterable<DiscoveryNode> broadcastNodes) {
-        logger.debug("{} starting", this);
         PreVotingRound currentRound = new PreVotingRound(clusterState, preVoteResponse.getCurrentTerm());
         currentRound.start(broadcastNodes);
         return currentRound;
@@ -113,6 +112,7 @@ public class PreVoteCollector extends AbstractComponent {
         }
 
         void start(final Iterable<DiscoveryNode> broadcastNodes) {
+            logger.debug("{} requesting pre-votes from {}", this, broadcastNodes);
             broadcastNodes.forEach(n -> transportService.sendRequest(n, REQUEST_PRE_VOTE_ACTION_NAME, preVoteRequest,
                 new TransportResponseHandler<PreVoteResponse>() {
                     @Override

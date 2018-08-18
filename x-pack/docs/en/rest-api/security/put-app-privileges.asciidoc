@@ -7,9 +7,9 @@ Creates or updates
 
 ==== Request
 
-`POST /_xpack/security/privileges/<application>/<privilege>` +
+`POST /_xpack/security/privilege` +
 
-`PUT /_xpack/security/privileges/<application>/<privilege>`
+`PUT /_xpack/security/privilege`
 
 
 ==== Description
@@ -23,6 +23,7 @@ For more information, see
 To check a user's application privileges, use the
 <<security-api-has-privileges,has privileges API>>.
 
+////
 ==== Path Parameters
 
 `application` (required)::
@@ -33,6 +34,7 @@ To check a user's application privileges, use the
 `privilege` (required)::
   (string) The name of the privilege.
   The validation rules for privilege names are described below.
+////
 
 ==== Request Body
 
@@ -55,6 +57,7 @@ that begin with `_` are reserved for system usage.
 
 For POST requests that do not include the application and privilege names as
 path parameters, the body of the request can define multiple privileges.
+//TBD: Is the above still valid?
 The body is a JSON object where the names of the fields are the application
 names and the value of each field is an object. The fields in this inner
 object are the names of the privileges and each value is a JSON object that
@@ -138,7 +141,7 @@ been created or updated.
   }
 }
 --------------------------------------------------
-// NOTCONSOLE
+// TESTRESPONSE
 <1> When an existing privilege is updated, `created` is set to false.
 
 To add multiple privileges, submit a POST request to the 
@@ -146,7 +149,7 @@ To add multiple privileges, submit a POST request to the
 
 [source,js]
 --------------------------------------------------
-PUT /_xpack/security/privileges/
+PUT /_xpack/security/privilege
 {
   "app01": {
     "read": {
@@ -163,7 +166,7 @@ PUT /_xpack/security/privileges/
   }
 }
 --------------------------------------------------
-// NOTCONSOLE
+// CONSOLE
 
 A successful call returns a JSON structure that shows whether the privileges 
 have been created or updated.
@@ -171,13 +174,19 @@ have been created or updated.
 [source,js]
 --------------------------------------------------
 {
-  "app01": {
-    "read" : { "created": true },
-    "write": { "created": true }
-  },
   "app02": {
-    "all": { "created": true }
+    "all": {
+      "created": true
+    }
+  },
+  "app01": {
+    "read": {
+      "created": true
+    },
+    "write": {
+      "created": true
+    }
   }
 }
 --------------------------------------------------
-// NOTCONSOLE
+// TESTRESPONSE

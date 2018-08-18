@@ -258,23 +258,21 @@ public final class RemoteClusterLicenseChecker {
             final Predicate<XPackInfoResponse.LicenseInfo> predicate) {
         final StringBuilder error = new StringBuilder();
         if (remoteClusterLicenseInfo.licenseInfo().getStatus() != LicenseStatus.ACTIVE) {
-            error.append(String.format(Locale.ROOT, "The license on cluster [%s] is not active. ", remoteClusterLicenseInfo.clusterName()));
+            error.append(String.format(Locale.ROOT, "the license on cluster [%s] is not active", remoteClusterLicenseInfo.clusterName()));
         } else {
-            final License.OperationMode mode = License.OperationMode.resolve(remoteClusterLicenseInfo.licenseInfo().getMode());
             if (predicate.test(remoteClusterLicenseInfo.licenseInfo())) {
                 throw new IllegalStateException("license must be incompatible to build error message");
             } else {
                 final String message = String.format(
                         Locale.ROOT,
-                        "The license mode [%s] on cluster [%s] does not enable [%s]. ",
-                        mode,
+                        "the license mode [%s] on cluster [%s] does not enable [%s]",
+                        License.OperationMode.resolve(remoteClusterLicenseInfo.licenseInfo().getMode()),
                         remoteClusterLicenseInfo.clusterName(),
                         feature);
                 error.append(message);
             }
         }
 
-        error.append(Strings.toString(remoteClusterLicenseInfo.licenseInfo()));
         return error.toString();
     }
 

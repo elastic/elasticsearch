@@ -184,21 +184,18 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
         final XPackInfoResponse.LicenseInfo basicLicense = createBasicLicenseResponse();
         final RemoteClusterLicenseChecker.RemoteClusterLicenseInfo info =
                 new RemoteClusterLicenseChecker.RemoteClusterLicenseInfo("basic-cluster", basicLicense);
-        final String expected = "The license mode [BASIC] on cluster [basic-cluster] does not enable [Feature]. "
-                + Strings.toString(basicLicense);
         assertThat(
                 RemoteClusterLicenseChecker.buildErrorMessage("Feature", info, RemoteClusterLicenseChecker::isLicensePlatinumOrTrial),
-                equalTo(expected));
+                equalTo("the license mode [BASIC] on cluster [basic-cluster] does not enable [Feature]"));
     }
 
     public void testBuildErrorMessageForInactiveLicense() {
         final XPackInfoResponse.LicenseInfo expiredLicense = createExpiredLicenseResponse();
         final RemoteClusterLicenseChecker.RemoteClusterLicenseInfo info =
                 new RemoteClusterLicenseChecker.RemoteClusterLicenseInfo("expired-cluster", expiredLicense);
-        final String expected = "The license on cluster [expired-cluster] is not active. " + Strings.toString(expiredLicense);
         assertThat(
                 RemoteClusterLicenseChecker.buildErrorMessage("Feature", info, RemoteClusterLicenseChecker::isLicensePlatinumOrTrial),
-                equalTo(expected));
+                equalTo("the license on cluster [expired-cluster] is not active"));
     }
 
     private Client createMockClient() {

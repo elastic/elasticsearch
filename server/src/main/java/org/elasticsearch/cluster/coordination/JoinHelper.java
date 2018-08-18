@@ -1,3 +1,21 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -11,9 +29,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.zen.ElectMasterService;
-import org.elasticsearch.discovery.zen.MembershipAction.JoinCallback;
-import org.elasticsearch.discovery.zen.NodeJoinController;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
@@ -25,49 +40,29 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 
-//TODO: add a test that sends random joins and checks if the join led to success (the fake masterservice fully manages state)
-// i.e. similar to NodeJoinControllerTests
-public abstract class JoinHelper extends AbstractComponent {
+public class JoinHelper extends AbstractComponent {
 
     public static final String JOIN_ACTION_NAME = "internal:discovery/zen2/join";
 
-    // similar to NodeJoinController.ElectionContext.joinRequestAccumulator, captures joins on election
+    private final MasterService masterService;
+    private final TransportService transportService;
+    private final JoinTaskExecutor joinTaskExecutor;
     private final Map<DiscoveryNode, JoinCallback> joinRequestAccumulator = new HashMap<>();
 
-    private final NodeJoinController.JoinTaskExecutor joinTaskExecutor;
-    private final MasterService masterService;
-
-    private final TransportService transportService;
-
-    JoinHelper(Settings settings, AllocationService allocationService, MasterService masterService, TransportService transportService,
-               LongSupplier currentTermSupplier) {
+    public JoinHelper(Settings settings, AllocationService allocationService, MasterService masterService,
+                      TransportService transportService, LongSupplier currentTermSupplier,
+                      BiConsumer<JoinRequest, JoinCallback> joinRequestHandler) {
         super(settings);
-
         this.masterService = masterService;
         this.transportService = transportService;
-
-        // disable minimum_master_nodes check
-        final ElectMasterService electMasterService = new ElectMasterService(settings) {
+        this.joinTaskExecutor = new JoinTaskExecutor(allocationService, logger) {
 
             @Override
-            public boolean hasEnoughMasterNodes(Iterable<DiscoveryNode> nodes) {
-                return true;
-            }
-
-            @Override
-            public void logMinimumMasterNodesWarningIfNecessary(ClusterState oldState, ClusterState newState) {
-                // ignore
-            }
-
-        };
-
-        // reuse JoinTaskExecutor implementation from ZenDiscovery, but hack some checks
-        this.joinTaskExecutor = new NodeJoinController.JoinTaskExecutor(allocationService, electMasterService, logger) {
-
-            @Override
-            public ClusterTasksResult<DiscoveryNode> execute(ClusterState currentState, List<DiscoveryNode> joiningNodes) throws Exception {
+            public ClusterTasksResult<JoinTaskExecutor.Task> execute(ClusterState currentState, List<JoinTaskExecutor.Task> joiningTasks)
+                throws Exception {
                 // This is called when preparing the next cluster state for publication. There is no guarantee that the term we see here is
                 // the term under which this state will eventually be published: the current term may be increased after this check due to
                 // some other activity. That the term is correct is, however, checked properly during publication, so it is sufficient to
@@ -78,14 +73,13 @@ public abstract class JoinHelper extends AbstractComponent {
                 if (currentState.term() != currentTerm) {
                     currentState = ClusterState.builder(currentState).term(currentTerm).build();
                 }
-                return super.execute(currentState, joiningNodes);
+                return super.execute(currentState, joiningTasks);
             }
 
         };
 
-        transportService.registerRequestHandler(JOIN_ACTION_NAME, ThreadPool.Names.GENERIC, false, false,
-            JoinRequest::new,
-            (request, channel, task) -> handleJoinRequest(request, new JoinCallback() {
+        transportService.registerRequestHandler(JOIN_ACTION_NAME, ThreadPool.Names.GENERIC, false, false, JoinRequest::new,
+            (request, channel, task) -> joinRequestHandler.accept(request, new JoinCallback() {
                 @Override
                 public void onSuccess() {
                     try {
@@ -107,11 +101,8 @@ public abstract class JoinHelper extends AbstractComponent {
             }));
     }
 
-    public abstract void handleJoinRequest(JoinRequest joinRequest, JoinCallback joinCallback);
-
     // TODO: maybe add this method in a follow-up.
     public void sendOptionalJoin(DiscoveryNode destination, Optional<Join> optionalJoin) {
-        // No synchronisation required
         transportService.sendRequest(destination, JOIN_ACTION_NAME, new JoinRequest(transportService.getLocalNode(), optionalJoin),
             new TransportResponseHandler<TransportResponse.Empty>() {
                 @Override
@@ -121,13 +112,13 @@ public abstract class JoinHelper extends AbstractComponent {
 
                 @Override
                 public void handleResponse(TransportResponse.Empty response) {
-                    // No synchronisation required
                     logger.debug("SendJoinResponseHandler: successfully joined {}", destination);
                 }
 
                 @Override
                 public void handleException(TransportException exp) {
-                    // No synchronisation required
+                    //TODO: log certain failures at info level so that users can easily see why nodes are failing to join
+                    // see ZenDiscovery.joinElectedMaster for comparison
                     if (exp.getRootCause() instanceof CoordinationStateRejectedException) {
                         logger.debug("SendJoinResponseHandler: [{}] failed: {}", destination, exp.getRootCause().getMessage());
                     } else {
@@ -137,7 +128,7 @@ public abstract class JoinHelper extends AbstractComponent {
 
                 @Override
                 public String executor() {
-                    return ThreadPool.Names.GENERIC;
+                    return ThreadPool.Names.SAME; // just logging calls
                 }
             });
     }
@@ -165,17 +156,17 @@ public abstract class JoinHelper extends AbstractComponent {
     }
 
     public void clearAndSendJoins() {
-        final Map<DiscoveryNode, ClusterStateTaskListener> pendingAsTasks = new HashMap<>();
-        joinRequestAccumulator.forEach((key, value) -> pendingAsTasks.put(key,
-            new NodeJoinController.JoinTaskListener(value, logger)));
+        final Map<JoinTaskExecutor.Task, ClusterStateTaskListener> pendingAsTasks = new HashMap<>();
+        joinRequestAccumulator.forEach((key, value) -> pendingAsTasks.put(new JoinTaskExecutor.Task(key, "elect master"),
+            new JoinTaskListener(value)));
         joinRequestAccumulator.clear();
 
         final String source = "zen-disco-elected-as-master ([" + pendingAsTasks.size() + "] nodes joined)";
         // noop listener, the election finished listener determines result
-        pendingAsTasks.put(NodeJoinController.BECOME_MASTER_TASK, (source1, e) -> {
+        pendingAsTasks.put(JoinTaskExecutor.BECOME_MASTER_TASK, (source1, e) -> {
         });
         // TODO: should we take any further action when FINISH_ELECTION_TASK fails?
-        pendingAsTasks.put(NodeJoinController.FINISH_ELECTION_TASK, (source1, e) -> {
+        pendingAsTasks.put(JoinTaskExecutor.FINISH_ELECTION_TASK, (source1, e) -> {
         });
 
         masterService.submitStateUpdateTasks(source, pendingAsTasks, ClusterStateTaskConfig.build(Priority.URGENT),
@@ -185,8 +176,32 @@ public abstract class JoinHelper extends AbstractComponent {
     public void joinLeader(JoinRequest joinRequest, JoinCallback joinCallback) {
         // submit as cluster state update task
         masterService.submitStateUpdateTask("zen-disco-node-join",
-            joinRequest.getSourceNode(), ClusterStateTaskConfig.build(Priority.URGENT),
-            joinTaskExecutor, new NodeJoinController.JoinTaskListener(joinCallback, logger));
+            new JoinTaskExecutor.Task(joinRequest.getSourceNode(), "join existing leader"), ClusterStateTaskConfig.build(Priority.URGENT),
+            joinTaskExecutor, new JoinTaskListener(joinCallback));
+    }
+
+    public interface JoinCallback {
+        void onSuccess();
+
+        void onFailure(Exception e);
+    }
+
+    static class JoinTaskListener implements ClusterStateTaskListener {
+        private final JoinCallback joinCallback;
+
+        JoinTaskListener(JoinCallback joinCallback) {
+            this.joinCallback = joinCallback;
+        }
+
+        @Override
+        public void onFailure(String source, Exception e) {
+            joinCallback.onFailure(e);
+        }
+
+        @Override
+        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            joinCallback.onSuccess();
+        }
     }
 
 }

@@ -532,8 +532,8 @@ native realm:
 * <<security-api-change-password,Change passwords>>
 * <<security-api-get-user,Get users>>
 
-[role="exclude",id="security-api-role-mapping]
-=== Role mappings
+[role="exclude",id="security-api-role-mapping"]
+=== Role mapping APIs
 
 You can use the following APIs to add, remove, and retrieve role mappings:
 

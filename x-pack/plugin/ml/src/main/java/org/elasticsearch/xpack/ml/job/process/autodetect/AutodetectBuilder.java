@@ -61,7 +61,6 @@ public class AutodetectBuilder {
     public static final String LENGTH_ENCODED_INPUT_ARG = "--lengthEncodedInput";
     public static final String MODEL_CONFIG_ARG = "--modelconfig=";
     public static final String QUANTILES_STATE_PATH_ARG = "--quantilesState=";
-    public static final String PER_PARTITION_NORMALIZATION = "--perPartitionNormalization";
 
     private static final String CONF_EXTENSION = ".conf";
     static final String JOB_ID_ARG = "--jobid=";
@@ -206,10 +205,6 @@ public class AutodetectBuilder {
             }
             if (Boolean.TRUE.equals(analysisConfig.getMultivariateByFields())) {
                 command.add(MULTIVARIATE_BY_FIELDS_ARG);
-            }
-
-            if (analysisConfig.getUsePerPartitionNormalization()) {
-                command.add(PER_PARTITION_NORMALIZATION);
             }
         }
 

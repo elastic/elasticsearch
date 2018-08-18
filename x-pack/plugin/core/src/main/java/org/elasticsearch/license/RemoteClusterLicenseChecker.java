@@ -34,15 +34,15 @@ public final class RemoteClusterLicenseChecker {
      */
     public static final class RemoteClusterLicenseInfo {
 
-        private final String clusterName;
+        private final String clusterAlias;
 
         /**
-         * The name of the remote cluster.
+         * The alias of the remote cluster.
          *
-         * @return the cluster name
+         * @return the cluster alias
          */
-        public String clusterName() {
-            return clusterName;
+        public String clusterAlias() {
+            return clusterAlias;
         }
 
         private final XPackInfoResponse.LicenseInfo licenseInfo;
@@ -56,8 +56,8 @@ public final class RemoteClusterLicenseChecker {
             return licenseInfo;
         }
 
-        RemoteClusterLicenseInfo(final String clusterName, final XPackInfoResponse.LicenseInfo licenseInfo) {
-            this.clusterName = clusterName;
+        RemoteClusterLicenseInfo(final String clusterAlias, final XPackInfoResponse.LicenseInfo licenseInfo) {
+            this.clusterAlias = clusterAlias;
             this.licenseInfo = licenseInfo;
         }
 
@@ -141,17 +141,17 @@ public final class RemoteClusterLicenseChecker {
      * Checks the specified clusters for license compatibility. The specified callback will be invoked once if all clusters are
      * license-compatible, otherwise the specified callback will be invoked once on the first cluster that is not license-compatible.
      *
-     * @param clusterNames the cluster names to check
-     * @param listener     a callback
+     * @param clusterAliases the cluster aliases to check
+     * @param listener       a callback
      */
-    public void checkRemoteClusterLicenses(final List<String> clusterNames, final ActionListener<LicenseCheck> listener) {
-        final Iterator<String> clusterNamesIterator = clusterNames.iterator();
-        if (clusterNamesIterator.hasNext() == false) {
+    public void checkRemoteClusterLicenses(final List<String> clusterAliases, final ActionListener<LicenseCheck> listener) {
+        final Iterator<String> clusterAliasesIterator = clusterAliases.iterator();
+        if (clusterAliasesIterator.hasNext() == false) {
             listener.onResponse(LicenseCheck.success());
             return;
         }
 
-        final AtomicReference<String> clusterName = new AtomicReference<>();
+        final AtomicReference<String> clusterAlias = new AtomicReference<>();
 
         final ActionListener<XPackInfoResponse> infoListener = new ActionListener<XPackInfoResponse>() {
 
@@ -159,14 +159,14 @@ public final class RemoteClusterLicenseChecker {
             public void onResponse(final XPackInfoResponse xPackInfoResponse) {
                 final XPackInfoResponse.LicenseInfo licenseInfo = xPackInfoResponse.getLicenseInfo();
                 if (licenseInfo.getStatus() == LicenseStatus.ACTIVE == false || predicate.test(licenseInfo) == false) {
-                    listener.onResponse(LicenseCheck.failure(new RemoteClusterLicenseInfo(clusterName.get(), licenseInfo)));
+                    listener.onResponse(LicenseCheck.failure(new RemoteClusterLicenseInfo(clusterAlias.get(), licenseInfo)));
                     return;
                 }
 
-                if (clusterNamesIterator.hasNext()) {
-                    clusterName.set(clusterNamesIterator.next());
+                if (clusterAliasesIterator.hasNext()) {
+                    clusterAlias.set(clusterAliasesIterator.next());
                     // recurse to the next cluster
-                    remoteClusterLicense(clusterName.get(), this);
+                    remoteClusterLicense(clusterAlias.get(), this);
                 } else {
                     listener.onResponse(LicenseCheck.success());
                 }
@@ -174,19 +174,19 @@ public final class RemoteClusterLicenseChecker {
 
             @Override
             public void onFailure(final Exception e) {
-                final String message = "could not determine the licence type for cluster [" + clusterName.get() + "]";
+                final String message = "could not determine the licence type for cluster [" + clusterAlias.get() + "]";
                 listener.onFailure(new ElasticsearchException(message, e));
             }
 
         };
 
         // check the license on the first cluster, and then we recursively check licenses on the remaining clusters
-        clusterName.set(clusterNamesIterator.next());
-        remoteClusterLicense(clusterName.get(), infoListener);
+        clusterAlias.set(clusterAliasesIterator.next());
+        remoteClusterLicense(clusterAlias.get(), infoListener);
     }
 
-    private void remoteClusterLicense(final String clusterName, final ActionListener<XPackInfoResponse> listener) {
-        final Client remoteClusterClient = client.getRemoteClusterClient(clusterName);
+    private void remoteClusterLicense(final String clusterAlias, final ActionListener<XPackInfoResponse> listener) {
+        final Client remoteClusterClient = client.getRemoteClusterClient(clusterAlias);
         final ThreadContext threadContext = remoteClusterClient.threadPool().getThreadContext();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             // we stash any context here since this is an internal execution and should not leak any existing context information
@@ -230,13 +230,13 @@ public final class RemoteClusterLicenseChecker {
     }
 
     /**
-     * Extract the list of remote cluster names from the list of index names. Remote index names are of the form
-     * {@code cluster_name:index_name} and the cluster_name is extracted for each index name that represents a remote index.
+     * Extract the list of remote cluster aliases from the list of index names. Remote index names are of the form
+     * {@code cluster_alias:index_name} and the cluster_alias is extracted for each index name that represents a remote index.
      *
      * @param indices the collection of index names
      * @return the remote cluster names
      */
-    public static List<String> remoteClusterNames(final List<String> indices) {
+    public static List<String> remoteClusterAliases(final List<String> indices) {
         return indices.stream()
                 .filter(RemoteClusterLicenseChecker::isRemoteIndex)
                 .map(index -> index.substring(0, index.indexOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR)))
@@ -257,7 +257,7 @@ public final class RemoteClusterLicenseChecker {
             final Predicate<XPackInfoResponse.LicenseInfo> predicate) {
         final StringBuilder error = new StringBuilder();
         if (remoteClusterLicenseInfo.licenseInfo().getStatus() != LicenseStatus.ACTIVE) {
-            error.append(String.format(Locale.ROOT, "the license on cluster [%s] is not active", remoteClusterLicenseInfo.clusterName()));
+            error.append(String.format(Locale.ROOT, "the license on cluster [%s] is not active", remoteClusterLicenseInfo.clusterAlias()));
         } else {
             if (predicate.test(remoteClusterLicenseInfo.licenseInfo())) {
                 throw new IllegalStateException("license must be incompatible to build error message");
@@ -266,7 +266,7 @@ public final class RemoteClusterLicenseChecker {
                         Locale.ROOT,
                         "the license mode [%s] on cluster [%s] does not enable [%s]",
                         License.OperationMode.resolve(remoteClusterLicenseInfo.licenseInfo().getMode()),
-                        remoteClusterLicenseInfo.clusterName(),
+                        remoteClusterLicenseInfo.clusterAlias(),
                         feature);
                 error.append(message);
             }

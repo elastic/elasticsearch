@@ -146,7 +146,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 final RemoteClusterLicenseChecker remoteClusterLicenseChecker =
                         new RemoteClusterLicenseChecker(client, RemoteClusterLicenseChecker::isLicensePlatinumOrTrial);
                 remoteClusterLicenseChecker.checkRemoteClusterLicenses(
-                        RemoteClusterLicenseChecker.remoteClusterNames(datafeed.getIndices()),
+                        RemoteClusterLicenseChecker.remoteClusterAliases(datafeed.getIndices()),
                         ActionListener.wrap(
                                 response -> {
                                     if (response.isSuccess() == false) {
@@ -242,7 +242,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 Locale.ROOT,
                 "cannot start datafeed [%s] as it is configured to use indices on remote cluster [%s] that is not licensed for ml; %s",
                 datafeedId,
-                licenseCheck.remoteClusterLicenseInfo().clusterName(),
+                licenseCheck.remoteClusterLicenseInfo().clusterAlias(),
                 RemoteClusterLicenseChecker.buildErrorMessage(
                         "ml",
                         licenseCheck.remoteClusterLicenseInfo(),

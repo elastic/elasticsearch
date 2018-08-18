@@ -33,7 +33,7 @@ public final class RemoteClusterLicenseChecker {
     /**
      * Encapsulates the license info of a remote cluster.
      */
-    public static class RemoteClusterLicenseInfo {
+    public static final class RemoteClusterLicenseInfo {
 
         private final String clusterName;
 

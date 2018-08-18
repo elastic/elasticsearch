@@ -163,9 +163,9 @@ public final class RemoteClusterLicenseChecker {
                     return;
                 }
 
-                // recurse to the next cluster
                 if (clusterNamesIterator.hasNext()) {
                     clusterName.set(clusterNamesIterator.next());
+                    // recurse to the next cluster
                     remoteClusterLicense(clusterName.get(), this);
                 } else {
                     listener.onResponse(LicenseCheck.success());

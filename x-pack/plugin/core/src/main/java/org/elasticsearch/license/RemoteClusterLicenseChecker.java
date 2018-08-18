@@ -174,7 +174,7 @@ public final class RemoteClusterLicenseChecker {
 
             @Override
             public void onFailure(final Exception e) {
-                final String message = "could not determine the licence type for cluster [" + clusterAlias.get() + "]";
+                final String message = "could not determine the license type for cluster [" + clusterAlias.get() + "]";
                 listener.onFailure(new ElasticsearchException(message, e));
             }
 
@@ -186,15 +186,18 @@ public final class RemoteClusterLicenseChecker {
     }
 
     private void remoteClusterLicense(final String clusterAlias, final ActionListener<XPackInfoResponse> listener) {
-        final Client remoteClusterClient = client.getRemoteClusterClient(clusterAlias);
-        final ThreadContext threadContext = remoteClusterClient.threadPool().getThreadContext();
+        final ThreadContext threadContext = client.threadPool().getThreadContext();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             // we stash any context here since this is an internal execution and should not leak any existing context information
             threadContext.markAsSystemContext();
 
             final XPackInfoRequest request = new XPackInfoRequest();
             request.setCategories(EnumSet.of(XPackInfoRequest.Category.LICENSE));
-            remoteClusterClient.execute(XPackInfoAction.INSTANCE, request, listener);
+            try {
+                client.getRemoteClusterClient(clusterAlias).execute(XPackInfoAction.INSTANCE, request, listener);
+            } catch (final Exception e) {
+                listener.onFailure(e);
+            }
         }
     }
 

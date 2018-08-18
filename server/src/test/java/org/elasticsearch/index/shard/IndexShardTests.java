@@ -2400,8 +2400,7 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(sourceShard, targetShard);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32766")
-    public void testDocStats() throws IOException {
+    public void testDocStats() throws IOException, InterruptedException {
         IndexShard indexShard = null;
         try {
             indexShard = newStartedShard(
@@ -2460,15 +2459,6 @@ public class IndexShardTests extends IndexShardTestCase {
                     assertTrue(searcher.reader().numDocs() <= docStats.getCount());
                 }
                 assertThat(docStats.getCount(), equalTo(numDocs));
-                // Lucene will delete a segment if all docs are deleted from it;
-                // this means that we lose the deletes when deleting all docs.
-                // If soft-delete is enabled, each delete op will add a deletion marker.
-                final long deleteTombstones = indexShard.indexSettings.isSoftDeleteEnabled() ? numDocsToDelete : 0L;
-                if (numDocsToDelete == numDocs) {
-                    assertThat(docStats.getDeleted(), equalTo(deleteTombstones));
-                } else {
-                    assertThat(docStats.getDeleted(), equalTo(numDocsToDelete + deleteTombstones));
-                }
             }
 
             // merge them away

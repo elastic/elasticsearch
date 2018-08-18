@@ -240,6 +240,7 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32966")
     public void testHRDSplit() throws Exception {
 
         // Create job

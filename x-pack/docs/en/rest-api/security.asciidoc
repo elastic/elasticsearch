@@ -12,7 +12,15 @@ You can use the following APIs to perform {security} activities.
 * <<security-api-tokens>>
 * <<security-api-users>>
 
-include::security/roles.asciidoc[]
+[float]
+[[security-role-apis]]
+=== Roles
+
+You can use the following APIs to add, remove, and retrieve roles in the native realm:
+
+* <<security-api-put-role,Create role>>, <<security-api-delete-role,Delete role>>
+* <<security-api-clear-role-cache,Clear roles cache>>
+* <<security-api-get-role,Get roles>>
 
 include::security/authenticate.asciidoc[]
 include::security/change-password.asciidoc[]

@@ -57,7 +57,9 @@ that begin with `_` are reserved for system usage.
 
 For POST requests that do not include the application and privilege names as
 path parameters, the body of the request can define multiple privileges.
+
 //TBD: Is the above still valid?
+
 The body is a JSON object where the names of the fields are the application
 names and the value of each field is an object. The fields in this inner
 object are the names of the privileges and each value is a JSON object that
@@ -110,7 +112,7 @@ PUT /_xpack/security/privilege
                   "actions": [ <1>
                     "data:read/*" , <2> 
                     "action:login" ], 
-                  "metadata": {
+                  "metadata": { <3>
                     "description": "Read access to myapp"
                   }
                 }
@@ -126,7 +128,7 @@ PUT /_xpack/security/privilege
     such as `data:read/users` or `data:read/settings`, the 
     <<security-api-has-privileges,has privileges API>> respects the use of a 
     wildcard and returns `true`.
-<5> The metadata object is optional.
+<3> The metadata object is optional.
 
 A successful call returns a JSON structure that shows whether the privilege has
 been created or updated.

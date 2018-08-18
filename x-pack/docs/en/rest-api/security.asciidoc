@@ -9,7 +9,6 @@ You can use the following APIs to perform {security} activities.
 * <<security-api-privileges>>
 * <<security-api-role-mapping>>
 * <<security-api-ssl>>
-* <<security-api-tokens>>
 * <<security-api-users>>
 
 [float]
@@ -22,15 +21,25 @@ You can use the following APIs to add, remove, and retrieve roles in the native 
 * <<security-api-clear-role-cache,Clear roles cache>>
 * <<security-api-get-role,Get roles>>
 
+[float]
+[[security-token-apis]]
+=== Tokens
+
+You can use the following APIs to create and invalidate bearer tokens for access
+without requiring basic authentication:
+
+* <<security-api-get-token,Get token>>, <<security-api-invalidate-token,Invalidate token>>
+
 include::security/authenticate.asciidoc[]
 include::security/change-password.asciidoc[]
 include::security/clear-cache.asciidoc[]
 include::security/clear-roles-cache.asciidoc[]
 include::security/create-roles.asciidoc[]
 include::security/delete-roles.asciidoc[]
+include::security/delete-tokens.asciidoc[]
 include::security/get-roles.asciidoc[]
+include::security/get-tokens.asciidoc[]
 include::security/privileges.asciidoc[]
 include::security/role-mapping.asciidoc[]
 include::security/ssl.asciidoc[]
-include::security/tokens.asciidoc[]
 include::security/users.asciidoc[]

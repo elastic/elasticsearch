@@ -52,7 +52,7 @@ The following example retrieves information about the `read` privilege for the
 GET /_xpack/security/privilege/app01/read
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:app0102_privileges]
+// TEST[skip:to-do]
 
 A successful call returns an object keyed by application name and privilege
 name. If the privilege is not defined, the request responds with a 404 status.
@@ -70,7 +70,7 @@ name. If the privilege is not defined, the request responds with a 404 status.
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
+// NOTCONSOLE
 
 To retrieve all privileges for an application, omit the privilege name:
 
@@ -78,8 +78,7 @@ To retrieve all privileges for an application, omit the privilege name:
 --------------------------------------------------
 GET /_xpack/security/privilege/app01/
 --------------------------------------------------
-// CONSOLE
-// TEST[continued]
+// NOTCONSOLE
 
 To retrieve every privilege, omit both the application and privilege names:
 
@@ -87,5 +86,4 @@ To retrieve every privilege, omit both the application and privilege names:
 --------------------------------------------------
 GET /_xpack/security/privilege/
 --------------------------------------------------
-// CONSOLE
-// TEST[continued]
+// NOTCONSOLE

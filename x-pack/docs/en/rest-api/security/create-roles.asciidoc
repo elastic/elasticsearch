@@ -92,7 +92,7 @@ POST /_xpack/security/role/my_admin_role
   ],
   "applications": [
     {
-      "application": "my_app",
+      "application": "myapp",
       "privileges": [ "admin", "read" ],
       "resources": [ "*" ]
     }

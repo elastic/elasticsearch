@@ -14,7 +14,6 @@ task leaderClusterTest(type: RestIntegTestTask) {
 leaderClusterTestCluster {
     numNodes = 1
     clusterName = 'leader-cluster'
-    setting 'xpack.license.self_generated.type', 'trial'
 }
 
 leaderClusterTestRunner {

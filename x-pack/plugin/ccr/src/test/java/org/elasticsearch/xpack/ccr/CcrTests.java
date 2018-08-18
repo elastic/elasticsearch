@@ -3,6 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.Version;
@@ -40,9 +41,8 @@ public class CcrTests extends ESTestCase {
                     .numberOfShards(1)
                     .numberOfReplicas(0)
                     .build();
-            final Ccr ccr = new Ccr(Settings.EMPTY);
-            final Optional<EngineFactory> engineFactory =
-                    ccr.getEngineFactory(new IndexSettings(indexMetaData, Settings.EMPTY));
+            final Ccr ccr = new Ccr(Settings.EMPTY, new CcrLicenseChecker(() -> true));
+            final Optional<EngineFactory> engineFactory = ccr.getEngineFactory(new IndexSettings(indexMetaData, Settings.EMPTY));
             if (value != null && value) {
                 assertTrue(engineFactory.isPresent());
                 assertThat(engineFactory.get(), instanceOf(FollowingEngineFactory.class));

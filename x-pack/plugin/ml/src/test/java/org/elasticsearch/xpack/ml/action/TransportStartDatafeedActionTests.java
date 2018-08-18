@@ -88,21 +88,6 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
         TransportStartDatafeedAction.validate("foo-datafeed", mlMetadata2, tasks);
     }
 
-    public void testLicenseSupportsML() {
-        XPackInfoResponse.LicenseInfo licenseInfo = new XPackInfoResponse.LicenseInfo("uid", "trial", "trial",
-                LicenseStatus.ACTIVE, randomNonNegativeLong());
-        assertTrue(RemoteClusterLicenseChecker.isLicensePlatinumOrTrial(licenseInfo));
-
-        licenseInfo = new XPackInfoResponse.LicenseInfo("uid", "trial", "trial", LicenseStatus.EXPIRED, randomNonNegativeLong());
-        assertFalse(RemoteClusterLicenseChecker.isLicensePlatinumOrTrial(licenseInfo));
-
-        licenseInfo = new XPackInfoResponse.LicenseInfo("uid", "GOLD", "GOLD", LicenseStatus.ACTIVE, randomNonNegativeLong());
-        assertFalse(RemoteClusterLicenseChecker.isLicensePlatinumOrTrial(licenseInfo));
-
-        licenseInfo = new XPackInfoResponse.LicenseInfo("uid", "PLATINUM", "PLATINUM", LicenseStatus.ACTIVE, randomNonNegativeLong());
-        assertTrue(RemoteClusterLicenseChecker.isLicensePlatinumOrTrial(licenseInfo));
-    }
-
     public static TransportStartDatafeedAction.DatafeedTask createDatafeedTask(long id, String type, String action,
                                                                                TaskId parentTaskId,
                                                                                StartDatafeedAction.DatafeedParams params,

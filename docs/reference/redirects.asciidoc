@@ -503,3 +503,12 @@ guide to the {painless}/index.html[Painless Scripting Language].
 
 See the {painless}/painless-api-reference.html[Painless API Reference] in
 the guide to the {painless}/index.html[Painless Scripting Language].
+
+[role="exclude", id="security-api-roles"]
+=== Role management APIs
+
+You can use the following APIs to add, remove, and retrieve roles in the native realm:
+
+* <<security-api-put-role,Create role>>, <<security-api-delete-role,Delete role>>
+* <<security-api-clear-role-cache,Clear roles cache>>
+* <<security-api-get-role,Get roles>>

@@ -41,8 +41,9 @@ compileTestJava.options.compilerArgs << '-Xlint:-rawtypes'
 
 // the main files are actually test files, so use the appropriate forbidden api sigs
 forbiddenApisMain {
-  signaturesURLs = [PrecommitTasks.getResource('/forbidden/all-signatures.txt'),
-                    PrecommitTasks.getResource('/forbidden/test-signatures.txt')]
+  signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt'),
+                    PrecommitTasks.getResource('/forbidden/es-all-signatures.txt'),
+                    PrecommitTasks.getResource('/forbidden/es-test-signatures.txt')]
 }
 
 // TODO: should we have licenses for our test deps?

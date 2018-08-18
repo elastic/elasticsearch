@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.rest.job;
 
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -16,9 +17,9 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 
@@ -50,9 +51,9 @@ public class RestOpenJobAction extends BaseRestHandler {
             request = new OpenJobAction.Request(jobParams);
         }
         return channel -> {
-            client.execute(OpenJobAction.INSTANCE, request, new RestBuilderListener<OpenJobAction.Response>(channel) {
+            client.execute(OpenJobAction.INSTANCE, request, new RestBuilderListener<AcknowledgedResponse>(channel) {
                 @Override
-                public RestResponse buildResponse(OpenJobAction.Response r, XContentBuilder builder) throws Exception {
+                public RestResponse buildResponse(AcknowledgedResponse r, XContentBuilder builder) throws Exception {
                     builder.startObject();
                     builder.field("opened", r.isAcknowledged());
                     builder.endObject();

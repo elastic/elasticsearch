@@ -58,7 +58,6 @@ role. If the role is not defined in the native realm, the request returns 404.
           "grant" : [ "title", "body" ]}
       }   
     ],
-    "applications" : [ ],
     "run_as" : [ "other_user" ],
     "metadata" : {
       "version" : 1

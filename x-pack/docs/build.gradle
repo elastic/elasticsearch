@@ -754,24 +754,18 @@ setups['app0102_privileges'] = '''
   - do:
         xpack.security.put_privileges:
           body: >
-            { "app01": {
-              "read": {
-                "application": "app01",
-                "name": "read",
-                "actions": [ "action:login", "data:read/*" ]
-              },
-              "write": {
-                "application": "app01",
-                "name": "write",
-                "actions": [ "action:login", "data:write/*" ]
-              }
-            },
-            "app02": {
-              "all": {
-                "application": "app02",
-                "name": "all",
-                "actions": [ "*" ]
-              }
+            {
+              "myapp": {
+                "read": {
+                  "application": "myapp",
+                  "name": "read",
+                  "actions": [
+                    "data:read/*",
+                    "action:login" ], 
+                  "metadata": {
+                    "description": "Read access to myapp"
+                  }
+                }
+              } 
             }
-          }
 '''

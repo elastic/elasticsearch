@@ -37,10 +37,10 @@ The following example deletes the `write` application privilege from the
 
 [source,js]
 --------------------------------------------------
-DELETE /_xpack/security/privilege/app01/write
+DELETE /_xpack/security/privilege/myapp/read
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:to-do] 
+// TEST[setup:app0102_privileges] 
 
 If the role is successfully deleted, the request returns `{"found": true}`.
 Otherwise, `found` is set to false.
@@ -48,12 +48,12 @@ Otherwise, `found` is set to false.
 [source,js]
 --------------------------------------------------
 {
-  "app01": {
-    "write": {
+  "myapp": {
+    "read": {
       "found" : true
     }
   }
 }
 --------------------------------------------------
-// NOTCONSOLE
+// TESTRESPONSE
 

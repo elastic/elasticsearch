@@ -82,6 +82,12 @@ In the above example, there are several pieces of logistical configuration for t
   will tend to execute faster, but will require more memory during processing.  This has no effect on how the data is rolled up, it is
   merely used for tweaking the speed/memory cost of the indexer.
 
+[NOTE]
+The `index_pattern` cannot be a pattern that would also match the destination `rollup_index`.  E.g. the pattern
+`"foo-*"` would match the rollup index `"foo-rollup"`.  This causes problems because the rollup job would attempt
+to rollup it's own data at runtime.  If you attempt to configure a pattern that matches the `rollup_index`, an exception
+will be thrown to prevent this behavior.
+
 [[rollup-groups-config]]
 ==== Grouping Config
 

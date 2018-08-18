@@ -19,7 +19,14 @@ You can use the following APIs to add, remove, and retrieve roles in the native 
 * <<security-api-clear-role-cache,Clear roles cache>>
 * <<security-api-get-role,Get roles>>
 
-include::security/role-mapping.asciidoc[]
+[float]
+[[security-role-mapping-apis]]
+=== Role mappings
+
+You can use the following APIs to add, remove, and retrieve role mappings:
+
+* <<security-api-put-role-mapping,Add role mappings>>, <<security-api-delete-role-mapping,Delete role mappings>>
+* <<security-api-get-role-mapping,Get role mappings>>
 
 [float]
 [[security-token-apis]]

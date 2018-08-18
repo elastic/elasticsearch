@@ -118,18 +118,18 @@ public final class RemoteClusterLicenseChecker {
     }
 
     private final Client client;
-    private final Predicate<XPackInfoResponse.LicenseInfo> licensePredicate;
+    private final Predicate<XPackInfoResponse.LicenseInfo> predicate;
 
     /**
-     * Constructs a remote license checker with the specified license predicate for checking license compatibility. The predicate does not
-     * need to check for the active license state as this is handled by the remote cluster license checker.
+     * Constructs a remote cluster license checker with the specified license predicate for checking license compatibility. The predicate
+     * does not need to check for the active license state as this is handled by the remote cluster license checker.
      *
-     * @param client           the client
-     * @param licensePredicate the license predicate
+     * @param client    the client
+     * @param predicate the license predicate
      */
-    public RemoteClusterLicenseChecker(final Client client, final Predicate<XPackInfoResponse.LicenseInfo> licensePredicate) {
+    public RemoteClusterLicenseChecker(final Client client, final Predicate<XPackInfoResponse.LicenseInfo> predicate) {
         this.client = client;
-        this.licensePredicate = licensePredicate;
+        this.predicate = predicate;
     }
 
     public static boolean isLicensePlatinumOrTrial(final XPackInfoResponse.LicenseInfo licenseInfo) {
@@ -158,7 +158,7 @@ public final class RemoteClusterLicenseChecker {
             @Override
             public void onResponse(final XPackInfoResponse xPackInfoResponse) {
                 final XPackInfoResponse.LicenseInfo licenseInfo = xPackInfoResponse.getLicenseInfo();
-                if (licenseInfo.getStatus() == LicenseStatus.ACTIVE == false || licensePredicate.test(licenseInfo) == false) {
+                if (licenseInfo.getStatus() == LicenseStatus.ACTIVE == false || predicate.test(licenseInfo) == false) {
                     listener.onResponse(LicenseCheck.failure(new RemoteClusterLicenseInfo(clusterName.get(), licenseInfo)));
                     return;
                 }

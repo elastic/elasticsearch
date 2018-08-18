@@ -27,7 +27,7 @@ import java.util.stream.Collectors;
 /**
  * Checks remote clusters for license compatibility with a specified license predicate.
  */
-public class RemoteClusterLicenseChecker {
+public final class RemoteClusterLicenseChecker {
 
     /**
      * Encapsulates the license info of a remote cluster.

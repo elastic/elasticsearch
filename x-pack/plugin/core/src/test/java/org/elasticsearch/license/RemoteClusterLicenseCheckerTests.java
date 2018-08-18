@@ -40,7 +40,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class RemoteClusterLicenseCheckerTests extends ESTestCase {
+public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
 
     public void testNoRemoteIndex() {
         final List<String> indices = Arrays.asList("local-index1", "local-index2");

@@ -137,7 +137,7 @@ teardown:
             action: "invalid"
             name: "invalid"
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
-  - match: { error.root_cause.0.reason: "step [{\"phase\":\"invalid\",\"action\":\"invalid\",\"name\":\"invalid\"}] with policy [my_moveable_timeseries_lifecycle] does not exist" }
+  - match: { error.root_cause.0.reason: "step [{\"phase\":\"invalid\",\"action\":\"invalid\",\"name\":\"invalid\"}] for index [my_index] with policy [my_moveable_timeseries_lifecycle] does not exist" }
 
   - do:
       acknowledge: true

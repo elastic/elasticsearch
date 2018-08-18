@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.transport;
 
+import java.util.function.Supplier;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
@@ -88,7 +89,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
     private final String clusterAlias;
     private final int maxNumRemoteConnections;
     private final Predicate<DiscoveryNode> nodePredicate;
-    private volatile List<DiscoveryNode> seedNodes;
+    private volatile List<Supplier<DiscoveryNode>> seedNodes;
     private volatile boolean skipUnavailable;
     private final ConnectHandler connectHandler;
     private SetOnce<ClusterName> remoteClusterName = new SetOnce<>();
@@ -103,7 +104,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
      * @param maxNumRemoteConnections the maximum number of connections to the remote cluster
      * @param nodePredicate a predicate to filter eligible remote nodes to connect to
      */
-    RemoteClusterConnection(Settings settings, String clusterAlias, List<DiscoveryNode> seedNodes,
+    RemoteClusterConnection(Settings settings, String clusterAlias, List<Supplier<DiscoveryNode>> seedNodes,
                             TransportService transportService, int maxNumRemoteConnections, Predicate<DiscoveryNode> nodePredicate) {
         super(settings);
         this.localClusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
@@ -131,7 +132,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
     /**
      * Updates the list of seed nodes for this cluster connection
      */
-    synchronized void updateSeedNodes(List<DiscoveryNode> seedNodes, ActionListener<Void> connectListener) {
+    synchronized void updateSeedNodes(List<Supplier<DiscoveryNode>> seedNodes, ActionListener<Void> connectListener) {
         this.seedNodes = Collections.unmodifiableList(new ArrayList<>(seedNodes));
         connectHandler.connect(connectListener);
     }
@@ -460,7 +461,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
             });
         }
 
-        void collectRemoteNodes(Iterator<DiscoveryNode> seedNodes,
+        private void collectRemoteNodes(Iterator<Supplier<DiscoveryNode>> seedNodes,
                                 final TransportService transportService, ActionListener<Void> listener) {
             if (Thread.currentThread().isInterrupted()) {
                 listener.onFailure(new InterruptedException("remote connect thread got interrupted"));
@@ -468,7 +469,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
             try {
                 if (seedNodes.hasNext()) {
                     cancellableThreads.executeIO(() -> {
-                        final DiscoveryNode seedNode = seedNodes.next();
+                        final DiscoveryNode seedNode = seedNodes.next().get();
                         final TransportService.HandshakeResponse handshakeResponse;
                         Transport.Connection connection = transportService.openConnection(seedNode,
                             ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG, null, null));
@@ -558,11 +559,11 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
             private final TransportService transportService;
             private final Transport.Connection connection;
             private final ActionListener<Void> listener;
-            private final Iterator<DiscoveryNode> seedNodes;
+            private final Iterator<Supplier<DiscoveryNode>> seedNodes;
             private final CancellableThreads cancellableThreads;
 
             SniffClusterStateResponseHandler(TransportService transportService, Transport.Connection connection,
-                                             ActionListener<Void> listener, Iterator<DiscoveryNode> seedNodes,
+                                             ActionListener<Void> listener, Iterator<Supplier<DiscoveryNode>> seedNodes,
                                              CancellableThreads cancellableThreads) {
                 this.transportService = transportService;
                 this.connection = connection;
@@ -694,7 +695,8 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
                         }
                     }
                     RemoteConnectionInfo remoteConnectionInfo = new RemoteConnectionInfo(clusterAlias,
-                        seedNodes.stream().map(DiscoveryNode::getAddress).collect(Collectors.toList()), new ArrayList<>(httpAddresses),
+                        seedNodes.stream().map(sup -> sup.get().getAddress()).collect(Collectors.toList()),
+                        new ArrayList<>(httpAddresses),
                         maxNumRemoteConnections, connectedNodes.size(),
                         RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings), skipUnavailable);
                     listener.onResponse(remoteConnectionInfo);
@@ -711,7 +713,6 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
                 }
             });
         }
-
     }
 
     int getNumNodesConnected() {

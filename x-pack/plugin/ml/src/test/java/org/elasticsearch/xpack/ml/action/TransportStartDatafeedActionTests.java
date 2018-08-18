@@ -3,10 +3,15 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.license.RemoteClusterLicenseChecker;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.protocol.xpack.XPackInfoResponse;
+import org.elasticsearch.protocol.xpack.license.LicenseStatus;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
@@ -14,7 +19,6 @@ import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManagerTests;
 
@@ -82,6 +86,21 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
                 .build();
 
         TransportStartDatafeedAction.validate("foo-datafeed", mlMetadata2, tasks);
+    }
+
+    public void testLicenseSupportsML() {
+        XPackInfoResponse.LicenseInfo licenseInfo = new XPackInfoResponse.LicenseInfo("uid", "trial", "trial",
+                LicenseStatus.ACTIVE, randomNonNegativeLong());
+        assertTrue(RemoteClusterLicenseChecker.isLicensePlatinumOrTrial(licenseInfo));
+
+        licenseInfo = new XPackInfoResponse.LicenseInfo("uid", "trial", "trial", LicenseStatus.EXPIRED, randomNonNegativeLong());
+        assertFalse(RemoteClusterLicenseChecker.isLicensePlatinumOrTrial(licenseInfo));
+
+        licenseInfo = new XPackInfoResponse.LicenseInfo("uid", "GOLD", "GOLD", LicenseStatus.ACTIVE, randomNonNegativeLong());
+        assertFalse(RemoteClusterLicenseChecker.isLicensePlatinumOrTrial(licenseInfo));
+
+        licenseInfo = new XPackInfoResponse.LicenseInfo("uid", "PLATINUM", "PLATINUM", LicenseStatus.ACTIVE, randomNonNegativeLong());
+        assertTrue(RemoteClusterLicenseChecker.isLicensePlatinumOrTrial(licenseInfo));
     }
 
     public static TransportStartDatafeedAction.DatafeedTask createDatafeedTask(long id, String type, String action,

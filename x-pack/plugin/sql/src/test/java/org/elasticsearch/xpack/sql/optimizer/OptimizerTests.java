@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.sql.optimizer.Optimizer.PropagateEquals;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.PruneDuplicateFunctions;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.PruneSubqueryAliases;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.ReplaceFoldableAttributes;
+import org.elasticsearch.xpack.sql.optimizer.Optimizer.SkipQueryIfFoldingProjection;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
 import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
@@ -888,5 +889,12 @@ public class OptimizerTests extends ESTestCase {
         PropagateEquals rule = new PropagateEquals();
         Expression exp = rule.rule(new And(EMPTY, eq1, r));
         assertEquals(Literal.FALSE, rule.rule(exp));
+    }
+
+    public void testDoesNotSkipQueryIfFromIsEmpty() {
+        Alias alias = new Alias(EMPTY, "alias", L(1));
+        Project project = new Project(EMPTY, FROM(), Collections.singletonList(alias));
+        LogicalPlan result = new SkipQueryIfFoldingProjection().rule(project);
+        assertEquals(project, result);
     }
 }

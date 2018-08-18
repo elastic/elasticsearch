@@ -36,14 +36,18 @@ import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteReposito
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -74,8 +78,8 @@ import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.GetPipelineRequest;
-import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -92,7 +96,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContent;
@@ -102,6 +106,14 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.rankeval.RankEvalRequest;
+import org.elasticsearch.protocol.xpack.XPackInfoRequest;
+import org.elasticsearch.protocol.xpack.XPackUsageRequest;
+import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
+import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
+import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
+import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoRequest;
+import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
+import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
 import org.elasticsearch.script.mustache.SearchTemplateRequest;
@@ -113,8 +125,10 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.Charset;
+import java.util.EnumSet;
 import java.util.Locale;
 import java.util.StringJoiner;
+import java.util.stream.Collectors;
 
 final class RequestConverters {
     static final XContentType REQUEST_BODY_CONTENT_TYPE = XContentType.JSON;
@@ -411,8 +425,14 @@ final class RequestConverters {
                 BytesReference indexSource = indexRequest.source();
                 XContentType indexXContentType = indexRequest.getContentType();
 
-                try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
-                    LoggingDeprecationHandler.INSTANCE, indexSource, indexXContentType)) {
+                try (XContentParser parser = XContentHelper.createParser(
+                        /*
+                         * EMPTY and THROW are fine here because we just call
+                         * copyCurrentStructure which doesn't touch the
+                         * registry or deprecation.
+                         */
+                        NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                        indexSource, indexXContentType)) {
                     try (XContentBuilder builder = XContentBuilder.builder(bulkContentType.xContent())) {
                         builder.copyCurrentStructure(parser);
                         source = BytesReference.bytes(builder).toBytesRef();
@@ -605,7 +625,7 @@ final class RequestConverters {
         request.setEntity(createEntity(searchTemplateRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
-    
+
     static Request multiSearchTemplate(MultiSearchTemplateRequest multiSearchTemplateRequest) throws IOException {
         Request request = new Request(HttpPost.METHOD_NAME, "/_msearch/template");
 
@@ -619,7 +639,7 @@ final class RequestConverters {
         byte[] source = MultiSearchTemplateRequest.writeMultiLineFormat(multiSearchTemplateRequest, xContent);
         request.setEntity(new ByteArrayEntity(source, createContentType(xContent.type())));
         return request;
-    }    
+    }
 
     static Request existsAlias(GetAliasesRequest getAliasesRequest) {
         if ((getAliasesRequest.indices() == null || getAliasesRequest.indices().length == 0) &&
@@ -706,6 +726,17 @@ final class RequestConverters {
         parameters.withMasterTimeout(clusterUpdateSettingsRequest.masterNodeTimeout());
 
         request.setEntity(createEntity(clusterUpdateSettingsRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request clusterGetSettings(ClusterGetSettingsRequest clusterGetSettingsRequest) throws IOException {
+        Request request = new Request(HttpGet.METHOD_NAME, "/_cluster/settings");
+
+        Params parameters = new Params(request);
+        parameters.withLocal(clusterGetSettingsRequest.local());
+        parameters.withIncludeDefaults(clusterGetSettingsRequest.includeDefaults());
+        parameters.withMasterTimeout(clusterGetSettingsRequest.masterNodeTimeout());
+
         return request;
     }
 
@@ -821,6 +852,22 @@ final class RequestConverters {
         return request;
     }
 
+    static Request getIndex(GetIndexRequest getIndexRequest) {
+        String[] indices = getIndexRequest.indices() == null ? Strings.EMPTY_ARRAY : getIndexRequest.indices();
+
+        String endpoint = endpoint(indices);
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+
+        Params params = new Params(request);
+        params.withIndicesOptions(getIndexRequest.indicesOptions());
+        params.withLocal(getIndexRequest.local());
+        params.withIncludeDefaults(getIndexRequest.includeDefaults());
+        params.withHuman(getIndexRequest.humanReadable());
+        params.withMasterTimeout(getIndexRequest.masterNodeTimeout());
+
+        return request;
+    }
+
     static Request indicesExist(GetIndexRequest getIndexRequest) {
         // this can be called with no indices as argument by transport client, not via REST though
         if (getIndexRequest.indices() == null || getIndexRequest.indices().length == 0) {
@@ -931,6 +978,34 @@ final class RequestConverters {
         return request;
     }
 
+    static Request snapshotsStatus(SnapshotsStatusRequest snapshotsStatusRequest) {
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_snapshot")
+            .addPathPart(snapshotsStatusRequest.repository())
+            .addCommaSeparatedPathParts(snapshotsStatusRequest.snapshots())
+            .addPathPartAsIs("_status")
+            .build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+
+        Params parameters = new Params(request);
+        parameters.withMasterTimeout(snapshotsStatusRequest.masterNodeTimeout());
+        parameters.withIgnoreUnavailable(snapshotsStatusRequest.ignoreUnavailable());
+        return request;
+    }
+
+    static Request restoreSnapshot(RestoreSnapshotRequest restoreSnapshotRequest) throws IOException {
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_snapshot")
+            .addPathPart(restoreSnapshotRequest.repository())
+            .addPathPart(restoreSnapshotRequest.snapshot())
+            .addPathPartAsIs("_restore")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        Params parameters = new Params(request);
+        parameters.withMasterTimeout(restoreSnapshotRequest.masterNodeTimeout());
+        parameters.withWaitForCompletion(restoreSnapshotRequest.waitForCompletion());
+        request.setEntity(createEntity(restoreSnapshotRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
     static Request deleteSnapshot(DeleteSnapshotRequest deleteSnapshotRequest) {
         String endpoint = new EndpointBuilder().addPathPartAsIs("_snapshot")
             .addPathPart(deleteSnapshotRequest.repository())
@@ -1007,6 +1082,18 @@ final class RequestConverters {
         return request;
     }
 
+    static Request analyze(AnalyzeRequest request) throws IOException {
+        EndpointBuilder builder = new EndpointBuilder();
+        String index = request.index();
+        if (index != null) {
+            builder.addPathPart(index);
+        }
+        builder.addPathPartAsIs("_analyze");
+        Request req = new Request(HttpGet.METHOD_NAME, builder.build());
+        req.setEntity(createEntity(request, REQUEST_BODY_CONTENT_TYPE));
+        return req;
+    }
+
     static Request getScript(GetStoredScriptRequest getStoredScriptRequest) {
         String endpoint = new EndpointBuilder().addPathPartAsIs("_scripts").addPathPart(getStoredScriptRequest.id()).build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
@@ -1024,7 +1111,104 @@ final class RequestConverters {
         return request;
     }
 
-    private static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
+    static Request xPackInfo(XPackInfoRequest infoRequest) {
+        Request request = new Request(HttpGet.METHOD_NAME, "/_xpack");
+        if (false == infoRequest.isVerbose()) {
+            request.addParameter("human", "false");
+        }
+        if (false == infoRequest.getCategories().equals(EnumSet.allOf(XPackInfoRequest.Category.class))) {
+            request.addParameter("categories", infoRequest.getCategories().stream()
+                    .map(c -> c.toString().toLowerCase(Locale.ROOT))
+                    .collect(Collectors.joining(",")));
+        }
+        return request;
+    }
+
+    static Request xPackWatcherPutWatch(PutWatchRequest putWatchRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("watcher")
+            .addPathPartAsIs("watch")
+            .addPathPart(putWatchRequest.getId())
+            .build();
+
+        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+        Params params = new Params(request).withVersion(putWatchRequest.getVersion());
+        if (putWatchRequest.isActive() == false) {
+            params.putParam("active", "false");
+        }
+        ContentType contentType = createContentType(putWatchRequest.xContentType());
+        BytesReference source = putWatchRequest.getSource();
+        request.setEntity(new ByteArrayEntity(source.toBytesRef().bytes, 0, source.length(), contentType));
+        return request;
+    }
+
+    static Request xPackWatcherDeleteWatch(DeleteWatchRequest deleteWatchRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("watcher")
+            .addPathPartAsIs("watch")
+            .addPathPart(deleteWatchRequest.getId())
+            .build();
+
+        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+        return request;
+    }
+
+    static Request xpackUsage(XPackUsageRequest usageRequest) {
+        Request request = new Request(HttpGet.METHOD_NAME, "/_xpack/usage");
+        Params parameters = new Params(request);
+        parameters.withMasterTimeout(usageRequest.masterNodeTimeout());
+        return request;
+    }
+
+    static Request putLicense(PutLicenseRequest putLicenseRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("license")
+            .build();
+        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+        Params parameters = new Params(request);
+        parameters.withTimeout(putLicenseRequest.timeout());
+        parameters.withMasterTimeout(putLicenseRequest.masterNodeTimeout());
+        if (putLicenseRequest.isAcknowledge()) {
+            parameters.putParam("acknowledge", "true");
+        }
+        request.setJsonEntity(putLicenseRequest.getLicenseDefinition());
+        return request;
+    }
+
+    static Request getLicense(GetLicenseRequest getLicenseRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("license")
+            .build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        Params parameters = new Params(request);
+        parameters.withLocal(getLicenseRequest.local());
+        return request;
+    }
+
+    static Request deleteLicense(DeleteLicenseRequest deleteLicenseRequest) {
+        Request request = new Request(HttpDelete.METHOD_NAME, "/_xpack/license");
+        Params parameters = new Params(request);
+        parameters.withTimeout(deleteLicenseRequest.timeout());
+        parameters.withMasterTimeout(deleteLicenseRequest.masterNodeTimeout());
+        return request;
+    }
+
+    static Request getMigrationAssistance(IndexUpgradeInfoRequest indexUpgradeInfoRequest) {
+        EndpointBuilder endpointBuilder = new EndpointBuilder()
+            .addPathPartAsIs("_xpack/migration/assistance")
+            .addCommaSeparatedPathParts(indexUpgradeInfoRequest.indices());
+        String endpoint = endpointBuilder.build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        Params parameters = new Params(request);
+        parameters.withIndicesOptions(indexUpgradeInfoRequest.indicesOptions());
+        return request;
+    }
+
+    static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
         BytesRef source = XContentHelper.toXContent(toXContent, xContentType, false).toBytesRef();
         return new ByteArrayEntity(source.bytes, source.offset, source.length, createContentType(xContentType));
     }
@@ -1205,7 +1389,7 @@ final class RequestConverters {
         }
 
         Params withIndicesOptions(IndicesOptions indicesOptions) {
-            putParam("ignore_unavailable", Boolean.toString(indicesOptions.ignoreUnavailable()));
+            withIgnoreUnavailable(indicesOptions.ignoreUnavailable());
             putParam("allow_no_indices", Boolean.toString(indicesOptions.allowNoIndices()));
             String expandWildcards;
             if (indicesOptions.expandWildcardsOpen() == false && indicesOptions.expandWildcardsClosed() == false) {
@@ -1221,6 +1405,12 @@ final class RequestConverters {
                 expandWildcards = joiner.toString();
             }
             putParam("expand_wildcards", expandWildcards);
+            return this;
+        }
+
+        Params withIgnoreUnavailable(boolean ignoreUnavailable) {
+            // Always explicitly place the ignore_unavailable value.
+            putParam("ignore_unavailable", Boolean.toString(ignoreUnavailable));
             return this;
         }
 

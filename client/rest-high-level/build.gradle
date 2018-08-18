@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.precommit.PrecommitTasks
-
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -18,35 +16,52 @@ import org.elasticsearch.gradle.precommit.PrecommitTasks
  * specific language governing permissions and limitations
  * under the License.
  */
+
+import org.elasticsearch.gradle.precommit.PrecommitTasks
+import org.elasticsearch.gradle.test.RestIntegTestTask
+import org.gradle.api.internal.provider.Providers
+
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'nebula.maven-base-publish'
 apply plugin: 'nebula.maven-scm'
+apply plugin: 'com.github.johnrengelman.shadow'
 
 group = 'org.elasticsearch.client'
 archivesBaseName = 'elasticsearch-rest-high-level-client'
 
 publishing {
-    publications {
-        nebula {
-            artifactId = archivesBaseName
-        }
+  publications {
+    nebula {
+      artifactId = archivesBaseName
     }
+  }
 }
 
+//we need to copy the yaml spec so we can check naming (see RestHighlevelClientTests#testApiNamingConventions)
+Task copyRestSpec = RestIntegTestTask.createCopyRestSpecTask(project, Providers.FALSE)
+test.dependsOn(copyRestSpec)
+
 dependencies {
-  compile "org.elasticsearch:elasticsearch:${version}"
-  compile "org.elasticsearch.client:elasticsearch-rest-client:${version}"
-  compile "org.elasticsearch.plugin:parent-join-client:${version}"
-  compile "org.elasticsearch.plugin:aggs-matrix-stats-client:${version}"
-  compile "org.elasticsearch.plugin:rank-eval-client:${version}"
-  compile "org.elasticsearch.plugin:lang-mustache-client:${version}"
+  /*
+   * Everything in the "shadow" configuration is *not* copied into the
+   * shadowJar.
+   */
+  shadow "org.elasticsearch:elasticsearch:${version}"
+  shadow "org.elasticsearch.client:elasticsearch-rest-client:${version}"
+  shadow "org.elasticsearch.plugin:parent-join-client:${version}"
+  shadow "org.elasticsearch.plugin:aggs-matrix-stats-client:${version}"
+  shadow "org.elasticsearch.plugin:rank-eval-client:${version}"
+  shadow "org.elasticsearch.plugin:lang-mustache-client:${version}"
+  compile project(':x-pack:protocol')
 
   testCompile "org.elasticsearch.client:test:${version}"
   testCompile "org.elasticsearch.test:framework:${version}"
   testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testCompile "junit:junit:${versions.junit}"
   testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
+  //this is needed to make RestHighLevelClientTests#testApiNamingConventions work from IDEs
+  testCompile "org.elasticsearch:rest-api-spec:${version}"
 }
 
 dependencyLicenses {
@@ -62,4 +77,8 @@ forbiddenApisMain {
   // specified
   signaturesURLs += [PrecommitTasks.getResource('/forbidden/http-signatures.txt')]
   signaturesURLs += [file('src/main/resources/forbidden/rest-high-level-signatures.txt').toURI().toURL()]
+}
+
+integTestCluster {
+  setting 'xpack.license.self_generated.type', 'trial'
 }

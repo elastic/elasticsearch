@@ -122,15 +122,20 @@ public class AzureStorageFixture extends AbstractHttpFixture {
             handlers.insert(path, (request) -> {
                 final String destContainerName = request.getParam("container");
                 final String destBlobName = objectName(request.getParameters());
+                final String ifNoneMatch = request.getHeader("If-None-Match");
 
                 final Container destContainer = containers.get(destContainerName);
                 if (destContainer == null) {
                     return newContainerNotFoundError(request.getId());
                 }
 
-                byte[] existingBytes = destContainer.objects.putIfAbsent(destBlobName, request.getBody());
-                if (existingBytes != null) {
-                    return newBlobAlreadyExistsError(request.getId());
+                if ("*".equals(ifNoneMatch)) {
+                    byte[] existingBytes = destContainer.objects.putIfAbsent(destBlobName, request.getBody());
+                    if (existingBytes != null) {
+                        return newBlobAlreadyExistsError(request.getId());
+                    }
+                } else {
+                    destContainer.objects.put(destBlobName, request.getBody());
                 }
 
                 return new Response(RestStatus.CREATED.getStatus(), TEXT_PLAIN_CONTENT_TYPE, EMPTY_BYTE);            })

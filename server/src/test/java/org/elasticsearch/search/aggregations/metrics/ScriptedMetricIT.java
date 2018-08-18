@@ -67,6 +67,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -90,42 +91,57 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
 
-            scripts.put("_agg['count'] = 1", vars ->
-                    aggScript(vars, agg -> ((Map<String, Object>) agg).put("count", 1)));
+            scripts.put("state['count'] = 1", vars ->
+                    aggScript(vars, state -> state.put("count", 1)));
 
-            scripts.put("_agg.add(1)", vars ->
-                    aggScript(vars, agg -> ((List) agg).add(1)));
+            scripts.put("state.list.add(1)", vars ->
+                    aggScript(vars, state -> {
+                        // Lazily populate state.list for tests without an init script
+                        if (state.containsKey("list") == false) {
+                            state.put("list", new ArrayList());
+                        }
 
-            scripts.put("_agg[param1] = param2", vars ->
-                    aggScript(vars, agg -> ((Map) agg).put(XContentMapValues.extractValue("params.param1", vars),
+                        ((List) state.get("list")).add(1);
+                    }));
+
+            scripts.put("state[param1] = param2", vars ->
+                    aggScript(vars, state -> state.put((String) XContentMapValues.extractValue("params.param1", vars),
                         XContentMapValues.extractValue("params.param2", vars))));
 
             scripts.put("vars.multiplier = 3", vars ->
                     ((Map<String, Object>) vars.get("vars")).put("multiplier", 3));
 
-            scripts.put("_agg.add(vars.multiplier)", vars ->
-                    aggScript(vars, agg -> ((List) agg).add(XContentMapValues.extractValue("vars.multiplier", vars))));
+            scripts.put("state.list.add(vars.multiplier)", vars ->
+                    aggScript(vars, state -> {
+                        // Lazily populate state.list for tests without an init script
+                        if (state.containsKey("list") == false) {
+                            state.put("list", new ArrayList());
+                        }
+
+                        ((List) state.get("list")).add(XContentMapValues.extractValue("vars.multiplier", vars));
+                    }));
 
             // Equivalent to:
             //
             // newaggregation = [];
             // sum = 0;
             //
-            // for (a in _agg) {
-            //      sum += a
+            // for (s in state.list) {
+            //      sum += s
             // };
             //
             // newaggregation.add(sum);
             // return newaggregation"
             //
-            scripts.put("sum agg values as a new aggregation", vars -> {
+            scripts.put("sum state values as a new aggregation", vars -> {
                 List newAggregation = new ArrayList();
-                List<?> agg = (List<?>) vars.get("_agg");
+                Map<String, Object> state = (Map<String, Object>) vars.get("state");
+                List<?> list = (List<?>) state.get("list");
 
-                if (agg != null) {
+                if (list != null) {
                     Integer sum = 0;
-                    for (Object a : (List) agg) {
-                        sum += ((Number) a).intValue();
+                    for (Object s : list) {
+                        sum += ((Number) s).intValue();
                     }
                     newAggregation.add(sum);
                 }
@@ -137,24 +153,41 @@ public class ScriptedMetricIT extends ESIntegTestCase {
             // newaggregation = [];
             // sum = 0;
             //
-            // for (aggregation in _aggs) {
-            //      for (a in aggregation) {
-            //          sum += a
+            // for (state in states) {
+            //      for (s in state) {
+            //          sum += s
             //      }
             // };
             //
             // newaggregation.add(sum);
             // return newaggregation"
             //
-            scripts.put("sum aggs of agg values as a new aggregation", vars -> {
+            scripts.put("sum all states (lists) values as a new aggregation", vars -> {
                 List newAggregation = new ArrayList();
                 Integer sum = 0;
 
-                List<?> aggs = (List<?>) vars.get("_aggs");
-                for (Object aggregation : (List) aggs) {
-                    if (aggregation != null) {
-                        for (Object a : (List) aggregation) {
-                            sum += ((Number) a).intValue();
+                List<List<?>> states = (List<List<?>>) vars.get("states");
+                for (List<?> list : states) {
+                    if (list != null) {
+                        for (Object s : list) {
+                            sum += ((Number) s).intValue();
+                        }
+                    }
+                }
+                newAggregation.add(sum);
+                return newAggregation;
+            });
+
+            scripts.put("sum all states' state.list values as a new aggregation", vars -> {
+                List newAggregation = new ArrayList();
+                Integer sum = 0;
+
+                List<Map<String, Object>> states = (List<Map<String, Object>>) vars.get("states");
+                for (Map<String, Object> state : states) {
+                    List<?> list = (List<?>) state.get("list");
+                    if (list != null) {
+                        for (Object s : list) {
+                            sum += ((Number) s).intValue();
                         }
                     }
                 }
@@ -167,25 +200,25 @@ public class ScriptedMetricIT extends ESIntegTestCase {
             // newaggregation = [];
             // sum = 0;
             //
-            // for (aggregation in _aggs) {
-            //      for (a in aggregation) {
-            //          sum += a
+            // for (state in states) {
+            //      for (s in state) {
+            //          sum += s
             //      }
             // };
             //
             // newaggregation.add(sum * multiplier);
             // return newaggregation"
             //
-            scripts.put("multiplied sum aggs of agg values as a new aggregation", vars -> {
+            scripts.put("multiplied sum all states (lists) values as a new aggregation", vars -> {
                 Integer multiplier = (Integer) vars.get("multiplier");
                 List newAggregation = new ArrayList();
                 Integer sum = 0;
 
-                List<?> aggs = (List<?>) vars.get("_aggs");
-                for (Object aggregation : (List) aggs) {
-                    if (aggregation != null) {
-                        for (Object a : (List) aggregation) {
-                            sum += ((Number) a).intValue();
+                List<List<?>> states = (List<List<?>>) vars.get("states");
+                for (List<?> list : states) {
+                    if (list != null) {
+                        for (Object s : list) {
+                            sum += ((Number) s).intValue();
                         }
                     }
                 }
@@ -193,53 +226,12 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                 return newAggregation;
             });
 
-            scripts.put("state.items = new ArrayList()", vars ->
-                aggContextScript(vars, state -> ((HashMap) state).put("items", new ArrayList())));
-
-            scripts.put("state.items.add(1)", vars ->
-                aggContextScript(vars, state -> {
-                    HashMap stateMap = (HashMap) state;
-                    List items = (List) stateMap.get("items");
-                    items.add(1);
-                }));
-
-            scripts.put("sum context state values", vars -> {
-                int sum = 0;
-                HashMap state = (HashMap) vars.get("state");
-                List items = (List) state.get("items");
-
-                for (Object x : items) {
-                    sum += (Integer)x;
-                }
-
-                return sum;
-            });
-
-            scripts.put("sum context states", vars -> {
-                Integer sum = 0;
-
-                List<?> states = (List<?>) vars.get("states");
-                for (Object state : states) {
-                    sum += ((Number) state).intValue();
-                }
-
-                return sum;
-            });
-
             return scripts;
         }
 
-        static <T> Object aggScript(Map<String, Object> vars, Consumer<T> fn) {
-            return aggScript(vars, fn, "_agg");
-        }
-
-        static <T> Object aggContextScript(Map<String, Object> vars, Consumer<T> fn) {
-            return aggScript(vars, fn, "state");
-        }
-
         @SuppressWarnings("unchecked")
-        private static <T> Object aggScript(Map<String, Object> vars, Consumer<T> fn, String stateVarName) {
-            T aggState = (T) vars.get(stateVarName);
+        static Map<String, Object> aggScript(Map<String, Object> vars, Consumer<Map<String, Object>> fn) {
+            Map<String, Object> aggState = (Map<String, Object>) vars.get("state");
             fn.accept(aggState);
             return aggState;
         }
@@ -285,17 +277,17 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         assertAcked(client().admin().cluster().preparePutStoredScript()
                 .setId("mapScript_stored")
                 .setContent(new BytesArray("{\"script\": {\"lang\": \"" + MockScriptPlugin.NAME + "\"," +
-                    " \"source\": \"_agg.add(vars.multiplier)\"} }"), XContentType.JSON));
+                    " \"source\": \"state.list.add(vars.multiplier)\"} }"), XContentType.JSON));
 
         assertAcked(client().admin().cluster().preparePutStoredScript()
                 .setId("combineScript_stored")
                 .setContent(new BytesArray("{\"script\": {\"lang\": \"" + MockScriptPlugin.NAME + "\"," +
-                    " \"source\": \"sum agg values as a new aggregation\"} }"), XContentType.JSON));
+                    " \"source\": \"sum state values as a new aggregation\"} }"), XContentType.JSON));
 
         assertAcked(client().admin().cluster().preparePutStoredScript()
                 .setId("reduceScript_stored")
                 .setContent(new BytesArray("{\"script\": {\"lang\": \"" + MockScriptPlugin.NAME + "\"," +
-                    " \"source\": \"sum aggs of agg values as a new aggregation\"} }"), XContentType.JSON));
+                    " \"source\": \"sum all states (lists) values as a new aggregation\"} }"), XContentType.JSON));
 
         indexRandom(true, builders);
         ensureSearchable();
@@ -315,9 +307,10 @@ public class ScriptedMetricIT extends ESIntegTestCase {
             // the name of the file script is used in test method while the source of the file script
             // must match a predefined script from CustomScriptPlugin.pluginScripts() method
             Files.write(scripts.resolve("init_script.mockscript"), "vars.multiplier = 3".getBytes("UTF-8"));
-            Files.write(scripts.resolve("map_script.mockscript"), "_agg.add(vars.multiplier)".getBytes("UTF-8"));
-            Files.write(scripts.resolve("combine_script.mockscript"), "sum agg values as a new aggregation".getBytes("UTF-8"));
-            Files.write(scripts.resolve("reduce_script.mockscript"), "sum aggs of agg values as a new aggregation".getBytes("UTF-8"));
+            Files.write(scripts.resolve("map_script.mockscript"), "state.list.add(vars.multiplier)".getBytes("UTF-8"));
+            Files.write(scripts.resolve("combine_script.mockscript"), "sum state values as a new aggregation".getBytes("UTF-8"));
+            Files.write(scripts.resolve("reduce_script.mockscript"),
+                "sum all states (lists) values as a new aggregation".getBytes("UTF-8"));
         } catch (IOException e) {
             throw new RuntimeException("failed to create scripts");
         }
@@ -329,7 +322,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
     }
 
     public void testMap() {
-        Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_agg['count'] = 1", Collections.emptyMap());
+        Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "state['count'] = 1", Collections.emptyMap());
 
         SearchResponse response = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
@@ -365,52 +358,12 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         assertThat(numShardsRun, greaterThan(0));
     }
 
-    public void testExplicitAggParam() {
-        Map<String, Object> params = new HashMap<>();
-        params.put("_agg", new ArrayList<>());
-
-        Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_agg.add(1)", Collections.emptyMap());
-
-        SearchResponse response = client().prepareSearch("idx")
-                .setQuery(matchAllQuery())
-                .addAggregation(scriptedMetric("scripted").params(params).mapScript(mapScript))
-                .get();
-        assertSearchResponse(response);
-        assertThat(response.getHits().getTotalHits(), equalTo(numDocs));
-
-        Aggregation aggregation = response.getAggregations().get("scripted");
-        assertThat(aggregation, notNullValue());
-        assertThat(aggregation, instanceOf(ScriptedMetric.class));
-        ScriptedMetric scriptedMetricAggregation = (ScriptedMetric) aggregation;
-        assertThat(scriptedMetricAggregation.getName(), equalTo("scripted"));
-        assertThat(scriptedMetricAggregation.aggregation(), notNullValue());
-        assertThat(scriptedMetricAggregation.aggregation(), instanceOf(ArrayList.class));
-        List<?> aggregationList = (List<?>) scriptedMetricAggregation.aggregation();
-        assertThat(aggregationList.size(), equalTo(getNumShards("idx").numPrimaries));
-        long totalCount = 0;
-        for (Object object : aggregationList) {
-            assertThat(object, notNullValue());
-            assertThat(object, instanceOf(List.class));
-            List<?> list = (List<?>) object;
-            for (Object o : list) {
-                assertThat(o, notNullValue());
-                assertThat(o, instanceOf(Number.class));
-                Number numberValue = (Number) o;
-                assertThat(numberValue, equalTo((Number) 1));
-                totalCount += numberValue.longValue();
-            }
-        }
-        assertThat(totalCount, equalTo(numDocs));
-    }
-
-    public void testMapWithParamsAndImplicitAggMap() {
+    public void testMapWithParams() {
         // Split the params up between the script and the aggregation.
-        // Don't put any _agg map in params.
         Map<String, Object> scriptParams = Collections.singletonMap("param1", "12");
         Map<String, Object> aggregationParams = Collections.singletonMap("param2", 1);
 
-        // The _agg hashmap will be available even if not declared in the params map
-        Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_agg[param1] = param2", scriptParams);
+        Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "state[param1] = param2", scriptParams);
 
         SearchResponse response = client().prepareSearch("idx")
             .setQuery(matchAllQuery())
@@ -454,7 +407,6 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         varsMap.put("multiplier", 1);
 
         Map<String, Object> params = new HashMap<>();
-        params.put("_agg", new ArrayList<>());
         params.put("vars", varsMap);
 
         SearchResponse response = client()
@@ -466,7 +418,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                                 .initScript(
                                     new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "vars.multiplier = 3", Collections.emptyMap()))
                                 .mapScript(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME,
-                                    "_agg.add(vars.multiplier)", Collections.emptyMap())))
+                                    "state.list.add(vars.multiplier)", Collections.emptyMap())))
                 .get();
         assertSearchResponse(response);
         assertThat(response.getHits().getTotalHits(), equalTo(numDocs));
@@ -483,8 +435,11 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         long totalCount = 0;
         for (Object object : aggregationList) {
             assertThat(object, notNullValue());
-            assertThat(object, instanceOf(List.class));
-            List<?> list = (List<?>) object;
+            assertThat(object, instanceOf(HashMap.class));
+            Map<String, Object> map = (Map<String, Object>) object;
+            assertThat(map, hasKey("list"));
+            assertThat(map.get("list"), instanceOf(List.class));
+            List<?> list = (List<?>) map.get("list");
             for (Object o : list) {
                 assertThat(o, notNullValue());
                 assertThat(o, instanceOf(Number.class));
@@ -501,12 +456,11 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         varsMap.put("multiplier", 1);
 
         Map<String, Object> params = new HashMap<>();
-        params.put("_agg", new ArrayList<>());
         params.put("vars", varsMap);
 
-        Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_agg.add(1)", Collections.emptyMap());
+        Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "state.list.add(1)", Collections.emptyMap());
         Script combineScript =
-            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "sum agg values as a new aggregation", Collections.emptyMap());
+            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "sum state values as a new aggregation", Collections.emptyMap());
 
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -553,13 +507,13 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         varsMap.put("multiplier", 1);
 
         Map<String, Object> params = new HashMap<>();
-        params.put("_agg", new ArrayList<>());
         params.put("vars", varsMap);
 
         Script initScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "vars.multiplier = 3", Collections.emptyMap());
-        Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_agg.add(vars.multiplier)", Collections.emptyMap());
+        Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "state.list.add(vars.multiplier)",
+            Collections.emptyMap());
         Script combineScript =
-            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "sum agg values as a new aggregation", Collections.emptyMap());
+            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "sum state values as a new aggregation", Collections.emptyMap());
 
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -607,15 +561,15 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         varsMap.put("multiplier", 1);
 
         Map<String, Object> params = new HashMap<>();
-        params.put("_agg", new ArrayList<>());
         params.put("vars", varsMap);
 
         Script initScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "vars.multiplier = 3", Collections.emptyMap());
-        Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_agg.add(vars.multiplier)", Collections.emptyMap());
+        Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "state.list.add(vars.multiplier)",
+            Collections.emptyMap());
         Script combineScript =
-            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "sum agg values as a new aggregation", Collections.emptyMap());
-        Script reduceScript =
-            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "sum aggs of agg values as a new aggregation", Collections.emptyMap());
+            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "sum state values as a new aggregation", Collections.emptyMap());
+        Script reduceScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME,
+            "sum all states (lists) values as a new aggregation", Collections.emptyMap());
 
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -652,15 +606,15 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         varsMap.put("multiplier", 1);
 
         Map<String, Object> params = new HashMap<>();
-        params.put("_agg", new ArrayList<>());
         params.put("vars", varsMap);
 
         Script initScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "vars.multiplier = 3", Collections.emptyMap());
-        Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_agg.add(vars.multiplier)", Collections.emptyMap());
+        Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "state.list.add(vars.multiplier)",
+            Collections.emptyMap());
         Script combineScript =
-            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "sum agg values as a new aggregation", Collections.emptyMap());
-        Script reduceScript =
-            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "sum aggs of agg values as a new aggregation", Collections.emptyMap());
+            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "sum state values as a new aggregation", Collections.emptyMap());
+        Script reduceScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME,
+            "sum all states (lists) values as a new aggregation", Collections.emptyMap());
 
         SearchResponse searchResponse = client()
                 .prepareSearch("idx")
@@ -707,14 +661,14 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         varsMap.put("multiplier", 1);
 
         Map<String, Object> params = new HashMap<>();
-        params.put("_agg", new ArrayList<>());
         params.put("vars", varsMap);
 
-        Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_agg.add(vars.multiplier)", Collections.emptyMap());
+        Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "state.list.add(vars.multiplier)",
+            Collections.emptyMap());
         Script combineScript =
-            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "sum agg values as a new aggregation", Collections.emptyMap());
-        Script reduceScript =
-            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "sum aggs of agg values as a new aggregation", Collections.emptyMap());
+            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "sum state values as a new aggregation", Collections.emptyMap());
+        Script reduceScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME,
+            "sum all states (lists) values as a new aggregation", Collections.emptyMap());
 
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -749,13 +703,13 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         varsMap.put("multiplier", 1);
 
         Map<String, Object> params = new HashMap<>();
-        params.put("_agg", new ArrayList<>());
         params.put("vars", varsMap);
 
         Script initScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "vars.multiplier = 3", Collections.emptyMap());
-        Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_agg.add(vars.multiplier)", Collections.emptyMap());
-        Script reduceScript =
-            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "sum aggs of agg values as a new aggregation", Collections.emptyMap());
+        Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "state.list.add(vars.multiplier)",
+            Collections.emptyMap());
+        Script reduceScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME,
+            "sum all states' state.list values as a new aggregation", Collections.emptyMap());
 
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -789,12 +743,12 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         Map<String, Object> varsMap = new HashMap<>();
         varsMap.put("multiplier", 1);
         Map<String, Object> params = new HashMap<>();
-        params.put("_agg", new ArrayList<>());
         params.put("vars", varsMap);
 
-        Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_agg.add(vars.multiplier)", Collections.emptyMap());
-        Script reduceScript =
-            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "sum aggs of agg values as a new aggregation", Collections.emptyMap());
+        Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "state.list.add(vars.multiplier)",
+            Collections.emptyMap());
+        Script reduceScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME,
+            "sum all states' state.list values as a new aggregation", Collections.emptyMap());
 
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -828,18 +782,18 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         varsMap.put("multiplier", 1);
 
         Map<String, Object> params = new HashMap<>();
-        params.put("_agg", new ArrayList<>());
         params.put("vars", varsMap);
 
         Map<String, Object> reduceParams = new HashMap<>();
         reduceParams.put("multiplier", 4);
 
         Script initScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "vars.multiplier = 3", Collections.emptyMap());
-        Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_agg.add(vars.multiplier)", Collections.emptyMap());
+        Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "state.list.add(vars.multiplier)",
+            Collections.emptyMap());
         Script combineScript =
-            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "sum agg values as a new aggregation", Collections.emptyMap());
-        Script reduceScript =
-            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "multiplied sum aggs of agg values as a new aggregation", reduceParams);
+            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "sum state values as a new aggregation", Collections.emptyMap());
+        Script reduceScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME,
+            "multiplied sum all states (lists) values as a new aggregation", reduceParams);
 
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -875,7 +829,6 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         varsMap.put("multiplier", 1);
 
         Map<String, Object> params = new HashMap<>();
-        params.put("_agg", new ArrayList<>());
         params.put("vars", varsMap);
 
         SearchResponse response = client()
@@ -916,15 +869,15 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         varsMap.put("multiplier", 1);
 
         Map<String, Object> params = new HashMap<>();
-        params.put("_agg", new ArrayList<>());
         params.put("vars", varsMap);
 
         Script initScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "vars.multiplier = 3", Collections.emptyMap());
-        Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_agg.add(vars.multiplier)", Collections.emptyMap());
+        Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "state.list.add(vars.multiplier)",
+            Collections.emptyMap());
         Script combineScript =
-            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "sum agg values as a new aggregation", Collections.emptyMap());
-        Script reduceScript =
-            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "sum aggs of agg values as a new aggregation", Collections.emptyMap());
+            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "sum state values as a new aggregation", Collections.emptyMap());
+        Script reduceScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME,
+            "sum all states (lists) values as a new aggregation", Collections.emptyMap());
 
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -977,15 +930,15 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         varsMap.put("multiplier", 1);
 
         Map<String, Object> params = new HashMap<>();
-        params.put("_agg", new ArrayList<>());
         params.put("vars", varsMap);
 
         Script initScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "vars.multiplier = 3", Collections.emptyMap());
-        Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_agg.add(vars.multiplier)", Collections.emptyMap());
+        Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "state.list.add(vars.multiplier)",
+            Collections.emptyMap());
         Script combineScript =
-            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "sum agg values as a new aggregation", Collections.emptyMap());
-        Script reduceScript =
-            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "sum aggs of agg values as a new aggregation", Collections.emptyMap());
+            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "sum state values as a new aggregation", Collections.emptyMap());
+        Script reduceScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME,
+            "sum all states (lists) values as a new aggregation", Collections.emptyMap());
 
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
@@ -1021,7 +974,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
      * not using a script does get cached.
      */
     public void testDontCacheScripts() throws Exception {
-        Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_agg['count'] = 1", Collections.emptyMap());
+        Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "state['count'] = 1", Collections.emptyMap());
         assertAcked(prepareCreate("cache_test_idx").addMapping("type", "d", "type=long")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
                 .get());
@@ -1047,7 +1000,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
 
     public void testConflictingAggAndScriptParams() {
         Map<String, Object> params = Collections.singletonMap("param1", "12");
-        Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_agg.add(1)", params);
+        Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "state.list.add(1)", params);
 
         SearchRequestBuilder builder = client().prepareSearch("idx")
             .setQuery(matchAllQuery())
@@ -1055,38 +1008,5 @@ public class ScriptedMetricIT extends ESIntegTestCase {
 
         SearchPhaseExecutionException ex = expectThrows(SearchPhaseExecutionException.class, builder::get);
         assertThat(ex.getCause().getMessage(), containsString("Parameter name \"param1\" used in both aggregation and script parameters"));
-    }
-
-    public void testAggFromContext() {
-        Script initScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "state.items = new ArrayList()", Collections.emptyMap());
-        Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "state.items.add(1)", Collections.emptyMap());
-        Script combineScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "sum context state values", Collections.emptyMap());
-        Script reduceScript =
-            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "sum context states",
-                Collections.emptyMap());
-
-        SearchResponse response = client()
-            .prepareSearch("idx")
-            .setQuery(matchAllQuery())
-            .addAggregation(
-                scriptedMetric("scripted")
-                    .initScript(initScript)
-                    .mapScript(mapScript)
-                    .combineScript(combineScript)
-                    .reduceScript(reduceScript))
-            .get();
-
-        Aggregation aggregation = response.getAggregations().get("scripted");
-        assertThat(aggregation, notNullValue());
-        assertThat(aggregation, instanceOf(ScriptedMetric.class));
-
-        ScriptedMetric scriptedMetricAggregation = (ScriptedMetric) aggregation;
-        assertThat(scriptedMetricAggregation.getName(), equalTo("scripted"));
-        assertThat(scriptedMetricAggregation.aggregation(), notNullValue());
-
-        assertThat(scriptedMetricAggregation.aggregation(), instanceOf(Integer.class));
-        Integer aggResult = (Integer) scriptedMetricAggregation.aggregation();
-        long totalAgg = aggResult.longValue();
-        assertThat(totalAgg, equalTo(numDocs));
     }
 }

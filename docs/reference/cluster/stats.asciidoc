@@ -22,6 +22,7 @@ Will return, for example:
       "successful" : 1,
       "failed" : 0
    },
+   "cluster_uuid": "YjAvIhsCQ9CbjWZb2qJw3Q",
    "cluster_name": "elasticsearch",
    "timestamp": 1459427693515,
    "status": "green",

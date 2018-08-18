@@ -6,11 +6,15 @@
 package org.elasticsearch.xpack.watcher.transport.actions.ack;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -20,11 +24,13 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.watcher.WatcherMetaData;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionSnapshot;
 import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchResponse;
+import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsAction;
+import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsResponse;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
-import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.junit.Before;
 
@@ -34,6 +40,7 @@ import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.anyObject;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -41,7 +48,6 @@ import static org.mockito.Mockito.when;
 public class TransportAckWatchActionTests extends ESTestCase {
 
     private TransportAckWatchAction action;
-    private ExecutionService executionService;
     private Client client;
 
     @Before
@@ -51,11 +57,10 @@ public class TransportAckWatchActionTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
         WatchParser watchParser = mock(WatchParser.class);
-        executionService = mock(ExecutionService.class);
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
         action = new TransportAckWatchAction(Settings.EMPTY, transportService, new ActionFilters(Collections.emptySet()),
-            Clock.systemUTC(), new XPackLicenseState(Settings.EMPTY), watchParser, executionService, client);
+            Clock.systemUTC(), new XPackLicenseState(Settings.EMPTY), watchParser, client);
     }
 
     public void testWatchNotFound() {
@@ -66,6 +71,13 @@ public class TransportAckWatchActionTests extends ESTestCase {
                     BytesArray.EMPTY, Collections.emptyMap())));
             return null;
         }).when(client).get(anyObject(), anyObject());
+
+        doAnswer(invocation -> {
+            ContextPreservingActionListener listener = (ContextPreservingActionListener) invocation.getArguments()[2];
+            listener.onResponse(new WatcherStatsResponse(new ClusterName("clusterName"), new WatcherMetaData(false),
+                Collections.emptyList(), Collections.emptyList()));
+            return null;
+        }).when(client).execute(eq(WatcherStatsAction.INSTANCE), anyObject(), anyObject());
 
         AckWatchRequest ackWatchRequest = new AckWatchRequest(watchId);
         PlainActionFuture<AckWatchResponse> listener = PlainActionFuture.newFuture();
@@ -78,9 +90,18 @@ public class TransportAckWatchActionTests extends ESTestCase {
 
     public void testThatWatchCannotBeAckedWhileRunning() {
         String watchId = "my_watch_id";
-        WatchExecutionSnapshot snapshot = mock(WatchExecutionSnapshot.class);
-        when(snapshot.watchId()).thenReturn(watchId);
-        when(executionService.currentExecutions()).thenReturn(Collections.singletonList(snapshot));
+
+        doAnswer(invocation -> {
+            ContextPreservingActionListener listener = (ContextPreservingActionListener) invocation.getArguments()[2];
+            DiscoveryNode discoveryNode = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
+            WatcherStatsResponse.Node node = new WatcherStatsResponse.Node(discoveryNode);
+            WatchExecutionSnapshot snapshot = mock(WatchExecutionSnapshot.class);
+            when(snapshot.watchId()).thenReturn(watchId);
+            node.setSnapshots(Collections.singletonList(snapshot));
+            listener.onResponse(new WatcherStatsResponse(new ClusterName("clusterName"),
+                new WatcherMetaData(false), Collections.singletonList(node), Collections.emptyList()));
+            return null;
+        }).when(client).execute(eq(WatcherStatsAction.INSTANCE), anyObject(), anyObject());
 
         AckWatchRequest ackWatchRequest = new AckWatchRequest(watchId);
         PlainActionFuture<AckWatchResponse> listener = PlainActionFuture.newFuture();

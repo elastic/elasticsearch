@@ -24,7 +24,6 @@ import org.elasticsearch.gradle.VersionProperties
 import org.gradle.api.DefaultTask
 import org.gradle.api.Project
 import org.gradle.api.Task
-import org.gradle.api.Transformer
 import org.gradle.api.execution.TaskExecutionAdapter
 import org.gradle.api.internal.tasks.options.Option
 import org.gradle.api.provider.Property
@@ -32,6 +31,7 @@ import org.gradle.api.provider.Provider
 import org.gradle.api.tasks.Copy
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.TaskState
+import org.gradle.plugins.ide.idea.IdeaPlugin
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
@@ -217,7 +217,7 @@ public class RestIntegTestTask extends DefaultTask {
      * @param project The project to add the copy task to
      * @param includePackagedTests true if the packaged tests should be copied, false otherwise
      */
-    private static Task createCopyRestSpecTask(Project project, Provider<Boolean> includePackagedTests) {
+    static Task createCopyRestSpecTask(Project project, Provider<Boolean> includePackagedTests) {
         project.configurations {
             restSpec
         }
@@ -244,10 +244,12 @@ public class RestIntegTestTask extends DefaultTask {
                 }
             }
         }
-        project.idea {
-            module {
-                if (scopes.TEST != null) {
-                    scopes.TEST.plus.add(project.configurations.restSpec)
+        if (project.plugins.hasPlugin(IdeaPlugin)) {
+            project.idea {
+                module {
+                    if (scopes.TEST != null) {
+                        scopes.TEST.plus.add(project.configurations.restSpec)
+                    }
                 }
             }
         }

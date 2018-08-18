@@ -63,7 +63,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         long docsInPrimaryShards = 100;
         long docsInShards = 200;
 
-        final Condition condition = createTestCondition();
+        final Condition<?> condition = createTestCondition();
         evaluateConditions(Sets.newHashSet(condition), createMetaData(), createIndicesStatResponse(docsInShards, docsInPrimaryShards));
         final ArgumentCaptor<Condition.Stats> argument = ArgumentCaptor.forClass(Condition.Stats.class);
         verify(condition).evaluate(argument.capture());
@@ -89,7 +89,7 @@ public class TransportRolloverActionTests extends ESTestCase {
             .creationDate(System.currentTimeMillis() - TimeValue.timeValueHours(3).getMillis())
             .settings(settings)
             .build();
-        final Set<Condition> conditions = Sets.newHashSet(maxDocsCondition, maxAgeCondition, maxSizeCondition);
+        final Set<Condition<?>> conditions = Sets.newHashSet(maxDocsCondition, maxAgeCondition, maxSizeCondition);
         Map<String, Boolean> results = evaluateConditions(conditions,
             new DocsStats(matchMaxDocs, 0L, ByteSizeUnit.MB.toBytes(120)), metaData);
         assertThat(results.size(), equalTo(3));
@@ -117,7 +117,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         MaxAgeCondition maxAgeCondition = new MaxAgeCondition(TimeValue.timeValueHours(randomIntBetween(1, 3)));
         MaxSizeCondition maxSizeCondition = new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong()));
 
-        Set<Condition> conditions = Sets.newHashSet(maxDocsCondition, maxAgeCondition, maxSizeCondition);
+        Set<Condition<?>> conditions = Sets.newHashSet(maxDocsCondition, maxAgeCondition, maxSizeCondition);
         final Settings settings = Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
@@ -172,39 +172,75 @@ public class TransportRolloverActionTests extends ESTestCase {
         assertTrue(foundRemove);
     }
 
+    public void testCreateUpdateAliasRequestWithExplicitWriteIndex() {
+        String sourceAlias = randomAlphaOfLength(10);
+        String sourceIndex = randomAlphaOfLength(10);
+        String targetIndex = randomAlphaOfLength(10);
+        final RolloverRequest rolloverRequest = new RolloverRequest(sourceAlias, targetIndex);
+        final IndicesAliasesClusterStateUpdateRequest updateRequest =
+            TransportRolloverAction.prepareRolloverAliasesWriteIndexUpdateRequest(sourceIndex, targetIndex, rolloverRequest);
+
+        List<AliasAction> actions = updateRequest.actions();
+        assertThat(actions, hasSize(2));
+        boolean foundAddWrite = false;
+        boolean foundRemoveWrite = false;
+        for (AliasAction action : actions) {
+            AliasAction.Add addAction = (AliasAction.Add) action;
+            if (action.getIndex().equals(targetIndex)) {
+                assertEquals(sourceAlias, addAction.getAlias());
+                assertTrue(addAction.writeIndex());
+                foundAddWrite = true;
+            } else if (action.getIndex().equals(sourceIndex)) {
+                assertEquals(sourceAlias, addAction.getAlias());
+                assertFalse(addAction.writeIndex());
+                foundRemoveWrite = true;
+            } else {
+                throw new AssertionError("Unknow index [" + action.getIndex() + "]");
+            }
+        }
+        assertTrue(foundAddWrite);
+        assertTrue(foundRemoveWrite);
+    }
+
     public void testValidation() {
         String index1 = randomAlphaOfLength(10);
-        String alias = randomAlphaOfLength(10);
+        String aliasWithWriteIndex = randomAlphaOfLength(10);
         String index2 = randomAlphaOfLength(10);
-        String aliasWithMultipleIndices = randomAlphaOfLength(10);
+        String aliasWithNoWriteIndex = randomAlphaOfLength(10);
+        Boolean firstIsWriteIndex = randomFrom(false, null);
         final Settings settings = Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             .build();
-        final MetaData metaData = MetaData.builder()
+        MetaData.Builder metaDataBuilder = MetaData.builder()
             .put(IndexMetaData.builder(index1)
                 .settings(settings)
-                .putAlias(AliasMetaData.builder(alias))
-                .putAlias(AliasMetaData.builder(aliasWithMultipleIndices))
-            )
-            .put(IndexMetaData.builder(index2)
-                .settings(settings)
-                .putAlias(AliasMetaData.builder(aliasWithMultipleIndices))
-            ).build();
+                .putAlias(AliasMetaData.builder(aliasWithWriteIndex))
+                .putAlias(AliasMetaData.builder(aliasWithNoWriteIndex).writeIndex(firstIsWriteIndex))
+            );
+        IndexMetaData.Builder indexTwoBuilder = IndexMetaData.builder(index2).settings(settings);
+        if (firstIsWriteIndex == null) {
+            indexTwoBuilder.putAlias(AliasMetaData.builder(aliasWithNoWriteIndex).writeIndex(randomFrom(false, null)));
+        }
+        metaDataBuilder.put(indexTwoBuilder);
+        MetaData metaData = metaDataBuilder.build();
 
-        expectThrows(IllegalArgumentException.class, () ->
-            TransportRolloverAction.validate(metaData, new RolloverRequest(aliasWithMultipleIndices,
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () ->
+            TransportRolloverAction.validate(metaData, new RolloverRequest(aliasWithNoWriteIndex,
                 randomAlphaOfLength(10))));
-        expectThrows(IllegalArgumentException.class, () ->
+        assertThat(exception.getMessage(), equalTo("source alias [" + aliasWithNoWriteIndex + "] does not point to a write index"));
+        exception = expectThrows(IllegalArgumentException.class, () ->
             TransportRolloverAction.validate(metaData, new RolloverRequest(randomFrom(index1, index2),
                 randomAlphaOfLength(10))));
-        expectThrows(IllegalArgumentException.class, () ->
+        assertThat(exception.getMessage(), equalTo("source alias is a concrete index"));
+        exception = expectThrows(IllegalArgumentException.class, () ->
             TransportRolloverAction.validate(metaData, new RolloverRequest(randomAlphaOfLength(5),
                 randomAlphaOfLength(10)))
         );
-        TransportRolloverAction.validate(metaData, new RolloverRequest(alias, randomAlphaOfLength(10)));
+        assertThat(exception.getMessage(), equalTo("source alias does not exist"));
+        TransportRolloverAction.validate(metaData, new RolloverRequest(aliasWithWriteIndex, randomAlphaOfLength(10)));
     }
 
     public void testGenerateRolloverIndexName() {
@@ -248,7 +284,7 @@ public class TransportRolloverActionTests extends ESTestCase {
     public void testRejectDuplicateAlias() {
         final IndexTemplateMetaData template = IndexTemplateMetaData.builder("test-template")
             .patterns(Arrays.asList("foo-*", "bar-*"))
-            .putAlias(AliasMetaData.builder("foo-write")).putAlias(AliasMetaData.builder("bar-write"))
+            .putAlias(AliasMetaData.builder("foo-write")).putAlias(AliasMetaData.builder("bar-write").writeIndex(randomBoolean()))
             .build();
         final MetaData metaData = MetaData.builder().put(createMetaData(), false).put(template).build();
         String indexName = randomFrom("foo-123", "bar-xyz");
@@ -285,8 +321,8 @@ public class TransportRolloverActionTests extends ESTestCase {
             .build();
     }
 
-    private static Condition createTestCondition() {
-        final Condition condition = mock(Condition.class);
+    private static Condition<?> createTestCondition() {
+        final Condition<?> condition = mock(Condition.class);
         when(condition.evaluate(any())).thenReturn(new Condition.Result(condition, true));
         return condition;
     }

@@ -39,15 +39,17 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestResponseListener;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -379,7 +381,8 @@ public class RestIndicesAction extends AbstractCatAction {
             table.addCell(primaryStats.getDocs() == null ? null : primaryStats.getDocs().getDeleted());
 
             table.addCell(indexMetaData.getCreationDate());
-            table.addCell(new DateTime(indexMetaData.getCreationDate(), DateTimeZone.UTC));
+            ZonedDateTime creationTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(indexMetaData.getCreationDate()), ZoneOffset.UTC);
+            table.addCell(DateFormatters.forPattern("strict_date_time").format(creationTime));
 
             table.addCell(totalStats.getStore() == null ? null : totalStats.getStore().size());
             table.addCell(primaryStats.getStore() == null ? null : primaryStats.getStore().size());

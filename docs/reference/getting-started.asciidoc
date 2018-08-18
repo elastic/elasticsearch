@@ -93,7 +93,8 @@ Replication is important for two primary reasons:
 
 
 To summarize, each index can be split into multiple shards. An index can also be replicated zero (meaning no replicas) or more times. Once replicated, each index will have primary shards (the original shards that were replicated from) and replica shards (the copies of the primary shards).
-The number of shards and replicas can be defined per index at the time the index is created. After the index is created, you may change the number of replicas dynamically anytime but you cannot change the number of shards after-the-fact.
+
+The number of shards and replicas can be defined per index at the time the index is created. After the index is created, you may also change the number of replicas dynamically anytime. You can change the number of shards for an existing index using the {ref}/indices-shrink-index.html[`_shrink`] and {ref}/indices-split-index.html[`_split`] APIs, however this is not a trivial task and pre-planning for the correct number of shards is the optimal approach.
 
 By default, each index in Elasticsearch is allocated one primary shard and one replica which means that if you have at least two nodes in your cluster, your index will have one primary shard and another replica shard (one complete replica) for a total of two shards per index.
 
@@ -103,6 +104,15 @@ You can monitor shard sizes using the {ref}/cat-shards.html[`_cat/shards`] API.
 With that out of the way, let's get started with the fun part...
 
 == Installation
+
+[TIP]
+==============
+You can skip having to install Elasticsearch by using our
+https://www.elastic.co/cloud/elasticsearch-service[hosted Elasticsearch Service]
+on Elastic Cloud. The Elasticsearch Service is available on both AWS and GCP.
+https://www.elastic.co/cloud/elasticsearch-service/signup[Try out the
+Elasticsearch Service for free].
+==============
 
 Elasticsearch requires at least Java 8. Specifically as of this writing, it is recommended that you use the Oracle JDK version {jdk}. Java installation varies from platform to platform so we won't go into those details here. Oracle's recommended installation documentation can be found on http://docs.oracle.com/javase/8/docs/technotes/guides/install/install_overview.html[Oracle's website]. Suffice to say, before you install Elasticsearch, please check your Java version first by running (and then install/upgrade accordingly if needed):
 
@@ -1113,7 +1123,7 @@ In SQL, the above aggregation is similar in concept to:
 
 [source,sh]
 --------------------------------------------------
-SELECT state, COUNT(*) FROM bank GROUP BY state ORDER BY COUNT(*) DESC
+SELECT state, COUNT(*) FROM bank GROUP BY state ORDER BY COUNT(*) DESC LIMIT 10;
 --------------------------------------------------
 
 And the response (partially shown):

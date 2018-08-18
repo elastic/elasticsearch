@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.security.authc.support;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.SecureString;
 
@@ -438,7 +439,8 @@ public enum Hasher {
 
     /**
      * Returns a {@link Hasher} instance that can be used to verify the {@code hash} by inspecting the
-     * hash prefix and determining the algorithm used for its generation.
+     * hash prefix and determining the algorithm used for its generation. If no specific algorithm
+     * prefix, can be determined {@code Hasher.NOOP} is returned.
      *
      * @param hash the char array from which the hashing algorithm is to be deduced
      * @return the hasher that can be used for validation
@@ -457,7 +459,8 @@ public enum Hasher {
         } else if (CharArrays.charsBeginsWith(SSHA256_PREFIX, hash)) {
             return Hasher.SSHA256;
         } else {
-            throw new IllegalArgumentException("unknown hash format for hash [" + new String(hash) + "]");
+            // This is either a non hashed password from cache or a corrupted hash string.
+            return Hasher.NOOP;
         }
     }
 
@@ -471,13 +474,8 @@ public enum Hasher {
      * @return true if the hash corresponds to the data, false otherwise
      */
     public static boolean verifyHash(SecureString data, char[] hash) {
-        try {
-            final Hasher hasher = resolveFromHash(hash);
-            return hasher.verify(data, hash);
-        } catch (IllegalArgumentException e) {
-            // The password hash format is invalid, we're unable to verify password
-            return false;
-        }
+        final Hasher hasher = resolveFromHash(hash);
+        return hasher.verify(data, hash);
     }
 
     private static char[] getPbkdf2Hash(SecureString data, int cost) {

@@ -104,6 +104,14 @@ public abstract class Expressions {
         return null;
     }
 
+    public static boolean equalsAsAttribute(Expression left, Expression right) {
+        if (!left.semanticEquals(right)) {
+            Attribute l = attribute(left);
+            return (l != null && l.semanticEquals(attribute(right)));
+        }
+        return true;
+    }
+
     public static TypeResolution typeMustBe(Expression e, Predicate<Expression> predicate, String message) {
         return predicate.test(e) ? TypeResolution.TYPE_RESOLVED : new TypeResolution(message);
     }

@@ -95,8 +95,12 @@ public class SimpleMockNioTransportTests extends AbstractSimpleTransportTestCase
     }
 
     @Override
+    protected int channelsPerNodeConnection() {
+        return 3;
+    }
+
+    @Override
     protected void closeConnectionChannel(Transport transport, Transport.Connection connection) throws IOException {
-        @SuppressWarnings("unchecked")
         TcpTransport.NodeChannels channels = (TcpTransport.NodeChannels) connection;
         CloseableChannel.closeChannels(channels.getChannels().subList(0, randomIntBetween(1, channels.getChannels().size())), true);
     }

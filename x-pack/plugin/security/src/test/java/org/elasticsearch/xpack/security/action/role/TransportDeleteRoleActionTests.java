@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleRequest;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleResponse;
@@ -42,8 +43,8 @@ public class TransportDeleteRoleActionTests extends ESTestCase {
     public void testReservedRole() {
         final String roleName = randomFrom(new ArrayList<>(ReservedRolesStore.names()));
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
-        TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                (x) -> null, null, Collections.emptySet());
+        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR, (x) -> null, null, Collections.emptySet());
         TransportDeleteRoleAction action = new TransportDeleteRoleAction(Settings.EMPTY, mock(ActionFilters.class),
                 rolesStore, transportService);
 
@@ -73,8 +74,8 @@ public class TransportDeleteRoleActionTests extends ESTestCase {
     public void testValidRole() {
         final String roleName = randomFrom("admin", "dept_a", "restricted");
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
-        TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                (x) -> null, null, Collections.emptySet());
+        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR, (x) -> null, null, Collections.emptySet());
         TransportDeleteRoleAction action = new TransportDeleteRoleAction(Settings.EMPTY, mock(ActionFilters.class),
                 rolesStore, transportService);
 
@@ -117,8 +118,8 @@ public class TransportDeleteRoleActionTests extends ESTestCase {
         final Exception e = randomFrom(new ElasticsearchSecurityException(""), new IllegalStateException());
         final String roleName = randomFrom("admin", "dept_a", "restricted");
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
-        TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                (x) -> null, null, Collections.emptySet());
+        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR, (x) -> null, null, Collections.emptySet());
         TransportDeleteRoleAction action = new TransportDeleteRoleAction(Settings.EMPTY, mock(ActionFilters.class),
                 rolesStore, transportService);
 

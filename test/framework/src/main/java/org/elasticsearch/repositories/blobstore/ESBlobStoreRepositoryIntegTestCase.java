@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.repositories.blobstore;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequestBuilder;
@@ -27,34 +28,61 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Basic integration tests for blob-based repository validation.
  */
 public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase {
 
-    protected abstract void createTestRepository(String name);
+    protected abstract void createTestRepository(String name, boolean verify);
+
+    protected void afterCreationCheck(Repository repository) {
+
+    }
+
+    protected void createAndCheckTestRepository(String name) {
+        final boolean verify = randomBoolean();
+        createTestRepository(name, verify);
+
+        final Iterable<RepositoriesService> repositoriesServices =
+            internalCluster().getDataOrMasterNodeInstances(RepositoriesService.class);
+
+        for (RepositoriesService repositoriesService : repositoriesServices) {
+            final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(name);
+
+            afterCreationCheck(repository);
+            assertThat("blob store has to be lazy initialized",
+                repository.getBlobStore(), verify ? is(notNullValue()) : is(nullValue()));
+        }
+
+    }
 
     public void testSnapshotAndRestore() throws Exception {
         final String repoName = randomAsciiName();
         logger.info("-->  creating repository {}", repoName);
-        createTestRepository(repoName);
+        createAndCheckTestRepository(repoName);
         int indexCount = randomIntBetween(1, 5);
         int[] docCounts = new int[indexCount];
         String[] indexNames = generateRandomNames(indexCount);
@@ -125,7 +153,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
     public void testMultipleSnapshotAndRollback() throws Exception {
         String repoName = randomAsciiName();
         logger.info("-->  creating repository {}", repoName);
-        createTestRepository(repoName);
+        createAndCheckTestRepository(repoName);
         int iterationCount = randomIntBetween(2, 5);
         int[] docCounts = new int[iterationCount];
         String indexName = randomAsciiName();
@@ -177,12 +205,12 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         }
     }
 
-    public void testIndicesDeletedFromRepository() {
+    public void testIndicesDeletedFromRepository() throws Exception {
         Client client = client();
 
         logger.info("-->  creating repository");
         final String repoName = "test-repo";
-        createTestRepository(repoName);
+        createAndCheckTestRepository(repoName);
 
         createIndex("test-idx-1", "test-idx-2", "test-idx-3");
         ensureGreen();
@@ -219,12 +247,22 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
 
         logger.info("--> verify index folder deleted from blob container");
         RepositoriesService repositoriesSvc = internalCluster().getInstance(RepositoriesService.class, internalCluster().getMasterName());
-        @SuppressWarnings("unchecked") BlobStoreRepository repository = (BlobStoreRepository) repositoriesSvc.repository(repoName);
-        BlobContainer indicesBlobContainer = repository.blobStore().blobContainer(repository.basePath().add("indices"));
-        RepositoryData repositoryData = repository.getRepositoryData();
-        for (IndexId indexId : repositoryData.getIndices().values()) {
+        ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, internalCluster().getMasterName());
+        BlobStoreRepository repository = (BlobStoreRepository) repositoriesSvc.repository(repoName);
+
+        final SetOnce<BlobContainer> indicesBlobContainer = new SetOnce<>();
+        final SetOnce<RepositoryData> repositoryData = new SetOnce<>();
+        final CountDownLatch latch = new CountDownLatch(1);
+        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
+            indicesBlobContainer.set(repository.blobStore().blobContainer(repository.basePath().add("indices")));
+            repositoryData.set(repository.getRepositoryData());
+            latch.countDown();
+        });
+
+        latch.await();
+        for (IndexId indexId : repositoryData.get().getIndices().values()) {
             if (indexId.getName().equals("test-idx-3")) {
-                assertFalse(indicesBlobContainer.blobExists(indexId.getId())); // deleted index
+                assertFalse(indicesBlobContainer.get().blobExists(indexId.getId())); // deleted index
             }
         }
     }

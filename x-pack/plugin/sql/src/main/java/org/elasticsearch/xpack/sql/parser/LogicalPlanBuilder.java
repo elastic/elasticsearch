@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.GroupByContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.JoinCriteriaContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.JoinRelationContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.JoinTypeContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.LimitClauseContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.NamedQueryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.QueryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.QueryNoWithContext;
@@ -89,9 +90,13 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
             plan = new OrderBy(source(ctx.ORDER()), plan, visitList(ctx.orderBy(), Order.class));
         }
 
-        if (ctx.limit != null && ctx.INTEGER_VALUE() != null) {
-            plan = new Limit(source(ctx.limit), new Literal(source(ctx),
-                    Integer.parseInt(ctx.limit.getText()), DataType.INTEGER), plan);
+        LimitClauseContext limitClause = ctx.limitClause();
+        if (limitClause != null) {
+            Token limit = limitClause.limit;
+            if (limit != null && limitClause.INTEGER_VALUE() != null) {
+                plan = new Limit(source(limitClause), new Literal(source(limitClause),
+                        Integer.parseInt(limit.getText()), DataType.INTEGER), plan);
+            }
         }
 
         return plan;

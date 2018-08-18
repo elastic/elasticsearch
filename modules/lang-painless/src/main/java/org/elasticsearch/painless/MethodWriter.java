@@ -19,8 +19,9 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.Definition.Cast;
-import org.elasticsearch.painless.Definition.def;
+import org.elasticsearch.painless.lookup.PainlessCast;
+import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.lookup.def;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
@@ -28,6 +29,7 @@ import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.GeneratorAdapter;
 import org.objectweb.asm.commons.Method;
 
+import java.lang.reflect.Modifier;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -54,6 +56,7 @@ import static org.elasticsearch.painless.WriterConstants.DEF_TO_SHORT_EXPLICIT;
 import static org.elasticsearch.painless.WriterConstants.DEF_TO_SHORT_IMPLICIT;
 import static org.elasticsearch.painless.WriterConstants.DEF_UTIL_TYPE;
 import static org.elasticsearch.painless.WriterConstants.INDY_STRING_CONCAT_BOOTSTRAP_HANDLE;
+import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
 import static org.elasticsearch.painless.WriterConstants.MAX_INDY_STRING_CONCAT_ARGS;
 import static org.elasticsearch.painless.WriterConstants.PAINLESS_ERROR_TYPE;
 import static org.elasticsearch.painless.WriterConstants.STRINGBUILDER_APPEND_BOOLEAN;
@@ -130,54 +133,54 @@ public final class MethodWriter extends GeneratorAdapter {
         mark(end);
     }
 
-    public void writeCast(Cast cast) {
+    public void writeCast(PainlessCast cast) {
         if (cast != null) {
-            if (cast.from == char.class && cast.to == String.class) {
+            if (cast.originalType == char.class && cast.targetType == String.class) {
                 invokeStatic(UTILITY_TYPE, CHAR_TO_STRING);
-            } else if (cast.from == String.class && cast.to == char.class) {
+            } else if (cast.originalType == String.class && cast.targetType == char.class) {
                 invokeStatic(UTILITY_TYPE, STRING_TO_CHAR);
-            } else if (cast.unboxFrom != null) {
-                unbox(getType(cast.unboxFrom));
-                writeCast(cast.from, cast.to);
-            } else if (cast.unboxTo != null) {
-                if (cast.from == def.class) {
-                    if (cast.explicit) {
-                        if      (cast.to == Boolean.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_BOOLEAN);
-                        else if (cast.to == Byte.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_BYTE_EXPLICIT);
-                        else if (cast.to == Short.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_SHORT_EXPLICIT);
-                        else if (cast.to == Character.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_CHAR_EXPLICIT);
-                        else if (cast.to == Integer.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_INT_EXPLICIT);
-                        else if (cast.to == Long.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_LONG_EXPLICIT);
-                        else if (cast.to == Float.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_FLOAT_EXPLICIT);
-                        else if (cast.to == Double.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_DOUBLE_EXPLICIT);
+            } else if (cast.unboxOriginalType != null) {
+                unbox(getType(cast.unboxOriginalType));
+                writeCast(cast.originalType, cast.targetType);
+            } else if (cast.unboxTargetType != null) {
+                if (cast.originalType == def.class) {
+                    if (cast.explicitCast) {
+                        if      (cast.targetType == Boolean.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_BOOLEAN);
+                        else if (cast.targetType == Byte.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_BYTE_EXPLICIT);
+                        else if (cast.targetType == Short.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_SHORT_EXPLICIT);
+                        else if (cast.targetType == Character.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_CHAR_EXPLICIT);
+                        else if (cast.targetType == Integer.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_INT_EXPLICIT);
+                        else if (cast.targetType == Long.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_LONG_EXPLICIT);
+                        else if (cast.targetType == Float.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_FLOAT_EXPLICIT);
+                        else if (cast.targetType == Double.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_DOUBLE_EXPLICIT);
                         else {
                             throw new IllegalStateException("Illegal tree structure.");
                         }
                     } else {
-                        if      (cast.to == Boolean.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_BOOLEAN);
-                        else if (cast.to == Byte.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_BYTE_IMPLICIT);
-                        else if (cast.to == Short.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_SHORT_IMPLICIT);
-                        else if (cast.to == Character.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_CHAR_IMPLICIT);
-                        else if (cast.to == Integer.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_INT_IMPLICIT);
-                        else if (cast.to == Long.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_LONG_IMPLICIT);
-                        else if (cast.to == Float.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_FLOAT_IMPLICIT);
-                        else if (cast.to == Double.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_DOUBLE_IMPLICIT);
+                        if      (cast.targetType == Boolean.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_BOOLEAN);
+                        else if (cast.targetType == Byte.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_BYTE_IMPLICIT);
+                        else if (cast.targetType == Short.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_SHORT_IMPLICIT);
+                        else if (cast.targetType == Character.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_CHAR_IMPLICIT);
+                        else if (cast.targetType == Integer.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_INT_IMPLICIT);
+                        else if (cast.targetType == Long.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_LONG_IMPLICIT);
+                        else if (cast.targetType == Float.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_FLOAT_IMPLICIT);
+                        else if (cast.targetType == Double.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_DOUBLE_IMPLICIT);
                         else {
                             throw new IllegalStateException("Illegal tree structure.");
                         }
                     }
                 } else {
-                    writeCast(cast.from, cast.to);
-                    unbox(getType(cast.unboxTo));
+                    writeCast(cast.originalType, cast.targetType);
+                    unbox(getType(cast.unboxTargetType));
                 }
-            } else if (cast.boxFrom != null) {
-                box(getType(cast.boxFrom));
-                writeCast(cast.from, cast.to);
-            } else if (cast.boxTo != null) {
-                writeCast(cast.from, cast.to);
-                box(getType(cast.boxTo));
+            } else if (cast.boxOriginalType != null) {
+                box(getType(cast.boxOriginalType));
+                writeCast(cast.originalType, cast.targetType);
+            } else if (cast.boxTargetType != null) {
+                writeCast(cast.originalType, cast.targetType);
+                box(getType(cast.boxTargetType));
             } else {
-                writeCast(cast.from, cast.to);
+                writeCast(cast.originalType, cast.targetType);
             }
         }
     }
@@ -225,14 +228,6 @@ public final class MethodWriter extends GeneratorAdapter {
         }
 
         return Type.getType(clazz);
-    }
-
-    public void writeBranch(final Label tru, final Label fals) {
-        if (tru != null) {
-            visitJumpInsn(Opcodes.IFNE, tru);
-        } else if (fals != null) {
-            visitJumpInsn(Opcodes.IFEQ, fals);
-        }
     }
 
     /** Starts a new string concat.
@@ -422,5 +417,41 @@ public final class MethodWriter extends GeneratorAdapter {
         args[1] = flavor;
         System.arraycopy(params, 0, args, 2, params.length);
         invokeDynamic(name, methodType.getDescriptor(), DEF_BOOTSTRAP_HANDLE, args);
+    }
+
+    public void invokeMethodCall(PainlessMethod painlessMethod) {
+        Type type = Type.getType(painlessMethod.javaMethod.getDeclaringClass());
+        Method method = Method.getMethod(painlessMethod.javaMethod);
+
+        if (Modifier.isStatic(painlessMethod.javaMethod.getModifiers())) {
+            // invokeStatic assumes that the owner class is not an interface, so this is a
+            // special case for interfaces where the interface method boolean needs to be set to
+            // true to reference the appropriate class constant when calling a static interface
+            // method since java 8 did not check, but java 9 and 10 do
+            if (painlessMethod.javaMethod.getDeclaringClass().isInterface()) {
+                visitMethodInsn(Opcodes.INVOKESTATIC, type.getInternalName(),
+                        painlessMethod.javaMethod.getName(), painlessMethod.methodType.toMethodDescriptorString(), true);
+            } else {
+                invokeStatic(type, method);
+            }
+        } else if (painlessMethod.javaMethod.getDeclaringClass().isInterface()) {
+            invokeInterface(type, method);
+        } else {
+            invokeVirtual(type, method);
+        }
+    }
+
+    public void invokeLambdaCall(FunctionRef functionRef) {
+        invokeDynamic(
+                functionRef.interfaceMethodName,
+                functionRef.factoryMethodType.toMethodDescriptorString(),
+                LAMBDA_BOOTSTRAP_HANDLE,
+                Type.getMethodType(functionRef.interfaceMethodType.toMethodDescriptorString()),
+                functionRef.delegateClassName,
+                functionRef.delegateInvokeType,
+                functionRef.delegateMethodName,
+                Type.getMethodType(functionRef.delegateMethodType.toMethodDescriptorString()),
+                functionRef.isDelegateInterface ? 1 : 0
+        );
     }
 }

@@ -49,6 +49,7 @@ public final class SortProcessor extends AbstractProcessor {
             this.direction = direction;
         }
 
+        @Override
         public String toString() {
             return this.direction;
         }
@@ -94,13 +95,13 @@ public final class SortProcessor extends AbstractProcessor {
     @Override
     @SuppressWarnings("unchecked")
     public void execute(IngestDocument document) {
-        List<? extends Comparable> list = document.getFieldValue(field, List.class);
+        List<? extends Comparable<Object>> list = document.getFieldValue(field, List.class);
 
         if (list == null) {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot sort.");
         }
 
-        List<? extends Comparable> copy = new ArrayList<>(list);
+        List<? extends Comparable<Object>> copy = new ArrayList<>(list);
 
         if (order.equals(SortOrder.ASCENDING)) {
             Collections.sort(copy);

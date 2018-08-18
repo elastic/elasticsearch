@@ -29,6 +29,15 @@ import java.util.TreeSet;
 
 public class MlFilter implements ToXContentObject, Writeable {
 
+    /**
+     * The max number of items allowed per filter.
+     * Limiting the number of items protects users
+     * from running into excessive overhead due to
+     * filters using too much memory and lookups
+     * becoming too expensive.
+     */
+    private static final int MAX_ITEMS = 10000;
+
     public static final String DOCUMENT_ID_PREFIX = "filter_";
 
     public static final String FILTER_TYPE = "filter";
@@ -62,7 +71,7 @@ public class MlFilter implements ToXContentObject, Writeable {
     private MlFilter(String id, String description, SortedSet<String> items) {
         this.id = Objects.requireNonNull(id);
         this.description = description;
-        this.items = Objects.requireNonNull(items, ITEMS.getPreferredName() + " must not be null");
+        this.items = Objects.requireNonNull(items);
     }
 
     public MlFilter(StreamInput in) throws IOException {
@@ -182,8 +191,12 @@ public class MlFilter implements ToXContentObject, Writeable {
 
         public MlFilter build() {
             ExceptionsHelper.requireNonNull(id, MlFilter.ID.getPreferredName());
+            ExceptionsHelper.requireNonNull(items, MlFilter.ITEMS.getPreferredName());
             if (!MlStrings.isValidId(id)) {
                 throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.INVALID_ID, ID.getPreferredName(), id));
+            }
+            if (items.size() > MAX_ITEMS) {
+                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.FILTER_CONTAINS_TOO_MANY_ITEMS, id, MAX_ITEMS));
             }
             return new MlFilter(id, description, items);
         }

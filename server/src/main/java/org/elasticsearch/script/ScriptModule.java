@@ -19,6 +19,11 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.search.aggregations.pipeline.movfn.MovingFunctionScript;
+
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -26,11 +31,6 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.search.aggregations.pipeline.movfn.MovingFunctionScript;
 
 /**
  * Manages building {@link ScriptService}.
@@ -46,9 +46,11 @@ public class ScriptModule {
             SearchScript.SCRIPT_SORT_CONTEXT,
             SearchScript.TERMS_SET_QUERY_CONTEXT,
             ExecutableScript.CONTEXT,
-            ExecutableScript.AGGS_CONTEXT,
-            ExecutableScript.UPDATE_CONTEXT,
-            ExecutableScript.INGEST_CONTEXT,
+            UpdateScript.CONTEXT,
+            BucketAggregationScript.CONTEXT,
+            BucketAggregationSelectorScript.CONTEXT,
+            SignificantTermsHeuristicScoreScript.CONTEXT,
+            IngestScript.CONTEXT,
             FilterScript.CONTEXT,
             SimilarityScript.CONTEXT,
             SimilarityWeightScript.CONTEXT,

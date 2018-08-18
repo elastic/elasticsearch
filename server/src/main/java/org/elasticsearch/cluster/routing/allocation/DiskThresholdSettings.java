@@ -56,7 +56,7 @@ public class DiskThresholdSettings {
             Setting.Property.Dynamic, Setting.Property.NodeScope);
     public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING =
         Setting.boolSetting("cluster.routing.allocation.disk.include_relocations", true,
-            Setting.Property.Dynamic, Setting.Property.NodeScope);;
+            Setting.Property.Dynamic, Setting.Property.NodeScope);
     public static final Setting<TimeValue> CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING =
         Setting.positiveTimeSetting("cluster.routing.allocation.disk.reroute_interval", TimeValue.timeValueSeconds(60),
             Setting.Property.Dynamic, Setting.Property.NodeScope);

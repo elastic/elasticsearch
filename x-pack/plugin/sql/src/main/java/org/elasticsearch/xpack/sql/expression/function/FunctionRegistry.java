@@ -58,6 +58,25 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.math.Sin;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Sinh;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Sqrt;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Tan;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Ascii;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.BitLength;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Char;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.CharLength;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.LCase;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.LTrim;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Length;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.RTrim;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Space;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.UCase;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Concat;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Insert;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Left;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Locate;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Position;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Repeat;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Replace;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Right;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.util.StringUtils;
@@ -134,6 +153,26 @@ public class FunctionRegistry {
             def(Sinh.class, Sinh::new),
             def(Sqrt.class, Sqrt::new),
             def(Tan.class, Tan::new),
+            // String
+            def(Ascii.class, Ascii::new),
+            def(Char.class, Char::new),
+            def(BitLength.class, BitLength::new),
+            def(CharLength.class, CharLength::new),
+            def(LCase.class, LCase::new),
+            def(Length.class, Length::new),
+            def(LTrim.class, LTrim::new),
+            def(RTrim.class, RTrim::new),
+            def(Space.class, Space::new),
+            def(Concat.class, Concat::new),
+            def(Insert.class, Insert::new),
+            def(Left.class, Left::new),
+            def(Locate.class, Locate::new),
+            def(Position.class, Position::new),
+            def(Repeat.class, Repeat::new),
+            def(Replace.class, Replace::new),
+            def(Right.class, Right::new),
+            def(Substring.class, Substring::new),
+            def(UCase.class, UCase::new),
         // Special
             def(Score.class, Score::new)));
 
@@ -299,6 +338,7 @@ public class FunctionRegistry {
         T build(Location location, Expression lhs, Expression rhs);
     }
 
+    @SuppressWarnings("overloads")
     private static FunctionDefinition def(Class<? extends Function> function, FunctionBuilder builder,
             boolean datetime, String... aliases) {
         String primaryName = normalize(function.getSimpleName());
@@ -314,6 +354,47 @@ public class FunctionRegistry {
     }
     private interface FunctionBuilder {
         Function build(Location location, List<Expression> children, boolean distinct, TimeZone tz);
+    }
+    
+    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
+    static <T extends Function> FunctionDefinition def(Class<T> function,
+            ThreeParametersFunctionBuilder<T> ctorRef, String... aliases) {
+        FunctionBuilder builder = (location, children, distinct, tz) -> {
+            boolean isLocateFunction = function.isAssignableFrom(Locate.class);
+            if (isLocateFunction && (children.size() > 3 || children.size() < 2)) {
+                throw new IllegalArgumentException("expects two or three arguments");
+            } else if (!isLocateFunction && children.size() != 3) {
+                throw new IllegalArgumentException("expects exactly three arguments");
+            }
+            if (distinct) {
+                throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
+            }
+            return ctorRef.build(location, children.get(0), children.get(1), children.size() == 3 ? children.get(2) : null);
+        };
+        return def(function, builder, false, aliases);
+    }
+    
+    interface ThreeParametersFunctionBuilder<T> {
+        T build(Location location, Expression source, Expression exp1, Expression exp2);
+    }
+    
+    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
+    static <T extends Function> FunctionDefinition def(Class<T> function,
+            FourParametersFunctionBuilder<T> ctorRef, String... aliases) {
+        FunctionBuilder builder = (location, children, distinct, tz) -> {
+            if (children.size() != 4) {
+                throw new IllegalArgumentException("expects exactly four arguments");
+            }
+            if (distinct) {
+                throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
+            }
+            return ctorRef.build(location, children.get(0), children.get(1), children.get(2), children.get(3));
+        };
+        return def(function, builder, false, aliases);
+    }
+    
+    interface FourParametersFunctionBuilder<T> {
+        T build(Location location, Expression source, Expression exp1, Expression exp2, Expression exp3);
     }
 
     private static String normalize(String name) {

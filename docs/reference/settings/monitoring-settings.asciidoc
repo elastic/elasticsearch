@@ -85,10 +85,6 @@ You can update this setting through the
 
 Sets the timeout for collecting index statistics. Defaults to `10s`.
 
-`xpack.monitoring.collection.indices.stats.timeout`::
-
-Sets the timeout for collecting total indices statistics. Defaults to `10s`.
-
 `xpack.monitoring.collection.index.recovery.active_only`::
 
 Controls whether or not all recoveries are collected. Set to `true` to

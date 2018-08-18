@@ -80,7 +80,7 @@ A typical listener for `ExplainResponse` is constructed as follows:
 include-tagged::{doc-tests}/SearchDocumentationIT.java[explain-execute-listener]
 --------------------------------------------------
 <1> Called when the execution is successfully completed.
-<2> Called when the whole `FieldCapabilitiesRequest` fails.
+<2> Called when the whole `ExplainRequest` fails.
 
 [[java-rest-high-explain-response]]
 ==== ExplainResponse

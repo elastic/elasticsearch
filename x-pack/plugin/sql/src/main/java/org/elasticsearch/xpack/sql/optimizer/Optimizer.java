@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.sql.plan.logical.Project;
 import org.elasticsearch.xpack.sql.plan.logical.SubQueryAlias;
+import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.sql.rule.Rule;
 import org.elasticsearch.xpack.sql.rule.RuleExecutor;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
@@ -1813,9 +1814,13 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    static class SkipQueryIfFoldingProjection extends OptimizerRule<LogicalPlan> {
+    static class SkipQueryIfFoldingProjection extends OptimizerRule<UnaryPlan> {
         @Override
-        protected LogicalPlan rule(LogicalPlan plan) {
+        protected LogicalPlan rule(UnaryPlan plan) {
+            if (isEmptyFrom(plan)) {
+                return plan;
+            }
+
             if (plan instanceof Project) {
                 Project p = (Project) plan;
                 List<Object> values = extractConstants(p.projections());
@@ -1831,6 +1836,10 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 }
             }
             return plan;
+        }
+
+        private static boolean isEmptyFrom(UnaryPlan plan) {
+            return plan.child() instanceof LocalRelation;
         }
 
         private List<Object> extractConstants(List<? extends NamedExpression> named) {

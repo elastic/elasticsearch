@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedNodeSelector;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Predicate;
 
@@ -237,19 +238,25 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
 
     private ElasticsearchStatusException createUnlicensedError(
             final String datafeedId, final RemoteClusterLicenseChecker.LicenseCheck licenseCheck) {
-        final String message = "Cannot start datafeed [" + datafeedId + "] as it is configured to use "
-                + "indices on a remote cluster [" + licenseCheck.remoteClusterLicenseInfo().clusterName()
-                + "] that is not licensed for Machine Learning. "
-                + RemoteClusterLicenseChecker.buildErrorMessage("Machine Learning", licenseCheck.remoteClusterLicenseInfo(), RemoteClusterLicenseChecker::isLicensePlatinumOrTrial);
-
+        final String message = String.format(
+                Locale.ROOT,
+                "cannot start datafeed [%s] as it is configured to use indices on remote cluster [%s] that is not licensed for ml; %s",
+                datafeedId,
+                licenseCheck.remoteClusterLicenseInfo().clusterName(),
+                RemoteClusterLicenseChecker.buildErrorMessage(
+                        "ml",
+                        licenseCheck.remoteClusterLicenseInfo(),
+                        RemoteClusterLicenseChecker::isLicensePlatinumOrTrial));
         return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST);
     }
 
-    private ElasticsearchStatusException createUnknownLicenseError(String datafeedId, List<String> remoteIndices,
-                                                                   Exception cause) {
-        String message = "Cannot start datafeed [" + datafeedId + "] as it is configured to use"
-                + " indices on a remote cluster " + remoteIndices
-                + " but the license type could not be verified";
+    private ElasticsearchStatusException createUnknownLicenseError(
+            final String datafeedId, final List<String> remoteIndices, final Exception cause) {
+        final String message = String.format(
+                Locale.ROOT,
+                "cannot start datafeed [%s] as it uses indices on remote cluster [%s] but the license type could not be verified",
+                datafeedId,
+                remoteIndices);
 
         return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST, new Exception(cause.getMessage()));
     }

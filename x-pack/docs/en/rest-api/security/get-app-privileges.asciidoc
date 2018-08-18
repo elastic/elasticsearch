@@ -49,10 +49,10 @@ The following example retrieves information about the `read` privilege for the
 
 [source,js]
 --------------------------------------------------
-GET /_xpack/security/privilege/app01/read
+GET /_xpack/security/privilege/myapp/read
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:to-do]
+// TEST[setup:app0102_privileges]
 
 A successful call returns an object keyed by application name and privilege
 name. If the privilege is not defined, the request responds with a 404 status.
@@ -60,25 +60,30 @@ name. If the privilege is not defined, the request responds with a 404 status.
 [source,js]
 --------------------------------------------------
 {
-  "app01": {
+  "myapp": {
     "read": {
-      "application": "app01",
+      "application": "myapp",
       "name": "read",
-      "actions": [ "action:login", "data:read/*" ],
-      "metadata": { }
+      "actions": [
+        "data:read/*",
+        "action:login"
+      ],
+      "metadata": {
+        "description": "Read access to myapp"
+      }
     }
   }
 }
 --------------------------------------------------
-// NOTCONSOLE
+// TESTRESPONSE
 
 To retrieve all privileges for an application, omit the privilege name:
 
 [source,js]
 --------------------------------------------------
-GET /_xpack/security/privilege/app01/
+GET /_xpack/security/privilege/myapp/
 --------------------------------------------------
-// NOTCONSOLE
+// CONSOLE
 
 To retrieve every privilege, omit both the application and privilege names:
 
@@ -86,4 +91,4 @@ To retrieve every privilege, omit both the application and privilege names:
 --------------------------------------------------
 GET /_xpack/security/privilege/
 --------------------------------------------------
-// NOTCONSOLE
+// CONSOLE

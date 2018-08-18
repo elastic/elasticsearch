@@ -10,6 +10,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.index.Index;
@@ -63,8 +64,13 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
     @Override
     public ClusterState execute(ClusterState currentState) throws IOException {
         Step currentStep = startStep;
-        Step registeredCurrentStep = IndexLifecycleRunner.getCurrentStep(policyStepsRegistry, policy,
-            currentState.metaData().index(index).getSettings());
+        IndexMetaData indexMetaData = currentState.metaData().index(index);
+        if (indexMetaData == null) {
+            // This index doesn't exist any more, there's nothing to execute currently
+            return currentState;
+        }
+        Step registeredCurrentStep = IndexLifecycleRunner.getCurrentStep(policyStepsRegistry, policy, index,
+            indexMetaData.getSettings());
         if (currentStep.equals(registeredCurrentStep)) {
             // We can do cluster state steps all together until we
             // either get to a step that isn't a cluster state step or a
@@ -74,6 +80,8 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
                     // cluster state action step so do the action and
                     // move
                     // the cluster state to the next step
+                    logger.trace("[{}] performing cluster state action ({}) [{}], next: [{}]",
+                        index.getName(), currentStep.getClass().getSimpleName(), currentStep.getKey(), currentStep.getNextStepKey());
                     currentState = ((ClusterStateActionStep) currentStep).performAction(index, currentState);
                     if (currentStep.getNextStepKey() == null) {
                         return currentState;
@@ -87,6 +95,8 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
                     // cluster state so it can be applied and we will
                     // wait for the next trigger to evaluate the
                     // condition again
+                    logger.trace("[{}] waiting for cluster state step condition ({}) [{}], next: [{}]",
+                        index.getName(), currentStep.getClass().getSimpleName(), currentStep.getKey(), currentStep.getNextStepKey());
                     ClusterStateWaitStep.Result result = ((ClusterStateWaitStep) currentStep).isConditionMet(index, currentState);
                     if (result.isComplete()) {
                         if (currentStep.getNextStepKey() == null) {
@@ -107,7 +117,7 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
                 if (currentStep.getKey().getPhase().equals(currentStep.getNextStepKey().getPhase()) == false) {
                     return currentState;
                 }
-                currentStep = policyStepsRegistry.getStep(policy, currentStep.getNextStepKey());
+                currentStep = policyStepsRegistry.getStep(index, currentStep.getNextStepKey());
             }
             return currentState;
         } else {

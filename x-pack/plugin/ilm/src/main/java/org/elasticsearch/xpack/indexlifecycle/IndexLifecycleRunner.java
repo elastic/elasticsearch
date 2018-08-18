@@ -62,7 +62,7 @@ public class IndexLifecycleRunner {
                 + LifecycleSettings.LIFECYCLE_SKIP + "== true");
             return;
         }
-        Step currentStep = getCurrentStep(stepRegistry, policy, indexSettings);
+        Step currentStep = getCurrentStep(stepRegistry, policy, indexMetaData.getIndex(), indexSettings);
         if (currentStep == null) {
             // This may happen in the case that there is invalid ilm-step index settings or the stepRegistry is out of
             // sync with the current cluster state
@@ -158,12 +158,12 @@ public class IndexLifecycleRunner {
         }
     }
 
-    static Step getCurrentStep(PolicyStepsRegistry stepRegistry, String policy, Settings indexSettings) {
+    static Step getCurrentStep(PolicyStepsRegistry stepRegistry, String policy, Index index, Settings indexSettings) {
         StepKey currentStepKey = getCurrentStepKey(indexSettings);
         if (currentStepKey == null) {
             return stepRegistry.getFirstStep(policy);
         } else {
-            return stepRegistry.getStep(policy, currentStepKey);
+            return stepRegistry.getStep(index, currentStepKey);
         }
     }
 
@@ -200,9 +200,9 @@ public class IndexLifecycleRunner {
             throw new IllegalArgumentException("index [" + indexName + "] is not on current step [" + currentStepKey + "]");
         }
 
-        Step nextStep = stepRegistry.getStep(indexPolicySetting, nextStepKey);
-        if (nextStep == null) {
-            throw new IllegalArgumentException("step [" + nextStepKey + "] with policy [" + indexPolicySetting + "] does not exist");
+        if (stepRegistry.stepExists(indexPolicySetting, nextStepKey) == false) {
+            throw new IllegalArgumentException("step [" + nextStepKey + "] for index [" + idxMeta.getIndex().getName() +
+                "] with policy [" + indexPolicySetting + "] does not exist");
         }
 
         return IndexLifecycleRunner.moveClusterStateToNextStep(idxMeta.getIndex(), currentState, currentStepKey, nextStepKey, nowSupplier);

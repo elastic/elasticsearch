@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.license.LicenseStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 
@@ -21,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -92,14 +94,14 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
         final AtomicInteger index = new AtomicInteger();
         final List<XPackInfoResponse> responses = new ArrayList<>();
 
-        final Client client = createMockClient();
+        final ThreadPool threadPool = createMockThreadPool();
+        final Client client = createMockClient(threadPool);
         doAnswer(invocationMock -> {
             @SuppressWarnings("unchecked") ActionListener<XPackInfoResponse> listener =
                     (ActionListener<XPackInfoResponse>) invocationMock.getArguments()[2];
             listener.onResponse(responses.get(index.getAndIncrement()));
             return null;
         }).when(client).execute(same(XPackInfoAction.INSTANCE), any(), any());
-
 
         final List<String> remoteClusterAliases = Arrays.asList("valid1", "valid2", "valid3");
         responses.add(new XPackInfoResponse(null, createPlatinumLicenseResponse(), null));
@@ -110,8 +112,9 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
                 new RemoteClusterLicenseChecker(client, RemoteClusterLicenseChecker::isLicensePlatinumOrTrial);
         final AtomicReference<RemoteClusterLicenseChecker.LicenseCheck> licenseCheck = new AtomicReference<>();
 
-        licenseChecker.checkRemoteClusterLicenses(remoteClusterAliases,
-                new ActionListener<RemoteClusterLicenseChecker.LicenseCheck>() {
+        licenseChecker.checkRemoteClusterLicenses(
+                remoteClusterAliases,
+                doubleInvocationProtectingListener(new ActionListener<RemoteClusterLicenseChecker.LicenseCheck>() {
 
                     @Override
                     public void onResponse(final RemoteClusterLicenseChecker.LicenseCheck response) {
@@ -123,7 +126,7 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
                         fail(e.getMessage());
                     }
 
-                });
+                }));
 
         verify(client, times(3)).execute(same(XPackInfoAction.INSTANCE), any(), any());
         assertNotNull(licenseCheck.get());
@@ -138,7 +141,8 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
         responses.add(new XPackInfoResponse(null, createBasicLicenseResponse(), null));
         responses.add(new XPackInfoResponse(null, createPlatinumLicenseResponse(), null));
 
-        final Client client = createMockClient();
+        final ThreadPool threadPool = createMockThreadPool();
+        final Client client = createMockClient(threadPool);
         doAnswer(invocationMock -> {
             @SuppressWarnings("unchecked") ActionListener<XPackInfoResponse> listener =
                     (ActionListener<XPackInfoResponse>) invocationMock.getArguments()[2];
@@ -152,7 +156,7 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
 
         licenseChecker.checkRemoteClusterLicenses(
                 remoteClusterAliases,
-                new ActionListener<RemoteClusterLicenseChecker.LicenseCheck>() {
+                doubleInvocationProtectingListener(new ActionListener<RemoteClusterLicenseChecker.LicenseCheck>() {
 
                     @Override
                     public void onResponse(final RemoteClusterLicenseChecker.LicenseCheck response) {
@@ -164,7 +168,7 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
                         fail(e.getMessage());
                     }
 
-                });
+                }));
 
         verify(client, times(2)).execute(same(XPackInfoAction.INSTANCE), any(), any());
         assertNotNull(licenseCheck.get());
@@ -179,14 +183,14 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
 
         final List<String> remoteClusterAliases = Arrays.asList("valid1", "valid2", "valid3");
         final String failingClusterAlias = randomFrom(remoteClusterAliases);
-        final Client client = createMockClientThatThrowsOnGetRemoteClusterClient(failingClusterAlias);
+        final ThreadPool threadPool = createMockThreadPool();
+        final Client client = createMockClientThatThrowsOnGetRemoteClusterClient(threadPool, failingClusterAlias);
         doAnswer(invocationMock -> {
             @SuppressWarnings("unchecked") ActionListener<XPackInfoResponse> listener =
                     (ActionListener<XPackInfoResponse>) invocationMock.getArguments()[2];
             listener.onResponse(responses.get(index.getAndIncrement()));
             return null;
         }).when(client).execute(same(XPackInfoAction.INSTANCE), any(), any());
-
 
         responses.add(new XPackInfoResponse(null, createPlatinumLicenseResponse(), null));
         responses.add(new XPackInfoResponse(null, createPlatinumLicenseResponse(), null));
@@ -196,8 +200,9 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
                 new RemoteClusterLicenseChecker(client, RemoteClusterLicenseChecker::isLicensePlatinumOrTrial);
         final AtomicReference<Exception> exception = new AtomicReference<>();
 
-        licenseChecker.checkRemoteClusterLicenses(remoteClusterAliases,
-                new ActionListener<RemoteClusterLicenseChecker.LicenseCheck>() {
+        licenseChecker.checkRemoteClusterLicenses(
+                remoteClusterAliases,
+                doubleInvocationProtectingListener(new ActionListener<RemoteClusterLicenseChecker.LicenseCheck>() {
 
                     @Override
                     public void onResponse(final RemoteClusterLicenseChecker.LicenseCheck response) {
@@ -209,13 +214,76 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
                         exception.set(e);
                     }
 
-                });
+                }));
 
         assertNotNull(exception.get());
         assertThat(exception.get(), instanceOf(ElasticsearchException.class));
         assertThat(exception.get().getMessage(), equalTo("could not determine the license type for cluster [" + failingClusterAlias + "]"));
         assertNotNull(exception.get().getCause());
         assertThat(exception.get().getCause(), instanceOf(IllegalArgumentException.class));
+    }
+
+    public void testListenerIsExecutedWithCallingContext() throws InterruptedException {
+        final AtomicInteger index = new AtomicInteger();
+        final List<XPackInfoResponse> responses = new ArrayList<>();
+
+        final ThreadPool threadPool = new TestThreadPool(getTestName());
+
+        try {
+            final List<String> remoteClusterAliases = Arrays.asList("valid1", "valid2", "valid3");
+            final Client client;
+            final boolean failure = randomBoolean();
+            if (failure) {
+                client = createMockClientThatThrowsOnGetRemoteClusterClient(threadPool, randomFrom(remoteClusterAliases));
+            } else {
+                client = createMockClient(threadPool);
+            }
+            doAnswer(invocationMock -> {
+                @SuppressWarnings("unchecked") ActionListener<XPackInfoResponse> listener =
+                        (ActionListener<XPackInfoResponse>) invocationMock.getArguments()[2];
+                listener.onResponse(responses.get(index.getAndIncrement()));
+                return null;
+            }).when(client).execute(same(XPackInfoAction.INSTANCE), any(), any());
+
+            responses.add(new XPackInfoResponse(null, createPlatinumLicenseResponse(), null));
+            responses.add(new XPackInfoResponse(null, createPlatinumLicenseResponse(), null));
+            responses.add(new XPackInfoResponse(null, createPlatinumLicenseResponse(), null));
+
+            final RemoteClusterLicenseChecker licenseChecker =
+                    new RemoteClusterLicenseChecker(client, RemoteClusterLicenseChecker::isLicensePlatinumOrTrial);
+
+            final AtomicBoolean listenerInvoked = new AtomicBoolean();
+            threadPool.getThreadContext().putHeader("key", "value");
+            licenseChecker.checkRemoteClusterLicenses(
+                    remoteClusterAliases,
+                    doubleInvocationProtectingListener(new ActionListener<RemoteClusterLicenseChecker.LicenseCheck>() {
+
+                        @Override
+                        public void onResponse(final RemoteClusterLicenseChecker.LicenseCheck response) {
+                            if (failure) {
+                                fail();
+                            }
+                            assertThat(threadPool.getThreadContext().getHeader("key"), equalTo("value"));
+                            assertFalse(threadPool.getThreadContext().isSystemContext());
+                            listenerInvoked.set(true);
+                        }
+
+                        @Override
+                        public void onFailure(final Exception e) {
+                            if (failure == false) {
+                                fail();
+                            }
+                            assertThat(threadPool.getThreadContext().getHeader("key"), equalTo("value"));
+                            assertFalse(threadPool.getThreadContext().isSystemContext());
+                            listenerInvoked.set(true);
+                        }
+
+                    }));
+
+            assertTrue(listenerInvoked.get());
+        } finally {
+            terminate(threadPool);
+        }
     }
 
     public void testBuildErrorMessageForActiveCompatibleLicense() {
@@ -246,22 +314,52 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
                 equalTo("the license on cluster [expired-cluster] is not active"));
     }
 
-    private Client createMockClient() {
-        return createMockClient(client -> when(client.getRemoteClusterClient(anyString())).thenReturn(client));
+    private ActionListener<RemoteClusterLicenseChecker.LicenseCheck> doubleInvocationProtectingListener(
+            final ActionListener<RemoteClusterLicenseChecker.LicenseCheck> listener) {
+        final AtomicBoolean listenerInvoked = new AtomicBoolean();
+        return new ActionListener<RemoteClusterLicenseChecker.LicenseCheck>() {
+
+            @Override
+            public void onResponse(final RemoteClusterLicenseChecker.LicenseCheck response) {
+                if (listenerInvoked.compareAndSet(false, true) == false) {
+                    fail("listener invoked twice");
+                }
+                listener.onResponse(response);
+            }
+
+            @Override
+            public void onFailure(final Exception e) {
+                if (listenerInvoked.compareAndSet(false, true) == false) {
+                    fail("listener invoked twice");
+                }
+                listener.onFailure(e);
+            }
+
+        };
     }
 
-    private Client createMockClientThatThrowsOnGetRemoteClusterClient(final String clusterAlias) {
-        return createMockClient(client -> {
-            when(client.getRemoteClusterClient(clusterAlias)).thenThrow(new IllegalArgumentException());
-            when(client.getRemoteClusterClient(argThat(not(clusterAlias)))).thenReturn(client);
-        });
-    }
-
-    private Client createMockClient(final Consumer<Client> finish) {
-        final Client client = mock(Client.class);
+    private ThreadPool createMockThreadPool() {
         final ThreadPool threadPool = mock(ThreadPool.class);
-        when(client.threadPool()).thenReturn(threadPool);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        return threadPool;
+    }
+
+    private Client createMockClient(final ThreadPool threadPool) {
+        return createMockClient(threadPool, client -> when(client.getRemoteClusterClient(anyString())).thenReturn(client));
+    }
+
+    private Client createMockClientThatThrowsOnGetRemoteClusterClient(final ThreadPool threadPool, final String clusterAlias) {
+        return createMockClient(
+                threadPool,
+                client -> {
+                    when(client.getRemoteClusterClient(clusterAlias)).thenThrow(new IllegalArgumentException());
+                    when(client.getRemoteClusterClient(argThat(not(clusterAlias)))).thenReturn(client);
+                });
+    }
+
+    private Client createMockClient(final ThreadPool threadPool, final Consumer<Client> finish) {
+        final Client client = mock(Client.class);
+        when(client.threadPool()).thenReturn(threadPool);
         finish.accept(client);
         return client;
     }

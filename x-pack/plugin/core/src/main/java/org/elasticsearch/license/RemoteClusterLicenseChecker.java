@@ -8,6 +8,7 @@ package org.elasticsearch.license;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
@@ -187,6 +188,8 @@ public final class RemoteClusterLicenseChecker {
 
     private void remoteClusterLicense(final String clusterAlias, final ActionListener<XPackInfoResponse> listener) {
         final ThreadContext threadContext = client.threadPool().getThreadContext();
+        final ContextPreservingActionListener<XPackInfoResponse> contextPreservingActionListener =
+                new ContextPreservingActionListener<>(threadContext.newRestorableContext(false), listener);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             // we stash any context here since this is an internal execution and should not leak any existing context information
             threadContext.markAsSystemContext();
@@ -194,9 +197,9 @@ public final class RemoteClusterLicenseChecker {
             final XPackInfoRequest request = new XPackInfoRequest();
             request.setCategories(EnumSet.of(XPackInfoRequest.Category.LICENSE));
             try {
-                client.getRemoteClusterClient(clusterAlias).execute(XPackInfoAction.INSTANCE, request, listener);
+                client.getRemoteClusterClient(clusterAlias).execute(XPackInfoAction.INSTANCE, request, contextPreservingActionListener);
             } catch (final Exception e) {
-                listener.onFailure(e);
+                contextPreservingActionListener.onFailure(e);
             }
         }
     }

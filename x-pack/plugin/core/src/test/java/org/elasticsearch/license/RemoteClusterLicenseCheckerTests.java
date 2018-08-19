@@ -232,6 +232,32 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
         assertThat(exception.get().getCause(), instanceOf(IllegalArgumentException.class));
     }
 
+    public void testRemoteClusterLicenseCallUsesSystemContext() throws InterruptedException {
+        final ThreadPool threadPool = new TestThreadPool(getTestName());
+
+        try {
+            final Client client = createMockClient(threadPool);
+            doAnswer(invocationMock -> {
+                assertTrue(threadPool.getThreadContext().isSystemContext());
+                @SuppressWarnings("unchecked") ActionListener<XPackInfoResponse> listener =
+                        (ActionListener<XPackInfoResponse>) invocationMock.getArguments()[2];
+                listener.onResponse(new XPackInfoResponse(null, createPlatinumLicenseResponse(), null));
+                return null;
+            }).when(client).execute(same(XPackInfoAction.INSTANCE), any(), any());
+
+            final RemoteClusterLicenseChecker licenseChecker =
+                    new RemoteClusterLicenseChecker(client, RemoteClusterLicenseChecker::isLicensePlatinumOrTrial);
+
+            final List<String> remoteClusterAliases = Collections.singletonList("valid");
+            licenseChecker.checkRemoteClusterLicenses(
+                    remoteClusterAliases, doubleInvocationProtectingListener(ActionListener.wrap(() -> {})));
+
+            verify(client, times(1)).execute(same(XPackInfoAction.INSTANCE), any(), any());
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
     public void testListenerIsExecutedWithCallingContext() throws InterruptedException {
         final AtomicInteger index = new AtomicInteger();
         final List<XPackInfoResponse> responses = new ArrayList<>();

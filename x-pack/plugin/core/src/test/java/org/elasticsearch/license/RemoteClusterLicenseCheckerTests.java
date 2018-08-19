@@ -48,13 +48,21 @@ import static org.mockito.Mockito.when;
 
 public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
 
+    public void testIsNotRemoteIndex() {
+        assertFalse(RemoteClusterLicenseChecker.isRemoteIndex("local-index"));
+    }
+
+    public void testIsRemoteIndex() {
+        assertTrue(RemoteClusterLicenseChecker.isRemoteIndex("remote-cluster:remote-index"));
+    }
+
     public void testNoRemoteIndex() {
         final List<String> indices = Arrays.asList("local-index1", "local-index2");
         assertFalse(RemoteClusterLicenseChecker.containsRemoteIndex(indices));
     }
 
     public void testRemoteIndex() {
-        final List<String> indices = Arrays.asList("local-index1", "remote-cluster:remote-index2");
+        final List<String> indices = Arrays.asList("local-index", "remote-cluster:remote-index");
         assertTrue(RemoteClusterLicenseChecker.containsRemoteIndex(indices));
     }
 
@@ -64,10 +72,10 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
     }
 
     public void testRemoteIndices() {
-        final List<String> indices = Arrays.asList("local-index", "remote-cluster:index1", "local-index2", "remote-cluster2:index1");
+        final List<String> indices = Arrays.asList("local-index1", "remote-cluster1:index1", "local-index2", "remote-cluster2:index1");
         assertThat(
                 RemoteClusterLicenseChecker.remoteIndices(indices),
-                containsInAnyOrder("remote-cluster:index1", "remote-cluster2:index1"));
+                containsInAnyOrder("remote-cluster1:index1", "remote-cluster2:index1"));
     }
 
     public void testNoRemoteClusterAliases() {
@@ -76,17 +84,18 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
     }
 
     public void testOneRemoteClusterAlias() {
-        final List<String> indices = Arrays.asList("local-index1", "remote-cluster1:remote-index2");
+        final List<String> indices = Arrays.asList("local-index1", "remote-cluster1:remote-index1");
         assertThat(RemoteClusterLicenseChecker.remoteClusterAliases(indices), contains("remote-cluster1"));
     }
 
     public void testMoreThanOneRemoteClusterAlias() {
-        final List<String> indices = Arrays.asList("remote-cluster1:index2", "index1", "remote-cluster2:index1");
+        final List<String> indices = Arrays.asList("remote-cluster1:remote-index1", "local-index1", "remote-cluster2:remote-index1");
         assertThat(RemoteClusterLicenseChecker.remoteClusterAliases(indices), contains("remote-cluster1", "remote-cluster2"));
     }
 
     public void testDuplicateRemoteClusterAlias() {
-        final List<String> indices = Arrays.asList("remote-cluster1:index2", "index1", "remote-cluster2:index1", "remote-cluster2:index2");
+        final List<String> indices = Arrays.asList(
+                "remote-cluster1:remote-index1", "local-index1", "remote-cluster2:index1", "remote-cluster2:remote-index2");
         assertThat(RemoteClusterLicenseChecker.remoteClusterAliases(indices), contains("remote-cluster1", "remote-cluster2"));
     }
 

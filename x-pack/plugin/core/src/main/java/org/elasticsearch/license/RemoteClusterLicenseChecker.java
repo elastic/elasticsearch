@@ -159,7 +159,7 @@ public final class RemoteClusterLicenseChecker {
             @Override
             public void onResponse(final XPackInfoResponse xPackInfoResponse) {
                 final XPackInfoResponse.LicenseInfo licenseInfo = xPackInfoResponse.getLicenseInfo();
-                if (licenseInfo.getStatus() == LicenseStatus.ACTIVE == false || predicate.test(licenseInfo) == false) {
+                if ((licenseInfo.getStatus() == LicenseStatus.ACTIVE) == false || predicate.test(licenseInfo) == false) {
                     listener.onResponse(LicenseCheck.failure(new RemoteClusterLicenseInfo(clusterAlias.get(), licenseInfo)));
                     return;
                 }

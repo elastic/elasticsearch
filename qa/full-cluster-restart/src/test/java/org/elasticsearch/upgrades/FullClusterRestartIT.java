@@ -990,6 +990,9 @@ public class FullClusterRestartIT extends ESRestTestCase {
         Map<String, Object> aliases = new HashMap<>();
         aliases.put("alias1", emptyMap());
         aliases.put("alias2", singletonMap("filter", singletonMap("term", singletonMap("version", tookOnVersion.toString()))));
+        if (runningAgainstOldCluster == false) {
+            expectedTemplate.put("auto_create_index", false);
+        }
         expectedTemplate.put("aliases", aliases);
         expectedTemplate = singletonMap("test_template", expectedTemplate);
         if (false == expectedTemplate.equals(getTemplateResponse)) {

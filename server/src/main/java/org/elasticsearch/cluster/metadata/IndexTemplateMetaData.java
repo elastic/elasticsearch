@@ -225,7 +225,11 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         Builder builder = new Builder(in.readString());
         builder.order(in.readInt());
         if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            builder.patterns(in.readList(StreamInput::readString));
+            List<String> indexPatterns = in.readList(StreamInput::readString);
+            if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+                builder.autoCreateIndex(Boolean.parseBoolean(indexPatterns.remove(indexPatterns.size() - 1)));
+            }
+            builder.patterns(indexPatterns);
         } else {
             builder.patterns(Collections.singletonList(in.readString()));
         }
@@ -246,9 +250,6 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             builder.putCustom(type, customIndexMetaData);
         }
         builder.version(in.readOptionalVInt());
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            builder.autoCreateIndex(in.readBoolean());
-        }
         return builder.build();
     }
 
@@ -261,7 +262,14 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         out.writeString(name);
         out.writeInt(order);
         if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            out.writeStringList(patterns);
+            final List<String> indexPatterns;
+            if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+                indexPatterns = new ArrayList<>(patterns);
+                indexPatterns.add(Boolean.toString(autoCreateIndex));
+            } else {
+                indexPatterns = patterns;
+            }
+            out.writeStringList(indexPatterns);
         } else {
             out.writeString(patterns.get(0));
         }
@@ -281,9 +289,6 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             cursor.value.writeTo(out);
         }
         out.writeOptionalVInt(version);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            out.writeBoolean(autoCreateIndex);
-        }
     }
 
     public static class Builder {

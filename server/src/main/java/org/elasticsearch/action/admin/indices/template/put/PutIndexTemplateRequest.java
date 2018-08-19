@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.admin.indices.template.put;
 
+import java.util.ArrayList;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
@@ -494,7 +495,11 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         name = in.readString();
 
         if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            indexPatterns = in.readList(StreamInput::readString);
+            List<String> patterns = in.readList(StreamInput::readString);
+            if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+                autoCreateIndex = Boolean.parseBoolean(patterns.remove(patterns.size() - 1));
+            }
+            indexPatterns = patterns;
         } else {
             indexPatterns = Collections.singletonList(in.readString());
         }
@@ -523,9 +528,6 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             aliases.add(Alias.read(in));
         }
         version = in.readOptionalVInt();
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            autoCreateIndex = in.readBoolean();
-        }
     }
 
     @Override
@@ -534,7 +536,13 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         out.writeString(cause);
         out.writeString(name);
         if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            out.writeStringList(indexPatterns);
+            if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+                List<String> patternsAndAutoCreate = new ArrayList<>(indexPatterns);
+                patternsAndAutoCreate.add(Boolean.toString(autoCreateIndex));
+                out.writeStringList(patternsAndAutoCreate);
+            } else {
+                out.writeStringList(indexPatterns);
+            }
         } else {
             out.writeString(indexPatterns.size() > 0 ? indexPatterns.get(0) : "");
         }
@@ -556,9 +564,6 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             alias.writeTo(out);
         }
         out.writeOptionalVInt(version);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            out.writeBoolean(autoCreateIndex);
-        }
     }
 
     @Override

@@ -61,7 +61,7 @@ public class ConditionalProcessor extends AbstractProcessor {
     @Override
     public void execute(IngestDocument ingestDocument) throws Exception {
         if (scriptService.compile(condition, ProcessorConditionalScript.CONTEXT)
-            .newInstance(condition.getParams()).execute(ingestDocument.getSourceAndMetadata())) {
+            .newInstance(condition.getParams()).execute(IngestDocument.deepCopyMap(ingestDocument.getSourceAndMetadata()))) {
             processor.execute(ingestDocument);
         }
     }

@@ -29,8 +29,8 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportStats;
@@ -86,13 +86,13 @@ public class StubbableTransport implements Transport {
     }
 
     @Override
-    public void addConnectionListener(TransportConnectionListener listener) {
-        delegate.addConnectionListener(listener);
+    public void addMessageListener(TransportMessageListener listener) {
+        delegate.addMessageListener(listener);
     }
 
     @Override
-    public boolean removeConnectionListener(TransportConnectionListener listener) {
-        return delegate.removeConnectionListener(listener);
+    public boolean removeMessageListener(TransportMessageListener listener) {
+        return delegate.removeMessageListener(listener);
     }
 
     @Override
@@ -179,7 +179,7 @@ public class StubbableTransport implements Transport {
         return delegate.profileBoundAddresses();
     }
 
-    private class WrappedConnection implements Transport.Connection {
+    public class WrappedConnection implements Transport.Connection {
 
         private final Transport.Connection connection;
 
@@ -233,6 +233,10 @@ public class StubbableTransport implements Transport {
         @Override
         public void close() {
             connection.close();
+        }
+
+        public Transport.Connection getConnection() {
+            return connection;
         }
     }
 

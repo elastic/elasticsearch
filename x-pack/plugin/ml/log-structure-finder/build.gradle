@@ -1,0 +1,36 @@
+import org.elasticsearch.gradle.precommit.PrecommitTasks
+
+apply plugin: 'elasticsearch.build'
+
+archivesBaseName = 'x-pack-log-structure-finder'
+
+description = 'Common code for reverse engineering log structure'
+
+dependencies {
+    compile "org.elasticsearch:elasticsearch-core:${version}"
+    compile "org.elasticsearch:elasticsearch-x-content:${version}"
+    compile project(':libs:grok')
+    compile "com.ibm.icu:icu4j:${versions.icu4j}"
+    compile "net.sf.supercsv:super-csv:${versions.supercsv}"
+
+    testCompile "org.elasticsearch.test:framework:${version}"
+}
+
+configurations {
+    testArtifacts.extendsFrom testRuntime
+}
+task testJar(type: Jar) {
+    appendix 'test'
+    from sourceSets.test.output
+}
+artifacts {
+    // normal es plugins do not publish the jar but we need to since users need it for Transport Clients and extensions
+    archives jar
+    testArtifacts testJar
+}
+
+forbiddenApisMain {
+    // log-structure-finder does not depend on server, so cannot forbid server methods
+    signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
+}
+

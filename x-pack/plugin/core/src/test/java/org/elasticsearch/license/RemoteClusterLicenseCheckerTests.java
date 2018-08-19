@@ -290,8 +290,8 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
         final XPackInfoResponse.LicenseInfo platinumLicence = createPlatinumLicenseResponse();
         final RemoteClusterLicenseChecker.RemoteClusterLicenseInfo info =
                 new RemoteClusterLicenseChecker.RemoteClusterLicenseInfo("platinum-cluster", platinumLicence);
-        final IllegalStateException e = expectThrows(
-                IllegalStateException.class,
+        final AssertionError e = expectThrows(
+                AssertionError.class,
                 () -> RemoteClusterLicenseChecker.buildErrorMessage("", info, RemoteClusterLicenseChecker::isLicensePlatinumOrTrial));
         assertThat(e, hasToString(containsString("license must be incompatible to build error message")));
     }

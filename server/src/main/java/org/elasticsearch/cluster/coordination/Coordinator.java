@@ -48,11 +48,7 @@ public class Coordinator extends AbstractLifecycleComponent {
         logger.debug("joinLeaderInTerm: from [{}] with term {}", startJoinRequest.getSourceNode(), startJoinRequest.getTerm());
         Join join = coordinationState.get().handleStartJoin(startJoinRequest);
         lastJoin = Optional.of(join);
-        if (mode == Mode.CANDIDATE) {
-            // refresh required because current term has changed
-            // TODO: heartbeatRequestResponder = new Legislator.HeartbeatRequestResponder();
-        } else {
-            // becomeCandidate refreshes responders
+        if (mode != Mode.CANDIDATE) {
             becomeCandidate("joinLeaderInTerm");
         }
         return join;
@@ -70,16 +66,23 @@ public class Coordinator extends AbstractLifecycleComponent {
     private void handleJoinRequestUnderLock(JoinRequest joinRequest, JoinCallback joinCallback) {
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
         logger.trace("handleJoinRequestUnderLock: as {}, handling {}", mode, joinRequest);
-        if (mode == Mode.LEADER) {
-            joinHelper.joinLeader(joinRequest, joinCallback);
-        } else {
-            joinHelper.addJoinCallback(joinRequest, joinCallback);
-        }
 
         try {
             joinRequest.getOptionalJoin().ifPresent(this::handleJoin);
-        } catch (CoordinationStateRejectedException exception) {
-            joinHelper.removeAndFail(joinRequest, exception);
+        } catch (Exception exception) {
+            joinCallback.onFailure(exception);
+        }
+
+        if (mode == Mode.FOLLOWER) {
+            joinCallback.onFailure(new CoordinationStateRejectedException("join target is a follower"));
+            return;
+        }
+
+        if (mode == Mode.LEADER) {
+            joinHelper.joinLeader(joinRequest, joinCallback);
+        } else {
+            assert mode == Mode.CANDIDATE;
+            joinHelper.addPendingJoin(joinRequest, joinCallback);
         }
     }
 
@@ -91,12 +94,10 @@ public class Coordinator extends AbstractLifecycleComponent {
 
         final CoordinationState state = coordinationState.get();
         boolean prevElectionWon = state.electionWon();
-        boolean addedJoin = state.handleJoin(join);
+        state.handleJoin(join);
 
         if (prevElectionWon == false && state.electionWon()) {
-            assert mode == Mode.CANDIDATE : "expected candidate but was " + mode;
             becomeLeader("handleJoin");
-            joinHelper.clearAndSendJoins();
         }
     }
 
@@ -106,30 +107,26 @@ public class Coordinator extends AbstractLifecycleComponent {
 
         if (mode != Mode.CANDIDATE) {
             mode = Mode.CANDIDATE;
-
-            joinHelper.clearJoins();
         }
     }
 
     private void becomeLeader(String method) {
         assert Thread.holdsLock(mutex) : "Legislator mutex not held";
-        assert mode != Mode.LEADER;
-
+        assert mode == Mode.CANDIDATE : "expected candidate but was " + mode;
         logger.debug("{}: becoming LEADER (was {}, lastKnownLeader was [{}])", method, mode, lastKnownLeader);
 
         mode = Mode.LEADER;
         lastKnownLeader = Optional.of(getLocalNode());
+        joinHelper.clearAndSubmitJoins();
     }
 
     private void becomeFollower(String method, DiscoveryNode leaderNode) {
         assert Thread.holdsLock(mutex) : "Legislator mutex not held";
+        logger.debug("{}: becoming FOLLOWER of [{}] (was {}, lastKnownLeader was [{}])", method, leaderNode, mode, lastKnownLeader);
 
         if (mode != Mode.FOLLOWER) {
-            logger.debug("{}: becoming FOLLOWER of [{}] (was {}, lastKnownLeader was [{}])", method, leaderNode, mode, lastKnownLeader);
-
             mode = Mode.FOLLOWER;
-
-            joinHelper.clearJoins();
+            joinHelper.clearAndFailJoins("becoming follower");
         }
 
         lastKnownLeader = Optional.of(leaderNode);
@@ -179,9 +176,11 @@ public class Coordinator extends AbstractLifecycleComponent {
             if (mode == Mode.LEADER) {
                 assert coordinationState.get().electionWon();
                 assert lastKnownLeader.isPresent() && lastKnownLeader.get().equals(getLocalNode());
+                assert joinHelper.getNumberOfPendingJoins() == 0;
             } else if (mode == Mode.FOLLOWER) {
                 assert coordinationState.get().electionWon() == false : getLocalNode() + " is FOLLOWER so electionWon() should be false";
                 assert lastKnownLeader.isPresent() && (lastKnownLeader.get().equals(getLocalNode()) == false);
+                assert joinHelper.getNumberOfPendingJoins() == 0;
             } else {
                 assert mode == Mode.CANDIDATE;
             }

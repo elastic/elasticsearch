@@ -45,7 +45,7 @@ import java.util.function.LongSupplier;
 
 public class JoinHelper extends AbstractComponent {
 
-    public static final String JOIN_ACTION_NAME = "internal:discovery/zen2/join";
+    public static final String JOIN_ACTION_NAME = "internal:discovery/join";
 
     private final MasterService masterService;
     private final TransportService transportService;
@@ -133,35 +133,30 @@ public class JoinHelper extends AbstractComponent {
             });
     }
 
-    public void addJoinCallback(JoinRequest joinRequest, JoinCallback joinCallback) {
+    public void addPendingJoin(JoinRequest joinRequest, JoinCallback joinCallback) {
         JoinCallback prev = joinRequestAccumulator.put(joinRequest.getSourceNode(), joinCallback);
         if (prev != null) {
             prev.onFailure(new CoordinationStateRejectedException("received a newer join from " + joinRequest.getSourceNode()));
         }
     }
 
-    public void removeAndFail(JoinRequest joinRequest, CoordinationStateRejectedException exception) {
-        final JoinCallback callback = joinRequestAccumulator.remove(joinRequest.getSourceNode());
-        if (callback == null) {
-            logger.trace("handleJoinRequestUnderLock: submitted task to master service, but vote was rejected", exception);
-        } else {
-            callback.onFailure(exception);
-        }
+    public int getNumberOfPendingJoins() {
+        return joinRequestAccumulator.size();
     }
 
-    public void clearJoins() {
+    public void clearAndFailJoins(String reason) {
         joinRequestAccumulator.values().forEach(
-            joinCallback -> joinCallback.onFailure(new CoordinationStateRejectedException("node stepped down as leader")));
+            joinCallback -> joinCallback.onFailure(new CoordinationStateRejectedException(reason)));
         joinRequestAccumulator.clear();
     }
 
-    public void clearAndSendJoins() {
+    public void clearAndSubmitJoins() {
         final Map<JoinTaskExecutor.Task, ClusterStateTaskListener> pendingAsTasks = new HashMap<>();
-        joinRequestAccumulator.forEach((key, value) -> pendingAsTasks.put(new JoinTaskExecutor.Task(key, "elect master"),
+        joinRequestAccumulator.forEach((key, value) -> pendingAsTasks.put(new JoinTaskExecutor.Task(key, "elect leader"),
             new JoinTaskListener(value)));
         joinRequestAccumulator.clear();
 
-        final String source = "zen-disco-elected-as-master ([" + pendingAsTasks.size() + "] nodes joined)";
+        final String source = "elected-as-master ([" + pendingAsTasks.size() + "] nodes joined)";
         // noop listener, the election finished listener determines result
         pendingAsTasks.put(JoinTaskExecutor.BECOME_MASTER_TASK, (source1, e) -> {
         });
@@ -175,7 +170,7 @@ public class JoinHelper extends AbstractComponent {
 
     public void joinLeader(JoinRequest joinRequest, JoinCallback joinCallback) {
         // submit as cluster state update task
-        masterService.submitStateUpdateTask("zen-disco-node-join",
+        masterService.submitStateUpdateTask("node-join",
             new JoinTaskExecutor.Task(joinRequest.getSourceNode(), "join existing leader"), ClusterStateTaskConfig.build(Priority.URGENT),
             joinTaskExecutor, new JoinTaskListener(joinCallback));
     }

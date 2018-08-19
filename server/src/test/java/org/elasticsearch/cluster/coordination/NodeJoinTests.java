@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
-import org.elasticsearch.discovery.zen.MembershipAction;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -24,9 +23,6 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -144,7 +140,7 @@ public class NodeJoinTests extends ESTestCase {
         logger.debug("starting {}", future);
         // clone the node before submitting to simulate an incoming join, which is guaranteed to have a new
         // disco node object serialized off the network
-        coordinator.handleJoinRequest(joinRequest, new MembershipAction.JoinCallback() {
+        coordinator.handleJoinRequest(joinRequest, new JoinHelper.JoinCallback() {
             @Override
             public void onSuccess() {
                 logger.debug("{} completed", future);

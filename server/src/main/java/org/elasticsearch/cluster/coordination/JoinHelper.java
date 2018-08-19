@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.cluster.coordination;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
@@ -27,25 +26,21 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 
 public class JoinHelper extends AbstractComponent {
 
-    public static final String JOIN_ACTION_NAME = "internal:discovery/join";
+    public static final String JOIN_ACTION_NAME = "internal:cluster/coordination/join";
 
     private final MasterService masterService;
     private final TransportService transportService;
@@ -101,38 +96,6 @@ public class JoinHelper extends AbstractComponent {
             }));
     }
 
-    // TODO: maybe add this method in a follow-up.
-    public void sendOptionalJoin(DiscoveryNode destination, Optional<Join> optionalJoin) {
-        transportService.sendRequest(destination, JOIN_ACTION_NAME, new JoinRequest(transportService.getLocalNode(), optionalJoin),
-            new TransportResponseHandler<TransportResponse.Empty>() {
-                @Override
-                public TransportResponse.Empty read(StreamInput in) {
-                    return TransportResponse.Empty.INSTANCE;
-                }
-
-                @Override
-                public void handleResponse(TransportResponse.Empty response) {
-                    logger.debug("SendJoinResponseHandler: successfully joined {}", destination);
-                }
-
-                @Override
-                public void handleException(TransportException exp) {
-                    //TODO: log certain failures at info level so that users can easily see why nodes are failing to join
-                    // see ZenDiscovery.joinElectedMaster for comparison
-                    if (exp.getRootCause() instanceof CoordinationStateRejectedException) {
-                        logger.debug("SendJoinResponseHandler: [{}] failed: {}", destination, exp.getRootCause().getMessage());
-                    } else {
-                        logger.debug(() -> new ParameterizedMessage("SendJoinResponseHandler: [{}] failed", destination), exp);
-                    }
-                }
-
-                @Override
-                public String executor() {
-                    return ThreadPool.Names.SAME; // just logging calls
-                }
-            });
-    }
-
     public void addPendingJoin(JoinRequest joinRequest, JoinCallback joinCallback) {
         JoinCallback prev = joinRequestAccumulator.put(joinRequest.getSourceNode(), joinCallback);
         if (prev != null) {
@@ -150,22 +113,16 @@ public class JoinHelper extends AbstractComponent {
         joinRequestAccumulator.clear();
     }
 
-    public void clearAndSubmitJoins() {
+    public void clearAndSubmitPendingJoins() {
         final Map<JoinTaskExecutor.Task, ClusterStateTaskListener> pendingAsTasks = new HashMap<>();
         joinRequestAccumulator.forEach((key, value) -> pendingAsTasks.put(new JoinTaskExecutor.Task(key, "elect leader"),
             new JoinTaskListener(value)));
         joinRequestAccumulator.clear();
 
+        pendingAsTasks.put(JoinTaskExecutor.BECOME_MASTER_TASK, (source, e) -> {});
+        pendingAsTasks.put(JoinTaskExecutor.FINISH_ELECTION_TASK, (source, e) -> {});
         final String source = "elected-as-master ([" + pendingAsTasks.size() + "] nodes joined)";
-        // noop listener, the election finished listener determines result
-        pendingAsTasks.put(JoinTaskExecutor.BECOME_MASTER_TASK, (source1, e) -> {
-        });
-        // TODO: should we take any further action when FINISH_ELECTION_TASK fails?
-        pendingAsTasks.put(JoinTaskExecutor.FINISH_ELECTION_TASK, (source1, e) -> {
-        });
-
-        masterService.submitStateUpdateTasks(source, pendingAsTasks, ClusterStateTaskConfig.build(Priority.URGENT),
-            joinTaskExecutor);
+        masterService.submitStateUpdateTasks(source, pendingAsTasks, ClusterStateTaskConfig.build(Priority.URGENT), joinTaskExecutor);
     }
 
     public void joinLeader(JoinRequest joinRequest, JoinCallback joinCallback) {

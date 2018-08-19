@@ -13,6 +13,8 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.indices.cluster.FakeThreadPoolMasterService;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -23,26 +25,32 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyMap;
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@TestLogging("org.elasticsearch.discovery.zen:TRACE,org.elasticsearch.cluster.service:TRACE,org.elasticsearch.cluster.coordination:TRACE")
+@TestLogging("org.elasticsearch.cluster.service:TRACE,org.elasticsearch.cluster.coordination:TRACE")
 public class NodeJoinTests extends ESTestCase {
 
     private static ThreadPool threadPool;
 
     private MasterService masterService;
     private Coordinator coordinator;
+    private DeterministicTaskQueue deterministicTaskQueue;
 
     @BeforeClass
     public static void beforeClass() {
@@ -76,11 +84,28 @@ public class NodeJoinTests extends ESTestCase {
         return initialClusterState;
     }
 
-    private void setupMasterServiceAndNodeJoinController(long term, ClusterState initialState) {
-        if (masterService != null || coordinator != null) {
-            throw new IllegalStateException("method setupMasterServiceAndNodeJoinController can only be called once");
+    private void setupFakeMasterServiceAndCoordinator(long term, ClusterState initialState) {
+        deterministicTaskQueue = new DeterministicTaskQueue(Settings.EMPTY);
+        FakeThreadPoolMasterService fakeMasterService = new FakeThreadPoolMasterService("test", deterministicTaskQueue::scheduleNow);
+        AtomicReference<ClusterState> currentState = new AtomicReference<>(initialState);
+        fakeMasterService.setClusterStateSupplier(currentState::get);
+        fakeMasterService.setClusterStatePublisher((event, publishListener, ackListener) -> {
+            currentState.set(event.state());
+            publishListener.onResponse(null);
+        });
+        fakeMasterService.start();
+        setupMasterServiceAndCoordinator(term, initialState, fakeMasterService);
+    }
+
+    private void setupRealMasterServiceAndCoordinator(long term, ClusterState initialState) {
+        setupMasterServiceAndCoordinator(term, initialState, ClusterServiceUtils.createMasterService(threadPool, initialState));
+    }
+
+    private void setupMasterServiceAndCoordinator(long term, ClusterState initialState, MasterService masterService) {
+        if (this.masterService != null || coordinator != null) {
+            throw new IllegalStateException("method setupMasterServiceAndCoordinator can only be called once");
         }
-        masterService = ClusterServiceUtils.createMasterService(threadPool, initialState);
+        this.masterService = masterService;
         TransportService transportService = mock(TransportService.class);
         when(transportService.getLocalNode()).thenReturn(initialState.nodes().getLocalNode());
         coordinator = new Coordinator(Settings.EMPTY,
@@ -103,15 +128,6 @@ public class NodeJoinTests extends ESTestCase {
         }
         final String prefix = master ? "master_" : "data_";
         return new DiscoveryNode(prefix + i, i + "", buildNewFakeTransportAddress(), emptyMap(), roles, Version.CURRENT);
-    }
-
-    private DiscoveryNode cloneNode(DiscoveryNode node) {
-        return new DiscoveryNode(node.getName(), node.getId(), node.getEphemeralId(), node.getHostName(), node.getHostAddress(),
-            node.getAddress(), node.getAttributes(), node.getRoles(), node.getVersion());
-    }
-
-    private void joinNode(final JoinRequest joinRequest) throws InterruptedException, ExecutionException {
-        joinNodeAsync(joinRequest).get();
     }
 
     static class SimpleFuture extends BaseFuture<Void> {
@@ -156,26 +172,191 @@ public class NodeJoinTests extends ESTestCase {
         return future;
     }
 
-    public void testSuccessfulJoinAccumulation() {
+    private void joinNode(final JoinRequest joinRequest) {
+        FutureUtils.get(joinNodeAsync(joinRequest));
+    }
+
+    private void joinNodeAndRun(final JoinRequest joinRequest) {
+        SimpleFuture fut = joinNodeAsync(joinRequest);
+        deterministicTaskQueue.runAllTasks(random());
+        assertTrue(fut.isDone());
+        FutureUtils.get(fut);
+    }
+
+    public void testJoinWithHigherTermElectsLeader() {
+        DiscoveryNode node0 = newNode(0, true);
+        DiscoveryNode node1 = newNode(1, true);
+        setupFakeMasterServiceAndCoordinator(1, initialState(false, node0, 1, 1,
+            new VotingConfiguration(Collections.singleton(randomFrom(node0, node1).getId()))));
+        assertFalse(isLocalNodeElectedMaster());
+        joinNodeAndRun(new JoinRequest(node1, Optional.of(new Join(node1, node0, 2, 1, 1))));
+        assertTrue(isLocalNodeElectedMaster());
+    }
+
+    public void testJoinWithHigherTermButBetterStateGetsRejected() {
+        DiscoveryNode node0 = newNode(0, true);
+        DiscoveryNode node1 = newNode(1, true);
+        setupFakeMasterServiceAndCoordinator(1, initialState(false, node0, 1, 1,
+            new VotingConfiguration(Collections.singleton(node1.getId()))));
+        assertFalse(isLocalNodeElectedMaster());
+        expectThrows(CoordinationStateRejectedException.class,
+            () -> joinNodeAndRun(new JoinRequest(node1, Optional.of(new Join(node1, node0, 2, 2, 2)))));
+        assertFalse(isLocalNodeElectedMaster());
+    }
+
+    public void testJoinWithHigherTermButBetterStateStillElectsMasterThroughSelfJoin() {
+        DiscoveryNode node0 = newNode(0, true);
+        DiscoveryNode node1 = newNode(1, true);
+        setupFakeMasterServiceAndCoordinator(1, initialState(false, node0, 1, 1,
+            new VotingConfiguration(Collections.singleton(node0.getId()))));
+        assertFalse(isLocalNodeElectedMaster());
+        joinNodeAndRun(new JoinRequest(node1, Optional.of(new Join(node1, node0, 2, 2, 2))));
+        assertTrue(isLocalNodeElectedMaster());
+    }
+
+    public void testJoinElectedLeader() {
+        DiscoveryNode node0 = newNode(0, true);
+        DiscoveryNode node1 = newNode(1, true);
+        setupFakeMasterServiceAndCoordinator(1, initialState(false, node0, 1, 1,
+            new VotingConfiguration(Collections.singleton(node0.getId()))));
+        assertFalse(isLocalNodeElectedMaster());
+        joinNodeAndRun(new JoinRequest(node0, Optional.of(new Join(node0, node0, 2, 1, 1))));
+        assertTrue(isLocalNodeElectedMaster());
+        assertFalse(clusterStateHasNode(node1));
+        joinNodeAndRun(new JoinRequest(node1, Optional.of(new Join(node1, node0, 2, 1, 1))));
+        assertTrue(isLocalNodeElectedMaster());
+        assertTrue(clusterStateHasNode(node1));
+    }
+
+    public void testJoinAccumulation() {
+        DiscoveryNode node0 = newNode(0, true);
+        DiscoveryNode node1 = newNode(1, true);
+        setupFakeMasterServiceAndCoordinator(1, initialState(false, node0, 1, 1,
+            new VotingConfiguration(Collections.singleton(node1.getId()))));
+        assertFalse(isLocalNodeElectedMaster());
+        SimpleFuture fut = joinNodeAsync(new JoinRequest(node0, Optional.of(new Join(node0, node0, 2, 1, 1))));
+        deterministicTaskQueue.runAllTasks(random());
+        assertFalse(fut.isDone());
+        assertFalse(isLocalNodeElectedMaster());
+        joinNodeAndRun(new JoinRequest(node1, Optional.of(new Join(node1, node0, 2, 1, 1))));
+        assertTrue(isLocalNodeElectedMaster());
+        assertTrue(clusterStateHasNode(node1));
+        FutureUtils.get(fut);
+    }
+
+    public void testJoinFollowerFails() {
+        DiscoveryNode node0 = newNode(0, true);
+        DiscoveryNode node1 = newNode(1, true);
+        setupFakeMasterServiceAndCoordinator(1, initialState(false, node0, 1, 1,
+            new VotingConfiguration(Collections.singleton(node0.getId()))));
+        coordinator.coordinationState.get().handleStartJoin(new StartJoinRequest(node1, 2));
+        synchronized (coordinator.mutex) {
+            coordinator.becomeFollower("test", node1);
+        }
+        assertFalse(isLocalNodeElectedMaster());
+        assertThat(expectThrows(CoordinationStateRejectedException.class,
+            () -> joinNodeAndRun(new JoinRequest(node1, Optional.of(new Join(node1, node0, 2, 1, 1))))).getMessage(),
+            containsString("join target is a follower"));
+        assertFalse(isLocalNodeElectedMaster());
+    }
+
+    public void testBecomeFollowerFailsPendingJoin() {
+        DiscoveryNode node0 = newNode(0, true);
+        DiscoveryNode node1 = newNode(1, true);
+        setupFakeMasterServiceAndCoordinator(1, initialState(false, node0, 1, 1,
+            new VotingConfiguration(Collections.singleton(node1.getId()))));
+        SimpleFuture fut = joinNodeAsync(new JoinRequest(node0, Optional.of(new Join(node0, node0, 2, 1, 1))));
+        deterministicTaskQueue.runAllTasks(random());
+        assertFalse(fut.isDone());
+        assertFalse(isLocalNodeElectedMaster());
+        synchronized (coordinator.mutex) {
+            coordinator.becomeFollower("test", node1);
+        }
+        assertFalse(isLocalNodeElectedMaster());
+        assertThat(expectThrows(CoordinationStateRejectedException.class,
+            () -> FutureUtils.get(fut)).getMessage(),
+            containsString("following another master"));
+        assertFalse(isLocalNodeElectedMaster());
+    }
+
+    public void testConcurrentJoining() {
         List<DiscoveryNode> nodes = IntStream.rangeClosed(1, randomIntBetween(2, 5))
             .mapToObj(nodeId -> newNode(nodeId, true)).collect(Collectors.toList());
 
         VotingConfiguration votingConfiguration = new VotingConfiguration(
             randomSubsetOf(randomIntBetween(1, nodes.size()), nodes).stream().map(DiscoveryNode::getId).collect(Collectors.toSet()));
 
+        logger.info("Voting configuration: {}", votingConfiguration);
+
         DiscoveryNode localNode = nodes.get(0);
-        setupMasterServiceAndNodeJoinController(1, initialState(false, localNode, 1, 1, votingConfiguration));
+        setupRealMasterServiceAndCoordinator(1, initialState(false, localNode, 1, 1, votingConfiguration));
 
-        // we need at least a quorum of voting nodes with a correct term
+        // we need at least a quorum of voting nodes with a correct term and worse state
+        List<DiscoveryNode> successfulNodes;
+        do {
+            successfulNodes = randomSubsetOf(nodes);
+        } while (votingConfiguration.hasQuorum(successfulNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toList()))
+            == false);
 
-        List<Thread> threads = nodes.stream().map(node -> new Thread(() -> {
-            JoinRequest joinRequest = new JoinRequest(node, Optional.of(new Join(node, localNode, 2, 1, 1)));
+        logger.info("Successful voting nodes: {}", successfulNodes);
+
+        List<JoinRequest> correctJoinRequests = successfulNodes.stream().map(
+            node -> new JoinRequest(node, Optional.of(new Join(node, localNode, 2, 1, 1)))).collect(Collectors.toList());
+
+        List<DiscoveryNode> possiblyUnsuccessfulNodes = new ArrayList<>(nodes);
+        possiblyUnsuccessfulNodes.removeAll(successfulNodes);
+
+        logger.info("Possibly unsuccessful voting nodes: {}", possiblyUnsuccessfulNodes);
+
+        List<JoinRequest> possiblyFailingJoinRequests = possiblyUnsuccessfulNodes.stream().map(node -> {
+            if (randomBoolean()) {
+                // a correct request
+                return new JoinRequest(node, Optional.of(new Join(node, localNode, 2, 1, 1)));
+            } else if (randomBoolean()) {
+                // term too low
+                return new JoinRequest(node, Optional.of(new Join(node, localNode, 1, 1, 1)));
+            } else {
+                // better state
+                return new JoinRequest(node, Optional.of(new Join(node, localNode, 2, 2, 2)));
+            }
+        }).collect(Collectors.toList());
+
+        // duplicate some requests, which will be unsuccessful
+        possiblyFailingJoinRequests.addAll(randomSubsetOf(possiblyFailingJoinRequests));
+
+        CyclicBarrier barrier = new CyclicBarrier(correctJoinRequests.size() + possiblyFailingJoinRequests.size() + 1);
+        List<Thread> threads = new ArrayList<>();
+        threads.add(new Thread(() -> {
             try {
-                joinNode(joinRequest);
-            } catch (InterruptedException | ExecutionException e) {
+                barrier.await();
+            } catch (InterruptedException | BrokenBarrierException e) {
                 throw new RuntimeException(e);
             }
-        })).collect(Collectors.toList());
+            for (int i = 0; i < 30; i++) {
+                coordinator.invariant();
+            }
+        }));
+        threads.addAll(correctJoinRequests.stream().map(joinRequest -> new Thread(
+            () -> {
+                try {
+                    barrier.await();
+                } catch (InterruptedException | BrokenBarrierException e) {
+                    throw new RuntimeException(e);
+                }
+                joinNode(joinRequest);
+            })).collect(Collectors.toList()));
+        threads.addAll(possiblyFailingJoinRequests.stream().map(joinRequest -> new Thread(() -> {
+            try {
+                barrier.await();
+            } catch (InterruptedException | BrokenBarrierException e) {
+                throw new RuntimeException(e);
+            }
+            try {
+                joinNode(joinRequest);
+            } catch (CoordinationStateRejectedException ignore) {
+                // ignore
+            }
+        })).collect(Collectors.toList()));
 
         threads.forEach(Thread::start);
         threads.forEach(t -> {
@@ -186,64 +367,15 @@ public class NodeJoinTests extends ESTestCase {
             }
         });
 
-
-//        Thread[] threads = new Thread[3 + randomInt(5)];
-//        ArrayList<DiscoveryNode> nodes = new ArrayList<>();
-//        nodes.add(discoveryState(masterService).nodes().getLocalNode());
-//        final CyclicBarrier barrier = new CyclicBarrier(threads.length);
-//        final List<Throwable> backgroundExceptions = new CopyOnWriteArrayList<>();
-//        for (int i = 0; i < threads.length; i++) {
-//            final DiscoveryNode node = newNode(i);
-//            final int iterations = rarely() ? randomIntBetween(1, 4) : 1;
-//            nodes.add(node);
-//            threads[i] = new Thread(new AbstractRunnable() {
-//                @Override
-//                public void onFailure(Exception e) {
-//                    logger.error("unexpected error in join thread", e);
-//                    backgroundExceptions.add(e);
-//                }
-//
-//                @Override
-//                protected void doRun() throws Exception {
-//                    barrier.await();
-//                    for (int i = 0; i < iterations; i++) {
-//                        logger.debug("{} joining", node);
-//                        joinNode(node);
-//                    }
-//                }
-//            }, "t_" + i);
-//            threads[i].start();
-//        }
-//
-//        logger.info("--> waiting for joins to complete");
-//        for (Thread thread : threads) {
-//            thread.join();
-//        }
-
         assertTrue(MasterServiceTests.discoveryState(masterService).nodes().isLocalNodeElectedMaster());
+        successfulNodes.forEach(node -> assertTrue(clusterStateHasNode(node)));
+    }
 
-//        nodeJoinController.startElectionContext();
-//        ArrayList<Future<Void>> pendingJoins = new ArrayList<>();
-//        for (int i = randomInt(5); i > 0; i--) {
-//            DiscoveryNode node = newNode(nodeId++);
-//            nodes.add(node);
-//            pendingJoins.add(joinNodeAsync(node));
-//        }
-//        nodeJoinController.stopElectionContext("test");
-//        boolean hadSyncJoin = false;
-//        for (int i = randomInt(5); i > 0; i--) {
-//            DiscoveryNode node = newNode(nodeId++);
-//            nodes.add(node);
-//            joinNode(node);
-//            hadSyncJoin = true;
-//        }
-//        if (hadSyncJoin) {
-//            for (Future<Void> joinFuture : pendingJoins) {
-//                assertThat(joinFuture.isDone(), equalTo(true));
-//            }
-//        }
-//        for (Future<Void> joinFuture : pendingJoins) {
-//            joinFuture.get();
-//        }
+    private boolean isLocalNodeElectedMaster() {
+        return MasterServiceTests.discoveryState(masterService).nodes().isLocalNodeElectedMaster();
+    }
+
+    private boolean clusterStateHasNode(DiscoveryNode node) {
+        return node.equals(MasterServiceTests.discoveryState(masterService).nodes().get(node.getId()));
     }
 }

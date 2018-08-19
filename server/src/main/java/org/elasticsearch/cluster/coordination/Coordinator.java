@@ -17,10 +17,10 @@ public class Coordinator extends AbstractLifecycleComponent {
     private final TransportService transportService;
     private final JoinHelper joinHelper;
     private final Supplier<CoordinationState.PersistedState> persistedStateSupplier;
-    private final Object mutex = new Object();
-    private final SetOnce<CoordinationState> coordinationState = new SetOnce<>(); // initialized on start-up (see doStart)
+    final Object mutex = new Object();
+    final SetOnce<CoordinationState> coordinationState = new SetOnce<>(); // initialized on start-up (see doStart)
 
-    private volatile Mode mode;
+    private Mode mode;
     private Optional<DiscoveryNode> lastKnownLeader;
     private Optional<Join> lastJoin;
 
@@ -67,41 +67,43 @@ public class Coordinator extends AbstractLifecycleComponent {
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
         logger.trace("handleJoinRequestUnderLock: as {}, handling {}", mode, joinRequest);
 
-        try {
-            joinRequest.getOptionalJoin().ifPresent(this::handleJoin);
-        } catch (Exception exception) {
-            joinCallback.onFailure(exception);
+        final CoordinationState coordState = coordinationState.get();
+        final boolean prevElectionWon = coordState.electionWon();
+
+        if (joinRequest.getOptionalJoin().isPresent()) {
+            final Join join = joinRequest.getOptionalJoin().get();
+            // if someone thinks we should be master, let's add our vote and try to become one
+            // note that the following line should never throw an exception
+            ensureTermAtLeast(getLocalNode(), join.getTerm()).ifPresent(coordState::handleJoin);
+
+            // if we have already won the election, then the actual join does not matter for election purposes
+            if (coordState.electionWon()) {
+                // add join on a best-effort basis
+                try {
+                    coordState.handleJoin(join);
+                } catch (CoordinationStateRejectedException e) {
+                    logger.trace("failed to add join, ignoring", e);
+                }
+            } else {
+                coordState.handleJoin(join); // this might fail and bubble up the exception
+            }
         }
 
-        if (mode == Mode.FOLLOWER) {
-            joinCallback.onFailure(new CoordinationStateRejectedException("join target is a follower"));
-            return;
-        }
-
-        if (mode == Mode.LEADER) {
+        if (prevElectionWon == false && coordState.electionWon()) {
+            joinHelper.addPendingJoin(joinRequest, joinCallback);
+            becomeLeader("handleJoin");
+            joinHelper.clearAndSubmitPendingJoins();
+        } else if (mode == Mode.LEADER) {
             joinHelper.joinLeader(joinRequest, joinCallback);
+        } else if (mode == Mode.FOLLOWER) {
+            joinCallback.onFailure(new CoordinationStateRejectedException("join target is a follower"));
         } else {
             assert mode == Mode.CANDIDATE;
             joinHelper.addPendingJoin(joinRequest, joinCallback);
         }
     }
 
-    private void handleJoin(Join join) {
-        assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
-        Optional<Join> optionalJoinToSelf = ensureTermAtLeast(getLocalNode(), join.getTerm());
-
-        optionalJoinToSelf.ifPresent(this::handleJoin); // if someone thinks we should be master, let's try to become one
-
-        final CoordinationState state = coordinationState.get();
-        boolean prevElectionWon = state.electionWon();
-        state.handleJoin(join);
-
-        if (prevElectionWon == false && state.electionWon()) {
-            becomeLeader("handleJoin");
-        }
-    }
-
-    private void becomeCandidate(String method) {
+    void becomeCandidate(String method) {
         assert Thread.holdsLock(mutex) : "Legislator mutex not held";
         logger.debug("{}: becoming CANDIDATE (was {}, lastKnownLeader was [{}])", method, mode, lastKnownLeader);
 
@@ -110,23 +112,22 @@ public class Coordinator extends AbstractLifecycleComponent {
         }
     }
 
-    private void becomeLeader(String method) {
+    void becomeLeader(String method) {
         assert Thread.holdsLock(mutex) : "Legislator mutex not held";
         assert mode == Mode.CANDIDATE : "expected candidate but was " + mode;
         logger.debug("{}: becoming LEADER (was {}, lastKnownLeader was [{}])", method, mode, lastKnownLeader);
 
         mode = Mode.LEADER;
         lastKnownLeader = Optional.of(getLocalNode());
-        joinHelper.clearAndSubmitJoins();
     }
 
-    private void becomeFollower(String method, DiscoveryNode leaderNode) {
+    void becomeFollower(String method, DiscoveryNode leaderNode) {
         assert Thread.holdsLock(mutex) : "Legislator mutex not held";
         logger.debug("{}: becoming FOLLOWER of [{}] (was {}, lastKnownLeader was [{}])", method, leaderNode, mode, lastKnownLeader);
 
         if (mode != Mode.FOLLOWER) {
             mode = Mode.FOLLOWER;
-            joinHelper.clearAndFailJoins("becoming follower");
+            joinHelper.clearAndFailJoins("following another master : " + leaderNode);
         }
 
         lastKnownLeader = Optional.of(leaderNode);
@@ -141,7 +142,9 @@ public class Coordinator extends AbstractLifecycleComponent {
 
     // package-visible for testing
     Mode getMode() {
-        return mode;
+        synchronized (mutex) {
+            return mode;
+        }
     }
 
     // package-visible for testing

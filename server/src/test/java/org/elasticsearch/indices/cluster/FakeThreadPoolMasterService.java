@@ -50,7 +50,7 @@ public class FakeThreadPoolMasterService extends MasterService {
     private boolean taskInProgress = false;
     private boolean waitForPublish = false;
 
-    FakeThreadPoolMasterService(String serviceName, Consumer<Runnable> onTaskAvailableToRun) {
+    public FakeThreadPoolMasterService(String serviceName, Consumer<Runnable> onTaskAvailableToRun) {
         super(Settings.EMPTY, createMockThreadPool());
         this.name = serviceName;
         this.onTaskAvailableToRun = onTaskAvailableToRun;

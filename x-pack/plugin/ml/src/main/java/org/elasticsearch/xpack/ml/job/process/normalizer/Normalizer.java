@@ -46,15 +46,14 @@ public class Normalizer {
      * and normalizes the given results.
      *
      * @param bucketSpan                If <code>null</code> the default is used
-     * @param perPartitionNormalization Is normalization per partition (rather than per job)?
      * @param results                   Will be updated with the normalized results
      * @param quantilesState            The state to be used to seed the system change
      *                                  normalizer
      */
-    public void normalize(Integer bucketSpan, boolean perPartitionNormalization,
+    public void normalize(Integer bucketSpan,
                           List<? extends Normalizable> results, String quantilesState) {
         NormalizerProcess process = processFactory.createNormalizerProcess(jobId, quantilesState, bucketSpan,
-                perPartitionNormalization, executorService);
+                 executorService);
         NormalizerResultHandler resultsHandler = process.createNormalizedResultsHandler();
         Future<?> resultsHandlerFuture = executorService.submit(() -> {
             try {
@@ -70,6 +69,7 @@ public class Normalizer {
                     NormalizerResult.PARTITION_FIELD_NAME_FIELD.getPreferredName(),
                     NormalizerResult.PARTITION_FIELD_VALUE_FIELD.getPreferredName(),
                     NormalizerResult.PERSON_FIELD_NAME_FIELD.getPreferredName(),
+                    NormalizerResult.PERSON_FIELD_VALUE_FIELD.getPreferredName(),
                     NormalizerResult.FUNCTION_NAME_FIELD.getPreferredName(),
                     NormalizerResult.VALUE_FIELD_NAME_FIELD.getPreferredName(),
                     NormalizerResult.PROBABILITY_FIELD.getPreferredName(),
@@ -108,6 +108,7 @@ public class Normalizer {
                     Strings.coalesceToEmpty(normalizable.getPartitionFieldName()),
                     Strings.coalesceToEmpty(normalizable.getPartitionFieldValue()),
                     Strings.coalesceToEmpty(normalizable.getPersonFieldName()),
+                    Strings.coalesceToEmpty(normalizable.getPersonFieldValue()),
                     Strings.coalesceToEmpty(normalizable.getFunctionName()),
                     Strings.coalesceToEmpty(normalizable.getValueFieldName()),
                     Double.toString(normalizable.getProbability()),

@@ -9,6 +9,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
@@ -186,7 +187,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
             try {
                 DeleteDatafeedAction.Request request = new DeleteDatafeedAction.Request(datafeedId);
                 request.setForce(true);
-                DeleteDatafeedAction.Response response = client().execute(DeleteDatafeedAction.INSTANCE, request).actionGet();
+                AcknowledgedResponse response = client().execute(DeleteDatafeedAction.INSTANCE, request).actionGet();
                 if (response.isAcknowledged()) {
                     GetDatafeedsStatsAction.Request statsRequest = new GetDatafeedsStatsAction.Request(datafeedId);
                     expectThrows(ResourceNotFoundException.class,

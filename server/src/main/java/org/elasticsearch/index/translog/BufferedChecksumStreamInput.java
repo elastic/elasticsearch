@@ -35,14 +35,11 @@ public final class BufferedChecksumStreamInput extends FilterStreamInput {
     private static final int SKIP_BUFFER_SIZE = 1024;
     private byte[] skipBuffer;
     private final Checksum digest;
+    private final String source;
 
-    public BufferedChecksumStreamInput(StreamInput in) {
+    public BufferedChecksumStreamInput(StreamInput in, String source, BufferedChecksumStreamInput reuse) {
         super(in);
-        this.digest = new BufferedChecksum(new CRC32());
-    }
-
-    public BufferedChecksumStreamInput(StreamInput in, BufferedChecksumStreamInput reuse) {
-        super(in);
+        this.source = source;
         if (reuse == null ) {
             this.digest = new BufferedChecksum(new CRC32());
         } else {
@@ -50,6 +47,10 @@ public final class BufferedChecksumStreamInput extends FilterStreamInput {
             digest.reset();
             this.skipBuffer = reuse.skipBuffer;
         }
+    }
+
+    public BufferedChecksumStreamInput(StreamInput in, String source) {
+        this(in, source, null);
     }
 
     public long getChecksum() {
@@ -85,7 +86,6 @@ public final class BufferedChecksumStreamInput extends FilterStreamInput {
         return delegate.markSupported();
     }
 
-
     @Override
     public long skip(long numBytes) throws IOException {
         if (numBytes < 0) {
@@ -104,7 +104,6 @@ public final class BufferedChecksumStreamInput extends FilterStreamInput {
         return skipped;
     }
 
-
     @Override
     public synchronized void mark(int readlimit) {
         delegate.mark(readlimit);
@@ -114,4 +113,7 @@ public final class BufferedChecksumStreamInput extends FilterStreamInput {
         digest.reset();
     }
 
+    public String getSource(){
+        return source;
+    }
 }

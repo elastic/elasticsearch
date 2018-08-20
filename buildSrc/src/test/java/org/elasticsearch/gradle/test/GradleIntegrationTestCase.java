@@ -9,6 +9,7 @@ import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -108,5 +109,13 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
                 "\n\nOutput is:\n" + result.getOutput(),
             Files.exists(absPath)
         );
+    }
+
+    protected String getLocalTestRepoPath() {
+        String property = System.getProperty("test.local-test-repo-path");
+        Objects.requireNonNull(property, "test.local-test-repo-path not passed to tests");
+        File file = new File(property);
+        assertTrue("Expected " + property + " to exist, but it did not!", file.exists());
+        return file.getAbsolutePath();
     }
 }

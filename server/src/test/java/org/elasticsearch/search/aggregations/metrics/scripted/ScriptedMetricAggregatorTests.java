@@ -76,53 +76,53 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
     @SuppressWarnings("unchecked")
     public static void initMockScripts() {
         SCRIPTS.put("initScript", params -> {
-            Map<String, Object> agg = (Map<String, Object>) params.get("_agg");
-            agg.put("collector", new ArrayList<Integer>());
-            return agg;
-            });
+            Map<String, Object> state = (Map<String, Object>) params.get("state");
+            state.put("collector", new ArrayList<Integer>());
+            return state;
+        });
         SCRIPTS.put("mapScript", params -> {
-            Map<String, Object> agg = (Map<String, Object>) params.get("_agg");
-            ((List<Integer>) agg.get("collector")).add(1); // just add 1 for each doc the script is run on
-            return agg;
+            Map<String, Object> state = (Map<String, Object>) params.get("state");
+            ((List<Integer>) state.get("collector")).add(1); // just add 1 for each doc the script is run on
+            return state;
         });
         SCRIPTS.put("combineScript", params -> {
-            Map<String, Object> agg = (Map<String, Object>) params.get("_agg");
-            return ((List<Integer>) agg.get("collector")).stream().mapToInt(Integer::intValue).sum();
+            Map<String, Object> state = (Map<String, Object>) params.get("state");
+            return ((List<Integer>) state.get("collector")).stream().mapToInt(Integer::intValue).sum();
         });
 
         SCRIPTS.put("initScriptScore", params -> {
-            Map<String, Object> agg = (Map<String, Object>) params.get("_agg");
-            agg.put("collector", new ArrayList<Double>());
-            return agg;
-            });
+            Map<String, Object> state = (Map<String, Object>) params.get("state");
+            state.put("collector", new ArrayList<Double>());
+            return state;
+        });
         SCRIPTS.put("mapScriptScore", params -> {
-            Map<String, Object> agg = (Map<String, Object>) params.get("_agg");
-            ((List<Double>) agg.get("collector")).add(((Number) params.get("_score")).doubleValue());
-            return agg;
+            Map<String, Object> state = (Map<String, Object>) params.get("state");
+            ((List<Double>) state.get("collector")).add(((Number) params.get("_score")).doubleValue());
+            return state;
         });
         SCRIPTS.put("combineScriptScore", params -> {
-            Map<String, Object> agg = (Map<String, Object>) params.get("_agg");
-            return ((List<Double>) agg.get("collector")).stream().mapToDouble(Double::doubleValue).sum();
+            Map<String, Object> state = (Map<String, Object>) params.get("state");
+            return ((List<Double>) state.get("collector")).stream().mapToDouble(Double::doubleValue).sum();
         });
 
         SCRIPTS.put("initScriptParams", params -> {
-            Map<String, Object> agg = (Map<String, Object>) params.get("_agg");
+            Map<String, Object> state = (Map<String, Object>) params.get("state");
             Integer initialValue = (Integer)params.get("initialValue");
             ArrayList<Integer> collector = new ArrayList();
             collector.add(initialValue);
-            agg.put("collector", collector);
-            return agg;
+            state.put("collector", collector);
+            return state;
         });
         SCRIPTS.put("mapScriptParams", params -> {
-            Map<String, Object> agg = (Map<String, Object>) params.get("_agg");
+            Map<String, Object> state = (Map<String, Object>) params.get("state");
             Integer itemValue = (Integer) params.get("itemValue");
-            ((List<Integer>) agg.get("collector")).add(itemValue);
-            return agg;
+            ((List<Integer>) state.get("collector")).add(itemValue);
+            return state;
         });
         SCRIPTS.put("combineScriptParams", params -> {
-            Map<String, Object> agg = (Map<String, Object>) params.get("_agg");
+            Map<String, Object> state = (Map<String, Object>) params.get("state");
             int divisor = ((Integer) params.get("divisor"));
-            return ((List<Integer>) agg.get("collector")).stream().mapToInt(Integer::intValue).map(i -> i / divisor).sum();
+            return ((List<Integer>) state.get("collector")).stream().mapToInt(Integer::intValue).map(i -> i / divisor).sum();
         });
     }
 
@@ -144,7 +144,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
     }
 
     /**
-     * without combine script, the "_aggs" map should contain a list of the size of the number of documents matched
+     * without combine script, the "states" map should contain a list of the size of the number of documents matched
      */
     @SuppressWarnings("unchecked")
     public void testScriptedMetricWithoutCombine() throws IOException {

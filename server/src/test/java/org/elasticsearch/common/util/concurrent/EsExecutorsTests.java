@@ -337,7 +337,7 @@ public class EsExecutorsTests extends ESTestCase {
         final CountDownLatch executed = new CountDownLatch(1);
 
         threadContext.putHeader("foo", "bar");
-        final Integer one = new Integer(1);
+        final Integer one = Integer.valueOf(1);
         threadContext.putTransient("foo", one);
         EsThreadPoolExecutor executor =
                 EsExecutors.newFixed(getName(), pool, queue, EsExecutors.daemonThreadFactory("dummy"), threadContext);

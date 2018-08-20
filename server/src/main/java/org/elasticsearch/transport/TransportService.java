@@ -77,7 +77,7 @@ import static org.elasticsearch.common.settings.Setting.intSetting;
 import static org.elasticsearch.common.settings.Setting.listSetting;
 import static org.elasticsearch.common.settings.Setting.timeSetting;
 
-public class TransportService extends AbstractLifecycleComponent implements TransportConnectionListener {
+public class TransportService extends AbstractLifecycleComponent implements TransportMessageListener, TransportConnectionListener {
 
     public static final Setting<Integer> CONNECTIONS_PER_NODE_RECOVERY =
         intSetting("transport.connections_per_node.recovery", 2, 1, Setting.Property.NodeScope);
@@ -248,7 +248,8 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
 
     @Override
     protected void doStart() {
-        transport.addConnectionListener(this);
+        transport.addMessageListener(this);
+        connectionManager.addListener(this);
         transport.start();
         if (transport.boundAddress() != null && logger.isInfoEnabled()) {
             logger.info("{}", transport.boundAddress());
@@ -506,12 +507,10 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
     }
 
     public void addConnectionListener(TransportConnectionListener listener) {
-        transport.addConnectionListener(listener);
         connectionManager.addListener(listener);
     }
 
     public void removeConnectionListener(TransportConnectionListener listener) {
-        transport.removeConnectionListener(listener);
         connectionManager.removeListener(listener);
     }
 

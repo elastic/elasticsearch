@@ -16,6 +16,7 @@
 === Data
 
 * <<rollup-get-rollup-caps,Get Rollup Capabilities>>
+* <<rollup-get-rollup-index-caps,Get Rollup Index Capabilities>>
 
 [float]
 [[rollup-search-endpoint]]
@@ -31,5 +32,6 @@ include::rollup/put-job.asciidoc[]
 include::rollup/start-job.asciidoc[]
 include::rollup/stop-job.asciidoc[]
 include::rollup/rollup-caps.asciidoc[]
+include::rollup/rollup-index-caps.asciidoc[]
 include::rollup/rollup-search.asciidoc[]
 include::rollup/rollup-job-config.asciidoc[]

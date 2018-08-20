@@ -22,9 +22,9 @@ package org.elasticsearch.cluster.ack;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
-import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -163,7 +163,7 @@ public class AckClusterUpdateSettingsIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
         removePublishTimeout();
-        CloseIndexResponse closeIndexResponse = client().admin().indices().prepareClose("test").execute().actionGet();
+        AcknowledgedResponse closeIndexResponse = client().admin().indices().prepareClose("test").execute().actionGet();
         assertThat(closeIndexResponse.isAcknowledged(), equalTo(true));
 
         OpenIndexResponse openIndexResponse = client().admin().indices().prepareOpen("test").setTimeout("0s").get();

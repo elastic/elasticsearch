@@ -22,8 +22,8 @@ package org.elasticsearch.indices.state;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -235,9 +235,9 @@ public class RareClusterStateIT extends ESIntegTestCase {
 
         // Add a new mapping...
         final AtomicReference<Object> putMappingResponse = new AtomicReference<>();
-        client().admin().indices().preparePutMapping("index").setType("type").setSource("field", "type=long").execute(new ActionListener<PutMappingResponse>() {
+        client().admin().indices().preparePutMapping("index").setType("type").setSource("field", "type=long").execute(new ActionListener<AcknowledgedResponse>() {
             @Override
-            public void onResponse(PutMappingResponse response) {
+            public void onResponse(AcknowledgedResponse response) {
                 putMappingResponse.set(response);
             }
 
@@ -286,8 +286,8 @@ public class RareClusterStateIT extends ESIntegTestCase {
         // Now make sure the indexing request finishes successfully
         disruption.stopDisrupting();
         assertBusy(() -> {
-            assertThat(putMappingResponse.get(), instanceOf(PutMappingResponse.class));
-            PutMappingResponse resp = (PutMappingResponse) putMappingResponse.get();
+            assertThat(putMappingResponse.get(), instanceOf(AcknowledgedResponse.class));
+            AcknowledgedResponse resp = (AcknowledgedResponse) putMappingResponse.get();
             assertTrue(resp.isAcknowledged());
             assertThat(docIndexResponse.get(), instanceOf(IndexResponse.class));
             IndexResponse docResp = (IndexResponse) docIndexResponse.get();
@@ -349,9 +349,9 @@ public class RareClusterStateIT extends ESIntegTestCase {
         internalCluster().setDisruptionScheme(disruption);
         disruption.startDisrupting();
         final AtomicReference<Object> putMappingResponse = new AtomicReference<>();
-        client().admin().indices().preparePutMapping("index").setType("type").setSource("field", "type=long").execute(new ActionListener<PutMappingResponse>() {
+        client().admin().indices().preparePutMapping("index").setType("type").setSource("field", "type=long").execute(new ActionListener<AcknowledgedResponse>() {
             @Override
-            public void onResponse(PutMappingResponse response) {
+            public void onResponse(AcknowledgedResponse response) {
                 putMappingResponse.set(response);
             }
 
@@ -397,8 +397,8 @@ public class RareClusterStateIT extends ESIntegTestCase {
         // Now make sure the indexing request finishes successfully
         disruption.stopDisrupting();
         assertBusy(() -> {
-            assertThat(putMappingResponse.get(), instanceOf(PutMappingResponse.class));
-            PutMappingResponse resp = (PutMappingResponse) putMappingResponse.get();
+            assertThat(putMappingResponse.get(), instanceOf(AcknowledgedResponse.class));
+            AcknowledgedResponse resp = (AcknowledgedResponse) putMappingResponse.get();
             assertTrue(resp.isAcknowledged());
             assertThat(docIndexResponse.get(), instanceOf(IndexResponse.class));
             IndexResponse docResp = (IndexResponse) docIndexResponse.get();

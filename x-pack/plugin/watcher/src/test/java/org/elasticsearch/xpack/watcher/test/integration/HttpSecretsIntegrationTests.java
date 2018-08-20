@@ -22,9 +22,8 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWat
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
+import org.elasticsearch.xpack.watcher.common.http.BasicAuth;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
-import org.elasticsearch.xpack.watcher.common.http.auth.basic.ApplicableBasicAuth;
-import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuth;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
@@ -32,6 +31,8 @@ import org.joda.time.DateTime;
 import org.junit.After;
 import org.junit.Before;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -154,7 +155,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
 
         assertThat(webServer.requests(), hasSize(1));
         assertThat(webServer.requests().get(0).getHeader("Authorization"),
-                is(ApplicableBasicAuth.headerValue(USERNAME, PASSWORD.toCharArray())));
+                is(headerValue(USERNAME, PASSWORD.toCharArray())));
 
         // now trigger the by the scheduler and make sure that the password is also correctly transmitted
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(
@@ -162,7 +163,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
         timeWarp().trigger("_id");
         assertThat(webServer.requests(), hasSize(2));
         assertThat(webServer.requests().get(1).getHeader("Authorization"),
-            is(ApplicableBasicAuth.headerValue(USERNAME, PASSWORD.toCharArray())));
+            is(headerValue(USERNAME, PASSWORD.toCharArray())));
     }
 
     public void testWebhookAction() throws Exception {
@@ -251,6 +252,10 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
 
         assertThat(webServer.requests(), hasSize(1));
         assertThat(webServer.requests().get(0).getHeader("Authorization"),
-                is(ApplicableBasicAuth.headerValue(USERNAME, PASSWORD.toCharArray())));
+                is(headerValue(USERNAME, PASSWORD.toCharArray())));
+    }
+
+    private String headerValue(String username, char[] password) {
+        return "Basic " + Base64.getEncoder().encodeToString((username + ":" + new String(password)).getBytes(StandardCharsets.UTF_8));
     }
 }

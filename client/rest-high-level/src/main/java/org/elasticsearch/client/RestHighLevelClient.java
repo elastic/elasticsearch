@@ -27,7 +27,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
-import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptResponse;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -53,6 +52,7 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.CheckedConsumer;
@@ -928,9 +928,9 @@ public class RestHighLevelClient implements Closeable {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public DeleteStoredScriptResponse deleteScript(DeleteStoredScriptRequest request, RequestOptions options) throws IOException {
+    public AcknowledgedResponse deleteScript(DeleteStoredScriptRequest request, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(request, RequestConverters::deleteScript, options,
-            DeleteStoredScriptResponse::fromXContent, emptySet());
+            AcknowledgedResponse::fromXContent, emptySet());
     }
 
     /**
@@ -942,9 +942,9 @@ public class RestHighLevelClient implements Closeable {
      * @param listener the listener to be notified upon request completion
      */
     public void deleteScriptAsync(DeleteStoredScriptRequest request, RequestOptions options,
-                                  ActionListener<DeleteStoredScriptResponse> listener) {
+                                  ActionListener<AcknowledgedResponse> listener) {
         performRequestAsyncAndParseEntity(request, RequestConverters::deleteScript, options,
-            DeleteStoredScriptResponse::fromXContent, listener, emptySet());
+            AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
     /**

@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -31,7 +32,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-public class TransportDeleteCalendarAction extends HandledTransportAction<DeleteCalendarAction.Request, DeleteCalendarAction.Response> {
+public class TransportDeleteCalendarAction extends HandledTransportAction<DeleteCalendarAction.Request, AcknowledgedResponse> {
 
     private final Client client;
     private final JobManager jobManager;
@@ -49,7 +50,7 @@ public class TransportDeleteCalendarAction extends HandledTransportAction<Delete
     }
 
     @Override
-    protected void doExecute(Task task, DeleteCalendarAction.Request request, ActionListener<DeleteCalendarAction.Response> listener) {
+    protected void doExecute(Task task, DeleteCalendarAction.Request request, ActionListener<AcknowledgedResponse> listener) {
 
         final String calendarId = request.getCalendarId();
 
@@ -64,7 +65,7 @@ public class TransportDeleteCalendarAction extends HandledTransportAction<Delete
                                     return;
                                 }
                                 jobManager.updateProcessOnCalendarChanged(calendar.getJobIds());
-                                listener.onResponse(new DeleteCalendarAction.Response(true));
+                                listener.onResponse(new AcknowledgedResponse(true));
                             },
                             listener::onFailure));
                 },

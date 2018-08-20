@@ -23,7 +23,6 @@ setup:
         body: |
            {
              "policy": {
-               "type": "timeseries",
                "phases": {
                  "warm": {
                    "after": "10s",
@@ -47,7 +46,6 @@ setup:
       acknowledge: true
       ilm.get_lifecycle:
         lifecycle: "my_timeseries_lifecycle"
-  - match: { my_timeseries_lifecycle.type: "timeseries" }
   - match: { my_timeseries_lifecycle.phases.warm.after: "10s" }
   - match: { my_timeseries_lifecycle.phases.delete.after: "30s" }
 
@@ -70,7 +68,6 @@ setup:
         body: |
            {
              "policy": {
-               "type": "timeseries",
                "phases": {
                  "warm": {
                    "after": "10s",
@@ -94,7 +91,6 @@ setup:
       acknowledge: true
       ilm.get_lifecycle:
         lifecycle: "my_timeseries_lifecycle"
-  - match: { my_timeseries_lifecycle.type: "timeseries" }
   - match: { my_timeseries_lifecycle.phases.warm.after: "10s" }
   - match: { my_timeseries_lifecycle.phases.delete.after: "30s" }
 
@@ -120,7 +116,6 @@ setup:
         body: |
            {
              "policy": {
-               "type": "timeseries",
                "phases": {
                  "warm": {
                    "after": "300s",
@@ -144,7 +139,6 @@ setup:
       acknowledge: true
       ilm.get_lifecycle:
         lifecycle: "my_timeseries_lifecycle"
-  - match: { my_timeseries_lifecycle.type: "timeseries" }
   - match: { my_timeseries_lifecycle.phases.warm.after: "300s" }
   - match: { my_timeseries_lifecycle.phases.delete.after: "600s" }
 
@@ -176,7 +170,6 @@ setup:
         body: |
            {
              "policy": {
-               "type": "timeseries",
                "phases": {
                  "warm": {
                    "after": "10s",
@@ -200,7 +193,6 @@ setup:
       acknowledge: true
       ilm.get_lifecycle:
         lifecycle: "my_timeseries_lifecycle"
-  - match: { my_timeseries_lifecycle.type: "timeseries" }
   - match: { my_timeseries_lifecycle.phases.warm.after: "10s" }
   - match: { my_timeseries_lifecycle.phases.delete.after: "30s" }
 

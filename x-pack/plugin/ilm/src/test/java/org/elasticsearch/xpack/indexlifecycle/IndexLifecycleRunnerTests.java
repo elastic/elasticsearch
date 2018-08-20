@@ -42,7 +42,6 @@ import org.elasticsearch.xpack.core.indexlifecycle.RolloverAction;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
-import org.elasticsearch.xpack.core.indexlifecycle.TestLifecycleType;
 import org.mockito.ArgumentMatcher;
 import org.mockito.Mockito;
 
@@ -57,12 +56,17 @@ import java.util.SortedMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyTestsUtils.newTestLifecyclePolicy;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
 public class IndexLifecycleRunnerTests extends ESTestCase {
 
     private PolicyStepsRegistry createOneStepPolicyStepRegistry(String policyName, Step step) {
+        return createOneStepPolicyStepRegistry(policyName, step, "test");
+    }
+
+    private PolicyStepsRegistry createOneStepPolicyStepRegistry(String policyName, Step step, String indexName) {
         SortedMap<String, LifecyclePolicyMetadata> lifecyclePolicyMap = null; // Not used in this test
         Map<String, Step> firstStepMap = new HashMap<>();
         firstStepMap.put(policyName, step);
@@ -70,7 +74,12 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Map<StepKey, Step> policySteps = new HashMap<>();
         policySteps.put(step.getKey(), step);
         stepMap.put(policyName, policySteps);
-        return new PolicyStepsRegistry(lifecyclePolicyMap, firstStepMap, stepMap);
+        Map<Index, List<Step>> indexSteps = new HashMap<>();
+        List<Step> steps = new ArrayList<>();
+        steps.add(step);
+        Index index = new Index(indexName, indexName + "uuid");
+        indexSteps.put(index, steps);
+        return new PolicyStepsRegistry(lifecyclePolicyMap, firstStepMap, stepMap, indexSteps);
     }
 
     public void testRunPolicyTerminalPolicyStep() {
@@ -436,7 +445,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Step thirdStep = new MockStep(thirdStepKey, fourthStepKey);
         Step fourthStep = new MockStep(fourthStepKey, null);
         Step otherPolicyFirstStep = new MockStep(firstStepKey, secondStepKey);
-        Step otherPolicySecondStep = new MockStep(secondStepKey, null);
+        Step otherPolicySecondStep = new MockStep(secondStepKey, thirdStepKey);
         Map<String, Step> firstStepMap = new HashMap<>();
         firstStepMap.put(policyName, firstStep);
         firstStepMap.put(otherPolicyName, otherPolicyFirstStep);
@@ -451,10 +460,17 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         otherPolicySteps.put(otherPolicyFirstStepKey, otherPolicyFirstStep);
         otherPolicySteps.put(otherPolicySecondStepKey, otherPolicySecondStep);
         stepMap.put(otherPolicyName, otherPolicySteps);
-        PolicyStepsRegistry registry = new PolicyStepsRegistry(lifecyclePolicyMap, firstStepMap, stepMap);
+        Map<Index, List<Step>> indexSteps = new HashMap<>();
+        List<Step> phase1Steps = new ArrayList<>();
+        phase1Steps.add(firstStep);
+        phase1Steps.add(secondStep);
+        phase1Steps.add(thirdStep);
+        Index index = new Index("test", "uuid");
+        indexSteps.put(index, phase1Steps);
+        PolicyStepsRegistry registry = new PolicyStepsRegistry(lifecyclePolicyMap, firstStepMap, stepMap, indexSteps);
 
         Settings indexSettings = Settings.EMPTY;
-        Step actualStep = IndexLifecycleRunner.getCurrentStep(registry, policyName, indexSettings);
+        Step actualStep = IndexLifecycleRunner.getCurrentStep(registry, policyName, index, indexSettings);
         assertSame(firstStep, actualStep);
 
         indexSettings = Settings.builder()
@@ -462,7 +478,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                 .put(LifecycleSettings.LIFECYCLE_ACTION, "action_1")
                 .put(LifecycleSettings.LIFECYCLE_STEP, "step_1")
                 .build();
-        actualStep = IndexLifecycleRunner.getCurrentStep(registry, policyName, indexSettings);
+        actualStep = IndexLifecycleRunner.getCurrentStep(registry, policyName, index, indexSettings);
         assertSame(firstStep, actualStep);
 
         indexSettings = Settings.builder()
@@ -470,7 +486,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                 .put(LifecycleSettings.LIFECYCLE_ACTION, "action_1")
                 .put(LifecycleSettings.LIFECYCLE_STEP, "step_2")
                 .build();
-        actualStep = IndexLifecycleRunner.getCurrentStep(registry, policyName, indexSettings);
+        actualStep = IndexLifecycleRunner.getCurrentStep(registry, policyName, index, indexSettings);
         assertSame(secondStep, actualStep);
 
         indexSettings = Settings.builder()
@@ -478,15 +494,21 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                 .put(LifecycleSettings.LIFECYCLE_ACTION, "action_2")
                 .put(LifecycleSettings.LIFECYCLE_STEP, "step_1")
                 .build();
-        actualStep = IndexLifecycleRunner.getCurrentStep(registry, policyName, indexSettings);
+        actualStep = IndexLifecycleRunner.getCurrentStep(registry, policyName, index, indexSettings);
         assertSame(thirdStep, actualStep);
 
+        // Switch to phase_2
+        // TODO: it'd be nice if we used the actual registry.update method for this
+        indexSteps.clear();
+        indexSteps.put(index, Collections.singletonList(fourthStep));
+        registry = new PolicyStepsRegistry(lifecyclePolicyMap, firstStepMap, stepMap, indexSteps);
+
         indexSettings = Settings.builder()
                 .put(LifecycleSettings.LIFECYCLE_PHASE, "phase_2")
                 .put(LifecycleSettings.LIFECYCLE_ACTION, "action_1")
                 .put(LifecycleSettings.LIFECYCLE_STEP, "step_1")
                 .build();
-        actualStep = IndexLifecycleRunner.getCurrentStep(registry, policyName, indexSettings);
+        actualStep = IndexLifecycleRunner.getCurrentStep(registry, policyName, index, indexSettings);
         assertSame(fourthStep, actualStep);
 
         indexSettings = Settings.builder()
@@ -494,32 +516,37 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                 .put(LifecycleSettings.LIFECYCLE_ACTION, "action_1")
                 .put(LifecycleSettings.LIFECYCLE_STEP, "step_1")
                 .build();
-        actualStep = IndexLifecycleRunner.getCurrentStep(registry, policyName, indexSettings);
+        actualStep = IndexLifecycleRunner.getCurrentStep(registry, policyName, index, indexSettings);
         assertSame(fourthStep, actualStep);
+
+        // Back to phase_1
+        indexSteps.clear();
+        indexSteps.put(index, phase1Steps);
+        registry = new PolicyStepsRegistry(lifecyclePolicyMap, firstStepMap, stepMap, indexSteps);
 
         indexSettings = Settings.builder()
                 .put(LifecycleSettings.LIFECYCLE_PHASE, "phase_1")
                 .put(LifecycleSettings.LIFECYCLE_ACTION, "action_1")
                 .put(LifecycleSettings.LIFECYCLE_STEP, "step_1")
                 .build();
-        actualStep = IndexLifecycleRunner.getCurrentStep(registry, otherPolicyName, indexSettings);
-        assertSame(otherPolicyFirstStep, actualStep);
+        actualStep = IndexLifecycleRunner.getCurrentStep(registry, otherPolicyName, index, indexSettings);
+        assertEquals(otherPolicyFirstStep, actualStep);
 
         indexSettings = Settings.builder()
                 .put(LifecycleSettings.LIFECYCLE_PHASE, "phase_1")
                 .put(LifecycleSettings.LIFECYCLE_ACTION, "action_1")
                 .put(LifecycleSettings.LIFECYCLE_STEP, "step_2")
                 .build();
-        actualStep = IndexLifecycleRunner.getCurrentStep(registry, otherPolicyName, indexSettings);
-        assertSame(otherPolicySecondStep, actualStep);
+        actualStep = IndexLifecycleRunner.getCurrentStep(registry, otherPolicyName, index, indexSettings);
+        assertEquals(otherPolicySecondStep, actualStep);
 
         Settings invalidIndexSettings = Settings.builder()
                 .put(LifecycleSettings.LIFECYCLE_PHASE, "phase_1")
                 .put(LifecycleSettings.LIFECYCLE_ACTION, "action_1")
                 .put(LifecycleSettings.LIFECYCLE_STEP, "step_3")
                 .build();
-        assertNull(IndexLifecycleRunner.getCurrentStep(registry, policyName, invalidIndexSettings));
-        assertNull(IndexLifecycleRunner.getCurrentStep(registry, "policy_does_not_exist", invalidIndexSettings));
+        assertNull(IndexLifecycleRunner.getCurrentStep(registry, policyName, index, invalidIndexSettings));
+        assertNull(IndexLifecycleRunner.getCurrentStep(registry, "policy_does_not_exist", new Index("test","bad"), invalidIndexSettings));
     }
 
     public void testMoveClusterStateToNextStep() {
@@ -604,7 +631,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         StepKey nextStepKey = new StepKey("next_phase", "next_action", "next_step");
         long now = randomNonNegativeLong();
         Step step = new MockStep(nextStepKey, nextStepKey);
-        PolicyStepsRegistry stepRegistry = createOneStepPolicyStepRegistry(policyName, step);
+        PolicyStepsRegistry stepRegistry = createOneStepPolicyStepRegistry(policyName, step, indexName);
 
         Builder indexSettingsBuilder = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policyName)
             .put(LifecycleSettings.LIFECYCLE_PHASE, currentStepKey.getPhase())
@@ -678,7 +705,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                 nextStepKey, () -> now, stepRegistry));
         assertThat(exception.getMessage(),
             equalTo("step [{\"phase\":\"next_phase\",\"action\":\"next_action\",\"name\":\"next_step\"}] " +
-                "with policy [my_policy] does not exist"));
+                "for index [my_index] with policy [my_policy] does not exist"));
     }
 
     public void testMoveClusterStateToErrorStep() throws IOException {
@@ -712,7 +739,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         StepKey failedStepKey = new StepKey("current_phase", "current_action", "current_step");
         StepKey errorStepKey = new StepKey(failedStepKey.getPhase(), failedStepKey.getAction(), ErrorStep.NAME);
         Step step = new MockStep(failedStepKey, null);
-        PolicyStepsRegistry policyRegistry = createOneStepPolicyStepRegistry(policyName, step);
+        PolicyStepsRegistry policyRegistry = createOneStepPolicyStepRegistry(policyName, step, indexName);
         Settings.Builder indexSettingsBuilder = Settings.builder()
                 .put(LifecycleSettings.LIFECYCLE_NAME, policyName)
                 .put(LifecycleSettings.LIFECYCLE_PHASE, errorStepKey.getPhase())
@@ -863,7 +890,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         long now = randomNonNegativeLong();
         String indexName = randomAlphaOfLength(10);
         String newPolicyName = "new_policy";
-        LifecyclePolicy newPolicy = new LifecyclePolicy(TestLifecycleType.INSTANCE, newPolicyName, Collections.emptyMap());
+        LifecyclePolicy newPolicy = newTestLifecyclePolicy(newPolicyName, Collections.emptyMap());
         StepKey currentStep = new StepKey("", "", "");
         Settings.Builder indexSettingsBuilder = Settings.builder();
         ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder, Collections.emptyList());
@@ -883,8 +910,8 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         String indexName = randomAlphaOfLength(10);
         String oldPolicyName = "old_policy";
         String newPolicyName = "new_policy";
-        LifecyclePolicy oldPolicy = new LifecyclePolicy(TestLifecycleType.INSTANCE, oldPolicyName, Collections.emptyMap());
-        LifecyclePolicy newPolicy = new LifecyclePolicy(TestLifecycleType.INSTANCE, newPolicyName, Collections.emptyMap());
+        LifecyclePolicy oldPolicy = newTestLifecyclePolicy(oldPolicyName, Collections.emptyMap());
+        LifecyclePolicy newPolicy = newTestLifecyclePolicy(newPolicyName, Collections.emptyMap());
         StepKey currentStep = AbstractStepTestCase.randomStepKey();
         Settings.Builder indexSettingsBuilder = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, oldPolicyName)
                 .put(LifecycleSettings.LIFECYCLE_PHASE, currentStep.getPhase())
@@ -910,7 +937,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         String indexName = randomAlphaOfLength(10);
         String oldPolicyName = "old_policy";
         String newPolicyName = "new_policy";
-        LifecyclePolicy newPolicy = new LifecyclePolicy(TestLifecycleType.INSTANCE, newPolicyName, Collections.emptyMap());
+        LifecyclePolicy newPolicy = new LifecyclePolicy(newPolicyName, Collections.emptyMap());
         StepKey currentStep = new StepKey(randomAlphaOfLength(10), MockAction.NAME, randomAlphaOfLength(10));
         LifecyclePolicy oldPolicy = createPolicy(oldPolicyName, null, currentStep);
         Settings.Builder indexSettingsBuilder = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, oldPolicyName)
@@ -976,7 +1003,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         actions.put(unsafeAction.getWriteableName(), unsafeAction);
         Phase phase = new Phase(currentStep.getPhase(), TimeValue.timeValueMillis(0), actions);
         phases.put(phase.getName(), phase);
-        LifecyclePolicy newPolicy = new LifecyclePolicy(TestLifecycleType.INSTANCE, newPolicyName, phases);
+        LifecyclePolicy newPolicy = newTestLifecyclePolicy(newPolicyName, phases);
 
         Settings.Builder indexSettingsBuilder = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, oldPolicyName)
                 .put(LifecycleSettings.LIFECYCLE_PHASE, currentStep.getPhase())
@@ -1019,15 +1046,14 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             Phase phase = new Phase(unsafeStep.getPhase(), TimeValue.timeValueMillis(0), actions);
             phases.put(phase.getName(), phase);
         }
-        LifecyclePolicy oldPolicy = new LifecyclePolicy(TestLifecycleType.INSTANCE, policyName, phases);
-        return oldPolicy;
+        return newTestLifecyclePolicy(policyName, phases);
     }
 
     public void testCanUpdatePolicy() {
         String indexName = randomAlphaOfLength(10);
         String oldPolicyName = "old_policy";
         String newPolicyName = "new_policy";
-        LifecyclePolicy newPolicy = new LifecyclePolicy(TestLifecycleType.INSTANCE, newPolicyName, Collections.emptyMap());
+        LifecyclePolicy newPolicy = newTestLifecyclePolicy(newPolicyName, Collections.emptyMap());
         StepKey currentStep = new StepKey(randomAlphaOfLength(10), MockAction.NAME, randomAlphaOfLength(10));
         LifecyclePolicy oldPolicy = createPolicy(oldPolicyName, currentStep, null);
         Settings.Builder indexSettingsBuilder = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, oldPolicyName)
@@ -1047,7 +1073,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         String indexName = randomAlphaOfLength(10);
         String oldPolicyName = "old_policy";
         String newPolicyName = "new_policy";
-        LifecyclePolicy newPolicy = new LifecyclePolicy(TestLifecycleType.INSTANCE, newPolicyName, Collections.emptyMap());
+        LifecyclePolicy newPolicy = newTestLifecyclePolicy(newPolicyName, Collections.emptyMap());
         StepKey currentStep = new StepKey(randomAlphaOfLength(10), MockAction.NAME, randomAlphaOfLength(10));
         LifecyclePolicy oldPolicy = createPolicy(oldPolicyName, null, currentStep);
         Settings.Builder indexSettingsBuilder = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, oldPolicyName)
@@ -1101,7 +1127,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         actions.put(unsafeAction.getWriteableName(), unsafeAction);
         Phase phase = new Phase(currentStep.getPhase(), TimeValue.timeValueMillis(0), actions);
         phases.put(phase.getName(), phase);
-        LifecyclePolicy newPolicy = new LifecyclePolicy(TestLifecycleType.INSTANCE, newPolicyName, phases);
+        LifecyclePolicy newPolicy = newTestLifecyclePolicy(newPolicyName, phases);
 
         Settings.Builder indexSettingsBuilder = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, oldPolicyName)
                 .put(LifecycleSettings.LIFECYCLE_PHASE, currentStep.getPhase())
@@ -1120,8 +1146,8 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         String indexName = randomAlphaOfLength(10);
         String oldPolicyName = "old_policy";
         String newPolicyName = "new_policy";
-        LifecyclePolicy oldPolicy = new LifecyclePolicy(TestLifecycleType.INSTANCE, oldPolicyName, Collections.emptyMap());
-        LifecyclePolicy newPolicy = new LifecyclePolicy(TestLifecycleType.INSTANCE, newPolicyName, Collections.emptyMap());
+        LifecyclePolicy oldPolicy = newTestLifecyclePolicy(oldPolicyName, Collections.emptyMap());
+        LifecyclePolicy newPolicy = newTestLifecyclePolicy(newPolicyName, Collections.emptyMap());
         Settings.Builder indexSettingsBuilder = Settings.builder();
         List<LifecyclePolicyMetadata> policyMetadatas = new ArrayList<>();
         policyMetadatas.add(new LifecyclePolicyMetadata(oldPolicy, Collections.emptyMap()));
@@ -1136,8 +1162,8 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         String indexName = randomAlphaOfLength(10);
         String oldPolicyName = "old_policy";
         String newPolicyName = "new_policy";
-        LifecyclePolicy oldPolicy = new LifecyclePolicy(TestLifecycleType.INSTANCE, oldPolicyName, Collections.emptyMap());
-        LifecyclePolicy newPolicy = new LifecyclePolicy(TestLifecycleType.INSTANCE, newPolicyName, Collections.emptyMap());
+        LifecyclePolicy oldPolicy = newTestLifecyclePolicy(oldPolicyName, Collections.emptyMap());
+        LifecyclePolicy newPolicy = newTestLifecyclePolicy(newPolicyName, Collections.emptyMap());
         StepKey currentStep = new StepKey(randomAlphaOfLength(10), ShrinkAction.NAME, randomAlphaOfLength(10));
         Settings.Builder indexSettingsBuilder = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, "different_policy")
                 .put(LifecycleSettings.LIFECYCLE_PHASE, currentStep.getPhase())
@@ -1155,7 +1181,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
     public void testCanUpdatePolicyMultipleIndexesUpdateAllowed() {
         String oldPolicyName = "old_policy";
         String newPolicyName = "new_policy";
-        LifecyclePolicy newPolicy = new LifecyclePolicy(TestLifecycleType.INSTANCE, newPolicyName, Collections.emptyMap());
+        LifecyclePolicy newPolicy = newTestLifecyclePolicy(newPolicyName, Collections.emptyMap());
 
         String index1Name = randomAlphaOfLength(10);
         StepKey currentStep1 = new StepKey(randomAlphaOfLength(10), MockAction.NAME, randomAlphaOfLength(10));
@@ -1208,7 +1234,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
     public void testCanUpdatePolicyMultipleIndexesUpdateForbidden() {
         String oldPolicyName = "old_policy";
         String newPolicyName = "new_policy";
-        LifecyclePolicy newPolicy = new LifecyclePolicy(TestLifecycleType.INSTANCE, newPolicyName, Collections.emptyMap());
+        LifecyclePolicy newPolicy = newTestLifecyclePolicy(newPolicyName, Collections.emptyMap());
 
         String index1Name = randomAlphaOfLength(10);
         StepKey currentStep1 = new StepKey(randomAlphaOfLength(10), MockAction.NAME, randomAlphaOfLength(10));
@@ -1297,7 +1323,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
     public void testRemovePolicyForIndexIndexDoesntExist() {
         String indexName = randomAlphaOfLength(10);
         String oldPolicyName = "old_policy";
-        LifecyclePolicy oldPolicy = new LifecyclePolicy(TestLifecycleType.INSTANCE, oldPolicyName, Collections.emptyMap());
+        LifecyclePolicy oldPolicy = newTestLifecyclePolicy(oldPolicyName, Collections.emptyMap());
         StepKey currentStep = AbstractStepTestCase.randomStepKey();
         Settings.Builder indexSettingsBuilder = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, oldPolicyName)
                 .put(LifecycleSettings.LIFECYCLE_PHASE, currentStep.getPhase())

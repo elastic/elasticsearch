@@ -59,9 +59,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.PercentageScore;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.matrix.stats.MatrixStats;
@@ -270,33 +267,6 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertEquals(2, type2.getDocCount());
         assertEquals(0, type2.getAggregations().asList().size());
     }
-    
-    public void testSearchWithSignificantTermsAgg() throws IOException {
-        SearchRequest searchRequest = new SearchRequest();
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-        searchSourceBuilder.query(new MatchQueryBuilder("num","50"));
-        searchSourceBuilder.aggregation(new SignificantTermsAggregationBuilder("agg1", ValueType.STRING)
-                .field("type.keyword")
-                .minDocCount(1)
-                .significanceHeuristic(new PercentageScore()));
-        searchSourceBuilder.size(0);
-        searchRequest.source(searchSourceBuilder);
-        SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
-        assertSearchHeader(searchResponse);
-        assertNull(searchResponse.getSuggest());
-        assertEquals(Collections.emptyMap(), searchResponse.getProfileResults());
-        assertEquals(0, searchResponse.getHits().getHits().length);
-        assertEquals(0f, searchResponse.getHits().getMaxScore(), 0f);
-        SignificantTerms significantTermsAgg = searchResponse.getAggregations().get("agg1");
-        assertEquals("agg1", significantTermsAgg.getName());
-        assertEquals(1, significantTermsAgg.getBuckets().size());
-        SignificantTerms.Bucket type1 = significantTermsAgg.getBucketByKey("type1");
-        assertEquals(1, type1.getDocCount());
-        assertEquals(1, type1.getSubsetDf());
-        assertEquals(1, type1.getSubsetSize());
-        assertEquals(3, type1.getSupersetDf());
-        assertEquals(1d/3d, type1.getSignificanceScore(), 0d);
-    }    
 
     public void testSearchWithRangeAgg() throws IOException {
         {

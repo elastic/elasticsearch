@@ -8,28 +8,29 @@ package org.elasticsearch.xpack.core.indexlifecycle.action;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.xpack.core.indexlifecycle.AllocateAction;
 import org.elasticsearch.xpack.core.indexlifecycle.DeleteAction;
+import org.elasticsearch.xpack.core.indexlifecycle.ForceMergeAction;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyTests;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleType;
-import org.elasticsearch.xpack.core.indexlifecycle.Phase;
-import org.elasticsearch.xpack.core.indexlifecycle.TestLifecycleType;
+import org.elasticsearch.xpack.core.indexlifecycle.ReadOnlyAction;
+import org.elasticsearch.xpack.core.indexlifecycle.RolloverAction;
+import org.elasticsearch.xpack.core.indexlifecycle.ShrinkAction;
+import org.elasticsearch.xpack.core.indexlifecycle.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction.Request;
 import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 public class PutLifecycleRequestTests extends AbstractStreamableXContentTestCase<PutLifecycleAction.Request> {
-    
+
     private String lifecycleName;
 
     @Before
@@ -39,7 +40,7 @@ public class PutLifecycleRequestTests extends AbstractStreamableXContentTestCase
 
     @Override
     protected Request createTestInstance() {
-        return new Request(new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, Collections.emptyMap()));
+        return new Request(LifecyclePolicyTests.randomTimeseriesLifecyclePolicy(lifecycleName));
     }
 
     @Override
@@ -52,18 +53,34 @@ public class PutLifecycleRequestTests extends AbstractStreamableXContentTestCase
         return PutLifecycleAction.Request.parseRequest(lifecycleName, parser);
     }
 
+    @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
-            Arrays.asList(new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::new),
-                        new NamedWriteableRegistry.Entry(LifecycleType.class, TestLifecycleType.TYPE, in -> TestLifecycleType.INSTANCE)));
+            Arrays.asList(
+                new NamedWriteableRegistry.Entry(LifecycleType.class, TimeseriesLifecycleType.TYPE,
+                    (in) -> TimeseriesLifecycleType.INSTANCE),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, AllocateAction.NAME, AllocateAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, ForceMergeAction.NAME, ForceMergeAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, ReadOnlyAction.NAME, ReadOnlyAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, RolloverAction.NAME, RolloverAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, ShrinkAction.NAME, ShrinkAction::new)
+            ));
     }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> entries = new ArrayList<>(ClusterModule.getNamedXWriteables());
-        entries.add(new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse));
-        entries.add(new NamedXContentRegistry.Entry(LifecycleType.class, new ParseField(TestLifecycleType.TYPE),
-                (p) -> TestLifecycleType.INSTANCE));
+        entries.addAll(Arrays.asList(
+            new NamedXContentRegistry.Entry(LifecycleType.class, new ParseField(TimeseriesLifecycleType.TYPE),
+                (p) -> TimeseriesLifecycleType.INSTANCE),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(AllocateAction.NAME), AllocateAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ForceMergeAction.NAME), ForceMergeAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ReadOnlyAction.NAME), ReadOnlyAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RolloverAction.NAME), RolloverAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ShrinkAction.NAME), ShrinkAction::parse)
+        ));
         return new NamedXContentRegistry(entries);
     }
 
@@ -73,23 +90,10 @@ public class PutLifecycleRequestTests extends AbstractStreamableXContentTestCase
 
     @Override
     protected Request mutateInstance(Request request) {
-        LifecyclePolicy policy = request.getPolicy();
-        String name = policy.getName();
-        Map<String, Phase> phases = policy.getPhases();
-        switch (between(0, 1)) {
-            case 0:
-                name = name + randomAlphaOfLengthBetween(1, 5);
-                break;
-            case 1:
-                phases = new HashMap<>(phases);
-                String newPhaseName = randomAlphaOfLengthBetween(1, 10);
-                phases.put(name, new Phase(newPhaseName, TimeValue.timeValueSeconds(randomIntBetween(1, 1000)),
-                    Collections.emptyMap()));
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
-        }
-        return new Request(new LifecyclePolicy(TestLifecycleType.INSTANCE, name, phases));
+        String name = randomBoolean() ? lifecycleName : randomAlphaOfLength(5);
+        LifecyclePolicy policy = randomValueOtherThan(request.getPolicy(),
+            () -> LifecyclePolicyTests.randomTimeseriesLifecyclePolicy(name));
+        return new Request(policy);
     }
 
 }

@@ -50,7 +50,6 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
             Arrays.asList(
-                new NamedWriteableRegistry.Entry(LifecycleAction.class, MockAction.NAME, MockAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleType.class, TimeseriesLifecycleType.TYPE,
                     (in) -> TimeseriesLifecycleType.INSTANCE),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, AllocateAction.NAME, AllocateAction::new),
@@ -154,24 +153,19 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
             name = name + randomAlphaOfLengthBetween(1, 5);
             break;
         case 1:
+            String phaseName = randomValueOtherThanMany(phases::containsKey, () -> randomFrom(TimeseriesLifecycleType.VALID_PHASES));
             phases = new LinkedHashMap<>(phases);
-            String phaseName = randomAlphaOfLengthBetween(1, 10);
             phases.put(phaseName, new Phase(phaseName, TimeValue.timeValueSeconds(randomIntBetween(1, 1000)), Collections.emptyMap()));
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new LifecyclePolicy(TestLifecycleType.INSTANCE, name, phases);
+        return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, name, phases);
     }
 
     @Override
     protected Reader<LifecyclePolicy> instanceReader() {
         return LifecyclePolicy::new;
-    }
-
-    public void testDefaultLifecycleType() {
-        LifecyclePolicy policy = new LifecyclePolicy(null, randomAlphaOfLength(10), Collections.emptyMap());
-        assertSame(TimeseriesLifecycleType.INSTANCE, policy.getType());
     }
 
     public void testFirstAndLastSteps() {

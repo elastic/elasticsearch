@@ -90,7 +90,8 @@ And here is a sample response:
 
     Set to `false` to return an overall failure if the request would produce partial 
     results. Defaults to true, which will allow partial results in the case of timeouts
-    or partial failures.
+    or partial failures. This default can be controlled using the cluster-level setting
+    `search.default_allow_partial_results`.
 
 `terminate_after`::
 

@@ -10,7 +10,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
@@ -92,8 +92,8 @@ public class ShrinkSetAliasStepTests extends AbstractStepTestCase<ShrinkSetAlias
                 IndicesAliasesRequest request = (IndicesAliasesRequest) invocation.getArguments()[0];
                 assertThat(request.getAliasActions(), equalTo(expectedAliasActions));
                 @SuppressWarnings("unchecked")
-                ActionListener<IndicesAliasesResponse> listener = (ActionListener<IndicesAliasesResponse>) invocation.getArguments()[1];
-                listener.onResponse(new IndicesAliasesResponse(true));
+                ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
+                listener.onResponse(new AcknowledgedResponse(true));
                 return null;
             }
 
@@ -136,7 +136,7 @@ public class ShrinkSetAliasStepTests extends AbstractStepTestCase<ShrinkSetAlias
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
                 @SuppressWarnings("unchecked")
-                ActionListener<IndicesAliasesResponse> listener = (ActionListener<IndicesAliasesResponse>) invocation.getArguments()[1];
+                ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
                 listener.onFailure(exception);
                 return null;
             }

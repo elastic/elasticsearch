@@ -18,7 +18,9 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.protocol.xpack.indexlifecycle.OperationMode;
 import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
+import org.elasticsearch.xpack.core.indexlifecycle.AllocateAction;
 import org.elasticsearch.xpack.core.indexlifecycle.DeleteAction;
+import org.elasticsearch.xpack.core.indexlifecycle.ForceMergeAction;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata.IndexLifecycleMetadataDiff;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
@@ -26,7 +28,10 @@ import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleType;
 import org.elasticsearch.xpack.core.indexlifecycle.Phase;
-import org.elasticsearch.xpack.core.indexlifecycle.TestLifecycleType;
+import org.elasticsearch.xpack.core.indexlifecycle.ReadOnlyAction;
+import org.elasticsearch.xpack.core.indexlifecycle.RolloverAction;
+import org.elasticsearch.xpack.core.indexlifecycle.ShrinkAction;
+import org.elasticsearch.xpack.core.indexlifecycle.TimeseriesLifecycleType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,11 +43,20 @@ import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
+import static org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyTestsUtils.newTestLifecyclePolicy;
+import static org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyTestsUtils.randomTimeseriesLifecyclePolicy;
+
 public class IndexLifecycleMetadataTests extends AbstractDiffableSerializationTestCase<MetaData.Custom> {
 
     @Override
     protected IndexLifecycleMetadata createTestInstance() {
-        return createTestInstance(randomInt(5), randomFrom(OperationMode.values()));
+        int numPolicies = randomIntBetween(1, 5);
+        Map<String, LifecyclePolicyMetadata> policies = new HashMap<>(numPolicies);
+        for (int i = 0; i < numPolicies; i++) {
+            LifecyclePolicy policy = randomTimeseriesLifecyclePolicy(randomAlphaOfLength(4) + i);
+            policies.put(policy.getName(), new LifecyclePolicyMetadata(policy, Collections.emptyMap()));
+        }
+        return new IndexLifecycleMetadata(policies, randomFrom(OperationMode.values()));
     }
 
     @Override
@@ -58,16 +72,31 @@ public class IndexLifecycleMetadataTests extends AbstractDiffableSerializationTe
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
-                Arrays.asList(new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::new),
-                        new NamedWriteableRegistry.Entry(LifecycleType.class, TestLifecycleType.TYPE, (in) -> TestLifecycleType.INSTANCE)));
+            Arrays.asList(
+                new NamedWriteableRegistry.Entry(LifecycleType.class, TimeseriesLifecycleType.TYPE,
+                    (in) -> TimeseriesLifecycleType.INSTANCE),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, AllocateAction.NAME, AllocateAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, ForceMergeAction.NAME, ForceMergeAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, ReadOnlyAction.NAME, ReadOnlyAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, RolloverAction.NAME, RolloverAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, ShrinkAction.NAME, ShrinkAction::new)
+            ));
     }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> entries = new ArrayList<>(ClusterModule.getNamedXWriteables());
-        entries.add(new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse));
-        entries.add(new NamedXContentRegistry.Entry(LifecycleType.class, new ParseField(TestLifecycleType.TYPE),
-                (p) -> TestLifecycleType.INSTANCE));
+        entries.addAll(Arrays.asList(
+            new NamedXContentRegistry.Entry(LifecycleType.class, new ParseField(TimeseriesLifecycleType.TYPE),
+                (p) -> TimeseriesLifecycleType.INSTANCE),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(AllocateAction.NAME), AllocateAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ForceMergeAction.NAME), ForceMergeAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ReadOnlyAction.NAME), ReadOnlyAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RolloverAction.NAME), RolloverAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ShrinkAction.NAME), ShrinkAction::parse)
+        ));
         return new NamedXContentRegistry(entries);
     }
 
@@ -79,8 +108,7 @@ public class IndexLifecycleMetadataTests extends AbstractDiffableSerializationTe
         OperationMode mode = metadata.getOperationMode();
         if (randomBoolean()) {
             String policyName = randomAlphaOfLength(10);
-            policies.put(policyName, new LifecyclePolicyMetadata(
-                new LifecyclePolicy(TestLifecycleType.INSTANCE, policyName, Collections.emptyMap()), Collections.emptyMap()));
+            policies.put(policyName, new LifecyclePolicyMetadata(randomTimeseriesLifecyclePolicy(policyName), Collections.emptyMap()));
         } else {
             mode = randomValueOtherThan(metadata.getOperationMode(), () -> randomFrom(OperationMode.values()));
         }
@@ -120,8 +148,7 @@ public class IndexLifecycleMetadataTests extends AbstractDiffableSerializationTe
                 phases.put(phaseName, new Phase(phaseName, after, actions));
             }
             String policyName = randomAlphaOfLength(10);
-            policies.put(policyName, new LifecyclePolicyMetadata(new LifecyclePolicy(TestLifecycleType.INSTANCE, policyName, phases),
-                Collections.emptyMap()));
+            policies.put(policyName, new LifecyclePolicyMetadata(newTestLifecyclePolicy(policyName, phases), Collections.emptyMap()));
         }
         return new IndexLifecycleMetadata(policies, mode);
     }

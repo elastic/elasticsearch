@@ -34,7 +34,7 @@ or using `_all`, is not permitted
 
 The request body supports a subset of features from the regular Search API.  It supports:
 
-- `query` param for specifying an DSL query, subject to some limitations
+- `query` param for specifying an DSL query, subject to some limitations (see <<rollup-search-limitations>> and <<rollup-agg-limitations>>
 - `aggregations` param for specifying aggregations
 
 Functionality that is not available:

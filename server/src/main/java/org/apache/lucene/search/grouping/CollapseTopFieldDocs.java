@@ -24,6 +24,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopFieldDocs;
+import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.PriorityQueue;
 
 import java.util.ArrayList;
@@ -40,9 +41,9 @@ public final class CollapseTopFieldDocs extends TopFieldDocs {
     /** The collapse value for each top doc */
     public final Object[] collapseValues;
 
-    public CollapseTopFieldDocs(String field, long totalHits, ScoreDoc[] scoreDocs,
-                                SortField[] sortFields, Object[] values, float maxScore) {
-        super(totalHits, scoreDocs, sortFields, maxScore);
+    public CollapseTopFieldDocs(String field, TotalHits totalHits, ScoreDoc[] scoreDocs,
+                                SortField[] sortFields, Object[] values) {
+        super(totalHits, scoreDocs, sortFields);
         this.field = field;
         this.collapseValues = values;
     }

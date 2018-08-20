@@ -297,9 +297,16 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
         private final CcrLicenseChecker ccrLicenseChecker;
 
         @Inject
-        public TransportAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
-                               Client client, ClusterService clusterService, PersistentTasksService persistentTasksService,
-                               IndicesService indicesService, CcrLicenseChecker ccrLicenseChecker) {
+        public TransportAction(
+                final Settings settings,
+                final ThreadPool threadPool,
+                final TransportService transportService,
+                final ActionFilters actionFilters,
+                final Client client,
+                final ClusterService clusterService,
+                final PersistentTasksService persistentTasksService,
+                final IndicesService indicesService,
+                final CcrLicenseChecker ccrLicenseChecker) {
             super(settings, NAME, transportService, actionFilters, Request::new);
             this.client = client;
             this.threadPool = threadPool;

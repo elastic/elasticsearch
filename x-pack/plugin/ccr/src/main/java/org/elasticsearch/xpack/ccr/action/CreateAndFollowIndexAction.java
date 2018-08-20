@@ -190,9 +190,16 @@ public class CreateAndFollowIndexAction extends Action<CreateAndFollowIndexActio
         private final CcrLicenseChecker ccrLicenseChecker;
 
         @Inject
-        public TransportAction(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterService clusterService,
-                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Client client,
-                               AllocationService allocationService, CcrLicenseChecker ccrLicenseChecker) {
+        public TransportAction(
+                final Settings settings,
+                final ThreadPool threadPool,
+                final TransportService transportService,
+                final ClusterService clusterService,
+                final ActionFilters actionFilters,
+                final IndexNameExpressionResolver indexNameExpressionResolver,
+                final Client client,
+                final AllocationService allocationService,
+                final CcrLicenseChecker ccrLicenseChecker) {
             super(settings, NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, Request::new);
             this.client = client;
             this.allocationService = allocationService;

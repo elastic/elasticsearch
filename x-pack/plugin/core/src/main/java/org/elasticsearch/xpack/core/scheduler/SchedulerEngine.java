@@ -156,7 +156,7 @@ public class SchedulerEngine {
         return schedules.size();
     }
 
-    protected void notifyListeners(String name, long triggeredTime, long scheduledTime) {
+    protected void notifyListeners(final String name, final long triggeredTime, final long scheduledTime) {
         final Event event = new Event(name, triggeredTime, scheduledTime);
         for (final Listener listener : listeners) {
             try {

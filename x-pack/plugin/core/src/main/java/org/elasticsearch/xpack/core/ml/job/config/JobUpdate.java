@@ -258,7 +258,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
     }
 
     public boolean isAutodetectProcessUpdate() {
-        return modelPlotConfig != null || detectorUpdates != null;
+        return modelPlotConfig != null || detectorUpdates != null || groups != null;
     }
 
     @Override

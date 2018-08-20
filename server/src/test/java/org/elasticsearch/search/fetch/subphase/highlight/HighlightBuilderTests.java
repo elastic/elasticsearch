@@ -601,10 +601,10 @@ public class HighlightBuilderTests extends ESTestCase {
                     value = randomAlphaOfLengthBetween(1, 10);
                     break;
                 case 1:
-                    value = new Integer(randomInt(1000));
+                    value = Integer.valueOf(randomInt(1000));
                     break;
                 case 2:
-                    value = new Boolean(randomBoolean());
+                    value = Boolean.valueOf(randomBoolean());
                     break;
                 }
                 options.put(randomAlphaOfLengthBetween(1, 10), value);

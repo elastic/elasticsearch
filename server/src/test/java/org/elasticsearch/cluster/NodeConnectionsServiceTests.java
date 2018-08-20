@@ -37,9 +37,9 @@ import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportInterceptor;
+import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -106,7 +106,6 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         service.disconnectFromNodesExcept(event.state().nodes());
         assertConnectedExactlyToNodes(event.state());
     }
-
 
     public void testReconnect() {
         List<DiscoveryNode> nodes = generateNodes();
@@ -188,7 +187,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
     private final class MockTransport implements Transport {
         private ResponseHandlers responseHandlers = new ResponseHandlers();
         private volatile boolean randomConnectionExceptions = false;
-        private TransportConnectionListener listener = new TransportConnectionListener() {
+        private TransportMessageListener listener = new TransportMessageListener() {
         };
 
         @Override
@@ -201,12 +200,12 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
-        public void addConnectionListener(TransportConnectionListener listener) {
+        public void addMessageListener(TransportMessageListener listener) {
             this.listener = listener;
         }
 
         @Override
-        public boolean removeConnectionListener(TransportConnectionListener listener) {
+        public boolean removeMessageListener(TransportMessageListener listener) {
             throw new UnsupportedOperationException();
         }
 
@@ -231,7 +230,6 @@ public class NodeConnectionsServiceTests extends ESTestCase {
                 if (randomConnectionExceptions && randomBoolean()) {
                     throw new ConnectTransportException(node, "simulated");
                 }
-                listener.onNodeConnected(node);
             }
             Connection connection = new Connection() {
                 @Override
@@ -260,7 +258,6 @@ public class NodeConnectionsServiceTests extends ESTestCase {
                     return false;
                 }
             };
-            listener.onConnectionOpened(connection);
             return connection;
         }
 

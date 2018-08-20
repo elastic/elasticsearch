@@ -9,20 +9,52 @@ You can use the following APIs to perform {security} activities.
 * <<security-api-privileges>>
 * <<security-api-role-mapping>>
 * <<security-api-ssl>>
-* <<security-api-tokens>>
-* <<security-api-users>>
 
-include::security/roles.asciidoc[]
+[float]
+[[security-role-apis]]
+=== Roles
+
+You can use the following APIs to add, remove, and retrieve roles in the native realm:
+
+* <<security-api-put-role,Create role>>, <<security-api-delete-role,Delete role>>
+* <<security-api-clear-role-cache,Clear roles cache>>
+* <<security-api-get-role,Get roles>>
+
+[float]
+[[security-token-apis]]
+=== Tokens
+
+You can use the following APIs to create and invalidate bearer tokens for access
+without requiring basic authentication:
+
+* <<security-api-get-token,Get token>>, <<security-api-invalidate-token,Invalidate token>>
+
+[float]
+[[security-user-apis]]
+=== Users
+
+You can use the following APIs to create, read, update, and delete users from the
+native realm:
+
+* <<security-api-put-user,Create users>>, <<security-api-delete-user,Delete users>>
+* <<security-api-enable-user,Enable users>>, <<security-api-disable-user,Disable users>>
+* <<security-api-change-password,Change passwords>>
+* <<security-api-get-user,Get users>>
 
 include::security/authenticate.asciidoc[]
 include::security/change-password.asciidoc[]
 include::security/clear-cache.asciidoc[]
 include::security/clear-roles-cache.asciidoc[]
 include::security/create-roles.asciidoc[]
+include::security/create-users.asciidoc[]
 include::security/delete-roles.asciidoc[]
+include::security/delete-tokens.asciidoc[]
+include::security/delete-users.asciidoc[]
+include::security/disable-users.asciidoc[]
+include::security/enable-users.asciidoc[]
 include::security/get-roles.asciidoc[]
+include::security/get-tokens.asciidoc[]
+include::security/get-users.asciidoc[]
 include::security/privileges.asciidoc[]
 include::security/role-mapping.asciidoc[]
 include::security/ssl.asciidoc[]
-include::security/tokens.asciidoc[]
-include::security/users.asciidoc[]

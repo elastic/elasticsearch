@@ -1,10 +1,4 @@
 ---
-setup:
-    - skip:
-        version: "all"
-        reason: "Temporarily disabled while backporting https://github.com/elastic/elasticsearch/pull/32816"
-
----
 "Test get old cluster job":
   - do:
       xpack.ml.get_jobs:

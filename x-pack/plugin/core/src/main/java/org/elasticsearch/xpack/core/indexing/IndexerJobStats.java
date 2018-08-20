@@ -84,6 +84,11 @@ public class IndexerJobStats implements ToXContentObject, Writeable {
         return numOuputDocuments;
     }
 
+    @Deprecated
+    public long getNumRollups() {
+        return getOutputDocuments();
+    }
+
     public void incrementNumPages(long n) {
         assert(n >= 0);
         numPages += n;

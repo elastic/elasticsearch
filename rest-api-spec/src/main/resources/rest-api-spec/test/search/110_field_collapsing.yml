@@ -243,7 +243,6 @@ setup:
 
   - match: { hits.total: 6 }
   - length: { hits.hits: 0 }
-  - match: { hits.max_score: null }
 
 ---
 "no hits and inner_hits max_score null":

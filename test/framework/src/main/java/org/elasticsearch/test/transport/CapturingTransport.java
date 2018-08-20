@@ -41,9 +41,9 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportInterceptor;
+import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
@@ -72,7 +72,7 @@ public class CapturingTransport implements Transport {
     private volatile Map<String, RequestHandlerRegistry> requestHandlers = Collections.emptyMap();
     final Object requestHandlerMutex = new Object();
     private final ResponseHandlers responseHandlers = new ResponseHandlers();
-    private TransportConnectionListener listener;
+    private TransportMessageListener listener;
 
     public static class CapturedRequest {
         public final DiscoveryNode node;
@@ -341,7 +341,7 @@ public class CapturingTransport implements Transport {
     }
 
     @Override
-    public void addConnectionListener(TransportConnectionListener listener) {
+    public void addMessageListener(TransportMessageListener listener) {
         if (this.listener != null) {
             throw new IllegalStateException("listener already set");
         }
@@ -349,11 +349,12 @@ public class CapturingTransport implements Transport {
     }
 
     @Override
-    public boolean removeConnectionListener(TransportConnectionListener listener) {
+    public boolean removeMessageListener(TransportMessageListener listener) {
         if (listener == this.listener) {
             this.listener = null;
             return true;
         }
         return false;
     }
+
 }

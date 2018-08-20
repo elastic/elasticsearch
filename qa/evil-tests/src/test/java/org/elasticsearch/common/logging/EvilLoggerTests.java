@@ -27,7 +27,9 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.appender.CountingNoOpAppender;
 import org.apache.logging.log4j.core.config.Configurator;
+import org.apache.logging.log4j.spi.ExtendedLogger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Randomness;
@@ -298,8 +300,8 @@ public class EvilLoggerTests extends ESTestCase {
     public void testPrefixLogger() throws IOException, IllegalAccessException, UserException {
         setupLogging("prefix");
 
-        final String prefix = randomBoolean() ? null : randomAlphaOfLength(16);
-        final Logger logger = Loggers.getLogger("prefix", prefix);
+        final String prefix = randomAlphaOfLength(16);
+        final Logger logger = new PrefixLogger((ExtendedLogger) LogManager.getLogger("prefix_test"), "prefix_test", prefix);
         logger.info("test");
         logger.info("{}", "test");
         final Exception e = new Exception("exception");
@@ -319,13 +321,8 @@ public class EvilLoggerTests extends ESTestCase {
         final int expectedLogLines = 3;
         assertThat(events.size(), equalTo(expectedLogLines + stackTraceLength));
         for (int i = 0; i < expectedLogLines; i++) {
-            if (prefix == null) {
-                assertThat("Contents of [" + path + "] are wrong",
-                        events.get(i), startsWith("[" + getTestName() + "] test"));
-            } else {
-                assertThat("Contents of [" + path + "] are wrong",
-                        events.get(i), startsWith("[" + getTestName() + "][" + prefix + "] test"));
-            }
+            assertThat("Contents of [" + path + "] are wrong",
+                    events.get(i), startsWith("[" + getTestName() + "]" + prefix + " test"));
         }
     }
 
@@ -334,8 +331,8 @@ public class EvilLoggerTests extends ESTestCase {
 
         final int prefixes = 1 << 19; // to ensure enough markers that the GC should collect some when we force a GC below
         for (int i = 0; i < prefixes; i++) {
-            Loggers.getLogger("prefix" + i, "prefix" + i); // this has the side effect of caching a marker with this prefix
-
+            // this has the side effect of caching a marker with this prefix
+            new PrefixLogger((ExtendedLogger) LogManager.getLogger("prefix" + i), "prefix" + i, "prefix" + i);
         }
 
         System.gc(); // this will free the weakly referenced keys in the marker cache
@@ -375,7 +372,11 @@ public class EvilLoggerTests extends ESTestCase {
                 + "have %node_name. We will automatically add %node_name to the pattern to ease the migration for users "
                 + "who customize log4j2.properties but will stop this behavior in 7.0. You should manually replace "
                 + "`%node_name` with `\\[%node_name\\]%marker ` in these locations:");
-        assertThat(events.get(1), endsWith("no_node_name/log4j2.properties"));
+        if (Constants.WINDOWS) {
+            assertThat(events.get(1), endsWith("no_node_name\\log4j2.properties"));
+        } else {
+            assertThat(events.get(1), endsWith("no_node_name/log4j2.properties"));
+        }
     }
 
     private void setupLogging(final String config) throws IOException, UserException {

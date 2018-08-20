@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.integration;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
@@ -213,7 +214,7 @@ abstract class MlNativeAutodetectIntegTestCase extends ESIntegTestCase {
         return client().execute(PutJobAction.INSTANCE, request).actionGet();
     }
 
-    protected OpenJobAction.Response openJob(String jobId) {
+    protected AcknowledgedResponse openJob(String jobId) {
         OpenJobAction.Request request = new OpenJobAction.Request(jobId);
         return client().execute(OpenJobAction.INSTANCE, request).actionGet();
     }
@@ -234,7 +235,7 @@ abstract class MlNativeAutodetectIntegTestCase extends ESIntegTestCase {
         return client().execute(UpdateJobAction.INSTANCE, request).actionGet();
     }
 
-    protected DeleteJobAction.Response deleteJob(String jobId) {
+    protected AcknowledgedResponse deleteJob(String jobId) {
         DeleteJobAction.Request request = new DeleteJobAction.Request(jobId);
         return client().execute(DeleteJobAction.INSTANCE, request).actionGet();
     }
@@ -249,12 +250,12 @@ abstract class MlNativeAutodetectIntegTestCase extends ESIntegTestCase {
         return client().execute(StopDatafeedAction.INSTANCE, request).actionGet();
     }
 
-    protected DeleteDatafeedAction.Response deleteDatafeed(String datafeedId) {
+    protected AcknowledgedResponse deleteDatafeed(String datafeedId) {
         DeleteDatafeedAction.Request request = new DeleteDatafeedAction.Request(datafeedId);
         return client().execute(DeleteDatafeedAction.INSTANCE, request).actionGet();
     }
 
-    protected StartDatafeedAction.Response startDatafeed(String datafeedId, long start, Long end) {
+    protected AcknowledgedResponse startDatafeed(String datafeedId, long start, Long end) {
         StartDatafeedAction.Request request = new StartDatafeedAction.Request(datafeedId, start);
         request.getParams().setEndTime(end);
         return client().execute(StartDatafeedAction.INSTANCE, request).actionGet();

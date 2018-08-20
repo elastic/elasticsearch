@@ -31,7 +31,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class OpenJobAction extends Action<OpenJobAction.Response> {
+public class OpenJobAction extends Action<AcknowledgedResponse> {
 
     public static final OpenJobAction INSTANCE = new OpenJobAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/open";
@@ -42,8 +42,8 @@ public class OpenJobAction extends Action<OpenJobAction.Response> {
     }
 
     @Override
-    public Response newResponse() {
-        return new Response();
+    public AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
@@ -244,30 +244,6 @@ public class OpenJobAction extends Action<OpenJobAction.Response> {
         }
     }
 
-    public static class Response extends AcknowledgedResponse {
-        public Response() {
-            super();
-        }
-
-        public Response(boolean acknowledged) {
-            super(acknowledged);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            AcknowledgedResponse that = (AcknowledgedResponse) o;
-            return isAcknowledged() == that.isAcknowledged();
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(isAcknowledged());
-        }
-
-    }
-
     public interface JobTaskMatcher {
 
         static boolean match(Task task, String expectedJobId) {
@@ -276,7 +252,7 @@ public class OpenJobAction extends Action<OpenJobAction.Response> {
         }
     }
 
-    static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
+    static class RequestBuilder extends ActionRequestBuilder<Request, AcknowledgedResponse> {
 
         RequestBuilder(ElasticsearchClient client, OpenJobAction action) {
             super(client, action, new Request());

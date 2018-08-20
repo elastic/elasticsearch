@@ -46,7 +46,7 @@ public class WatcherIT extends ESRestHighLevelClientTestCase {
             "}";
         BytesReference bytesReference = new BytesArray(json);
         PutWatchRequest putWatchRequest = new PutWatchRequest(watchId, bytesReference, XContentType.JSON);
-        return highLevelClient().xpack().watcher().putWatch(putWatchRequest, RequestOptions.DEFAULT);
+        return highLevelClient().watcher().putWatch(putWatchRequest, RequestOptions.DEFAULT);
     }
 
     public void testDeleteWatch() throws Exception {
@@ -54,7 +54,7 @@ public class WatcherIT extends ESRestHighLevelClientTestCase {
         {
             String watchId = randomAlphaOfLength(10);
             createWatch(watchId);
-            DeleteWatchResponse deleteWatchResponse = highLevelClient().xpack().watcher().deleteWatch(new DeleteWatchRequest(watchId),
+            DeleteWatchResponse deleteWatchResponse = highLevelClient().watcher().deleteWatch(new DeleteWatchRequest(watchId),
                 RequestOptions.DEFAULT);
             assertThat(deleteWatchResponse.getId(), is(watchId));
             assertThat(deleteWatchResponse.getVersion(), is(2L));
@@ -64,7 +64,7 @@ public class WatcherIT extends ESRestHighLevelClientTestCase {
         // delete watch that does not exist
         {
             String watchId = randomAlphaOfLength(10);
-            DeleteWatchResponse deleteWatchResponse = highLevelClient().xpack().watcher().deleteWatch(new DeleteWatchRequest(watchId),
+            DeleteWatchResponse deleteWatchResponse = highLevelClient().watcher().deleteWatch(new DeleteWatchRequest(watchId),
                 RequestOptions.DEFAULT);
             assertThat(deleteWatchResponse.getId(), is(watchId));
             assertThat(deleteWatchResponse.getVersion(), is(1L));

@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.security.authc.esnative;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.protocol.xpack.security.User;
 
 /**
  * Like User, but includes the hashed password

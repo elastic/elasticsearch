@@ -24,7 +24,6 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.LocalMethod;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.objectweb.asm.commons.Method;
 
 import java.util.List;
@@ -59,8 +58,7 @@ public final class ECallLocal extends AExpression {
 
     @Override
     void analyze(Locals locals) {
-        String methodKey = PainlessLookupUtility.buildPainlessMethodKey(name, arguments.size());
-        method = locals.getMethod(methodKey);
+        method = locals.getMethod(name, arguments.size());
 
         if (method == null) {
             throw createError(new IllegalArgumentException("Unknown call [" + name + "] with [" + arguments.size() + "] arguments."));

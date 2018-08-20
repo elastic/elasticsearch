@@ -203,7 +203,7 @@ public abstract class PeerFinder extends AbstractComponent {
         boolean peersRemoved = false;
 
         for (final Peer peer : peersByAddress.values()) {
-            peersRemoved = peer.handleWakeUp() || peersRemoved;
+            peersRemoved = peer.handleWakeUp() || peersRemoved; // care: avoid short-circuiting, each peer needs waking up
         }
 
         if (active == false) {

@@ -528,7 +528,7 @@ allprojects {
    */
   if (isEclipse || isIdea) {
     project.plugins.withType(ShadowPlugin).whenPluginAdded {
-      project.plugins.withType(BuildPlugin).whenPluginAdded {
+      project.afterEvaluate {
         project.configurations.compile.extendsFrom project.configurations.bundle
       }
     }

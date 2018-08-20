@@ -449,7 +449,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         assertFalse(action.isExecuted); // haven't executed yet
         assertFalse(responseCalled.get());
         assertFalse(failureCalled.get());
-        verify(executionService).executeBulkRequest(bulkDocsItr.capture(), failureHandler.capture(), completionHandler.capture());
+        verify(ingestService).executeBulkRequest(bulkDocsItr.capture(), failureHandler.capture(), completionHandler.capture());
         completionHandler.getValue().accept(exception);
         assertTrue(failureCalled.get());
 

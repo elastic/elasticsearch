@@ -72,6 +72,8 @@ public abstract class KerberosTestCase extends ESTestCase {
         unsupportedLocaleLanguages.add("ks");
         unsupportedLocaleLanguages.add("ckb");
         unsupportedLocaleLanguages.add("ne");
+        unsupportedLocaleLanguages.add("dz");
+        unsupportedLocaleLanguages.add("mzn");
     }
 
     @BeforeClass

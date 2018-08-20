@@ -97,14 +97,7 @@ public class SimpleNioTransportTests extends AbstractSimpleTransportTestCase {
         transportService.start();
         return transportService;
     }
-
-    @Override
-    protected void closeConnectionChannel(Transport transport, Transport.Connection connection) throws IOException {
-        @SuppressWarnings("unchecked")
-        TcpTransport.NodeChannels channels = (TcpTransport.NodeChannels) connection;
-        TcpChannel.closeChannels(channels.getChannels().subList(0, randomIntBetween(1, channels.getChannels().size())), true);
-    }
-
+    
     public void testConnectException() throws UnknownHostException {
         try {
             serviceA.connectToNode(new DiscoveryNode("C", new TransportAddress(InetAddress.getByName("localhost"), 9876),

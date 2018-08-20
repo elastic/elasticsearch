@@ -1,7 +1,6 @@
 package org.elasticsearch.gradle.precommit;
 
 import groovy.lang.Closure;
-import org.elasticsearch.gradle.ClassPathUtils;
 import org.elasticsearch.gradle.LoggedExec;
 import org.elasticsearch.test.NamingConventionsCheck;
 import org.gradle.api.GradleException;
@@ -17,6 +16,8 @@ import org.gradle.api.tasks.SourceSetContainer;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.net.URISyntaxException;
+import java.net.URL;
 import java.util.Objects;
 
 /**
@@ -32,17 +33,24 @@ public class NamingConventionsTask extends LoggedExec {
 
         SourceSetContainer sourceSets = getJavaSourceSets();
         final FileCollection classpath;
-        classpath = project.files(
-                // This works because the class only depends on one class from junit that will be available from the
-                // tests compile classpath. It's the most straight forward way of telling Java where to find the main
-                // class.
-                ClassPathUtils.getJar(NamingConventionsCheck.class).toFile(),
-                // the tests to be loaded
-                checkForTestsInMain ? sourceSets.getByName("main").getRuntimeClasspath() : project.files(),
-                sourceSets.getByName("test").getCompileClasspath(),
-                sourceSets.getByName("test").getOutput()
-        );
-
+        try {
+            URL location = NamingConventionsCheck.class.getProtectionDomain().getCodeSource().getLocation();
+            if (location.getProtocol().equals("file") == false) {
+                throw new GradleException("Unexpected location for NamingConventionCheck class: "+ location);
+            }
+            classpath = project.files(
+                    // This works because the class only depends on one class from junit that will be available from the
+                    // tests compile classpath. It's the most straight forward way of telling Java where to find the main
+                    // class.
+                    location.toURI().getPath(),
+                    // the tests to be loaded
+                    checkForTestsInMain ? sourceSets.getByName("main").getRuntimeClasspath() : project.files(),
+                    sourceSets.getByName("test").getCompileClasspath(),
+                    sourceSets.getByName("test").getOutput()
+            );
+        } catch (URISyntaxException e) {
+            throw new AssertionError(e);
+        }
         dependsOn(project.getTasks().matching(it -> "testCompileClasspath".equals(it.getName())));
         getInputs().files(classpath);
 

@@ -29,8 +29,8 @@ import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.TrackingDirectoryWrapper;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

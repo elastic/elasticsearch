@@ -1126,7 +1126,7 @@ public abstract class Engine implements Closeable {
             LOCAL_REINDEX;
 
             public boolean isRecovery() {
-                return this == PEER_RECOVERY || this == LOCAL_TRANSLOG_RECOVERY;
+                return this == PEER_RECOVERY || this == LOCAL_TRANSLOG_RECOVERY || this == LOCAL_REINDEX;
             }
 
             public boolean skipTranslog() {
@@ -1561,7 +1561,7 @@ public abstract class Engine implements Closeable {
         private final CheckedRunnable<IOException> onClose;
         private final IndexCommit indexCommit;
 
-        IndexCommitRef(IndexCommit indexCommit, CheckedRunnable<IOException> onClose) {
+        public IndexCommitRef(IndexCommit indexCommit, CheckedRunnable<IOException> onClose) {
             this.indexCommit = indexCommit;
             this.onClose = onClose;
         }

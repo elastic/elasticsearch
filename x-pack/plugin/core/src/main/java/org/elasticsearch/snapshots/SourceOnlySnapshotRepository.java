@@ -23,6 +23,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.VersionType;
@@ -83,6 +84,9 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
     public static final Setting<Boolean> RESTORE_MINIMAL = Setting.boolSetting("restore_minimal",
         false, Setting.Property.NodeScope);
 
+    public static final Setting<Boolean> SOURCE_ONLY_ENGINE = Setting.boolSetting("index.require_source_only_engine", false, Setting
+        .Property.IndexScope, Setting.Property.InternalIndex, Setting.Property.Final);
+
     public static final String SNAPSHOT_DIR_NAME = "_snapshot";
     public static final String RESTORE_DIR_NAME = "_restore";
     private final boolean restoreMinimal;
@@ -136,9 +140,9 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                 } else {
                     mapping = "{ \"" + next.key + "\": { \"enabled\": false, \"_meta\": " + next.value.source().string() + " } }";
                 }
-                System.out.println(mapping);
                 builder.putMapping(next.key, mapping);
             }
+            builder.settings(Settings.builder().put(snapshotIndexMetaData.getSettings()).put(SOURCE_ONLY_ENGINE.getKey(), true));
             return builder.build();
         } else {
             return snapshotIndexMetaData;
@@ -185,26 +189,32 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
     public void restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId,
                              RecoveryState recoveryState) {
         super.restoreShard(shard, snapshotId, version, indexId, snapshotShardId, recoveryState);
-        ShardPath shardPath = shard.shardPath();
-        try {
-            Path restoreSourceCopy = shardPath.getDataPath().resolve(RESTORE_DIR_NAME);
-            try (HardlinkCopyDirectoryWrapper wrapper = new HardlinkCopyDirectoryWrapper(FSDirectory.open(restoreSourceCopy))) {
-                Lucene.cleanLuceneIndex(wrapper);
-                SegmentInfos segmentInfos = shard.store().readLastCommittedSegmentsInfo();
-                for (String file : segmentInfos.files(true)) {
-                    wrapper.copyFrom(shard.store().directory(), file, file, IOContext.DEFAULT);
+        if (restoreMinimal == false) {
+            ShardPath shardPath = shard.shardPath();
+            try {
+                Path restoreSourceCopy = shardPath.getDataPath().resolve(RESTORE_DIR_NAME);
+                try (HardlinkCopyDirectoryWrapper wrapper = new HardlinkCopyDirectoryWrapper(FSDirectory.open(restoreSourceCopy))) {
+                    Lucene.cleanLuceneIndex(wrapper);
+                    SegmentInfos segmentInfos = shard.store().readLastCommittedSegmentsInfo();
+                    for (String file : segmentInfos.files(true)) {
+                        wrapper.copyFrom(shard.store().directory(), file, file, IOContext.DEFAULT);
+                    }
                 }
+                Lucene.cleanLuceneIndex(shard.store().directory()); // wipe the old index
+                shard.store().createEmpty();
+            } catch (IOException ex) {
+                // why on earth does this super method not declare IOException
+                throw new UncheckedIOException(ex);
             }
-            Lucene.cleanLuceneIndex(shard.store().directory()); // wipe the old index
-            shard.store().createEmpty();
-        } catch (IOException ex) {
-            // why on earth does this super method not declare IOException
-            throw new UncheckedIOException(ex);
         }
     }
 
     @Override
     public void applyPostRestoreOps(IndexShard shard) throws IOException {
+        if (restoreMinimal) {
+            return;
+        }
+
         ShardPath shardPath = shard.shardPath();
         Path restoreSourceCopy = shardPath.getDataPath().resolve(RESTORE_DIR_NAME);
         RecoveryState.Translog state = shard.recoveryState().getTranslog();

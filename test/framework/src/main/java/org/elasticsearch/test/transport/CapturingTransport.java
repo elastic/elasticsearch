@@ -97,33 +97,7 @@ public class CapturingTransport implements Transport {
         StubbableConnectionManager connectionManager = new StubbableConnectionManager(new ConnectionManager(settings, this, threadPool),
             settings, this, threadPool);
         connectionManager.setDefaultNodeConnectedBehavior((cm, discoveryNode) -> true);
-        connectionManager.setDefaultConnectBehavior((cm, discoveryNode) -> new Connection() {
-            @Override
-            public DiscoveryNode getNode() {
-                return discoveryNode;
-            }
-
-            @Override
-            public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
-                throws TransportException {
-                onSendRequest(requestId, action, request, discoveryNode);
-            }
-
-            @Override
-            public void addCloseListener(ActionListener<Void> listener) {
-
-            }
-
-            @Override
-            public boolean isClosed() {
-                return false;
-            }
-
-            @Override
-            public void close() {
-
-            }
-        });
+        connectionManager.setDefaultConnectBehavior((cm, discoveryNode) -> openConnection(discoveryNode, null));
         return new TransportService(settings, this, threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders,
             connectionManager);
 

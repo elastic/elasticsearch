@@ -145,7 +145,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         }
     }
 
-    public void testLocalProfileIsUsedForLocalCluster() throws Exception {
+    public void testRemoteProfileIsUsedForLocalCluster() throws Exception {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
              MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes, Version.CURRENT)) {
@@ -159,7 +159,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 service.start();
                 service.acceptIncomingRequests();
                 try (RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",
-                    Arrays.asList(() -> seedNode), service, Integer.MAX_VALUE, n -> true)) {
+                    Arrays.asList(() -> seedNode), service, service.getConnectionManager(), Integer.MAX_VALUE, n -> true)) {
                     updateSeedNodes(connection, Arrays.asList(() -> seedNode));
                     assertTrue(service.nodeConnected(seedNode));
                     assertTrue(service.nodeConnected(discoverableNode));
@@ -175,9 +175,12 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                         });
                     TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.BULK)
                         .build();
-                    service.sendRequest(connection.getConnection(), ClusterSearchShardsAction.NAME, new ClusterSearchShardsRequest(),
-                        options, futureHandler);
-                    futureHandler.txGet();
+                    IllegalStateException ise = (IllegalStateException) expectThrows(SendRequestTransportException.class, () -> {
+                        service.sendRequest(discoverableNode,
+                            ClusterSearchShardsAction.NAME, new ClusterSearchShardsRequest(), options, futureHandler);
+                        futureHandler.txGet();
+                    }).getCause();
+                    assertEquals(ise.getMessage(), "can't select channel size is 0 for types: [RECOVERY, BULK, STATE]");
                 }
             }
         }
@@ -199,7 +202,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 service.start();
                 service.acceptIncomingRequests();
                 try (RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",
-                    Arrays.asList(() -> seedNode), service, Integer.MAX_VALUE, n -> true)) {
+                    Arrays.asList(() -> seedNode), service, service.getConnectionManager(), Integer.MAX_VALUE, n -> true)) {
                     updateSeedNodes(connection, Arrays.asList(() -> seedNode));
                     assertTrue(service.nodeConnected(seedNode));
                     assertTrue(service.nodeConnected(discoverableNode));
@@ -255,7 +258,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 service.start();
                 service.acceptIncomingRequests();
                 try (RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",
-                    Arrays.asList(() -> seedNode), service, Integer.MAX_VALUE, n -> true)) {
+                    Arrays.asList(() -> seedNode), service, service.getConnectionManager(), Integer.MAX_VALUE, n -> true)) {
                     updateSeedNodes(connection, Arrays.asList(() -> seedNode));
                     assertTrue(service.nodeConnected(seedNode));
                     assertTrue(service.nodeConnected(discoverableNode));
@@ -284,7 +287,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 service.start();
                 service.acceptIncomingRequests();
                 try (RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",
-                    seedNodes, service, Integer.MAX_VALUE, n -> true)) {
+                    seedNodes, service, service.getConnectionManager(), Integer.MAX_VALUE, n -> true)) {
                     updateSeedNodes(connection, seedNodes);
                     assertTrue(service.nodeConnected(seedNode));
                     assertTrue(service.nodeConnected(discoverableNode));
@@ -311,7 +314,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 service.start();
                 service.acceptIncomingRequests();
                 try (RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",
-                    Arrays.asList(() -> seedNode), service, Integer.MAX_VALUE, n -> true)) {
+                    Arrays.asList(() -> seedNode), service, service.getConnectionManager(), Integer.MAX_VALUE, n -> true)) {
                     updateSeedNodes(connection, Arrays.asList(() -> seedNode));
                     assertTrue(service.nodeConnected(seedNode));
                     assertTrue(service.nodeConnected(discoverableNode));
@@ -360,7 +363,8 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 service.start();
                 service.acceptIncomingRequests();
                 try (RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",
-                    Arrays.asList(() -> seedNode), service, Integer.MAX_VALUE, n -> n.equals(rejectedNode) == false)) {
+                    Arrays.asList(() -> seedNode), service, service.getConnectionManager(), Integer.MAX_VALUE,
+                    n -> n.equals(rejectedNode) == false)) {
                     updateSeedNodes(connection, Arrays.asList(() -> seedNode));
                     if (rejectedNode.equals(seedNode)) {
                         assertFalse(service.nodeConnected(seedNode));
@@ -399,7 +403,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 service.start();
                 service.acceptIncomingRequests();
                 try (RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",
-                    Arrays.asList(() -> seedNode), service, Integer.MAX_VALUE, n -> true)) {
+                    Arrays.asList(() -> seedNode), service, service.getConnectionManager(), Integer.MAX_VALUE, n -> true)) {
                     expectThrows(Exception.class, () -> updateSeedNodes(connection, Arrays.asList(() -> seedNode)));
                     assertFalse(service.nodeConnected(seedNode));
                     assertTrue(connection.assertNoRunningConnections());
@@ -462,7 +466,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 service.start();
                 service.acceptIncomingRequests();
                 try (RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",
-                    Arrays.asList(() -> seedNode), service, Integer.MAX_VALUE, n -> true)) {
+                    Arrays.asList(() -> seedNode), service, service.getConnectionManager(), Integer.MAX_VALUE, n -> true)) {
                     connection.addConnectedNode(seedNode);
                     for (DiscoveryNode node : knownNodes) {
                         final Transport.Connection transportConnection = connection.getConnection(node);
@@ -505,7 +509,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 CountDownLatch listenerCalled = new CountDownLatch(1);
                 AtomicReference<Exception> exceptionReference = new AtomicReference<>();
                 try (RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",
-                    Arrays.asList(() -> seedNode), service, Integer.MAX_VALUE, n -> true)) {
+                    Arrays.asList(() -> seedNode), service, service.getConnectionManager(), Integer.MAX_VALUE, n -> true)) {
                     ActionListener<Void> listener = ActionListener.wrap(x -> {
                         listenerCalled.countDown();
                         fail("expected exception");
@@ -542,7 +546,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 service.acceptIncomingRequests();
                 List<Supplier<DiscoveryNode>> nodes = Collections.singletonList(() -> seedNode);
                 try (RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",
-                    nodes, service, Integer.MAX_VALUE, n -> true)) {
+                    nodes, service, service.getConnectionManager(), Integer.MAX_VALUE, n -> true)) {
                     if (randomBoolean()) {
                         updateSeedNodes(connection, nodes);
                     }
@@ -582,7 +586,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 service.acceptIncomingRequests();
                 List<Supplier<DiscoveryNode>> nodes = Collections.singletonList(() -> seedNode);
                 try (RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",
-                    nodes, service, Integer.MAX_VALUE, n -> true)) {
+                    nodes, service, service.getConnectionManager(), Integer.MAX_VALUE, n -> true)) {
                     SearchRequest request = new SearchRequest("test-index");
                     Thread[] threads = new Thread[10];
                     for (int i = 0; i < threads.length; i++) {
@@ -636,7 +640,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 service.start();
                 service.acceptIncomingRequests();
                 try (RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",
-                    Collections.singletonList(() -> seedNode), service, Integer.MAX_VALUE, n -> true)) {
+                    Collections.singletonList(() -> seedNode), service, service.getConnectionManager(), Integer.MAX_VALUE, n -> true)) {
 
                     SearchRequest request = new SearchRequest("test-index");
                     ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest("test-index")
@@ -746,7 +750,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 service.start();
                 service.acceptIncomingRequests();
                 try (RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",
-                    seedNodes, service, Integer.MAX_VALUE, n -> true)) {
+                    seedNodes, service, service.getConnectionManager(), Integer.MAX_VALUE, n -> true)) {
                     int numThreads = randomIntBetween(4, 10);
                     Thread[] threads = new Thread[numThreads];
                     CyclicBarrier barrier = new CyclicBarrier(numThreads);
@@ -824,7 +828,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 service.start();
                 service.acceptIncomingRequests();
                 try (RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",
-                    seedNodes, service, Integer.MAX_VALUE, n -> true)) {
+                    seedNodes, service, service.getConnectionManager(), Integer.MAX_VALUE, n -> true)) {
                     int numThreads = randomIntBetween(4, 10);
                     Thread[] threads = new Thread[numThreads];
                     CyclicBarrier barrier = new CyclicBarrier(numThreads + 1);
@@ -913,7 +917,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 service.acceptIncomingRequests();
                 int maxNumConnections = randomIntBetween(1, 5);
                 try (RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",
-                    seedNodes, service, maxNumConnections, n -> true)) {
+                    seedNodes, service, service.connectionManager(), maxNumConnections, n -> true)) {
                     // test no nodes connected
                     RemoteConnectionInfo remoteConnectionInfo = assertSerialization(connection.getConnectionInfo());
                     assertNotNull(remoteConnectionInfo);
@@ -1060,7 +1064,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 service.start();
                 service.acceptIncomingRequests();
                 try (RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",
-                    Arrays.asList(() -> seedNode), service, Integer.MAX_VALUE, n -> true)) {
+                    Arrays.asList(() -> seedNode), service, service.getConnectionManager(), Integer.MAX_VALUE, n -> true)) {
                     assertFalse(service.nodeConnected(seedNode));
                     assertFalse(service.nodeConnected(discoverableNode));
                     assertTrue(connection.assertNoRunningConnections());
@@ -1109,7 +1113,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 service.start();
                 service.acceptIncomingRequests();
                 try (RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",
-                    Arrays.asList(() -> seedNode), service, Integer.MAX_VALUE, n -> true)) {
+                    Arrays.asList(() -> seedNode), service, service.getConnectionManager(), Integer.MAX_VALUE, n -> true)) {
                     if (randomBoolean()) {
                         updateSeedNodes(connection, Arrays.asList(() -> seedNode));
                     }
@@ -1157,7 +1161,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 service.start();
                 service.acceptIncomingRequests();
                 try (RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",
-                    seedNodes, service, Integer.MAX_VALUE, n -> true)) {
+                    seedNodes, service, service.getConnectionManager(), Integer.MAX_VALUE, n -> true)) {
                     final int numGetThreads = randomIntBetween(4, 10);
                     final Thread[] getThreads = new Thread[numGetThreads];
                     final int numModifyingThreads = randomIntBetween(4, 10);
@@ -1247,7 +1251,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 service.start();
                 service.acceptIncomingRequests();
                 try (RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",
-                    Arrays.asList( () -> seedNode), service, Integer.MAX_VALUE, n -> true)) {
+                    Arrays.asList( () -> seedNode), service, service.getConnectionManager(), Integer.MAX_VALUE, n -> true)) {
                     updateSeedNodes(connection, Arrays.asList(() -> seedNode));
                     assertTrue(service.nodeConnected(seedNode));
                     assertTrue(service.nodeConnected(discoverableNode));
@@ -1327,7 +1331,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 service.start();
                 service.acceptIncomingRequests();
                 try (RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",
-                Collections.singletonList(() -> connectedNode), service, Integer.MAX_VALUE, n -> true)) {
+                Collections.singletonList(() -> connectedNode), service, service.getConnectionManager(), Integer.MAX_VALUE, n -> true)) {
                     connection.addConnectedNode(connectedNode);
                     for (int i = 0; i < 10; i++) {
                         //always a direct connection as the remote node is already connected
@@ -1335,9 +1339,9 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                         assertSame(seedConnection, remoteConnection);
                     }
                     for (int i = 0; i < 10; i++) {
-                        //always a direct connection as the remote node is already connected
+                        // we don't use the transport service connection manager so we will get a proxy connection for the local node
                         Transport.Connection remoteConnection = connection.getConnection(service.getLocalNode());
-                        assertThat(remoteConnection, not(instanceOf(RemoteClusterConnection.ProxyConnection.class)));
+                        assertThat(remoteConnection, instanceOf(RemoteClusterConnection.ProxyConnection.class));
                         assertThat(remoteConnection.getNode(), equalTo(service.getLocalNode()));
                     }
                     for (int i = 0; i < 10; i++) {
@@ -1369,7 +1373,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     return seedNode;
                 };
                 try (RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",
-                    Arrays.asList(seedSupplier), service, Integer.MAX_VALUE, n -> true)) {
+                    Arrays.asList(seedSupplier), service, service.getConnectionManager(), Integer.MAX_VALUE, n -> true)) {
                     updateSeedNodes(connection, Arrays.asList(seedSupplier));
                     // Closing connections leads to RemoteClusterConnection.ConnectHandler.collectRemoteNodes
                     // being called again so we try to resolve the same seed node's host twice

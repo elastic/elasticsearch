@@ -252,8 +252,10 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
 
     private ElasticsearchStatusException createUnknownLicenseError(
             final String datafeedId, final List<String> remoteIndices, final Exception cause) {
-        final String remoteClusterQualifier = remoteIndices.size() == 1 ? "a remote cluster" : "remote clusters";
-        final String licenseTypeQualifier = remoteIndices.size() == 1 ? "" : "s";
+        final int numberOfRemoteClusters = RemoteClusterLicenseChecker.remoteClusterAliases(remoteIndices).size();
+        assert numberOfRemoteClusters > 0;
+        final String remoteClusterQualifier = numberOfRemoteClusters == 1 ? "a remote cluster" : "remote clusters";
+        final String licenseTypeQualifier = numberOfRemoteClusters == 1 ? "" : "s";
         final String message = String.format(
                 Locale.ROOT,
                 "cannot start datafeed [%s] as it uses indices on %s %s but the license type%s could not be verified",

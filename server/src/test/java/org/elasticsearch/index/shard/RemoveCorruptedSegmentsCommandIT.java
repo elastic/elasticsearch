@@ -22,6 +22,7 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
+import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanation;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -34,6 +35,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
@@ -69,7 +71,10 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 0)
 public class RemoveCorruptedSegmentsCommandIT extends ESIntegTestCase {
@@ -127,9 +132,6 @@ public class RemoveCorruptedSegmentsCommandIT extends ESIntegTestCase {
         final Set<Path> indexDirs = getIndexDirs(indexName);
         assertThat(indexDirs, hasSize(1));
 
-        logger.info("--> closing '{}' index", indexName);
-        client().admin().indices().prepareClose(indexName).get();
-
         internalCluster().restartNode(node, new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
@@ -148,9 +150,6 @@ public class RemoveCorruptedSegmentsCommandIT extends ESIntegTestCase {
         });
 
         ensureStableCluster(1);
-
-        logger.info("--> opening '{}' index", indexName);
-        client().admin().indices().prepareOpen(indexName).get();
 
         // shard should be failed due to a corrupted index
         final SearchPhaseExecutionException searchPhaseExecutionException = expectThrows(SearchPhaseExecutionException.class,
@@ -187,21 +186,32 @@ public class RemoveCorruptedSegmentsCommandIT extends ESIntegTestCase {
         assertThat(t.getOutput(), containsString("allocate_stale_primary"));
         assertThat(t.getOutput(), containsString("\"node\" : \"" + nodeId + "\""));
 
-        // // has to fail as there is only _stale_ primary (due to new allocation id)
-        expectThrows(SearchPhaseExecutionException.class,
-            () -> client().prepareSearch(indexName).setQuery(matchAllQuery()).get());
+        final ClusterAllocationExplanation explanation =
+            client().admin().cluster().prepareAllocationExplain()
+                .setIndex(indexName).setShard(0).setPrimary(true)
+                .get().getExplanation();
+        // there is only _stale_ primary (due to new allocation id)
+        assertThat(explanation.getCurrentNode(), is(nullValue()));
+        assertThat(explanation.getShardState(), equalTo(ShardRoutingState.UNASSIGNED));
 
         client().admin().cluster().prepareReroute()
             .add(new AllocateStalePrimaryAllocationCommand(indexName, 0, nodeId, true))
             .get();
 
-        ensureYellow(indexName);
+        final ClusterAllocationExplanation explanation2 =
+            client().admin().cluster().prepareAllocationExplain()
+                .setIndex(indexName).setShard(0).setPrimary(true)
+                .get().getExplanation();
+
+        assertThat(explanation2.getCurrentNode(), notNullValue());
+        assertThat(explanation2.getShardState(), isOneOf(ShardRoutingState.INITIALIZING, ShardRoutingState.STARTED));
 
         final Pattern pattern = Pattern.compile("Corrupted segments found -\\s+(?<docs>\\d+) documents will be lost.");
         final Matcher matcher = pattern.matcher(t.getOutput());
         assertThat(matcher.find(), equalTo(true));
         final int expectedNumDocs = numDocs - Integer.parseInt(matcher.group("docs"));
 
+        ensureGreen(indexName);
         // Run a search and make sure it succeeds
         assertHitCount(client().prepareSearch(indexName).setQuery(matchAllQuery()).get(), expectedNumDocs);
     }

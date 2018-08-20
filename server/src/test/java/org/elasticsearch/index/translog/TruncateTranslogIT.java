@@ -29,6 +29,7 @@ import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.store.NativeFSLockFactory;
+import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanation;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
@@ -44,6 +45,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
@@ -83,7 +85,10 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 0)
 public class TruncateTranslogIT extends ESIntegTestCase {
@@ -223,14 +228,27 @@ public class TruncateTranslogIT extends ESIntegTestCase {
         assertThat(t.getOutput(), containsString("allocate_stale_primary"));
         assertThat(t.getOutput(), containsString("\"node\" : \"" + primaryNodeId + "\""));
 
-        // has to fail as there is only _stale_ primary (due to new allocation id)
-        expectThrows(SearchPhaseExecutionException.class,
-            () -> client().prepareSearch(indexName).setQuery(matchAllQuery()).get());
+
+        final ClusterAllocationExplanation explanation =
+            client().admin().cluster().prepareAllocationExplain()
+                .setIndex(indexName).setShard(0).setPrimary(true)
+                .get().getExplanation();
+        // there is only _stale_ primary (due to new allocation id)
+        assertThat(explanation.getCurrentNode(), is(nullValue()));
+        assertThat(explanation.getShardState(), equalTo(ShardRoutingState.UNASSIGNED));
 
         client().admin().cluster().prepareReroute()
-            .add(new AllocateStalePrimaryAllocationCommand(indexName, 0, primaryNodeId
-                , true))
+            .add(new AllocateStalePrimaryAllocationCommand(indexName, 0, primaryNodeId, true))
             .get();
+
+        final ClusterAllocationExplanation explanation2 =
+            client().admin().cluster().prepareAllocationExplain()
+                .setIndex(indexName).setShard(0).setPrimary(true)
+                .get().getExplanation();
+
+        assertThat(explanation2.getCurrentNode(), notNullValue());
+        assertThat(explanation2.getShardState(), isOneOf(ShardRoutingState.INITIALIZING, ShardRoutingState.STARTED));
+
         ensureYellow(indexName);
 
         // Run a search and make sure it succeeds

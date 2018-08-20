@@ -18,42 +18,64 @@
  */
 package org.elasticsearch.protocol.xpack.ml;
 
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractXContentTestCase;
 
-import java.util.Arrays;
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
-public class CloseJobRequestTests extends ESTestCase {
+public class CloseJobRequestTests extends AbstractXContentTestCase<CloseJobRequest> {
 
     public void testCloseAllJobsRequest() {
         CloseJobRequest request = CloseJobRequest.closeAllJobsRequest();
         assertEquals(request.getJobIds().size(), 1);
-        assertEquals(request.getJobIds().get(0), CloseJobRequest.ALL_JOBS);
+        assertEquals(request.getJobIds().get(0), "_all");
     }
 
-    public void testAddNullJobIds() {
-        CloseJobRequest request = new CloseJobRequest();
-        List<String> jobIds = Arrays.asList("job1", null);
+    public void testWithNullJobIds() {
+        Exception exception = expectThrows(IllegalArgumentException.class, CloseJobRequest::new);
+        assertEquals(exception.getMessage(), "jobIds must be not be empty");
 
-        expectThrows(NullPointerException.class, () -> request.addJobId(null));
-        expectThrows(NullPointerException.class, () -> request.setJobIds(null));
-        expectThrows(NullPointerException.class, () -> request.setJobIds(jobIds));
+        exception = expectThrows(NullPointerException.class, () -> new CloseJobRequest("job1", null));
+        assertEquals(exception.getMessage(), "jobIds must not contain null values");
     }
 
-    public void testDefaultValues() {
-        CloseJobRequest request = new CloseJobRequest();
 
-        assertTrue(request.isAllowNoJobs());
-        assertFalse(request.isForce());
-        assertNull(request.getTimeout());
-        assertTrue(request.getJobIds().isEmpty());
+    @Override
+    protected CloseJobRequest createTestInstance() {
+        int jobCount = randomIntBetween(1, 10);
+        List<String> jobIds = new ArrayList<>(jobCount);
+
+        for (int i = 0; i < jobCount; i++) {
+            jobIds.add(randomAlphaOfLength(10));
+        }
+
+        CloseJobRequest request = new CloseJobRequest(jobIds.toArray(new String[0]));
+
+        if (randomBoolean()) {
+            request.setAllowNoJobs(randomBoolean());
+        }
+
+        if (randomBoolean()) {
+            request.setTimeout(TimeValue.timeValueMinutes(randomIntBetween(1, 10)));
+        }
+
+        if (randomBoolean()) {
+            request.setForce(randomBoolean());
+        }
+
+        return request;
     }
 
-    public void testGetCommaDelimitedJobIdString() {
-        CloseJobRequest request = new CloseJobRequest("job1");
-        assertEquals(request.getCommaDelimitedJobIdString(), "job1");
+    @Override
+    protected CloseJobRequest doParseInstance(XContentParser parser) throws IOException {
+        return CloseJobRequest.PARSER.parse(parser, null);
+    }
 
-        request.addJobId("otherjobs*");
-        assertEquals(request.getCommaDelimitedJobIdString(), "job1,otherjobs*");
+    @Override
+    protected boolean supportsUnknownFields() {
+        return true;
     }
 }

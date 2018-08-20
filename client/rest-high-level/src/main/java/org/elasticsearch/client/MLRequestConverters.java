@@ -23,6 +23,7 @@ import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.RequestConverters.EndpointBuilder;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.protocol.xpack.ml.CloseJobRequest;
 import org.elasticsearch.protocol.xpack.ml.DeleteJobRequest;
 import org.elasticsearch.protocol.xpack.ml.OpenJobRequest;
@@ -67,14 +68,18 @@ final class MLRequestConverters {
             .addPathPartAsIs("_xpack")
             .addPathPartAsIs("ml")
             .addPathPartAsIs("anomaly_detectors")
-            .addPathPart(closeJobRequest.getCommaDelimitedJobIdString())
+            .addPathPart(Strings.collectionToCommaDelimitedString(closeJobRequest.getJobIds()))
             .addPathPartAsIs("_close")
             .build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
 
         RequestConverters.Params params = new RequestConverters.Params(request);
-        params.putParam("force", Boolean.toString(closeJobRequest.isForce()));
-        params.putParam("allow_no_jobs", Boolean.toString(closeJobRequest.isAllowNoJobs()));
+        if (closeJobRequest.isForce() != null) {
+            params.putParam("force", Boolean.toString(closeJobRequest.isForce()));
+        }
+        if (closeJobRequest.isAllowNoJobs() != null) {
+            params.putParam("allow_no_jobs", Boolean.toString(closeJobRequest.isAllowNoJobs()));
+        }
         if (closeJobRequest.getTimeout() != null) {
             params.putParam("timeout", closeJobRequest.getTimeout().getStringRep());
         }

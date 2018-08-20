@@ -74,11 +74,11 @@ public class MLRequestConvertersTests extends ESTestCase {
         Request request = MLRequestConverters.closeJob(closeJobRequest);
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + "/_close", request.getEndpoint());
-        assertEquals(Boolean.toString(closeJobRequest.isForce()), request.getParameters().get("force"));
-        assertEquals(Boolean.toString(closeJobRequest.isAllowNoJobs()), request.getParameters().get("allow_no_jobs"));
+        assertFalse(request.getParameters().containsKey("force"));
+        assertFalse(request.getParameters().containsKey("allow_no_jobs"));
         assertFalse(request.getParameters().containsKey("timeout"));
 
-        closeJobRequest.addJobId("otherjobs*");
+        closeJobRequest = new CloseJobRequest(jobId, "otherjobs*");
         closeJobRequest.setForce(true);
         closeJobRequest.setAllowNoJobs(false);
         closeJobRequest.setTimeout(TimeValue.timeValueMinutes(10));
@@ -88,7 +88,6 @@ public class MLRequestConvertersTests extends ESTestCase {
         assertEquals(Boolean.toString(true), request.getParameters().get("force"));
         assertEquals(Boolean.toString(false), request.getParameters().get("allow_no_jobs"));
         assertEquals("10m", request.getParameters().get("timeout"));
-
     }
 
     public void testDeleteJob() {

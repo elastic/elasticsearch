@@ -20,75 +20,125 @@ package org.elasticsearch.protocol.xpack.ml;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
+import java.io.IOException;
+import java.security.InvalidParameterException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-public class CloseJobRequest extends ActionRequest {
+public class CloseJobRequest extends ActionRequest implements ToXContentObject {
 
-    public static final String ALL_JOBS = "_all";
+    public static final ParseField JOB_IDS = new ParseField("job_ids");
+    public static final ParseField TIMEOUT = new ParseField("timeout");
+    public static final ParseField FORCE = new ParseField("force");
+    public static final ParseField ALLOW_NO_JOBS = new ParseField("allow_no_jobs");
 
-    private List<String> jobIds = new ArrayList<>();
+    @SuppressWarnings("unchecked")
+    public static final ConstructingObjectParser<CloseJobRequest, Void> PARSER = new ConstructingObjectParser<>(
+        "close_job_request",
+        true, a -> new CloseJobRequest((List<String>) a[0]));
+
+    static {
+        PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), JOB_IDS);
+        PARSER.declareString((obj, val) -> obj.setTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
+        PARSER.declareBoolean(CloseJobRequest::setForce, FORCE);
+        PARSER.declareBoolean(CloseJobRequest::setAllowNoJobs, ALLOW_NO_JOBS);
+    }
+
+    private static final String ALL_JOBS = "_all";
+
+    private final List<String> jobIds;
     private TimeValue timeout;
-    private boolean force;
-    private boolean allowNoJobs = true;
+    private Boolean force;
+    private Boolean allowNoJobs;
 
+    /**
+     * Explicitly close all jobs
+     *
+     * @return a {@link CloseJobRequest} for all existing jobs
+     */
     public static CloseJobRequest closeAllJobsRequest(){
         return new CloseJobRequest(ALL_JOBS);
     }
 
-    public CloseJobRequest(String jobId) {
-        jobIds.add(Objects.requireNonNull(jobId, "[jobId] must not be null"));
+    CloseJobRequest(List<String> jobIds) {
+        this(jobIds.toArray(new String[0]));
     }
 
-    CloseJobRequest() {
-    }
-
-    public void setJobIds(List<String> jobIds) {
-        Objects.requireNonNull(jobIds, "jobIds must not be null");
-        if (jobIds.stream().anyMatch(Objects::isNull)) {
-            throw new NullPointerException("[jobId] must not be null");
+    /**
+     * Close the specified Jobs via their unique jobIds
+     *
+     * @param jobIds must be non-null and non-empty and each jobId must be non-null
+     */
+    public CloseJobRequest(String... jobIds) {
+        if (jobIds.length == 0) {
+            throw new InvalidParameterException("jobIds must be not be empty");
         }
-        this.jobIds = new ArrayList<>(jobIds);
+        this.jobIds = new ArrayList<>(jobIds.length);
+        for (String jobId : jobIds) {
+            this.jobIds.add(Objects.requireNonNull(jobId, "jobIds must not contain null values"));
+        }
     }
 
-    public void addJobId(String jobId) {
-        jobIds.add(Objects.requireNonNull(jobId, "[jobId] must not be null"));
-    }
-
+    /**
+     * All the jobIds to be closed
+     */
     public List<String> getJobIds() {
         return jobIds;
     }
 
+    /**
+     * How long to wait for the close request to complete before timing out.
+     *
+     * Default: 30 minutes
+     */
     public TimeValue getTimeout() {
         return timeout;
     }
 
+    /**
+     * {@link CloseJobRequest#getTimeout()}
+     */
     public void setTimeout(TimeValue timeout) {
         this.timeout = timeout;
     }
 
-    public boolean isForce() {
+    /**
+     * Should the closing be forced.
+     *
+     * Use to close a failed job, or to forcefully close a job which has not responded to its initial close request.
+     */
+    public Boolean isForce() {
         return force;
     }
 
+    /**
+     * {@link CloseJobRequest#isForce()}
+     */
     public void setForce(boolean force) {
         this.force = force;
     }
 
-    public boolean isAllowNoJobs() {
+    /**
+     * Whether to ignore if a wildcard expression matches no jobs.
+     *
+     * This includes `_all` string or when no jobs have been specified
+     */
+    public Boolean isAllowNoJobs() {
         return allowNoJobs;
     }
 
+    /**
+     * {@link CloseJobRequest#isAllowNoJobs()}
+     */
     public void setAllowNoJobs(boolean allowNoJobs) {
         this.allowNoJobs = allowNoJobs;
-    }
-
-    public String getCommaDelimitedJobIdString() {
-        return Strings.collectionToCommaDelimitedString(jobIds);
     }
 
     @Override
@@ -114,7 +164,27 @@ public class CloseJobRequest extends ActionRequest {
         CloseJobRequest that = (CloseJobRequest) other;
         return Objects.equals(jobIds, that.jobIds) &&
             Objects.equals(timeout, that.timeout) &&
-            allowNoJobs == that.allowNoJobs &&
-            force == that.force;
+            Objects.equals(allowNoJobs, that.allowNoJobs) &&
+            Objects.equals(force, that.force);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+
+        builder.field(JOB_IDS.getPreferredName(), jobIds);
+
+        if (timeout != null) {
+            builder.field(TIMEOUT.getPreferredName(), timeout.getStringRep());
+        }
+        if (force != null) {
+            builder.field(FORCE.getPreferredName(), force);
+        }
+        if (allowNoJobs != null) {
+            builder.field(ALLOW_NO_JOBS.getPreferredName(), allowNoJobs);
+        }
+
+        builder.endObject();
+        return builder;
     }
 }

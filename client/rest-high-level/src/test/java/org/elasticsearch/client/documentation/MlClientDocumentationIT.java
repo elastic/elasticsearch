@@ -233,11 +233,10 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             client.machineLearning().openJob(new OpenJobRequest(job.getId()), RequestOptions.DEFAULT);
 
             //tag::x-pack-ml-close-job-request
-            CloseJobRequest closeJobRequest = new CloseJobRequest("closing-my-first-machine-learning-job"); //<1>
-            closeJobRequest.addJobId("other-jobs*"); //<2>
-            closeJobRequest.setForce(false); //<3>
-            closeJobRequest.setAllowNoJobs(true); //<4>
-            closeJobRequest.setTimeout(TimeValue.timeValueMinutes(10)); //<5>
+            CloseJobRequest closeJobRequest = new CloseJobRequest("closing-my-first-machine-learning-job", "otherjobs*"); //<1>
+            closeJobRequest.setForce(false); //<2>
+            closeJobRequest.setAllowNoJobs(true); //<3>
+            closeJobRequest.setTimeout(TimeValue.timeValueMinutes(10)); //<4>
             //end::x-pack-ml-close-job-request
 
             //tag::x-pack-ml-close-job-execute

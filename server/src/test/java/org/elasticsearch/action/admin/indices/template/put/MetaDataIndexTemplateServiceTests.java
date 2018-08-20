@@ -51,7 +51,6 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.empty;
 
 public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     public void testIndexTemplateInvalidNumberOfShards() {
@@ -165,10 +164,11 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         putTemplateDetail(new PutRequest("test", "bar").patterns(Arrays.asList("bar-*")).order(between(0, 100)));
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
         assertThat(MetaDataIndexTemplateService.findTemplates(state.metaData(), "foo-1234").stream()
-            .map(IndexTemplateMetaData::name).collect(Collectors.toList()), contains("foo-2", "foo-1"));
+            .map(IndexTemplateMetaData::name).collect(Collectors.toList()), contains("_default", "foo-2", "foo-1"));
         assertThat(MetaDataIndexTemplateService.findTemplates(state.metaData(), "bar-xyz").stream()
-            .map(IndexTemplateMetaData::name).collect(Collectors.toList()), contains("bar"));
-        assertThat(MetaDataIndexTemplateService.findTemplates(state.metaData(), "baz"), empty());
+            .map(IndexTemplateMetaData::name).collect(Collectors.toList()), contains("_default", "bar"));
+        assertThat(MetaDataIndexTemplateService.findTemplates(state.metaData(), "baz")
+            .stream().map(IndexTemplateMetaData::name).collect(Collectors.toList()), contains("_default"));
     }
 
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {

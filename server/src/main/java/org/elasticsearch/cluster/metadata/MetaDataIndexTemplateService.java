@@ -273,7 +273,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         if (request.name.contains("#")) {
             validationErrors.add("name must not contain a '#'");
         }
-        if (request.name.startsWith("_")) {
+        if ("_default".equals(request.name) == false && request.name.startsWith("_")) {
             validationErrors.add("name must not start with '_'");
         }
         if (!request.name.toLowerCase(Locale.ROOT).equals(request.name)) {

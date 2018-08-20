@@ -341,17 +341,71 @@ public class ConditionalProcessor extends AbstractProcessor {
 
         @Override
         public ListIterator<Object> listIterator() {
-            return null;
+            return new UnmodifiableListIterator(data.listIterator());
         }
 
         @Override
         public ListIterator<Object> listIterator(final int index) {
-            return null;
+            return new UnmodifiableListIterator(data.listIterator(index));
         }
 
         @Override
         public List<Object> subList(final int fromIndex, final int toIndex) {
             return new UnmodifiableIngestList(data.subList(fromIndex, toIndex));
+        }
+
+        private static final class UnmodifiableListIterator implements ListIterator<Object> {
+
+            private final ListIterator<Object> data;
+
+            UnmodifiableListIterator(ListIterator<Object> data) {
+                this.data = data;
+            }
+
+            @Override
+            public boolean hasNext() {
+                return data.hasNext();
+            }
+
+            @Override
+            public Object next() {
+                return wrapUnmodifiable(data.next());
+            }
+
+            @Override
+            public boolean hasPrevious() {
+                return data.hasPrevious();
+            }
+
+            @Override
+            public Object previous() {
+                return wrapUnmodifiable(data.previous());
+            }
+
+            @Override
+            public int nextIndex() {
+                return data.nextIndex();
+            }
+
+            @Override
+            public int previousIndex() {
+                return data.previousIndex();
+            }
+
+            @Override
+            public void remove() {
+                throw new UnsupportedOperationException("Mutating ingest documents in conditionals is not supported");
+            }
+
+            @Override
+            public void set(final Object o) {
+                throw new UnsupportedOperationException("Mutating ingest documents in conditionals is not supported");
+            }
+
+            @Override
+            public void add(final Object o) {
+                throw new UnsupportedOperationException("Mutating ingest documents in conditionals is not supported");
+            }
         }
     }
 }

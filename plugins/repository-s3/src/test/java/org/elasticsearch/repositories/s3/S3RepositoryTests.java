@@ -40,7 +40,7 @@ public class S3RepositoryTests extends ESTestCase {
 
     private static class DummyS3Client extends AbstractAmazonS3 {
         @Override
-        public boolean doesBucketExistV2(String bucketName) {
+        public boolean doesBucketExist(String bucketName) {
             return true;
         }
     }

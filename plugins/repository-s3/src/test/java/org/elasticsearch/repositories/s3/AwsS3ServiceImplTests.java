@@ -23,23 +23,15 @@ import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.client.builder.AwsClientBuilder;
 import org.elasticsearch.common.settings.MockSecureSettings;
+import org.elasticsearch.common.settings.SecureSetting;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matcher;
 
-import java.util.Locale;
-import java.util.Random;
-
-import static org.elasticsearch.repositories.s3.S3ClientSettings.ENDPOINT_SETTING;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isEmptyOrNullString;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.nullValue;
 
 public class AwsS3ServiceImplTests extends ESTestCase {
 
@@ -174,53 +166,4 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         assertThat(clientSettings.endpoint, is(expectedEndpoint));
     }
 
-    public void testIsAwsStandardEndpoint() {
-        final String standardEnpoint = randomStandardEndpoint(random());
-        assertThat(InternalAwsS3Service.isAwsStandardEndpoint(standardEnpoint), is(true));
-
-        final String customEnpoint = randomFrom("http://s3.elastic.co", "https://storage.elastic.co/");
-        assertThat(InternalAwsS3Service.isAwsStandardEndpoint(customEnpoint), is(false));
-    }
-
-    public void testBuildEndpoint() {
-        asserEndpointConfiguration(null, equalTo("s3.amazonaws.com"), not(isEmptyOrNullString()));
-        asserEndpointConfiguration("", equalTo("s3.amazonaws.com"), not(isEmptyOrNullString()));
-        asserEndpointConfiguration("s3.amazonaws.com", equalTo("s3.amazonaws.com"), not(isEmptyOrNullString()));
-        asserEndpointConfiguration("test.amazonaws.com", equalTo("test.amazonaws.com"), not(isEmptyOrNullString()));
-        asserEndpointConfiguration("s3.us-west-1.amazonaws.com", equalTo("s3.us-west-1.amazonaws.com"), equalTo("us-west-1"));
-        asserEndpointConfiguration("s3.cn-north-1.amazonaws.com.cn", equalTo("s3.cn-north-1.amazonaws.com.cn"), equalTo("cn-north-1"));
-        asserEndpointConfiguration("service.region.amazonaws.com", equalTo("service.region.amazonaws.com"), equalTo("region"));
-        asserEndpointConfiguration("http://s3.elastic.co", equalTo("http://s3.elastic.co"), is(nullValue()));
-        asserEndpointConfiguration("https://storage.elastic.co:443", equalTo("https://storage.elastic.co:443"), is(nullValue()));
-    }
-
-    private static String randomStandardEndpoint(final Random random) {
-        final StringBuilder endpoint = new StringBuilder();
-        endpoint.append(randomFrom("s3", "service", "test", "my-bucket"));
-        if (frequently()) {
-            endpoint.append(randomFrom("-", "."));
-            endpoint.append(randomFrom("us-east-1", "us-west-1", "ca-central-1", "eu-west-3"));
-        }
-        endpoint.append(".amazonaws.com");
-        if (rarely()) {
-            endpoint.append(".cn");
-        }
-        return endpoint.toString();
-    }
-
-    private static void asserEndpointConfiguration(final String endpoint,
-                                                   final Matcher<? super String> matcherEndpoint,
-                                                   final Matcher<? super String> matcherRegion) {
-
-        final String clientName = randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT);
-        final Settings settings = Settings.builder()
-                                          .put(ENDPOINT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), endpoint)
-                                          .build();
-        final S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(settings, clientName);
-        final AwsClientBuilder.EndpointConfiguration configuration = InternalAwsS3Service.buildEndpoint(clientSettings);
-
-        assertNotNull(configuration);
-        assertThat(configuration.getServiceEndpoint(), matcherEndpoint);
-        assertThat(configuration.getSigningRegion(), matcherRegion);
-    }
 }

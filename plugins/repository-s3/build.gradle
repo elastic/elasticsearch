@@ -23,7 +23,7 @@ esplugin {
 }
 
 versions << [
-  'aws': '1.11.344'
+  'aws': '1.11.223'
 ]
 
 dependencies {
@@ -34,19 +34,16 @@ dependencies {
   compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   compile "commons-logging:commons-logging:${versions.commonslogging}"
   compile "commons-codec:commons-codec:${versions.commonscodec}"
-  compile "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
-  compile "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
-  compile "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
-  compile "com.amazonaws:jmespath-java:${versions.aws}"
+  compile 'com.fasterxml.jackson.core:jackson-databind:2.6.7.1'
+  compile 'com.fasterxml.jackson.core:jackson-annotations:2.6.0'
 
   // HACK: javax.xml.bind was removed from default modules in java 9, so we pull the api in here,
-  // and whitelist this hack in JarHell
+  // and whitelist this hack in JarHell 
   compile 'javax.xml.bind:jaxb-api:2.2.2'
 }
 
 dependencyLicenses {
   mapping from: /aws-java-sdk-.*/, to: 'aws-java-sdk'
-  mapping from: /jmespath-java.*/, to: 'aws-java-sdk'
   mapping from: /jackson-.*/, to: 'jackson'
   mapping from: /jaxb-.*/, to: 'jaxb'
 }

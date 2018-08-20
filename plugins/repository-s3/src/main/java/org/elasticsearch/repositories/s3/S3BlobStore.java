@@ -63,10 +63,15 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
         this.cannedACL = initCannedACL(cannedACL);
         this.storageClass = initStorageClass(storageClass);
 
+        // Note: the method client.doesBucketExist() may return 'true' is the bucket exists
+        // but we don't have access to it (ie, 403 Forbidden response code)
+        // Also, if invalid security credentials are used to execute this method, the
+        // client is not able to distinguish between bucket permission errors and
+        // invalid credential errors, and this method could return an incorrect result.
         SocketAccess.doPrivilegedVoid(() -> {
-            if (client.doesBucketExistV2(bucket) == false) {
+            if (client.doesBucketExist(bucket) == false) {
                 throw new IllegalArgumentException("The bucket [" + bucket + "] does not exist. Please create it before " +
-                                                   " creating a s3 snapshot repository backed by it.");
+                                                   " creating an s3 snapshot repository backed by it.");
             }
         });
     }

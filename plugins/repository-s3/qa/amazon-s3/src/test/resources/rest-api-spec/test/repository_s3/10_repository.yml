@@ -181,17 +181,3 @@
   - do:
      snapshot.delete_repository:
        repository: repository
-
----
-"Bucket does not exist":
-  - do:
-      catch: /exception/
-      snapshot.create_repository:
-        repository: repository
-        body:
-          type: s3
-          settings:
-            bucket: does_not_exist
-            client: integration_test
-            base_path: ${base_path}
-            storage_class: onezone_ia

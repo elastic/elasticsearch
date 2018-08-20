@@ -51,7 +51,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     /* the number of translog operations written to this file */
     private volatile int operationCounter;
     /* if we hit an exception that we can't recover from we assign it to this var and ship it with every AlreadyClosedException we throw */
-    private TragicExceptionHolder tragedy;
+    private final TragicExceptionHolder tragedy;
     /* A buffered outputstream what writes to the writers channel */
     private final OutputStream outputStream;
     /* the total offset of this file including the bytes written to the file as well as into the buffer */

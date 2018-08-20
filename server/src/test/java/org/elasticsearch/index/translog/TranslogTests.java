@@ -33,6 +33,7 @@ import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.LineFileDocs;
 import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
@@ -2506,7 +2507,7 @@ public class TranslogTests extends ESTestCase {
                     syncedDocs.addAll(unsynced);
                     unsynced.clear();
                 } catch (TranslogException | MockDirectoryWrapper.FakeIOException ex) {
-                    // fair enough
+                    assertEquals(failableTLog.getTragicException(), ex);
                 } catch (IOException ex) {
                     assertEquals(ex.getMessage(), "__FAKE__ no space left on device");
                     assertEquals(failableTLog.getTragicException(), ex);
@@ -2934,8 +2935,9 @@ public class TranslogTests extends ESTestCase {
         }
     }
 
+    // close method should never be called directly from Translog (the only exception is closeOnTragicEvent)
     public void testTranslogCloseInvariant() throws IOException {
-        //close method should never be called directly from Translog (the only exception is closeOnTragicEvent)
+        assumeTrue("test only works with assertions enabled", Assertions.ENABLED);
         class MisbehavingTranslog extends Translog {
             MisbehavingTranslog(TranslogConfig config, String translogUUID, TranslogDeletionPolicy deletionPolicy, LongSupplier globalCheckpointSupplier, LongSupplier primaryTermSupplier) throws IOException {
                 super(config, translogUUID, deletionPolicy, globalCheckpointSupplier, primaryTermSupplier);

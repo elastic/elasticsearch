@@ -27,10 +27,9 @@ public class TragicExceptionHolder {
     public boolean setTragicException(Exception ex){
         assert ex != null;
         if (tragedy.compareAndSet(null, ex)) {
-            tragedy.set(ex);
             return true;
         } else {
-            if (tragedy.get() != ex) { //to ensure there is no self-suppression
+            if (tragedy.get() != ex) { // to ensure there is no self-suppression
                 tragedy.get().addSuppressed(ex);
             }
             return false;

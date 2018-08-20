@@ -30,7 +30,6 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.graph.action.GraphExploreRequest;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 
-import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -429,7 +428,7 @@ class IndicesAndAliasesResolver {
         }
 
         @Override
-        protected void updateRemoteCluster(String clusterAlias, List<InetSocketAddress> addresses) {
+        protected void updateRemoteCluster(String clusterAlias, List<String> addresses) {
             if (addresses.isEmpty()) {
                 clusters.remove(clusterAlias);
             } else {

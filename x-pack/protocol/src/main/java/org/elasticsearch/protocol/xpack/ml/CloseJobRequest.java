@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.security.InvalidParameterException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -68,7 +69,13 @@ public class CloseJobRequest extends ActionRequest implements ToXContentObject {
     }
 
     CloseJobRequest(List<String> jobIds) {
-        this(jobIds.toArray(new String[0]));
+        if (jobIds.isEmpty()) {
+            throw new InvalidParameterException("jobIds must not be empty");
+        }
+        if (jobIds.stream().anyMatch(Objects::isNull)) {
+            throw new NullPointerException("jobIds must not contain null values");
+        }
+        this.jobIds = new ArrayList<>(jobIds);
     }
 
     /**
@@ -77,13 +84,7 @@ public class CloseJobRequest extends ActionRequest implements ToXContentObject {
      * @param jobIds must be non-null and non-empty and each jobId must be non-null
      */
     public CloseJobRequest(String... jobIds) {
-        if (jobIds.length == 0) {
-            throw new InvalidParameterException("jobIds must be not be empty");
-        }
-        this.jobIds = new ArrayList<>(jobIds.length);
-        for (String jobId : jobIds) {
-            this.jobIds.add(Objects.requireNonNull(jobId, "jobIds must not contain null values"));
-        }
+        this(Arrays.asList(jobIds));
     }
 
     /**

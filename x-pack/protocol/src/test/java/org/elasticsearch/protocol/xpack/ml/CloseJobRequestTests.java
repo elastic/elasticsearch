@@ -36,7 +36,7 @@ public class CloseJobRequestTests extends AbstractXContentTestCase<CloseJobReque
 
     public void testWithNullJobIds() {
         Exception exception = expectThrows(IllegalArgumentException.class, CloseJobRequest::new);
-        assertEquals(exception.getMessage(), "jobIds must be not be empty");
+        assertEquals(exception.getMessage(), "jobIds must not be empty");
 
         exception = expectThrows(NullPointerException.class, () -> new CloseJobRequest("job1", null));
         assertEquals(exception.getMessage(), "jobIds must not contain null values");

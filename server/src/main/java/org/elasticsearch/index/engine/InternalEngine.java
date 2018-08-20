@@ -1738,6 +1738,7 @@ public class InternalEngine extends Engine {
         if (combinedDeletionPolicy.releaseCommit(snapshot)) {
             ensureOpen();
             indexWriter.deleteUnusedFiles();
+            translog.trimUnreferencedReaders();
         }
     }
 

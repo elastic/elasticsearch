@@ -49,7 +49,7 @@ public final class NodeNamePatternConverter extends LogEventPatternConverter {
     /**
      * Called by log4j2 to initialize this converter.
      */
-    public static PatternConverter newInstance(final String[] options) {
+    public static NodeNamePatternConverter newInstance(final String[] options) {
         if (options.length > 0) {
             throw new IllegalArgumentException("no options supported but options provided: "
                     + Arrays.toString(options));
@@ -72,7 +72,7 @@ public final class NodeNamePatternConverter extends LogEventPatternConverter {
              * This is ok because we don't generally log anything before
              * we have the node name.
              */
-            nodeName = "-------";
+            nodeName = "unknown";
         }
         toAppendTo.append(nodeName);
     }

@@ -189,21 +189,32 @@ public class MessagesTests extends ESTestCase {
     }
 
     public void testPreVoteResponseEqualsHashCodeSerialization() {
+        long currentTerm = randomNonNegativeLong();
         PreVoteResponse initialPreVoteResponse
-            = new PreVoteResponse(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
+            = new PreVoteResponse(currentTerm, randomLongBetween(1, currentTerm), randomNonNegativeLong());
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(initialPreVoteResponse,
             preVoteResponse -> copyWriteable(preVoteResponse, writableRegistry(), PreVoteResponse::new),
             preVoteResponse -> {
                 switch (randomInt(2)) {
                     case 0:
-                        return new PreVoteResponse(randomNonNegativeLong(), preVoteResponse.getLastAcceptedTerm(),
+                        assumeTrue("last-accepted term is Long.MAX_VALUE", preVoteResponse.getLastAcceptedTerm() < Long.MAX_VALUE);
+                        return new PreVoteResponse(
+                            randomValueOtherThan(preVoteResponse.getCurrentTerm(),
+                                () -> randomLongBetween(preVoteResponse.getLastAcceptedTerm(), Long.MAX_VALUE)),
+                            preVoteResponse.getLastAcceptedTerm(),
                             preVoteResponse.getLastAcceptedVersion());
                     case 1:
-                        return new PreVoteResponse(preVoteResponse.getCurrentTerm(), randomNonNegativeLong(),
+                        assumeTrue("current term is 1", 1 < preVoteResponse.getCurrentTerm());
+                        return new PreVoteResponse(
+                            preVoteResponse.getCurrentTerm(),
+                            randomValueOtherThan(preVoteResponse.getLastAcceptedTerm(),
+                                () -> randomLongBetween(1, preVoteResponse.getCurrentTerm())),
                             preVoteResponse.getLastAcceptedVersion());
                     case 2:
-                        return new PreVoteResponse(preVoteResponse.getCurrentTerm(), preVoteResponse.getLastAcceptedTerm(),
-                            randomNonNegativeLong());
+                        return new PreVoteResponse(
+                            preVoteResponse.getCurrentTerm(),
+                            preVoteResponse.getLastAcceptedTerm(),
+                            randomValueOtherThan(preVoteResponse.getLastAcceptedVersion(), ESTestCase::randomNonNegativeLong));
                     default:
                         throw new AssertionError();
                 }

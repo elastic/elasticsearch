@@ -30,7 +30,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteTransportException;
-import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -70,7 +69,7 @@ public class PreVoteCollectorTests extends ESTestCase {
     public void createObjects() {
         Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build();
         deterministicTaskQueue = new DeterministicTaskQueue(settings);
-        final Transport capturingTransport = new CapturingTransport() {
+        final CapturingTransport capturingTransport = new CapturingTransport() {
             @Override
             protected void onSendRequest(final long requestId, final String action, final TransportRequest request,
                                          final DiscoveryNode node) {
@@ -104,7 +103,7 @@ public class PreVoteCollectorTests extends ESTestCase {
 
         localNode = new DiscoveryNode("local-node", buildNewFakeTransportAddress(), Version.CURRENT);
         responsesByNode.put(localNode, new PreVoteResponse(currentTerm, lastAcceptedTerm, lastAcceptedVersion));
-        transportService = new TransportService(settings, capturingTransport,
+        transportService = capturingTransport.createCapturingTransportService(settings,
             deterministicTaskQueue.getThreadPool(), TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundTransportAddress -> localNode, null, emptySet());
         transportService.start();

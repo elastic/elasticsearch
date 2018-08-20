@@ -4472,7 +4472,7 @@ public class InternalEngineTests extends EngineTestCase {
             globalCheckpoint.set(randomLongBetween(engine.getLocalCheckpoint(), Long.MAX_VALUE));
             engine.syncTranslog();
             assertThat(DirectoryReader.listCommits(store.directory()), contains(commits.get(commits.size() - 1)));
-            assertThat(engine.estimateTranslogOperationsFromMinSeq(0L), equalTo(0));
+            assertThat(engine.getTranslog().totalOperations(), equalTo(0));
         }
     }
 

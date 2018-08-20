@@ -24,6 +24,7 @@ import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.protocol.xpack.ml.CloseJobRequest;
 import org.elasticsearch.protocol.xpack.ml.DeleteJobRequest;
 import org.elasticsearch.protocol.xpack.ml.OpenJobRequest;
 import org.elasticsearch.protocol.xpack.ml.PutJobRequest;
@@ -64,6 +65,29 @@ public class MLRequestConvertersTests extends ESTestCase {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         request.getEntity().writeTo(bos);
         assertEquals(bos.toString("UTF-8"), "{\"job_id\":\""+ jobId +"\",\"timeout\":\"10m\"}");
+    }
+
+    public void testCloseJob() {
+        String jobId = "somejobid";
+        CloseJobRequest closeJobRequest = new CloseJobRequest(jobId);
+
+        Request request = MLRequestConverters.closeJob(closeJobRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + "/_close", request.getEndpoint());
+        assertFalse(request.getParameters().containsKey("force"));
+        assertFalse(request.getParameters().containsKey("allow_no_jobs"));
+        assertFalse(request.getParameters().containsKey("timeout"));
+
+        closeJobRequest = new CloseJobRequest(jobId, "otherjobs*");
+        closeJobRequest.setForce(true);
+        closeJobRequest.setAllowNoJobs(false);
+        closeJobRequest.setTimeout(TimeValue.timeValueMinutes(10));
+        request = MLRequestConverters.closeJob(closeJobRequest);
+
+        assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + ",otherjobs*/_close", request.getEndpoint());
+        assertEquals(Boolean.toString(true), request.getParameters().get("force"));
+        assertEquals(Boolean.toString(false), request.getParameters().get("allow_no_jobs"));
+        assertEquals("10m", request.getParameters().get("timeout"));
     }
 
     public void testDeleteJob() {

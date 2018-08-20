@@ -108,8 +108,14 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                     aggScript(vars, state -> state.put((String) XContentMapValues.extractValue("params.param1", vars),
                         XContentMapValues.extractValue("params.param2", vars))));
 
-            scripts.put("vars.multiplier = 3", vars ->
-                    ((Map<String, Object>) vars.get("vars")).put("multiplier", 3));
+            scripts.put("vars.multiplier = 3", vars -> {
+                ((Map<String, Object>) vars.get("vars")).put("multiplier", 3);
+
+                Map<String, Object> state = (Map<String, Object>) vars.get("state");
+                state.put("list", new ArrayList());
+
+                return state;
+            });
 
             scripts.put("state.list.add(vars.multiplier)", vars ->
                     aggScript(vars, state -> {
